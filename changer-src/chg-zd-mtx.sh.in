@@ -189,6 +189,8 @@
 #
 # autocleancount=99	    #### Number of access before a clean.
 #
+# cleancycle=120	    #### Time (seconds) to clean drive (default 120)
+#
 # havereader=0		    #### If you have a barcode reader, set to 1.
 #
 # offline_before_unload=0   #### Does your robot require an

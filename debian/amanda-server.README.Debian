@@ -1,0 +1,63 @@
+amanda for DEBIAN
+-----------------
+
+To configure your server, as root do:
+
+1. for a simple setup edit the files (see explanations there) 
+	/etc/amanda/DailySet1/amanda.conf
+	/etc/amanda/DailySet1/disklist
+	/etc/amanda/crontab
+
+2. prepare the holding disk if you use one by 
+	chown -R backup:backup <holding disk location>
+
+3. do 
+	crontab -u backup /etc/amanda/crontab.amanda
+
+
+To use all of Amanda's features, you may find it necessary to put each client
+machine's root user in the .rhosts or .amandahosts for ~backup on the server 
+machine.  On Debian systems, this is usually linked to /etc/amandahosts, but
+if you have clients running other operating systems you'll have to find the
+right place yourself.
+
+
+NOTE:  If you want to backup your server too, you need to treat it as both a
+client *and* a server, see /usr/share/doc/amanda-client/README.Debian for 
+more information.
+
+
+For more complex setups, consult the manpages and the extra documents and
+example files in /usr/share/doc/amanda-common, or look at www.amanda.org on
+the web.
+
+Another Note: if you use floppy tapes you have to use the sftape
+interface for use with ftape(>=3.03).
+
+Jean Pierre LeJacq <jplejacq@mail.quoininc.com> reports the following about
+his experience using ftape:
+
+  I'm using ftape successfully with amanda but only after
+  struggling.  The crucial trick was to set the block size with with ftmt to 
+  be the same as used by amanda.  I've implemented this with this entry in
+  /etc/modules.conf:
+  
+    alias char-major-27 zftape
+    pre-install zftape /sbin/swapout 5
+    post-install zftape /bin/ftmt -f /dev/nzqft0 setblk 32768
+
+
+To ease use with firewalls, Amanda has been built with options restricting the
+use of TCP to the port range 50000-50100,  and UDP to the port range 840-860.
+
+Sam Johnston <samj@samj.net> reported problems with an Amanda server on which
+bastille was used with the "restrict system resources" option.  See bug
+118616 in the Debian bug tracking system for more information.
+
+Concerns have been expressed about the reliability of 'dump' as a backup tool
+on live Linux systems.  Nothing can guarantee a consistent and meaningful 
+backup of a live filesystem under all circumstances.  The tar utility is 
+'essential' in Debian and so will always be around, is not tied to any specific
+filesystem type, and there are entries in the default amanda.conf file 
+defining dump types using tar.
+

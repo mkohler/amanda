@@ -1,0 +1,3 @@
+usr/share/doc/amanda-client
+usr/share/lintian/overrides
+var/lib/amanda/gnutar-lists

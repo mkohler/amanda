@@ -1,0 +1,13 @@
+usr/lib/amanda/amandad
+usr/lib/amanda/calcsize
+usr/lib/amanda/killpgrp
+usr/lib/amanda/patch-system
+usr/lib/amanda/rundump
+usr/lib/amanda/runtar
+usr/lib/amanda/selfcheck
+usr/lib/amanda/sendbackup
+usr/lib/amanda/sendsize
+usr/lib/amanda/versionsuffix
+usr/lib/libamclient*
+usr/share/man/man8/amrecover.8.gz
+usr/sbin/amrecover

@@ -10,7 +10,7 @@
 .de OP
 \fB\\$1\fP \fI\\$2\fP
 ..
-.TH AMREPORT 1
+.TH AMREPORT 8
 .SH NAME
 amreport \- generate a formatted output of statistics for an Amanda run
 .SH SYNOPSIS

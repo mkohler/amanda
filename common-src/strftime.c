@@ -23,7 +23,9 @@ static char sccsid[] = "@(#)strftime.c	5.8 (Berkeley) 6/1/90";
 
 #include <sys/types.h>
 #include <sys/time.h>
-#include <tzfile.h>
+#ifndef	linux
+# include <tzfile.h>
+#endif	/* linux */
 #include <string.h>
 
 static char *afmt[] = {

@@ -1,0 +1,13 @@
+amanda-server: non-standard-dir-perm etc/amanda/ 0770 != 0755
+amanda-server: non-standard-dir-perm etc/amanda/DailySet1/ 0770 != 0755
+amanda-server: non-standard-file-perm etc/amanda/DailySet1/amanda.conf 0660 != 0644
+amanda-server: non-standard-file-perm etc/amanda/DailySet1/disklist 0660 != 0644
+amanda-server: non-standard-file-perm etc/amanda/crontab.amanda 0660 != 0644
+amanda-server: setuid-binary usr/sbin/amcheck 4754 root/backup
+amanda-server: setuid-binary usr/lib/amanda/dumper 4754 root/backup
+amanda-server: setuid-binary usr/lib/amanda/planner 4754 root/backup
+amanda-server: non-standard-dir-perm var/lib/amanda/ 0770 != 0755
+amanda-server: non-standard-dir-perm var/lib/amanda/DailySet1/ 0770 != 0755
+amanda-server: non-standard-dir-perm var/lib/amanda/DailySet1/index/ 0770 != 0755
+amanda-server: non-standard-dir-perm var/log/amanda/ 0770 != 0755
+amanda-server: non-standard-dir-perm var/log/amanda/DailySet1/ 0770 != 0755

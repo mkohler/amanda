@@ -1,0 +1,512 @@
+amanda (1:2.4.4p3-2) unstable; urgency=low
+
+  * add killpgrp to the set of setuid root:backup executables in the 
+    amanda-client package, closes: #266520
+
+ -- Bdale Garbee <bdale@gag.com>  Wed, 18 Aug 2004 12:55:21 -0600
+
+amanda (1:2.4.4p3-1) unstable; urgency=low
+
+  * new upstream version
+  * incorporate nl.po from Luk Claes, closes: #240071
+  * incorporate it.po from Luca Monducci, closes: #249171
+
+ -- Bdale Garbee <bdale@gag.com>  Sat, 24 Jul 2004 00:17:50 -0600
+
+amanda (1:2.4.4p2-2) unstable; urgency=high
+
+  * don't assume /var/backups is owned by user backup in the postinst, 
+    closes: #238069, #218135
+  * fix README.Debian pathnames in descriptions, closes: #225849, #225856
+  * include Japanese debconf translation, closes: #235321
+  * include upstream changelog in amanda-common, closes: #227033
+
+ -- Bdale Garbee <bdale@gag.com>  Sun, 14 Mar 2004 23:35:13 -0700
+
+amanda (1:2.4.4p2-1) unstable; urgency=low
+
+  * new upstream version, closes: #228697
+
+ -- Bdale Garbee <bdale@gag.com>  Sun, 15 Feb 2004 19:38:11 -0700
+
+amanda (1:2.4.4p1-2) unstable; urgency=low
+
+  * patch to fix problem using samba3, closes: #214845
+  * add AUTHORS, NEWS, and README to the set of docs delivered, closes: #81068
+  * add a note to the amanda-server README.Debian regarding the interaction 
+    with bastille's 'restrict system resources' option, closes: #118616
+  * add a note to the amanda-server README.Debian regarding the concerns
+    about the reliability of 'dump', closes: #198060
+  * though amverify now exits instead of hanging if mt is not present, make 
+    amanda-server suggest cpio|mt-st to get an mt anyway, closes: #155181
+  * apply patch for chg-scsi.c from Chirik to make emubarcode option work, 
+    closes: #214519
+  * include pt.po from Bruno Rodrigues, closes: #216390
+
+ -- Bdale Garbee <bdale@gag.com>  Fri, 24 Oct 2003 01:49:29 -0600
+
+amanda (1:2.4.4p1-1) unstable; urgency=low
+
+  * new upstream version, closes: #210324
+  * make rundump setuid like runtar, closes: #193982
+  * switch to gettext-based debconf templates, closes: #198101
+  * stop forcing ownership of ~backup to avoid security issues posed by other
+    packages writing there as root, closes: #198944
+  * limit port ranges to ease use with firewalls, semi-arbitrarily picking
+    ranges TCP 50000-50100 and UDP 840-860, closes: #65109, #89432, #111882
+  * remove ~backup/.amandahosts symlink in postrm on purge, closes: #198949
+
+ -- Bdale Garbee <bdale@gag.com>  Sun, 14 Sep 2003 23:21:00 -0600
+
+amanda (1:2.4.4-2) unstable; urgency=low
+
+  * mark amanda-server as replacing files in older amanda-common to ease
+    upgrading, closes: #190185, #191626
+
+ -- Bdale Garbee <bdale@gag.com>  Fri,  2 May 2003 10:50:44 -0600
+
+amanda (1:2.4.4-1) unstable; urgency=low
+
+  * new upstream version, closes: #169634, #182397, #182882
+  * updates the README.Debian files, closes: #189228, #189229
+  * change mailx from suggests to depends, closes: #187283
+  * correct instructions in amanda-client's README.Debian, closes: #180179
+  * patch from Brad Roberts, also submitted upstream, that fixes problems
+    with amflush sometimes ending up in an infinite loop inside the libc
+    memory allocation code, closes: #169537
+  * merge Danish templates translation, closes: #174740
+  * update chg-zd-mtx to include definition of cleancycle, the code using it
+    is already fixed in 2.4.3, closes: #169634
+  * remove explicit suggests on awk, since some flavor of awk is essential
+  * add lintian overrides files to squelch noise about conscious decisions
+
+ -- Bdale Garbee <bdale@gag.com>  Sun, 20 Apr 2003 01:14:33 -0600
+
+amanda (1:2.4.3-1) unstable; urgency=low
+
+  * new upstream version, closes: #127801, #163844, #167021, #165522, #127801
+  *   this version does not hard-code the sed path, closes: #161850, #151962
+  * have clean target in rules file update config.sub/guess
+  * clean up postinst files to only call ldconfig when configuring
+  * move to newer debhelper compatibility mode
+  * fix typo in postinst creation of group tape, closes: #165640
+  * enable support for XFS filesystems by adding xfsdump to the list of
+    required build dependencies, closes: #143913, #110731
+
+ -- Bdale Garbee <bdale@gag.com>  Wed,  6 Nov 2002 02:39:58 -0700
+
+amanda (1:2.4.2p2-4) unstable; urgency=low
+
+  * add mtx to the list of build dependencies so support for it gets included
+  * merge chg-zd-mtx.sh.in from 2.5.0 CVS, since it actually works with our
+    current mtx, closes: #136571
+  * merge french templates translation, closes: #138521
+  * merge russian templates translation, closes: #137616
+  * switch to unmerged templates files in the source package
+
+ -- Bdale Garbee <bdale@gag.com>  Tue,  2 Apr 2002 00:43:13 -0700
+
+amanda (1:2.4.2p2-3) unstable; urgency=medium
+
+  * solve problem reported as bug 112691 a different way, to back out the
+    change made for -2 that had disasterous side-effects... instead of messing
+    with configure options, just eliminate chg-mtx since it's not useful and
+    the mtx package provides mtx-changer which works.
+    Closes: #119495, #119546, #119352, #119361, #119549, #119665
+  * add lpr to build dependencies, closes: #119399, #108607
+  * change the fix for duplicate dependencies on amanda-common so that it's
+    the versioned flavor we preserve, so all the pieces stay in sync
+
+ -- Bdale Garbee <bdale@gag.com>  Wed, 14 Nov 2001 21:41:11 -0700
+
+amanda (1:2.4.2p2-2) unstable; urgency=medium
+
+  * add configure option to keep chg-mtx, et al, from writing to files in 
+    in /tmp insecurely, closes: #112691
+  * merge in -pt_BR template translation, closes: #106129
+  * fix duplicate dependencies on amanda-common, closes: #118639, #118642
+
+ -- Bdale Garbee <bdale@gag.com>  Fri,  9 Nov 2001 10:30:27 -0700
+
+amanda (1:2.4.2p2-1) unstable; urgency=low
+
+  * new upstream version, closes: #93449
+  * freshen config.sub/guess again
+  * fix problem with tapetype install using wrong libtool, closes: #104772
+  * various minor cleanups in the rules file to reduce warnings
+
+ -- Bdale Garbee <bdale@gag.com>  Thu, 19 Jul 2001 23:26:33 -0600
+
+amanda (1:2.4.2-6) unstable; urgency=low
+
+  * freshen config.sub/guess for ia64 and hppa, closes: #90182
+  * amanda tests for -E or -S for estimates from dump during configure, and
+    is selecting -S now with the dump in sid.  The latest amanda and latest
+    dump therefore should work fine together, closes: #91859
+  * update build-depends from perl5 to perl
+
+ -- Bdale Garbee <bdale@gag.com>  Wed,  4 Apr 2001 15:43:52 -0600
+
+amanda (1:2.4.2-5) unstable; urgency=low
+
+  * add an explicit dependency in the rules file on /usr/bin/smbclient, since
+    the Build-Depends: line in the control file isn't checked automatically,
+    and the configure will happily build amanda without smbclient support if
+    it isn't installed... which is *not* what we want!  closes: #85965
+
+ -- Bdale Garbee <bdale@gag.com>  Wed, 14 Feb 2001 11:33:06 -0700
+
+amanda (1:2.4.2-4) unstable; urgency=low
+
+  * lose the ftape-util build dependency, nobody wanted it and it's causing
+    various problems.  closes: #85516, #85708
+
+ -- Bdale Garbee <bdale@gag.com>  Mon, 12 Feb 2001 21:54:31 -0700
+
+amanda (1:2.4.2-3) unstable; urgency=low
+
+  * lose the dh_suidregister calls, since it's obsolete, closes: #85334
+  * add build-depend on ftape-util so that configure will find and know how to
+    use that technology, even though nobody has ever actually asked me about
+    it who wanted to use it... closes: #83287
+  * fold in contributed template translations, closes: #83479, #84839, #84867
+  * if ~backup/.amandahosts isn't a link, use 'su -c backup' when creating it
+    to be compatible with NFS-mounted home directories.  It would be cleaner,
+    of course, to train Amanda to use the real file which I now place in /etc 
+    directly, but that can wait for another day.  closes: #83554
+
+ -- Bdale Garbee <bdale@gag.com>  Fri,  9 Feb 2001 11:42:31 -0700
+
+amanda (1:2.4.2-2) unstable; urgency=low
+
+  * make sure /etc/amandahosts has correct owner/group/perms in postinst,
+    closes: #80941
+  * update dependency information since some files moved from amanda-common
+    to amanda-client, so that upgrades go smoothly.  also, make the client
+    and server packages have a versioned depend on the common package to avoid
+    potential problems.
+  * problem with visible control chars in amverify confirmed to have been 
+    fixed upstream in the 2.4.2 version, closes: #65537
+
+ -- Bdale Garbee <bdale@gag.com>  Sun, 31 Dec 2000 21:49:16 -0700
+
+amanda (1:2.4.2-1) unstable; urgency=low
+
+  * new upstream version, closes: #76632, #78040, #79500
+  * fold in debconf support patch from shaleh
+  * make sure all build dependencies are present, closes: #67008
+  * move canonical location of amandahosts file to /etc, moving existing file
+    there if necessary, and using a symlink in ~backup.  This allows treatment
+    as a conffile.  Closes: #52357
+  * upstream implemented a general Y2K amoverview fix, closes: #64780
+  * chg-scsi is delivered in amanda-server 2.4.2, closes: #41420
+
+ -- Bdale Garbee <bdale@gag.com>  Tue, 26 Dec 2000 23:25:22 -0700
+
+amanda (1:2.4.1p1-12) frozen unstable; urgency=low
+
+  * revert amplot/Makefile.in to upstream version to dodge issues created 
+    by newer automake version.  Note that items in the build depends
+    list in the control file *must* be available or the package build will
+    fail, as some executables won't be generated if configure doesn't find 
+    everything it wants!  Closes: #64864, marked as grave for potato.
+
+ -- Bdale Garbee <bdale@gag.com>  Sun, 11 Jun 2000 09:53:35 -0600
+
+amanda (1:2.4.1p1-11) frozen unstable; urgency=low
+
+  * target frozen because I think the spurious failure messages and duplicated
+    dependencies are worth fixing for potato even though both were filed as
+    "normal" bugs
+  * add extra cases to amanda-client's filtering of tar output to eliminate
+    user concern and confusion from spurious "FAILED DUMP" messages,
+    closes: #60126
+  * be more careful about which -dev packages are on build machine so that
+    we only depend on one version of libreadline, closes: #57940
+
+ -- Bdale Garbee <bdale@gag.com>  Sun, 12 Mar 2000 22:31:39 -0700
+
+amanda (1:2.4.1p1-10) unstable; urgency=low
+
+  * fix postinst bug in amanda-server that breaks inetd.conf that was 
+    introduced during cut'n'paste for -8, closes: #52332
+  * the amanda-server package depends on mailx because the upstream source
+    looks for mailx at configure time, embeds the path, and uses it to send
+    mail.  The dependency on mailx is not arbitrary.  Closes: #44034
+  * add mailx to the Build-Depends so configure can find it
+  * update path reference to GPL in copyright file for FHS
+
+ -- Bdale Garbee <bdale@gag.com>  Fri,  7 Jan 2000 01:39:14 -0700
+
+amanda (1:2.4.1p1-9) unstable; urgency=low
+
+  * missed a few things in Build-Depends, fill them in
+
+ -- Bdale Garbee <bdale@gag.com>  Sun,  5 Dec 1999 15:15:33 -0700
+
+amanda (1:2.4.1p1-8) unstable; urgency=low
+
+  * supply the real tapetype, not just libtool wrapper.  closes: #50585, #50280
+  * update control to include Build-Depends:, remove README.source-depends
+  * move the inetd entry handling from amanda-common postinst/prerm to the
+    amanda-server package, since they're only relevant there, closes: #49578
+
+ -- Bdale Garbee <bdale@gag.com>  Sat, 27 Nov 1999 17:39:13 -0700
+
+amanda (1:2.4.1p1-7) unstable; urgency=low
+
+  * recompile to include smbclient support
+
+ -- Bdale Garbee <bdale@gag.com>  Sun,  7 Nov 1999 14:13:24 -0700
+
+amanda (1:2.4.1p1-6) unstable; urgency=low
+
+  * apply patches from Amanda patch page for glibc21, glibc22, and samba2.
+    Closes: #42771, #44672
+  * real fix for self-referential dependencies, closes: #46362
+  * the amrecover behavior reported was a 2.4.0 issue, closes: #27709
+  * "fix" bash-ism in the rules file, closes: #45236
+  * provide tapetype in amanda-server, closes: #42825
+  * FHS compliance, lintian clean
+  * thanks to Ben Kochie <ben@nerp.net> for reviewing open bugs for this update
+
+ -- Bdale Garbee <bdale@gag.com>  Fri,  5 Nov 1999 20:22:00 -0700
+
+amanda (1:2.4.1p1-5) unstable; urgency=low
+
+  * update perl dependency to perl5 as per new perl policy
+
+ -- Bdale Garbee <bdale@gag.com>  Sun, 11 Jul 1999 11:37:32 -0600
+
+amanda (1:2.4.1p1-4) unstable; urgency=low
+
+  * fix dependencies for amanda-common in control, closes 38464
+
+ -- Bdale Garbee <bdale@gag.com>  Sun, 30 May 1999 23:37:55 -0600
+
+amanda (1:2.4.1p1-3) unstable; urgency=low
+
+  * depend on mailx, closes 34894
+  * lose the -DENABLE_GNUTAR_ATIME_PRESERVE, since it eliminates the ability
+    to use tar for incremental backups, closes 36639
+
+ -- Bdale Garbee <bdale@gag.com>  Mon, 24 May 1999 23:57:25 -0600
+
+amanda (1:2.4.1p1-2) unstable; urgency=low
+
+  * replace /var/state usage with /var/lib/amanda, since user backup can't 
+    write to /var/state
+  * stop calling automake/autoconf explicitly in the rules file, since it
+    appears that automake 1.4 breaks amanda, while 1.3 was ok.  It should be
+    ok to just use the provided configure, closes 32143
+
+ -- Bdale Garbee <bdale@gag.com>  Tue, 19 Jan 1999 21:21:18 -0700
+
+amanda (1:2.4.1p1-1) unstable; urgency=low
+
+  * new upstream version, closes 24855, 22270
+  * enable IGNORE_TAR_ERRORS and ENABLE_GNUTAR_ATIME_PRESERVE, closes 28486
+  * have the amanda-common postinst create /var/lib/amanda before it tries to
+    put a file there, closes 22345, 30326, 25106
+  * fix a few last references to /usr/adm, closes 25574
+  * update the docs for amanda-server to include a note about using ftape
+    from Jean Pierre LeJacq, closes 22271
+  * make the 'build-stamp' chunk of the rules file depend on /sbin/dump, since
+    amanda won't know about dump unless it can find it during the configure.
+    Another reason we need build-time dependencies, I guess.  Closes 24369.
+  * fix chg-mtx.sh.in to reflect Debian mtx syntax, closes 26208
+  * add tapetype QIC-3080, closes 26569
+  * eliminate dh_du from the rules file
+  * various tweaks to resolve lintian complaints
+
+ -- Bdale Garbee <bdale@gag.com>  Mon, 18 Jan 1999 22:58:34 -0700
+
+amanda (1:2.4.0-4) unstable; urgency=low
+
+  * add suggests dump to amanda-client, closes 24962
+
+ -- Bdale Garbee <bdale@gag.com>  Mon,  3 Aug 1998 22:32:29 -0600
+
+amanda (1:2.4.0-3) frozen unstable; urgency=low
+
+  * be consistent about pointing to /var/lib/amanda/amandates, closes 21811.
+  * be consistent about supporting suidregister.
+  * make sure user backup's home directory exists before using it in the 
+    amanda-common postinst, closes 21897.
+
+ -- Bdale Garbee <bdale@gag.com>  Sun,  3 May 1998 20:48:38 -0600
+
+amanda (1:2.4.0-2) frozen unstable; urgency=low
+
+  * update amanda-common postinst to do a better job of making sure the 
+    user 'backup' exists, and has the right group privs.  Closes 18242,
+    20675, and 20945
+  * update amanda-client README file to reflect automatic handling of user
+    backup, and to add information for users setting up to do indexing,
+    closes 21313
+  * improve documentation of server config issues in amanda-server README,
+    closes 21366
+  * update default amanda.conf to fix compression flags on comp-user-tar and
+    comp-root-tar, closes 21198
+  * fix typos in amanda-server's README file, closes 21118
+
+ -- Bdale Garbee <bdale@gag.com>  Mon, 20 Apr 1998 02:14:50 -0600
+
+amanda (1:2.4.0-1) frozen unstable; urgency=high
+
+  * new upstream release, 2.4.0 is no longer beta... 
+  * use an explicit epoch in the version since 2.4.0 < 2.4.0b6 ... sigh
+  * add --with-smbclient to configure run, and include more docs in 
+    amanda-common, closes 18366
+  * clean up dependencies, closes 18746
+  * patch dh_movefiles from debhelper to move real files before symlinks when
+    processing wildcards, closes 19267... debhelper bug 18220 addresses this
+    issue.
+  * make better use of wildcards in debhelper control files, closes 18350
+  * fix spelling errors in control file, closes 18959
+  * have amanda-server suggest mailx, since amcheck optionally uses 
+    /usr/bin/Mail to notify the operator of needed tapes, closes 18334
+  * improve the postinst slightly... the home directory for user backup needs
+    to be fixed in /etc/passwd before I can do the right things to close
+    18242 completely.  Bug filed against base-passwd, severity important.
+  * various small cleanups suggested to me via email without bugs filed
+
+ -- Bdale Garbee <bdale@gag.com>  Mon, 30 Mar 1998 18:29:55 -0700
+
+amanda (2.4.0b6-12) unstable; urgency=low
+ 
+  * apply upstream patches to bring us to 2.4.0-980319
+  * fold in some of Heiko's improvements from his bo-unstable version
+
+ -- Bdale Garbee <bdale@gag.com>  Tue, 24 Mar 1998 23:52:55 -0700
+
+amanda (2.4.0b6-11) unstable; urgency=low
+
+  * apply upstream patches to bring us to 2.4.0b6p4
+  * use appropriate wildcards in amanda-*.files control files.  Closes 18196.
+  * include 'adduser' alternative in amanda-client's README, closes 18174.
+
+ -- Bdale Garbee <bdale@gag.com>  Sun, 15 Feb 1998 12:54:46 -0700
+
+amanda (2.4.0b6-10) unstable; urgency=low
+
+  * apply upstream patches to bring us to 2.4.0b6p3
+
+ -- Bdale Garbee <bdale@gag.com>  Sun,  8 Feb 1998 17:53:47 -0700
+
+amanda (2.4.0b6-9) unstable; urgency=low
+
+  * clean up dependencies, closes 17838
+  * apply upstream patches to bring us to 2.4.0b6p2
+  * switch to automake 1.2d from experimental on build machine, reduces
+    the amount of hackery required, and therefore the size of the diffs.
+
+ -- Bdale Garbee <bdale@gag.com>  Thu,  5 Feb 1998 22:40:58 -0700
+
+amanda (2.4.0b6-8) unstable; urgency=low
+
+  * apply upstream patch to handle occasional divide by zero in amplot 
+  * refine split of files between binary packages 
+
+ -- Bdale Garbee <bdale@gag.com>  Wed, 28 Jan 1998 14:33:30 -0700
+
+amanda (2.4.0b6-7) unstable; urgency=low
+
+  * patch for amrmtape from Heiko, will be in a future upstream release
+  * add suidmanager support to control files
+
+ -- Bdale Garbee <bdale@gag.com>  Wed, 28 Jan 1998 14:33:30 -0700
+
+amanda (2.4.0b6-6) unstable; urgency=low
+
+  * clean up permissions... with --with-bsd-security enabled, some pieces must
+    be setuid in the server package
+  * fix client prerm so that it only removes the inetd.conf entry it owns.
+
+ -- Bdale Garbee <bdale@gag.com>  Tue, 27 Jan 1998 14:44:30 -0700
+
+amanda (2.4.0b6-5) unstable; urgency=low
+
+  * enable use of .amandahosts instead of .rhosts for access control.  
+  * change /etc/amandates location to /var/lib/amandates for FSSTND compliance.
+  * ensure /var/lib/amandates exists with correct perms in postinst.
+  * make the /var/lib/amanda-gnutar-lists directory have appropriate perms.
+  * update README files to reflect contemporary reality
+
+ -- Bdale Garbee <bdale@gag.com>  Tue, 27 Jan 1998 10:04:58 -0700
+
+amanda (2.4.0b6-4) unstable; urgency=low
+
+  * oops... --with-bsd-security got dropped from the configure at some point,
+    add it back in.  Thanks to Heiko again for pointing this out.
+
+ -- Bdale Garbee <bdale@gag.com>  Mon, 26 Jan 1998 10:40:39 -0700
+
+amanda (2.4.0b6-3) unstable; urgency=low
+
+  * make amanda-common depend on tar >= 1.12.   Thanks to Heiko Schlittermann
+    for pointing this out.
+
+ -- Bdale Garbee <bdale@gag.com>  Mon, 26 Jan 1998 10:40:39 -0700
+
+amanda (2.4.0b6-2) unstable; urgency=low
+
+  * amanda-common was suggesting amanda or amanda-client, updated to reflect
+    replacement of 'amanda' with 'amanda-server'.
+
+ -- Bdale Garbee <bdale@gag.com>  Mon, 26 Jan 1998 10:40:39 -0700
+
+amanda (2.4.0b6-1) unstable; urgency=low
+
+  * new maintainer
+  * new upstream release, reworked package for libc6, using debhelper
+  * incorporate amanda-common split suggested by Tom Lear's 2.4.0b4 package.
+    this replaces 'amanda' with 'amanda-server', and breaks out an 
+    'amanda-common' package to hold the libs and man pages that were formerly
+    conflicting between amanda and amanda-client.  Closes bugs 11046, 11943.
+
+ -- Bdale Garbee <bdale@gag.com>  Mon, 26 Jan 1998 09:15:05 -0700
+
+amanda (2.3.0.4-2.1) unstable; urgency=low
+
+  * non-maintainer release (never actually uploaded)
+  * libc6
+  * make amanda and amanda-client depend on netbase (>=3.03) for /etc/services
+    entries.  Remove /etc/services mashing from postinst.  Closes bugs 12847,
+    12848, 13795.
+  * make amanda depend on amanda-client.  This is the easiest way to resolve
+    the overlapping files problem.  It makes the assumption that if you're
+    running an amanda server, you'll want the client stuff anyway so you can 
+    back up the server.  Since the client package is small, this seems like a
+    better resolution than splitting out a third "common" package.  Closes
+    bugs 11046, 11943.
+  * update all references to /etc/amandates and /etc/dumpdates to use 
+    /var/lib/*dates, ala current Debian dump package.  Closes bug 15586.
+  * pre-apply all the patches from the upstream archive, to simplify the 
+    build process.  Patches applied include: arithexc.diff,exclude2.diff,
+    flushidx.diff,srvcomp.diff,tardates.diff,exclude.diff,exclude3.diff,
+    longopt.diff, and srvcomp2.diff.  Closes bug 13151, 13796.
+  * convert rules file to use debhelper.
+
+ -- Bdale Garbee <bdale@gag.com>  Sat, 10 Jan 1998 02:08:02 -0700
+
+amanda (2.3.0.4-2) unstable; urgency=low
+
+  * fixed dependencies for amanda-client 
+
+ -- Christian Meder <meder@control.toronto.edu>  Wed, 18 Jun 1997 14:49:49 -0400
+
+amanda (2.3.0.4-1) unstable; urgency=low
+
+  * Initial Release.
+  * Split in client and server package
+  * wrote small READMEs to ease a quick start
+  * applied several patches from 
+    http://www.cs.umd.edu/projects/amanda/patches.html to fix various
+    new features
+
+ -- Christian Meder <meder@control.toronto.edu>  Wed, 14 May 1997 13:08:34 -0500
+
+Local variables:
+mode: debian-changelog
+End:

@@ -26,7 +26,7 @@
 /*
  * $Id: amandates.c,v 1.15.8.1 2003/10/22 17:43:33 martinea Exp $
  *
- * manage amandates file, that mimics /etc/dumpdates, but stores
+ * manage amandates file, that mimics /var/lib/dumpdates, but stores
  * GNUTAR dates
  */
 
@@ -258,7 +258,7 @@ amandates_t *amdp;
 
     devname = amname_to_devname(amdp->name);
 
-    if((dumpdf = fopen("/etc/dumpdates", "r")) == NULL) {
+    if((dumpdf = fopen("/var/lib/dumpdates", "r")) == NULL) {
 	amfree(devname);
 	return;
     }

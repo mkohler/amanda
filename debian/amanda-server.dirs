@@ -1,0 +1,7 @@
+etc/amanda/DailySet1
+usr/sbin
+usr/share/doc/amanda-server
+usr/share/man/man1
+usr/share/lintian/overrides
+var/lib/amanda/DailySet1/index
+var/log/amanda/DailySet1

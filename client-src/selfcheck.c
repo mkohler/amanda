@@ -748,7 +748,7 @@ static void check_overall()
     }
 
     if( need_dump || need_xfsdump )
-	check_file("/etc/dumpdates",
+	check_file("/var/lib/dumpdates",
 #ifdef USE_RUNDUMP
 		   F_OK
 #else
@@ -767,7 +767,7 @@ static void check_overall()
     check_space(AMANDA_DBGDIR, 64);	/* for amandad i/o */
 #endif
 
-    check_space("/etc", 64);		/* for /etc/dumpdates writing */
+    check_space("/var/lib", 64);	/* for /var/lib/dumpdates writing */
 }
 
 static void check_space(dir, kbytes)

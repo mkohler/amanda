@@ -1,0 +1,42 @@
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
+#
+#    Developers do not need to manually edit POT or PO files.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2003-06-20 01:36-0600\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=ISO-8859-15\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Description
+#: ../templates:3
+msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates."
+msgstr "Por favor fusione los ficheros de datos"
+
+#. Description
+#: ../templates:3
+msgid ""
+"You have both /var/lib/amandates and /var/lib/amanda/amandates. Please "
+"review the files, and merge the contents you care about to the /var/lib/"
+"amanda/amandates location, and remove the old file /var/lib/amandates."
+msgstr ""
+"Se han detectado los ficheros /var/lib/amandates y /var/lib/amanda/"
+"amandates. Por favor revise ambos ficheros y fusione los contenidos que le "
+"sean necesarios en el fichero /var/lib/amanda/amandates. Posteriormente "
+"puede borrar el fichero antig=FCo /var/lib/amandates."

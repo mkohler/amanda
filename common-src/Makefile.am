@@ -79,7 +79,7 @@ TEST_PROGS = statfs token file security amfeatures
 
 CLEANFILES = regex.h regcomp.ih engine.ih regerror.ih *.test.c
 
-DISTCLEANFILES = version.c
+DISTCLEANFILES = version.c genversion
 
 regex.h: $(REGEXHSRC) $(REGsrcdir)/mkh
 	sh $(REGsrcdir)/mkh -o -i _REGEX_H_ $(REGEXHSRC) >$@

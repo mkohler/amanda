@@ -1,0 +1,130 @@
+#!/usr/bin/make -f
+# debian/rules for amanda using debhelper. GNU copyright 1998 by Bdale Garbee.
+# requires automake 1.2d (from experimental tree)
+
+#	Warning - do *not* use -j on an SMP machine, or the build gets
+#		confused... some sort of race condition in the makefiles?
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+# This is the debhelper compatability version to use.
+export DH_COMPAT=4
+
+r=$(shell pwd)/debian/amanda-common
+server=$(shell pwd)/debian/amanda-server
+client=$(shell pwd)/debian/amanda-client
+
+build: build-stamp 
+build-stamp: /sbin/dump /usr/bin/smbclient debian/po/templates.pot
+	dh_testdir
+#	automake --foreign
+#	autoconf -l config
+	./configure --prefix=/usr --bindir=/usr/sbin --mandir=/usr/share/man \
+		--libexecdir=/usr/lib/amanda --enable-shared\
+		--sysconfdir=/etc --localstatedir=/var/lib \
+		--with-gnutar-listdir=/var/lib/amanda/gnutar-lists \
+		--with-index-server=localhost \
+		--with-user=backup --with-group=backup  \
+		--with-bsd-security --with-amandahosts \
+		--with-smbclient=/usr/bin/smbclient \
+		--with-tcpportrange=50000,50100 --with-udpportrange=840,860
+	touch missing
+	make CFLAGS="-O2 -g -Wall \
+		-DAMANDATES_FILE='\"/var/lib/amanda/amandates\"' \
+		-DIGNORE_TAR_ERRORS "
+	touch build-stamp
+
+clean:
+	dh_testdir
+	dh_testroot
+	-make clean
+	-make distclean
+	-rm -f build-stamp missing config/config.h common-src/genversion
+	-find . -type d -name .deps -exec rm -rf {} \;
+
+	-test -r /usr/share/misc/config.sub && \
+		cp -f /usr/share/misc/config.sub config/config.sub
+	-test -r /usr/share/misc/config.guess && \
+		cp -f /usr/share/misc/config.guess config/config.guess
+
+	dh_clean
+
+# Build architecture-independent files here.
+binary-indep: build
+
+# Build architecture-dependent files here.
+binary-arch: build
+	dh_testdir
+	dh_testroot
+	dh_clean -k
+	dh_installdirs -a
+	make install prefix=$(r)/usr bindir=$(r)/usr/sbin \
+		libexecdir=$(r)/usr/lib/amanda mandir=$(r)/usr/share/man
+	install -m 644 debian/amanda.conf.in \
+		$(server)/etc/amanda/DailySet1/amanda.conf
+	install -m 644 debian/disklist $(server)/etc/amanda/DailySet1/disklist
+	install -m 644 debian/crontab.amanda $(server)/etc/amanda
+	install -m 644 debian/amandahosts $(r)/etc/amandahosts
+	dh_installdocs -a
+	install -d $(r)/usr/share/doc/amanda-common/examples
+	cp -a example/* $(r)/usr/share/doc/amanda-common/examples
+	cp ChangeLog $(r)/usr/share/doc/amanda-common/changelog
+	dh_installmenu -a
+	dh_installcron -a
+	dh_installchangelogs -a
+	dh_installdebconf -a
+	dh_strip -a
+	dh_compress -a
+	dh_movefiles -a --sourcedir=debian/amanda-common
+	rm $(server)/usr/lib/amanda/chg-mtx
+	dh_fixperms -av
+	# fix perms manually
+	chown -R backup:backup debian/*/var/lib/*
+	chmod -R u=rwX,g=rwX,o-rwx debian/*/var/lib/*
+	chown -R backup:backup $(server)/var/log/amanda
+	chmod -R u=rwX,g=rwX,o-rwx $(server)/var/log/amanda
+	chown -R backup:backup $(server)/etc/amanda
+	chmod -R u=rwX,g=rwX,o-rwx $(server)/etc/amanda
+	chown -R backup:backup $(client)/var/lib/amanda/gnutar-lists
+	chmod -R u=rwX,g=rwX,o-rwx $(client)/var/lib/amanda/gnutar-lists
+	# .. setuid
+	chown root:backup \
+		$(client)/usr/lib/amanda/killpgrp \
+		$(client)/usr/lib/amanda/rundump \
+		$(client)/usr/lib/amanda/runtar \
+		$(server)/usr/lib/amanda/dumper \
+		$(server)/usr/lib/amanda/planner \
+		$(server)/usr/sbin/amcheck
+	chmod u=srwx,g=rx,o=r \
+		$(client)/usr/lib/amanda/killpgrp \
+		$(client)/usr/lib/amanda/rundump \
+		$(client)/usr/lib/amanda/runtar \
+		$(server)/usr/lib/amanda/dumper \
+		$(server)/usr/lib/amanda/planner \
+		$(server)/usr/sbin/amcheck
+	install -o root -g root -m 0644 debian/amanda-client.lintian \
+		$(client)/usr/share/lintian/overrides/amanda-client
+	install -o root -g root -m 0644 debian/amanda-server.lintian \
+		$(server)/usr/share/lintian/overrides/amanda-server
+	dh_makeshlibs -a
+	dh_installdeb -a
+	dh_shlibdeps -a -l"debian/amanda-common/usr/lib:debian/amanda-client/usr/lib:debian/amanda-server/usr/lib"
+	# strip out the non-versioned amanda-common references, we need
+	# the versioned ones in the control file and dupes are ugly...
+	sed -e 's/amanda-common, //' < debian/amanda-server.substvars > debian/blah
+	mv debian/blah debian/amanda-server.substvars
+	sed -e 's/amanda-common, //' < debian/amanda-client.substvars > debian/blah
+	mv debian/blah debian/amanda-client.substvars
+	dh_gencontrol -a
+	dh_md5sums -a
+	dh_builddeb -a
+
+source diff:                                                                  
+	@echo >&2 'source and diff are obsolete - use dpkg-source -b'; false
+
+debian/po/templates.pot:	debian/templates
+	@debconf-updatepo
+
+binary: binary-indep binary-arch
+.PHONY: build clean binary-indep binary-arch binary

@@ -1,0 +1,6 @@
+#!/bin/sh
+
+update-inetd --group "OTHER" --add "amandaidx stream tcp nowait backup /usr/sbin/tcpd /usr/lib/amanda/amindexd"
+update-inetd --group "OTHER" --add "amidxtape stream tcp nowait backup /usr/sbin/tcpd /usr/lib/amanda/amidxtaped"
+
+#DEBHELPER#

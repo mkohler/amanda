@@ -1303,8 +1303,14 @@ int main(int argc, char *argv[])
     break;
   case COM_LABEL: /* Update BarCode/Label mapping file */
     pbarcoderes->action = BARCODE_PUT;
+    pbarcoderes->data.from = pbarcoderes->data.slot = get_current_slot(slot_file);
     strcpy(pbarcoderes->data.voltag, com.parameter);
-    strcpy( pbarcoderes->data.barcode, pDTE[drive_num].VolTag);
+    if (BarCode(fd) == 1 && emubarcode != 1)
+    {
+       strcpy( pbarcoderes->data.barcode, pDTE[drive_num].VolTag);
+    } else {
+       strcpy( pbarcoderes->data.barcode, com.parameter);
+    }
     MapBarCode(chg.labelfile, pbarcoderes);
     printf("0 0 0\n");
     break;
