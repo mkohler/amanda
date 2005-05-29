@@ -1,3 +1,10 @@
+amanda (1:2.4.4p3-3) unstable; urgency=low
+
+  * use /usr/bin/mail instead of /usr/bin/Mail, closes: #296022
+  * incorporate Czech translation from Miroslav Kure, closes: #297596
+
+ -- Bdale Garbee <bdale@gag.com>  Sun, 29 May 2005 17:02:16 +0200
+
 amanda (1:2.4.4p3-2) unstable; urgency=low
 
   * add killpgrp to the set of setuid root:backup executables in the 

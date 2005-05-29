@@ -20,6 +20,7 @@ build-stamp: /sbin/dump /usr/bin/smbclient debian/po/templates.pot
 	dh_testdir
 #	automake --foreign
 #	autoconf -l config
+	MAILER=/usr/bin/mail \
 	./configure --prefix=/usr --bindir=/usr/sbin --mandir=/usr/share/man \
 		--libexecdir=/usr/lib/amanda --enable-shared\
 		--sysconfdir=/etc --localstatedir=/var/lib \
