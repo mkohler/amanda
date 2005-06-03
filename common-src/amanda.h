@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amanda.h,v 1.66.2.7.4.5.2.14 2004/04/30 12:13:20 martinea Exp $
+ * $Id: amanda.h,v 1.66.2.7.4.5.2.12.2.4 2004/08/02 18:56:32 martinea Exp $
  *
  * the central header file included by all amanda sources
  */
@@ -173,18 +173,7 @@
 #  include <sys/wait.h>
 #endif
 
-#ifdef WAIT_USES_UNION
-  typedef union wait amwait_t;
-# ifndef WEXITSTATUS
-#  define WEXITSTATUS(stat_val) (((amwait_t*)&(stat_val))->w_retcode)
-# endif
-# ifndef WTERMSIG
-#  define WTERMSIG(stat_val) (((amwait_t*)&(stat_val))->w_termsig)
-# endif
-# ifndef WIFEXITED
-#  define WIFEXITED(stat_val) (WTERMSIG(stat_val) == 0)
-# endif
-#else
+#ifdef WAIT_USES_INT
   typedef int amwait_t;
 # ifndef WEXITSTATUS
 #  define WEXITSTATUS(stat_val) (*(unsigned*)&(stat_val) >> 8)
@@ -194,6 +183,30 @@
 # endif
 # ifndef WIFEXITED
 #  define WIFEXITED(stat_val) ((*(unsigned*)&(stat_val) & 255) == 0)
+# endif
+#else
+# ifdef WAIT_USES_UNION
+   typedef union wait amwait_t;
+#  ifndef WEXITSTATUS
+#  define WEXITSTATUS(stat_val) (((amwait_t*)&(stat_val))->w_retcode)
+#  endif
+#  ifndef WTERMSIG
+#   define WTERMSIG(stat_val) (((amwait_t*)&(stat_val))->w_termsig)
+#  endif
+#  ifndef WIFEXITED
+#   define WIFEXITED(stat_val) (WTERMSIG(stat_val) == 0)
+#  endif
+# else
+   typedef int amwait_t;
+#  ifndef WEXITSTATUS
+#   define WEXITSTATUS(stat_val) (*(unsigned*)&(stat_val) >> 8)
+#  endif
+#  ifndef WTERMSIG
+#   define WTERMSIG(stat_val) (*(unsigned*)&(stat_val) & 0x7F)
+#  endif
+#  ifndef WIFEXITED
+#   define WIFEXITED(stat_val) ((*(unsigned*)&(stat_val) & 255) == 0)
+#  endif
 # endif
 #endif
 
@@ -226,6 +239,7 @@
 #include <stdio.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
+
 #if !defined(CONFIGURE_TEST)
 #  include "amanda-int.h"
 #endif
@@ -534,6 +548,8 @@ extern char  *clean_regex     P((char *regex));
 extern int    match           P((char *regex, char *str));
 extern int    match_glob      P((char *glob, char *str));
 extern char  *glob_to_regex   P((char *glob));
+extern int    match_tar       P((char *glob, char *str));
+extern char  *tar_to_regex    P((char *glob));
 extern int    match_host      P((char *glob, char *host));
 extern int    match_disk      P((char *glob, char *disk));
 extern int    match_datestamp P((char *dateexp, char *datestamp));

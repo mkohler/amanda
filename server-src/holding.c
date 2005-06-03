@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: holding.c,v 1.17.2.12.4.3.2.10 2003/06/14 13:47:05 martinea Exp $
+ * $Id: holding.c,v 1.17.2.12.4.3.2.10.2.2 2004/10/21 13:12:29 martinea Exp $
  *
  * Functions to access holding disk
  */
@@ -60,10 +60,11 @@ char *fname;
 
 int is_datestr(fname)
 char *fname;
-/* sanity check on datestamp of the form YYYYMMDD */
+/* sanity check on datestamp of the form YYYYMMDD or YYYYMMDDhhmmss*/
 {
     char *cp;
-    int ch, num, date, year, month;
+    int ch, num, date, year, month, hour, minute, second;
+    char ymd[9], hms[7];
 
     /* must be 8 digits */
     for(cp = fname; (ch = *cp) != '\0'; cp++) {
@@ -71,17 +72,32 @@ char *fname;
 	    break;
 	}
     }
-    if(ch != '\0' || cp-fname != 8) {
+    if(ch != '\0' || (cp-fname != 8 && cp-fname != 14)) {
 	return 0;
     }
 
     /* sanity check year, month, and day */
 
-    num = atoi(fname);
+    strncpy(ymd, fname, 8);
+    ymd[8] = '\0';
+    num = atoi(ymd);
     year = num / 10000;
     month = (num / 100) % 100;
     date = num % 100;
     if(year<1990 || year>2100 || month<1 || month>12 || date<1 || date>31)
+	return 0;
+
+    if(cp-fname == 8)
+	return 1;
+
+    /* sanity check hour, minute, and second */
+    strncpy(hms, fname+8, 6);
+    hms[6] = '\0';
+    num = atoi(hms);
+    hour = num / 10000;
+    minute = (num / 100) % 100;
+    second = num % 100;
+    if(hour> 23 || minute>59 || second>59)
 	return 0;
 
     /* yes, we passed all the checks */
@@ -496,19 +512,25 @@ int complete;
 	    return 0;
 	}
 	buflen = fullread(fd, buffer, sizeof(buffer));
+	close(fd);
+
+	if(rename(filename_tmp, filename) != 0) {
+	    fprintf(stderr,
+		    "rename_tmp_holding: could not rename \"%s\" to \"%s\": %s",
+		    filename_tmp, filename, strerror(errno));
+	}
+
 	if (buflen == 0) {
-	    fprintf(stderr,"rename_tmp_holding: %s: empty file?\n", filename_tmp);
+	    fprintf(stderr,"rename_tmp_holding: %s: empty file?\n", filename);
 	    amfree(filename);
 	    amfree(filename_tmp);
-	    close(fd);
 	    return 0;
 	}
 	parse_file_header(buffer, &file, buflen);
-	close(fd);
 	if(complete == 0 ) {
-	    if((fd = open(filename_tmp,O_RDWR)) == -1) {
+	    if((fd = open(filename, O_RDWR)) == -1) {
 		fprintf(stderr, "rename_tmp_holdingX: open of %s failed: %s\n",
-			filename_tmp, strerror(errno));
+			filename, strerror(errno));
 		amfree(filename);
 		amfree(filename_tmp);
 		return 0;
@@ -518,11 +540,6 @@ int complete;
 	    build_header(buffer, &file, sizeof(buffer));
 	    fullwrite(fd, buffer, sizeof(buffer));
 	    close(fd);
-	}
-	if(rename(filename_tmp, filename) != 0) {
-	    fprintf(stderr,
-		    "rename_tmp_holding(): could not rename \"%s\" to \"%s\": %s",
-		    filename_tmp, filename, strerror(errno));
 	}
 	filename = newstralloc(filename, file.cont_filename);
     }

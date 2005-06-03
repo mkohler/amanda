@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amtrmidx.c,v 1.21.4.1.4.2.2.6 2004/02/12 18:28:42 martinea Exp $
+ * $Id: amtrmidx.c,v 1.21.4.1.4.2.2.5.2.1 2004/02/12 18:28:37 martinea Exp $
  *
  * trims number of index files to only those still in system.  Well
  * actually, it keeps a few extra, plus goes back to the last level 0

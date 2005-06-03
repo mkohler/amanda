@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: driverio.c,v 1.35.2.14.4.2.2.5 2003/01/01 23:28:54 martinea Exp $
+ * $Id: driverio.c,v 1.35.2.14.4.2.2.5.2.4 2005/03/16 18:15:28 martinea Exp $
  *
  * I/O-related functions for driver program
  */
@@ -375,6 +375,7 @@ disk_t *dp;
 	    ap_snprintf(use, sizeof(use), "%ld", 
 			h[activehd]->reserved - h[activehd]->used );
 	    cmdline = vstralloc(cmdstr[cmd],
+			        " ", disk2serial(dp),
 				" ", h[activehd]->destname,
 				" ", chunksize,
 				" ", use,
@@ -456,6 +457,7 @@ char *str;
 	printf("driver: error time %s serial gen mismatch\n",
 	       walltime_str(curclock()));
     stable[s].gen = 0;
+    stable[s].dp = NULL;
 }
 
 
@@ -465,8 +467,17 @@ disk_t *dp;
     int s;
     static char str[NUM_STR_SIZE];
 
+    for(s = 0; s < MAX_SERIAL; s++) {
+	if(stable[s].dp == dp) {
+	    ap_snprintf(str, sizeof(str), "%02d-%05ld", s, stable[s].gen);
+	    return str;
+	}
+    }
+
     /* find unused serial number */
-    for(s = 0; s < MAX_SERIAL; s++) if(stable[s].gen == 0) break;
+    for(s = 0; s < MAX_SERIAL; s++)
+	if(stable[s].gen == 0 && stable[s].dp == NULL)
+	    break;
     if(s >= MAX_SERIAL) {
 	printf("driver: error time %s bug: out of serial numbers\n",
 	       walltime_str(curclock()));
@@ -551,6 +562,17 @@ void update_info_dumper(dp, origsize, dumpsize, dumptime)
 	info.last_level = level;
 	info.consecutive_runs = 1;
     }
+
+    for(i=NB_HISTORY-1;i>0;i--) {
+	info.history[i] = info.history[i-1];
+    }
+
+    info.history[0].level = level;
+    info.history[0].size  = origsize;
+    info.history[0].csize = dumpsize;
+    info.history[0].date  = sched(dp)->timestamp;
+    info.history[0].secs  = dumptime;
+
     if(put_info(dp->host->hostname, dp->name, &info))
 	error("infofile update failed (%s,%s)\n", dp->host->hostname, dp->name);
 

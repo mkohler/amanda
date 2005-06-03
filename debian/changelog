@@ -1,3 +1,9 @@
+amanda (1:2.4.5-1) unstable; urgency=low
+
+  * new upstream version, closes: #299586, #308559
+
+ -- Bdale Garbee <bdale@gag.com>  Fri,  3 Jun 2005 09:02:42 -0600
+
 amanda (1:2.4.4p3-3) unstable; urgency=low
 
   * use /usr/bin/mail instead of /usr/bin/Mail, closes: #296022

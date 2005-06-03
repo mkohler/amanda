@@ -1,3 +1,24 @@
+Change in release 2.4.5
+
+* new displayunit global option to select the unit use to display number
+  k=kilo, m=mega, g=giga, t=tera.
+* new amoverview -skipmissed option.
+
+Change in release 2.4.5b1
+
+* holding disk disk use timestamped directory.
+* autoflush flush today's dump.
+* new bumppercent global option, this should improve bumping criteria,
+  the bumpsize is set to a fixed value which can be adequate for small
+  and large disk.
+* bumpsize, bumppercent, bumpdays and bumpmult can be in a dumptype.
+* calcsize support include and exclude like gnutar.
+* new 'estimate' dumptype option to select estimate type:
+    CLIENT: estimate by the dumping program.
+    CALCSIZE: estimate by the calcsize program, a lot faster but less acurate.
+    SERVER: estimate based on statistic from previous run, take second but
+            can be wrong on the estimate size.
+
 Changes in release 2.4.4p3
 
 * new chg-iomega changer script.

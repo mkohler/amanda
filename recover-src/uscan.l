@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: uscan.l,v 1.14.2.3.4.1.2.3 2004/02/11 13:03:52 martinea Exp $
+ * $Id: uscan.l,v 1.14.2.3.4.1.2.2.2.1 2004/02/11 13:03:38 martinea Exp $
  *
  * lexer for amrecover interactive language
  */

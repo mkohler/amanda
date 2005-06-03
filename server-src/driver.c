@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: driver.c,v 1.58.2.31.2.8.2.21 2004/04/26 15:02:47 martinea Exp $
+ * $Id: driver.c,v 1.58.2.31.2.8.2.20.2.14 2005/02/09 18:12:31 martinea Exp $
  *
  * controlling process for the Amanda backup system
  */
@@ -57,7 +57,7 @@ int  inparallel;
 int nodump = 0;
 long tape_length, tape_left = 0;
 int conf_taperalgo;
-host_t *flushhost = NULL;
+am_host_t *flushhost = NULL;
 
 int client_constrained P((disk_t *dp));
 int sort_by_priority_reversed P((disk_t *a, disk_t *b));
@@ -94,6 +94,7 @@ int main P((int main_argc, char **main_argv));
 
 static int idle_reason;
 char *datestamp;
+char *timestamp;
 
 char *idle_strings[] = {
 #define NOT_IDLE		0
@@ -156,6 +157,9 @@ int main(main_argc, main_argv)
 	close(fd);
     }
 
+    setvbuf(stdout, (char *)NULL, _IOLBF, 0);
+    setvbuf(stderr, (char *)NULL, _IOLBF, 0);
+
     set_pname("driver");
 
     signal(SIGPIPE, SIG_IGN);
@@ -202,6 +206,7 @@ int main(main_argc, main_argv)
 
     amfree(datestamp);
     datestamp = construct_datestamp(NULL);
+    timestamp = construct_timestamp(NULL);
     log_add(L_START,"date %s", datestamp);
 
     taper_program = vstralloc(libexecdir, "/", "taper", versionsuffix(), NULL);
@@ -273,11 +278,11 @@ int main(main_argc, main_argv)
 		hdp->disksize += fs.avail;
 	}
 
-	printf("driver: adding holding disk %d dir %s size %ld\n",
-	       dsk, hdp->diskdir, hdp->disksize);
+	printf("driver: adding holding disk %d dir %s size %ld chunksize %ld\n",
+	       dsk, hdp->diskdir, hdp->disksize, hdp->chunksize);
 
 	newdir = newvstralloc(newdir,
-			      hdp->diskdir, "/", datestamp,
+			      hdp->diskdir, "/", timestamp,
 			      NULL);
         if(!mkholdingdir(newdir)) {
 	    hdp->disksize = 0L;
@@ -312,7 +317,6 @@ int main(main_argc, main_argv)
     runq.head = runq.tail = NULL;
 
     read_flush(&tapeq);
-    if(!nodump) read_schedule(&waitq, &runq);
 
     log_add(L_STATS, "startup time %s", walltime_str(curclock()));
 
@@ -324,7 +328,7 @@ int main(main_argc, main_argv)
 	   getconf_str(CNF_DUMPORDER));
     fflush(stdout);
 
-    /* ok, planner is done, now lets see if the tape is ready */
+    /* Let's see if the tape is ready */
 
     cmd = getresult(taper, 1, &result_argc, result_argv, MAX_ARGS+1);
 
@@ -334,14 +338,44 @@ int main(main_argc, main_argv)
 	FD_CLR(taper,&readset);
     }
 
+    short_dump_state();					/* for amstatus */
+
     tape_left = tape_length;
     taper_busy = 0;
     taper_disk = NULL;
+
+    /* Start autoflush while waiting for dump schedule */
+    if(!nodump) {
+	/* Start any autoflush tape writes */
+	if (!empty(tapeq)) {
+	    startaflush();
+	    short_dump_state();				/* for amstatus */
+
+	    /* Process taper results until the schedule arrives */
+	    while (1) {
+		FD_ZERO(&selectset);
+		FD_SET(0, &selectset);
+		FD_SET(taper, &selectset);
+
+		if(select(taper+1, (SELECT_ARG_TYPE *)(&selectset), NULL, NULL,
+			  &sleep_time) == -1)
+		    error("select: %s", strerror(errno));
+		if (FD_ISSET(0, &selectset)) break;	/* schedule arrived */
+		if (FD_ISSET(taper, &selectset)) handle_taper_result();
+		short_dump_state();			/* for amstatus */
+	    }
+	    
+	}
+
+	/* Read the dump schedule */
+	read_schedule(&waitq, &runq);
+    }
+
+    /* Start any needed flushes */
     startaflush();
 
     while(start_some_dumps(&runq) || some_dumps_in_progress() ||
 	  any_delayed_disk) {
-
 	short_dump_state();
 
 	/* wait for results */
@@ -472,6 +506,7 @@ int main(main_argc, main_argv)
     fflush(stdout);
     log_add(L_FINISH,"date %s time %s", datestamp, walltime_str(curclock()));
     amfree(datestamp);
+    amfree(timestamp);
 
     amfree(dumper_program);
     amfree(taper_program);
@@ -536,25 +571,26 @@ void startaflush() {
 		if(dp) remove_disk(&tapeq, dp);
 		break;
 	case ALGO_SMALLEST: 
-		fit = dp = tapeq.head;
-		while (fit != NULL) {
-		    if(sched(fit)->act_size < sched(dp)->act_size &&
-		       strcmp(sched(fit)->datestamp, datestamp) <= 0) {
-			dp = fit;
-		    }
-		    fit = fit->next;
-		}
-		if(dp) remove_disk(&tapeq, dp);
 		break;
 	case ALGO_LAST:
 		dp = tapeq.tail;
 		remove_disk(&tapeq, dp);
 		break;
 	}
-	if(!dp) {
-	    dp = dequeue_disk(&tapeq); /* first if nothing fit */
-	    fprintf(stderr,
-		    "driver: startaflush: Using first because nothing fit\n");
+	if(!dp) { /* ALGO_SMALLEST, or default if nothing fit. */
+	    if(conf_taperalgo != ALGO_SMALLEST)  {
+		fprintf(stderr,
+		   "driver: startaflush: Using SMALLEST because nothing fit\n");
+	    }
+	    fit = dp = tapeq.head;
+	    while (fit != NULL) {
+		if(sched(fit)->act_size < sched(dp)->act_size &&
+		   strcmp(sched(fit)->datestamp, datestamp) <= 0) {
+		    dp = fit;
+		}
+		fit = fit->next;
+	    }
+	    if(dp) remove_disk(&tapeq, dp);
 	}
 	taper_disk = dp;
 	taper_busy = 1;
@@ -563,7 +599,10 @@ void startaflush() {
 	fprintf(stderr,"driver: startaflush: %s %s %s %ld %ld\n",
 		taperalgo2str(conf_taperalgo), dp->host->hostname,
 		dp->name, sched(taper_disk)->act_size, tape_left);
-	tape_left -= sched(dp)->act_size;
+	if(sched(dp)->act_size <= tape_left)
+	    tape_left -= sched(dp)->act_size;
+	else
+	    tape_left = 0;
     }
 }
 
@@ -784,7 +823,7 @@ char *str;
     printf("dump of driver schedule %s:\n--------\n", str);
 
     for(dp = qp->head; dp != NULL; dp = dp->next) {
-	printf("  %-10.10s %.16s lv %d t %5ld s %8lu p %d\n",
+	printf("  %-20s %-25s lv %d t %5ld s %8lu p %d\n",
 	       dp->host->hostname, dp->name, sched(dp)->level,
 	       sched(dp)->est_time, sched(dp)->est_size, sched(dp)->priority);
     }
@@ -960,6 +999,7 @@ void handle_taper_result()
 	    log_add(L_FAIL, "%s %s %d %s [too many taper retries]",
 		    dp->host->hostname, dp->name, sched(dp)->level,
 		    sched(dp)->datestamp);
+	    printf("driver: taper failed %s %s %s, too many taper retry\n", result_argv[2], dp->host->hostname, dp->name);
 	}
 	else {
 	    sched(dp)->attempted++;
@@ -1150,9 +1190,10 @@ void handle_dumper_result(fd)
 	dp->inprogress = 0;
 
 	if(sched(dp)->attempted) {
-	    log_add(L_FAIL, "%s %s %d %s[could not connect to %s]",
+	    log_add(L_FAIL, "%s %s %d %s [too many dumper retry]",
 		    dp->host->hostname, dp->name,
-		    sched(dp)->level, sched(dp)->datestamp, dp->host->hostname);
+		    sched(dp)->level, sched(dp)->datestamp);
+	    printf("driver: dump failed %s %s %s, too many dumper retry\n", result_argv[2], dp->host->hostname, dp->name);
 	} else {
 	    sched(dp)->attempted++;
 	    enqueue_disk(&runq, dp);
@@ -1421,7 +1462,7 @@ disklist_t *tapeqp;
 
 	/* add it to the flushhost list */
 	if(!flushhost) {
-	    flushhost = alloc(sizeof(host_t));
+	    flushhost = alloc(sizeof(am_host_t));
 	    flushhost->next = NULL;
 	    flushhost->hostname = stralloc("FLUSHHOST");
 	    flushhost->up = NULL;
@@ -1898,7 +1939,7 @@ disk_t *diskp;
     for( ; holdp[i]; i++ ) {
 	holdp[i]->destname = newvstralloc( holdp[i]->destname,
 					   holdp[i]->disk->diskdir, "/",
-					   datestamp, "/",
+					   timestamp, "/",
 					   diskp->host->hostname, ".",
 					   sfn, ".",
 					   lvl, NULL );
@@ -2120,6 +2161,7 @@ int dump_to_tape(dp)
     cmd_t cmd;
     int result_argc;
     char *result_argv[MAX_ARGS+1];
+    int dumper_tryagain = 0;
 
     inside_dump_to_tape = 1;	/* for simulator */
 
@@ -2203,7 +2245,10 @@ int dump_to_tape(dp)
     case TRYAGAIN: /* TRY-AGAIN <handle> <err str> */
     default:
 	/* dump failed, but we must still finish up with taper */
-	failed = 1;	/* problem with dump, possibly nonfatal */
+	/* problem with dump, possibly nonfatal, retry one time */
+	sched(dp)->attempted++;
+	failed = sched(dp)->attempted;
+	dumper_tryagain = 1;
 	break;
 	
     case FAILED: /* FAILED <handle> <errstr> */
@@ -2244,8 +2289,14 @@ int dump_to_tape(dp)
 	break;
 
     case TRYAGAIN: /* TRY-AGAIN <handle> <err mess> */
+	if(dumper_tryagain == 0) {
+	    sched(dp)->attempted++;
+	    if(sched(dp)->attempted > failed)
+		failed = sched(dp)->attempted;
+	}
     tryagain:
-	headqueue_disk(&runq, dp);
+	if(failed <= 1)
+	    headqueue_disk(&runq, dp);
     failed_dumper:
 	update_failed_dump_to_tape(dp);
 	free_serial(result_argv[2]);

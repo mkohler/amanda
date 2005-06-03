@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-#	$Id: amverify.sh.in,v 1.7.2.13.4.5.2.6 2003/10/24 13:44:49 martinea Exp $
+#	$Id: amverify.sh.in,v 1.7.2.13.4.5.2.6.2.2 2004/11/19 18:12:30 martinea Exp $
 #
 # (C) 1996 by ICEM Systems GmbH
 # Author: Axel Zinser (fifi@icem.de)
@@ -370,7 +370,20 @@ while [ $SLOT -lt $SLOTS ]; do
 		sleep 3
 	done
 	$Echon "Rewinding..."
-	until $MT $MTF $DEVICE rewind; do
+	ERRORS=0
+	until $MT $MTF $DEVICE rewind > $TEMP/ammt.out 2>&1; do
+		RESULT=`grep "No medium found" $TEMP/ammt.out`
+		[ X"$RESULT" != X"" ] \
+			&& report "** Error rewinding tape" \
+			&& report "`cat $TEMP/ammt.out`" \
+			&& cat $TEMP/ammt.out >> $DEFECTS \
+			&& break
+		ERRORS=`expr $ERRORS + 1`
+		[ $ERRORS -gt 100 ] \
+			&& report "** Error rewinding tape" \
+			&& report "`cat $TEMP/ammt.out`" \
+			&& cat $TEMP/ammt.out >> $DEFECTS \
+			&& break
 		sleep 3
 	done
 	$Echon "Processing label..."
@@ -415,6 +428,7 @@ while [ $SLOT -lt $SLOTS ]; do
 		FILE=`grep restoring $TEMP/amrestore.out \
 			| sed 's/^.*restoring //'`
 		EOF=`grep "reached end of tape" $TEMP/amrestore.out`
+		EOI=`grep "reached end of information" $TEMP/amrestore.out`
 		# amrestore:   0: restoring sundae._mnt_sol1_usr.19961127.1
 		if [ X"$FILE" != X"" -a X"$RESULT" = X"0" ]; then
 			report "Checked $FILE"
@@ -422,6 +436,9 @@ while [ $SLOT -lt $SLOTS ]; do
 			report "Skipped $FILE (`cat $TEMP/errors`)"
 		elif [ -n "$EOF" ]; then
 			report "End-of-Tape detected."
+			break
+		elif [ -n "$EOI" ]; then
+			report "End-of-Information detected."
 			break
 		else
 			report "** Error detected ($FILE)"

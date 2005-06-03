@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /* 
- * $Id: sendsize.c,v 1.97.2.13.4.6.2.23 2003/10/24 20:38:23 kovert Exp $
+ * $Id: sendsize.c,v 1.97.2.13.4.6.2.23.2.3 2005/04/06 12:31:04 martinea Exp $
  *
  * send estimated backup sizes using dump
  */
@@ -79,6 +79,7 @@ typedef struct disk_estimates_s {
     char *amdevice;
     char *dirname;
     char *program;
+    char *calcprog;
     int spindle;
     pid_t child;
     int done;
@@ -95,7 +96,7 @@ static g_option_t *g_options = NULL;
 /* local functions */
 int main P((int argc, char **argv));
 void add_diskest P((char *disk, char *amdevice, int level, int spindle,
-		    char *prog, option_t *options));
+		    char *prog, char *calcprog, option_t *options));
 void calc_estimates P((disk_estimates_t *est));
 void free_estimates P((disk_estimates_t *est));
 void dump_calc_estimates P((disk_estimates_t *));
@@ -109,7 +110,7 @@ int argc;
 char **argv;
 {
     int level, spindle;
-    char *prog, *disk, *amdevice, *dumpdate;
+    char *prog, *calcprog, *disk, *amdevice, *dumpdate;
     option_t *options = NULL;
     disk_estimates_t *est;
     disk_estimates_t *est1;
@@ -196,6 +197,20 @@ char **argv;
 	skip_non_whitespace(s, ch);
 	s[-1] = '\0';
 
+	if(strncmp(prog, "CALCSIZE", 8) == 0) {
+	    skip_whitespace(s, ch);		/* find the program name */
+	    if(ch == '\0') {
+		err_extra = "no program name";
+		goto err;
+	    }
+	    calcprog = s - 1;
+	    skip_non_whitespace(s, ch);
+	    s[-1] = '\0';
+	}
+	else {
+	    calcprog = NULL;
+	}
+
 	skip_whitespace(s, ch);			/* find the disk name */
 	if(ch == '\0') {
 	    err_extra = "no disk name";
@@ -281,7 +296,7 @@ char **argv;
 	    }
 	}
 
-	add_diskest(disk, amdevice, level, spindle, prog, options);
+	add_diskest(disk, amdevice, level, spindle, prog, calcprog, options);
 	amfree(amdevice);
     }
     amfree(line);
@@ -437,8 +452,8 @@ char **argv;
 }
 
 
-void add_diskest(disk, amdevice, level, spindle, prog, options)
-char *disk, *amdevice, *prog;
+void add_diskest(disk, amdevice, level, spindle, prog, calcprog, options)
+char *disk, *amdevice, *prog, *calcprog;
 int level, spindle;
 option_t *options;
 {
@@ -471,6 +486,10 @@ option_t *options;
     newp->amdevice = stralloc(amdevice);
     newp->dirname = amname_to_dirname(newp->amdevice);
     newp->program = stralloc(prog);
+    if(calcprog != NULL)
+	newp->calcprog = stralloc(calcprog);
+    else
+	newp->calcprog = NULL;
     newp->spindle = spindle;
     newp->est[level].needestimate = 1;
     newp->options = options;
@@ -535,7 +554,13 @@ disk_estimates_t *est;
 	  gnutar_calc_estimates(est);
 	else
 #endif
-	  generic_calc_estimates(est);
+#ifdef SAMBA_CLIENT
+	  if (est->amdevice[0] == '/' && est->amdevice[1] == '/')
+	    dbprintf(("%s: Can't use CALCSIZE for samba estimate: %s %s\n",
+		      est->amname, est->dirname));
+	  else
+#endif
+	    generic_calc_estimates(est);
 
     dbprintf(("%s: done with amname '%s', dirname '%s', spindle %d\n",
 	      debug_prefix_time(NULL),
@@ -545,65 +570,111 @@ disk_estimates_t *est;
 void generic_calc_estimates(est)
 disk_estimates_t *est;
 {
+    int pipefd = -1, nullfd = -1;
     char *cmd;
-    char *argv[DUMP_LEVELS*2+10];
+    char *my_argv[DUMP_LEVELS*2+20];
     char number[NUM_STR_SIZE];
-    int i, level, argc, calcpid;
+    int i, level, my_argc, calcpid;
+    int nb_exclude = 0;
+    int nb_include = 0;
+    char *file_exclude = NULL;
+    char *file_include = NULL;
+    times_t start_time;
+    FILE *dumpout = NULL;
+    long size = 1;
+    char *line = NULL;
+    char *match_expr;
 
     cmd = vstralloc(libexecdir, "/", "calcsize", versionsuffix(), NULL);
 
-    argc = 0;
-    argv[argc++] = stralloc("calcsize");
-    argv[argc++] = stralloc(est->program);
-#ifdef BUILTIN_EXCLUDE_SUPPORT
-    if(est->exclude && *est->exclude) {
-	argv[argc++] = stralloc("-X");
-	argv[argc++] = stralloc(est->exclude);
-    }
-#endif
-    argv[argc++] = stralloc(est->amdevice);
-    argv[argc++] = stralloc(est->dirname);
+    my_argc = 0;
+    my_argv[my_argc++] = stralloc("calcsize");
+    my_argv[my_argc++] = stralloc(est->calcprog);
 
-    dbprintf(("%s: running cmd: %s", debug_prefix_time(NULL), argv[0]));
-    for(i=0; i<argc; ++i)
-	dbprintf((" %s", argv[i]));
+    my_argv[my_argc++] = stralloc(est->amname);
+    my_argv[my_argc++] = stralloc(est->dirname);
+
+
+    if(est->options->exclude_file)
+	nb_exclude += est->options->exclude_file->nb_element;
+    if(est->options->exclude_list)
+	nb_exclude += est->options->exclude_list->nb_element;
+    if(est->options->include_file)
+	nb_include += est->options->include_file->nb_element;
+    if(est->options->include_list)
+	nb_include += est->options->include_list->nb_element;
+
+    if(nb_exclude > 0)
+	file_exclude = build_exclude(est->amname, est->amdevice,est->options,0);
+    if(nb_include > 0)
+	file_include = build_include(est->amname, est->amdevice,est->options,0);
+
+    if(file_exclude) {
+	my_argv[my_argc++] = stralloc("-X");
+	my_argv[my_argc++] = file_exclude;
+    }
+
+    if(file_include) {
+	my_argv[my_argc++] = stralloc("-I");
+	my_argv[my_argc++] = file_include;
+    }
+
+    start_time = curclock();
+
+    dbprintf(("%s: running cmd: %s", debug_prefix_time(NULL), my_argv[0]));
+    for(i=0; i<my_argc; ++i)
+	dbprintf((" %s", my_argv[i]));
 
     for(level = 0; level < DUMP_LEVELS; level++) {
 	if(est->est[level].needestimate) {
 	    ap_snprintf(number, sizeof(number), "%d", level);
-	    argv[argc++] = stralloc(number); 
+	    my_argv[my_argc++] = stralloc(number); 
 	    dbprintf((" %s", number));
 	    ap_snprintf(number, sizeof(number),
 			"%ld", (long)est->est[level].dumpsince);
-	    argv[argc++] = stralloc(number); 
+	    my_argv[my_argc++] = stralloc(number); 
 	    dbprintf((" %s", number));
 	}
     }
-    argv[argc] = NULL;
+    my_argv[my_argc] = NULL;
     dbprintf(("\n"));
 
     fflush(stderr); fflush(stdout);
 
-    switch(calcpid = fork()) {
-    case -1:
-        error("%s: fork returned: %s", cmd, strerror(errno));
-    default:
-        break;
-    case 0:
-	execve(cmd, argv, safe_env());
-	error("%s: execve returned: %s", cmd, strerror(errno));
-	exit(1);
-    }
-    for(i = 0; i < argc; i++) {
-	amfree(argv[i]);
-    }
+    nullfd = open("/dev/null", O_RDWR);
+    calcpid = pipespawnv(cmd, STDERR_PIPE, &nullfd, &nullfd, &pipefd, my_argv);
     amfree(cmd);
 
+    dumpout = fdopen(pipefd,"r");
+    match_expr = vstralloc(est->amname," %d SIZE %ld", NULL);
+    for(size = -1; (line = agets(dumpout)) != NULL; free(line)) {
+	if(sscanf(line, match_expr, &level, &size) == 2) {
+	    printf("%s\n", line); /* write to amandad */
+	    dbprintf(("%s: estimate size for %s level %d: %ld KB\n",
+		      debug_prefix(NULL),
+		      est->amname,
+		      level,
+		      size));
+	}
+    }
+    amfree(match_expr);
+
     dbprintf(("%s: waiting for %s \"%s\" child\n",
-	      debug_prefix_time(NULL), argv[0], est->amdevice));
+	      debug_prefix_time(NULL), my_argv[0], est->amdevice));
     wait(NULL);
     dbprintf(("%s: after %s \"%s\" wait\n",
-	      debug_prefix_time(NULL), argv[0], est->amdevice));
+	      debug_prefix_time(NULL), my_argv[0], est->amdevice));
+
+    dbprintf(("%s: .....\n", debug_prefix_time(NULL)));
+    dbprintf(("%s: estimate time for %s: %s\n",
+	      debug_prefix(NULL),
+	      est->amname,
+	      walltime_str(timessub(curclock(), start_time))));
+
+    for(i = 0; i < my_argc; i++) {
+	amfree(my_argv[i]);
+    }
+    amfree(cmd);
 }
 
 

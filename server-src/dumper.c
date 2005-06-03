@@ -23,7 +23,7 @@
  * Authors: the Amanda Development Team.  Its members are listed in a
  * file named AUTHORS, in the root directory of this distribution.
  */
-/* $Id: dumper.c,v 1.75.2.14.2.7.2.17 2003/10/30 18:09:27 martinea Exp $
+/* $Id: dumper.c,v 1.75.2.14.2.7.2.17.2.3 2005/03/31 13:08:05 martinea Exp $
  *
  * requests remote amandad processes to dump filesystems
  */
@@ -668,7 +668,12 @@ int *p_outfd, size;
 
 	NAUGHTY_BITS;
 
-	while(size > 0 && split_size > 0 && dumpsize >= split_size) {
+	/* We open a new chunkfile if                                    */
+	/*   We have something to write (dataout < datain)               */
+	/*   We have a split_size defined (split_size > 0)               */
+	/*   The current file is already filled (dumpsize >= split_size) */
+
+	while(dataout < datain && split_size > 0 && dumpsize >= split_size) {
 	    amfree(new_filename);
 	    if(use == 0) {
 		/*
@@ -679,12 +684,13 @@ int *p_outfd, size;
                 if(cmd == CONTINUE) {
 		    /*
 		     * CONTINUE
+		     *   serial
 		     *   filename
 		     *   chunksize
 		     *   use
 		     */
 		    cmdargs.argc++;		/* true count of args */
-		    a = 2;
+		    a = 3;
 
 		    if(a >= cmdargs.argc) {
 			error("error [dumper CONTINUE: not enough args: filename]");
@@ -952,6 +958,12 @@ char *str;
 #define sc "sendbackup: end"
 	if(strncmp(str, sc, sizeof(sc)-1) == 0) {
 	    got_endline = 1;
+	    break;
+	}
+#undef sc
+#define sc "sendbackup: warning"
+	if(strncmp(str, sc, sizeof(sc)-1) == 0) {
+	    dump_result = max(dump_result, 1);
 	    break;
 	}
 #undef sc

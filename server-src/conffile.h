@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: conffile.h,v 1.24.2.8.4.4.2.9 2003/01/04 03:35:54 martinea Exp $
+ * $Id: conffile.h,v 1.24.2.8.4.4.2.9.2.5 2005/03/29 16:35:11 martinea Exp $
  *
  * interface for config file reading code
  */
@@ -61,6 +61,7 @@ typedef enum conf_e {
     CNF_INPARALLEL,
     CNF_DUMPORDER,
     CNF_TIMEOUT,
+    CNF_BUMPPERCENT,
     CNF_BUMPSIZE,
     CNF_BUMPMULT,
     CNF_BUMPDAYS,
@@ -80,7 +81,8 @@ typedef enum conf_e {
     CNF_AMRECOVER_DO_FSF,
     CNF_AMRECOVER_CHECK_LABEL,
     CNF_AMRECOVER_CHANGER,
-    CNF_TAPERALGO
+    CNF_TAPERALGO,
+    CNF_DISPLAYUNIT
 } confparm_t;
 
 typedef enum auth_e {
@@ -121,6 +123,11 @@ typedef struct tapetype_s {
 #define DS_HANOI	6	/* Tower of Hanoi (? ? ? ? ? ...) */
 #define DS_INCRONLY	7	/* Forced fulls (0 1 1 2 2 FORCE0 1 1 ...) */
 
+/* Estimate strategies */
+#define ES_CLIENT	0	/* client estimate */
+#define ES_SERVER	1	/* server estimate */
+#define ES_CALCSIZE	2	/* calcsize estimate */
+
 /* Compression types */
 #define COMP_NONE	0	/* No compression */
 #define COMP_FAST	1	/* Fast compression on client */
@@ -153,10 +160,15 @@ typedef struct dumptype_s {
     int maxcycle;
     int frequency;
     int maxpromoteday;
+    int bumppercent;
+    int bumpsize;
+    int bumpdays;
+    double bumpmult;
     auth_t auth;
     int maxdumps;
     time_t start_t;
     int strategy;
+    int estimate;
     int compress;
     float comprate[2]; /* first is full, second is incremental */
     /* flag options */
@@ -184,8 +196,13 @@ typedef struct dumptype_s {
     int s_auth;
     int s_maxdumps;
     int s_maxpromoteday;
+    int s_bumppercent;
+    int s_bumpsize;
+    int s_bumpdays;
+    int s_bumpmult;
     int s_start_t;
     int s_strategy;
+    int s_estimate;
     int s_compress;
     int s_comprate;
     int s_record;
@@ -273,6 +290,7 @@ dumptype_t *read_dumptype P((char *name, FILE *from, char *fname, int *linenum))
 tapetype_t *lookup_tapetype P((char *identifier));
 interface_t *lookup_interface P((char *identifier));
 holdingdisk_t *getconf_holdingdisks P((void));
+long int getconf_unit_divisor P((void));
 
 int ColumnDataCount P((void));
 int StringToColumn P((char *s));

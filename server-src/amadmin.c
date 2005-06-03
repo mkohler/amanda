@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: amadmin.c,v 1.49.2.13.2.3.2.15 2003/11/18 16:44:34 martinea Exp $
+ * $Id: amadmin.c,v 1.49.2.13.2.3.2.15.2.9 2005/03/29 16:35:11 martinea Exp $
  *
  * controlling process for the Amanda backup system
  */
@@ -74,8 +74,11 @@ void export_db P((int argc, char **argv));
 void import_db P((int argc, char **argv));
 void disklist P((int argc, char **argv));
 void disklist_one P((disk_t *dp));
+static void check_dumpuser P((void));
 
 static char *conf_tapelist = NULL;
+static char *displayunit;
+static long int unitdivisor;
 
 int main(argc, argv)
 int argc;
@@ -119,6 +122,9 @@ char **argv;
 	error("errors processing config file \"%s\"", conffile);
     }
     amfree(conffile);
+
+    check_dumpuser();
+
     conf_diskfile = getconf_str(CNF_DISKFILE);
     if (*conf_diskfile == '/') {
 	conf_diskfile = stralloc(conf_diskfile);
@@ -148,6 +154,9 @@ char **argv;
 	error("could not open info db \"%s\"", conf_infofile);
     }
     amfree(conf_infofile);
+
+    displayunit = getconf_str(CNF_DISPLAYUNIT);
+    unitdivisor = getconf_unit_divisor();
 
     if(strcmp(argv[2],"force-bump") == 0) force_bump(argc, argv);
     else if(strcmp(argv[2],"force-no-bump") == 0) force_no_bump(argc, argv);
@@ -699,7 +708,7 @@ char **argv;
 void due_one(dp)
 disk_t *dp;
 {
-    host_t *hp;
+    am_host_t *hp;
     int days;
     info_t info;
 
@@ -805,11 +814,13 @@ char **argv;
     float fseq, disk_dumpcycle;
     info_t info;
     long int total_balanced, balanced;
+    int empty_day;
 
     time(&today);
     conf_dumpcycle = getconf_int(CNF_DUMPCYCLE);
     conf_runspercycle = getconf_int(CNF_RUNSPERCYCLE);
     later = conf_dumpcycle;
+    if(later > 10000) later = 10000;
     overdue = 0;
     max_overdue = 0;
 
@@ -848,18 +859,18 @@ char **argv;
 	    continue;
 	}
 	sp[distinct].disks++;
-	sp[distinct].origsize += info.inf[0].size;
-	sp[distinct].outsize += info.inf[0].csize;
+	sp[distinct].origsize += info.inf[0].size/unitdivisor;
+	sp[distinct].outsize += info.inf[0].csize/unitdivisor;
 
 	sp[balance].disks++;
 	if(dp->dumpcycle == 0) {
-	    sp[balance].origsize += info.inf[0].size * runs_per_cycle;
-	    sp[balance].outsize += info.inf[0].csize * runs_per_cycle;
+	    sp[balance].origsize += (info.inf[0].size/unitdivisor) * runs_per_cycle;
+	    sp[balance].outsize += (info.inf[0].csize/unitdivisor) * runs_per_cycle;
 	}
 	else {
-	    sp[balance].origsize += info.inf[0].size *
+	    sp[balance].origsize += (info.inf[0].size/unitdivisor) *
 				    (conf_dumpcycle / dp->dumpcycle);
-	    sp[balance].outsize += info.inf[0].csize *
+	    sp[balance].outsize += (info.inf[0].csize/unitdivisor) *
 				   (conf_dumpcycle / dp->dumpcycle);
 	}
 
@@ -882,13 +893,13 @@ char **argv;
 	    }
 	    
 	    sp[seq].disks++;
-	    sp[seq].origsize += info.inf[0].size;
-	    sp[seq].outsize += info.inf[0].csize;
+	    sp[seq].origsize += info.inf[0].size/unitdivisor;
+	    sp[seq].outsize += info.inf[0].csize/unitdivisor;
 
 	    if(seq < later) {
 		sp[total].disks++;
-		sp[total].origsize += info.inf[0].size;
-		sp[total].outsize += info.inf[0].csize;
+		sp[total].origsize += info.inf[0].size/unitdivisor;
+		sp[total].outsize += info.inf[0].csize/unitdivisor;
 	    }
 	    
 	    /* See, if there's another run in this dumpcycle */
@@ -897,7 +908,7 @@ char **argv;
 	} while (seq < later);
     }
 
-    if(sp[total].outsize == 0) {
+    if(sp[total].outsize == 0 && sp[later].outsize == 0) {
 	printf("\nNo data to report on yet.\n");
 	amfree(sp);
 	return;
@@ -912,16 +923,30 @@ char **argv;
 			    / (runs_per_cycle * later));
     }
 
-    printf("\n due-date  #fs    orig KB     out KB   balance\n");
+    empty_day = 0;
+    printf("\n due-date  #fs    orig %cB     out %cB   balance\n",
+	   displayunit[0], displayunit[0]);
     printf("----------------------------------------------\n");
     for(seq = 0; seq < later; seq++) {
-	printf("%-9.9s  %3d %10ld %10ld ",
-	       seqdatestr(seq), sp[seq].disks,
-	       sp[seq].origsize, sp[seq].outsize);
-	if(!sp[seq].outsize) printf("     --- \n");
-	else printf("%+8.1f%%\n",
-		    (sp[seq].outsize-balanced)*100.0/(double)balanced);
+	if(sp[seq].disks == 0 &&
+	   ((seq > 0 && sp[seq-1].disks == 0) ||
+	    ((seq < later-1) && sp[seq+1].disks == 0))) {
+	    empty_day++;
+	}
+	else {
+	    if(empty_day > 0) {
+		printf("\n");
+		empty_day = 0;
+	    }
+	    printf("%-9.9s  %3d %10ld %10ld ",
+		   seqdatestr(seq), sp[seq].disks,
+		   sp[seq].origsize, sp[seq].outsize);
+	    if(!sp[seq].outsize) printf("     --- \n");
+	    else printf("%+8.1f%%\n",
+			(sp[seq].outsize-balanced)*100.0/(double)balanced);
+	}
     }
+
     if(sp[later].disks != 0) {
 	printf("later      %3d %10ld %10ld ",
 	       sp[later].disks,
@@ -1037,20 +1062,43 @@ int level;
 void bumpsize()
 {
     int l;
+    int conf_bumppercent = getconf_int(CNF_BUMPPERCENT);
+    double conf_bumpmult = getconf_real(CNF_BUMPMULT);
 
     printf("Current bump parameters:\n");
-    printf("  bumpsize %5d KB\t- minimum savings (threshold) to bump level 1 -> 2\n",
-	   getconf_int(CNF_BUMPSIZE));
-    printf("  bumpdays %5d\t- minimum days at each level\n",
-	   getconf_int(CNF_BUMPDAYS));
-    printf("  bumpmult %5.5g\t- threshold = bumpsize * bumpmult**(level-1)\n\n",
-	   getconf_real(CNF_BUMPMULT));
 
-    printf("      Bump -> To  Threshold\n");
-    for(l = 1; l < 9; l++) {
-	printf("\t%d  ->  %d  %9d KB\n", l, l+1, bump_thresh(l));
+    if(conf_bumppercent == 0) {
+	printf("  bumpsize %5d KB\t- minimum savings (threshold) to bump level 1 -> 2\n",
+	       getconf_int(CNF_BUMPSIZE));
+	printf("  bumpdays %5d\t- minimum days at each level\n",
+	       getconf_int(CNF_BUMPDAYS));
+	printf("  bumpmult %5.5g\t- threshold = bumpsize * bumpmult**(level-1)\n\n",
+	       conf_bumpmult);
+
+	printf("      Bump -> To  Threshold\n");
+	for(l = 1; l < 9; l++) {
+	    printf("\t%d  ->  %d  %9d KB\n", l, l+1, bump_thresh(l));
+	}
+	putchar('\n');
     }
-    putchar('\n');
+    else {
+	double bumppercent = conf_bumppercent;
+
+	printf("  bumppercent %3d %%\t- minimum savings (threshold) to bump level 1 -> 2\n",
+	       conf_bumppercent);
+	printf("  bumpdays %5d\t- minimum days at each level\n",
+	       getconf_int(CNF_BUMPDAYS));
+	printf("  bumpmult %5.5g\t- threshold = disk_size * bumppercent * bumpmult**(level-1)\n\n",
+	       conf_bumpmult);
+
+	printf("      Bump -> To  Threshold\n");
+	for(l = 1; l < 9; l++) {
+	    printf("\t%d  ->  %d  %7.2f %%\n", l, l+1, bumppercent);
+	    bumppercent *= conf_bumpmult;
+	    if(bumppercent >= 100.000) { bumppercent = 100.0;}
+	}
+	putchar('\n');
+    }
 }
 
 /* ----------------------------------------------- */
@@ -1122,6 +1170,11 @@ disk_t *dp;
 	       info.inf[l].size, info.inf[l].csize, info.inf[l].secs,
 	       (long)info.inf[l].date, info.inf[l].filenum,
 	       info.inf[l].label);
+    }
+    for(l=0;info.history[l].level > -1;l++) {
+	printf("history: %d %ld %ld %ld\n",info.history[l].level,
+	       info.history[l].size, info.history[l].csize,
+	       info.history[l].date);
     }
     printf("//\n");
 }
@@ -1239,6 +1292,7 @@ int import_one P((void))
     char *line = NULL;
     char *s, *fp;
     int ch;
+    int nb_history, i;
     char *hostname = NULL;
     char *diskname = NULL;
 
@@ -1347,6 +1401,10 @@ int import_one P((void))
 	    /* end of record */
 	    break;
 	}
+	if(strncmp(line, "history:", 8) == 0) {
+	    /* end of record */
+	    break;
+	}
 	memset(&onestat, 0, sizeof(onestat));
 
 	s = line;
@@ -1415,6 +1473,58 @@ int import_one P((void))
 
 	info.inf[level] = onestat;
     }
+    nb_history = 0;
+    for(i=0;i<=NB_HISTORY+1;i++) {
+	info.history[i].level = -2;
+    }
+    while(1) {
+	history_t onehistory;
+	long date;
+
+	if(line[0] == '/' && line[1] == '/') {
+	    info.history[nb_history].level = -2;
+	    rc = 0;
+	    break;
+	}
+	memset(&onehistory, 0, sizeof(onehistory));
+	s = line;
+	ch = *s++;
+#define sc "history:"
+	if(strncmp(line, sc, sizeof(sc)-1) != 0) {
+	    break;
+	}
+	s += sizeof(sc)-1;
+	ch = s[-1];
+#undef sc
+	skip_whitespace(s, ch);
+	if(ch == '\0' || sscanf((s - 1), "%d", &onehistory.level) != 1) {
+	    break;
+	}
+	skip_integer(s, ch);
+
+	skip_whitespace(s, ch);
+	if(ch == '\0' || sscanf((s - 1), "%ld", &onehistory.size) != 1) {
+	    break;
+	}
+	skip_integer(s, ch);
+
+	skip_whitespace(s, ch);
+	if(ch == '\0' || sscanf((s - 1), "%ld", &onehistory.csize) != 1) {
+	    break;
+	}
+	skip_integer(s, ch);
+
+	skip_whitespace(s, ch);
+	if(ch == '\0' || sscanf((s - 1), "%ld", &date) != 1) {
+	    break;
+	}
+	skip_integer(s, ch);
+	onehistory.date = date; /* time_t not guarranteed to be long */
+
+	info.history[nb_history++] = onehistory;
+	amfree(line);
+	if((line = impget_line()) == NULL) goto shortfile_err;
+    }
     amfree(line);
 
     /* got a full record, now write it out to the database */
@@ -1475,7 +1585,7 @@ impget_line ()
 void disklist_one(dp)
 disk_t *dp;
 {
-    host_t *hp;
+    am_host_t *hp;
     interface_t *ip;
     sle_t *excl;
 
@@ -1526,6 +1636,14 @@ disk_t *dp;
     printf("        dumpcycle %ld\n", dp->dumpcycle);
     printf("        maxdumps %d\n", dp->maxdumps);
     printf("        maxpromoteday %d\n", dp->maxpromoteday);
+    if(dp->bumppercent > 0) {
+	printf("        bumppercent %d\n", dp->bumppercent);
+    }
+    else {
+	printf("        bumpsize %d\n", dp->bumpsize);
+    }
+    printf("        bumpdays %d\n", dp->bumpdays);
+    printf("        bumpmult %f\n", dp->bumpmult);
 
     printf("        strategy ");
     switch(dp->strategy) {
@@ -1546,6 +1664,19 @@ disk_t *dp;
 	break;
     case DS_INCRONLY:
 	printf("INCRONLY\n");
+	break;
+    }
+
+    printf("        estimate ");
+    switch(dp->estimate) {
+    case ES_CLIENT:
+	printf("CLIENT\n");
+	break;
+    case ES_SERVER:
+	printf("SERVER\n");
+	break;
+    case ES_CALCSIZE:
+	printf("CALCSIZE\n");
 	break;
     }
 
