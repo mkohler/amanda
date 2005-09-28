@@ -6,6 +6,10 @@ if [ "$1" = configure ]; then
 	useradd -d /var/backups -c backup -s /bin/sh \
 		-u 34 -g 34 backup 2> /dev/null 
 
+	if [ ! -f /var/backups/.profile ]; then
+		echo 'PATH="$PATH:/usr/sbin"' > /var/backups/.profile
+	fi
+
 	groupadd -g 34 backup 2> /dev/null
 	groupadd -g 26 tape 2> /dev/null
 

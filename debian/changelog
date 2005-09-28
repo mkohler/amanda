@@ -1,3 +1,18 @@
+amanda (1:2.4.5-2) unstable; urgency=low
+
+  * merge Arabic translation, closes: #320759
+  * merge Vietnamese translation, closes: #307735
+  * allow debconf-2.0 as a dependency alternative
+  * update dependencies in light of libreadline5-dev, closes: #326390
+  * don't blindly remove non-conffiles in /etc/amanda, closes: #282772
+  * fix strange dump results with smbclient 3.0, closes: #226798, #313553
+  * pass --numeric-owner to tar from sendsize to improve estimation speed
+    on systems using mixed libnss modules, closes: #247661
+  * have amanda-common postinst add /usr/sbin to backup user's path, 
+    closes: #74045
+
+ -- Bdale Garbee <bdale@gag.com>  Wed, 28 Sep 2005 00:16:44 -0600
+
 amanda (1:2.4.5-1) unstable; urgency=low
 
   * new upstream version, closes: #299586, #308559

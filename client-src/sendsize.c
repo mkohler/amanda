@@ -1531,6 +1531,7 @@ time_t dumpsince;
     my_argv[i++] = "--directory";
     my_argv[i++] = dirname;
     my_argv[i++] = "--one-file-system";
+    my_argv[i++] = "--numeric-owner";
 #ifdef GNUTAR_LISTED_INCREMENTAL_DIR
     my_argv[i++] = "--listed-incremental";
     my_argv[i++] = incrname;

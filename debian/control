@@ -2,12 +2,12 @@ Source: amanda
 Section: utils
 Priority: optional
 Maintainer: Bdale Garbee <bdale@gag.com>
-Build-Depends: debhelper (>= 4.1.16), dump, gnuplot, libncurses5-dev, libreadline4-dev, libtool, flex, perl, smbclient, mailx, lpr, mtx, xfsdump, po-debconf
-Standards-Version: 3.6.1.0
+Build-Depends: debhelper (>= 4.1.16), dump, gnuplot, libncurses5-dev, libreadline5-dev | libreadline-dev, libtool, flex, perl, smbclient, mailx, lpr, mtx, xfsdump, po-debconf
+Standards-Version: 3.6.2.1
 
 Package: amanda-common
 Architecture: any
-Depends: ${shlibs:Depends}, netbase (>=3.03), tar (>=1.12), perl5, mailx, debconf
+Depends: ${shlibs:Depends}, netbase (>=3.03), tar (>=1.12), perl5, mailx, debconf | debconf-2.0
 Suggests: amanda-server (= ${Source-Version}) | amanda-client (= ${Source-Version})
 Conflicts: amanda
 Replaces: amanda

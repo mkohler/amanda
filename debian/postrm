@@ -2,7 +2,10 @@
 case "$1" in
   purge)
 	if [ -d /etc/amanda ]; then
-		rm -rf /etc/amanda
+		# remove all registered config files
+		rm -rf `cat /var/lib/dpkg/info/amanda-common.conffiles`
+		# remove /etc amanda if there are no files left
+		rmdir /etc/amanda 2> /dev/null || true
 	fi
 	if [ -d /var/log/amanda ]; then
 		rm -rf /var/log/amanda
