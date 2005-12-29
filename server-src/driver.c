@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: driver.c,v 1.58.2.31.2.8.2.20.2.14 2005/02/09 18:12:31 martinea Exp $
+ * $Id: driver.c,v 1.58.2.31.2.8.2.20.2.16 2005/09/20 21:31:52 jrjackson Exp $
  *
  * controlling process for the Amanda backup system
  */
@@ -55,7 +55,7 @@ unsigned long total_disksize;
 char *dumper_program;
 int  inparallel;
 int nodump = 0;
-long tape_length, tape_left = 0;
+unsigned long tape_length, tape_left = 0;
 int conf_taperalgo;
 am_host_t *flushhost = NULL;
 
@@ -147,15 +147,7 @@ int main(main_argc, main_argv)
     char *conf_tapetype;
     tapetype_t *tape;
 
-    for(fd = 3; fd < FD_SETSIZE; fd++) {
-	/*
-	 * Make sure nobody spoofs us with a lot of extra open files
-	 * that would cause an open we do to get a very high file
-	 * descriptor, which in turn might be used as an index into
-	 * an array (e.g. an fd_set).
-	 */
-	close(fd);
-    }
+    safe_fd(-1, 0);
 
     setvbuf(stdout, (char *)NULL, _IOLBF, 0);
     setvbuf(stderr, (char *)NULL, _IOLBF, 0);

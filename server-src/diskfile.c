@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: diskfile.c,v 1.27.4.6.4.3.2.15.2.5 2004/11/19 13:28:15 martinea Exp $
+ * $Id: diskfile.c,v 1.27.4.6.4.3.2.15.2.8 2005/09/30 19:13:36 martinea Exp $
  *
  * read disklist file
  */
@@ -449,7 +449,7 @@ static int read_diskline()
 	fp1=fp;
 	if (*fp1 == '-') fp1++;
 	for(;*fp1!='\0';fp1++) {
-	    if(!isdigit(*fp1)) {
+	    if(!isdigit((int)*fp1)) {
 		is_digit = 0;
 	    }
 	}
@@ -990,19 +990,10 @@ char *argv[];
   char *conffile;
   char *conf_diskfile;
   int result;
-  int fd;
   unsigned long malloc_hist_1, malloc_size_1;
   unsigned long malloc_hist_2, malloc_size_2;
 
-  for(fd = 3; fd < FD_SETSIZE; fd++) {
-    /*
-     * Make sure nobody spoofs us with a lot of extra open files
-     * that would cause an open we do to get a very high file
-     * descriptor, which in turn might be used as an index into
-     * an array (e.g. an fd_set).
-     */
-    close(fd);
-  }
+  safe_fd(-1, 0);
 
   set_pname("diskfile");
 

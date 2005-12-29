@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: conffile.c,v 1.54.2.16.2.5.2.20.2.8 2005/03/29 16:35:11 martinea Exp $
+ * $Id: conffile.c,v 1.54.2.16.2.5.2.20.2.10 2005/09/30 19:13:36 martinea Exp $
  *
  * read configuration file
  */
@@ -3199,19 +3199,10 @@ main(argc, argv)
   char *conffile;
   char *diskfile;
   int result;
-  int fd;
   unsigned long malloc_hist_1, malloc_size_1;
   unsigned long malloc_hist_2, malloc_size_2;
 
-  for(fd = 3; fd < FD_SETSIZE; fd++) {
-    /*
-     * Make sure nobody spoofs us with a lot of extra open files
-     * that would cause an open we do to get a very high file
-     * descriptor, which in turn might be used as an index into
-     * an array (e.g. an fd_set).
-     */
-    close(fd);
-  }
+  safe_fd(-1, 0);
 
   set_pname("conffile");
 

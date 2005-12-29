@@ -2,7 +2,7 @@ Source: amanda
 Section: utils
 Priority: optional
 Maintainer: Bdale Garbee <bdale@gag.com>
-Build-Depends: debhelper (>= 4.1.16), dump, gnuplot, libncurses5-dev, libreadline5-dev | libreadline-dev, libtool, flex, perl, smbclient, mailx, lpr, mtx, xfsdump, po-debconf
+Build-Depends: debhelper (>= 5), dump, gnuplot, libncurses5-dev, libreadline5-dev | libreadline-dev, libtool, flex, perl, smbclient, mailx, lpr, mtx, xfsdump, po-debconf
 Standards-Version: 3.6.2.1
 
 Package: amanda-common

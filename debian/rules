@@ -8,9 +8,6 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
-# This is the debhelper compatability version to use.
-export DH_COMPAT=4
-
 r=$(shell pwd)/debian/amanda-common
 server=$(shell pwd)/debian/amanda-server
 client=$(shell pwd)/debian/amanda-client
@@ -29,6 +26,7 @@ build-stamp: /sbin/dump /usr/bin/smbclient debian/po/templates.pot
 		--with-user=backup --with-group=backup  \
 		--with-bsd-security --with-amandahosts \
 		--with-smbclient=/usr/bin/smbclient \
+		--with-debugging=/var/log/amanda \
 		--with-tcpportrange=50000,50100 --with-udpportrange=840,860
 	touch missing
 	make CFLAGS="-O2 -g -Wall \

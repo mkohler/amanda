@@ -11,7 +11,7 @@ prefix=@prefix@
 exec_prefix=@exec_prefix@
 sbindir=@sbindir@
 libexecdir=@libexecdir@
-debugdir=@AMANDA_DEBUGDIR@
+debugdir=@AMANDA_DBGDIR@
 
 PATH=$sbindir:$libexecdir:/usr/bin:/bin:/usr/sbin:/sbin:/usr/ucb
 export PATH
@@ -41,7 +41,7 @@ totalslots=200
 
 changerfile=`amgetconf$SUF changerfile`
 
-tapedev="null:/dev/xxx$$"
+tapedev=`amgetconf$SUF tapedev`
 
 cleanfile=$changerfile-clean
 accessfile=$changerfile-access

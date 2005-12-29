@@ -61,3 +61,16 @@ backup of a live filesystem under all circumstances.  The tar utility is
 filesystem type, and there are entries in the default amanda.conf file 
 defining dump types using tar.
 
+Note that if you are using tar with amanda, and getting errors about missing
+exclude files (particularly on upgrades from older versions), then you may
+need to update your dumptypes definition to explicitly indicate that the 
+exclude file is optional, as shown in this example:
+
+	define dumptype userdata-lowvalue {
+	   program "GNUTAR"
+	   comment "Low value user data dumped with tar"
+	   options compress-fast, index
+	   exclude list optional ".amandaexclude"
+	   priority low
+	}
+

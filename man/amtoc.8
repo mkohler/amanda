@@ -109,7 +109,7 @@ The easiest way to use it is to run \fBamtoc\fR right after \fBamdump\fR in the 
 
 .nf
 
-amdump daily ; logdir=`amgetconf daily logdir` ; log=`ls \-1t $logdir/log\&.*\&.[0\-9] | head \-1` ; amtoc \-a $log
+amdump daily ; logdir=`amgetconf daily logdir` ; amtoc \-a $logdir/amdump.1
 
 .fi
 

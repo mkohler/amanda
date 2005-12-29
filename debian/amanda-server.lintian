@@ -11,3 +11,6 @@ amanda-server: non-standard-dir-perm var/lib/amanda/DailySet1/ 0770 != 0755
 amanda-server: non-standard-dir-perm var/lib/amanda/DailySet1/index/ 0770 != 0755
 amanda-server: non-standard-dir-perm var/log/amanda/ 0770 != 0755
 amanda-server: non-standard-dir-perm var/log/amanda/DailySet1/ 0770 != 0755
+amanda-server: maintainer-script-needs-depends-on-netbase postinst
+amanda-server: maintainer-script-needs-depends-on-netbase prerm
+amanda-server: package-name-doesnt-match-sonames libamserver-2.4.5p1

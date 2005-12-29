@@ -1,3 +1,29 @@
+amanda (1:2.4.5p1-2) unstable; urgency=low
+
+  * now that we're using it for debugging info, make sure /var/log/amanda
+    exists in the amanda-common postinst
+
+ -- Bdale Garbee <bdale@gag.com>  Thu, 29 Dec 2005 11:57:11 -0700
+
+amanda (1:2.4.5p1-1) unstable; urgency=low
+
+  * new upstream version
+  * add --with-debugging=/var/log/amanda to avoid potentially insecure use
+    of /tmp, closes: #226139
+  * fix typo in chg-null.sh.in causing it to not use AMANDA_DBGDIR definition
+  * patch chg-null.sh.in to use defined value of tapedev, closes: #219656
+  * patch from Jan Nordholz to fix off-by-one error, closes: #339588
+  * fix misleading usage example in amtoc man page, closes: #297690
+  * add a note to amanda-server's README.Debian about how to keep missing
+    exclude files from making tar not work, closes: #168229, #185312, #186285
+  * fix bogus reported sizes when using dump caused by assuming dump is 
+    reporting 512 byte instead of 1k blocks, closes: #234173
+    Debian reports results in 1k, not 512-byte blocks,
+  * remove globbing example from amanda man page that is hopelessly broken
+    and generating man errors
+
+ -- Bdale Garbee <bdale@gag.com>  Thu, 29 Dec 2005 01:36:23 -0700
+
 amanda (1:2.4.5-2) unstable; urgency=low
 
   * merge Arabic translation, closes: #320759

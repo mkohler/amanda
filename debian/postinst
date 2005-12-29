@@ -43,8 +43,16 @@ if [ "$1" = configure ]; then
 	if [ ! -L ~backup/.amandahosts ]; then
   		ln -sf /etc/amandahosts ~backup/.amandahosts
 	fi
-	chown backup:backup ~backup/.amandahosts /etc/amandahosts
+
+	# make sure /var/log/amanda exists
+	if [ ! -d /var/log/amanda ]; then
+		mkdir -p /var/log/amanda
+	fi
+
+	chown backup:backup ~backup/.amandahosts /etc/amandahosts \
+		/var/log/amanda
 	chmod 660 ~backup/.amandahosts /etc/amandahosts
+	chmod 770 /var/log/amanda
 fi
 
 #DEBHELPER#
