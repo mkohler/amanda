@@ -26,7 +26,7 @@
  */
 
 /*
- * $Id: output-tape.h,v 1.1.2.2.2.2 2003/03/06 21:44:21 martinea Exp $
+ * $Id: output-tape.h,v 1.5 2003/03/06 21:43:58 martinea Exp $
  *
  * tapeio.c virtual tape interface for normal tape drives.
  */

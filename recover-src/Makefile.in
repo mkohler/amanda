@@ -43,6 +43,7 @@ build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
 sbin_PROGRAMS = amrecover$(EXEEXT)
+@WANT_SERVER_TRUE@am__append_1 = ../tape-src/libamtape.$(LIB_EXTENSION)
 subdir = recover-src
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in uparse.c uparse.h uscan.c
@@ -62,10 +63,13 @@ am_amrecover_OBJECTS = amrecover.$(OBJEXT) display_commands.$(OBJEXT) \
 	uparse.$(OBJEXT) uscan.$(OBJEXT)
 amrecover_OBJECTS = $(am_amrecover_OBJECTS)
 amrecover_LDADD = $(LDADD)
-am__DEPENDENCIES_1 =
+@WANT_SERVER_TRUE@am__DEPENDENCIES_1 =  \
+@WANT_SERVER_TRUE@	../tape-src/libamtape.$(LIB_EXTENSION)
+am__DEPENDENCIES_2 =
 amrecover_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../client-src/libamclient.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	$(am__DEPENDENCIES_1) ../common-src/libamanda.$(LIB_EXTENSION) \
+	$(am__DEPENDENCIES_2)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)/config
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -135,7 +139,9 @@ DEFAULT_TAPE_DEVICE = @DEFAULT_TAPE_DEVICE@
 DEFAULT_TAPE_SERVER = @DEFAULT_TAPE_SERVER@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DOC_BUILD_DATE = @DOC_BUILD_DATE@
 DUMP = @DUMP@
+DUMPER_DIR = @DUMPER_DIR@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -147,9 +153,12 @@ FFLAGS = @FFLAGS@
 GETCONF = @GETCONF@
 GNUPLOT = @GNUPLOT@
 GNUTAR = @GNUTAR@
+GNUTAR_LISTED_INCREMENTAL_DIR = @GNUTAR_LISTED_INCREMENTAL_DIR@
 GNUTAR_LISTED_INCREMENTAL_DIRX = @GNUTAR_LISTED_INCREMENTAL_DIRX@
 GREP = @GREP@
 GZIP = @GZIP@
+HAVE_XSLTPROC_FALSE = @HAVE_XSLTPROC_FALSE@
+HAVE_XSLTPROC_TRUE = @HAVE_XSLTPROC_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
@@ -162,6 +171,7 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
+LL_FMT = @LL_FMT@
 LN_S = @LN_S@
 LTALLOCA = @LTALLOCA@
 LTLIBOBJS = @LTLIBOBJS@
@@ -224,10 +234,13 @@ WANT_SERVER_FALSE = @WANT_SERVER_FALSE@
 WANT_SERVER_TRUE = @WANT_SERVER_TRUE@
 WANT_SETUID_CLIENT_FALSE = @WANT_SETUID_CLIENT_FALSE@
 WANT_SETUID_CLIENT_TRUE = @WANT_SETUID_CLIENT_TRUE@
+WANT_SSH_SECURITY_FALSE = @WANT_SSH_SECURITY_FALSE@
+WANT_SSH_SECURITY_TRUE = @WANT_SSH_SECURITY_TRUE@
 WANT_TAPE_FALSE = @WANT_TAPE_FALSE@
 WANT_TAPE_TRUE = @WANT_TAPE_TRUE@
 XFSDUMP = @XFSDUMP@
 XFSRESTORE = @XFSRESTORE@
+XSLTPROC = @XSLTPROC@
 YACC = @YACC@
 ac_c = @ac_c@
 ac_ct_AR = @ac_ct_AR@
@@ -278,8 +291,10 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-INCLUDES = -I$(top_srcdir)/common-src -I$(top_srcdir)/client-src \
-			-I$(top_srcdir)/tape-src
+INCLUDES = -I$(top_builddir)/common-src \
+		-I$(top_srcdir)/common-src   \
+		-I$(top_srcdir)/client-src   \
+		-I$(top_srcdir)/tape-src
 
 LIB_EXTENSION = la
 @WANT_RUNTIME_PSEUDO_RELOC_TRUE@AM_LDFLAGS = -Wl,-enable-runtime-pseudo-reloc
@@ -290,12 +305,9 @@ LIB_EXTENSION = la
 # need to list libamanda twice here, first to override the system library
 # routines, and second to pick up any references in the other libraries.
 ###
-LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
-	@LEXLIB@ \
-	../client-src/libamclient.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) \
-	$(READLINE_LIBS)
-
+LDADD = ../common-src/libamanda.$(LIB_EXTENSION) @LEXLIB@ \
+	../client-src/libamclient.$(LIB_EXTENSION) $(am__append_1) \
+	../common-src/libamanda.$(LIB_EXTENSION) $(READLINE_LIBS)
 amrecover_SOURCES = amrecover.c					\
 			display_commands.c		extract_list.c	\
 			help.c				set_commands.c	\
@@ -634,7 +646,7 @@ install-exec-hook:
 
 # so that uscan.c is never generated before uparse.h
 # otherwise we might have makedepend problems
-$(srcdir)/uscan.c: $(srcdir)/uparse.h
+uscan.c: uparse.h
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

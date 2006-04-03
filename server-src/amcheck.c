@@ -24,47 +24,36 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amcheck.c,v 1.50.2.19.2.7.2.20.2.12 2005/10/11 14:50:00 martinea Exp $
+ * $Id: amcheck.c,v 1.121 2006/02/06 22:17:09 ktill Exp $
  *
  * checks for common problems in server and clients
  */
 #include "amanda.h"
+#include "util.h"
 #include "conffile.h"
 #include "statfs.h"
 #include "diskfile.h"
 #include "tapefile.h"
 #include "tapeio.h"
 #include "changer.h"
+#include "packet.h"
+#include "security.h"
 #include "protocol.h"
 #include "clock.h"
 #include "version.h"
 #include "amindex.h"
 #include "token.h"
-#include "util.h"
+#include "taperscan.h"
+#include "server_util.h"
 #include "pipespawn.h"
 #include "amfeatures.h"
-
-/*
- * If we don't have the new-style wait access functions, use our own,
- * compatible with old-style BSD systems at least.  Note that we don't
- * care about the case w_stopval == WSTOPPED since we don't ask to see
- * stopped processes, so should never get them from wait.
- */
-#ifndef WEXITSTATUS
-#   define WEXITSTATUS(r)       (((union wait *) &(r))->w_retcode)
-#   define WTERMSIG(r)          (((union wait *) &(r))->w_termsig)
-
-#   undef WIFSIGNALED
-#   define WIFSIGNALED(r)        (((union wait *) &(r))->w_termsig != 0)
-#endif
 
 #define BUFFER_SIZE	32768
 
 static int conf_ctimeout;
 static int overwrite;
-dgram_t *msg = NULL;
 
-static disklist_t *origqp;
+static disklist_t origq;
 
 static uid_t uid_dumpuser;
 
@@ -74,9 +63,6 @@ void usage P((void));
 int start_client_checks P((int fd));
 int start_server_check P((int fd, int do_localchk, int do_tapechk));
 int main P((int argc, char **argv));
-int scan_init P((int rc, int ns, int bk));
-int taperscan_slot P((int rc, char *slotstr, char *device));
-char *taper_scan P((void));
 int test_server_pgm P((FILE *outf, char *dir, char *pgm,
 		       int suid, uid_t dumpuid));
 
@@ -104,11 +90,10 @@ char **argv;
     int do_clientchk, clientchk_pid, client_probs;
     int do_localchk, do_tapechk, serverchk_pid, server_probs;
     int chk_flag;
-    int opt, size, result_port, tempfd, mainfd;
+    int opt, size, tempfd, mainfd;
     amwait_t retstat;
     pid_t pid;
     extern int optind;
-    int l, n, s;
     char *mailto = NULL;
     extern char *optarg;
     int mailout;
@@ -124,28 +109,23 @@ char **argv;
     safe_cd();
 
     set_pname("amcheck");
+
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
+
     dbopen();
 
     malloc_size_1 = malloc_inuse(&malloc_hist_1);
 
-    ap_snprintf(pid_str, sizeof(pid_str), "%ld", (long)getpid());
+    snprintf(pid_str, sizeof(pid_str), "%ld", (long)getpid());
 
     erroutput_type = ERR_INTERACTIVE;
 
     our_features = am_init_feature_set();
     our_feature_string = am_feature_to_string(our_features);
 
-    /* set up dgram port first thing */
-
-    msg = dgram_alloc();
-
-    if(dgram_bind(msg, &result_port) == -1)
-	error("could not bind result datagram port: %s", strerror(errno));
-
     if(geteuid() == 0) {
-	/* set both real and effective uid's to real uid, likewise for gid */
-	setgid(getgid());
-	setuid(getuid());
+	seteuid(getuid());
     }
     uid_me = getuid();
 
@@ -214,17 +194,19 @@ char **argv;
 	error("errors processing config file \"%s\"", conffile);
     }
     amfree(conffile);
+
     conf_ctimeout = getconf_int(CNF_CTIMEOUT);
+
     conf_diskfile = getconf_str(CNF_DISKFILE);
     if (*conf_diskfile == '/') {
 	conf_diskfile = stralloc(conf_diskfile);
     } else {
 	conf_diskfile = stralloc2(config_dir, conf_diskfile);
     }
-    if((origqp = read_diskfile(conf_diskfile)) == NULL) {
+    if(read_diskfile(conf_diskfile, &origq) < 0) {
 	error("could not load disklist %s", conf_diskfile);
     }
-    match_disklist(origqp, argc-1, argv+1);
+    match_disklist(&origq, argc-1, argv+1);
     amfree(conf_diskfile);
 
     /*
@@ -278,11 +260,10 @@ char **argv;
 
     /* start server side checks */
 
-    if(do_localchk || do_tapechk) {
+    if(do_localchk || do_tapechk)
 	serverchk_pid = start_server_check(mainfd, do_localchk, do_tapechk);
-    } else {
+    else
 	serverchk_pid = 0;
-    }
 
     /* start client side checks */
 
@@ -308,18 +289,14 @@ char **argv;
 	    char number[NUM_STR_SIZE];
 	    char *wait_msg = NULL;
 
-	    ap_snprintf(number, sizeof(number), "%ld", (long)pid);
+	    snprintf(number, sizeof(number), "%ld", (long)pid);
 	    wait_msg = vstralloc("parent: reaped bogus pid ", number, "\n",
 				 NULL);
-	    for(l = 0, n = strlen(wait_msg); l < n; l += s) {
-		if((s = write(mainfd, wait_msg + l, n - l)) < 0) {
-		    error("write main file: %s", strerror(errno));
-		}
-	    }
+	    if (fullwrite(mainfd, wait_msg, strlen(wait_msg)) < 0)
+		error("write main file: %s", strerror(errno));
 	    amfree(wait_msg);
 	}
     }
-    amfree(msg);
 
     /* copy temp output to main output and write tagline */
 
@@ -327,12 +304,9 @@ char **argv;
 	if(lseek(tempfd, 0, 0) == -1)
 	    error("seek temp file: %s", strerror(errno));
 
-	while((size=read(tempfd, buffer, sizeof(buffer))) > 0) {
-	    for(l = 0; l < size; l += s) {
-		if((s = write(mainfd, buffer + l, size - l)) < 0) {
-		    error("write main file: %s", strerror(errno));
-		}
-	    }
+	while((size=fullread(tempfd, buffer, sizeof(buffer))) > 0) {
+	    if (fullwrite(mainfd, buffer, size) < 0)
+		error("write main file: %s", strerror(errno));
 	}
 	if(size < 0)
 	    error("read temp file: %s", strerror(errno));
@@ -342,11 +316,8 @@ char **argv;
     version_string = vstralloc("\n",
 			       "(brought to you by Amanda ", version(), ")\n",
 			       NULL);
-    for(l = 0, n = strlen(version_string); l < n; l += s) {
-	if((s = write(mainfd, version_string + l, n - l)) < 0) {
-	    error("write main file: %s", strerror(errno));
-	}
-    }
+    if (fullwrite(mainfd, version_string, strlen(version_string)) < 0)
+	error("write main file: %s", strerror(errno));
     amfree(version_string);
     amfree(config_dir);
     amfree(config_name);
@@ -410,8 +381,8 @@ char **argv;
 	    a[1] = mailto;
 	    a[2] = NULL;
 	} else {
-	    n = split(getconf_str(CNF_MAILTO), a, MAILTO_LIMIT, " ");
-	    a[n + 1] = NULL;
+	    r = split(getconf_str(CNF_MAILTO), a, MAILTO_LIMIT, " ");
+	    a[r + 1] = NULL;
 	}
 	if((nullfd = open("/dev/null", O_RDWR)) < 0) {
 	    error("nullfd: /dev/null: %s", strerror(errno));
@@ -467,7 +438,7 @@ char **argv;
 		    } else {
 			strappend(err, "returned ");
 		    }
-		    ap_snprintf(number, sizeof(number), "%d", ret);
+		    snprintf(number, sizeof(number), "%d", ret);
 		    strappend(err, number);
 	    }
 	}
@@ -493,127 +464,6 @@ char *label;
 char *searchlabel, *labelstr;
 tape_t *tp;
 FILE *errf;
-
-int scan_init(rc, ns, bk)
-int rc, ns, bk;
-{
-    if(rc)
-	error("could not get changer info: %s", changer_resultstr);
-
-    nslots = ns;
-    backwards = bk;
-
-    return 0;
-}
-
-int taperscan_slot(rc, slotstr, device)
-int rc;
-char *slotstr;
-char *device;
-{
-    char *errstr;
-
-    if(rc == 2) {
-	fprintf(errf, "%s: fatal slot %s: %s\n",
-		get_pname(), slotstr, changer_resultstr);
-	return 1;
-    }
-    else if(rc == 1) {
-	fprintf(errf, "%s: slot %s: %s\n",
-		get_pname(), slotstr, changer_resultstr);
-	return 0;
-    }
-    else {
-	if((errstr = tape_rdlabel(device, &datestamp, &label)) != NULL) {
-	    fprintf(errf, "%s: slot %s: %s\n", get_pname(), slotstr, errstr);
-	} else {
-	    /* got an amanda tape */
-	    fprintf(errf, "%s: slot %s: date %-8s label %s",
-		    get_pname(), slotstr, datestamp, label);
-	    if(searchlabel != NULL
-	       && (strcmp(label, FAKE_LABEL) == 0
-		   || strcmp(label, searchlabel) == 0)) {
-		/* it's the one we are looking for, stop here */
-		fprintf(errf, " (exact label match)\n");
-		found_device = newstralloc(found_device, device);
-		found = 1;
-		return 1;
-	    }
-	    else if(!match(labelstr, label))
-		fprintf(errf, " (no match)\n");
-	    else {
-		/* not an exact label match, but a labelstr match */
-		/* check against tape list */
-		tp = lookup_tapelabel(label);
-		if(tp == NULL)
-		    fprintf(errf, " (Not in tapelist)\n");
-		else if(!reusable_tape(tp))
-		    fprintf(errf, " (active tape)\n");
-		else if(got_match == 0 && tp->datestamp == 0) {
-		    got_match = 1;
-		    first_match = newstralloc(first_match, slotstr);
-		    first_match_label = newstralloc(first_match_label, label);
-		    fprintf(errf, " (new tape)\n");
-		    found = 3;
-		    found_device = newstralloc(found_device, device);
-		    return 1;
-		}
-		else if(got_match)
-		    fprintf(errf, " (labelstr match)\n");
-		else {
-		    got_match = 1;
-		    first_match = newstralloc(first_match, slotstr);
-		    first_match_label = newstralloc(first_match_label, label);
-		    fprintf(errf, " (first labelstr match)\n");
-		    if(!backwards || !searchlabel) {
-			found = 2;
-			found_device = newstralloc(found_device, device);
-			return 1;
-		    }
-		}
-	    }
-	}
-    }
-    return 0;
-}
-
-char *taper_scan()
-{
-    char *outslot = NULL;
-
-    if((tp = lookup_last_reusable_tape(0)) == NULL)
-	searchlabel = NULL;
-    else
-	searchlabel = tp->label;
-
-    found = 0;
-    got_match = 0;
-
-    changer_find(scan_init, taperscan_slot, searchlabel);
-
-    if(found == 2 || found == 3)
-	searchlabel = first_match_label;
-    else if(!found && got_match) {
-	searchlabel = first_match_label;
-	amfree(found_device);
-	if(changer_loadslot(first_match, &outslot, &found_device) == 0) {
-	    found = 1;
-	}
-    } else if(!found) {
-	if(searchlabel) {
-	    changer_resultstr = newvstralloc(changer_resultstr,
-					     "label ", searchlabel,
-					     " or new tape not found in rack",
-					     NULL);
-	} else {
-	    changer_resultstr = newstralloc(changer_resultstr,
-					    "new tape not found in rack");
-	}
-    }
-    amfree(outslot);
-
-    return found ? found_device : NULL;
-}
 
 int test_server_pgm(outf, dir, pgm, suid, dumpuid)
 FILE *outf;
@@ -652,15 +502,15 @@ int start_server_check(fd, do_localchk, do_tapechk)
     int fd;
     int do_localchk, do_tapechk;
 {
-    char *errstr, *tapename;
+    char *tapename;
     generic_fs_stats_t fs;
-    tape_t *tp;
     FILE *outf;
     holdingdisk_t *hdp;
     int pid;
     int confbad = 0, tapebad = 0, disklow = 0, logbad = 0;
     int userbad = 0, infobad = 0, indexbad = 0, pgmbad = 0;
     int testtape = do_tapechk;
+    tapetype_t *tp = NULL;
 
     switch(pid = fork()) {
     case -1: error("could not fork server check: %s", strerror(errno));
@@ -674,8 +524,6 @@ int start_server_check(fd, do_localchk, do_tapechk)
 
     set_pname("amcheck-server");
 
-    amfree(msg);
-
     startclock();
 
     if((outf = fdopen(fd, "w")) == NULL)
@@ -685,13 +533,16 @@ int start_server_check(fd, do_localchk, do_tapechk)
     fprintf(outf, "Amanda Tape Server Host Check\n");
     fprintf(outf, "-----------------------------\n");
 
+    if (do_localchk || testtape) {
+        tp = lookup_tapetype(getconf_str(CNF_TAPETYPE));
+    }
+
     /*
      * Check various server side config file settings.
      */
     if(do_localchk) {
 	char *ColumnSpec;
 	char *errstr = NULL;
-	tapetype_t *tp;
 	char *lbl_templ;
 
 	ColumnSpec = getconf_str(CNF_COLUMNSPEC);
@@ -700,7 +551,6 @@ int start_server_check(fd, do_localchk, do_tapechk)
 	    amfree(errstr);
 	    confbad = 1;
 	}
-	tp = lookup_tapetype(getconf_str(CNF_TAPETYPE));
 	lbl_templ = tp->lbl_templ;
 	if(strcmp(lbl_templ, "") != 0) {
 	    if(strchr(lbl_templ, '/') == NULL) {
@@ -726,6 +576,10 @@ int start_server_check(fd, do_localchk, do_tapechk)
      * Look up the programs used on the server side.
      */
     if(do_localchk) {
+	int suid_check=1;
+#ifdef SSH_SECURITY
+	suid_check=0;
+#endif 
 	if(access(libexecdir, X_OK) == -1) {
 	    fprintf(outf, "ERROR: program dir %s: not accessible\n",
 		    libexecdir);
@@ -733,10 +587,10 @@ int start_server_check(fd, do_localchk, do_tapechk)
 	} else {
 	    pgmbad = pgmbad \
 		     || test_server_pgm(outf, libexecdir, "planner",
-					1, uid_dumpuser);
+					suid_check, uid_dumpuser);
 	    pgmbad = pgmbad \
 		     || test_server_pgm(outf, libexecdir, "dumper",
-					1, uid_dumpuser);
+					suid_check, uid_dumpuser);
 	    pgmbad = pgmbad \
 		     || test_server_pgm(outf, libexecdir, "driver",
 					0, uid_dumpuser);
@@ -812,6 +666,10 @@ int start_server_check(fd, do_localchk, do_tapechk)
 	else if(stat(tapefile, &statbuf) == -1) {
 	    fprintf(outf, "ERROR: tapefile %s: %s, you must create an empty file.\n",
 		    tapefile, strerror(errno));
+	    tapebad = 1;
+	}
+	else if(!S_ISREG(statbuf.st_mode)) {
+	    fprintf(outf, "ERROR: tapefile %s: should be a regular file.\n", tapefile);
 	    tapebad = 1;
 	}
 	else if(access(tapefile, F_OK) != 0) {
@@ -952,6 +810,8 @@ int start_server_check(fd, do_localchk, do_tapechk)
 
     if (testtape) {
 	/* check that the tape is a valid amanda tape */
+        char *error_msg;
+        int tape_status;
 
 	tapedays = getconf_int(CNF_TAPECYCLE);
 	labelstr = getconf_str(CNF_LABELSTR);
@@ -962,56 +822,49 @@ int start_server_check(fd, do_localchk, do_tapechk)
 		    "WARNING: if a tape changer is not available, runtapes must be set to 1\n");
 	}
 
-	if(changer_init() && (tapename = taper_scan()) == NULL) {
-	    fprintf(outf, "ERROR: %s\n", changer_resultstr);
-	    tapebad = 1;
-	} else if(tape_access(tapename,F_OK|R_OK|W_OK) == -1) {
-	    fprintf(outf, "ERROR: %s: %s\n", tapename, strerror(errno));
-	    tapebad = 1;
-	} else if((errstr = tape_rdlabel(tapename, &datestamp, &label)) != NULL) {
-	    fprintf(outf, "ERROR: %s: %s\n", tapename, errstr);
-	    tapebad = 1;
-	} else if(strcmp(label, FAKE_LABEL) != 0) {
-	    if(!match(labelstr, label)) {
-		fprintf(outf, "ERROR: label %s doesn't match labelstr \"%s\"\n",
-			label, labelstr);
-		tapebad = 1;
-	    }
-	    else {
-		tp = lookup_tapelabel(label);
-		if(tp == NULL) {
-		    fprintf(outf, "ERROR: label %s match labelstr but it not listed in the tapelist file.\n", label);
-		    tapebad = 1;
-		}
-		else if(tp != NULL && !reusable_tape(tp)) {
-		    fprintf(outf, "ERROR: cannot overwrite active tape %s\n",
-			    label);
-		    tapebad = 1;
-		}
-	    }
-
-	}
-
-	if(tapebad) {
+        tape_status = taper_scan(NULL, &label, &datestamp, &error_msg,
+                                 &tapename);
+        fprintf(outf, "%s\n", error_msg);
+        amfree(error_msg);
+        if (tape_status < 0) {
 	    tape_t *exptape = lookup_last_reusable_tape(0);
 	    fprintf(outf, "       (expecting ");
 	    if(exptape != NULL) fprintf(outf, "tape %s or ", exptape->label);
 	    fprintf(outf, "a new tape)\n");
-	}
-
-	if(!tapebad && overwrite) {
-	    if((errstr = tape_writable(tapename)) != NULL) {
-		fprintf(outf,
-			"ERROR: tape %s label ok, but is not writable\n",
-			label);
-		tapebad = 1;
-	    }
-	    else fprintf(outf, "Tape %s is writable\n", label);
-	}
-	else fprintf(outf, "NOTE: skipping tape-writable test\n");
-
-	if(!tapebad)
-	    fprintf(outf, "Tape %s label ok\n", label);
+	} else {
+            if (overwrite) {
+                char *wrlabel_status;
+                wrlabel_status = tape_wrlabel(tapename, "X", label,
+                                              tp->blocksize * 1024);
+                if (wrlabel_status != NULL) {
+                    if (tape_status == 3) {
+                        fprintf(outf,
+                                "ERROR: Could not label brand new tape: %s\n",
+                                wrlabel_status);
+                    } else {
+                        fprintf(outf,
+                                "ERROR: tape %s label ok, but is not writable (%s)\n",
+                                label, wrlabel_status);
+                    }
+                    tapebad = 1;
+                } else {
+                    if (tape_status != 3) {
+                        fprintf(outf, "Tape %s is writable; rewrote label.\n", label);
+                    } else {
+                        fprintf(outf, "Wrote label %s to brand new tape.\n", label);
+                    }
+                }
+            } else {
+                fprintf(outf, "NOTE: skipping tape-writable test\n");
+                if (tape_status == 3) {
+                    fprintf(outf,
+                            "Found a brand new tape, will label it %s.\n", 
+                            label);
+                } else {
+                    fprintf(outf, "Tape %s label ok\n", label);
+                }                    
+            }
+        }
     } else if (do_tapechk) {
 	fprintf(outf, "WARNING: skipping tape test because amdump or amflush seem to be running\n");
 	fprintf(outf, "WARNING: if they are not, you must run amcleanup\n");
@@ -1048,18 +901,20 @@ int start_server_check(fd, do_localchk, do_tapechk)
 			conf_tapecycle, conf_runspercycle);
 	}
 
-	conf_infofile = stralloc(getconf_str(CNF_INFOFILE));
-	if (*conf_infofile != '/') {
-	    char *ci = stralloc2(config_dir, conf_infofile);
-	    amfree(conf_infofile);
-	    conf_infofile = ci;
+	conf_infofile = getconf_str(CNF_INFOFILE);
+	if (*conf_infofile == '/') {
+	    conf_infofile = stralloc(conf_infofile);
+	} else {
+	    conf_infofile = stralloc2(config_dir, conf_infofile);
 	}
-	conf_indexdir = stralloc(getconf_str(CNF_INDEXDIR));
-	if (*conf_indexdir != '/') {
-	    char *ci = stralloc2(config_dir, conf_indexdir);
-	    amfree(conf_indexdir);
-	    conf_indexdir = ci;
+
+	conf_indexdir = getconf_str(CNF_INDEXDIR);
+	if (*conf_indexdir == '/') {
+	    conf_indexdir = stralloc(conf_indexdir);
+	} else {
+	    conf_indexdir = stralloc2(config_dir, conf_indexdir);
 	}
+
 #if TEXTDB
 	if(stat(conf_infofile, &statbuf) == -1) {
 	    fprintf(outf, "NOTE: info dir %s: does not exist\n", conf_infofile);
@@ -1077,8 +932,9 @@ int start_server_check(fd, do_localchk, do_tapechk)
 	    strappend(conf_infofile, "/");
 	}
 #endif
-	while(!empty(*origqp)) {
-	    hostp = origqp->head->host;
+
+	while(!empty(origq)) {
+	    hostp = origq.head->host;
 	    host = sanitise_filename(hostp->hostname);
 #if TEXTDB
 	    if(conf_infofile) {
@@ -1200,8 +1056,24 @@ int start_server_check(fd, do_localchk, do_tapechk)
 			}
 		    }
 		}
+
+		if ( dp->encrypt == ENCRYPT_SERV_CUST && dp->srv_encrypt ) {
+		  if(access(dp->srv_encrypt, X_OK) == -1) {
+		    fprintf(outf, "ERROR: %s is not executable, server encryption will not work\n",
+			    dp->srv_encrypt );
+		    pgmbad = 1;
+		  }
+		}
+		if ( dp->compress == COMP_SERV_CUST && dp->srvcompprog ) {
+		  if(access(dp->srvcompprog, X_OK) == -1) {
+		    fprintf(outf, "ERROR: %s is not executable, server custom compression will not work\n",
+			    dp->srvcompprog );
+		    pgmbad = 1;
+		  }
+		}
+
 		amfree(disk);
-		remove_disk(origqp, dp);
+		remove_disk(&origq, dp);
 	    }
 	    amfree(host);
 	    amfree(hostindexdir);
@@ -1244,13 +1116,8 @@ int start_server_check(fd, do_localchk, do_tapechk)
 
 int remote_errors;
 FILE *outf;
-int amanda_port;
 
-#ifdef KRB4_SECURITY
-int kamanda_port;
-#endif
-
-static void handle_response P((proto_t *p, pkt_t *pkt));
+static void handle_result P((void *, pkt_t *, security_handle_t *));
 
 #define HOST_READY				((void *)0)	/* must be 0 */
 #define HOST_ACTIVE				((void *)1)
@@ -1260,22 +1127,22 @@ static void handle_response P((proto_t *p, pkt_t *pkt));
 #define DISK_ACTIVE				((void *)1)
 #define DISK_DONE				((void *)2)
 
-int start_host(hostp)
+void start_host(hostp)
     am_host_t *hostp;
 {
     disk_t *dp;
     char *req = NULL;
     int req_len = 0;
-    int rc;
     int disk_count;
+    const security_driver_t *secdrv;
     char number[NUM_STR_SIZE];
 
     if(hostp->up != HOST_READY) {
-	return 0;
+	return;
     }
 
     if (strncmp (hostp->hostname,"localhost",9) == 0) {
-        fprintf(outf,
+	fprintf(outf,
                     "WARNING: Usage of fully qualified hostname recommended for Client %s.\n",
                     hostp->hostname);
     }
@@ -1331,7 +1198,7 @@ int start_host(hostp)
 		   hostp->hostname);
 	}
 
-	ap_snprintf(number, sizeof(number), "%d", hostp->maxdumps);
+	snprintf(number, sizeof(number), "%d", hostp->maxdumps);
 	req = vstralloc("SERVICE ", "selfcheck", "\n",
 			"OPTIONS ",
 			has_features ? "features=" : "",
@@ -1347,17 +1214,15 @@ int start_host(hostp)
 			NULL);
 
 	req_len = strlen(req);
-	req_len += 128;				/* room for SECURITY ... */
-	req_len += 256;				/* room for non-disk answers */
+	req_len += 128;                         /* room for SECURITY ... */
+	req_len += 256;                         /* room for non-disk answers */
 	for(dp = hostp->disks; dp != NULL; dp = dp->hostnext) {
 	    char *l;
 	    int l_len;
 	    char *o;
 	    char* calcsize;
 
-	    if(dp->todo == 0) continue;
-
-	    if(dp->up != DISK_READY) {
+	    if(dp->up != DISK_READY || dp->todo != 1) {
 		continue;
 	    }
 	    o = optionstr(dp, hostp->features, outf);
@@ -1379,43 +1244,91 @@ int start_host(hostp)
 		     hostp->hostname, dp->name, dp->device);
 		}
 	    }
-	    if(strcmp(dp->program, "DUMP") == 0 &&
-	       !am_has_feature(hostp->features, fe_program_dump)) {
-		fprintf(outf, "ERROR: %s:%s does not support DUMP.\n",
-			hostp->hostname, dp->name);
-	    }
-	    if(strcmp(dp->program, "GNUTAR") == 0 &&
-	       !am_has_feature(hostp->features, fe_program_gnutar)) {
-		fprintf(outf, "ERROR: %s:%s does not support GNUTAR.\n",
-			hostp->hostname, dp->name);
-	    }
-	    if(dp->estimate == ES_CALCSIZE &&
-	       !am_has_feature(hostp->features, fe_calcsize_estimate)) {
-		fprintf(outf, "ERROR: %s:%s does not support CALCSIZE for estimate, using CLIENT.\n",
-			hostp->hostname, dp->name);
-		dp->estimate = ES_CLIENT;
-	    }
+	    if(strncmp(dp->program,"DUMP",4) == 0 || 
+	       strncmp(dp->program,"GNUTAR",6) == 0) {
+		if(strcmp(dp->program, "DUMP") == 0 &&
+		   !am_has_feature(hostp->features, fe_program_dump)) {
+		    fprintf(outf, "ERROR: %s:%s does not support DUMP.\n",
+			    hostp->hostname, dp->name);
+		}
+		if(strcmp(dp->program, "GNUTAR") == 0 &&
+		   !am_has_feature(hostp->features, fe_program_gnutar)) {
+		    fprintf(outf, "ERROR: %s:%s does not support GNUTAR.\n",
+			    hostp->hostname, dp->name);
+		}
+		if(dp->estimate == ES_CALCSIZE &&
+		   !am_has_feature(hostp->features, fe_calcsize_estimate)) {
+		    fprintf(outf, "ERROR: %s:%s does not support CALCSIZE for estimate, using CLIENT.\n",
+			    hostp->hostname, dp->name);
+		    dp->estimate = ES_CLIENT;
+		}
+		if(dp->estimate == ES_CALCSIZE &&
+		   am_has_feature(hostp->features, fe_selfcheck_calcsize))
+		    calcsize = "CALCSIZE ";
+		else
+		    calcsize = "";
 
-	    if(dp->estimate == ES_CALCSIZE &&
-	       am_has_feature(hostp->features, fe_selfcheck_calcsize))
-		calcsize = "CALCSIZE ";
-	    else
-		calcsize = "";
-
-	    l = vstralloc(calcsize, 
-			  dp->program, " ",
-			  dp->name, " ",
-			  dp->device ? dp->device : "",
-			  " 0 OPTIONS |",
-			  o,
-			  "\n",
-			  NULL);
+		if(dp->compress == COMP_CUST &&
+		   !am_has_feature(hostp->features, fe_options_compress_cust)) {
+		  fprintf(outf,
+			  "ERROR: Client %s does not support custom compression.\n",
+			  hostp->hostname);
+		}
+		if(dp->encrypt == ENCRYPT_CUST ) {
+		  if ( !am_has_feature(hostp->features, fe_options_encrypt_cust)) {
+		    fprintf(outf,
+			    "ERROR: Client %s does not support data encryption.\n",
+			    hostp->hostname);
+		    remote_errors++;
+		  } else if ( dp->compress == COMP_SERV_FAST || 
+			      dp->compress == COMP_SERV_BEST ||
+			      dp->compress == COMP_SERV_CUST ) {
+		    fprintf(outf,
+			    "ERROR: %s: Client encryption with server compression is not supported. See amanda.conf(5) for detail.\n", hostp->hostname);
+		    remote_errors++;
+		  } 
+		}
+		if(dp->device) {
+		    l = vstralloc(calcsize,
+				  dp->program, " ",
+				  dp->name, " ",
+				  dp->device,
+				  " 0 OPTIONS |",
+				  o,
+				  "\n",
+				  NULL);
+		}
+		else {
+		    l = vstralloc(calcsize,
+				  dp->program, " ",
+				  dp->name,
+				  " 0 OPTIONS |",
+				  o,
+				  "\n",
+				  NULL);
+		}
+	    } else {
+		if(!am_has_feature(hostp->features, fe_program_dumper_api)) {
+		    fprintf(outf, "ERROR: %s:%s does not support DUMPER-API.\n",
+			    hostp->hostname, dp->name);
+		}
+		l = vstralloc("DUMPER ",
+			      dp->program, 
+			      " ",
+			      dp->name,
+			      " ",
+			      dp->device,
+			      " 0 OPTIONS |",
+			      o,
+			      "\n",
+			      NULL);
+	    }
 	    l_len = strlen(l);
 	    amfree(o);
 	    /*
-	     * Allow 2X for error response in return packet.
+	     * Allow 2X for err response.
 	     */
-	    if(req_len + l_len > MAX_DGRAM / 2) {
+	    if(req_len + l_len > MAX_PACKET / 2) {
 		amfree(l);
 		break;
 	    }
@@ -1425,7 +1338,6 @@ int start_host(hostp)
 	    dp->up = DISK_ACTIVE;
 	    disk_count++;
 	}
-
     }
     else { /* noop service */
 	req = vstralloc("SERVICE ", "noop", "\n",
@@ -1434,41 +1346,30 @@ int start_host(hostp)
 			"\n",
 			NULL);
 	for(dp = hostp->disks; dp != NULL; dp = dp->hostnext) {
-	    if(dp->todo == 0) continue;
-
-	    if(dp->up != DISK_READY) {
+	    if(dp->up != DISK_READY || dp->todo != 1) {
 		continue;
 	    }
 	    disk_count++;
 	}
     }
+
     if(disk_count == 0) {
 	amfree(req);
 	hostp->up = HOST_DONE;
-	return 0;
+	return;
     }
 
-#ifdef KRB4_SECURITY
-    if(hostp->disks->auth == AUTH_KRB4)
-	rc = make_krb_request(hostp->hostname, kamanda_port, req,
-			      hostp, conf_ctimeout, handle_response);
-    else
-#endif
-        rc = make_request(hostp->hostname, amanda_port, req,
-			  hostp, conf_ctimeout, handle_response);
-
-    req = NULL;				/* do not own this any more */
-
-    if(rc) {
-	/* couldn't resolve hostname */
-	fprintf(outf,
-		"ERROR: %s: could not resolve hostname\n", hostp->hostname);
-	remote_errors++;
-	hostp->up = HOST_DONE;
-    } else {
-	hostp->up = HOST_ACTIVE;
+    secdrv = security_getdriver(hostp->disks->security_driver);
+    if (secdrv == NULL) {
+	error("could not find security driver '%s' for host '%s'",
+	      hostp->disks->security_driver, hostp->hostname);
     }
-    return 1;
+    protocol_sendreq(hostp->hostname, secdrv, generic_get_security_conf, 
+		     req, conf_ctimeout, handle_result, hostp);
+
+    amfree(req);
+
+    hostp->up = HOST_ACTIVE;
 }
 
 int start_client_checks(fd)
@@ -1477,7 +1378,6 @@ int fd;
     am_host_t *hostp;
     disk_t *dp;
     int hostcount, pid;
-    struct servent *amandad;
     int userbad = 0;
 
     switch(pid = fork()) {
@@ -1501,39 +1401,20 @@ int fd;
     fprintf(outf, "\nAmanda Backup Client Hosts Check\n");
     fprintf(outf,   "--------------------------------\n");
 
-#ifdef KRB4_SECURITY
-    kerberos_service_init();
-#endif
-
-    proto_init(msg->socket, time(0), 1024);
-
-    /* get remote service port */
-    if((amandad = getservbyname(AMANDA_SERVICE_NAME, "udp")) == NULL)
-	amanda_port = AMANDA_SERVICE_DEFAULT;
-    else
-	amanda_port = ntohs(amandad->s_port);
-
-#ifdef KRB4_SECURITY
-    if((amandad = getservbyname(KAMANDA_SERVICE_NAME, "udp")) == NULL)
-	kamanda_port = KAMANDA_SERVICE_DEFAULT;
-    else
-	kamanda_port = ntohs(amandad->s_port);
-#endif
+    protocol_init();
 
     hostcount = remote_errors = 0;
 
-    for(dp = origqp->head; dp != NULL; dp = dp->next) {
+    for(dp = origq.head; dp != NULL; dp = dp->next) {
 	hostp = dp->host;
 	if(hostp->up == HOST_READY) {
-	    if(start_host(hostp) == 1) {
-		hostcount++;
-		check_protocol();
-	    }
+	    start_host(hostp);
+	    hostcount++;
+	    protocol_check();
 	}
     }
 
-    run_protocol();
-    amfree(msg);
+    protocol_run();
 
     fprintf(outf,
      "Client check: %d host%s checked in %s seconds, %d problem%s found\n",
@@ -1556,9 +1437,10 @@ int fd;
     return 0;
 }
 
-static void handle_response(p, pkt)
-proto_t *p;
+static void handle_result(datap, pkt, sech)
+void *datap;
 pkt_t *pkt;
+security_handle_t *sech;
 {
     am_host_t *hostp;
     disk_t *dp;
@@ -1568,39 +1450,21 @@ pkt_t *pkt;
     int ch;
     int tch;
 
-    hostp = (am_host_t *) p->datap;
+    hostp = (am_host_t *)datap;
     hostp->up = HOST_READY;
 
-    if(p->state == S_FAILED && pkt == NULL) {
-	if(p->prevstate == S_REPWAIT) {
-	    fprintf(outf,
-		    "WARNING: %s: selfcheck reply timed out.\n",
-		    hostp->hostname);
-	}
-	else {
-	    fprintf(outf,
-		    "WARNING: %s: selfcheck request timed out.  Host down?\n",
-		    hostp->hostname);
-	}
+    if (pkt == NULL) {
+	fprintf(outf,
+	    "WARNING: %s: selfcheck request failed: %s\n", hostp->hostname,
+	    security_geterror(sech));
 	remote_errors++;
 	hostp->up = HOST_DONE;
 	return;
     }
-
-#ifdef KRB4_SECURITY
-    if(hostp->disks->auth == AUTH_KRB4 &&
-       !check_mutual_authenticator(host2key(hostp->hostname), pkt, p)) {
-	fprintf(outf, "ERROR: %s [mutual-authentication failed]\n",
-		hostp->hostname);
-	remote_errors++;
-	hostp->up = HOST_DONE;
-	return;
-    }
-#endif
 
 #if 0
-    fprintf(errf, "got %sresponse from %s:\n----\n%s----\n\n",
-	    (p->state == S_FAILED) ? "NAK " : "", hostp->hostname, pkt->body);
+    fprintf(errf, "got response from %s:\n----\n%s----\n\n",
+	    hostp->hostname, pkt->body);
 #endif
 
     s = pkt->body;
@@ -1633,13 +1497,13 @@ pkt_t *pkt;
 
 #define sc "OK "
 	if(strncmp(line, sc, sizeof(sc)-1) == 0) {
-#undef sc
 	    continue;
+#undef sc
 	}
 
 #define sc "ERROR "
 	if(strncmp(line, sc, sizeof(sc)-1) == 0) {
-	    t = line + sizeof(sc)-1;
+	    t = line + sizeof(sc) - 1;
 	    tch = t[-1];
 #undef sc
 
@@ -1650,14 +1514,14 @@ pkt_t *pkt;
 	     * We can ignore this.
 	     */
 	    if(hostp->features == NULL
-	       && p->state == S_FAILED
+	       && pkt->type == P_NAK
 	       && (strcmp(t - 1, "unknown service: noop") == 0
-	           || strcmp(t - 1, "noop: invalid service") == 0)) {
+		   || strcmp(t - 1, "noop: invalid service") == 0)) {
 	    } else {
 		fprintf(outf, "ERROR: %s%s: %s\n",
-		        (p->state == S_FAILED) ? "NAK " : "",
-		        hostp->hostname,
-		        t - 1);
+			(pkt->type == P_NAK) ? "NAK " : "",
+			hostp->hostname,
+			t - 1);
 		remote_errors++;
 		hostp->up = HOST_DONE;
 	    }

@@ -1,3 +1,18 @@
+Changes in release 2.5.0
+
+* Communication security/authentication: Kerberos 4/5, OpenSSH
+* Data security: Symmetric/Assymetric encrytion algorithms (aesutil
+  and gpg encryption),  Encryption can be done on server or client,
+  Custom encryption utilities can be used.
+* Compression: Ability to add custom compression tools. This is a
+  really useful feature especially since it can specified for a DLE.  You
+  can use different compression algorithm for images, binaries, ascii files
+  and so on.
+* Dump images spanning multiple media volumes - Dump images are no
+  longer restricted to a single media volume (tape or vtape).  Data restoration
+  can be done using amrecover and amfetchdump commands.
+* Auto tape labelling - This optional feature is good for disk backups.
+
 Change in release 2.4.5p1
 
 * New [--days <num>] argument to 'amadmin <conf> tape'.
@@ -119,13 +134,9 @@ Changes in release 2.4.3b1
 * new autoflush option.
 * new dumperstr option to specify the priority order of each dumper.
 
-Changes in release 2.4.2p2
+Changes in release 2.4.2
 
-* Mostly bug fixes.
 * Samba passwords are now sent to smbclient via a pipe and never displayed.
-* Amrecover should now work with xfsrestore.
-* Amrecover no longer binds an incorrect port that resulted in connection
-  failures on some systems.
 * Debug files in /tmp/amanda (--with-debug-dir) are now timestamped and old
   ones automatically cleaned out.  This means more space (a few KBytes) will
   be used since in a given run, several of the programs are called more than
@@ -133,16 +144,6 @@ Changes in release 2.4.2p2
   be lost by the file being overwritten.  The length of time to keep the
   files is controlled by --with-debug-days (default: 4).  The old flag
   --with-pid-debug-files is no longer needed and is ignored.
-* updated chg-zd-mtx.sh.in changer.
-
-Changes in release 2.4.2p1
-
-* Bugs fix release, the most annoying one is that amanda could retry
-  the same filesystem indefinitely if it is larger than the holding
-  disk but the estimate was smaller.
-
-Changes in release 2.4.2
-
 * dumptypes can be specialized in the disklist file
 * Amanda will never use more space than specified (use) for an holding
   disk
@@ -158,7 +159,7 @@ Changes in release 2.4.2
 * new force-bump, force-no-bump and unforce-bump command in amadmin.
 * Increased the maximum number of filesystems that can be backed up
   from a single host, by increasing the maximum UDP request packet
-  size
+  size.
 * A new `dtimeout' keyword in amanda.conf to replace the READ_TIMEOUT
   constant in dumper.c.
 * A new `ctimeout' keyword in amanda.conf to replace the CHECK_TIMEOUT

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amflush.c,v 1.41.2.13.4.6.2.9.2.3 2005/09/20 21:31:52 jrjackson Exp $
+ * $Id: amflush.c,v 1.80 2006/01/14 04:37:19 paddy_s Exp $
  *
  * write files from work directory onto tape
  */
@@ -55,7 +55,7 @@ void confirm P((void));
 void redirect_stderr P((void));
 void detach P((void));
 void run_dumps P((void));
-
+static int get_letter_from_user P((void));
 
 int main(main_argc, main_argv)
 int main_argc;
@@ -72,9 +72,10 @@ char **main_argv;
     char *conf_diskfile;
     char *conf_tapelist;
     char *conf_logfile;
-    disklist_t *diskqp;
+    disklist_t diskq;
     disk_t *dp;
-    pid_t pid, driver_pid, reporter_pid;
+    pid_t pid;
+    pid_t driver_pid, reporter_pid;
     amwait_t exitcode;
     int opt;
     dumpfile_t file;
@@ -89,6 +90,7 @@ char **main_argv;
 
     set_pname("amflush");
 
+    /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
     erroutput_type = ERR_INTERACTIVE;
@@ -107,7 +109,7 @@ char **main_argv;
 	case 's': redirect = 0;
 		  break;
 	case 'D': if (datearg == NULL)
-			datearg = alloc(21*sizeof(char *));
+		      datearg = alloc(21*sizeof(char *));
 		  if(nb_datearg == 20) {
 		      fprintf(stderr,"maximum of 20 -D arguments.\n");
 		      exit(1);
@@ -129,33 +131,32 @@ char **main_argv;
     }
 
     config_name = main_argv[0];
-
     config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
+
     conffile = stralloc2(config_dir, CONFFILE_NAME);
-    if(read_conffile(conffile)) {
+    if(read_conffile(conffile))
 	error("errors processing config file \"%s\"", conffile);
-    }
     amfree(conffile);
+
     conf_diskfile = getconf_str(CNF_DISKFILE);
     if (*conf_diskfile == '/') {
 	conf_diskfile = stralloc(conf_diskfile);
     } else {
 	conf_diskfile = stralloc2(config_dir, conf_diskfile);
     }
-    if((diskqp = read_diskfile(conf_diskfile)) == NULL) {
+    if (read_diskfile(conf_diskfile, &diskq) < 0)
 	error("could not read disklist file \"%s\"", conf_diskfile);
-    }
-    match_disklist(diskqp, main_argc-1, main_argv+1);
+    match_disklist(&diskq, main_argc-1, main_argv+1);
     amfree(conf_diskfile);
+
     conf_tapelist = getconf_str(CNF_TAPELIST);
     if (*conf_tapelist == '/') {
 	conf_tapelist = stralloc(conf_tapelist);
     } else {
 	conf_tapelist = stralloc2(config_dir, conf_tapelist);
     }
-    if(read_tapelist(conf_tapelist)) {
+    if(read_tapelist(conf_tapelist))
 	error("could not load tapelist \"%s\"", conf_tapelist);
-    }
     amfree(conf_tapelist);
 
     datestamp = construct_datestamp(NULL);
@@ -173,13 +174,12 @@ char **main_argv;
 	conf_logdir = stralloc2(config_dir, conf_logdir);
     }
     conf_logfile = vstralloc(conf_logdir, "/log", NULL);
-    if (access(conf_logfile, F_OK) == 0) {
+    if (access(conf_logfile, F_OK) == 0)
 	error("%s exists: amdump or amflush is already running, or you must run amcleanup", conf_logfile);
-    }
     amfree(conf_logfile);
- 
+
     driver_program = vstralloc(libexecdir, "/", "driver", versionsuffix(),
-				 NULL);
+			       NULL);
     reporter_program = vstralloc(sbindir, "/", "amreport", versionsuffix(),
 				 NULL);
     logroll_program = vstralloc(libexecdir, "/", "amlogroll", versionsuffix(),
@@ -224,7 +224,7 @@ char **main_argv;
 
     if(!batch) confirm();
 
-    for(dp = diskqp->head; dp != NULL; dp = dp->next) {
+    for(dp = diskq.head; dp != NULL; dp = dp->next) {
 	if(dp->todo)
 	    log_add(L_DISK, "%s %s", dp->host->hostname, dp->name);
     }
@@ -325,21 +325,21 @@ char **main_argv;
 	/* First, find out the last existing errfile,           */
 	/* to avoid ``infinite'' loops if tapecycle is infinite */
 
-	ap_snprintf(number,100,"%d",days);
+	snprintf(number,100,"%d",days);
 	errfilex = newvstralloc(errfilex, errfile, ".", number, NULL);
 	while ( days < maxdays && stat(errfilex,&stat_buf)==0) {
 	    days++;
-	    ap_snprintf(number,100,"%d",days);
+	    snprintf(number,100,"%d",days);
 	    errfilex = newvstralloc(errfilex, errfile, ".", number, NULL);
 	}
-	ap_snprintf(number,100,"%d",days);
+	snprintf(number,100,"%d",days);
 	errfilex = newvstralloc(errfilex, errfile, ".", number, NULL);
 	nerrfilex = NULL;
 	while (days > 1) {
 	    amfree(nerrfilex);
 	    nerrfilex = errfilex;
 	    days--;
-	    ap_snprintf(number,100,"%d",days);
+	    snprintf(number,100,"%d",days);
 	    errfilex = vstralloc(errfile, ".", number, NULL);
 	    if (rename(errfilex, nerrfilex) != 0) {
 		error("cannot rename \"%s\" to \"%s\": %s",
@@ -398,10 +398,9 @@ char **main_argv;
 }
 
 
-int get_letter_from_user()
+static int get_letter_from_user()
 {
-    int r = '\0';
-    int ch;
+    int r, ch;
 
     fflush(stdout); fflush(stderr);
     while((ch = getchar()) != EOF && ch != '\n' && isspace(ch)) {}

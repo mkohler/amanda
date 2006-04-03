@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: getconf.c,v 1.8.4.2.2.2.2.4.2.3 2005/09/21 19:04:22 jrjackson Exp $
+ * $Id: getconf.c,v 1.18 2006/01/14 04:37:19 paddy_s Exp $
  *
  * a little wrapper to extract config variables for shell scripts
  */
@@ -33,8 +33,6 @@
 #include "version.h"
 #include "genversion.h"
 #include "conffile.h"
-
-#define HOSTNAME_INSTANCE "host_inst"
 
 int main P((int argc, char **argv));
 
@@ -330,6 +328,9 @@ char **argv;
     }
     set_pname(pgm);
 
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
+
     if(argc < 2) {
 	fprintf(stderr, "Usage: %s [config] <parmname>\n", pgm);
 	exit(1);
@@ -363,14 +364,14 @@ char **argv;
 #else
     i = -1;
 #endif
-    ap_snprintf(number, sizeof(number), "%ld", (long)i);
+    snprintf(number, sizeof(number), "%ld", (long)i);
     build_info[1].value = stralloc(number);
 #if defined(KRB4_SECURITY)
     i = TICKET_LIFETIME;
 #else
     i = -1;
 #endif
-    ap_snprintf(number, sizeof(number), "%ld", (long)i);
+    snprintf(number, sizeof(number), "%ld", (long)i);
     build_info[2].value = stralloc(number);
 
 #undef p

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: scsi-linux.c,v 1.1.2.18.4.1.2.5 2003/07/05 16:59:01 ant Exp $
+ * $Id: scsi-linux.c,v 1.28 2006/03/09 20:06:10 johnfranks Exp $
  *
  * Interface to execute SCSI commands on Linux
  *
@@ -82,7 +82,7 @@
 void SCSI_OS_Version()
 {
 #ifndef lint
-   static char rcsid[] = "$Id: scsi-linux.c,v 1.1.2.18.4.1.2.5 2003/07/05 16:59:01 ant Exp $";
+   static char rcsid[] = "$Id: scsi-linux.c,v 1.28 2006/03/09 20:06:10 johnfranks Exp $";
    DebugPrint(DEBUG_ERROR, SECTION_INFO, "scsi-os-layer: %s\n",rcsid);
 #endif
 }
@@ -118,8 +118,6 @@ int SCSI_OpenDevice(int ip)
   int DeviceFD;
   int i;
   int timeout;
-  int sg_info = 0;                /* Used to get some infos about the sg interface */
-  int ret = 0;                    /* To store return results from ioctl etc */
   struct stat pstat;
   char *buffer = NULL ;           /* Will contain the device name after checking */
   int openmode = O_RDONLY;
@@ -177,13 +175,14 @@ int SCSI_OpenDevice(int ip)
         }
       
       DebugPrint(DEBUG_INFO, SECTION_SCSI,"Try to open %s\n", buffer);
-      if ((DeviceFD = open(buffer, openmode)) > 0)
+      if ((DeviceFD = open(buffer, openmode)) >= 0)
         {
           pDev[ip].avail = 1;
           pDev[ip].devopen = 1;
           pDev[ip].fd = DeviceFD;
         } else {
           DebugPrint(DEBUG_INFO, SECTION_SCSI,"##### STOP SCSI_OpenDevice open failed\n");
+	  amfree(buffer);
           return(0);
         }
       
@@ -193,23 +192,9 @@ int SCSI_OpenDevice(int ip)
           pDev[ip].SCSI = 1;
         }
       
-      pDev[ip].dev = stralloc(buffer);
+      pDev[ip].dev = buffer;
       if (pDev[ip].SCSI == 1)
         {
-          if ((ret = ioctl(DeviceFD, SG_GET_VERSION_NUM, &sg_info)) == 0)
-            {
-              DebugPrint(DEBUG_INFO, SECTION_SCSI,"SCSI_OpenDevice : SG_VERSION %d\n",sg_info);  
-            } else {
-              DebugPrint(DEBUG_INFO, SECTION_SCSI,"SCSI_OpenDevice : SG_VERSION ioctl returned %d\n", ret);
-            }
-
-          if ((ret = ioctl(DeviceFD, SG_GET_RESERVED_SIZE, &sg_info)) == 0)
-            {
-              DebugPrint(DEBUG_INFO, SECTION_SCSI,"SCSI_OpenDevice : SG_RESERVED_SIZE %d\n",sg_info);  
-            } else {
-              DebugPrint(DEBUG_INFO, SECTION_SCSI,"SCSI_OpenDevice : SG_RESERVED_SIZE ioctl returned %d\n", ret);
-            }
-
           DebugPrint(DEBUG_INFO, SECTION_SCSI,"SCSI_OpenDevice : use SG interface\n");
           if ((timeout = ioctl(pDev[ip].fd, SG_GET_TIMEOUT)) > 0) 
             {
@@ -248,7 +233,7 @@ int SCSI_OpenDevice(int ip)
                   return(1);
                 } else {
                   close(DeviceFD);
-                  free(pDev[ip].inquiry);
+                  amfree(pDev[ip].inquiry);
                   DebugPrint(DEBUG_INFO, SECTION_SCSI,"##### STOP SCSI_OpenDevice (0)\n");
                   return(0);
                 }
@@ -256,7 +241,7 @@ int SCSI_OpenDevice(int ip)
               pDev[ip].SCSI = 0;
               pDev[ip].devopen = 0;
               close(DeviceFD);
-              free(pDev[ip].inquiry);
+              amfree(pDev[ip].inquiry);
               pDev[ip].inquiry = NULL;
               DebugPrint(DEBUG_INFO, SECTION_SCSI,"##### STOP SCSI_OpenDevice (1)\n");
               return(1);
@@ -276,7 +261,7 @@ int SCSI_OpenDevice(int ip)
         } else {
           openmode = O_RDONLY;
         }
-      if ((DeviceFD = open(pDev[ip].dev, openmode)) > 0)
+      if ((DeviceFD = open(pDev[ip].dev, openmode)) >= 0)
         {
           pDev[ip].devopen = 1;
           pDev[ip].fd = DeviceFD;
@@ -325,18 +310,22 @@ int SCSI_ExecuteCommand(int DeviceFD,
     }
 
   if (pDev[DeviceFD].devopen == 0)
-    {
-      SCSI_OpenDevice(DeviceFD);
-    }
+      if (SCSI_OpenDevice(DeviceFD) == 0)
+          return(-1);
   
-/*   if (SCSI_OFF + CDB_Length + DataBufferLength > 4096)  */
-/*     { */
-/*       SCSI_CloseDevice(DeviceFD); */
-/*       DebugPrint(DEBUG_ERROR, SECTION_SCSI,"##### SCSI_ExecuteCommand error, SCSI_OFF + CDB_Length + DataBufferLength > 4096\n"); */
-/*       return(-1); */
-/*     } */
+  if (SCSI_OFF + CDB_Length + DataBufferLength > 4096) 
+    {
+      SCSI_CloseDevice(DeviceFD);
+      return(-1);
+    }
 
   buffer = (char *)malloc(SCSI_OFF + CDB_Length + DataBufferLength);
+  if (buffer == NULL)
+    {
+      dbprintf(("SCSI_ExecuteCommand memory allocation failure.\n"));
+      SCSI_CloseDevice(DeviceFD);
+      return(-1);
+    }
   memset(buffer, 0, SCSI_OFF + CDB_Length + DataBufferLength);
   memcpy(buffer + SCSI_OFF, CDB, CDB_Length);
   
@@ -368,6 +357,7 @@ int SCSI_ExecuteCommand(int DeviceFD,
     {
       dbprintf(("SCSI_ExecuteCommand error send \n"));
       SCSI_CloseDevice(DeviceFD);
+      amfree(buffer);
       return(SCSI_ERROR);
     }
   
@@ -380,8 +370,9 @@ int SCSI_ExecuteCommand(int DeviceFD,
        psg_header->result ) 
     { 
       dbprintf(("SCSI_ExecuteCommand error read \n"));
-      dbprintf(("Status %d (%d) %2X\n", status, SCSI_OFF + DataBufferLength, psg_header->result ));
+      dbprintf(("Status %d (%d) %2X\n", status, SCSI_OFF + DataBufferLength,psg_header->result ));
       SCSI_CloseDevice(DeviceFD);
+      amfree(buffer);
       return(SCSI_ERROR);
     }
 
@@ -390,8 +381,8 @@ int SCSI_ExecuteCommand(int DeviceFD,
        memcpy(DataBuffer, buffer + SCSI_OFF, DataBufferLength);
     }
 
-  free(buffer);
   SCSI_CloseDevice(DeviceFD);
+  amfree(buffer);
   return(SCSI_OK);
 }
 
@@ -417,7 +408,7 @@ int SCSI_OpenDevice(int ip)
   if (pDev[ip].inqdone == 0)
     {
       pDev[ip].inqdone = 1;
-      if ((DeviceFD = open(pDev[ip].dev, O_RDWR)) > 0)
+      if ((DeviceFD = open(pDev[ip].dev, O_RDWR)) >= 0)
         {
           pDev[ip].avail = 1;
           pDev[ip].fd = DeviceFD;
@@ -435,20 +426,20 @@ int SCSI_OpenDevice(int ip)
                   PrintInquiry(pDev[ip].inquiry);
                   return(1);
                 } else {
-                  free(pDev[ip].inquiry);
+                  amfree(pDev[ip].inquiry);
                   close(DeviceFD);
                   return(0);
                 }
             } else {
               close(DeviceFD);
-              free(pDev[ip].inquiry);
+              amfree(pDev[ip].inquiry);
               pDev[ip].inquiry = NULL;
               return(1);
             }
         }
       return(1); 
     } else {
-      if ((DeviceFD = open(pDev[ip].dev, O_RDWR)) > 0)
+      if ((DeviceFD = open(pDev[ip].dev, O_RDWR)) >= 0)
         {
           pDev[ip].fd = DeviceFD;
           pDev[ip].devopen = 1;
@@ -480,7 +471,8 @@ int SCSI_ExecuteCommand(int DeviceFD,
 
   if (pDev[DeviceFD].devopen == 0)
     {
-      SCSI_OpenDevice(DeviceFD);
+      if (SCSI_OpenDevice(DeviceFD) == 0)
+          return(-1);
     }
 
   memset(pRequestSense, 0, RequestSenseLength);
@@ -510,7 +502,7 @@ int SCSI_ExecuteCommand(int DeviceFD,
     memcpy(pRequestSense, &Command[8], RequestSenseLength);
   else if (Direction == Input)
     memcpy(DataBuffer, &Command[8], DataBufferLength);
-  free(Command);
+  amfree(Command);
   SCSI_CloseDevice(DeviceFD);
 
   switch(Result)
@@ -537,7 +529,8 @@ int Tape_Ioctl( int DeviceFD, int command)
 
   if (pDev[DeviceFD].devopen == 0)
     {
-      SCSI_OpenDevice(DeviceFD);
+      if (SCSI_OpenDevice(DeviceFD) == 0)
+          return(-1);
     }
 
   switch (command)
@@ -569,7 +562,8 @@ int Tape_Status( int DeviceFD)
 
   if (pDev[DeviceFD].devopen == 0)
     {
-      SCSI_OpenDevice(DeviceFD);
+      if (SCSI_OpenDevice(DeviceFD) == 0)
+          return(-1);
     }
 
   if (ioctl(pDev[DeviceFD].fd , MTIOCGET, &mtget) != 0)
@@ -622,7 +616,11 @@ int ScanBus(int print)
   extern int errno;
   int count = 0;
 
-  dir = opendir("/dev/");
+  if ((dir = opendir("/dev/")) == NULL)
+    {
+      dbprintf(("/dev/ error: %s", strerror(errno)));
+      return 0;
+    }
 
   while ((dirent = readdir(dir)) != NULL)
     {
@@ -681,7 +679,7 @@ int ScanBus(int print)
             count++;
 	    printf("Count %d\n",count);
           } else {
-            free(pDev[count].dev);
+            amfree(pDev[count].dev);
             pDev[count].dev=NULL;
           }
       }

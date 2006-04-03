@@ -11,6 +11,7 @@
 r=$(shell pwd)/debian/amanda-common
 server=$(shell pwd)/debian/amanda-server
 client=$(shell pwd)/debian/amanda-client
+common=$(shell pwd)/debian/amanda-common
 
 build: build-stamp 
 build-stamp: /sbin/dump /usr/bin/smbclient debian/po/templates.pot
@@ -27,7 +28,9 @@ build-stamp: /sbin/dump /usr/bin/smbclient debian/po/templates.pot
 		--with-bsd-security --with-amandahosts \
 		--with-smbclient=/usr/bin/smbclient \
 		--with-debugging=/var/log/amanda \
-		--with-tcpportrange=50000,50100 --with-udpportrange=840,860
+		--with-dumperdir=/usr/lib/amanda/dumper.d \
+		--with-tcpportrange=50000,50100 --with-udpportrange=840,860 \
+		--with-maxtapeblocksize=256
 	touch missing
 	make CFLAGS="-O2 -g -Wall \
 		-DAMANDATES_FILE='\"/var/lib/amanda/amandates\"' \
@@ -58,8 +61,7 @@ binary-arch: build
 	dh_testroot
 	dh_clean -k
 	dh_installdirs -a
-	make install prefix=$(r)/usr bindir=$(r)/usr/sbin \
-		libexecdir=$(r)/usr/lib/amanda mandir=$(r)/usr/share/man
+	make install DESTDIR=$(r)
 	install -m 644 debian/amanda.conf.in \
 		$(server)/etc/amanda/DailySet1/amanda.conf
 	install -m 644 debian/disklist $(server)/etc/amanda/DailySet1/disklist
@@ -104,6 +106,8 @@ binary-arch: build
 		$(server)/usr/sbin/amcheck
 	install -o root -g root -m 0644 debian/amanda-client.lintian \
 		$(client)/usr/share/lintian/overrides/amanda-client
+	install -o root -g root -m 0644 debian/amanda-common.lintian \
+		$(common)/usr/share/lintian/overrides/amanda-common
 	install -o root -g root -m 0644 debian/amanda-server.lintian \
 		$(server)/usr/share/lintian/overrides/amanda-server
 	dh_makeshlibs -a

@@ -25,7 +25,7 @@
  */
 
 /*
- * $Id: amfeatures.h,v 1.1.2.6.2.3 2004/08/11 19:16:28 martinea Exp $
+ * $Id: amfeatures.h,v 1.15 2006/03/14 13:11:58 martinea Exp $
  *
  * Define feature test related items.
  */
@@ -93,7 +93,7 @@ typedef enum {
 
     fe_program_dump,
     fe_program_gnutar,
-    fe_program_dumper_api,
+    fe_program_dumper_api,		/* require fe_sendsize_req_options */
 
     fe_options_compress_fast,
     fe_options_compress_best,
@@ -137,6 +137,21 @@ typedef enum {
     fe_partial_estimate,
     fe_calcsize_estimate,
     fe_selfcheck_calcsize,
+
+    fe_recover_splits,
+    fe_amidxtaped_exchange_features,
+
+    fe_options_compress_cust,
+    fe_options_srvcomp_cust,
+    fe_options_encrypt_cust,
+    fe_options_encrypt_serv_cust,
+    fe_options_client_decrypt_option,
+    fe_options_server_decrypt_option,
+
+    fe_amindexd_marshall_in_OLSD,
+    fe_amindexd_marshall_in_ORLD,
+    fe_amindexd_marshall_in_DHST,
+    fe_amrecover_FEEDME,
 
     /*
      * All new features must be inserted immediately *before* this entry.

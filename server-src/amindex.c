@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: amindex.c,v 1.10.4.2.4.1 2001/09/01 03:35:17 jrjackson Exp $
+ * $Id: amindex.c,v 1.13 2001/09/01 03:36:24 jrjackson Exp $
  *
  * index control
  */
@@ -58,7 +58,7 @@ int level;
     datebuf[sizeof(datebuf)-1] = '\0';
     dc = datebuf;
 
-    ap_snprintf(level_str, sizeof(level_str), "%d", level);
+    snprintf(level_str, sizeof(level_str), "%d", level);
   }
 
   host = sanitise_filename(host);

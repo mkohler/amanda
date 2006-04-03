@@ -26,7 +26,7 @@
  */
 
 /*
- * $Id: output-file.h,v 1.1.2.2.2.2 2003/03/06 21:44:20 martinea Exp $
+ * $Id: output-file.h,v 1.5 2003/03/06 21:43:57 martinea Exp $
  *
  * tapeio.c virtual tape interface for a file device.
  */

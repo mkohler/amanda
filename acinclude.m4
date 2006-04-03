@@ -499,8 +499,93 @@ dnl Remember, if the system already had a valid <stdint.h>, the generated
 dnl file will include it directly. No need for fuzzy HAVE_STDINT_H things...
 dnl
 dnl @, (status: used on new platforms) (see http://ac-archive.sf.net/gstdint/)
-dnl @version $Id: acinclude.m4i,v 1.1.2.5.8.3 2004/04/29 20:47:22 martinea Exp $
+dnl @version Id: ax_create_stdint_h.m4,v 1.5 2005/01/06 18:27:27 guidod Exp
 dnl @author  Guido Draheim <guidod@gmx.de> 
+
+AC_DEFUN([AX_CHECK_DATA_MODEL],[
+   AC_CHECK_SIZEOF(char)
+   AC_CHECK_SIZEOF(short)
+   AC_CHECK_SIZEOF(int)
+   AC_CHECK_SIZEOF(long)
+   AC_CHECK_SIZEOF(void*)
+   ac_cv_char_data_model=""
+   ac_cv_char_data_model="$ac_cv_char_data_model$ac_cv_sizeof_char"
+   ac_cv_char_data_model="$ac_cv_char_data_model$ac_cv_sizeof_short"
+   ac_cv_char_data_model="$ac_cv_char_data_model$ac_cv_sizeof_int"
+   ac_cv_long_data_model=""
+   ac_cv_long_data_model="$ac_cv_long_data_model$ac_cv_sizeof_int"
+   ac_cv_long_data_model="$ac_cv_long_data_model$ac_cv_sizeof_long"
+   ac_cv_long_data_model="$ac_cv_long_data_model$ac_cv_sizeof_voidp"
+   AC_MSG_CHECKING([data model])
+   case "$ac_cv_char_data_model/$ac_cv_long_data_model" in
+    122/242)     ac_cv_data_model="IP16"  ; n="standard 16bit machine" ;;
+    122/244)     ac_cv_data_model="LP32"  ; n="standard 32bit machine" ;;
+    122/*)       ac_cv_data_model="i16"   ; n="unusual int16 model" ;;
+    124/444)     ac_cv_data_model="ILP32" ; n="standard 32bit unixish" ;;
+    124/488)     ac_cv_data_model="LP64"  ; n="standard 64bit unixish" ;;
+    124/448)     ac_cv_data_model="LLP64" ; n="unusual 64bit unixish" ;;
+    124/*)       ac_cv_data_model="i32"   ; n="unusual int32 model" ;;
+    128/888)     ac_cv_data_model="ILP64" ; n="unusual 64bit numeric" ;;
+    128/*)       ac_cv_data_model="i64"   ; n="unusual int64 model" ;;         
+    222/*2)      ac_cv_data_model="DSP16" ; n="strict 16bit dsptype" ;;
+    333/*3)      ac_cv_data_model="DSP24" ; n="strict 24bit dsptype" ;;
+    444/*4)      ac_cv_data_model="DSP32" ; n="strict 32bit dsptype" ;;
+    666/*6)      ac_cv_data_model="DSP48" ; n="strict 48bit dsptype" ;;
+    888/*8)      ac_cv_data_model="DSP64" ; n="strict 64bit dsptype" ;;
+    222/*|333/*|444/*|666/*|888/*) :
+                 ac_cv_data_model="iDSP"  ; n="unusual dsptype" ;;
+     *)          ac_cv_data_model="none"  ; n="very unusual model" ;;
+   esac
+   AC_MSG_RESULT([$ac_cv_data_model ($ac_cv_long_data_model, $n)])
+])
+
+dnl AX_CHECK_HEADER_STDINT_X([HEADERLIST][,ACTION-IF])
+AC_DEFUN([AX_CHECK_HEADER_STDINT_X],[
+AC_CACHE_CHECK([for stdint uintptr_t], [ac_cv_header_stdint_x],[
+ ac_cv_header_stdint_x="" # the 1997 typedefs (inttypes.h)
+  AC_MSG_RESULT([(..)])
+  for i in m4_ifval([$1],[$1],[stdint.h inttypes.h sys/inttypes.h]) ; do
+   unset ac_cv_type_uintptr_t 
+   unset ac_cv_type_uint64_t
+   AC_CHECK_TYPE(uintptr_t,[ac_cv_header_stdint_x=$i],continue,[#include <$i>])
+   AC_CHECK_TYPE(uint64_t,[and64="/uint64_t"],[and64=""],[#include<$i>])
+   m4_ifvaln([$1],[$1]) break
+  done
+  AC_MSG_CHECKING([for stdint uintptr_t])
+ ])
+])
+
+AC_DEFUN([AX_CHECK_HEADER_STDINT_O],[
+AC_CACHE_CHECK([for stdint uint32_t], [ac_cv_header_stdint_o],[
+ ac_cv_header_stdint_o="" # the 1995 typedefs (sys/inttypes.h)
+  AC_MSG_RESULT([(..)])
+  for i in m4_ifval([$1],[$1],[inttypes.h sys/inttypes.h stdint.h]) ; do
+   unset ac_cv_type_uint32_t
+   unset ac_cv_type_uint64_t
+   AC_CHECK_TYPE(uint32_t,[ac_cv_header_stdint_o=$i],continue,[#include <$i>])
+   AC_CHECK_TYPE(uint64_t,[and64="/uint64_t"],[and64=""],[#include<$i>])
+   m4_ifvaln([$1],[$1]) break
+   break;
+  done
+  AC_MSG_CHECKING([for stdint uint32_t])
+ ])
+])
+
+AC_DEFUN([AX_CHECK_HEADER_STDINT_U],[
+AC_CACHE_CHECK([for stdint u_int32_t], [ac_cv_header_stdint_u],[
+ ac_cv_header_stdint_u="" # the BSD typedefs (sys/types.h)
+  AC_MSG_RESULT([(..)])
+  for i in m4_ifval([$1],[$1],[sys/types.h inttypes.h sys/inttypes.h]) ; do
+   unset ac_cv_type_u_int32_t
+   unset ac_cv_type_u_int64_t
+   AC_CHECK_TYPE(u_int32_t,[ac_cv_header_stdint_u=$i],continue,[#include <$i>])
+   AC_CHECK_TYPE(u_int64_t,[and64="/u_int64_t"],[and64=""],[#include<$i>])
+   m4_ifvaln([$1],[$1]) break
+   break;
+  done
+  AC_MSG_CHECKING([for stdint u_int32_t])
+ ])
+])
 
 AC_DEFUN([AX_CREATE_STDINT_H],
 [# ------ AX CREATE STDINT H -------------------------------------
@@ -535,94 +620,35 @@ fi
 if test "_$ac_cv_header_stdint_t" = "_" ; then # can not shortcircuit..
 
 dnl .....intro message done, now do a few system checks.....
-dnl btw, all CHECK_TYPE macros do automatically "DEFINE" a type, therefore
-dnl we use the autoconf implementation detail _AC CHECK_TYPE_NEW instead
+dnl btw, all old CHECK_TYPE macros do automatically "DEFINE" a type, 
+dnl therefore we use the autoconf implementation detail CHECK_TYPE_NEW 
+dnl instead that is triggered with 3 or more arguments (see types.m4)
 
 inttype_headers=`echo $2 | sed -e 's/,/ /g'`
 
 ac_cv_stdint_result="(no helpful system typedefs seen)"
-AC_CACHE_CHECK([for stdint uintptr_t], [ac_cv_header_stdint_x],[
- ac_cv_header_stdint_x="" # the 1997 typedefs (inttypes.h)
-  AC_MSG_RESULT([(..)])
-  for i in stdint.h inttypes.h sys/inttypes.h $inttype_headers ; do
-   unset ac_cv_type_uintptr_t 
-   unset ac_cv_type_uint64_t
-   _AC_CHECK_TYPE_NEW(uintptr_t,[ac_cv_header_stdint_x=$i],dnl
-     continue,[#include <$i>])
-   AC_CHECK_TYPE(uint64_t,[and64="/uint64_t"],[and64=""],[#include<$i>])
-   ac_cv_stdint_result="(seen uintptr_t$and64 in $i)"
-   break;
-  done
-  AC_MSG_CHECKING([for stdint uintptr_t])
- ])
+AX_CHECK_HEADER_STDINT_X(dnl
+   stdint.h inttypes.h sys/inttypes.h $inttype_headers,
+   ac_cv_stdint_result="(seen uintptr_t$and64 in $i)")
 
 if test "_$ac_cv_header_stdint_x" = "_" ; then
-AC_CACHE_CHECK([for stdint uint32_t], [ac_cv_header_stdint_o],[
- ac_cv_header_stdint_o="" # the 1995 typedefs (sys/inttypes.h)
-  AC_MSG_RESULT([(..)])
-  for i in inttypes.h sys/inttypes.h stdint.h $inttype_headers ; do
-   unset ac_cv_type_uint32_t
-   unset ac_cv_type_uint64_t
-   AC_CHECK_TYPE(uint32_t,[ac_cv_header_stdint_o=$i],dnl
-     continue,[#include <$i>])
-   AC_CHECK_TYPE(uint64_t,[and64="/uint64_t"],[and64=""],[#include<$i>])
-   ac_cv_stdint_result="(seen uint32_t$and64 in $i)"
-   break;
-  done
-  AC_MSG_CHECKING([for stdint uint32_t])
- ])
+AX_CHECK_HEADER_STDINT_O(dnl,
+   inttypes.h sys/inttypes.h stdint.h $inttype_headers,
+   ac_cv_stdint_result="(seen uint32_t$and64 in $i)")
 fi
 
 if test "_$ac_cv_header_stdint_x" = "_" ; then
 if test "_$ac_cv_header_stdint_o" = "_" ; then
-AC_CACHE_CHECK([for stdint u_int32_t], [ac_cv_header_stdint_u],[
- ac_cv_header_stdint_u="" # the BSD typedefs (sys/types.h)
-  AC_MSG_RESULT([(..)])
-  for i in sys/types.h inttypes.h sys/inttypes.h $inttype_headers ; do
-   unset ac_cv_type_u_int32_t
-   unset ac_cv_type_u_int64_t
-   AC_CHECK_TYPE(u_int32_t,[ac_cv_header_stdint_u=$i],dnl
-     continue,[#include <$i>])
-   AC_CHECK_TYPE(u_int64_t,[and64="/u_int64_t"],[and64=""],[#include<$i>])
-   ac_cv_stdint_result="(seen u_int32_t$and64 in $i)"
-   break;
-  done
-  AC_MSG_CHECKING([for stdint u_int32_t])
- ])
+AX_CHECK_HEADER_STDINT_U(dnl,
+   sys/types.h inttypes.h sys/inttypes.h $inttype_headers,
+   ac_cv_stdint_result="(seen u_int32_t$and64 in $i)")
 fi fi
 
 dnl if there was no good C99 header file, do some typedef checks...
 if test "_$ac_cv_header_stdint_x" = "_" ; then
    AC_MSG_CHECKING([for stdint datatype model])
    AC_MSG_RESULT([(..)])
-   AC_CHECK_SIZEOF(char)
-   AC_CHECK_SIZEOF(short)
-   AC_CHECK_SIZEOF(int)
-   AC_CHECK_SIZEOF(long)
-   AC_CHECK_SIZEOF(void*)
-   ac_cv_stdint_char_model=""
-   ac_cv_stdint_char_model="$ac_cv_stdint_char_model$ac_cv_sizeof_char"
-   ac_cv_stdint_char_model="$ac_cv_stdint_char_model$ac_cv_sizeof_short"
-   ac_cv_stdint_char_model="$ac_cv_stdint_char_model$ac_cv_sizeof_int"
-   ac_cv_stdint_long_model=""
-   ac_cv_stdint_long_model="$ac_cv_stdint_long_model$ac_cv_sizeof_int"
-   ac_cv_stdint_long_model="$ac_cv_stdint_long_model$ac_cv_sizeof_long"
-   ac_cv_stdint_long_model="$ac_cv_stdint_long_model$ac_cv_sizeof_voidp"
-   name="$ac_cv_stdint_long_model"
-   case "$ac_cv_stdint_char_model/$ac_cv_stdint_long_model" in
-    122/242)     name="$name,  IP16 (standard 16bit machine)" ;;
-    122/244)     name="$name,  LP32 (standard 32bit mac/win)" ;;
-    122/*)       name="$name        (unusual int16 model)" ;; 
-    124/444)     name="$name, ILP32 (standard 32bit unixish)" ;;
-    124/488)     name="$name,  LP64 (standard 64bit unixish)" ;;
-    124/448)     name="$name, LLP64 (unusual  64bit unixish)" ;;
-    124/*)       name="$name        (unusual int32 model)" ;; 
-    128/888)     name="$name, ILP64 (unusual  64bit numeric)" ;;
-    128/*)       name="$name        (unusual int64 model)" ;; 
-    222/*|444/*) name="$name        (unusual dsptype)" ;;
-     *)          name="$name        (very unusal model)" ;;
-   esac
-   AC_MSG_RESULT([combined for stdint datatype model...  $name])
+   AX_CHECK_DATA_MODEL
 fi
 
 if test "_$ac_cv_header_stdint_x" != "_" ; then
@@ -655,6 +681,7 @@ fi
 AC_MSG_RESULT([make use of $ac_cv_header_stdint in $ac_stdint_h dnl
 $ac_cv_stdint_result])
 
+dnl -----------------------------------------------------------------
 # ----------------- DONE inttypes.h checks START header -------------
 AC_CONFIG_COMMANDS([$ac_stdint_h],[
 AC_MSG_NOTICE(creating $ac_stdint_h : $_ac_stdint_h)
@@ -667,7 +694,10 @@ echo "#define" _GENERATED_STDINT_H '"'$PACKAGE $VERSION'"' >>$ac_stdint
 echo "/* generated $ac_cv_stdint_message */" >>$ac_stdint
 if test "_$ac_cv_header_stdint_t" != "_" ; then 
 echo "#define _STDINT_HAVE_STDINT_H" "1" >>$ac_stdint
-fi
+echo "#include <stdint.h>" >>$ac_stdint
+echo "#endif" >>$ac_stdint
+echo "#endif" >>$ac_stdint
+else
 
 cat >>$ac_stdint <<STDINT_EOF
 
@@ -727,9 +757,9 @@ fi
 echo "" >>$ac_stdint
 
 echo "/* which type model has been detected */" >>$ac_stdint
-if test "_$ac_cv_stdint_char_model" != "_" ; then
-echo "#define   _STDINT_CHAR_MODEL" "$ac_cv_stdint_char_model" >>$ac_stdint
-echo "#define   _STDINT_LONG_MODEL" "$ac_cv_stdint_long_model" >>$ac_stdint
+if test "_$ac_cv_char_data_model" != "_" ; then
+echo "#define   _STDINT_CHAR_MODEL" "$ac_cv_char_data_model" >>$ac_stdint
+echo "#define   _STDINT_LONG_MODEL" "$ac_cv_long_data_model" >>$ac_stdint
 else
 echo "/* #undef _STDINT_CHAR_MODEL // skipped */" >>$ac_stdint
 echo "/* #undef _STDINT_LONG_MODEL // skipped */" >>$ac_stdint
@@ -814,6 +844,7 @@ typedef u_int64_t uint64_t;
 /* .. here are some common heuristics using compiler runtime specifics */
 #if defined __STDC_VERSION__ && defined __STDC_VERSION__ >= 199901L
 #define _HAVE_UINT64_T
+#define _HAVE_LONGLONG_UINT64_T
 typedef long long int64_t;
 typedef unsigned long long uint64_t;
 
@@ -827,12 +858,14 @@ typedef unsigned __int64 uint64_t;
 /* note: all ELF-systems seem to have loff-support which needs 64-bit */
 #if !defined _NO_LONGLONG
 #define _HAVE_UINT64_T
+#define _HAVE_LONGLONG_UINT64_T
 typedef long long int64_t;
 typedef unsigned long long uint64_t;
 #endif
 
 #elif defined __alpha || (defined __mips && defined _ABIN32)
 #if !defined _NO_LONGLONG
+#define _HAVE_UINT64_T
 typedef long int64_t;
 typedef unsigned long uint64_t;
 #endif
@@ -918,6 +951,7 @@ typedef          int     int32_t;
 /* assuming the system has a "long long" */
 #ifndef _HAVE_UINT64_T
 #define _HAVE_UINT64_T
+#define _HAVE_LONGLONG_UINT64_T
 typedef unsigned long long uint64_t;
 typedef          long long  int64_t;
 #endif
@@ -1003,12 +1037,87 @@ typedef           long   intptr_t;
 #endif
 #endif
 
+/* The ISO C99 standard specifies that in C++ implementations these
+   should only be defined if explicitly requested.  */
+#if !defined __cplusplus || defined __STDC_CONSTANT_MACROS
+#ifndef UINT32_C
+
+/* Signed.  */
+# define INT8_C(c)      c
+# define INT16_C(c)     c
+# define INT32_C(c)     c
+# ifdef _HAVE_LONGLONG_UINT64_T
+#  define INT64_C(c)    c ## L
+# else
+#  define INT64_C(c)    c ## LL
+# endif
+
+/* Unsigned.  */
+# define UINT8_C(c)     c ## U
+# define UINT16_C(c)    c ## U
+# define UINT32_C(c)    c ## U
+# ifdef _HAVE_LONGLONG_UINT64_T
+#  define UINT64_C(c)   c ## UL
+# else
+#  define UINT64_C(c)   c ## ULL
+# endif
+
+/* Maximal type.  */
+# ifdef _HAVE_LONGLONG_UINT64_T
+#  define INTMAX_C(c)   c ## L
+#  define UINTMAX_C(c)  c ## UL
+# else
+#  define INTMAX_C(c)   c ## LL
+#  define UINTMAX_C(c)  c ## ULL
+# endif
+
+  /* literalnumbers */
+#endif
+#endif
+
+/* These limits are merily those of a two complement byte-oriented system */
+
+/* Minimum of signed integral types.  */
+# define INT8_MIN               (-128)
+# define INT16_MIN              (-32767-1)
+# define INT32_MIN              (-2147483647-1)
+# define INT64_MIN              (-__INT64_C(9223372036854775807)-1)
+/* Maximum of signed integral types.  */
+# define INT8_MAX               (127)
+# define INT16_MAX              (32767)
+# define INT32_MAX              (2147483647)
+# define INT64_MAX              (__INT64_C(9223372036854775807))
+
+/* Maximum of unsigned integral types.  */
+# define UINT8_MAX              (255)
+# define UINT16_MAX             (65535)
+# define UINT32_MAX             (4294967295U)
+# define UINT64_MAX             (__UINT64_C(18446744073709551615))
+
+/* Minimum of signed integral types having a minimum size.  */
+# define INT_LEAST8_MIN         INT8_MIN
+# define INT_LEAST16_MIN        INT16_MIN
+# define INT_LEAST32_MIN        INT32_MIN
+# define INT_LEAST64_MIN        INT64_MIN
+/* Maximum of signed integral types having a minimum size.  */
+# define INT_LEAST8_MAX         INT8_MAX
+# define INT_LEAST16_MAX        INT16_MAX
+# define INT_LEAST32_MAX        INT32_MAX
+# define INT_LEAST64_MAX        INT64_MAX
+
+/* Maximum of unsigned integral types having a minimum size.  */
+# define UINT_LEAST8_MAX        UINT8_MAX
+# define UINT_LEAST16_MAX       UINT16_MAX
+# define UINT_LEAST32_MAX       UINT32_MAX
+# define UINT_LEAST64_MAX       UINT64_MAX
+
   /* shortcircuit*/
 #endif
   /* once */
 #endif
 #endif
 STDINT_EOF
+fi
     if cmp -s $ac_stdint_h $ac_stdint 2>/dev/null; then
       AC_MSG_NOTICE([$ac_stdint_h is unchanged])
     else
@@ -1029,8 +1138,8 @@ ac_cv_header_stdint_o="$ac_cv_header_stdint_o"
 ac_cv_header_stdint_u="$ac_cv_header_stdint_u"
 ac_cv_type_uint64_t="$ac_cv_type_uint64_t"
 ac_cv_type_u_int64_t="$ac_cv_type_u_int64_t"
-ac_cv_stdint_char_model="$ac_cv_stdint_char_model"
-ac_cv_stdint_long_model="$ac_cv_stdint_long_model"
+ac_cv_char_data_model="$ac_cv_char_data_model"
+ac_cv_long_data_model="$ac_cv_long_data_model"
 ac_cv_type_int_least32_t="$ac_cv_type_int_least32_t"
 ac_cv_type_int_fast32_t="$ac_cv_type_int_fast32_t"
 ac_cv_type_intmax_t="$ac_cv_type_intmax_t"
@@ -1175,7 +1284,7 @@ rm="rm -f"
 default_ofile=libtool
 can_build_shared=yes
 
-# All known linkers require a `.a' archive for static linking (except M$VC,
+# All known linkers require a `.a' archive for static linking (except MSVC,
 # which needs '.lib').
 libext=a
 ltmain="$ac_aux_dir/ltmain.sh"
@@ -1391,8 +1500,8 @@ if test "X${echo_test_string+set}" != Xset; then
 # find a string as large as possible, as long as the shell can cope with it
   for cmd in 'sed 50q "[$]0"' 'sed 20q "[$]0"' 'sed 10q "[$]0"' 'sed 2q "[$]0"' 'echo test'; do
     # expected sizes: less than 2Kb, 1Kb, 512 bytes, 16 bytes, ...
-    if (echo_test_string="`eval $cmd`") 2>/dev/null &&
-       echo_test_string="`eval $cmd`" &&
+    if (echo_test_string=`eval $cmd`) 2>/dev/null &&
+       echo_test_string=`eval $cmd` &&
        (test "X$echo_test_string" = "X$echo_test_string") 2>/dev/null
     then
       break
@@ -1561,7 +1670,7 @@ x86_64-*linux*|ppc*-*linux*|powerpc*-*linux*|s390*-*linux*|sparc*-*linux*)
   # Find out which ABI we are using.
   echo 'int i;' > conftest.$ac_ext
   if AC_TRY_EVAL(ac_compile); then
-    case "`/usr/bin/file conftest.o`" in
+    case `/usr/bin/file conftest.o` in
     *32-bit*)
       case $host in
         x86_64-*linux*)
@@ -1643,7 +1752,7 @@ AC_CACHE_CHECK([$1], [$2],
    # with a dollar sign (not a hyphen), so the echo should work correctly.
    # The option is referenced via a variable to avoid confusing sed.
    lt_compile=`echo "$ac_compile" | $SED \
-   -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
+   -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [[^ ]]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
    (eval echo "\"\$as_me:__oline__: $lt_compile\"" >&AS_MESSAGE_LOG_FD)
@@ -1682,7 +1791,7 @@ AC_DEFUN([AC_LIBTOOL_LINKER_OPTION],
    LDFLAGS="$LDFLAGS $3"
    printf "$lt_simple_link_test_code" > conftest.$ac_ext
    if (eval $ac_link 2>conftest.err) && test -s conftest$ac_exeext; then
-     # The compiler can only warn and ignore the option if not recognized
+     # The linker can only warn and ignore the option if not recognized
      # So say no if there are warnings
      if test -s conftest.err; then
        # Append any errors to the config.log.
@@ -1757,7 +1866,7 @@ AC_CACHE_VAL([lt_cv_sys_max_cmd_len], [dnl
     elif test -x /usr/sbin/sysctl; then
       lt_cv_sys_max_cmd_len=`/usr/sbin/sysctl -n kern.argmax`
     else
-      lt_cv_sys_max_cmd_len=65536 # usable default for *BSD
+      lt_cv_sys_max_cmd_len=65536	# usable default for all BSDs
     fi
     # And add a safety zone
     lt_cv_sys_max_cmd_len=`expr $lt_cv_sys_max_cmd_len \/ 4`
@@ -1769,7 +1878,7 @@ AC_CACHE_VAL([lt_cv_sys_max_cmd_len], [dnl
     # nice to cause kernel panics so lets avoid the loop below.
     # First set a reasonable default.
     lt_cv_sys_max_cmd_len=16384
-    # 
+    #
     if test -x /sbin/sysconfig; then
       case `/sbin/sysconfig -q proc exec_disable_arg_limit` in
         *1*) lt_cv_sys_max_cmd_len=-1 ;;
@@ -1886,7 +1995,7 @@ int main ()
 }]
 EOF
   if AC_TRY_EVAL(ac_link) && test -s conftest${ac_exeext} 2>/dev/null; then
-    (./conftest; exit; ) 2>/dev/null
+    (./conftest; exit; ) >&AS_MESSAGE_LOG_FD 2>/dev/null
     lt_status=$?
     case x$lt_status in
       x$lt_dlno_uscore) $1 ;;
@@ -2035,7 +2144,7 @@ AC_CACHE_CHECK([if $compiler supports -c -o file.$ac_objext],
    # Note that $ac_compile itself does not contain backslashes and begins
    # with a dollar sign (not a hyphen), so the echo should work correctly.
    lt_compile=`echo "$ac_compile" | $SED \
-   -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
+   -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [[^ ]]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
    (eval echo "\"\$as_me:__oline__: $lt_compile\"" >&AS_MESSAGE_LOG_FD)
@@ -2053,7 +2162,7 @@ AC_CACHE_CHECK([if $compiler supports -c -o file.$ac_objext],
        _LT_AC_TAGVAR(lt_cv_prog_compiler_c_o, $1)=yes
      fi
    fi
-   chmod u+w .
+   chmod u+w . 2>&AS_MESSAGE_LOG_FD
    $rm conftest*
    # SGI C++ compiler will create directory out/ii_files/ for
    # template instantiation
@@ -2313,7 +2422,8 @@ cygwin* | mingw* | pw32*)
       dlpath=`$SHELL 2>&1 -c '\''. $dir/'\''\${base_file}'\''i;echo \$dlname'\''`~
       dldir=$destdir/`dirname \$dlpath`~
       test -d \$dldir || mkdir -p \$dldir~
-      $install_prog $dir/$dlname \$dldir/$dlname'
+      $install_prog $dir/$dlname \$dldir/$dlname~
+      chmod a+x \$dldir/$dlname'
     postuninstall_cmds='dldll=`$SHELL 2>&1 -c '\''. $file; echo \$dlname'\''`~
       dlpath=$dir/\$dldll~
        $rm \$dlpath'
@@ -2366,7 +2476,7 @@ darwin* | rhapsody*)
   soname_spec='${libname}${release}${major}$shared_ext'
   shlibpath_overrides_runpath=yes
   shlibpath_var=DYLD_LIBRARY_PATH
-  shrext_cmds='$(test .$module = .yes && echo .so || echo .dylib)'
+  shrext_cmds='`test .$module = .yes && echo .so || echo .dylib`'
   # Apple's gcc prints 'gcc -print-search-dirs' doesn't operate the same.
   if test "$GCC" = yes; then
     sys_lib_search_path_spec=`$CC -print-search-dirs | tr "\n" "$PATH_SEPARATOR" | sed -e 's/libraries:/@libraries:/' | tr "@" "\n" | grep "^libraries:" | sed -e "s/^libraries://" -e "s,=/,/,g" -e "s,$PATH_SEPARATOR, ,g" -e "s,.*,& /lib /usr/lib /usr/local/lib,g"`
@@ -2404,7 +2514,14 @@ kfreebsd*-gnu)
 freebsd* | dragonfly*)
   # DragonFly does not have aout.  When/if they implement a new
   # versioning mechanism, adjust this.
-  objformat=`test -x /usr/bin/objformat && /usr/bin/objformat || echo aout`
+  if test -x /usr/bin/objformat; then
+    objformat=`/usr/bin/objformat`
+  else
+    case $host_os in
+    freebsd[[123]]*) objformat=aout ;;
+    *) objformat=elf ;;
+    esac
+  fi
   version_type=freebsd-$objformat
   case $version_type in
     freebsd-elf*)
@@ -2449,7 +2566,7 @@ hpux9* | hpux10* | hpux11*)
   version_type=sunos
   need_lib_prefix=no
   need_version=no
-  case "$host_cpu" in
+  case $host_cpu in
   ia64*)
     shrext_cmds='.so'
     hardcode_into_libs=yes
@@ -2546,27 +2663,10 @@ linux*)
   # before this can be enabled.
   hardcode_into_libs=yes
 
-  # find out which ABI we are using
-  libsuff=
-  case "$host_cpu" in
-  x86_64*|s390x*|powerpc64*)
-    echo '[#]line __oline__ "configure"' > conftest.$ac_ext
-    if AC_TRY_EVAL(ac_compile); then
-      case `/usr/bin/file conftest.$ac_objext` in
-      *64-bit*)
-        libsuff=64
-        sys_lib_search_path_spec="/lib${libsuff} /usr/lib${libsuff} /usr/local/lib${libsuff}"
-        ;;
-      esac
-    fi
-    rm -rf conftest*
-    ;;
-  esac
-
   # Append ld.so.conf contents to the search path
   if test -f /etc/ld.so.conf; then
-    lt_ld_extra=`awk '/^include / { system(sprintf("cd /etc; cat %s", \[$]2)); skip = 1; } { if (!skip) print \[$]0; skip = 0; }' < /etc/ld.so.conf | $SED -e 's/#.*//;s/[:,\t]/ /g;s/=[^=]*$//;s/=[^= ]* / /g;/^$/d' | tr '\n' ' '`
-    sys_lib_dlsearch_path_spec="/lib${libsuff} /usr/lib${libsuff} $lt_ld_extra"
+    lt_ld_extra=`awk '/^include / { system(sprintf("cd /etc; cat %s", \[$]2)); skip = 1; } { if (!skip) print \[$]0; skip = 0; }' < /etc/ld.so.conf | $SED -e 's/#.*//;s/[:,	]/ /g;s/=[^=]*$//;s/=[^= ]* / /g;/^$/d' | tr '\n' ' '`
+    sys_lib_dlsearch_path_spec="/lib /usr/lib $lt_ld_extra"
   fi
 
   # We used to test for /lib/ld.so.1 and disable shared libraries on
@@ -2628,7 +2728,11 @@ nto-qnx*)
 openbsd*)
   version_type=sunos
   need_lib_prefix=no
-  need_version=no
+  # Some older versions of OpenBSD (3.3 at least) *do* need versioned libs.
+  case $host_os in
+    openbsd3.3 | openbsd3.3.*) need_version=yes ;;
+    *)                         need_version=no  ;;
+  esac
   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${shared_ext}$versuffix'
   finish_cmds='PATH="\$PATH:/sbin" ldconfig -m $libdir'
   shlibpath_var=LD_LIBRARY_PATH
@@ -2858,7 +2962,7 @@ AC_DEFUN([AC_LIBTOOL_DLOPEN],
 
 # AC_LIBTOOL_WIN32_DLL
 # --------------------
-# declare package support for building win32 dll's
+# declare package support for building win32 DLLs
 AC_DEFUN([AC_LIBTOOL_WIN32_DLL],
 [AC_BEFORE([$0], [AC_LIBTOOL_SETUP])
 ])# AC_LIBTOOL_WIN32_DLL
@@ -3032,7 +3136,7 @@ dnl not every word.  This closes a longstanding sh security hole.
       if test -n "$file_magic_test_file"; then
 	case $deplibs_check_method in
 	"file_magic "*)
-	  file_magic_regex="`expr \"$deplibs_check_method\" : \"file_magic \(.*\)\"`"
+	  file_magic_regex=`expr "$deplibs_check_method" : "file_magic \(.*\)"`
 	  MAGIC_CMD="$lt_cv_path_MAGIC_CMD"
 	  if eval $file_magic_cmd \$file_magic_test_file 2> /dev/null |
 	    $EGREP "$file_magic_regex" > /dev/null; then
@@ -3142,7 +3246,7 @@ AC_CACHE_VAL(lt_cv_path_LD,
     if test -f "$ac_dir/$ac_prog" || test -f "$ac_dir/$ac_prog$ac_exeext"; then
       lt_cv_path_LD="$ac_dir/$ac_prog"
       # Check to see if the program is GNU ld.  I'd rather use --version,
-      # but apparently some GNU ld's only accept -v.
+      # but apparently some variants of GNU ld only accept -v.
       # Break only if it was the GNU/non-GNU ld that we prefer.
       case `"$lt_cv_path_LD" -v 2>&1 </dev/null` in
       *GNU* | *'with BFD'*)
@@ -3174,7 +3278,7 @@ AC_PROG_LD_GNU
 AC_DEFUN([AC_PROG_LD_GNU],
 [AC_REQUIRE([AC_PROG_EGREP])dnl
 AC_CACHE_CHECK([if the linker ($LD) is GNU ld], lt_cv_prog_gnu_ld,
-[# I'd rather use --version here, but apparently some GNU ld's only accept -v.
+[# I'd rather use --version here, but apparently some GNU lds only accept -v.
 case `$LD -v 2>&1 </dev/null` in
 *GNU* | *'with BFD'*)
   lt_cv_prog_gnu_ld=yes
@@ -3288,7 +3392,7 @@ gnu*)
 
 hpux10.20* | hpux11*)
   lt_cv_file_magic_cmd=/usr/bin/file
-  case "$host_cpu" in
+  case $host_cpu in
   ia64*)
     lt_cv_deplibs_check_method='file_magic (s[[0-9]][[0-9]][[0-9]]|ELF-[[0-9]][[0-9]]) shared object file - IA64'
     lt_cv_file_magic_test_file=/usr/lib/hpux32/libc.so
@@ -3462,13 +3566,13 @@ esac
 # -----------------------------------
 # sets LIBLTDL to the link flags for the libltdl convenience library and
 # LTDLINCL to the include flags for the libltdl header and adds
-# --enable-ltdl-convenience to the configure arguments.  Note that LIBLTDL
-# and LTDLINCL are not AC_SUBSTed, nor is AC_CONFIG_SUBDIRS called.  If
-# DIRECTORY is not provided, it is assumed to be `libltdl'.  LIBLTDL will
-# be prefixed with '${top_builddir}/' and LTDLINCL will be prefixed with
-# '${top_srcdir}/' (note the single quotes!).  If your package is not
-# flat and you're not using automake, define top_builddir and
-# top_srcdir appropriately in the Makefiles.
+# --enable-ltdl-convenience to the configure arguments.  Note that
+# AC_CONFIG_SUBDIRS is not called here.  If DIRECTORY is not provided,
+# it is assumed to be `libltdl'.  LIBLTDL will be prefixed with
+# '${top_builddir}/' and LTDLINCL will be prefixed with '${top_srcdir}/'
+# (note the single quotes!).  If your package is not flat and you're not
+# using automake, define top_builddir and top_srcdir appropriately in
+# the Makefiles.
 AC_DEFUN([AC_LIBLTDL_CONVENIENCE],
 [AC_BEFORE([$0],[AC_LIBTOOL_SETUP])dnl
   case $enable_ltdl_convenience in
@@ -3487,13 +3591,13 @@ AC_DEFUN([AC_LIBLTDL_CONVENIENCE],
 # -----------------------------------
 # sets LIBLTDL to the link flags for the libltdl installable library and
 # LTDLINCL to the include flags for the libltdl header and adds
-# --enable-ltdl-install to the configure arguments.  Note that LIBLTDL
-# and LTDLINCL are not AC_SUBSTed, nor is AC_CONFIG_SUBDIRS called.  If
-# DIRECTORY is not provided and an installed libltdl is not found, it is
-# assumed to be `libltdl'.  LIBLTDL will be prefixed with '${top_builddir}/'
-# and LTDLINCL will be prefixed with '${top_srcdir}/' (note the single
-# quotes!).  If your package is not flat and you're not using automake,
-# define top_builddir and top_srcdir appropriately in the Makefiles.
+# --enable-ltdl-install to the configure arguments.  Note that
+# AC_CONFIG_SUBDIRS is not called here.  If DIRECTORY is not provided,
+# and an installed libltdl is not found, it is assumed to be `libltdl'.
+# LIBLTDL will be prefixed with '${top_builddir}/'# and LTDLINCL with
+# '${top_srcdir}/' (note the single quotes!).  If your package is not
+# flat and you're not using automake, define top_builddir and top_srcdir
+# appropriately in the Makefiles.
 # In the future, this macro may have to be called after AC_PROG_LIBTOOL.
 AC_DEFUN([AC_LIBLTDL_INSTALLABLE],
 [AC_BEFORE([$0],[AC_LIBTOOL_SETUP])dnl
@@ -3676,7 +3780,7 @@ test "$can_build_shared" = "no" && enable_shared=no
 
 # On AIX, shared libraries and static libraries use the same namespace, and
 # are all built from PIC.
-case "$host_os" in
+case $host_os in
 aix3*)
   test "$enable_shared" = yes && enable_static=no
   if test -n "$RANLIB"; then
@@ -3743,7 +3847,7 @@ _LT_AC_TAGVAR(postdeps, $1)=
 _LT_AC_TAGVAR(compiler_lib_search_path, $1)=
 
 # Source file extension for C++ test sources.
-ac_ext=cc
+ac_ext=cpp
 
 # Object file extension for compiled C++ test sources.
 objext=o
@@ -3959,7 +4063,7 @@ case $host_os in
 	# Exported symbols can be pulled into shared objects from archives
 	_LT_AC_TAGVAR(whole_archive_flag_spec, $1)=' '
 	_LT_AC_TAGVAR(archive_cmds_need_lc, $1)=yes
-	# This is similar to how AIX traditionally builds it's shared libraries.
+	# This is similar to how AIX traditionally builds its shared libraries.
 	_LT_AC_TAGVAR(archive_expsym_cmds, $1)="\$CC $shared_flag"' -o $output_objdir/$soname $libobjs $deplibs $compiler_flags ${wl}-bE:$export_symbols ${wl}-bnoentry${allow_undefined_flag}~$AR $AR_FLAGS $output_objdir/$libname$release.a $output_objdir/$soname'
       fi
     fi
@@ -3998,7 +4102,7 @@ case $host_os in
     fi
   ;;
       darwin* | rhapsody*)
-        case "$host_os" in
+        case $host_os in
         rhapsody* | darwin1.[[012]])
          _LT_AC_TAGVAR(allow_undefined_flag, $1)='${wl}-undefined ${wl}suppress'
          ;;
@@ -4036,7 +4140,7 @@ case $host_os in
           _LT_AC_TAGVAR(archive_cmds, $1)='$CC -r -keep_private_externs -nostdlib -o ${lib}-master.o $libobjs~$CC -dynamiclib $allow_undefined_flag -o $lib ${lib}-master.o $deplibs $compiler_flags -install_name $rpath/$soname $verstring'
         fi
         _LT_AC_TAGVAR(module_cmds, $1)='$CC $allow_undefined_flag -o $lib -bundle $libobjs $deplibs$compiler_flags'
-        # Don't fix this by using the ld -exported_symbols_list flag, it doesn't exist in older darwin ld's
+        # Don't fix this by using the ld -exported_symbols_list flag, it doesn't exist in older darwin lds
           if test "X$lt_int_apple_cc_single_mod" = Xyes ; then
             _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC -dynamiclib -single_module $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags -install_name $rpath/$soname $verstring~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
           else
@@ -4049,7 +4153,7 @@ case $host_os in
          output_verbose_link_cmd='echo'
           _LT_AC_TAGVAR(archive_cmds, $1)='$CC -qmkshrobj ${wl}-single_module $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags ${wl}-install_name ${wl}`echo $rpath/$soname` $verstring'
           _LT_AC_TAGVAR(module_cmds, $1)='$CC $allow_undefined_flag -o $lib -bundle $libobjs $deplibs$compiler_flags'
-          # Don't fix this by using the ld -exported_symbols_list flag, it doesn't exist in older darwin ld's
+          # Don't fix this by using the ld -exported_symbols_list flag, it doesn't exist in older darwin lds
           _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC -qmkshrobj ${wl}-single_module $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags ${wl}-install_name ${wl}$rpath/$soname $verstring~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
           _LT_AC_TAGVAR(module_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC $allow_undefined_flag  -o $lib -bundle $libobjs $deplibs$compiler_flags~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
           ;;
@@ -4129,7 +4233,7 @@ case $host_os in
     ;;
   hpux10*|hpux11*)
     if test $with_gnu_ld = no; then
-      case "$host_cpu" in
+      case $host_cpu in
       hppa*64*)
 	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}+b ${wl}$libdir'
 	_LT_AC_TAGVAR(hardcode_libdir_flag_spec_ld, $1)='+b $libdir'
@@ -4145,7 +4249,7 @@ case $host_os in
         ;;
       esac
     fi
-    case "$host_cpu" in
+    case $host_cpu in
     hppa*64*)
       _LT_AC_TAGVAR(hardcode_direct, $1)=no
       _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
@@ -4171,7 +4275,7 @@ case $host_os in
 	_LT_AC_TAGVAR(ld_shlibs, $1)=no
 	;;
       aCC*)
-	case "$host_cpu" in
+	case $host_cpu in
 	hppa*64*|ia64*)
 	  _LT_AC_TAGVAR(archive_cmds, $1)='$LD -b +h $soname -o $lib $linker_flags $libobjs $deplibs'
 	  ;;
@@ -4192,7 +4296,7 @@ case $host_os in
       *)
 	if test "$GXX" = yes; then
 	  if test $with_gnu_ld = no; then
-	    case "$host_cpu" in
+	    case $host_cpu in
 	    ia64*|hppa*64*)
 	      _LT_AC_TAGVAR(archive_cmds, $1)='$LD -b +h $soname -o $lib $linker_flags $libobjs $deplibs'
 	      ;;
@@ -4288,12 +4392,12 @@ case $host_os in
 	;;
       pgCC*)
         # Portland Group C++ compiler
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname ${wl}$soname -o $lib'
-  	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname ${wl}$soname ${wl}-retain-symbols-file ${wl}$export_symbols -o $lib'
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $pic_flag $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname ${wl}$soname -o $lib'
+  	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $pic_flag $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags ${wl}-soname ${wl}$soname ${wl}-retain-symbols-file ${wl}$export_symbols -o $lib'
 
 	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}--rpath ${wl}$libdir'
 	_LT_AC_TAGVAR(export_dynamic_flag_spec, $1)='${wl}--export-dynamic'
-	_LT_AC_TAGVAR(whole_archive_flag_spec, $1)=''
+	_LT_AC_TAGVAR(whole_archive_flag_spec, $1)='${wl}--whole-archive`for conv in $convenience\"\"; do test  -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}--no-whole-archive'
         ;;
       cxx*)
 	# Compaq C++
@@ -4525,10 +4629,11 @@ case $host_os in
     case $cc_basename in
       CC*)
 	# Sun C++ 4.2, 5.x and Centerline C++
+        _LT_AC_TAGVAR(archive_cmds_need_lc,$1)=yes
 	_LT_AC_TAGVAR(no_undefined_flag, $1)=' -zdefs'
-	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -G${allow_undefined_flag} -nolib -h$soname -o $lib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags'
+	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -G${allow_undefined_flag}  -h$soname -o $lib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags'
 	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$echo "{ global:" > $lib.exp~cat $export_symbols | $SED -e "s/\(.*\)/\1;/" >> $lib.exp~$echo "local: *; };" >> $lib.exp~
-	$CC -G${allow_undefined_flag} -nolib ${wl}-M ${wl}$lib.exp -h$soname -o $lib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags~$rm $lib.exp'
+	$CC -G${allow_undefined_flag}  ${wl}-M ${wl}$lib.exp -h$soname -o $lib $predep_objects $libobjs $deplibs $postdep_objects $compiler_flags~$rm $lib.exp'
 
 	_LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
 	_LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
@@ -4548,15 +4653,7 @@ case $host_os in
 	esac
 	_LT_AC_TAGVAR(link_all_deplibs, $1)=yes
 
-	# Commands to make compiler produce verbose output that lists
-	# what "hidden" libraries, object files and flags are used when
-	# linking a shared library.
-	#
-	# There doesn't appear to be a way to prevent this compiler from
-	# explicitly linking system object files so we need to strip them
-	# from the output so that they don't get included in the library
-	# dependencies.
-	output_verbose_link_cmd='templist=`$CC -G $CFLAGS -v conftest.$objext 2>&1 | grep "\-[[LR]]"`; list=""; for z in $templist; do case $z in conftest.$objext) list="$list $z";; *.$objext);; *) list="$list $z";;esac; done; echo $list'
+	output_verbose_link_cmd='echo'
 
 	# Archives containing C++ object files must be created using
 	# "CC -xar", where "CC" is the Sun C++ compiler.  This is
@@ -4717,7 +4814,7 @@ if AC_TRY_EVAL(ac_compile); then
   # The `*' in the case matches for architectures that use `case' in
   # $output_verbose_cmd can trigger glob expansion during the loop
   # eval without this substitution.
-  output_verbose_link_cmd="`$echo \"X$output_verbose_link_cmd\" | $Xsed -e \"$no_glob_subst\"`"
+  output_verbose_link_cmd=`$echo "X$output_verbose_link_cmd" | $Xsed -e "$no_glob_subst"`
 
   for p in `eval $output_verbose_link_cmd`; do
     case $p in
@@ -4793,6 +4890,21 @@ fi
 
 $rm -f confest.$objext
 
+# PORTME: override above test on systems where it is broken
+ifelse([$1],[CXX],
+[case $host_os in
+solaris*)
+  case $cc_basename in
+  CC*)
+    # Adding this requires a known-good setup of shared libraries for
+    # Sun compiler versions before 5.6, else PIC objects from an old
+    # archive will be linked into the output, leading to subtle bugs.
+    _LT_AC_TAGVAR(postdeps,$1)='-lCstd -lCrun'
+    ;;
+  esac
+esac
+])
+
 case " $_LT_AC_TAGVAR(postdeps, $1) " in
 *" -lc "*) _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no ;;
 esac
@@ -4862,7 +4974,7 @@ test "$can_build_shared" = "no" && enable_shared=no
 
 # On AIX, shared libraries and static libraries use the same namespace, and
 # are all built from PIC.
-case "$host_os" in
+case $host_os in
 aix3*)
   test "$enable_shared" = yes && enable_static=no
   if test -n "$RANLIB"; then
@@ -5765,7 +5877,7 @@ AC_MSG_CHECKING([for $compiler option to produce PIC])
     hpux*)
       # PIC is the default for IA64 HP-UX and 64-bit HP-UX, but
       # not for PA HP-UX.
-      case "$host_cpu" in
+      case $host_cpu in
       hppa*64*|ia64*)
 	;;
       *)
@@ -5834,7 +5946,7 @@ AC_MSG_CHECKING([for $compiler option to produce PIC])
 	  aCC*)
 	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
 	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)="${ac_cv_prog_cc_wl}-a ${ac_cv_prog_cc_wl}archive"
-	    case "$host_cpu" in
+	    case $host_cpu in
 	    hppa*64*|ia64*)
 	      # +Z the default
 	      ;;
@@ -5875,7 +5987,7 @@ AC_MSG_CHECKING([for $compiler option to produce PIC])
 	    # Portland Group C++ compiler.
 	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
 	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fpic'
-	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-static'
+	    _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
 	    ;;
 	  cxx*)
 	    # Compaq C++
@@ -6039,7 +6151,7 @@ AC_MSG_CHECKING([for $compiler option to produce PIC])
     hpux*)
       # PIC is the default for IA64 HP-UX and 64-bit HP-UX, but
       # not for PA HP-UX.
-      case "$host_cpu" in
+      case $host_cpu in
       hppa*64*|ia64*)
 	# +Z the default
 	;;
@@ -6086,7 +6198,7 @@ AC_MSG_CHECKING([for $compiler option to produce PIC])
       _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
       # PIC is the default for IA64 HP-UX and 64-bit HP-UX, but
       # not for PA HP-UX.
-      case "$host_cpu" in
+      case $host_cpu in
       hppa*64*|ia64*)
 	# +Z the default
 	;;
@@ -6116,12 +6228,12 @@ AC_MSG_CHECKING([for $compiler option to produce PIC])
 	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
 	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-static'
         ;;
-      pgcc* | pgf77* | pgf90*)
+      pgcc* | pgf77* | pgf90* | pgf95*)
         # Portland Group compilers (*not* the Pentium gcc compiler,
 	# which looks to be a dead project)
 	_LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
 	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fpic'
-	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-static'
+	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
         ;;
       ccc*)
         _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
@@ -6204,7 +6316,7 @@ if test -n "$_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)"; then
     [_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=
      _LT_AC_TAGVAR(lt_prog_compiler_can_build_shared, $1)=no])
 fi
-case "$host_os" in
+case $host_os in
   # For platforms which do not support PIC, -DPIC is meaningless:
   *djgpp*)
     _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)=
@@ -6300,7 +6412,7 @@ ifelse([$1],[CXX],[
   if test "$with_gnu_ld" = yes; then
     # If archive_cmds runs LD, not CC, wlarc should be empty
     wlarc='${wl}'
-    
+
     # Set some defaults for GNU ld with shared library support. These
     # are reset later if shared libraries are not supported. Putting them
     # here allows them to be overridden if necessary.
@@ -6321,7 +6433,7 @@ ifelse([$1],[CXX],[
       *\ 2.11.*) ;; # other 2.11 versions
       *) supports_anon_versioning=yes ;;
     esac
-    
+
     # See if GNU ld supports shared libraries.
     case $host_os in
     aix3* | aix4* | aix5*)
@@ -6395,11 +6507,12 @@ EOF
 	tmp_addflag=
 	case $cc_basename,$host_cpu in
 	pgcc*)				# Portland Group C compiler
-	  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)=
+	  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)='${wl}--whole-archive`for conv in $convenience\"\"; do test  -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}--no-whole-archive'
+	  tmp_addflag=' $pic_flag'
 	  ;;
-	pgf77* | pgf90* )			# Portland Group f77 and f90 compilers
-	  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)=
-	  tmp_addflag=' -fpic -Mnomain' ;;
+	pgf77* | pgf90* | pgf95*)	# Portland Group f77 and f90 compilers
+	  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)='${wl}--whole-archive`for conv in $convenience\"\"; do test  -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}--no-whole-archive'
+	  tmp_addflag=' $pic_flag -Mnomain' ;;
 	ecc*,ia64* | icc*,ia64*)		# Intel C compiler on ia64
 	  tmp_addflag=' -i_dynamic' ;;
 	efc*,ia64* | ifort*,ia64*)	# Intel Fortran compiler on ia64
@@ -6604,7 +6717,7 @@ EOF
 	  # Exported symbols can be pulled into shared objects from archives
 	  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)=' '
 	  _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=yes
-	  # This is similar to how AIX traditionally builds it's shared libraries.
+	  # This is similar to how AIX traditionally builds its shared libraries.
 	  _LT_AC_TAGVAR(archive_expsym_cmds, $1)="\$CC $shared_flag"' -o $output_objdir/$soname $libobjs $deplibs $compiler_flags ${wl}-bE:$export_symbols ${wl}-bnoentry${allow_undefined_flag}~$AR $AR_FLAGS $output_objdir/$libname$release.a $output_objdir/$soname'
 	fi
       fi
@@ -6644,7 +6757,7 @@ EOF
       ;;
 
     darwin* | rhapsody*)
-      case "$host_os" in
+      case $host_os in
         rhapsody* | darwin1.[[012]])
          _LT_AC_TAGVAR(allow_undefined_flag, $1)='${wl}-undefined ${wl}suppress'
          ;;
@@ -6673,7 +6786,7 @@ EOF
     	output_verbose_link_cmd='echo'
         _LT_AC_TAGVAR(archive_cmds, $1)='$CC -dynamiclib $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags -install_name $rpath/$soname $verstring'
       _LT_AC_TAGVAR(module_cmds, $1)='$CC $allow_undefined_flag -o $lib -bundle $libobjs $deplibs$compiler_flags'
-      # Don't fix this by using the ld -exported_symbols_list flag, it doesn't exist in older darwin ld's
+      # Don't fix this by using the ld -exported_symbols_list flag, it doesn't exist in older darwin lds
       _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC -dynamiclib $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags -install_name $rpath/$soname $verstring~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
       _LT_AC_TAGVAR(module_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC $allow_undefined_flag  -o $lib -bundle $libobjs $deplibs$compiler_flags~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
     else
@@ -6682,7 +6795,7 @@ EOF
          output_verbose_link_cmd='echo'
          _LT_AC_TAGVAR(archive_cmds, $1)='$CC -qmkshrobj $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags ${wl}-install_name ${wl}`echo $rpath/$soname` $verstring'
          _LT_AC_TAGVAR(module_cmds, $1)='$CC $allow_undefined_flag -o $lib -bundle $libobjs $deplibs$compiler_flags'
-          # Don't fix this by using the ld -exported_symbols_list flag, it doesn't exist in older darwin ld's
+          # Don't fix this by using the ld -exported_symbols_list flag, it doesn't exist in older darwin lds
          _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC -qmkshrobj $allow_undefined_flag -o $lib $libobjs $deplibs $compiler_flags ${wl}-install_name ${wl}$rpath/$soname $verstring~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
           _LT_AC_TAGVAR(module_expsym_cmds, $1)='sed -e "s,#.*,," -e "s,^[    ]*,," -e "s,^\(..*\),_&," < $export_symbols > $output_objdir/${libname}-symbols.expsym~$CC $allow_undefined_flag  -o $lib -bundle $libobjs $deplibs$compiler_flags~nmedit -s $output_objdir/${libname}-symbols.expsym ${lib}'
           ;;
@@ -6748,7 +6861,7 @@ EOF
 
     hpux10* | hpux11*)
       if test "$GCC" = yes -a "$with_gnu_ld" = no; then
-	case "$host_cpu" in
+	case $host_cpu in
 	hppa*64*|ia64*)
 	  _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared ${wl}+h ${wl}$soname -o $lib $libobjs $deplibs $compiler_flags'
 	  ;;
@@ -6757,7 +6870,7 @@ EOF
 	  ;;
 	esac
       else
-	case "$host_cpu" in
+	case $host_cpu in
 	hppa*64*|ia64*)
 	  _LT_AC_TAGVAR(archive_cmds, $1)='$LD -b +h $soname -o $lib $libobjs $deplibs $linker_flags'
 	  ;;
@@ -6767,7 +6880,7 @@ EOF
 	esac
       fi
       if test "$with_gnu_ld" = no; then
-	case "$host_cpu" in
+	case $host_cpu in
 	hppa*64*)
 	  _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}+b ${wl}$libdir'
 	  _LT_AC_TAGVAR(hardcode_libdir_flag_spec_ld, $1)='+b $libdir'

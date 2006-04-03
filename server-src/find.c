@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: find.c,v 1.6.2.4.4.2.2.5.2.1 2004/02/02 20:29:12 martinea Exp $
+ * $Id: find.c,v 1.23 2006/01/15 21:01:00 martinea Exp $
  *
  * controlling process for the Amanda backup system
  */
@@ -40,7 +40,10 @@ void find P((int argc, char **argv));
 int find_match P((char *host, char *disk));
 int search_logfile P((find_result_t **output_find, char *label, int datestamp, int datestamp_aux, char *logfile));
 void search_holding_disk P((find_result_t **output_find));
+void strip_failed_chunks P((find_result_t *output_find));
 char *find_nicedate P((int datestamp));
+static int find_compare P((const void *, const void *));
+static int parse_taper_datestamp_log P((char *, int *, char **));
 
 static char *find_sort_order = NULL;
 int dynamic_disklist = 0;
@@ -70,7 +73,7 @@ disklist_t* diskqp;
 
 	tp = lookup_tapepos(tape);
 	if(tp == NULL) continue;
-	ap_snprintf(ds_str, sizeof(ds_str), "%d", tp->datestamp);
+	snprintf(ds_str, sizeof(ds_str), "%d", tp->datestamp);
 
 	/* search log files */
 
@@ -81,7 +84,7 @@ disklist_t* diskqp;
 	for(seq = 0; 1; seq++) {
 	    char seq_str[NUM_STR_SIZE];
 
-	    ap_snprintf(seq_str, sizeof(seq_str), "%d", seq);
+	    snprintf(seq_str, sizeof(seq_str), "%d", seq);
 	    logfile = newvstralloc(logfile,
 			conf_logdir, "/log.", ds_str, ".", seq_str, NULL);
 	    if(access(logfile, R_OK) != 0) break;
@@ -110,6 +113,9 @@ disklist_t* diskqp;
     amfree(conf_logdir);
 
     search_holding_disk(&output_find);
+
+    strip_failed_chunks(output_find);
+    
     return(output_find);
 }
 
@@ -137,7 +143,7 @@ char **find_log()
 
 	tp = lookup_tapepos(tape);
 	if(tp == NULL) continue;
-	ap_snprintf(ds_str, sizeof(ds_str), "%d", tp->datestamp);
+	snprintf(ds_str, sizeof(ds_str), "%d", tp->datestamp);
 
 	/* search log files */
 
@@ -148,7 +154,7 @@ char **find_log()
 	for(seq = 0; 1; seq++) {
 	    char seq_str[NUM_STR_SIZE];
 
-	    ap_snprintf(seq_str, sizeof(seq_str), "%d", seq);
+	    snprintf(seq_str, sizeof(seq_str), "%d", seq);
 	    logfile = newvstralloc(logfile,
 			conf_logdir, "/log.", ds_str, ".", seq_str, NULL);
 	    if(access(logfile, R_OK) != 0) break;
@@ -190,6 +196,68 @@ char **find_log()
     amfree(conf_logdir);
     *current_log = NULL;
     return(output_find_log);
+}
+
+/*
+ * Remove CHUNK entries from dumps that ultimately failed from our report.
+ */
+void strip_failed_chunks(output_find)
+find_result_t *output_find;
+{
+    find_result_t *cur, *prev = NULL, *failed = NULL, *failures = NULL;
+
+    /* Generate a list of failures */
+    for(cur=output_find; cur; cur=cur->next) {
+	if(!cur->hostname || !cur->diskname) continue;
+
+	if(strcmp(cur->status, "OK")){
+	    failed = alloc(sizeof(find_result_t));
+	    memcpy(failed, cur, sizeof(find_result_t));
+	    failed->next = failures;
+	    failed->diskname = stralloc(cur->diskname);
+	    failed->hostname = stralloc(cur->hostname);
+	    failures = failed;
+	}
+    }
+
+    /* Now if a CHUNK matches the parameters of a failed dump, remove it */
+    for(failed=failures; failed; failed=failed->next) {
+	prev = NULL;
+	for(cur=output_find; cur; cur=cur->next) {
+	    if(!cur->hostname || !cur->diskname ||
+	          !strcmp(cur->partnum, "--") || strcmp(cur->status, "OK")){
+	        prev = cur;
+		continue;
+	    }
+
+	    if(!strcmp(cur->hostname, failed->hostname) &&
+	         !strcmp(cur->diskname, failed->diskname) &&
+	         cur->datestamp == failed->datestamp &&
+	         cur->datestamp_aux == failed->datestamp_aux &&
+	         cur->level == failed->level){
+		find_result_t *next = cur->next;
+		amfree(cur->diskname);
+		amfree(cur->hostname);
+		next = cur->next;
+		amfree(cur);
+		if(prev){
+  		    prev->next = next;
+		    cur = prev;
+		}
+		else output_find = next;
+	    }
+            else prev = cur;
+	}
+    }
+
+    for(failed=failures; failed;) {
+	find_result_t *fai = failed->next;
+	amfree(failed->diskname);
+	amfree(failed->hostname);
+	fai = failed->next;
+	amfree(failed);
+	failed=fai;
+    }
 }
 
 void search_holding_disk(output_find)
@@ -274,6 +342,7 @@ find_result_t **output_find;
 		    diskname = NULL;
 		    new_output_find->level=level;
 		    new_output_find->label=stralloc(destname);
+		    new_output_find->partnum=stralloc("--");
 		    new_output_find->filenum=0;
 		    new_output_find->status=stralloc("OK");
 		    *output_find=new_output_find;
@@ -321,11 +390,29 @@ const void *j1;
 		   break;
 	case 'l' : compare=(*j)->level - (*i)->level;
 		   break;
+	case 'f' : compare=(*i)->filenum - (*j)->filenum;
+		   break;
+	case 'F' : compare=(*j)->filenum - (*i)->filenum;
+		   break;
 	case 'L' : compare=(*i)->level - (*j)->level;
 		   break;
 	case 'b' : compare=strcmp((*i)->label,(*j)->label);
 		   break;
 	case 'B' : compare=strcmp((*j)->label,(*i)->label);
+		   break;
+	case 'p' :
+		   if(strcmp((*i)->partnum, "--") != 0 &&
+		      strcmp((*j)->partnum, "--") != 0){
+		      compare = atoi((*i)->partnum) - atoi((*j)->partnum);
+		   }
+	           else compare=strcmp((*i)->partnum,(*j)->partnum);
+		   break;
+	case 'P' :
+		   if(strcmp((*i)->partnum, "--") != 0 &&
+		      strcmp((*j)->partnum, "--") != 0){
+		      compare = atoi((*j)->partnum) - atoi((*i)->partnum);
+		   }
+	           else compare=strcmp((*j)->partnum,(*i)->partnum);
 		   break;
 	}
 	if(compare != 0)
@@ -387,6 +474,7 @@ find_result_t *output_find;
     int max_len_level     = 2;
     int max_len_label     =12;
     int max_len_filenum   = 4;
+    int max_len_part      = 4;
     int max_len_status    = 6;
     int len;
 
@@ -408,6 +496,9 @@ find_result_t *output_find;
 
 	len=strlen(output_find_result->status);
 	if(len>max_len_status) max_len_status=len;
+
+	len=strlen(output_find_result->partnum);
+	if(len>max_len_part) max_len_part=len;
     }
 
     /*
@@ -421,18 +512,19 @@ find_result_t *output_find;
 	printf("\nNo dump to list\n");
     }
     else {
-	printf("\ndate%*s host%*s disk%*s lv%*s tape or file%*s file%*s status\n",
+	printf("\ndate%*s host%*s disk%*s lv%*s tape or file%*s file%*s part%*s status\n",
 	       max_len_datestamp-4,"",
 	       max_len_hostname-4 ,"",
 	       max_len_diskname-4 ,"",
 	       max_len_level-2    ,"",
 	       max_len_label-12   ,"",
-	       max_len_filenum-4  ,"");
+	       max_len_filenum-4  ,"",
+	       max_len_part-4  ,"");
         for(output_find_result=output_find;
 	        output_find_result;
 	        output_find_result=output_find_result->next) {
 
-	    printf("%-*s %-*s %-*s %*d %-*s %*d %-*s\n",
+	    printf("%-*s %-*s %-*s %*d %-*s %*d %*s %-*s\n",
 		    max_len_datestamp, 
 			find_nicedate(output_find_result->datestamp),
 		    max_len_hostname,  output_find_result->hostname,
@@ -440,7 +532,9 @@ find_result_t *output_find;
 		    max_len_level,     output_find_result->level,
 		    max_len_label,     output_find_result->label,
 		    max_len_filenum,   output_find_result->filenum,
-		    max_len_status,    output_find_result->status);
+		    max_len_part,      output_find_result->partnum,
+		    max_len_status,    output_find_result->status
+		    );
 	}
     }
 }
@@ -458,7 +552,9 @@ find_result_t **output_find;
 	amfree(output_find_result->hostname);
 	amfree(output_find_result->diskname);
 	amfree(output_find_result->label);
+	amfree(output_find_result->partnum);
 	amfree(output_find_result->status);
+	amfree(output_find_result->timestamp);
 	prev = output_find_result;
     }
     if(prev != NULL) amfree(prev);
@@ -482,7 +578,7 @@ int datestamp;
     month = (datestamp / 100) % 100;
     day   = datestamp % 100;
 
-    ap_snprintf(nice, sizeof(nice), "%4d-%02d-%02d", year, month, day);
+    snprintf(nice, sizeof(nice), "%4d-%02d-%02d", year, month, day);
 
     return nice;
 }
@@ -539,6 +635,31 @@ char **label;
     return 1;
 }
 
+/*
+ * Check whether we've already seen a CHUNK log entry for the given dump.
+ * This is so we can interpret the final SUCCESS entry for a split dump as 
+ * 'list its parts' instead.  Return 1 if we have, 0 if not.
+ */
+int seen_chunk_of(output_find, date, host, disk, level)
+find_result_t *output_find;
+int date, level;
+char *host, *disk;
+{
+    find_result_t *cur;
+
+    if(!host || !disk) return(0);
+
+    for(cur=output_find; cur; cur=cur->next) {
+	if(atoi(cur->partnum) < 1 || !cur->hostname || !cur->diskname) continue;
+
+	if(cur->datestamp == date && strcmp(cur->hostname, host) == 0 &&
+	        strcmp(cur->diskname, disk) == 0 && cur->level == level){
+	    return(1);
+	}
+    }
+    return(0);
+}
+
 /* if output_find is NULL					*/
 /*	return 1 if this is the logfile for this label		*/
 /*	return 0 if this is not the logfile for this label	*/
@@ -553,6 +674,7 @@ int datestamp, datestamp_aux;
     FILE *logf;
     char *host, *host_undo;
     char *disk, *disk_undo;
+    char *partnum=NULL, *partnum_undo;
     int   datestampI;
     char *rest;
     char *ck_label;
@@ -595,7 +717,10 @@ int datestamp, datestamp_aux;
     filenum = 0;
     passlabel = 1;
     while(get_logline(logf) && passlabel) {
-	if(curlog == L_SUCCESS && curprog == P_TAPER && passlabel) filenum++;
+	if((curlog == L_SUCCESS || curlog == L_CHUNK) &&
+				curprog == P_TAPER && passlabel){
+	    filenum++;
+	}
 	if(curlog == L_START && curprog == P_TAPER) {
 	    if(parse_taper_datestamp_log(curstr,
 					 &ck_datestamp2, &ck_label) == 0) {
@@ -604,7 +729,8 @@ int datestamp, datestamp_aux;
 		passlabel = !passlabel;
 	    }
 	}
-	if(curlog == L_SUCCESS || curlog == L_FAIL) {
+	partnum = "--";
+	if(curlog == L_SUCCESS || curlog == L_FAIL || curlog == L_CHUNK) {
 	    s = curstr;
 	    ch = *s++;
 
@@ -640,6 +766,13 @@ int datestamp, datestamp_aux;
 		datestampI = datestamp;
 	    }
 	    else {
+		if(curlog == L_CHUNK){
+		    skip_whitespace(s, ch);
+		    partnum = s - 1;
+		    skip_non_whitespace(s, ch);
+		    partnum_undo = s - 1;
+		    *partnum_undo = '\0';
+		}
 		skip_whitespace(s, ch);
 		if(ch == '\0' || sscanf(s - 1, "%d", &level) != 1) {
 		    printf("strange log line \"%s\"\n", curstr);
@@ -663,24 +796,26 @@ int datestamp, datestamp_aux;
 		if (dynamic_disklist == 0) {
 		    continue;
 		}
-		dp = add_disk(host, disk);
-		enqueue_disk(find_diskqp , dp);
+		dp = add_disk(find_diskqp, host, disk);
+		enqueue_disk(find_diskqp, dp);
 	    }
-	    if(find_match(host, disk)) {
+            if(find_match(host, disk) && (curlog != L_SUCCESS ||
+		!seen_chunk_of(*output_find,datestampI,host,disk,level))){
 		if(curprog == P_TAPER) {
 		    find_result_t *new_output_find =
 			(find_result_t *)alloc(sizeof(find_result_t));
 		    new_output_find->next=*output_find;
 		    new_output_find->datestamp=datestampI;
 		    new_output_find->timestamp = alloc(15);
-		    ap_snprintf(new_output_find->timestamp, 15, "%d000000", datestampI);
+		    snprintf(new_output_find->timestamp, 15, "%d000000", datestampI);
 		    new_output_find->datestamp_aux=datestamp_aux;
 		    new_output_find->hostname=stralloc(host);
 		    new_output_find->diskname=stralloc(disk);
 		    new_output_find->level=level;
+		    new_output_find->partnum = stralloc(partnum);
 		    new_output_find->label=stralloc(label);
 		    new_output_find->filenum=filenum;
-		    if(curlog == L_SUCCESS) 
+		    if(curlog == L_SUCCESS || curlog == L_CHUNK) 
 			new_output_find->status=stralloc("OK");
 		    else
 			new_output_find->status=stralloc(rest);
@@ -693,11 +828,12 @@ int datestamp, datestamp_aux;
 		    new_output_find->datestamp=datestamp;
 		    new_output_find->datestamp_aux=datestamp_aux;
 		    new_output_find->timestamp = alloc(15);
-		    ap_snprintf(new_output_find->timestamp, 15, "%d000000", datestamp);
+		    snprintf(new_output_find->timestamp, 15, "%d000000", datestamp);
 		    new_output_find->hostname=stralloc(host);
 		    new_output_find->diskname=stralloc(disk);
 		    new_output_find->level=level;
-		    new_output_find->label=stralloc("---");
+		    new_output_find->label=stralloc(label);
+		    new_output_find->partnum=stralloc(partnum);
 		    new_output_find->filenum=0;
 		    new_output_find->status=vstralloc(
 			 "FAILED (",
@@ -712,6 +848,55 @@ int datestamp, datestamp_aux;
     }
     afclose(logf);
     return 1;
+}
+
+
+/*
+ * Return the set of dumps that match *all* of the given patterns (we consider
+ * an empty pattern to match .*, though).  If 'ok' is true, will only match
+ * dumps with SUCCESS status.
+ */
+find_result_t *dumps_match(output_find,hostname,diskname,datestamp,level,ok)
+find_result_t *output_find;
+char *hostname;
+char *diskname;
+char *datestamp;
+char *level;
+int ok;
+{
+    find_result_t *cur_result;
+    find_result_t *matches = NULL;
+
+    for(cur_result=output_find;
+	cur_result;
+	cur_result=cur_result->next) {
+	char date_str[NUM_STR_SIZE];
+	char level_str[NUM_STR_SIZE];
+	snprintf(date_str, sizeof(date_str), "%d", cur_result->datestamp);
+	snprintf(level_str, sizeof(level_str), "%d", cur_result->level);
+	if((*hostname == '\0' || match_host(hostname, cur_result->hostname)) &&
+	   (*diskname == '\0' || match_disk(diskname, cur_result->diskname)) &&
+	   (*datestamp== '\0' || match_datestamp(datestamp, date_str)) &&
+	   (*level== '\0' || match_level(level, level_str)) &&
+	   (!ok || !strcmp(cur_result->status, "OK"))){
+
+	    find_result_t *curmatch = alloc(sizeof(find_result_t));
+	    memcpy(curmatch, cur_result, sizeof(find_result_t));
+
+/*
+	    curmatch->hostname = stralloc(cur_result->hostname);
+	    curmatch->diskname = stralloc(cur_result->diskname);
+	    curmatch->datestamp = stralloc(cur_result->datestamp);
+	    curmatch->partnum = stralloc(cur_result->partnum);
+	    curmatch->status = stralloc(cur_result->status);
+	    curmatch->level = stralloc(cur_result->level);
+*/	    
+	    curmatch->next = matches;
+	    matches = curmatch;
+	}
+    }
+
+    return(matches);
 }
 
 find_result_t *dump_exist(output_find, hostname, diskname, datestamp, level)

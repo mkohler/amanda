@@ -25,15 +25,15 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: debug.c,v 1.17.4.3.4.3.2.9.2.1 2005/09/20 19:06:37 jrjackson Exp $
+ * $Id: debug.c,v 1.36 2006/01/12 01:57:05 paddy_s Exp $
  *
  * debug log subroutines
  */
 
 #include "amanda.h"
-#include "clock.h"
 #include "util.h"
 #include "arglist.h"
+#include "clock.h"
 
 #ifndef AMANDA_DBGDIR
 #  define AMANDA_DBGDIR		AMANDA_TMPDIR
@@ -54,7 +54,7 @@ static pid_t debug_prefix_pid = 0;
 /*
  * Format and write a debug message to the process debug file.
  */
-printf_arglist_function(void debug_printf, char *, format)
+printf_arglist_function(void debug_printf, const char *, format)
 {
     va_list argp;
     int save_errno;
@@ -100,7 +100,7 @@ get_debug_name(t, n)
     if(n == 0) {
 	number[0] = '\0';
     } else {
-	ap_snprintf(number, sizeof(number), "%03d", n - 1);
+	snprintf(number, sizeof(number), "%03d", n - 1);
     }
     result = vstralloc(get_pname(), ".", ts, number, ".debug", NULL);
     amfree(ts);
@@ -260,6 +260,7 @@ void debug_open()
     int fd = -1;
     int i;
     char *s = NULL;
+    mode_t mask;
 
     /*
      * Do initial setup.
@@ -267,17 +268,31 @@ void debug_open()
     debug_setup_1();
 
     /*
-     * Create the new file.
+     * Create the new file with a unique sequence number.
      */
-    for(i = 0;
-	(dbfilename = get_debug_name(curtime, i)) != NULL
-	&& (s = newvstralloc(s, dbgdir, dbfilename, NULL)) != NULL
-	&& (fd = open(s, O_WRONLY|O_CREAT|O_EXCL|O_APPEND, 0600)) < 0;
-	i++, free(dbfilename)) {}
-    if(dbfilename == NULL) {
-	error("cannot create %s debug file", get_pname());
+    mask = umask(0037); /* Allow the group read bit through */
+    for(i = 0; fd < 0; i++) {
+        if ((dbfilename = get_debug_name(curtime, i)) == NULL) {
+	    error("Cannot create %s debug file", get_pname());
+            /* NOTREACHED */
+        }
+
+        if ((s = newvstralloc(s, dbgdir, dbfilename, NULL)) == NULL) {
+	    error("Cannot allocate %s debug file name memory", get_pname());
+            /* NOTREACHED */
+        }
+        amfree(dbfilename);
+
+        if ((fd = open(s, O_WRONLY|O_CREAT|O_EXCL|O_APPEND, 0640)) < 0) {
+            if (errno != EEXIST) {
+                error("Cannot create %s debug file: %s",
+                       get_pname(), strerror(errno));
+                /* NOTREACHED */
+            }
+            amfree(s);
+        }
     }
-    amfree(dbfilename);
+    (void)umask(mask); /* Restore mask */
 
     /*
      * Finish setup.
@@ -311,7 +326,7 @@ void debug_reopen(dbfilename, notation)
     } else {
 	s = newvstralloc(s, dbgdir, dbfilename, NULL);
     }
-    if ((fd = open(s, O_RDWR|O_APPEND, 0600)) < 0) {
+    if ((fd = open(s, O_RDWR|O_APPEND)) < 0) {
 	error("cannot reopen %s debug file %s", get_pname(), dbfilename);
     }
 
@@ -383,26 +398,31 @@ void set_debug_prefix_pid(p)
 char *debug_prefix(suffix)
     char *suffix;
 {
+    int save_errno;
     static char *s = NULL;
     char debug_pid[NUM_STR_SIZE];
 
+    save_errno = errno;
     s = newvstralloc(s, get_pname(), suffix, NULL);
     if (debug_prefix_pid != (pid_t) 0) {
-	ap_snprintf(debug_pid, sizeof(debug_pid),
-		    "%ld",
-		    (long) debug_prefix_pid);
+	snprintf(debug_pid, sizeof(debug_pid),
+		 "%ld",
+		 (long) debug_prefix_pid);
 	s = newvstralloc(s, s, "[", debug_pid, "]", NULL);
     }
+    errno = save_errno;
     return s;
 }
 
 char *debug_prefix_time(suffix)
     char *suffix;
 {
+    int save_errno;
     static char *s = NULL;
     char *t1;
     char *t2;
 
+    save_errno = errno;
     if (clock_is_running()) {
 	t1 = ": time ";
 	t2 = walltime_str(curclock());
@@ -412,6 +432,7 @@ char *debug_prefix_time(suffix)
 
     s = newvstralloc(s, debug_prefix(suffix), t1, t2, NULL);
 
+    errno = save_errno;
     return s;
 }
 #endif

@@ -26,7 +26,7 @@
  */
 
 /*
- * $Id: output-file.c,v 1.1.2.4.2.4 2003/05/29 20:13:53 martinea Exp $
+ * $Id: output-file.c,v 1.10 2006/01/14 04:37:20 paddy_s Exp $
  *
  * tapeio.c virtual tape interface for a file device.
  *
@@ -276,7 +276,7 @@ file_open(fd)
 		host = tapefd_getinfo_host(fd);
 		disk = tapefd_getinfo_disk(fd);
 		level = tapefd_getinfo_level(fd);
-		ap_snprintf(number, sizeof(number), "%d", level);
+		snprintf(number, sizeof(number), "%d", level);
 		if (host != NULL) {
 		    f = stralloc(host);
 		}
@@ -313,7 +313,7 @@ file_open(fd)
 	    }
 	}
 	if (datafilename == NULL) {
-	    ap_snprintf(number, sizeof(number), "%05d", pos);
+	    snprintf(number, sizeof(number), "%05d", pos);
 	    datafilename = vstralloc(volume_info[fd].basename,
 				     number,
 				     DATA_INDICATOR,
@@ -391,7 +391,7 @@ file_close(fd)
 		  NULL);
     fi = &volume_info[fd].fi[pos];
     if (fi->ri_altered) {
-	ap_snprintf(number, sizeof(number), "%05d", pos);
+	snprintf(number, sizeof(number), "%05d", pos);
 	filename = vstralloc(volume_info[fd].basename,
 			     number,
 			     RECORD_INDICATOR,
@@ -447,7 +447,7 @@ file_release(fd)
 		      10,
 		      NULL);
 	if (volume_info[fd].fi[pos].name != NULL) {
-	    ap_snprintf(number, sizeof(number), "%05d", pos);
+	    snprintf(number, sizeof(number), "%05d", pos);
 	    filename = vstralloc(volume_info[fd].basename,
 				 number,
 				 DATA_INDICATOR,
@@ -816,7 +816,7 @@ file_tapefd_write(fd, buffer, count)
 	volume_info[fd].at_bof = 0;
 	volume_info[fd].at_eom = 1;
     }
-    result = write(file_fd, buffer, write_count);
+    result = fullwrite(file_fd, buffer, write_count);
     if (result >= 0) {
 	volume_info[fd].last_operation_write = 1;
 	pos = volume_info[fd].file_current;
@@ -893,8 +893,8 @@ file_tapefd_close(fd)
 	    errno = save_errno;
 	    return -1;
 	}
-	ap_snprintf(number, sizeof(number),
-		    "%d", volume_info[fd].file_current);
+	snprintf(number, sizeof(number),
+		 "%d", volume_info[fd].file_current);
 	line = vstralloc("position ", number, "\n", NULL);
 	len = strlen(line);
 	result = write(fd, line, len);

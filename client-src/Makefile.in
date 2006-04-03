@@ -19,7 +19,7 @@
 
 
 
-SOURCES = $(libamclient_la_SOURCES) amandad.c amqde.c calcsize.c $(getfsent_SOURCES) killpgrp.c rundump.c runtar.c selfcheck.c $(sendbackup_SOURCES) sendsize.c versionsuffix.c
+SOURCES = $(libamclient_la_SOURCES) amandad.c calcsize.c $(getfsent_SOURCES) killpgrp.c noop.c rundump.c runtar.c selfcheck.c $(sendbackup_SOURCES) sendsize.c versionsuffix.c
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -44,10 +44,11 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-libexec_PROGRAMS = amandad$(EXEEXT) calcsize$(EXEEXT) \
+libexec_PROGRAMS = amandad$(EXEEXT) noop$(EXEEXT) calcsize$(EXEEXT) \
 	killpgrp$(EXEEXT) rundump$(EXEEXT) runtar$(EXEEXT) \
-	amqde$(EXEEXT) selfcheck$(EXEEXT) sendbackup$(EXEEXT) \
-	sendsize$(EXEEXT) versionsuffix$(EXEEXT)
+	selfcheck$(EXEEXT) sendbackup$(EXEEXT) sendsize$(EXEEXT) \
+	versionsuffix$(EXEEXT)
+@WANT_SERVER_TRUE@am__append_1 = ../tape-src/libamtape.$(LIB_EXTENSION)
 EXTRA_PROGRAMS = $(am__EXEEXT_1)
 subdir = client-src
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
@@ -83,69 +84,71 @@ PROGRAMS = $(libexec_PROGRAMS)
 amandad_SOURCES = amandad.c
 amandad_OBJECTS = amandad.$(OBJEXT)
 amandad_LDADD = $(LDADD)
+@WANT_SERVER_TRUE@am__DEPENDENCIES_1 =  \
+@WANT_SERVER_TRUE@	../tape-src/libamtape.$(LIB_EXTENSION)
 amandad_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamclient.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION)
-amqde_SOURCES = amqde.c
-amqde_OBJECTS = amqde.$(OBJEXT)
-amqde_LDADD = $(LDADD)
-amqde_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamclient.$(LIB_EXTENSION) \
+	libamclient.$(LIB_EXTENSION) $(am__DEPENDENCIES_1) \
 	../common-src/libamanda.$(LIB_EXTENSION)
 calcsize_SOURCES = calcsize.c
 calcsize_OBJECTS = calcsize.$(OBJEXT)
 calcsize_LDADD = $(LDADD)
 calcsize_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamclient.$(LIB_EXTENSION) \
+	libamclient.$(LIB_EXTENSION) $(am__DEPENDENCIES_1) \
 	../common-src/libamanda.$(LIB_EXTENSION)
 am_getfsent_OBJECTS = getfsent.test.$(OBJEXT)
 getfsent_OBJECTS = $(am_getfsent_OBJECTS)
 getfsent_LDADD = $(LDADD)
 getfsent_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamclient.$(LIB_EXTENSION) \
+	libamclient.$(LIB_EXTENSION) $(am__DEPENDENCIES_1) \
 	../common-src/libamanda.$(LIB_EXTENSION)
 killpgrp_SOURCES = killpgrp.c
 killpgrp_OBJECTS = killpgrp.$(OBJEXT)
 killpgrp_LDADD = $(LDADD)
 killpgrp_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamclient.$(LIB_EXTENSION) \
+	libamclient.$(LIB_EXTENSION) $(am__DEPENDENCIES_1) \
+	../common-src/libamanda.$(LIB_EXTENSION)
+noop_SOURCES = noop.c
+noop_OBJECTS = noop.$(OBJEXT)
+noop_LDADD = $(LDADD)
+noop_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
+	libamclient.$(LIB_EXTENSION) $(am__DEPENDENCIES_1) \
 	../common-src/libamanda.$(LIB_EXTENSION)
 rundump_SOURCES = rundump.c
 rundump_OBJECTS = rundump.$(OBJEXT)
 rundump_LDADD = $(LDADD)
 rundump_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamclient.$(LIB_EXTENSION) \
+	libamclient.$(LIB_EXTENSION) $(am__DEPENDENCIES_1) \
 	../common-src/libamanda.$(LIB_EXTENSION)
 runtar_SOURCES = runtar.c
 runtar_OBJECTS = runtar.$(OBJEXT)
 runtar_LDADD = $(LDADD)
 runtar_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamclient.$(LIB_EXTENSION) \
+	libamclient.$(LIB_EXTENSION) $(am__DEPENDENCIES_1) \
 	../common-src/libamanda.$(LIB_EXTENSION)
 selfcheck_SOURCES = selfcheck.c
 selfcheck_OBJECTS = selfcheck.$(OBJEXT)
 selfcheck_LDADD = $(LDADD)
 selfcheck_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamclient.$(LIB_EXTENSION) \
+	libamclient.$(LIB_EXTENSION) $(am__DEPENDENCIES_1) \
 	../common-src/libamanda.$(LIB_EXTENSION)
 am_sendbackup_OBJECTS = sendbackup.$(OBJEXT) sendbackup-dump.$(OBJEXT) \
 	sendbackup-gnutar.$(OBJEXT)
 sendbackup_OBJECTS = $(am_sendbackup_OBJECTS)
 sendbackup_LDADD = $(LDADD)
 sendbackup_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamclient.$(LIB_EXTENSION) \
+	libamclient.$(LIB_EXTENSION) $(am__DEPENDENCIES_1) \
 	../common-src/libamanda.$(LIB_EXTENSION)
 sendsize_SOURCES = sendsize.c
 sendsize_OBJECTS = sendsize.$(OBJEXT)
 sendsize_LDADD = $(LDADD)
 sendsize_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamclient.$(LIB_EXTENSION) \
+	libamclient.$(LIB_EXTENSION) $(am__DEPENDENCIES_1) \
 	../common-src/libamanda.$(LIB_EXTENSION)
 versionsuffix_SOURCES = versionsuffix.c
 versionsuffix_OBJECTS = versionsuffix.$(OBJEXT)
 versionsuffix_LDADD = $(LDADD)
 versionsuffix_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamclient.$(LIB_EXTENSION) \
+	libamclient.$(LIB_EXTENSION) $(am__DEPENDENCIES_1) \
 	../common-src/libamanda.$(LIB_EXTENSION)
 libexecSCRIPT_INSTALL = $(INSTALL_SCRIPT)
 sbinSCRIPT_INSTALL = $(INSTALL_SCRIPT)
@@ -161,11 +164,11 @@ LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libamclient_la_SOURCES) amandad.c amqde.c calcsize.c \
-	$(getfsent_SOURCES) killpgrp.c rundump.c runtar.c selfcheck.c \
-	$(sendbackup_SOURCES) sendsize.c versionsuffix.c
-DIST_SOURCES = $(am__libamclient_la_SOURCES_DIST) amandad.c amqde.c \
-	calcsize.c $(getfsent_SOURCES) killpgrp.c rundump.c runtar.c \
+SOURCES = $(libamclient_la_SOURCES) amandad.c calcsize.c \
+	$(getfsent_SOURCES) killpgrp.c noop.c rundump.c runtar.c \
+	selfcheck.c $(sendbackup_SOURCES) sendsize.c versionsuffix.c
+DIST_SOURCES = $(am__libamclient_la_SOURCES_DIST) amandad.c calcsize.c \
+	$(getfsent_SOURCES) killpgrp.c noop.c rundump.c runtar.c \
 	selfcheck.c $(sendbackup_SOURCES) sendsize.c versionsuffix.c
 HEADERS = $(noinst_HEADERS)
 ETAGS = etags
@@ -218,7 +221,9 @@ DEFAULT_TAPE_DEVICE = @DEFAULT_TAPE_DEVICE@
 DEFAULT_TAPE_SERVER = @DEFAULT_TAPE_SERVER@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DOC_BUILD_DATE = @DOC_BUILD_DATE@
 DUMP = @DUMP@
+DUMPER_DIR = @DUMPER_DIR@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -230,9 +235,12 @@ FFLAGS = @FFLAGS@
 GETCONF = @GETCONF@
 GNUPLOT = @GNUPLOT@
 GNUTAR = @GNUTAR@
+GNUTAR_LISTED_INCREMENTAL_DIR = @GNUTAR_LISTED_INCREMENTAL_DIR@
 GNUTAR_LISTED_INCREMENTAL_DIRX = @GNUTAR_LISTED_INCREMENTAL_DIRX@
 GREP = @GREP@
 GZIP = @GZIP@
+HAVE_XSLTPROC_FALSE = @HAVE_XSLTPROC_FALSE@
+HAVE_XSLTPROC_TRUE = @HAVE_XSLTPROC_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
@@ -245,6 +253,7 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
+LL_FMT = @LL_FMT@
 LN_S = @LN_S@
 LTALLOCA = @LTALLOCA@
 LTLIBOBJS = @LTLIBOBJS@
@@ -307,10 +316,13 @@ WANT_SERVER_FALSE = @WANT_SERVER_FALSE@
 WANT_SERVER_TRUE = @WANT_SERVER_TRUE@
 WANT_SETUID_CLIENT_FALSE = @WANT_SETUID_CLIENT_FALSE@
 WANT_SETUID_CLIENT_TRUE = @WANT_SETUID_CLIENT_TRUE@
+WANT_SSH_SECURITY_FALSE = @WANT_SSH_SECURITY_FALSE@
+WANT_SSH_SECURITY_TRUE = @WANT_SSH_SECURITY_TRUE@
 WANT_TAPE_FALSE = @WANT_TAPE_FALSE@
 WANT_TAPE_TRUE = @WANT_TAPE_TRUE@
 XFSDUMP = @XFSDUMP@
 XFSRESTORE = @XFSRESTORE@
+XSLTPROC = @XSLTPROC@
 YACC = @YACC@
 ac_c = @ac_c@
 ac_ct_AR = @ac_ct_AR@
@@ -361,7 +373,9 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-INCLUDES = -I$(top_srcdir)/common-src
+INCLUDES = -I$(top_builddir)/common-src \
+		-I$(top_srcdir)/common-src
+
 lib_LTLIBRARIES = libamclient.la
 LIB_EXTENSION = la
 sbin_SCRIPTS = @CLIENT_SCRIPTS_OPT@
@@ -381,25 +395,21 @@ libamclient_la_LDFLAGS = -release $(VERSION)
 # routines, and second to pick up any references in the other libraries.
 ###
 LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamclient.$(LIB_EXTENSION) \
+	libamclient.$(LIB_EXTENSION) $(am__append_1) \
 	../common-src/libamanda.$(LIB_EXTENSION)
-
 SUFFIXES = .sh .pl
 
 # these are used for testing only:
 TEST_PROGS = getfsent
-CLEANFILES = *.test.c
+CLEANFILES = *.test.c patch-system
 EXTRA_SCRIPTS = amhpfixdevs		amsinixfixdevs
 DISTCLEANFILES = $(EXTRA_SCRIPTS)
-EXTRA_DIST = amhpfixdevs.sh		amsinixfixdevs.sh	\
-			amandad-krb4.c		sendbackup-krb4.c	\
-			sendbackup-krb4.h
-
+EXTRA_DIST = amhpfixdevs.sh		amsinixfixdevs.sh
 sendbackup_SOURCES = sendbackup.c		sendbackup.h	\
 			sendbackup-dump.c	sendbackup-gnutar.c
 
-noinst_HEADERS = amandates.h	getfsent.h	findpass.h	\
-			client_util.h
+noinst_HEADERS = amandad.h	amandates.h	getfsent.h	\
+			findpass.h	client_util.h
 
 getfsent_SOURCES = getfsent.test.c
 all: all-am
@@ -497,9 +507,6 @@ clean-libexecPROGRAMS:
 amandad$(EXEEXT): $(amandad_OBJECTS) $(amandad_DEPENDENCIES) 
 	@rm -f amandad$(EXEEXT)
 	$(LINK) $(amandad_LDFLAGS) $(amandad_OBJECTS) $(amandad_LDADD) $(LIBS)
-amqde$(EXEEXT): $(amqde_OBJECTS) $(amqde_DEPENDENCIES) 
-	@rm -f amqde$(EXEEXT)
-	$(LINK) $(amqde_LDFLAGS) $(amqde_OBJECTS) $(amqde_LDADD) $(LIBS)
 calcsize$(EXEEXT): $(calcsize_OBJECTS) $(calcsize_DEPENDENCIES) 
 	@rm -f calcsize$(EXEEXT)
 	$(LINK) $(calcsize_LDFLAGS) $(calcsize_OBJECTS) $(calcsize_LDADD) $(LIBS)
@@ -509,6 +516,9 @@ getfsent$(EXEEXT): $(getfsent_OBJECTS) $(getfsent_DEPENDENCIES)
 killpgrp$(EXEEXT): $(killpgrp_OBJECTS) $(killpgrp_DEPENDENCIES) 
 	@rm -f killpgrp$(EXEEXT)
 	$(LINK) $(killpgrp_LDFLAGS) $(killpgrp_OBJECTS) $(killpgrp_LDADD) $(LIBS)
+noop$(EXEEXT): $(noop_OBJECTS) $(noop_DEPENDENCIES) 
+	@rm -f noop$(EXEEXT)
+	$(LINK) $(noop_LDFLAGS) $(noop_OBJECTS) $(noop_LDADD) $(LIBS)
 rundump$(EXEEXT): $(rundump_OBJECTS) $(rundump_DEPENDENCIES) 
 	@rm -f rundump$(EXEEXT)
 	$(LINK) $(rundump_LDFLAGS) $(rundump_OBJECTS) $(rundump_LDADD) $(LIBS)
@@ -574,13 +584,13 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amandad.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amandates.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amqde.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/calcsize.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/client_util.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/findpass.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getfsent.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getfsent.test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/killpgrp.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/noop.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rundump.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/runtar.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/selfcheck.Po@am__quote@
@@ -829,7 +839,7 @@ install-exec-hook:
 		echo chgrp $(SETUID_GROUP) $$pa; \
 		chgrp $(SETUID_GROUP) $$pa; \
 	done
-@WANT_SETUID_CLIENT_TRUE@	@list="calcsize killpgrp rundump runtar amqde"; \
+@WANT_SETUID_CLIENT_TRUE@	@list="calcsize killpgrp rundump runtar"; \
 @WANT_SETUID_CLIENT_TRUE@	for p in $$list; do \
 @WANT_SETUID_CLIENT_TRUE@		if echo "$(libexec_PROGRAMS)" | grep $$p >/dev/null 2>&1; then \
 @WANT_SETUID_CLIENT_TRUE@			pa=$(DESTDIR)$(libexecdir)/`echo $$p|sed 's/$(EXEEXT)$$//'|sed '$(transform)'|sed 's/$$/$(EXEEXT)/'`; \

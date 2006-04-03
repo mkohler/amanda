@@ -1,6 +1,9 @@
 # Makefile for Amanda tape changer programs.
 
-INCLUDES =		-I$(top_srcdir)/common-src -I$(top_srcdir)/server-src -I$(top_srcdir)/tape-src
+INCLUDES =	-I$(top_builddir)/common-src \
+		-I$(top_srcdir)/common-src   \
+		-I$(top_srcdir)/server-src   \
+		-I$(top_srcdir)/tape-src
 
 LIB_EXTENSION = la
 
@@ -20,6 +23,8 @@ libexec_SCRIPTS =	chg-manual	chg-multi	chg-mtx		\
 			chg-zd-mtx	chg-juke	chg-rait	\
 			chg-null	chg-mcutil	chg-disk	\
 			chg-iomega
+
+CLEANFILES = $(libexec_SCRIPTS)
 
 ###
 # Because libamanda includes routines (e.g. regex) provided by some system

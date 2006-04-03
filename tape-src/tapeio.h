@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: tapeio.h,v 1.9.2.2.4.3.2.3 2003/03/07 20:55:37 martinea Exp $
+ * $Id: tapeio.h,v 1.20 2005/12/21 19:07:51 paddy_s Exp $
  *
  * interface for tapeio.c
  */
@@ -33,6 +33,7 @@
 #define TAPEIO_H
 
 #include "amanda.h"
+#include "util.h" /* For BSTRNCMP */
 
 /*
  * Tape drive status structure.  This abstracts the things we are
@@ -65,8 +66,9 @@ struct am_mt_status {
 };
 
 #define	FAKE_LABEL	"[fake-label]"
+#define NO_LABEL        "[no-label-yet]"
 
-int tape_open ();
+int tape_open (char *, int, ...);
 
 int tapefd_rewind P((int tapefd));
 int tapefd_unload P((int tapefd));
@@ -85,6 +87,10 @@ char *tapefd_wrlabel P((int tapefd,
 			char  *datestamp,
 			char  *label,
 			unsigned int s));
+
+char *auto_tapefd_label P((int tapefd, char **datestamp, char **label));
+char *auto_tape_label P((char *dev, char **datestamp, char **label));
+
 char *tapefd_wrendmark P((int tapefd, char *datestamp, unsigned int s));
 
 int tapefd_eof P((int tapefd));		/* just used in tapeio-test */
@@ -138,5 +144,8 @@ int tapeio_init_devname P((char * dev,
 char *tapeio_next_devname P((char * dev_left,
 			     char * dev_right,
 			     char **dev_next));
+
+#define NOT_AMANDA_TAPE_MSG "not an amanda tape"
+#define CHECK_NOT_AMANDA_TAPE_MSG(x) (!BSTRNCMP(x, NOT_AMANDA_TAPE_MSG))
 
 #endif /* ! TAPEIO_H */

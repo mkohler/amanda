@@ -70,8 +70,9 @@ pkgdataDATA_INSTALL = $(INSTALL_DATA)
 DATA = $(pkgdata_DATA)
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = config common-src client-src tape-src server-src \
-	changer-src restore-src recover-src amplot man docs example
+DIST_SUBDIRS = config common-src tape-src client-src dumper-src \
+	server-src changer-src restore-src recover-src amplot man docs \
+	example
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -130,7 +131,9 @@ DEFAULT_TAPE_DEVICE = @DEFAULT_TAPE_DEVICE@
 DEFAULT_TAPE_SERVER = @DEFAULT_TAPE_SERVER@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DOC_BUILD_DATE = @DOC_BUILD_DATE@
 DUMP = @DUMP@
+DUMPER_DIR = @DUMPER_DIR@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -142,9 +145,12 @@ FFLAGS = @FFLAGS@
 GETCONF = @GETCONF@
 GNUPLOT = @GNUPLOT@
 GNUTAR = @GNUTAR@
+GNUTAR_LISTED_INCREMENTAL_DIR = @GNUTAR_LISTED_INCREMENTAL_DIR@
 GNUTAR_LISTED_INCREMENTAL_DIRX = @GNUTAR_LISTED_INCREMENTAL_DIRX@
 GREP = @GREP@
 GZIP = @GZIP@
+HAVE_XSLTPROC_FALSE = @HAVE_XSLTPROC_FALSE@
+HAVE_XSLTPROC_TRUE = @HAVE_XSLTPROC_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
@@ -157,6 +163,7 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
+LL_FMT = @LL_FMT@
 LN_S = @LN_S@
 LTALLOCA = @LTALLOCA@
 LTLIBOBJS = @LTLIBOBJS@
@@ -219,10 +226,13 @@ WANT_SERVER_FALSE = @WANT_SERVER_FALSE@
 WANT_SERVER_TRUE = @WANT_SERVER_TRUE@
 WANT_SETUID_CLIENT_FALSE = @WANT_SETUID_CLIENT_FALSE@
 WANT_SETUID_CLIENT_TRUE = @WANT_SETUID_CLIENT_TRUE@
+WANT_SSH_SECURITY_FALSE = @WANT_SSH_SECURITY_FALSE@
+WANT_SSH_SECURITY_TRUE = @WANT_SSH_SECURITY_TRUE@
 WANT_TAPE_FALSE = @WANT_TAPE_FALSE@
 WANT_TAPE_TRUE = @WANT_TAPE_TRUE@
 XFSDUMP = @XFSDUMP@
 XFSRESTORE = @XFSRESTORE@
+XSLTPROC = @XSLTPROC@
 YACC = @YACC@
 ac_c = @ac_c@
 ac_ct_AR = @ac_ct_AR@
@@ -278,7 +288,7 @@ ACINCLUDE_M4 = $(srcdir)/acinclude.m4
 ACINCLUDE_M4I = $(srcdir)/config/acinclude.m4i
 LIBTOOL_M4I = $(srcdir)/config/libtool.m4i
 ACINCLUDE_M4_DEPS = $(ACINCLUDE_M4I) $(LIBTOOL_M4I)
-@WANT_CLIENT_TRUE@CLIENT_SUBDIRS = client-src
+@WANT_CLIENT_TRUE@CLIENT_SUBDIRS = client-src dumper-src
 @WANT_TAPE_TRUE@TAPE_SUBDIRS = tape-src
 @WANT_SERVER_TRUE@SERVER_SUBDIRS = server-src changer-src
 @WANT_RESTORE_TRUE@RESTORE_SUBDIRS = restore-src
@@ -288,8 +298,8 @@ ACINCLUDE_M4_DEPS = $(ACINCLUDE_M4I) $(LIBTOOL_M4I)
 SUBDIRS = \
 	config \
 	common-src \
-	$(CLIENT_SUBDIRS) \
 	$(TAPE_SUBDIRS) \
+	$(CLIENT_SUBDIRS) \
 	$(SERVER_SUBDIRS) \
 	$(RESTORE_SUBDIRS) \
 	$(RECOVER_SUBDIRS) \
@@ -303,6 +313,7 @@ pkgdata_DATA = \
 
 EXTRA_DIST = $(SNAPSHOT_STAMP) \
 	$(pkgdata_DATA)			\
+        autogen 			\
 	contrib/README			\
 	contrib/dbbackup.README		\
 	contrib/dbbackup.ksh		\
@@ -317,6 +328,15 @@ EXTRA_DIST = $(SNAPSHOT_STAMP) \
 	contrib/sst/sst.conf		\
 	contrib/sst/sst_def.h		\
 	contrib/sst/sstest.c		\
+	contrib/gsc/README		\
+	contrib/gsc/cfggsc.c		\
+	contrib/gsc/defgsc.c		\
+	contrib/gsc/gsc.add		\
+	contrib/gsc/gscdd.c		\
+	contrib/gsc/gscdds.h		\
+	contrib/gsc/makefile		\
+	contrib/gsc/tstinq.c		\
+	contrib/gsc/ucfggsc.c		\
 	patches/regex-3.6alpha.patch	\
 	patches/samba-largefs.patch	\
 	patches/tar-1.12.patch		\
@@ -544,7 +564,7 @@ distclean-tags:
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/amplot $(distdir)/changer-src $(distdir)/client-src $(distdir)/common-src $(distdir)/contrib $(distdir)/contrib/sst $(distdir)/example $(distdir)/patches $(distdir)/regex-src $(distdir)/regex-src/fake $(distdir)/server-src
+	$(mkdir_p) $(distdir)/amplot $(distdir)/changer-src $(distdir)/client-src $(distdir)/common-src $(distdir)/contrib $(distdir)/contrib/gsc $(distdir)/contrib/sst $(distdir)/dumper-src $(distdir)/example $(distdir)/patches $(distdir)/regex-src $(distdir)/regex-src/fake $(distdir)/server-src
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \

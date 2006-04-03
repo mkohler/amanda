@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: token.c,v 1.22.8.3.2.2 2005/09/30 19:13:36 martinea Exp $
+ * $Id: token.c,v 1.29 2006/01/14 04:37:19 paddy_s Exp $
  *
  * token bashing routines
  */
@@ -141,7 +141,7 @@ printf_arglist_function(char *squotef, char *, format)
 	/* Format the token */
 
 	arglist_start(argp, format);
-	ap_vsnprintf(linebuf, sizeof(linebuf), format, argp);
+	vsnprintf(linebuf, sizeof(linebuf), format, argp);
 	arglist_end(argp);
 
 	return quote(" ", linebuf);
@@ -155,7 +155,7 @@ printf_arglist_function1(char *quotef, char *, sep, char *, format)
 	/* Format the token */
 
 	arglist_start(argp, format);
-	ap_vsnprintf(linebuf, sizeof(linebuf), format, argp);
+	vsnprintf(linebuf, sizeof(linebuf), format, argp);
 	arglist_end(argp);
 
 	return quote(sep, linebuf);
@@ -368,7 +368,7 @@ char *str;	/* the string to quote */
 
     return buf;
 }
-#endif /* HAVE_SHQUOTE */
+#endif
 
 /* Table lookup.
 */
@@ -412,6 +412,9 @@ int main()
 	safe_fd(-1, 0);
 
 	set_pname("token test");
+
+	/* Don't die when child closes pipe */
+	signal(SIGPIPE, SIG_IGN);
 
 	erroutput_type = ERR_INTERACTIVE;
 

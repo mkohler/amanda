@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: diskfile.h,v 1.11.4.3.4.1.2.9.2.3 2004/08/03 11:27:17 martinea Exp $
+ * $Id: diskfile.h,v 1.32 2005/12/09 03:22:52 paddy_s Exp $
  *
  * interface for disklist file reading code
  */
@@ -59,6 +59,10 @@ typedef struct disk_s {
     char *device;			/* device name for disk, eg "sd0g" */
     char *dtype_name;			/* name of dump type   XXX shouldn't need this */
     char *program;			/* dump program, eg DUMP, GNUTAR */
+    char *srvcompprog;                  /* custom compression server filter */
+    char *clntcompprog;                 /* custom compression client filter */
+    char *srv_encrypt;                  /* custom encryption server filter */
+    char *clnt_encrypt;                 /* custom encryption client filter */
     sl_t *exclude_file;			/* file exclude spec */
     sl_t *exclude_list;			/* exclude list */
     sl_t *include_file;			/* file include spec */
@@ -66,9 +70,12 @@ typedef struct disk_s {
     int exclude_optional;		/* exclude list are optional */
     int include_optional;		/* include list are optional */
     long priority;			/* priority of disk */
+    long tape_splitsize;		/* size of dumpfile chunks on tape */
+    char *split_diskbuffer;		/* place where we can buffer PORT-WRITE dumps other than RAM */
+    long fallback_splitsize;		/* size for in-RAM PORT-WRITE buffers */
     long dumpcycle;			/* days between fulls */
     long frequency;			/* XXX - not used */
-    auth_t auth;			/* type of authentication (per system?) */
+    char *security_driver;		/* type of authentication (per disk) */
     int maxdumps;			/* max number of parallel dumps (per system) */
     int maxpromoteday;			/* maximum of promote day */
     int bumppercent;
@@ -79,6 +86,9 @@ typedef struct disk_s {
     int strategy;			/* what dump strategy to use */
     int estimate;			/* what estimate strategy to use */
     int compress;			/* type of compression to use */
+    int encrypt;			/* type of encryption to use */
+    char *srv_decrypt_opt;  	        /* server-side decryption option parameter to use */
+    char *clnt_decrypt_opt;             /* client-side decryption option parameter to use */
     float comprate[2];			/* default compression rates */
     /* flag options */
     unsigned int record:1;		/* record dump in /etc/dumpdates ? */
@@ -100,11 +110,12 @@ typedef struct disklist_s {
 #define empty(dlist)	((dlist).head == NULL)
 
 
-disklist_t *read_diskfile P((char *filename));
+int read_diskfile P((const char *, disklist_t *));
 
-disk_t *add_disk P((char *hostname, char *diskname));
-am_host_t *lookup_host P((char *hostname));
-disk_t *lookup_disk P((char *hostname, char *diskname));
+am_host_t *lookup_host P((const char *hostname));
+disk_t *lookup_disk P((const char *hostname, const char *diskname));
+
+disk_t *add_disk P((disklist_t *list, char *hostname, char *diskname));
 
 void enqueue_disk P((disklist_t *list, disk_t *disk));
 void headqueue_disk P((disklist_t *list, disk_t *disk));
@@ -119,5 +130,6 @@ void dump_queue P((char *str, disklist_t q, int npr, FILE *f));
 char *optionstr P((disk_t *dp, am_feature_t *their_features, FILE *fdout));
 
 void match_disklist P((disklist_t *origqp, int sargc, char **sargv));
+void free_disklist P((disklist_t *dl));
 
 #endif /* ! DISKFILE_H */

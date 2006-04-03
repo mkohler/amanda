@@ -24,74 +24,23 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: protocol.h,v 1.8.10.2.2.2 2004/04/29 20:47:22 martinea Exp $
+ * $Id: protocol.h,v 1.10 2003/04/26 02:02:18 kovert Exp $
  *
- * interfaces for amanda protocol
+ * server-side interfaces for amanda protocol state machine
  */
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#include "amanda.h"
-#include "dgram.h"
+#include "security.h"
 
-typedef enum {
-    S_BOGUS,
-    S_STARTUP, S_SENDREQ, S_ACKWAIT, S_REPWAIT, S_SUCCEEDED, S_FAILED
-} pstate_t;
-
-typedef enum { A_BOGUS, A_START, A_TIMEOUT, A_RCVDATA } action_t;
-
-typedef enum { P_BOGUS, P_REQ, P_REP, P_PREP, P_ACK, P_NAK } pktype_t;
-
-typedef struct {			/* a predigested datagram */
-    pktype_t type;
-    struct sockaddr_in peer;
-    uint32_t cksum;
-    int version_major, version_minor;
-    int sequence;
-    char *handle;
-    char *service;
-    char *security;
-    char *body;
-    dgram_t dgram;
-} pkt_t;
-
-typedef struct proto_s {
-    pstate_t state;
-    pstate_t prevstate;
-    struct sockaddr_in peer;
-    time_t timeout;
-    time_t repwait;
-    time_t origtime, curtime;
-    int reqtries, acktries;
-    int origseq, curseq;
-    int handleofs;
-    char *security;
-    uint32_t auth_cksum;
-    char *req;					/* body of request msg */
-    void (*continuation) P((struct proto_s *, pkt_t *));
-    void *datap;
-    struct proto_s *prev,*next;
-} proto_t;
-
-void proto_init P((int sock, int startseq, int handles));
-int make_request P((char *hostname, int port, char *req, void *datap,
-		    time_t repwait, 
-		    void (*continuation) P((proto_t *p, pkt_t *pkt))
-		    ));
-
-void check_protocol P((void));
-void run_protocol P((void));
-
-void parse_pkt_header P((pkt_t *pkt));
-
-#ifdef KRB4_SECURITY
-int make_krb_request P((char *hostname, int port, char *req,
-			void *datap, time_t repwait,
-			void (*continuation) P((proto_t *p, pkt_t *pkt))
-			));
-#endif
-
-extern char *parse_errmsg;
+void protocol_init P((void));
+typedef	void (*protocol_sendreq_callback) P((void *, pkt_t *,
+    security_handle_t *));
+void protocol_sendreq P((const char *, const security_driver_t *, 
+	char *(*) P((char *, void *)), 
+	const char *,
+    time_t, protocol_sendreq_callback, void *));
+void protocol_check P((void));
+void protocol_run P((void));
 
 #endif /* PROTOCOL_H */

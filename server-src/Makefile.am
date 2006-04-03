@@ -1,13 +1,9 @@
 # Makefile for Amanda server programs.
 
-###
-# Yes, I really mean ../common-src.  The genversion.h file ends up getting
-# built there rather than into the source tree.
-###
-
-INCLUDES =		-I$(top_srcdir)/common-src \
-			-I../common-src \
-			-I$(top_srcdir)/tape-src
+INCLUDES =	-I$(top_builddir)/common-src \
+		-I$(top_srcdir)/common-src   \
+		-I$(top_srcdir)/restore-src  \
+		-I$(top_srcdir)/tape-src
 
 lib_LTLIBRARIES = 	libamserver.la
 LIB_EXTENSION = la
@@ -18,16 +14,19 @@ sbin_PROGRAMS =		amadmin		amcheck		amflush		\
 
 libexec_PROGRAMS =	amindexd	amlogroll	amtrmidx	\
 			amtrmlog	driver		dumper		\
-			planner		taper		amcleanupdisk
+			planner		taper		amcleanupdisk	\
+			chunker
 
 sbin_SCRIPTS =		amcheckdb	amcleanup	amdump		\
 			amoverview	amrmtape	amtoc		\
-			amverify	amverifyrun	amstatus
+			amverify	amverifyrun	amstatus	\
+			amcrypt		amaespipe
 
 libamserver_la_SOURCES=	amindex.c	changer.c			\
 			conffile.c	diskfile.c	driverio.c	\
 			holding.c	infofile.c	logfile.c	\
-			tapefile.c	find.c		server_util.c
+			tapefile.c	find.c		server_util.c   \
+                        taperscan.c
 
 libamserver_la_LDFLAGS= -release $(VERSION)
 
@@ -40,6 +39,8 @@ libamserver_la_LDFLAGS= -release $(VERSION)
 
 LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
 	libamserver.$(LIB_EXTENSION) \
+	../tape-src/libamtape.$(LIB_EXTENSION) \
+	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION)
 
@@ -57,11 +58,9 @@ SUFFIXES =		.sh .pl
 # there are used for testing only:
 TEST_PROGS = diskfile conffile infofile
 
-EXTRA_PROGRAMS = $(TEST_PROGS)
+EXTRA_PROGRAMS =	$(TEST_PROGS)
 
-EXTRA_DIST = dumper-krb4.c
-
-CLEANFILES = *.test.c
+CLEANFILES = *.test.c $(sbin_SCRIPTS)
 
 amindexd_SOURCES =	amindexd.c					\
 			disk_history.c			disk_history.h	\
@@ -74,7 +73,8 @@ amgetconf_SOURCES =	getconf.c
 noinst_HEADERS = 	amindex.h	changer.h			\
 			conffile.h	diskfile.h	driverio.h	\
 			holding.h	infofile.h	logfile.h	\
-			tapefile.h	find.h		server_util.h
+			tapefile.h	find.h		server_util.h	\
+			taperscan.h
 
 install-exec-hook:
 	@list="$(sbin_PROGRAMS) $(sbin_SCRIPTS)"; \
@@ -104,6 +104,7 @@ install-exec-hook:
 		else true; \
 		fi; \
 	done
+if !WANT_SSH_SECURITY
 	@list="dumper planner"; \
 	for p in $$list; do \
 		if echo "$(libexec_PROGRAMS)" | grep $$p >/dev/null 2>&1; then \
@@ -115,6 +116,7 @@ install-exec-hook:
 		else true; \
 		fi; \
 	done
+endif
 
 diskfile_SOURCES = diskfile.test.c
 conffile_SOURCES = conffile.test.c

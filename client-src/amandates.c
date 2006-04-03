@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amandates.c,v 1.15.8.1 2003/10/22 17:43:33 martinea Exp $
+ * $Id: amandates.c,v 1.16 2003/10/22 17:43:20 martinea Exp $
  *
  * manage amandates file, that mimics /var/lib/dumpdates, but stores
  * GNUTAR dates

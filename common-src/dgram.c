@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 1991-1998 University of Maryland at College Park
+ * Copyright (c) 1991-1999 University of Maryland at College Park
  * All Rights Reserved.
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -25,11 +25,12 @@
  *			   University of Maryland at College Park
  */
 /* 
- * $Id: dgram.c,v 1.11.2.3.4.3.2.4 2002/11/12 19:19:03 martinea Exp $
+ * $Id: dgram.c,v 1.29 2006/01/12 01:57:05 paddy_s Exp $
  *
  * library routines to marshall/send, recv/unmarshall UDP packets
  */
 #include "amanda.h"
+#include "arglist.h"
 #include "dgram.h"
 #include "util.h"
 
@@ -79,17 +80,19 @@ int *portp;
      * If a port range was specified, we try to get a port in that
      * range first.  Next, we try to get a reserved port.  If that
      * fails, we just go for any port.
+     * 
+     * In all cases, not to use port that's assigned to other services. 
      *
      * It is up to the caller to make sure we have the proper permissions
      * to get the desired port, and to make sure we return a port that
      * is within the range it requires.
      */
 #ifdef UDPPORTRANGE
-    if (bind_portrange(s, &name, UDPPORTRANGE) == 0)
+    if (bind_portrange(s, &name, UDPPORTRANGE, "udp") == 0)
 	goto out;
 #endif
 
-    if (bind_portrange(s, &name, 512, IPPORT_RESERVED - 1) == 0)
+    if (bind_portrange(s, &name, 512, IPPORT_RESERVED - 1, "udp") == 0)
 	goto out;
 
     name.sin_port = INADDR_ANY;
@@ -118,6 +121,7 @@ out:
     }
     *portp = ntohs(name.sin_port);
     dgram->socket = s;
+
     dbprintf(("%s: dgram_bind: socket bound to %s.%d\n",
 	      debug_prefix_time(NULL),
 	      inet_ntoa(name.sin_addr),
@@ -176,6 +180,17 @@ dgram_t *dgram;
 	if(errno == ECONNREFUSED && wait_count++ < max_wait) {
 	    sleep(5);
 	    dbprintf(("%s: dgram_send_addr: sendto(%s.%d): retry %d after ECONNREFUSED\n",
+		      debug_prefix_time(NULL),
+		      inet_ntoa(addr_save.sin_addr),
+		      (int) ntohs(addr.sin_port),
+		      wait_count));
+	    continue;
+	}
+#endif
+#ifdef EAGAIN
+	if(errno == EAGAIN && wait_count++ < max_wait) {
+	    sleep(5);
+	    dbprintf(("%s: dgram_send_addr: sendto(%s.%d): retry %d after EAGAIN\n",
 		      debug_prefix_time(NULL),
 		      inet_ntoa(addr_save.sin_addr),
 		      (int) ntohs(addr.sin_port),
@@ -313,33 +328,25 @@ dgram_t *dgram;
     *(dgram->cur) = '\0';
 }
 
-dgram_t *debug_dgram_alloc(s, l)
-char *s;
-int l;
+printf_arglist_function1(void dgram_cat, dgram_t *, dgram, const char *, fmt)
 {
-    dgram_t *p;
+    size_t bufsize;
+    va_list argp;
 
-    malloc_enter(dbmalloc_caller_loc(s, l));
-    p = (dgram_t *) alloc(sizeof(dgram_t));
-    dgram_zero(p);
-    p->socket = -1;
-    malloc_leave(dbmalloc_caller_loc(s, l));
+    assert(dgram != NULL);
+    assert(fmt != NULL);
 
-    return p;
-}
+    assert(dgram->len == dgram->cur - dgram->data);
+    assert(dgram->len >= 0 && dgram->len < sizeof(dgram->data));
 
+    bufsize = sizeof(dgram->data) - dgram->len;
+    if (bufsize <= 0)
+	return;
 
-void dgram_cat(dgram, str)
-dgram_t *dgram;
-const char *str;
-{
-    int len = strlen(str);
-
-    if(dgram->len + len > MAX_DGRAM) len = MAX_DGRAM - dgram->len;
-    strncpy(dgram->cur, str, len);
-    dgram->cur += len;
-    dgram->len += len;
-    *(dgram->cur) = '\0';
+    arglist_start(argp, fmt);
+    dgram->len += vsnprintf(dgram->cur, bufsize, fmt, argp);
+    dgram->cur = dgram->data + dgram->len;
+    arglist_end(argp);
 }
 
 void dgram_eatline(dgram)

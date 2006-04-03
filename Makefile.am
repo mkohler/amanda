@@ -7,7 +7,7 @@ LIBTOOL_M4I = $(srcdir)/config/libtool.m4i
 ACINCLUDE_M4_DEPS = $(ACINCLUDE_M4I) $(LIBTOOL_M4I)
 
 if WANT_CLIENT
-CLIENT_SUBDIRS = client-src
+CLIENT_SUBDIRS = client-src dumper-src
 endif
 if WANT_TAPE
 TAPE_SUBDIRS = tape-src
@@ -28,8 +28,8 @@ endif
 SUBDIRS = \
 	config \
 	common-src \
-	$(CLIENT_SUBDIRS) \
 	$(TAPE_SUBDIRS) \
+	$(CLIENT_SUBDIRS) \
 	$(SERVER_SUBDIRS) \
 	$(RESTORE_SUBDIRS) \
 	$(RECOVER_SUBDIRS) \
@@ -43,6 +43,7 @@ pkgdata_DATA = \
 
 EXTRA_DIST = $(SNAPSHOT_STAMP) \
 	$(pkgdata_DATA)			\
+        autogen 			\
 	contrib/README			\
 	contrib/dbbackup.README		\
 	contrib/dbbackup.ksh		\
@@ -57,6 +58,15 @@ EXTRA_DIST = $(SNAPSHOT_STAMP) \
 	contrib/sst/sst.conf		\
 	contrib/sst/sst_def.h		\
 	contrib/sst/sstest.c		\
+	contrib/gsc/README		\
+	contrib/gsc/cfggsc.c		\
+	contrib/gsc/defgsc.c		\
+	contrib/gsc/gsc.add		\
+	contrib/gsc/gscdd.c		\
+	contrib/gsc/gscdds.h		\
+	contrib/gsc/makefile		\
+	contrib/gsc/tstinq.c		\
+	contrib/gsc/ucfggsc.c		\
 	patches/regex-3.6alpha.patch	\
 	patches/samba-largefs.patch	\
 	patches/tar-1.12.patch		\

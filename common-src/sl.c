@@ -25,7 +25,7 @@
  *                         University of Maryland at College Park
  */
 /*
- * $Id: sl.c,v 1.1.2.2.2.2 2005/09/30 19:01:53 martinea Exp $
+ * $Id: sl.c,v 1.5 2005/09/30 19:01:43 martinea Exp $
  *
  * A doubly linked list of string (char *)
  */

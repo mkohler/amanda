@@ -19,7 +19,7 @@
 ..
 .TH "AMADMIN" 8 "" "" ""
 .SH NAME
-amadmin \- administrative interface to control AMANDA backups
+amadmin \- administrative interface to control Amanda backups
 .SH "SYNOPSIS"
 .ad l
 .hy 0
@@ -31,10 +31,10 @@ amadmin \- administrative interface to control AMANDA backups
 .SH "DESCRIPTION"
 
 .PP
-\fBAmadmin\fR performs various administrative tasks on the \fBconfig\fR  \fBAMANDA\fR configuration\&.
+\fBAmadmin\fR performs various administrative tasks on the \fBconfig\fR  \fBAmanda\fR configuration\&.
 
 .PP
-See the \fBamanda\fR(8) man page for more details about \fBAMANDA\fR\&.
+See the \fBamanda\fR(8) man page for more details about \fBAmanda\fR\&.
 
 .SH "COMMANDS"
 
@@ -47,11 +47,11 @@ Show the current version and some compile time and runtime parameters\&. The \fB
 
 .TP
 \fBforce\-bump\fR [ \fBhostname\fR [ \fBdisks\fR ]* ]+
-Force the \fBdisks\fR on \fBhostname\fR to bump to a new incremental level during the next \fBAMANDA\fR run\&.
+Force the \fBdisks\fR on \fBhostname\fR to bump to a new incremental level during the next \fBAmanda\fR run\&.
 
 .TP
 \fBforce\-no\-bump\fR [ \fBhostname\fR [ \fBdisks\fR ]* ]+
-Force the \fBdisks\fR on \fBhostname\fR to not bump to a new incremental level during the next \fBAMANDA\fR run\&.
+Force the \fBdisks\fR on \fBhostname\fR to not bump to a new incremental level during the next \fBAmanda\fR run\&.
 
 .TP
 \fBunforce\-bump\fR [ \fBhostname\fR [ \fBdisks\fR ]* ]+
@@ -59,7 +59,7 @@ Undo a previous \fBforce\-bump\fR or \fBforce\-no\-bump\fR command\&.
 
 .TP
 \fBforce\fR [ \fBhostname\fR [ \fBdisks\fR ]* ]+
-Force the \fBdisks\fR on \fBhostname\fR to do a full (level 0) backup during the next \fBAMANDA\fR run\&.
+Force the \fBdisks\fR on \fBhostname\fR to do a full (level 0) backup during the next \fBAmanda\fR run\&.
 
 .TP
 \fBunforce\fR [ \fBhostname\fR [ \fBdisks\fR ]* ]+
@@ -71,36 +71,36 @@ The tapes listed will be available for reuse at their point in the tape cycle\&.
 
 .TP
 \fBno\-reuse\fR \fBtapelabel\fR [ \&.\&.\&. ]
-The tapes listed will not be reused when their turn comes up again in the tape cycle\&. Note that if this causes the number of reusable tapes to drop below the \fBamanda\&.conf\fR  \fBtapecycle\fR value, \fBAMANDA\fR will request new tapes until the count is satisfied again\&.
+The tapes listed will not be reused when their turn comes up again in the tape cycle\&. Note that if this causes the number of reusable tapes to drop below the \fBamanda\&.conf\fR  \fBtapecycle\fR value, \fBAmanda\fR will request new tapes until the count is satisfied again\&.
 
 .TP
 \fBdue\fR [ \fBhostname\fR [ \fBdisks\fR ]* ]*
 Show when the next full dump is due\&.
 
 .TP
-\fBfind\fR [ \fB\-\-sort\fR \fIhkdlb\fR ]\fB\fR [ \fBhostname\fR [ \fBdisks\fR ]* ]*
+\fBfind\fR [ \fB\-\-sort\fR \fIhkdlpb\fR ]\fB\fR [ \fBhostname\fR [ \fBdisks\fR ]* ]*
 Display all backups currently on tape or in the holding disk\&. The tape label or holding disk filename, file number, and status are displayed\&.
 
 The \fB\-\-sort\fR option changes the sort order using the following flags:
 
-\fBh\fRhost name \fBk\fRdisk name \fBd\fRdump date \fBl\fRbackup level \fBb\fRtape label
+\fBh\fRhost name \fBk\fRdisk name \fBd\fRdump date \fBl\fRbackup level \fBp\fR dump part \fBb\fRtape label
 
-An uppercase letter reverses the sort order for that key\&. The default sort order is \fBhkdlb\fR\&.
+An uppercase letter reverses the sort order for that key\&. The default sort order is \fBhkdlpb\fR\&.
 
 .TP
 \fBdelete\fR [ \fBhostname\fR [ \fBdisks\fR ]* ]+
-Delete the specified \fBdisks\fR on \fBhostname\fR from the \fBAMANDA\fR database\&.
+Delete the specified \fBdisks\fR on \fBhostname\fR from the \fBAmanda\fR database\&.
 
 .RS
 .Sh "Note"
 If you do not also remove the disk from the
 \fBdisklist\fR
-file, \fBAMANDA\fR will treat it as a new disk during the next run\&.
+file, \fBAmanda\fR will treat it as a new disk during the next run\&.
 .RE
 
 .TP
 \fBtape\fR
-Display the tape(s) \fBAMANDA\fR expects to write to during the next run\&. See also \fBamcheck\fR(8)\&.
+Display the tape(s) \fBAmanda\fR expects to write to during the next run\&. See also \fBamcheck\fR(8)\&.
 
 .TP
 \fBbumpsize\fR
@@ -112,11 +112,11 @@ Display the distribution of full backups throughout the dump schedule\&.
 
 .TP
 \fBexport\fR [ \fBhostname\fR [ \fBdisks\fR ]* ]*
-Convert records from the \fBAMANDA\fR database to a text format that may be transmitted to another \fBAMANDA\fR machine and \fBimport\fRed\&.
+Convert records from the \fBAmanda\fR database to a text format that may be transmitted to another \fBAmanda\fR machine and \fBimport\fRed\&.
 
 .TP
 \fBimport\fR
-Convert \fBexport\fRed records read from standard input to a form \fBAMANDA\fR uses and insert them into the database on this machine\&.
+Convert \fBexport\fRed records read from standard input to a form \fBAmanda\fR uses and insert them into the database on this machine\&.
 
 .TP
 \fBdisklist\fR [ \fBhostname\fR [ \fBdisks\fR ]* ]*
@@ -129,7 +129,7 @@ Display the database record for each of the \fBdisks\fR on \fBhostname\fR (or al
 .SH "EXAMPLES"
 
 .PP
-Request three specific file systems on \fBmachine\-a\fR get a full level 0 backup during the next \fBAMANDA\fR run\&.
+Request three specific file systems on \fBmachine\-a\fR get a full level 0 backup during the next \fBAmanda\fR run\&.
 .nf
 
 $ amadmin daily force machine\-a / /var /usr
@@ -139,7 +139,7 @@ amadmin: machine\-a:/usr is set to a forced level 0 tonight\&.
 .fi
 
 .PP
-Request all file systems on \fBmachine\-b\fR get a full level 0 backup during the next \fBAMANDA\fR run\&.
+Request all file systems on \fBmachine\-b\fR get a full level 0 backup during the next \fBAmanda\fR run\&.
 .nf
 
 $ amadmin daily force machine\-b
@@ -162,21 +162,21 @@ Locate backup images of \fI/var\fR from \fBmachine\-c\fR\&. The \fBtape or file\
 .nf
 
 $ amadmin daily find machine\-c /var
-date        host      disk lv tape or file                    file status
-2000\-11\-09  machine\-c /var  0 000110                             9 OK
-2000\-11\-08  machine\-c /var  2 000109                             2 OK
-2000\-11\-07  machine\-c /var  2 /amanda/20001107/machine\-c\&._var\&.2  0 OK
-2000\-11\-06  machine\-c /var  2 000107                             2 OK
-2000\-11\-05  machine\-c /var  2 000106                             3 OK
-2000\-11\-04  machine\-c /var  2 000105                             2 OK
-2000\-11\-03  machine\-c /var  2 000104                             2 OK
-2000\-11\-02  machine\-c /var  2 000103                             2 OK
-2000\-11\-01  machine\-c /var  1 000102                             5 OK
-2000\-10\-31  machine\-c /var  1 000101                             3 OK
+date        host      disk lv tape or file                 file part  status
+2000\\\-11\\\-09  machine\\\-c /var  0 000110                       9   \-\-  OK
+2000\\\-11\\\-08  machine\\\-c /var  2 000109                       2   \-\-  OK
+2000\\\-11\\\-07  machine\\\-c /var  2 /amanda/20001107/machine\-c\&._var\&.2  0 OK
+2000\\\-11\\\-06  machine\\\-c /var  2 000107                       2   \-\-  OK
+2000\\\-11\\\-05  machine\\\-c /var  2 000106                       3   \-\-  OK
+2000\\\-11\\\-04  machine\\\-c /var  2 000105                       2   \-\-  OK
+2000\\\-11\\\-03  machine\\\-c /var  2 000104                       2   \-\-  OK
+2000\\\-11\\\-02  machine\\\-c /var  2 000103                       2   \-\-  OK
+2000\\\-11\\\-01  machine\\\-c /var  1 000102                       5   \-\-  OK
+2000\\\-10\\\-31  machine\\\-c /var  1 000101                       3   \-\-  OK
 .fi
 
 .PP
-Forget about the \fI/workspace\fR disk on \fBmachine\-d\fR\&. If you do not also remove the disk from the \fBdisklist\fR file, \fBAMANDA\fR will treat it as a new disk during the next run\&.
+Forget about the \fI/workspace\fR disk on \fBmachine\-d\fR\&. If you do not also remove the disk from the \fBdisklist\fR file, \fBAmanda\fR will treat it as a new disk during the next run\&.
 .nf
 
 $ amadmin daily delete machine\-d /workspace
@@ -185,21 +185,21 @@ amadmin: NOTE: you'll have to remove these from the disklist yourself\&.
 .fi
 
 .PP
-Find the next tape \fBAMANDA\fR will use (in this case, 123456)\&.
+Find the next tape \fBAmanda\fR will use (in this case, 123456)\&.
 .nf
 
 $ amadmin daily tape
-The next \fBAMANDA\fR run should go onto tape 123456 or a new tape\&.
+The next \fBAmanda\fR run should go onto tape 123456 or a new tape\&.
 .fi
 
 .PP
 Show how well full backups are balanced across the dump cycle\&. The \fBdue\-date\fR column is the day the backups are due for a full backup\&. \fB#fs\fR shows the number of filesystems doing full backups that night, and \fBorig KB\fR and \fBout KB\fR show the estimated total size of the backups before and after any compression, respectively\&.
 
 .PP
-The \fBbalance\fR column shows how far off that night's backups are from the average size (shown at the bottom of the balance column)\&. \fBAMANDA\fR tries to keep the backups within +/\- 5%, but since the amount of data on each filesystem is always changing, and \fBAMANDA\fR will never delay backups just to rebalance the schedule, it is common for the schedule to fluctuate by larger percentages\&. In particular, in the case of a tape or backup failure, a bump will occur the following night, which will not be smoothed out until the next pass through the schedule\&.
+The \fBbalance\fR column shows how far off that night's backups are from the average size (shown at the bottom of the balance column)\&. \fBAmanda\fR tries to keep the backups within +/\- 5%, but since the amount of data on each filesystem is always changing, and \fBAmanda\fR will never delay backups just to rebalance the schedule, it is common for the schedule to fluctuate by larger percentages\&. In particular, in the case of a tape or backup failure, a bump will occur the following night, which will not be smoothed out until the next pass through the schedule\&.
 
 .PP
-The last line also shows an estimate of how many \fBAMANDA\fR runs will be made between full backups for a file system\&. In the example, a file system will probably have a full backup done every eight times \fBAMANDA\fR is run (e\&.g\&. every eight days)\&.
+The last line also shows an estimate of how many \fBAmanda\fR runs will be made between full backups for a file system\&. In the example, a file system will probably have a full backup done every eight times \fBAmanda\fR is run (e\&.g\&. every eight days)\&.
 .nf
 
 $ amadmin daily balance
@@ -230,10 +230,10 @@ TOTAL      241  12412187   7316312   731631  (estimated 8 runs per dumpcycle)
 James da Silva, <jds@amanda\&.org> : Original text
 
 .PP
-Stefan G\&. Weichinger, <sgw@amanda\&.org>, maintainer of the \fBAMANDA\fR\-documentation: XML\-conversion
+Stefan G\&. Weichinger, <sgw@amanda\&.org>, maintainer of the \fBAmanda\fR\-documentation: XML\-conversion
 
 .SH "SEE ALSO"
 
 .PP
-\fBamanda\fR(8), \fBamcheck\fR(8), \fBamdump\fR(8), \fBamrestore\fR(8)
+\fBamanda\fR(8), \fBamcheck\fR(8), \fBamdump\fR(8), \fBamrestore\fR(8), \fBamfetchdump\fR(8)
 

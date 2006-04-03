@@ -25,10 +25,10 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  */
 
-/* $Id: getcwd.c,v 1.3.12.1 2002/02/11 01:30:42 jrjackson Exp $ */
+/* $Id: getcwd.c,v 1.4 2002/02/11 01:32:10 jrjackson Exp $ */
 
 #ifndef lint
-static char rcsid[] = "$Header: /cvsroot/amanda/amanda/common-src/getcwd.c,v 1.3.12.1 2002/02/11 01:30:42 jrjackson Exp $ SPRITE (Berkeley)";
+static char rcsid[] = "$Header: /cvsroot/amanda/amanda/common-src/getcwd.c,v 1.4 2002/02/11 01:32:10 jrjackson Exp $ SPRITE (Berkeley)";
 #endif /* not lint */
 
 #include <stdio.h>

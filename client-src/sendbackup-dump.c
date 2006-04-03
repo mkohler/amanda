@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 1991-1998 University of Maryland at College Park
+ * Copyright (c) 1991-1999 University of Maryland at College Park
  * All Rights Reserved.
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -24,21 +24,15 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /* 
- * $Id: sendbackup-dump.c,v 1.65.2.5.4.2.2.9.2.1 2005/09/20 18:13:08 jrjackson Exp $
+ * $Id: sendbackup-dump.c,v 1.88 2006/03/09 20:06:11 johnfranks Exp $
  *
  * send backup data using BSD dump
  */
 
 #include "sendbackup.h"
-#include "clock.h"
 #include "getfsent.h"
+#include "clock.h"
 #include "version.h"
-
-#ifdef KRB4_SECURITY
-#include "sendbackup-krb4.h"
-#else					/* I'd tell you what this does */
-#define NAUGHTY_BITS			/* but then I'd have to kill you */
-#endif
 
 #define LEAF_AND_DIRS "sed -e \'\ns/^leaf[ \t]*[0-9]*[ \t]*\\.//\nt\n/^dir[ \t]/ {\ns/^dir[ \t]*[0-9]*[ \t]*\\.//\ns%$%/%\nt\n}\nd\n\'"
 
@@ -56,7 +50,6 @@ static regex_t re_table[] = {
 	     1024),
   AM_SIZE_RE("DUMP: [0-9][0-9]* blocks \\([0-9][0-9]*KB\\) on [0-9][0-9]* volume",
 	     512),
-
   AM_SIZE_RE("DUMP: [0-9][0-9]* blocks \\([0-9][0-9]*\\.[0-9][0-9]*MB\\) on [0-9][0-9]* volume",
 	     512),
   AM_SIZE_RE("DUMP: [0-9][0-9]* blocks", 1024),
@@ -91,25 +84,25 @@ static regex_t re_table[] = {
 
   /* any blank or non-strange DUMP: lines are marked as normal */
   AM_NORMAL_RE("^ *DUMP:"),
-  AM_NORMAL_RE("^dump:"),				/* OSF/1 */
-  AM_NORMAL_RE("^vdump:"),				/* OSF/1 */
-  AM_NORMAL_RE("^ *vxdump:"),				/* HPUX10 */
-  AM_NORMAL_RE("^ *vxfs *vxdump:"),			/* Solaris */
-  AM_NORMAL_RE("^Dumping .* to stdout"),		/* Solaris vxdump */
-  AM_NORMAL_RE("^xfsdump:"),				/* IRIX xfs */
-  AM_NORMAL_RE("^ *VXDUMP:"),				/* Sinix */
-  AM_NORMAL_RE("^ *UFSDUMP:"),				/* Sinix */
+  AM_NORMAL_RE("^dump:"),					/* OSF/1 */
+  AM_NORMAL_RE("^vdump:"),					/* OSF/1 */
+  AM_NORMAL_RE("^ *vxdump:"),					/* HPUX10 */
+  AM_NORMAL_RE("^ *vxfs *vxdump:"),				/* Solaris */
+  AM_NORMAL_RE("^Dumping .* to stdout"),			/* Sol vxdump */
+  AM_NORMAL_RE("^xfsdump:"),					/* IRIX xfs */
+  AM_NORMAL_RE("^ *VXDUMP:"),					/* Sinix */
+  AM_NORMAL_RE("^ *UFSDUMP:"),					/* Sinix */
 
 #ifdef VDUMP	/* this is for OSF/1 3.2's vdump for advfs */
-  AM_NORMAL_RE("^The -s option is ignored"),		/* OSF/1 */
-  AM_NORMAL_RE("^path"),				/* OSF/1 */
-  AM_NORMAL_RE("^dev/fset"),				/* OSF/1 */
-  AM_NORMAL_RE("^type"),				/* OSF/1 */
-  AM_NORMAL_RE("^advfs id"),				/* OSF/1 */
+  AM_NORMAL_RE("^The -s option is ignored"),			/* OSF/1 */
+  AM_NORMAL_RE("^path"),					/* OSF/1 */
+  AM_NORMAL_RE("^dev/fset"),					/* OSF/1 */
+  AM_NORMAL_RE("^type"),					/* OSF/1 */
+  AM_NORMAL_RE("^advfs id"),					/* OSF/1 */
   AM_NORMAL_RE("^[A-Z][a-z][a-z] [A-Z][a-z][a-z] .[0-9] [0-9]"), /* OSF/1 */
 #endif
 
-  AM_NORMAL_RE("^backup:"),				/* AIX */
+  AM_NORMAL_RE("^backup:"),					/* AIX */
   AM_NORMAL_RE("^        Use the umount command to unmount the filesystem"),
 
   AM_NORMAL_RE("^[ \t]*$"),
@@ -118,29 +111,48 @@ static regex_t re_table[] = {
   AM_STRANGE_RE(NULL)
 };
 
+/*
+ *  doing similar to $ dump | compression | encryption
+ */
+
 static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, indexf)
     char *host;
     char *disk, *amdevice;
     int level, dataf, mesgf, indexf;
     char *dumpdate;
 {
-    int dumpin, dumpout;
+    int dumpin, dumpout, compout;
     char *dumpkeys = NULL;
     char *device = NULL;
     char *fstype = NULL;
     char *cmd = NULL;
     char *indexcmd = NULL;
     char level_str[NUM_STR_SIZE];
+    char *compopt  = NULL;
+    char *encryptopt = skip_argument;
 
-    ap_snprintf(level_str, sizeof(level_str), "%d", level);
+
+    snprintf(level_str, sizeof(level_str), "%d", level);
 
     fprintf(stderr, "%s: start [%s:%s level %d]\n",
 	    get_pname(), host, disk, level);
 
-    NAUGHTY_BITS;
+      /*  apply client-side encryption here */
+      if ( options->encrypt == ENCRYPT_CUST ) {
+       encpid = pipespawn(options->clnt_encrypt, STDIN_PIPE,
+                       &compout, &dataf, &mesgf,
+                       options->clnt_encrypt, encryptopt, NULL);
+       dbprintf(("%s: pid %ld: %s\n",
+                 debug_prefix_time("-gnutar"), (long)encpid, options->clnt_encrypt));
+     } else {
+        compout = dataf;
+        encpid = -1;
+     }
+      /*  now do the client-side compression */
+
 
     if(options->compress == COMPR_FAST || options->compress == COMPR_BEST) {
-	char *compopt = skip_argument;
+	compopt = skip_argument;
 
 #if defined(COMPRESS_BEST_OPT) && defined(COMPRESS_FAST_OPT)
 	if(options->compress == COMPR_BEST) {
@@ -150,7 +162,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	}
 #endif
 	comppid = pipespawn(COMPRESS_PATH, STDIN_PIPE,
-			    &dumpout, &dataf, &mesgf,
+			    &dumpout, &compout, &mesgf,
 			    COMPRESS_PATH, compopt, NULL);
 	dbprintf(("%s: pid %ld: %s",
 		  debug_prefix_time("-dump"), (long)comppid, COMPRESS_PATH));
@@ -158,8 +170,19 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	    dbprintf((" %s", compopt));
 	}
 	dbprintf(("\n"));
+     } else if (options->compress == COMPR_CUST) {
+        compopt = skip_argument;
+	comppid = pipespawn(options->clntcompprog, STDIN_PIPE,
+			    &dumpout, &compout, &mesgf,
+			    options->clntcompprog, compopt, NULL);
+	dbprintf(("%s: pid %ld: %s",
+		  debug_prefix_time("-gnutar-cust"), (long)comppid, options->clntcompprog));
+	if(compopt != skip_argument) {
+	    dbprintf((" %s", compopt));
+	}
+	dbprintf(("\n"));
     } else {
-	dumpout = dataf;
+	dumpout = compout;
 	comppid = -1;
     }
 
@@ -198,7 +221,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 			     " | sed",
 			     " -e", " \'s/^/\\//\'",
 			     NULL);
-	write_tapeheader();
+	info_tapeheader();
 
 	start_index(options->createindex, dumpout, mesgf, indexf, indexcmd);
 
@@ -243,7 +266,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 			     " | ",
 			     LEAF_AND_DIRS,
 			     NULL);
-	write_tapeheader();
+	info_tapeheader();
 
 	start_index(options->createindex, dumpout, mesgf, indexf, indexcmd);
 
@@ -284,7 +307,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 			     " | ",
 			     "sed -e \'\n/^\\./ {\ns/^\\.//\ns/, [0-9]*$//\ns/^\\.//\ns/ @-> .*$//\nt\n}\nd\n\'",
 			     NULL);
-	write_tapeheader();
+	info_tapeheader();
 
 	start_index(options->createindex, dumpout, mesgf, indexf, indexcmd);
 
@@ -321,7 +344,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 			     " | ",
 			     LEAF_AND_DIRS,
 			     NULL);
-	write_tapeheader();
+	info_tapeheader();
 
 	start_index(options->createindex, dumpout, mesgf, indexf, indexcmd);
 
@@ -352,7 +375,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 			 " | ",
 			 LEAF_AND_DIRS,
 			 NULL);
-    write_tapeheader();
+    info_tapeheader();
 
     start_index(options->createindex, dumpout, mesgf, indexf, indexcmd);
 
@@ -366,6 +389,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 #endif							/* } */
 
     amfree(dumpkeys);
+    amfree(fstype);
     amfree(device);
     amfree(cmd);
     amfree(indexcmd);
@@ -374,6 +398,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 
     aclose(dumpin);
     aclose(dumpout);
+    aclose(compout);
     aclose(dataf);
     aclose(mesgf);
     if (options->createindex)

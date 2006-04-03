@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: list_dir.h,v 1.2.4.1 1999/02/15 02:31:07 martinea Exp $
+ * $Id: list_dir.h,v 1.3 1999/02/15 02:30:26 martinea Exp $
  *
  */
 

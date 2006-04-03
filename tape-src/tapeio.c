@@ -26,12 +26,13 @@
  */
 
 /*
- * $Id: tapeio.c,v 1.20.4.7.4.4.2.9 2003/11/28 12:34:52 martinea Exp $
+ * $Id: tapeio.c,v 1.53 2006/01/14 04:37:20 paddy_s Exp $
  *
  * implements generic tape I/O functions
  */
 
 #include "amanda.h"
+#include <stdarg.h>
 #include <errno.h>
 
 #include "tapeio.h"
@@ -49,7 +50,7 @@
 static struct virtualtape {
     char *prefix;
     int (*xxx_tape_access) P((char *, int));
-    int (*xxx_tape_open) ();
+    int (*xxx_tape_open) (char *, int, int);
     int (*xxx_tape_stat) P((char *, struct stat *));
     int (*xxx_tapefd_close) P((int));
     int (*xxx_tapefd_fsf) P((int, int));
@@ -528,14 +529,17 @@ tape_stat(filename, buf)
 }
 
 int
-tape_open(filename, mode, mask)
-    char *filename;
-    int mode;
-    int mask;
+tape_open(char *filename, int mode, ...)
 {
     char *tname;
     int vslot;
     int fd;
+    int mask;
+    va_list ap;
+
+    va_start(ap, mode);
+    mask = va_arg(ap, int);
+    va_end(ap);
 
     vslot = name2slot(filename, &tname);
     if((fd = vtable[vslot].xxx_tape_open(tname, mode, mask)) >= 0) {
@@ -797,7 +801,7 @@ tape_fsf(devname, count)
 				  strerror(errno),
 				  NULL);
     } else if(tapefd_fsf(fd, count) == -1) {
-	ap_snprintf(count_str, sizeof(count_str), "%d", count);
+	snprintf(count_str, sizeof(count_str), "%d", count);
 	r = errstr = newvstralloc(errstr,
 			          "tape_fsf: fsf ",
 				  count_str,
@@ -811,6 +815,10 @@ tape_fsf(devname, count)
     }
     return r;
 }
+
+/* Reads the tape label, like you expect. If failure, returns an error
+   string. If the tape might not be an Amanda tape, the returned
+   string will start with NOT_AMANDA_TAPE_MSG. */
 
 char *
 tapefd_rdlabel(fd, datestamp, label)
@@ -833,23 +841,26 @@ tapefd_rdlabel(fd, datestamp, label)
 	*datestamp = stralloc("X");
 	*label = stralloc(FAKE_LABEL);
     } else if(tapefd_rewind(fd) == -1) {
-	r = errstr = newstralloc2(errstr, "rewinding tape: ", strerror(errno));
+	r = stralloc2("rewinding tape: ", strerror(errno));
     } else if((rc = tapefd_read(fd, buffer, buflen)) == -1) {
-	r = errstr = newstralloc2(errstr, "reading label: ", strerror(errno));
+	r = vstralloc(NOT_AMANDA_TAPE_MSG, " (",
+                      strerror(errno), ")", NULL);
+    } else if (rc == 0) {
+        r = stralloc2(NOT_AMANDA_TAPE_MSG, " (Read 0 bytes)");
     } else {
-
 	/* make sure buffer is null-terminated */
 	buffer[rc] = '\0';
 
 	parse_file_header(buffer, &file, rc);
 	if(file.type != F_TAPESTART) {
-	    r = errstr = newstralloc(errstr, "not an amanda tape");
+	    r = stralloc(NOT_AMANDA_TAPE_MSG);
 	} else {
 	    *datestamp = stralloc(file.datestamp);
 	    *label = stralloc(file.name);
 	}
     }
     amfree(buffer);
+    errstr = newvstralloc(errstr, r, NULL);
     return r;
 }
 
@@ -863,18 +874,18 @@ tape_rdlabel(devname, datestamp, label)
     char *r = NULL;
 
     if((fd = tape_open(devname, O_RDONLY)) < 0) {
-	r = errstr = newvstralloc(errstr,
-				  "tape_rdlabel: tape open: ",
-				  devname,
-				  ": ",
-				  strerror(errno),
-				  NULL);
-    } else if(tapefd_rdlabel(fd, datestamp, label) != NULL) {
-	r = errstr;
-    }
+	r = vstralloc("tape_rdlabel: tape open: ",
+                      devname,
+                      ": ",
+                      strerror(errno),
+                      NULL);
+    } else
+        r = tapefd_rdlabel(fd, datestamp, label);
+
     if(fd >= 0) {
-	tapefd_close(fd);
+        tapefd_close(fd);
     }
+    errstr = newvstralloc(errstr, r, NULL);
     return r;
 }
 
@@ -1372,6 +1383,9 @@ main(argc, argv)
     int i;
     int j;
     time_t now;
+
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
 
     if((pgm = strrchr(argv[0], '/')) != NULL) {
 	pgm++;

@@ -1002,9 +1002,9 @@ va_list ap;
 
 
 /*
-int ap_snprintf(char *buf, size_t len, const char *format,...)
+int snprintf(char *buf, size_t len, const char *format,...)
 */
-printf_arglist_function2(int ap_snprintf,
+printf_arglist_function2(int snprintf,
 			 char *, buf,
 			 size_t, len,
 			 const char *, format)
@@ -1020,9 +1020,9 @@ printf_arglist_function2(int ap_snprintf,
 
 
 /*
-int ap_vsnprintf(char *buf, size_t len, const char *format, va_list ap)
+int vsnprintf(char *buf, size_t len, const char *format, va_list ap)
 */
-int ap_vsnprintf(buf, len, format, ap)
+int vsnprintf(buf, len, format, ap)
 char *buf;
 size_t len;
 const char *format;

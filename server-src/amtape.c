@@ -24,13 +24,14 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amtape.c,v 1.22.2.6.4.5.2.4.2.1 2005/09/20 21:31:52 jrjackson Exp $
+ * $Id: amtape.c,v 1.40 2006/01/14 04:37:19 paddy_s Exp $
  *
  * tape changer interface program
  */
 #include "amanda.h"
 #include "conffile.h"
 #include "tapefile.h"
+#include "taperscan.h"
 #include "tapeio.h"
 #include "clock.h"
 #include "changer.h"
@@ -46,39 +47,60 @@ void load_slot P((int argc, char **argv));
 void load_label P((int argc, char **argv));
 void show_slots P((int argc, char **argv));
 void show_current P((int argc, char **argv));
-void taper_scan P((int argc, char **argv));
+void amtape_taper_scan P((int argc, char **argv));
 void show_device P((int argc, char **argv));
-int scan_init P((int rc, int ns, int bk));
-int loadlabel_slot P((int rc, char *slotstr, char *device));
-int show_init P((int rc, int ns, int bk));
-int show_init_all P((int rc, int ns, int bk));
-int show_init_current P((int rc, int ns, int bk));
-int show_slot P((int rc, char *slotstr, char *device));
-int taperscan_slot P((int rc, char *slotstr, char *device));
-int update_one_slot P((int rc, char *slotstr, char *device));
-void update_labeldb P((int argc, char **argv));
+int loadlabel_slot P((void *ud, int rc, char *slotstr, char *device));
+int show_init P((void *ud, int rc, int ns, int bk, int s));
+int show_init_all P((void *ud, int rc, int ns, int bk, int s));
+int show_init_current P((void *ud, int rc, int ns, int bk, int s));
+int show_slot P((void *ud, int rc, char *slotstr, char *device));
+
+static const struct {
+    const char *name;
+    void (*fn) P((int, char **));
+    const char *usage;
+} cmdtab[] = {
+    { "reset", reset_changer,
+	"reset                Reset changer to known state" },
+    { "eject", eject_tape,
+	"eject                Eject current tape from drive" },
+    { "clean", clean_tape,
+	"clean                Clean the drive" },
+    { "show", show_slots,
+	"show                 Show contents of all slots" },
+    { "current", show_current,
+	"current              Show contents of current slot" },
+    { "slot" , load_slot,
+	"slot <slot #>        load tape from slot <slot #>" },
+    { "slot" , load_slot,
+	"slot current         load tape from current slot" },
+    { "slot" , load_slot,
+	"slot prev            load tape from previous slot" },
+    { "slot" , load_slot,
+	"slot next            load tape from next slot" },
+    { "slot" , load_slot,
+	"slot advance         advance to next slot but do not load" },
+    { "slot" , load_slot,
+	"slot first           load tape from first slot" },
+    { "slot" , load_slot,
+	"slot last            load tape from last slot" },
+    { "label", load_label,
+	"label <label>        find and load labeled tape" },
+    { "taper", amtape_taper_scan,
+	"taper                perform taper's scan alg." },
+    { "device", show_device,
+	"device               show current tape device" },
+};
+#define	NCMDS	(sizeof(cmdtab) / sizeof(cmdtab[0]))
 
 void usage()
 {
+    int i;
+
     fprintf(stderr, "Usage: amtape%s <conf> <command>\n", versionsuffix());
     fprintf(stderr, "\tValid commands are:\n");
-    fprintf(stderr, "\t\treset                Reset changer to known state\n");
-    fprintf(stderr, "\t\teject                Eject current tape from drive\n");
-    fprintf(stderr, "\t\tclean                Clean the drive\n");
-    fprintf(stderr, "\t\tshow                 Show contents of all slots\n");
-    fprintf(stderr, "\t\tcurrent              Show contents of current slot\n");
-    fprintf(stderr, "\t\tslot <slot #>        load tape from slot <slot #>\n");
-    fprintf(stderr, "\t\tslot current         load tape from current slot\n");
-    fprintf(stderr, "\t\tslot prev            load tape from previous slot\n");
-    fprintf(stderr, "\t\tslot next            load tape from next slot\n");
-    fprintf(stderr, "\t\tslot advance         advance to next slot but do not load\n");
-    fprintf(stderr, "\t\tslot first           load tape from first slot\n");
-    fprintf(stderr, "\t\tslot last            load tape from last slot\n");
-    fprintf(stderr, "\t\tlabel <label>        find and load labeled tape\n");
-    fprintf(stderr, "\t\ttaper                perform taper's scan alg.\n");
-    fprintf(stderr, "\t\tdevice               show current tape device\n");
-    fprintf(stderr, "\t\tupdate               update the label matchingdatabase\n");
-
+    for (i = 0; i < NCMDS; i++)
+	fprintf(stderr, "\t\t%s\n", cmdtab[i].usage);
     exit(1);
 }
 
@@ -91,6 +113,7 @@ char **argv;
     char *argv0 = argv[0];
     unsigned long malloc_hist_1, malloc_size_1;
     unsigned long malloc_hist_2, malloc_size_2;
+    int i;
     int have_changer;
     uid_t uid_me;
     uid_t uid_dumpuser;
@@ -101,7 +124,9 @@ char **argv;
     safe_cd();
 
     set_pname("amtape");
-    dbopen();
+
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
 
     malloc_size_1 = malloc_inuse(&malloc_hist_1);
 
@@ -116,6 +141,7 @@ char **argv;
     if (read_conffile(conffile)) {
 	error("errors processing config file \"%s\"", conffile);
     }
+
     conf_tapelist = getconf_str(CNF_TAPELIST);
     if (*conf_tapelist == '/') {
 	conf_tapelist = stralloc(conf_tapelist);
@@ -155,17 +181,12 @@ char **argv;
     /* switch on command name */
 
     argc -= 2; argv += 2;
-    if(strcmp(argv[0], "reset") == 0) reset_changer(argc, argv);
-    else if(strcmp(argv[0], "clean") == 0) clean_tape(argc, argv);
-    else if(strcmp(argv[0], "eject") == 0) eject_tape(argc, argv);
-    else if(strcmp(argv[0], "slot") == 0) load_slot(argc, argv);
-    else if(strcmp(argv[0], "label") == 0) load_label(argc, argv);
-    else if(strcmp(argv[0], "current") == 0)  show_current(argc, argv);
-    else if(strcmp(argv[0], "show") == 0)  show_slots(argc, argv);
-    else if(strcmp(argv[0], "taper") == 0) taper_scan(argc, argv);
-    else if(strcmp(argv[0], "device") == 0) show_device(argc, argv);
-    else if(strcmp(argv[0], "update") == 0) update_labeldb(argc, argv);
-    else {
+    for (i = 0; i < NCMDS; i++)
+	if (strcmp(argv[0], cmdtab[i].name) == 0) {
+	    (*cmdtab[i].fn)(argc, argv);
+	    break;
+	}
+    if (i == NCMDS) {
 	fprintf(stderr, "%s: unknown command \"%s\"\n", argv0, argv[0]);
 	usage();
     }
@@ -180,7 +201,6 @@ char **argv;
 	malloc_list(fileno(stderr), malloc_hist_1, malloc_hist_2);
     }
 
-    dbclose();
     return 0;
 }
 
@@ -283,8 +303,10 @@ char *label = NULL, *first_match_label = NULL, *first_match = NULL;
 char *searchlabel, *labelstr;
 tape_t *tp;
 
-int scan_init(rc, ns, bk)
-int rc, ns, bk;
+static int 
+scan_init(ud, rc, ns, bk, s)
+     void *ud;
+     int rc, ns, bk, s;
 {
     if(rc)
 	error("could not get changer info: %s", changer_resultstr);
@@ -295,7 +317,8 @@ int rc, ns, bk;
     return 0;
 }
 
-int loadlabel_slot(rc, slotstr, device)
+int loadlabel_slot(ud, rc, slotstr, device)
+     void *ud;
 int rc;
 char *slotstr;
 char *device;
@@ -348,7 +371,7 @@ char **argv;
 
     found = 0;
 
-    changer_find(scan_init, loadlabel_slot, searchlabel);
+    changer_find(NULL, scan_init, loadlabel_slot, searchlabel);
 
     if(found)
 	fprintf(stderr, "%s: label %s is now loaded.\n",
@@ -361,8 +384,9 @@ char **argv;
 
 /* ---------------------------- */
 
-int show_init(rc, ns, bk)
-int rc, ns, bk;
+int show_init(ud, rc, ns, bk, s)
+     void *ud;
+int rc, ns, bk, s;
 {
     if(rc)
 	error("could not get changer info: %s", changer_resultstr);
@@ -372,47 +396,28 @@ int rc, ns, bk;
     return 0;
 }
 
-int show_init_all(rc, ns, bk)
-int rc, ns, bk;
+int show_init_all(ud, rc, ns, bk, s)
+     void *ud;
+int rc, ns, bk, s;
 {
-    int ret = show_init(rc, ns, bk);
+    int ret = show_init(NULL, rc, ns, bk, s);
     fprintf(stderr, "%s: scanning all %d slots in tape-changer rack:\n",
 	    get_pname(), nslots);
     return ret;
 }
 
-int show_init_current(rc, ns, bk)
-int rc, ns, bk;
+int show_init_current(ud, rc, ns, bk, s)
+     void *ud;
+int rc, ns, bk, s;
 {
-    int ret = show_init(rc, ns, bk);
+    int ret = show_init(NULL, rc, ns, bk, s);
     fprintf(stderr, "%s: scanning current slot in tape-changer rack:\n",
 	    get_pname());
     return ret;
 }
 
-int update_one_slot(rc, slotstr, device)
-int rc;
-char *slotstr, *device;
-{
-    char *errstr;
-
-    if(rc > 1)
-	error("could not load slot %s: %s", slotstr, changer_resultstr);
-    else if(rc == 1)
-	fprintf(stderr, "slot %s: %s\n", slotstr, changer_resultstr);
-    else if((errstr = tape_rdlabel(device, &datestamp, &label)) != NULL)
-	fprintf(stderr, "slot %s: %s\n", slotstr, errstr);
-    else {
-	fprintf(stderr, "slot %s: date %-8s label %s\n",
-		slotstr, datestamp, label);
-	changer_label(slotstr,label);
-    }
-    amfree(datestamp);
-    amfree(label);
-    return 0;
-}
-
-int show_slot(rc, slotstr, device)
+int show_slot(ud, rc, slotstr, device)
+     void *ud;
 int rc;
 char *slotstr, *device;
 {
@@ -440,17 +445,7 @@ char **argv;
     if(argc != 1)
 	usage();
 
-    changer_current(show_init_current, show_slot);
-}
-
-void update_labeldb(argc, argv)
-int argc;
-char **argv;
-{
-    if(argc != 1)
-	usage();
-
-    changer_scan(show_init_all, update_one_slot);
+    changer_current(NULL, show_init_current, show_slot);
 }
 
 void show_slots(argc, argv)
@@ -460,88 +455,17 @@ char **argv;
     if(argc != 1)
 	usage();
 
-    changer_scan(show_init_all, show_slot);
+    changer_find(NULL, show_init_all, show_slot, NULL);
 }
 
 
 /* ---------------------------- */
-
-int taperscan_slot(rc, slotstr, device)
-int rc;
-char *slotstr;
-char *device;
-{
-    char *errstr;
-
-    if(rc == 2)
-	error("could not load slot %s: %s", slotstr, changer_resultstr);
-    else if(rc == 1)
-	fprintf(stderr, "%s: slot %s: %s\n",
-		get_pname(), slotstr, changer_resultstr);
-    else {
-	if((errstr = tape_rdlabel(device, &datestamp, &label)) != NULL) {
-	    fprintf(stderr, "%s: slot %s: %s\n", get_pname(), slotstr, errstr);
-	} else {
-	    /* got an amanda tape */
-	    fprintf(stderr, "%s: slot %s: date %-8s label %s",
-		    get_pname(), slotstr, datestamp, label);
-	    if(searchlabel != NULL
-	       && (strcmp(label, FAKE_LABEL) == 0
-		   || strcmp(label, searchlabel) == 0)) {
-		/* it's the one we are looking for, stop here */
-		fprintf(stderr, " (exact label match)\n");
-		found = 1;
-		amfree(datestamp);
-		amfree(label);
-		return 1;
-	    }
-	    else if(!match(labelstr, label))
-		fprintf(stderr, " (no match)\n");
-	    else {
-		/* not an exact label match, but a labelstr match */
-		/* check against tape list */
-		tp = lookup_tapelabel(label);
-		if(tp == NULL)
-		    fprintf(stderr, " (not in tapelist)\n");
-		else if(!reusable_tape(tp))
-		    fprintf(stderr, " (active tape)\n");
-		else if(got_match == 0 && tp->datestamp == 0) {
-		    got_match = 1;
-		    first_match = newstralloc(first_match, slotstr);
-		    first_match_label = newstralloc(first_match_label, label);
-		    fprintf(stderr, " (new tape)\n");
-		    found = 3;
-		    amfree(datestamp);
-		    amfree(label);
-		    return 1;
-		}
-		else if(got_match)
-		    fprintf(stderr, " (labelstr match)\n");
-		else {
-		    got_match = 1;
-		    first_match = newstralloc(first_match, slotstr);
-		    first_match_label = newstralloc(first_match_label, label);
-		    fprintf(stderr, " (first labelstr match)\n");
-		    if(!backwards || !searchlabel) {
-			found = 2;
-			amfree(datestamp);
-			amfree(label);
-			return 1;
-		    }
-		}
-	    }
-	}
-    }
-    amfree(datestamp);
-    amfree(label);
-    return 0;
-}
-
-void taper_scan(argc, argv)
+void amtape_taper_scan(argc, argv)
 int argc;
 char **argv;
 {
-    char *slotstr = NULL, *device = NULL;
+    char *device = NULL;
+    char *label = NULL, *errmsg = NULL;
 
     if((tp = lookup_last_reusable_tape(0)) == NULL)
 	searchlabel = NULL;
@@ -557,48 +481,17 @@ char **argv;
     if(searchlabel) fprintf(stderr, "tape label %s or ", searchlabel);
     fprintf(stderr, "a new tape.\n");
 
-    if (searchlabel != NULL)
-      changer_find(scan_init, taperscan_slot, searchlabel);
-    else
-      changer_scan(scan_init, taperscan_slot);
-
-    if(found == 3) {
-	fprintf(stderr, "%s: settling for new tape\n", get_pname());
-	searchlabel = newstralloc(searchlabel, first_match_label);
-    }
-    else if(found == 2) {
-	fprintf(stderr, "%s: %s: settling for first labelstr match\n",
-		get_pname(),
-		searchlabel? "gravity stacker": "looking only for new tape");
-	searchlabel = newstralloc(searchlabel, first_match_label);
-    }
-    else if(!found && got_match) {
-	fprintf(stderr,
-		"%s: %s not found, going back to first labelstr match %s\n",
-		get_pname(), searchlabel, first_match_label);
-	searchlabel = newstralloc(searchlabel, first_match_label);
-	if(changer_loadslot(first_match, &slotstr, &device) == 0) {
-	    found = 1;
-	} else {
-	    fprintf(stderr, "%s: could not load labelstr match in slot %s: %s\n",
-		    get_pname(), first_match, changer_resultstr);
-	}
-	amfree(device);
-	amfree(slotstr);
-    }
-    else if(!found) {
-	fprintf(stderr, "%s: could not find ", get_pname());
-	if(searchlabel) fprintf(stderr, "tape %s or ", searchlabel);
-	fprintf(stderr, "a new tape in the tape rack.\n");
+    if (taper_scan(searchlabel, &label, &datestamp, &errmsg, &device) <= 0) {
+        fprintf(stderr, "%s\n", errmsg);
     }
 
-    if(found)
-	fprintf(stderr, "%s: label %s is now loaded.\n",
-		get_pname(), searchlabel);
+    fprintf(stderr, "%s: label %s is now loaded.\n",
+            get_pname(), label);
 
-    amfree(searchlabel);
-    amfree(first_match);
-    amfree(first_match_label);
+    amfree(label);
+    amfree(datestamp);
+    amfree(errmsg);
+    amfree(device);
 }
 
 /* ---------------------------- */

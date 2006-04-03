@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 1991,1993 University of Maryland
+ * Copyright (c) 1999 University of Maryland at College Park
  * All Rights Reserved.
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -20,39 +20,22 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * Author: James da Silva, Systems Design and Analysis Group
- *			   Computer Science Department
- *			   University of Maryland at College Park
+ * Authors: the Amanda Development Team.  Its members are listed in a
+ * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * sendbackup-krb4.h - those bits of sendbackup defines that deal with 
- *		       encrypting data streams over the network.  Even
- *		       though these just call the underlying DES
- *		       routines, the U.S. government considers this a
- *		       munition.  Go figure.
+ * $Id: amandad.h,v 1.2 1999/04/16 05:12:39 kashmir Exp $
  */
+#ifndef	AMANDAD_H
+#define	AMANDAD_H
 
-#if !defined(SENDBACKUP_KRB4_H)
-#define	SENDBACKUP_KRB4_H
+/*
+ * General-use pipes inherited by sendbackup that are connected to the
+ * data, mesg, index, etc connections on the server.  amandad sets these
+ * up before calling sendbackup, and will relay data sent on them
+ * back to the server.
+ */
+#define	DATA_FD_COUNT	3		/* number of general-use pipes */
+#define	DATA_FD_OFFSET	50		/* fd at which they start */
 
-#include "krb4-security.h"
-
-#define KEY_PIPE	3
-
-int encpid;
-
-void kencrypt_stream();
-
-    /* modification by BIS@BBN 4/25/2003:
-     * with the option processing changes in amanda 2.4.4, must change
-     * the conditional from kencrypt to options->kencrypt */
-#define NAUGHTY_BITS							      \
-    if(options->kencrypt) {						      \
-	int encinf;							      \
-	encpid = pipefork(kencrypt_stream,"kencrypt",&encinf,dataf,mesgf);    \
-	dataf = encinf;							      \
-    }									      \
-    else								      \
-	encpid = -1;
-
-#endif
+#endif	/* AMANDAD_H */

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: uscan.l,v 1.14.2.3.4.1.2.2.2.1 2004/02/11 13:03:38 martinea Exp $
+ * $Id: uscan.l,v 1.22 2004/02/11 13:03:29 martinea Exp $
  *
  * lexer for amrecover interactive language
  */
@@ -194,7 +194,7 @@ char *text;
 	yyerror("invalid day");
     } else {
 	yylval.strval = alloc(DATE_ALLOC_SIZE);
-	ap_snprintf(yylval.strval, DATE_ALLOC_SIZE, "%04d-%02d-%02d", y, m, d);
+	snprintf(yylval.strval, DATE_ALLOC_SIZE, "%04d-%02d-%02d", y, m, d);
 	ret = DATE;
     }
     return ret;

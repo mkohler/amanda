@@ -8,36 +8,41 @@ REGsrcdir = $(srcdir)/$(REGDIR)
 INCLUDES = -I$(REGsrcdir)
 
 libamanda_la_SOURCES = \
-	alloc.c		amflock.c	clock.c		debug.c		\
-	dgram.c		error.c		file.c		fileheader.c	\
-	amfeatures.c	match.c						\
-	protocol.c	regcomp.c	regerror.c	regexec.c	\
-	regfree.c	security.c	statfs.c	stream.c	\
-	token.c		util.c		versuff.c	version.c	\
-        pipespawn.c	sl.c
+	alloc.c		amflock.c	\
+	bsd-security.c	\
+	clock.c		\
+	debug.c		dgram.c		\
+	event.c		error.c		\
+	amfeatures.c	\
+	file.c		fileheader.c	\
+	krb4-security.c	krb5-security.c	\
+	match.c		\
+	packet.c	pipespawn.c	protocol.c	\
+	regcomp.c	regerror.c	regexec.c	regfree.c	\
+	rsh-security.c	\
+	security.c	sl.c		ssh-security.c	statfs.c	\
+	stream.c	tapelist.c	\
+	token.c		\
+	util.c		\
+	versuff.c	version.c
 
 libamanda_la_LIBADD =	@LTLIBOBJS@ @LTALLOCA@
 libamanda_la_LDFLAGS =  -release $(VERSION)
 
-noinst_HEADERS =	amanda.h	arglist.h	\
-			clock.h		dgram.h		\
-			amfeatures.h	protocol.h	\
-			statfs.h	stream.h	\
-			token.h		version.h	\
-			amregex.h	fileheader.h	\
-			util.h          pipespawn.h	\
-			sl.h
-
-STANDARD_COMMON_STUFF_NOT_FILE = \
-	alloc.$(OBJEXT) \
-	clock.$(OBJEXT) \
-	debug.$(OBJEXT) \
-	error.$(OBJEXT) \
-	util.$(OBJEXT)
-
-STANDARD_COMMON_STUFF = \
-	$(STANDARD_COMMON_STUFF_NOT_FILE) \
-	file.$(OBJEXT)
+noinst_HEADERS =	amanda.h	amregex.h	arglist.h	\
+			clock.h		\
+			dgram.h		\
+			event.h		\
+			amfeatures.h	\
+			packet.h	pipespawn.h	protocol.h	\
+			queue.h		\
+			sl.h		security.h	statfs.h	\
+			stream.h	\
+			tapelist.h	\
+			token.h		\
+			util.h		\
+			version.h	\
+			fileheader.h
 
 .sh:
 	cat $< > $@
@@ -45,12 +50,10 @@ STANDARD_COMMON_STUFF = \
 
 EXTRA_PROGRAMS = genversion $(TEST_PROGS)
 
-EXTRA_DIST = krb4-security.c	krb4-security.h
-
 genversion_SOURCES = genversion.c
-genversion_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF) versuff.o
+genversion_LDADD = $(libamanda_la_LIBADD) versuff.o
 
-genversion.o: genversion.h
+genversion.@OBJEXT@: genversion.h
 genversion.h: $(top_builddir)/config.status
 	-rm -f $@ $@.new
 	echo '#define CC "$(CC)"' > $@.new
@@ -75,11 +78,11 @@ REGEXHSRC =	$(REGsrcdir)/regex2.h \
 		$(REGsrcdir)/regfree.c
 
 # these are used for testing only:
-TEST_PROGS = statfs token file security amfeatures
+TEST_PROGS = statfs token file bsdsecurity amfeatures
 
 CLEANFILES = regex.h regcomp.ih engine.ih regerror.ih *.test.c
 
-DISTCLEANFILES = version.c genversion
+DISTCLEANFILES = version.c genversion.h genversion amanda-int.h
 
 regex.h: $(REGEXHSRC) $(REGsrcdir)/mkh
 	sh $(REGsrcdir)/mkh -o -i _REGEX_H_ $(REGEXHSRC) >$@
@@ -95,6 +98,17 @@ regerror.ih: $(REGsrcdir)/regerror.c $(REGsrcdir)/mkh
 
 # used for testing only
 
+STANDARD_COMMON_STUFF_NOT_FILE = \
+	alloc.$(OBJEXT) \
+	clock.$(OBJEXT) \
+	debug.$(OBJEXT) \
+	error.$(OBJEXT) \
+	util.$(OBJEXT)
+
+STANDARD_COMMON_STUFF = \
+	$(STANDARD_COMMON_STUFF_NOT_FILE) \
+	file.$(OBJEXT)
+
 statfs_SOURCES = statfs.test.c
 statfs_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF)
 
@@ -104,8 +118,19 @@ token_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF)
 file_SOURCES = file.test.c
 file_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF_NOT_FILE)
 
-security_SOURCES = security.test.c
-security_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF)
+bsdsecurity_SOURCES = bsd-security.test.c
+bsdsecurity_LDADD = $(libamanda_a_LIBADD) \
+		    alloc.$(OBJEXT) \
+		    clock.$(OBJEXT) \
+		    debug.$(OBJEXT) \
+		    dgram.$(OBJEXT) \
+		    error.$(OBJEXT) \
+		    event.$(OBJEXT) \
+		    file.$(OBJEXT) \
+		    packet.$(OBJEXT) \
+		    security.$(OBJEXT) \
+		    ssh-security.$(OBJEXT) \
+		    versuff.$(OBJEXT)
 
 amfeatures_SOURCES = amfeatures.test.c
 amfeatures_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF)

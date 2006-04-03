@@ -25,13 +25,13 @@
  */
 
 /*
- * $Id: amfeatures.c,v 1.1.2.9.2.3 2004/08/11 19:16:28 martinea Exp $
+ * $Id: amfeatures.c,v 1.18 2006/03/14 13:11:58 martinea Exp $
  *
  * Feature test related code.
  */
 
-#include <amanda.h>
-#include <amfeatures.h>
+#include "amanda.h"
+#include "amfeatures.h"
 
 /*
  *=====================================================================
@@ -109,9 +109,25 @@ am_init_feature_set()
 	am_add_feature(f, fe_amidxtaped_nargs);
 	am_add_feature(f, fe_amidxtaped_config);
 
+        am_add_feature(f, fe_recover_splits);
+        am_add_feature(f, fe_amidxtaped_exchange_features);
+
 	am_add_feature(f, fe_partial_estimate);
 	am_add_feature(f, fe_calcsize_estimate);
 	am_add_feature(f, fe_selfcheck_calcsize);
+
+	am_add_feature(f, fe_options_compress_cust);
+	am_add_feature(f, fe_options_srvcomp_cust);
+	am_add_feature(f, fe_options_encrypt_cust);
+	am_add_feature(f, fe_options_encrypt_serv_cust);
+	am_add_feature(f, fe_options_client_decrypt_option);
+	am_add_feature(f, fe_options_server_decrypt_option);
+
+        am_add_feature(f, fe_amindexd_marshall_in_OLSD);
+        am_add_feature(f, fe_amindexd_marshall_in_ORLD);
+        am_add_feature(f, fe_amindexd_marshall_in_DHST);
+
+        am_add_feature(f, fe_amrecover_FEEDME);
     }
     return f;
 }
@@ -332,7 +348,7 @@ am_feature_to_string(f)
     } else {
 	result = alloc((f->size * 2) + 1);
 	for (i = 0; i < f->size; i++) {
-	    ap_snprintf(result + (i * 2), 2 + 1, "%02x", f->bytes[i]);
+	    snprintf(result + (i * 2), 2 + 1, "%02x", f->bytes[i]);
 	}
 	result[i * 2] = '\0';
     }

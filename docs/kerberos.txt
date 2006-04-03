@@ -1,10 +1,10 @@
 
- Chapter 26. Using Kerberos with AMANDA
+ Chapter 27. Using Kerberos with AMANDA
 Prev  Part V. Technical Background  Next
 
 -------------------------------------------------------------------------------
 
-Chapter 26. Using Kerberos with AMANDA
+Chapter 27. Using Kerberos with AMANDA
 
 
 AMANDA Core Team
@@ -249,5 +249,5 @@ have cross-realm authentication setup).
 -------------------------------------------------------------------------------
 
 Prev                           Up                        Next
-Chapter 25. Virtual Tape API  Home  Part VI. Historical files
+Chapter 26. Virtual Tape API  Home  Part VI. Historical files
 

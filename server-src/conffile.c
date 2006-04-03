@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: conffile.c,v 1.54.2.16.2.5.2.20.2.10 2005/09/30 19:13:36 martinea Exp $
+ * $Id: conffile.c,v 1.127 2006/03/15 16:26:13 martinea Exp $
  *
  * read configuration file
  */
@@ -55,17 +55,9 @@
 
 /* internal types and variables */
 
-/*
- * XXX - this is used by the krb4 stuff.
- * Hopefully nobody will need this here.  (not very likely).  -kovert
- */
-#if defined(INTERFACE)
-#  undef INTERFACE
-#endif
-
 typedef enum {
     UNKNOWN, ANY, COMMA, LBRACE, RBRACE, NL, END,
-    IDENT, INT, LONG, BOOL, REAL, STRING, TIME,
+    IDENT, INT, LONG, AM64, BOOL, REAL, STRING, TIME,
 
     /* config parameters */
     INCLUDEFILE,
@@ -79,9 +71,13 @@ typedef enum {
     PRINTER, AUTOFLUSH, RESERVE, MAXDUMPSIZE,
     COLUMNSPEC, 
     AMRECOVER_DO_FSF, AMRECOVER_CHECK_LABEL, AMRECOVER_CHANGER,
+    LABEL_NEW_TAPES,
 
     TAPERALGO, FIRST, FIRSTFIT, LARGEST, LARGESTFIT, SMALLEST, LAST,
     DISPLAYUNIT,
+
+    /* kerberos 5 */
+    KRB5KEYTAB, KRB5PRINCIPAL, 
 
     /* holding disk */
     COMMENT, DIRECTORY, USE, CHUNKSIZE,
@@ -89,9 +85,11 @@ typedef enum {
     /* dump type */
     /*COMMENT,*/ PROGRAM, DUMPCYCLE, RUNSPERCYCLE, MAXCYCLE, MAXDUMPS,
     OPTIONS, PRIORITY, FREQUENCY, INDEX, MAXPROMOTEDAY,
-    STARTTIME, COMPRESS, AUTH, STRATEGY, ESTIMATE,
+    STARTTIME, COMPRESS, ENCRYPT, AUTH, STRATEGY, ESTIMATE,
     SKIP_INCR, SKIP_FULL, RECORD, HOLDING,
-    EXCLUDE, INCLUDE, KENCRYPT, IGNORE, COMPRATE,
+    EXCLUDE, INCLUDE, KENCRYPT, IGNORE, COMPRATE, TAPE_SPLITSIZE,
+    SPLIT_DISKBUFFER, FALLBACK_SPLITSIZE, SRVCOMPPROG, CLNTCOMPPROG,
+    SRV_ENCRYPT, CLNT_ENCRYPT, SRV_DECRYPT_OPT, CLNT_DECRYPT_OPT,
 
     /* tape type */
     /*COMMENT,*/ BLOCKSIZE, FILE_PAD, LBL_TEMPL, FILEMARK, LENGTH, SPEED,
@@ -102,14 +100,11 @@ typedef enum {
     /* dump options (obsolete) */
     EXCLUDE_FILE, EXCLUDE_LIST,
 
-    /* compress, estimate */
-    NONE, FAST, BEST, SERVER, CLIENT, CALCSIZE,
+    /* compress, estimate, encryption */
+    NONE, FAST, BEST, SERVER, CLIENT, CALCSIZE, CUSTOM,
 
     /* priority */
     LOW, MEDIUM, HIGH,
-
-    /* authentication */
-    KRB4_AUTH, BSD_AUTH,
 
     /* dump strategy */
     SKIP, STANDARD, NOFULL, NOINC, HANOI, INCRONLY,
@@ -136,6 +131,7 @@ keytab_t *keytable;
 typedef union {
     int i;
     long l;
+    am64_t am64;
     double r;
     char *s;
 } val_t;
@@ -148,12 +144,12 @@ ColumnInfo ColumnData[] = {
     { "Disk",       1, 11, 11, 0, "%-*.*s", "DISK" },
     { "Level",      1, 1,  1,  0, "%*.*d",  "L" },
     { "OrigKB",     1, 7,  0,  0, "%*.*f",  "ORIG-KB" },
-    { "OutKB",      0, 7,  0,  0, "%*.*f",  "OUT-KB" },
-    { "Compress",   0, 6,  1,  0, "%*.*f",  "COMP%" },
-    { "DumpTime",   0, 7,  7,  0, "%*.*s",  "MMM:SS" },
-    { "DumpRate",   0, 6,  1,  0, "%*.*f",  "KB/s" },
+    { "OutKB",      1, 7,  0,  0, "%*.*f",  "OUT-KB" },
+    { "Compress",   1, 6,  1,  0, "%*.*f",  "COMP%" },
+    { "DumpTime",   1, 7,  7,  0, "%*.*s",  "MMM:SS" },
+    { "DumpRate",   1, 6,  1,  0, "%*.*f",  "KB/s" },
     { "TapeTime",   1, 6,  6,  0, "%*.*s",  "MMM:SS" },
-    { "TapeRate",   0, 6,  1,  0, "%*.*f",  "KB/s" },
+    { "TapeRate",   1, 6,  1,  0, "%*.*f",  "KB/s" },
     { NULL,         0, 0,  0,  0, NULL,     NULL }
 };
 
@@ -216,6 +212,9 @@ static val_t conf_amrecover_do_fsf;
 static val_t conf_amrecover_check_label;
 static val_t conf_taperalgo;
 static val_t conf_displayunit;
+static val_t conf_krb5keytab;
+static val_t conf_krb5principal;
+static val_t conf_label_new_tapes;
 
 /* reals */
 static val_t conf_bumpmult;
@@ -274,6 +273,9 @@ static int seen_amrecover_check_label;
 static int seen_amrecover_changer;
 static int seen_taperalgo;
 static int seen_displayunit;
+static int seen_krb5keytab;
+static int seen_krb5principal;
+static int seen_label_new_tapes;
 
 static int allow_overwrites;
 static int token_pushed;
@@ -312,8 +314,8 @@ static void copy_interface P((void));
 static void get_dumpopts P((void));
 static void get_comprate P((void));
 static void get_compress P((void));
+static void get_encrypt P((void));
 static void get_priority P((void));
-static void get_auth P((void));
 static void get_strategy P((void));
 static void get_estimate P((void));
 static void get_exclude P((void));
@@ -322,7 +324,9 @@ static void get_taperalgo P((val_t *c_taperalgo, int *s_taperalgo));
 
 static void get_simple P((val_t *var, int *seen, tok_t type));
 static int get_time P((void));
-static long get_number P((void));
+static int get_int P((void));
+static long get_long P((void));
+static am64_t get_am64_t P((void));
 static int get_bool P((void));
 static void ckseen P((int *seen));
 static void parserror P((char *format, ...))
@@ -425,7 +429,10 @@ struct byname {
     { "DISPLAYUNIT", CNF_DISPLAYUNIT, STRING },
     { "AUTOFLUSH", CNF_AUTOFLUSH, BOOL },
     { "RESERVE", CNF_RESERVE, INT },
-    { "MAXDUMPSIZE", CNF_MAXDUMPSIZE, INT },
+    { "MAXDUMPSIZE", CNF_MAXDUMPSIZE, AM64 },
+    { "KRB5KEYTAB", CNF_KRB5KEYTAB, STRING },
+    { "KRB5PRINCIPAL", CNF_KRB5PRINCIPAL, STRING },
+    { "LABEL_NEW_TAPES", CNF_LABEL_NEW_TAPES, STRING },
     { NULL }
 };
 
@@ -441,7 +448,7 @@ char *str;
     tmpstr = stralloc(str);
     s = tmpstr;
     while((ch = *s++) != '\0') {
-	if(islower((int) ch)) s[-1] = toupper(ch);
+	if(islower((int)ch)) s[-1] = toupper(ch);
     }
 
     for(np = byname_table; np->name != NULL; np++)
@@ -450,7 +457,7 @@ char *str;
     if(np->name == NULL) return NULL;
 
     if(np->typ == INT) {
-	ap_snprintf(number, sizeof(number), "%d", getconf_int(np->parm));
+	snprintf(number, sizeof(number), "%d", getconf_int(np->parm));
 	tmpstr = newstralloc(tmpstr, number);
     } else if(np->typ == BOOL) {
 	if(getconf_int(np->parm) == 0) {
@@ -460,7 +467,7 @@ char *str;
 	    tmpstr = newstralloc(tmpstr, "on");
 	}
     } else if(np->typ == REAL) {
-	ap_snprintf(number, sizeof(number), "%f", getconf_real(np->parm));
+	snprintf(number, sizeof(number), "%f", getconf_real(np->parm));
 	tmpstr = newstralloc(tmpstr, number);
     } else {
 	tmpstr = newstralloc(tmpstr, getconf_str(np->parm));
@@ -518,6 +525,9 @@ confparm_t parm;
     case CNF_AMRECOVER_CHANGER: return seen_amrecover_changer;
     case CNF_TAPERALGO: return seen_taperalgo;
     case CNF_DISPLAYUNIT: return seen_displayunit;
+    case CNF_KRB5KEYTAB: return seen_krb5keytab;
+    case CNF_KRB5PRINCIPAL: return seen_krb5principal;
+    case CNF_LABEL_NEW_TAPES: return seen_label_new_tapes;
     default: return 0;
     }
 }
@@ -547,13 +557,27 @@ confparm_t parm;
     case CNF_TAPEBUFS: r = conf_tapebufs.i; break;
     case CNF_AUTOFLUSH: r = conf_autoflush.i; break;
     case CNF_RESERVE: r = conf_reserve.i; break;
-    case CNF_MAXDUMPSIZE: r = conf_maxdumpsize.i; break;
     case CNF_AMRECOVER_DO_FSF: r = conf_amrecover_do_fsf.i; break;
     case CNF_AMRECOVER_CHECK_LABEL: r = conf_amrecover_check_label.i; break;
     case CNF_TAPERALGO: r = conf_taperalgo.i; break;
 
     default:
 	error("error [unknown getconf_int parm: %d]", parm);
+	/* NOTREACHED */
+    }
+    return r;
+}
+
+am64_t getconf_am64(parm)
+confparm_t parm;
+{
+    am64_t r = 0;
+
+    switch(parm) {
+    case CNF_MAXDUMPSIZE: r = conf_maxdumpsize.am64; break;
+
+    default:
+	error("error [unknown getconf_am64 parm: %d]", parm);
 	/* NOTREACHED */
     }
     return r;
@@ -604,6 +628,9 @@ confparm_t parm;
     case CNF_COLUMNSPEC: r = conf_columnspec.s; break;
     case CNF_AMRECOVER_CHANGER: r = conf_amrecover_changer.s; break;
     case CNF_DISPLAYUNIT: r = conf_displayunit.s; break;
+    case CNF_KRB5PRINCIPAL: r = conf_krb5principal.s; break;
+    case CNF_KRB5KEYTAB: r = conf_krb5keytab.s; break;
+    case CNF_LABEL_NEW_TAPES: r = conf_label_new_tapes.s; break;
 
     default:
 	error("error [unknown getconf_str parm: %d]", parm);
@@ -724,6 +751,10 @@ static void init_defaults()
     conf_amrecover_changer.s = stralloc("");
     conf_printer.s = stralloc("");
     conf_displayunit.s = stralloc("k");
+    conf_label_new_tapes.s = stralloc("");
+
+    conf_krb5keytab.s = stralloc("/.amanda-v5-keytab");
+    conf_krb5principal.s = stralloc("service/amanda");
 
     conf_dumpcycle.i	= 10;
     conf_runspercycle.i	= 0;
@@ -744,9 +775,9 @@ static void init_defaults()
     conf_tapebufs.i     = 20;
     conf_autoflush.i	= 0;
     conf_reserve.i	= 100;
-    conf_maxdumpsize.i	= -1;
-    conf_amrecover_do_fsf.i = 0;
-    conf_amrecover_check_label.i = 0;
+    conf_maxdumpsize.am64	= -1;
+    conf_amrecover_do_fsf.i = 1;
+    conf_amrecover_check_label.i = 1;
     conf_taperalgo.i = 0;
 
     /* defaults for internal variables */
@@ -796,6 +827,10 @@ static void init_defaults()
     seen_amrecover_changer = 0;
     seen_taperalgo = 0;
     seen_displayunit = 0;
+    seen_krb5keytab = 0;
+    seen_krb5principal = 0;
+    seen_label_new_tapes = 0;
+
     line_num = got_parserror = 0;
     allow_overwrites = 0;
     token_pushed = 0;
@@ -850,18 +885,25 @@ static void init_defaults()
     save_dumptype();
 
     init_dumptype_defaults();
+    dpcur.name = "COMPRESS-CUST"; dpcur.seen = -1;
+    dpcur.compress = COMP_CUST; dpcur.s_compress = -1;
+    save_dumptype();
+
+    init_dumptype_defaults();
     dpcur.name = "SRVCOMPRESS"; dpcur.seen = -1;
     dpcur.compress = COMP_SERV_FAST; dpcur.s_compress = -1;
     save_dumptype();
 
     init_dumptype_defaults();
     dpcur.name = "BSD-AUTH"; dpcur.seen = -1;
-    dpcur.auth = AUTH_BSD; dpcur.s_auth = -1;
+    amfree(dpcur.security_driver);
+    dpcur.security_driver = stralloc("BSD"); dpcur.s_security_driver = -1;
     save_dumptype();
 
     init_dumptype_defaults();
     dpcur.name = "KRB4-AUTH"; dpcur.seen = -1;
-    dpcur.auth = AUTH_KRB4; dpcur.s_auth = -1;
+    amfree(dpcur.security_driver);
+    dpcur.security_driver = stralloc("KRB4"); dpcur.s_security_driver = -1;
     save_dumptype();
 
     init_dumptype_defaults();
@@ -975,6 +1017,9 @@ keytab_t main_keytable[] = {
     { "AMRECOVER_CHANGER", AMRECOVER_CHANGER },
     { "TAPERALGO", TAPERALGO },
     { "DISPLAYUNIT", DISPLAYUNIT },
+    { "KRB5KEYTAB", KRB5KEYTAB },
+    { "KRB5PRINCIPAL", KRB5PRINCIPAL },
+    { "LABEL_NEW_TAPES", LABEL_NEW_TAPES },
     { NULL, IDENT }
 };
 
@@ -1016,7 +1061,7 @@ static int read_confline()
 		    }
 		    break;
     case RUNTAPES:  get_simple(&conf_runtapes,  &seen_runtapes,  INT);
-		    if(conf_runtapes.i < 1) {
+		    if(conf_runtapes.i < 0) {
 			parserror("runtapes must be positive");
 		    }
 		    break;
@@ -1093,7 +1138,7 @@ static int read_confline()
 			parserror("reserve must be between 0 and 100");
 		    }
 		    break;
-    case MAXDUMPSIZE:get_simple(&conf_maxdumpsize,&seen_maxdumpsize,INT); break;
+    case MAXDUMPSIZE:get_simple(&conf_maxdumpsize,&seen_maxdumpsize,AM64); break;
     case COLUMNSPEC:get_simple(&conf_columnspec,&seen_columnspec,STRING); break;
 
     case AMRECOVER_DO_FSF: get_simple(&conf_amrecover_do_fsf,&seen_amrecover_do_fsf, BOOL); break;
@@ -1126,6 +1171,10 @@ static int read_confline()
 			  parserror("displayunit must be k,m,g or t.");
 		      }
 		      break;
+
+    /* kerberos 5 bits.  only useful when kerberos 5 built in... */
+    case KRB5KEYTAB:    get_simple(&conf_krb5keytab,   &seen_krb5keytab,   STRING); break;
+    case KRB5PRINCIPAL: get_simple(&conf_krb5principal,&seen_krb5principal,STRING); break;
 
     case LOGFILE: /* XXX - historical */
 	/* truncate the filename part and pretend he said "logdir" */
@@ -1166,7 +1215,7 @@ static int read_confline()
 	{
 	    int i;
 
-	    i = get_number();
+	    i = get_int();
 	    i = (i / DISK_BLOCK_KB) * DISK_BLOCK_KB;
 
 	    if(!seen_disksize) {
@@ -1191,6 +1240,9 @@ static int read_confline()
 	else if(tok == INTERFACE) get_interface();
 	else parserror("DUMPTYPE, INTERFACE or TAPETYPE expected");
 	break;
+    case LABEL_NEW_TAPES:
+        get_simple(&conf_label_new_tapes, &seen_label_new_tapes, STRING);
+        break;
 
     case NL:	/* empty line */
 	break;
@@ -1317,6 +1369,9 @@ keytab_t dumptype_keytable[] = {
     { "COMMENT", COMMENT },
     { "COMPRATE", COMPRATE },
     { "COMPRESS", COMPRESS },
+    { "ENCRYPT", ENCRYPT },
+    { "SERVER_DECRYPT_OPTION", SRV_DECRYPT_OPT },
+    { "CLIENT_DECRYPT_OPTION", CLNT_DECRYPT_OPT },
     { "DUMPCYCLE", DUMPCYCLE },
     { "EXCLUDE", EXCLUDE },
     { "FREQUENCY", FREQUENCY },	/* XXX - historical */
@@ -1336,7 +1391,14 @@ keytab_t dumptype_keytable[] = {
     { "SKIP-INCR", SKIP_INCR },
     { "STARTTIME", STARTTIME },
     { "STRATEGY", STRATEGY },
+    { "TAPE_SPLITSIZE", TAPE_SPLITSIZE },
+    { "SPLIT_DISKBUFFER", SPLIT_DISKBUFFER },
+    { "FALLBACK_SPLITSIZE", FALLBACK_SPLITSIZE },
     { "ESTIMATE", ESTIMATE },
+    { "SERVER_CUSTOM_COMPRESS", SRVCOMPPROG },
+    { "CLIENT_CUSTOM_COMPRESS", CLNTCOMPPROG },
+    { "SERVER_ENCRYPT", SRV_ENCRYPT },
+    { "CLIENT_ENCRYPT", CLNT_ENCRYPT },
     { NULL, IDENT }
 };
 
@@ -1396,7 +1458,8 @@ dumptype_t *read_dumptype(name, from, fname, linenum)
 	switch(tok) {
 
 	case AUTH:
-	    get_auth();
+	    get_simple((val_t *)&dpcur.security_driver,
+		&dpcur.s_security_driver, STRING);
 	    break;
 	case COMMENT:
 	    get_simple((val_t *)&dpcur.comment, &dpcur.s_comment, STRING);
@@ -1406,6 +1469,15 @@ dumptype_t *read_dumptype(name, from, fname, linenum)
 	    break;
 	case COMPRESS:
 	    get_compress();
+	    break;
+	case ENCRYPT:
+	    get_encrypt();
+	    break;
+	case SRV_DECRYPT_OPT:
+	    get_simple((val_t *)&dpcur.srv_decrypt_opt, &dpcur.s_srv_decrypt_opt, STRING);
+	    break;
+	case CLNT_DECRYPT_OPT:
+	    get_simple((val_t *)&dpcur.clnt_decrypt_opt, &dpcur.s_clnt_decrypt_opt, STRING);
 	    break;
 	case DUMPCYCLE:
 	    get_simple((val_t *)&dpcur.dumpcycle, &dpcur.s_dumpcycle, INT);
@@ -1485,9 +1557,6 @@ dumptype_t *read_dumptype(name, from, fname, linenum)
 	    break;
 	case PROGRAM:
 	    get_simple((val_t *)&dpcur.program, &dpcur.s_program, STRING);
-	    if(strcmp(dpcur.program, "DUMP")
-	       && strcmp(dpcur.program, "GNUTAR"))
-		parserror("backup program \"%s\" unknown", dpcur.program);
 	    break;
 	case RECORD:
 	    get_simple(&tmpval, &dpcur.s_record, BOOL);
@@ -1513,7 +1582,33 @@ dumptype_t *read_dumptype(name, from, fname, linenum)
 	case IDENT:
 	    copy_dumptype();
 	    break;
-
+	case TAPE_SPLITSIZE:
+	    get_simple((val_t *)&dpcur.tape_splitsize,  &dpcur.s_tape_splitsize,  INT);
+	    if(dpcur.tape_splitsize < 0) {
+	      parserror("tape_splitsize must be >= 0");
+	    }
+	    break;
+	case SPLIT_DISKBUFFER:
+	    get_simple((val_t *)&dpcur.split_diskbuffer, &dpcur.s_split_diskbuffer, STRING);
+	    break;
+	case FALLBACK_SPLITSIZE:
+	    get_simple((val_t *)&dpcur.fallback_splitsize,  &dpcur.s_fallback_splitsize,  INT);
+	    if(dpcur.fallback_splitsize < 0) {
+	      parserror("fallback_splitsize must be >= 0");
+	    }
+	    break;
+	case SRVCOMPPROG:
+	    get_simple((val_t *)&dpcur.srvcompprog, &dpcur.s_srvcompprog, STRING);
+	    break;
+        case CLNTCOMPPROG:
+	    get_simple((val_t *)&dpcur.clntcompprog, &dpcur.s_clntcompprog, STRING);
+	    break;
+	case SRV_ENCRYPT:
+	    get_simple((val_t *)&dpcur.srv_encrypt, &dpcur.s_srv_encrypt, STRING);
+	    break;
+        case CLNT_ENCRYPT:
+	    get_simple((val_t *)&dpcur.clnt_encrypt, &dpcur.s_clnt_encrypt, STRING);
+	    break;
 	case RBRACE:
 	    done = 1;
 	    break;
@@ -1560,6 +1655,10 @@ static void init_dumptype_defaults()
 {
     dpcur.comment = stralloc("");
     dpcur.program = stralloc("DUMP");
+    dpcur.srvcompprog = stralloc("");
+    dpcur.clntcompprog = stralloc("");
+    dpcur.srv_encrypt = stralloc("");
+    dpcur.clnt_encrypt = stralloc("");
     dpcur.exclude_file = NULL;
     dpcur.exclude_list = NULL;
     dpcur.include_file = NULL;
@@ -1575,23 +1674,33 @@ static void init_dumptype_defaults()
     dpcur.bumpdays = conf_bumpdays.i;
     dpcur.bumpmult = conf_bumpmult.r;
     dpcur.start_t = 0;
-
-    dpcur.auth = AUTH_BSD;
+    dpcur.security_driver = stralloc("BSD");
 
     /* options */
     dpcur.record = 1;
     dpcur.strategy = DS_STANDARD;
     dpcur.estimate = ES_CLIENT;
     dpcur.compress = COMP_FAST;
+    dpcur.encrypt = ENCRYPT_NONE;
+    dpcur.srv_decrypt_opt = stralloc("-d");
+    dpcur.clnt_decrypt_opt = stralloc("-d");
     dpcur.comprate[0] = dpcur.comprate[1] = 0.50;
     dpcur.skip_incr = dpcur.skip_full = 0;
     dpcur.no_hold = 0;
     dpcur.kencrypt = 0;
     dpcur.ignore = 0;
     dpcur.index = 0;
+    dpcur.tape_splitsize = 0;
+    dpcur.split_diskbuffer = NULL;
+    dpcur.fallback_splitsize = 10 * 1024;
 
     dpcur.s_comment = 0;
     dpcur.s_program = 0;
+    dpcur.s_srvcompprog = 0;
+    dpcur.s_clntcompprog = 0;
+    dpcur.s_clnt_encrypt= 0;
+    dpcur.s_srv_encrypt= 0;
+
     dpcur.s_exclude_file = 0;
     dpcur.s_exclude_list = 0;
     dpcur.s_include_file = 0;
@@ -1607,11 +1716,14 @@ static void init_dumptype_defaults()
     dpcur.s_bumpdays = 0;
     dpcur.s_bumpmult = 0;
     dpcur.s_start_t = 0;
-    dpcur.s_auth = 0;
+    dpcur.s_security_driver = 0;
     dpcur.s_record = 0;
     dpcur.s_strategy = 0;
     dpcur.s_estimate = 0;
     dpcur.s_compress = 0;
+    dpcur.s_encrypt = 0;
+    dpcur.s_srv_decrypt_opt = 0;
+    dpcur.s_clnt_decrypt_opt = 0;
     dpcur.s_comprate = 0;
     dpcur.s_skip_incr = 0;
     dpcur.s_skip_full = 0;
@@ -1619,6 +1731,9 @@ static void init_dumptype_defaults()
     dpcur.s_kencrypt = 0;
     dpcur.s_ignore = 0;
     dpcur.s_index = 0;
+    dpcur.s_tape_splitsize = 0;
+    dpcur.s_split_diskbuffer = 0;
+    dpcur.s_fallback_splitsize = 0;
 }
 
 static void save_dumptype()
@@ -1660,6 +1775,36 @@ static void copy_dumptype()
 	dpcur.program = newstralloc(dpcur.program, dt->program);
 	dpcur.s_program = dt->s_program;
     }
+    if(dt->s_security_driver) {
+	dpcur.security_driver = newstralloc(dpcur.security_driver,
+					    dt->security_driver);
+	dpcur.s_security_driver = dt->s_security_driver;
+    }
+    if(dt->s_srvcompprog) {
+	dpcur.srvcompprog = newstralloc(dpcur.srvcompprog, dt->srvcompprog);
+	dpcur.s_srvcompprog = dt->s_srvcompprog;
+    }
+    if(dt->s_clntcompprog) {
+	dpcur.clntcompprog = newstralloc(dpcur.clntcompprog, dt->clntcompprog);
+	dpcur.s_clntcompprog = dt->s_clntcompprog;
+    }
+    if(dt->s_srv_encrypt) {
+	dpcur.srv_encrypt = newstralloc(dpcur.srv_encrypt, dt->srv_encrypt);
+	dpcur.s_srv_encrypt = dt->s_srv_encrypt;
+    }
+    if(dt->s_clnt_encrypt) {
+	dpcur.clnt_encrypt = newstralloc(dpcur.clnt_encrypt, dt->clnt_encrypt);
+	dpcur.s_clnt_encrypt = dt->s_clnt_encrypt;
+    }
+    if(dt->s_srv_decrypt_opt) {
+	dpcur.srv_decrypt_opt = newstralloc(dpcur.srv_decrypt_opt, dt->srv_decrypt_opt);
+	dpcur.s_srv_decrypt_opt = dt->s_srv_decrypt_opt;
+    }
+    if(dt->s_clnt_decrypt_opt) {
+	dpcur.clnt_decrypt_opt = newstralloc(dpcur.clnt_decrypt_opt, dt->clnt_decrypt_opt);
+	dpcur.s_clnt_decrypt_opt = dt->s_clnt_decrypt_opt;
+    }
+
     if(dt->s_exclude_file) {
 	dpcur.exclude_file = duplicate_sl(dt->exclude_file);
 	dpcur.s_exclude_file = dt->s_exclude_file;
@@ -1687,11 +1832,11 @@ static void copy_dumptype()
     dtcopy(bumpdays, s_bumpdays);
     dtcopy(bumpmult, s_bumpmult);
     dtcopy(start_t, s_start_t);
-    dtcopy(auth, s_auth);
     dtcopy(record, s_record);
     dtcopy(strategy, s_strategy);
     dtcopy(estimate, s_estimate);
     dtcopy(compress, s_compress);
+    dtcopy(encrypt, s_encrypt);
     dtcopy(comprate[0], s_comprate);
     dtcopy(comprate[1], s_comprate);
     dtcopy(skip_incr, s_skip_incr);
@@ -1700,6 +1845,9 @@ static void copy_dumptype()
     dtcopy(kencrypt, s_kencrypt);
     dtcopy(ignore, s_ignore);
     dtcopy(index, s_index);
+    dtcopy(tape_splitsize, s_tape_splitsize);
+    dtcopy(split_diskbuffer, s_split_diskbuffer);
+    dtcopy(fallback_splitsize, s_fallback_splitsize);
 }
 
 keytab_t tapetype_keytable[] = {
@@ -1993,6 +2141,7 @@ static void copy_interface()
 
 keytab_t dumpopts_keytable[] = {
     { "COMPRESS", COMPRESS },
+    { "ENCRYPT", ENCRYPT },
     { "INDEX", INDEX },
     { "EXCLUDE-FILE", EXCLUDE_FILE },
     { "EXCLUDE-LIST", EXCLUDE_LIST },
@@ -2015,15 +2164,16 @@ static void get_dumpopts() /* XXX - for historical compatability */
 	get_conftoken(ANY);
 	switch(tok) {
 	case COMPRESS:   ckseen(&dpcur.s_compress);  dpcur.compress = COMP_FAST; break;
+	case ENCRYPT:   ckseen(&dpcur.s_encrypt);  dpcur.encrypt = ENCRYPT_NONE; break;
 	case EXCLUDE_FILE:
 	    ckseen(&dpcur.s_exclude_file);
 	    get_conftoken(STRING);
-	    dpcur.exclude_file = append_sl(dpcur.exclude_file, stralloc(tokenval.s));
+	    dpcur.exclude_file = append_sl(dpcur.exclude_file, tokenval.s);
 	    break;
 	case EXCLUDE_LIST:
 	    ckseen(&dpcur.s_exclude_list);
 	    get_conftoken(STRING);
-	    dpcur.exclude_list = append_sl(dpcur.exclude_list, stralloc(tokenval.s));
+	    dpcur.exclude_list = append_sl(dpcur.exclude_list, tokenval.s);
 	    break;
 	case KENCRYPT:   ckseen(&dpcur.s_kencrypt);  dpcur.kencrypt = 1; break;
 	case SKIP_INCR:  ckseen(&dpcur.s_skip_incr); dpcur.skip_incr= 1; break;
@@ -2077,13 +2227,14 @@ keytab_t compress_keytable[] = {
     { "FAST", FAST },
     { "NONE", NONE },
     { "SERVER", SERVER },
+    { "CUSTOM", CUSTOM },
     { NULL, IDENT }
 };
 
 static void get_compress()
 {
     keytab_t *save_kt;
-    int serv, clie, none, fast, best;
+    int serv, clie, none, fast, best, custom;
     int done;
     int comp;
 
@@ -2092,7 +2243,7 @@ static void get_compress()
 
     ckseen(&dpcur.s_compress);
 
-    serv = clie = none = fast = best = 0;
+    serv = clie = none = fast = best = custom  = 0;
 
     done = 0;
     do {
@@ -2103,6 +2254,7 @@ static void get_compress()
 	case BEST:   best = 1; break;
 	case CLIENT: clie = 1; break;
 	case SERVER: serv = 1; break;
+	case CUSTOM: custom=1; break;
 	case NL:     done = 1; break;
 	default:
 	    done = 1;
@@ -2111,30 +2263,69 @@ static void get_compress()
     } while(!done);
 
     if(serv + clie == 0) clie = 1;	/* default to client */
-    if(none + fast + best == 0) fast = 1; /* default to fast */
+    if(none + fast + best + custom  == 0) fast = 1; /* default to fast */
 
     comp = -1;
 
     if(!serv && clie) {
-	if(none && !fast && !best) comp = COMP_NONE;
-	if(!none && fast && !best) comp = COMP_FAST;
-	if(!none && !fast && best) comp = COMP_BEST;
+	if(none && !fast && !best && !custom) comp = COMP_NONE;
+	if(!none && fast && !best && !custom) comp = COMP_FAST;
+	if(!none && !fast && best && !custom) comp = COMP_BEST;
+	if(!none && !fast && !best && custom) comp = COMP_CUST;
     }
 
     if(serv && !clie) {
-	if(none && !fast && !best) comp = COMP_NONE;
-	if(!none && fast && !best) comp = COMP_SERV_FAST;
-	if(!none && !fast && best) comp = COMP_SERV_BEST;
+	if(none && !fast && !best && !custom) comp = COMP_NONE;
+	if(!none && fast && !best && !custom) comp = COMP_SERV_FAST;
+	if(!none && !fast && best && !custom) comp = COMP_SERV_BEST;
+	if(!none && !fast && !best && custom) comp = COMP_SERV_CUST;
     }
 
     if(comp == -1) {
-	parserror("NONE, CLIENT FAST, CLIENT BEST, SERVER FAST or SERVER BEST expected");
+	parserror("NONE, CLIENT FAST, CLIENT BEST, CLIENT CUSTOM, SERVER FAST, SERVER BEST or SERVER CUSTOM expected");
 	comp = COMP_NONE;
     }
 
     dpcur.compress = comp;
 
     keytable = save_kt;
+}
+
+keytab_t encrypt_keytable[] = {
+    { "NONE", NONE },
+    { "CLIENT", CLIENT },
+    { "SERVER", SERVER },
+    { NULL, IDENT }
+};
+
+static void get_encrypt()
+{
+   keytab_t *save_kt;
+   int encrypt;
+
+   save_kt = keytable;
+   keytable = encrypt_keytable;
+
+   ckseen(&dpcur.s_encrypt);
+
+   get_conftoken(ANY);
+   switch(tok) {
+   case NONE:  
+     encrypt = ENCRYPT_NONE; 
+     break;
+   case CLIENT:  
+     encrypt = ENCRYPT_CUST;
+     break;
+   case SERVER: 
+     encrypt = ENCRYPT_SERV_CUST;
+     break;
+   default:
+     parserror("NONE, CLIENT or SERVER expected");
+     encrypt = ENCRYPT_NONE;
+   }
+
+   dpcur.encrypt = encrypt;
+   keytable = save_kt;	
 }
 
 keytab_t taperalgo_keytable[] = {
@@ -2201,39 +2392,6 @@ static void get_priority()
 	pri = 0;
     }
     dpcur.priority = pri;
-
-    keytable = save_kt;
-}
-
-keytab_t auth_keytable[] = {
-    { "BSD", BSD_AUTH },
-    { "KRB4", KRB4_AUTH },
-    { NULL, IDENT }
-};
-
-static void get_auth()
-{
-    auth_t auth;
-    keytab_t *save_kt;
-
-    save_kt = keytable;
-    keytable = auth_keytable;
-
-    ckseen(&dpcur.s_auth);
-
-    get_conftoken(ANY);
-    switch(tok) {
-    case BSD_AUTH:
-	auth = AUTH_BSD;
-	break;
-    case KRB4_AUTH:
-	auth = AUTH_KRB4;
-	break;
-    default:
-	parserror("BSD or KRB4 expected");
-	auth = AUTH_BSD;
-    }
-    dpcur.auth = auth;
 
     keytable = save_kt;
 }
@@ -2471,10 +2629,13 @@ tok_t type;
 	malloc_mark(var->s);
 	break;
     case INT:
-	var->i = get_number();
+	var->i = get_int();
 	break;
     case LONG:
-	var->l = get_number();
+	var->l = get_long();
+	break;
+    case AM64:
+	var->am64 = get_am64_t();
 	break;
     case BOOL:
 	var->i = get_bool();
@@ -2552,9 +2713,9 @@ keytab_t numb_keytable[] = {
     { NULL, IDENT }
 };
 
-static long get_number()
+static int get_int()
 {
-    long val;
+    int val;
     keytab_t *save_kt;
 
     save_kt = keytable;
@@ -2563,11 +2724,13 @@ static long get_number()
     get_conftoken(ANY);
 
     switch(tok) {
-    case INT:
-	val = (long) tokenval.i;
+    case AM64:
+	if(abs(tokenval.am64) > INT_MAX)
+	    parserror("value too large");
+	val = (int) tokenval.am64;
 	break;
     case INFINITY:
-	val = (long) BIGINT;
+	val = (int) BIGINT;
 	break;
     default:
 	parserror("an integer expected");
@@ -2583,12 +2746,128 @@ static long get_number()
     case MULT1K:
 	break;
     case MULT7:
+	if(abs(val) > INT_MAX/7)
+	    parserror("value too large");
 	val *= 7;
 	break;
     case MULT1M:
+	if(abs(val) > INT_MAX/1024)
+	    parserror("value too large");
 	val *= 1024;
 	break;
     case MULT1G:
+	if(abs(val) > INT_MAX/(1024*1024))
+	    parserror("value too large");
+	val *= 1024*1024;
+	break;
+    default:	/* it was not a multiplier */
+	unget_conftoken();
+    }
+
+    keytable = save_kt;
+
+    return val;
+}
+
+static long get_long()
+{
+    long val;
+    keytab_t *save_kt;
+
+    save_kt = keytable;
+    keytable = numb_keytable;
+
+    get_conftoken(ANY);
+
+    switch(tok) {
+    case AM64:
+	if(tokenval.am64 > LONG_MAX || tokenval.am64 < LONG_MIN)
+	    parserror("value too large");
+	val = (long) tokenval.am64;
+	break;
+    case INFINITY:
+	val = (long) LONG_MAX;
+	break;
+    default:
+	parserror("a long expected");
+	val = 0;
+    }
+
+    /* get multiplier, if any */
+    get_conftoken(ANY);
+
+    switch(tok) {
+    case NL:			/* multiply by one */
+    case MULT1:
+    case MULT1K:
+	break;
+    case MULT7:
+	if(val > LONG_MAX/7 || val < LONG_MIN/7)
+	    parserror("value too large");
+	val *= 7;
+	break;
+    case MULT1M:
+	if(val > LONG_MAX/1024 || val < LONG_MIN/7)
+	    parserror("value too large");
+	val *= 1024;
+	break;
+    case MULT1G:
+	if(val > LONG_MAX/(1024*1024) || val < LONG_MIN/(1024*1024))
+	    parserror("value too large");
+	val *= 1024*1024;
+	break;
+    default:	/* it was not a multiplier */
+	unget_conftoken();
+    }
+
+    keytable = save_kt;
+
+    return val;
+}
+
+static am64_t get_am64_t()
+{
+    am64_t val;
+    keytab_t *save_kt;
+
+    save_kt = keytable;
+    keytable = numb_keytable;
+
+    get_conftoken(ANY);
+
+    switch(tok) {
+    case AM64:
+	val = tokenval.am64;
+	break;
+    case INFINITY:
+	val = AM64_MAX;
+	break;
+    default:
+	parserror("a am64 expected %d", tok);
+	val = 0;
+    }
+
+    /* get multiplier, if any */
+    get_conftoken(ANY);
+
+    switch(tok) {
+    case NL:			/* multiply by one */
+    case MULT1:
+    case MULT1K:
+	break;
+    case MULT7:
+	if(val > AM64_MAX/7 || val < AM64_MIN/7)
+	    parserror("value too large");
+	val *= 7;
+	break;
+    case MULT1M:
+	if(val > AM64_MAX/1024 || val < AM64_MIN/1024)
+	    parserror("value too large");
+	val *= 1024;
+	break;
+    case MULT1G:
+	if(val > AM64_MAX/(1024*1024) || val < AM64_MIN/(1024*1024))
+	    parserror("value too large");
 	val *= 1024*1024;
 	break;
     default:	/* it was not a multiplier */
@@ -2696,7 +2975,8 @@ static void unget_conftoken()
 static void get_conftoken(exp)
 tok_t exp;
 {
-    int ch, i, d;
+    int ch, d;
+    am64_t am64;
     char *buf;
     int token_overflow;
 
@@ -2707,6 +2987,7 @@ tok_t exp;
 	/* If it looked like a key word before then look it
 	** up again in the current keyword table. */
 	switch(tok) {
+	case LONG:    case AM64:
 	case INT:     case REAL:    case STRING:
 	case LBRACE:  case RBRACE:  case COMMA:
 	case NL:      case END:     case UNKNOWN:
@@ -2758,34 +3039,42 @@ tok_t exp;
 	    negative_number: /* look for goto negative_number below */
 		sign = -1;
 	    }
-	    tokenval.i = 0;
+	    tokenval.am64 = 0;
 	    do {
-		tokenval.i = tokenval.i * 10 + (ch - '0');
+		tokenval.am64 = tokenval.am64 * 10 + (ch - '0');
 		ch = getc(conf);
 	    } while(isdigit(ch));
 	    if(ch != '.') {
-		if(exp != REAL) {
+		if(exp == INT) {
 		    tok = INT;
 		    tokenval.i *= sign;
+		}
+		else if(exp == LONG) {
+		    tok = LONG;
+		    tokenval.l *= sign;
+		}
+		else if(exp != REAL) {
+		    tok = AM64;
+		    tokenval.am64 *= sign;
 		} else {
 		    /* automatically convert to real when expected */
-		    i = tokenval.i;
-		    tokenval.r = sign * (double) i;
+		    am64 = tokenval.am64;
+		    tokenval.r = sign * (double) am64;
 		    tok = REAL;
 		}
 	    }
 	    else {
 		/* got a real number, not an int */
-		i = tokenval.i;
-		tokenval.r = sign * (double) i;
-		i=0; d=1;
+		am64 = tokenval.am64;
+		tokenval.r = sign * (double) am64;
+		am64=0; d=1;
 		ch = getc(conf);
 		while(isdigit(ch)) {
-		    i = i * 10 + (ch - '0');
+		    am64 = am64 * 10 + (ch - '0');
 		    d = d * 10;
 		    ch = getc(conf);
 		}
-		tokenval.r += sign * ((double)i)/d;
+		tokenval.r += sign * ((double)am64)/d;
 		tok = REAL;
 	    }
 	    ungetc(ch,conf);
@@ -2873,8 +3162,12 @@ int ColumnDataCount()
 
 /* conversion from string to table index
  */
-int StringToColumn(char *s) {
+int
+StringToColumn(s)
+    char *s;
+{
     int cn;
+
     for (cn=0; ColumnData[cn].Name != NULL; cn++) {
     	if (strcasecmp(s, ColumnData[cn].Name) == 0) {
 	    break;
@@ -2883,11 +3176,19 @@ int StringToColumn(char *s) {
     return cn;
 }
 
-char LastChar(char *s) {
+char
+LastChar(s)
+    char *s;
+{
     return s[strlen(s)-1];
 }
 
-int SetColumDataFromString(ColumnInfo* ci, char *s, char **errstr) {
+int
+SetColumDataFromString(ci, s, errstr)
+    ColumnInfo* ci;
+    char *s;
+    char **errstr;
+{
     /* Convert from a Columspec string to our internal format
      * of columspec. The purpose is to provide this string
      * as configuration paramter in the amanda.conf file or
@@ -3034,7 +3335,7 @@ dump_configuration(filename)
     printf("conf_tapebufs = %d\n", getconf_int(CNF_TAPEBUFS));
     printf("conf_autoflush  = %d\n", getconf_int(CNF_AUTOFLUSH));
     printf("conf_reserve  = %d\n", getconf_int(CNF_RESERVE));
-    printf("conf_maxdumpsize  = %d\n", getconf_int(CNF_MAXDUMPSIZE));
+    printf("conf_maxdumpsize  = " AM64_FMT "\n", getconf_am64(CNF_MAXDUMPSIZE));
     printf("conf_amrecover_do_fsf  = %d\n", getconf_int(CNF_AMRECOVER_DO_FSF));
     printf("conf_amrecover_check_label  = %d\n", getconf_int(CNF_AMRECOVER_CHECK_LABEL));
     printf("conf_amrecover_changer = \"%s\"\n", getconf_str(CNF_AMRECOVER_CHANGER));
@@ -3046,6 +3347,9 @@ dump_configuration(filename)
     printf("conf_columnspec = \"%s\"\n", getconf_str(CNF_COLUMNSPEC));
     printf("conf_indexdir = \"%s\"\n", getconf_str(CNF_INDEXDIR));
     printf("num_holdingdisks = %d\n", num_holdingdisks);
+    printf("conf_krb5keytab = \"%s\"\n", getconf_str(CNF_KRB5KEYTAB));
+    printf("conf_krb5principal = \"%s\"\n", getconf_str(CNF_KRB5PRINCIPAL));
+    printf("conf_label_new_tapes  = \"%s\"\n", getconf_str(CNF_LABEL_NEW_TAPES));
     for(hp = holdingdisks; hp != NULL; hp = hp->next) {
 	printf("\nHOLDINGDISK %s:\n", hp->name);
 	printf("	COMMENT \"%s\"\n", hp->comment);
@@ -3069,6 +3373,12 @@ dump_configuration(filename)
 	printf("\nDUMPTYPE %s:\n", dp->name);
 	printf("	COMMENT \"%s\"\n", dp->comment);
 	printf("	PROGRAM \"%s\"\n", dp->program);
+	printf("	SERVER_CUSTOM_COMPRESS \"%s\"\n", dp->srvcompprog);
+	printf("	CLIENT_CUSTOM_COMPRESS \"%s\"\n", dp->clntcompprog);
+	printf("	SERVER_ENCRYPT \"%s\"\n", dp->srv_encrypt);
+	printf("	CLIENT_ENCRYPT \"%s\"\n", dp->clnt_encrypt);
+	printf("	SERVER_DECRYPT_OPTION \"%s\"\n", dp->srv_decrypt_opt);
+	printf("	CLIENT_DECRYPT_OPTION \"%s\"\n", dp->clnt_decrypt_opt);
 	printf("	PRIORITY %ld\n", (long)dp->priority);
 	printf("	DUMPCYCLE %ld\n", (long)dp->dumpcycle);
 	st = dp->start_t;
@@ -3161,19 +3471,35 @@ dump_configuration(filename)
 	case COMP_BEST:
 	    printf("COMPRESS-BEST ");
 	    break;
+	case COMP_CUST:
+	    printf("COMPRESS-CUST ");
+	    break;
 	case COMP_SERV_FAST:
 	    printf("SRVCOMP-FAST ");
 	    break;
 	case COMP_SERV_BEST:
 	    printf("SRVCOMP-BEST ");
 	    break;
+	case COMP_SERV_CUST:
+	    printf("SRVCOMP-CUST ");
+	    break;
+	}
+
+	switch(dp->encrypt) {
+	case ENCRYPT_NONE:
+	    printf("ENCRYPT-NONE ");
+	    break;
+	case ENCRYPT_CUST:
+	    printf("ENCRYPT-CUST ");
+	    break;
+	case ENCRYPT_SERV_CUST:
+	    printf("ENCRYPT-SERV-CUST ");
+	    break;
 	}
 
 	if(!dp->record) printf("NO-");
 	printf("RECORD");
-	if(dp->auth == AUTH_BSD) printf(" BSD-AUTH");
-	else if(dp->auth == AUTH_KRB4) printf(" KRB4-AUTH");
-	else printf(" UNKNOWN-AUTH");
+	printf(" %s-AUTH", dp->security_driver);
 	if(dp->skip_incr) printf(" SKIP-INCR");
 	if(dp->skip_full) printf(" SKIP-FULL");
 	if(dp->no_hold) printf(" NO-HOLD");
@@ -3198,6 +3524,7 @@ main(argc, argv)
 {
   char *conffile;
   char *diskfile;
+  disklist_t lst;
   int result;
   unsigned long malloc_hist_1, malloc_size_1;
   unsigned long malloc_hist_2, malloc_size_2;
@@ -3205,6 +3532,9 @@ main(argc, argv)
   safe_fd(-1, 0);
 
   set_pname("conffile");
+
+  /* Don't die when child closes pipe */
+  signal(SIGPIPE, SIG_IGN);
 
   malloc_size_1 = malloc_inuse(&malloc_hist_1);
 
@@ -3235,10 +3565,10 @@ main(argc, argv)
   conffile = stralloc2(config_dir, CONFFILE_NAME);
   result = read_conffile(conffile);
   if (result == 0) {
-    diskfile = getconf_str(CNF_DISKFILE);
-    if (diskfile != NULL && access(diskfile, R_OK) == 0) {
-      result = (read_diskfile(diskfile) == NULL);
-    }
+      diskfile = getconf_str(CNF_DISKFILE);
+      if (diskfile != NULL && access(diskfile, R_OK) == 0) {
+	  result = read_diskfile(diskfile, &lst);
+      }
   }
   dump_configuration(CONFFILE_NAME);
   amfree(conffile);
@@ -3253,3 +3583,19 @@ main(argc, argv)
 }
 
 #endif /* TEST */
+
+char *
+generic_get_security_conf(string, arg)
+	char *string;
+	void *arg;
+{
+	if(!string || !*string)
+		return(NULL);
+
+	if(strcmp(string, "krb5principal")==0) {
+		return(getconf_str(CNF_KRB5PRINCIPAL));
+	} else if(strcmp(string, "krb5keytab")==0) {
+		return(getconf_str(CNF_KRB5KEYTAB));
+	}
+	return(NULL);
+}

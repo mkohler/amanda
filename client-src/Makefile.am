@@ -1,11 +1,12 @@
 # Makefile for Amanda client programs.
 
-INCLUDES =		-I$(top_srcdir)/common-src
+INCLUDES =	-I$(top_builddir)/common-src \
+		-I$(top_srcdir)/common-src
 
 lib_LTLIBRARIES =	libamclient.la
 LIB_EXTENSION = la
 
-libexec_PROGRAMS =	amandad calcsize killpgrp rundump runtar amqde selfcheck sendbackup sendsize versionsuffix
+libexec_PROGRAMS =	amandad noop calcsize killpgrp rundump runtar selfcheck sendbackup sendsize versionsuffix
 
 sbin_SCRIPTS =		@CLIENT_SCRIPTS_OPT@
 
@@ -33,8 +34,11 @@ libamclient_la_LDFLAGS = -release $(VERSION)
 ###
 
 LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamclient.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION)
+	libamclient.$(LIB_EXTENSION)
+if WANT_SERVER
+LDADD += ../tape-src/libamtape.$(LIB_EXTENSION)
+endif
+LDADD += ../common-src/libamanda.$(LIB_EXTENSION)
 
 SUFFIXES =		.sh .pl
 
@@ -52,21 +56,19 @@ TEST_PROGS = getfsent
 
 EXTRA_PROGRAMS =	$(TEST_PROGS)
 
-CLEANFILES = *.test.c
+CLEANFILES = *.test.c patch-system
 
 EXTRA_SCRIPTS =		amhpfixdevs		amsinixfixdevs
 
 DISTCLEANFILES = 	$(EXTRA_SCRIPTS)
 
-EXTRA_DIST =		amhpfixdevs.sh		amsinixfixdevs.sh	\
-			amandad-krb4.c		sendbackup-krb4.c	\
-			sendbackup-krb4.h
+EXTRA_DIST =		amhpfixdevs.sh		amsinixfixdevs.sh
 
 sendbackup_SOURCES = 	sendbackup.c		sendbackup.h	\
 			sendbackup-dump.c	sendbackup-gnutar.c
 
-noinst_HEADERS	= 	amandates.h	getfsent.h	findpass.h	\
-			client_util.h
+noinst_HEADERS	= 	amandad.h	amandates.h	getfsent.h	\
+			findpass.h	client_util.h
 
 install-exec-hook:
 	@list="$(sbin_SCRIPTS)"; \
@@ -86,7 +88,7 @@ install-exec-hook:
 		chgrp $(SETUID_GROUP) $$pa; \
 	done
 if WANT_SETUID_CLIENT
-	@list="calcsize killpgrp rundump runtar amqde"; \
+	@list="calcsize killpgrp rundump runtar"; \
 	for p in $$list; do \
 		if echo "$(libexec_PROGRAMS)" | grep $$p >/dev/null 2>&1; then \
 			pa=$(DESTDIR)$(libexecdir)/`echo $$p|sed 's/$(EXEEXT)$$//'|sed '$(transform)'|sed 's/$$/$(EXEEXT)/'`; \

@@ -25,12 +25,13 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: logfile.c,v 1.17.4.1.4.2.2.3 2003/01/01 23:28:56 martinea Exp $
+ * $Id: logfile.c,v 1.29 2005/12/04 22:56:55 martinea Exp $
  *
  * common log file writing routine
  */
 #include "amanda.h"
 #include "arglist.h"
+#include "util.h"
 #include "conffile.h"
 
 #include "logfile.h"
@@ -41,14 +42,16 @@ char *logtype_str[] = {
     "ERROR", "WARNING",	"INFO", "SUMMARY",	 /* information messages */
     "START", "FINISH",				   /* start/end of a run */
     "DISK",							 /* disk */
-    "SUCCESS", "FAIL", "STRANGE",		    /* the end of a dump */
+    "SUCCESS", "PARTIAL", "FAIL", "STRANGE",	    /* the end of a dump */
+    "CHUNK", "CHUNKSUCCESS",                            /* ... continued */
     "STATS",						   /* statistics */
     "MARKER",					  /* marker for reporter */
     "CONT"				   /* continuation line; special */
 };
 
 char *program_str[] = {
-    "UNKNOWN", "planner", "driver", "amreport", "dumper", "taper", "amflush"
+    "UNKNOWN", "planner", "driver", "amreport", "dumper", "chunker",
+    "taper", "amflush"
 };
 
 int curlinenum;
@@ -79,13 +82,37 @@ char *msg;
     log_add(L_FATAL, "%s", msg);
 }
 
+
+printf_arglist_function2(char *log_genstring, logtype_t, typ, char *, pname, char *, format)
+{
+    va_list argp;
+    char *leader = NULL;
+    char linebuf[STR_SIZE];
+
+
+    /* format error message */
+
+    if((int)typ <= (int)L_BOGUS || (int)typ > (int)L_MARKER) typ = L_BOGUS;
+
+    if(multiline > 0) {
+	leader = stralloc("  ");		/* continuation line */
+    } else {
+	leader = vstralloc(logtype_str[(int)typ], " ", pname, " ", NULL);
+    }
+
+    arglist_start(argp, format);
+    vsnprintf(linebuf, sizeof(linebuf)-1, format, argp);
+						/* -1 to allow for '\n' */
+    return(vstralloc(leader, linebuf, "\n", NULL));
+}
+
 printf_arglist_function1(void log_add, logtype_t, typ, char *, format)
 {
     va_list argp;
     int saved_errout;
     char *leader = NULL;
     char linebuf[STR_SIZE];
-    int l, n, s;
+    int n;
 
 
     /* format error message */
@@ -99,7 +126,7 @@ printf_arglist_function1(void log_add, logtype_t, typ, char *, format)
     }
 
     arglist_start(argp, format);
-    ap_vsnprintf(linebuf, sizeof(linebuf)-1, format, argp);
+    vsnprintf(linebuf, sizeof(linebuf)-1, format, argp);
 						/* -1 to allow for '\n' */
     arglist_end(argp);
 
@@ -112,11 +139,8 @@ printf_arglist_function1(void log_add, logtype_t, typ, char *, format)
 
     if(multiline == -1) open_log();
 
-    for(l = 0, n = strlen(leader); l < n; l += s) {
-	if((s = write(logfd, leader + l, n - l)) < 0) {
-	    error("log file write error: %s", strerror(errno));
-	}
-    }
+    if (fullwrite(logfd, leader, strlen(leader)) < 0)
+	error("log file write error: %s", strerror(errno));
 
     amfree(leader);
 
@@ -124,11 +148,8 @@ printf_arglist_function1(void log_add, logtype_t, typ, char *, format)
     if(n == 0 || linebuf[n-1] != '\n') linebuf[n++] = '\n';
     linebuf[n] = '\0';
 
-    for(l = 0; l < n; l += s) {
-	if((s = write(logfd, linebuf + l, n - l)) < 0) {
-	    error("log file write error: %s", strerror(errno));
-	}
-    }
+    if (fullwrite(logfd, linebuf, n) < 0)
+	error("log file write error: %s", strerror(errno));
 
     if(multiline != -1) multiline++;
     else close_log();
@@ -174,7 +195,7 @@ char *datestamp;
     logfile = vstralloc(conf_logdir, "/log", NULL);
 
     for(seq = 0; 1; seq++) {	/* if you've got MAXINT files in your dir... */
-	ap_snprintf(seq_str, sizeof(seq_str), "%d", seq);
+	snprintf(seq_str, sizeof(seq_str), "%d", seq);
 	fname = newvstralloc(fname,
 			     logfile,
 			     ".", datestamp,
@@ -183,10 +204,9 @@ char *datestamp;
 	if(stat(fname, &statbuf) == -1 && errno == ENOENT) break;
     }
 
-    if(rename(logfile, fname) != 0) {
+    if(rename(logfile, fname) == -1)
 	error("could not rename \"%s\" to \"%s\": %s",
 	      logfile, fname, strerror(errno));
-    }
 
     amfree(fname);
     amfree(logfile);
@@ -209,9 +229,8 @@ static void open_log()
 
     logfd = open(logfile, O_WRONLY|O_CREAT|O_APPEND, 0600);
 
-    if(logfd == -1) {
+    if(logfd == -1)
 	error("could not open log file %s: %s", logfile, strerror(errno));
-    }
 
     if(amflock(logfd, "log") == -1)
 	error("could not lock log file %s: %s", logfile, strerror(errno));

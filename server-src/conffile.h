@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: conffile.h,v 1.24.2.8.4.4.2.9.2.5 2005/03/29 16:35:11 martinea Exp $
+ * $Id: conffile.h,v 1.60 2005/12/21 19:07:50 paddy_s Exp $
  *
  * interface for config file reading code
  */
@@ -82,13 +82,11 @@ typedef enum conf_e {
     CNF_AMRECOVER_CHECK_LABEL,
     CNF_AMRECOVER_CHANGER,
     CNF_TAPERALGO,
-    CNF_DISPLAYUNIT
+    CNF_DISPLAYUNIT,
+    CNF_KRB5KEYTAB,
+    CNF_KRB5PRINCIPAL,
+    CNF_LABEL_NEW_TAPES
 } confparm_t;
-
-typedef enum auth_e {
-    AUTH_BSD, AUTH_KRB4
-} auth_t;
-
 
 typedef struct tapetype_s {
     struct tapetype_s *next;
@@ -129,11 +127,22 @@ typedef struct tapetype_s {
 #define ES_CALCSIZE	2	/* calcsize estimate */
 
 /* Compression types */
-#define COMP_NONE	0	/* No compression */
-#define COMP_FAST	1	/* Fast compression on client */
-#define COMP_BEST	2	/* Best compression on client */
-#define COMP_SERV_FAST	3	/* Fast compression on server */
-#define COMP_SERV_BEST	4	/* Best compression on server */
+typedef enum {
+    COMP_NONE,		/* No compression */
+    COMP_FAST,		/* Fast compression on client */
+    COMP_BEST,		/* Best compression on client */
+    COMP_CUST,		/* Custom compression on client */
+    COMP_SERV_FAST,	/* Fast compression on server */
+    COMP_SERV_BEST,	/* Best compression on server */
+    COMP_SERV_CUST	/* Custom compression on server */
+} comp_t;
+
+/* Encryption types */
+typedef enum {
+    ENCRYPT_NONE,		/* No encryption */
+    ENCRYPT_CUST,		/* Custom encryption on client */
+    ENCRYPT_SERV_CUST,	        /* Custom encryption on server */
+} encrypt_t;
 
 #define ALGO_FIRST	0
 #define ALGO_FIRSTFIT	1
@@ -149,6 +158,10 @@ typedef struct dumptype_s {
 
     char *comment;
     char *program;
+    char *srvcompprog;
+    char *clntcompprog;
+    char *srv_encrypt;
+    char *clnt_encrypt;
     sl_t *exclude_file;
     sl_t *exclude_list;
     sl_t *include_file;
@@ -159,18 +172,24 @@ typedef struct dumptype_s {
     int dumpcycle;
     int maxcycle;
     int frequency;
+    char *security_driver;
+    int maxdumps;
     int maxpromoteday;
     int bumppercent;
     int bumpsize;
     int bumpdays;
     double bumpmult;
-    auth_t auth;
-    int maxdumps;
     time_t start_t;
     int strategy;
     int estimate;
-    int compress;
+    comp_t compress;
+    encrypt_t encrypt;
+    char *srv_decrypt_opt;
+    char *clnt_decrypt_opt;
     float comprate[2]; /* first is full, second is incremental */
+    long tape_splitsize;
+    char *split_diskbuffer;
+    long fallback_splitsize;
     /* flag options */
     unsigned int record:1;
     unsigned int skip_incr:1;
@@ -183,6 +202,10 @@ typedef struct dumptype_s {
     /* seen flags */
     int s_comment;
     int s_program;
+    int s_srvcompprog;
+    int s_clntcompprog;
+    int s_srv_encrypt;
+    int s_clnt_encrypt;
     int s_exclude_file;
     int s_exclude_list;
     int s_include_file;
@@ -193,7 +216,7 @@ typedef struct dumptype_s {
     int s_dumpcycle;
     int s_maxcycle;
     int s_frequency;
-    int s_auth;
+    int s_security_driver;
     int s_maxdumps;
     int s_maxpromoteday;
     int s_bumppercent;
@@ -204,6 +227,9 @@ typedef struct dumptype_s {
     int s_strategy;
     int s_estimate;
     int s_compress;
+    int s_encrypt;
+    int s_srv_decrypt_opt;
+    int s_clnt_decrypt_opt;
     int s_comprate;
     int s_record;
     int s_skip_incr;
@@ -212,6 +238,9 @@ typedef struct dumptype_s {
     int s_kencrypt;
     int s_ignore;
     int s_index;
+    int s_tape_splitsize;
+    int s_split_diskbuffer;
+    int s_fallback_splitsize;
 } dumptype_t;
 
 /* A network interface */
@@ -282,6 +311,7 @@ extern int num_holdingdisks;
 int read_conffile P((char *filename));
 int getconf_seen P((confparm_t parameter));
 int getconf_int P((confparm_t parameter));
+am64_t getconf_am64 P((confparm_t parameter));
 double getconf_real P((confparm_t parameter));
 char *getconf_str P((confparm_t parameter));
 char *getconf_byname P((char *confname));
@@ -299,4 +329,6 @@ int SetColumDataFromString P((ColumnInfo* ci, char *s, char **errstr));
 
 char *taperalgo2str P((int taperalgo));
 
+/* this is in securityconf.h */
+char *generic_get_security_conf P((char *, void *));
 #endif /* ! CONFFILE_H */

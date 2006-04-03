@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: tapefile.c,v 1.15.2.6.6.7 2003/10/24 13:44:49 martinea Exp $
+ * $Id: tapefile.c,v 1.28 2003/10/24 13:44:35 martinea Exp $
  *
  * routines to read and write the amanda active tape list
  */

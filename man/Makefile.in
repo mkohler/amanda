@@ -37,6 +37,10 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
+@WANT_AMPLOT_TRUE@am__append_1 = $(AMPLOT_MAN8_PAGES)
+@WANT_SERVER_TRUE@am__append_2 = $(SERVER_MAN8_PAGES)
+@WANT_RECOVER_TRUE@am__append_3 = $(RECOVER_MAN8_PAGES)
+@WANT_RESTORE_TRUE@am__append_4 = $(RESTORE_MAN8_PAGES)
 subdir = man
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -53,7 +57,7 @@ man5dir = $(mandir)/man5
 am__installdirs = "$(DESTDIR)$(man5dir)" "$(DESTDIR)$(man8dir)"
 man8dir = $(mandir)/man8
 NROFF = nroff
-MANS = $(man_MANS)
+MANS = $(man5_MANS) $(man8_MANS) $(man_MANS)
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 transform = s,x,x,;
 ACLOCAL = @ACLOCAL@
@@ -103,7 +107,9 @@ DEFAULT_TAPE_DEVICE = @DEFAULT_TAPE_DEVICE@
 DEFAULT_TAPE_SERVER = @DEFAULT_TAPE_SERVER@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DOC_BUILD_DATE = @DOC_BUILD_DATE@
 DUMP = @DUMP@
+DUMPER_DIR = @DUMPER_DIR@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -115,9 +121,12 @@ FFLAGS = @FFLAGS@
 GETCONF = @GETCONF@
 GNUPLOT = @GNUPLOT@
 GNUTAR = @GNUTAR@
+GNUTAR_LISTED_INCREMENTAL_DIR = @GNUTAR_LISTED_INCREMENTAL_DIR@
 GNUTAR_LISTED_INCREMENTAL_DIRX = @GNUTAR_LISTED_INCREMENTAL_DIRX@
 GREP = @GREP@
 GZIP = @GZIP@
+HAVE_XSLTPROC_FALSE = @HAVE_XSLTPROC_FALSE@
+HAVE_XSLTPROC_TRUE = @HAVE_XSLTPROC_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
@@ -130,6 +139,7 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
+LL_FMT = @LL_FMT@
 LN_S = @LN_S@
 LTALLOCA = @LTALLOCA@
 LTLIBOBJS = @LTLIBOBJS@
@@ -192,10 +202,13 @@ WANT_SERVER_FALSE = @WANT_SERVER_FALSE@
 WANT_SERVER_TRUE = @WANT_SERVER_TRUE@
 WANT_SETUID_CLIENT_FALSE = @WANT_SETUID_CLIENT_FALSE@
 WANT_SETUID_CLIENT_TRUE = @WANT_SETUID_CLIENT_TRUE@
+WANT_SSH_SECURITY_FALSE = @WANT_SSH_SECURITY_FALSE@
+WANT_SSH_SECURITY_TRUE = @WANT_SSH_SECURITY_TRUE@
 WANT_TAPE_FALSE = @WANT_TAPE_FALSE@
 WANT_TAPE_TRUE = @WANT_TAPE_TRUE@
 XFSDUMP = @XFSDUMP@
 XFSRESTORE = @XFSRESTORE@
+XSLTPROC = @XSLTPROC@
 YACC = @YACC@
 ac_c = @ac_c@
 ac_ct_AR = @ac_ct_AR@
@@ -246,39 +259,57 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-@WANT_AMPLOT_TRUE@AMPLOT_MAN_PAGES = amplot.8
-COMMON_MAN_PAGES = amanda.8 amanda.conf.5
-@WANT_SERVER_TRUE@SERVER_MAN_PAGES = amadmin.8 \
-@WANT_SERVER_TRUE@		   amcheck.8 \
-@WANT_SERVER_TRUE@		   amcheckdb.8 \
-@WANT_SERVER_TRUE@		   amcleanup.8 \
-@WANT_SERVER_TRUE@		   amdd.8 \
-@WANT_SERVER_TRUE@		   amdump.8 \
-@WANT_SERVER_TRUE@		   amflush.8 \
-@WANT_SERVER_TRUE@		   amgetconf.8 \
-@WANT_SERVER_TRUE@		   amlabel.8 \
-@WANT_SERVER_TRUE@		   ammt.8 \
-@WANT_SERVER_TRUE@		   amoverview.8 \
-@WANT_SERVER_TRUE@		   amreport.8 \
-@WANT_SERVER_TRUE@		   amrmtape.8 \
-@WANT_SERVER_TRUE@		   amstatus.8 \
-@WANT_SERVER_TRUE@		   amtape.8 \
-@WANT_SERVER_TRUE@		   amtapetype.8 \
-@WANT_SERVER_TRUE@		   amtoc.8 \
-@WANT_SERVER_TRUE@		   amverify.8 \
-@WANT_SERVER_TRUE@		   amverifyrun.8
+AMPLOT_MAN8_PAGES = amplot.8
+COMMON_MAN8_PAGES = amanda.8
+COMMON_MAN5_PAGES = amanda.conf.5
+SERVER_MAN8_PAGES = amadmin.8 \
+		    amcheck.8 \
+		    amcheckdb.8 \
+		    amcleanup.8 \
+		    amdd.8 \
+		    amdump.8 \
+		    amflush.8 \
+		    amgetconf.8 \
+		    amlabel.8 \
+		    ammt.8 \
+		    amoverview.8 \
+		    amreport.8 \
+		    amrmtape.8 \
+		    amstatus.8 \
+		    amtape.8 \
+		    amtapetype.8 \
+		    amtoc.8 \
+		    amverify.8 \
+		    amverifyrun.8 \
+		    amfetchdump.8 \
+		    amcrypt.8 \
+		    amaespipe.8
 
-@WANT_RECOVER_TRUE@RECOVER_MAN_PAGES = amrecover.8
-@WANT_RESTORE_TRUE@RESTORE_MAN_PAGES = amrestore.8
+@WANT_RECOVER_TRUE@RECOVER_MAN8_PAGES = amrecover.8
+@WANT_RESTORE_TRUE@RESTORE_MAN8_PAGES = amrestore.8
+man8_MANS = $(COMMON_MAN8_PAGES) $(am__append_1) $(am__append_2) \
+	$(am__append_3) $(am__append_4)
+man5_MANS = $(COMMON_MAN5_PAGES)
+ALL_MAN_PAGES = $(AMPLOT_MAN8_PAGES) \
+	   $(COMMON_MAN5_PAGES) \
+	   $(COMMON_MAN8_PAGES) \
+	   $(SERVER_MAN8_PAGES) \
+	   $(RECOVER_MAN8_PAGES) \
+	   $(RESTORE_MAN8_PAGES)
 
-# not autoconf-generated:
-EXTRA_DIST = amadmin.8 amanda.8 amanda.conf.5 amcheck.8 amcheckdb.8 amcleanup.8 amdd.8 amdump.8 amflush.8 amgetconf.8 amlabel.8 ammt.8 amoverview.8 amplot.8 amreport.8 amrecover.8 amrestore.8 amrmtape.8 amstatus.8 amtape.8 amtapetype.8 amtoc.8 amverify.8 amverifyrun.8
-man_MANS = $(AMPLOT_MAN_PAGES) \
-	   $(COMMON_MAN_PAGES) \
-	   $(SERVER_MAN_PAGES) \
-	   $(RECOVER_MAN_PAGES) \
-	   $(RESTORE_MAN_PAGES)
+man_MANS = $(man5_MANS) $(man8_MANS)
+SRCMANPAGEDIR = $(srcdir)/xml-source
+MAN_XML = $(ALL_MAN_PAGES:%=xml-source/%.xml)
+EXTRA_XML = xslt/expand-sambadoc.xsl \
+            xslt/man.xsl \
+            xslt/settings.xsl \
+	    entities/global.entities \
+	    entities/xinclude.dtd
 
+EXTRA_DIST = $(ALL_MAN_PAGES) $(MAN_XML) $(EXTRA_XML)
+@HAVE_XSLTPROC_TRUE@GEN_XML = $(ALL_MAN_PAGES:%=xml-source/%.proc.xml)
+@HAVE_XSLTPROC_TRUE@MOSTLYCLEANFILES = $(GEN_XML)
+@HAVE_XSLTPROC_TRUE@MAINTAINERCLEANFILES = $(ALL_MAN_PAGES)
 all: all-am
 
 .SUFFIXES:
@@ -419,6 +450,7 @@ CTAGS:
 
 
 distdir: $(DISTFILES)
+	$(mkdir_p) $(distdir)/entities $(distdir)/xslt
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
@@ -467,6 +499,7 @@ install-strip:
 	  `test -z '$(STRIP)' || \
 	    echo "INSTALL_PROGRAM_ENV=STRIPPROG='$(STRIP)'"` install
 mostlyclean-generic:
+	-test -z "$(MOSTLYCLEANFILES)" || rm -f $(MOSTLYCLEANFILES)
 
 clean-generic:
 
@@ -476,6 +509,7 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+	-test -z "$(MAINTAINERCLEANFILES)" || rm -f $(MAINTAINERCLEANFILES)
 clean: clean-am
 
 clean-am: clean-generic clean-libtool mostlyclean-am
@@ -538,10 +572,26 @@ uninstall-man: uninstall-man5 uninstall-man8
 	uninstall-info-am uninstall-man uninstall-man5 uninstall-man8
 
 
+@HAVE_XSLTPROC_TRUE@xml-source/%.proc.xml: $(SRCMANPAGEDIR)/%.xml $(srcdir)/xslt/expand-sambadoc.xsl
+@HAVE_XSLTPROC_TRUE@	$(XSLTPROC) --path $(srcdir)/xslt/ --xinclude --stringparam latex.imagebasedir "$*/" --stringparam noreference 1 --output $@ $(srcdir)/xslt/expand-sambadoc.xsl $<
+
+@HAVE_XSLTPROC_TRUE@%: xml-source/%.proc.xml $(srcdir)/xslt/man.xsl
+@HAVE_XSLTPROC_TRUE@	$(XSLTPROC) --path $(srcdir)/xslt/ --output $@ man.xsl $<
+
+# ^- HAVE_XSLTPROC
+
 install-data-hook:
-	@list="$(man_MANS)"; \
+	@list="$(man8_MANS)"; \
 	for p in $$list; do \
-		pa=$(DESTDIR)$(mandir)/man8/`echo $$p|sed '$(transform)'`; \
+		pa=$(DESTDIR)$(man8dir)/`echo $$p|sed '$(transform)'`; \
+		echo chown $(BINARY_OWNER) $$pa; \
+		chown $(BINARY_OWNER) $$pa; \
+		echo chgrp $(SETUID_GROUP) $$pa; \
+		chgrp $(SETUID_GROUP) $$pa; \
+	done
+	@list="$(man5_MANS)"; \
+	for p in $$list; do \
+		pa=$(DESTDIR)$(man5dir)/`echo $$p|sed '$(transform)'`; \
 		echo chown $(BINARY_OWNER) $$pa; \
 		chown $(BINARY_OWNER) $$pa; \
 		echo chgrp $(SETUID_GROUP) $$pa; \

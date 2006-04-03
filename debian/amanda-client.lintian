@@ -5,4 +5,3 @@ amanda-client: setuid-binary usr/lib/amanda/rundump 4754 root/backup
 amanda-client: setuid-binary usr/lib/amanda/runtar 4754 root/backup
 amanda-client: maintainer-script-needs-depends-on-netbase postinst
 amanda-client: maintainer-script-needs-depends-on-netbase prerm
-amanda-client: package-name-doesnt-match-sonames libamclient-2.4.5p1

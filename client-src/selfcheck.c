@@ -25,17 +25,17 @@
  *			   University of Maryland at College Park
  */
 /* 
- * $Id: selfcheck.c,v 1.40.2.3.4.4.2.22.2.3 2005/09/20 21:31:52 jrjackson Exp $
+ * $Id: selfcheck.c,v 1.76 2006/01/14 04:37:18 paddy_s Exp $
  *
  * do self-check and send back any error messages
  */
 
 #include "amanda.h"
-#include "clock.h"
 #include "statfs.h"
 #include "version.h"
 #include "getfsent.h"
 #include "amandates.h"
+#include "clock.h"
 #include "util.h"
 #include "pipespawn.h"
 #include "amfeatures.h"
@@ -59,6 +59,7 @@ int need_runtar=0;
 int need_gnutar=0;
 int need_compress_path=0;
 int need_calcsize=0;
+int program_is_wrapper=0;
 
 static am_feature_t *our_features = NULL;
 static char *our_feature_string = NULL;
@@ -67,8 +68,8 @@ static g_option_t *g_options = NULL;
 /* local functions */
 int main P((int argc, char **argv));
 
-static void check_options P((char *program, char *calcprog, char *disk, char *device, option_t *options));
-static void check_disk P((char *program, char *calcprog, char *disk, char *amdevice, int level));
+static void check_options P((char *program, char *calcprog, char *disk, char *amdevice, option_t *options));
+static void check_disk P((char *program, char *calcprog, char *disk, char *amdevice, int level, char *optstr));
 static void check_overall P((void));
 static void check_access P((char *filename, int mode));
 static void check_file P((char *filename, int mode));
@@ -85,7 +86,7 @@ char **argv;
     char *program = NULL;
     char *calcprog = NULL;
     char *disk = NULL;
-    char *device = NULL;
+    char *amdevice = NULL;
     char *optstr = NULL;
     char *err_extra = NULL;
     char *s, *fp;
@@ -101,12 +102,15 @@ char **argv;
 
     set_pname("selfcheck");
 
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
+
     malloc_size_1 = malloc_inuse(&malloc_hist_1);
 
     erroutput_type = (ERR_INTERACTIVE|ERR_SYSLOG);
     dbopen();
     startclock();
-    dbprintf(("%s: version %s\n", argv[0], version()));
+    dbprintf(("%s: version %s\n", get_pname(), version()));
 
     our_features = am_init_feature_set();
     our_feature_string = am_feature_to_string(our_features);
@@ -147,6 +151,18 @@ char **argv;
 	skip_non_whitespace(s, ch);
 	s[-1] = '\0';				/* terminate the program name */
 
+	program_is_wrapper = 0;
+	if(strcmp(program,"DUMPER")==0) {
+	    program_is_wrapper = 1;
+	    skip_whitespace(s, ch);		/* find dumper name */
+	    if (ch == '\0') {
+		goto err;			/* no program */
+	    }
+	    program = s - 1;
+	    skip_non_whitespace(s, ch);
+	    s[-1] = '\0';			/* terminate the program name */
+	}
+
 	if(strncmp(program, "CALCSIZE", 8) == 0) {
 	    skip_whitespace(s, ch);		/* find program name */
 	    if (ch == '\0') {
@@ -175,12 +191,12 @@ char **argv;
 	if(!isdigit((int)s[-1])) {
 	    fp = s - 1;
 	    skip_non_whitespace(s, ch);
-	    s[-1] = '\0';			/* terminate the device */
-	    device = stralloc(fp);
+	     s[-1] = '\0';			/* terminate the device */
+	    amdevice = stralloc(fp);
 	    skip_whitespace(s, ch);		/* find level number */
 	}
 	else {
-	    device = stralloc(disk);
+	    amdevice = stralloc(disk);
 	}
 
 						/* find level number */
@@ -202,13 +218,14 @@ char **argv;
 	    optstr = s - 1;
 	    skip_non_whitespace(s, ch);
 	    s[-1] = '\0';			/* terminate the options */
-	    options = parse_options(optstr, disk, device, g_options->features, 1);
-	    check_options(program, calcprog, disk, device, options);
-	    check_disk(program, calcprog, disk, device, level);
+	    options = parse_options(optstr, disk, amdevice, g_options->features, 1);
+	    check_options(program, calcprog, disk, amdevice, options);
+	    check_disk(program, calcprog, disk, amdevice, level, &optstr[2]);
 	    free_sl(options->exclude_file);
 	    free_sl(options->exclude_list);
 	    free_sl(options->include_file);
 	    free_sl(options->include_list);
+	    amfree(options->auth);
 	    amfree(options->str);
 	    amfree(options);
 	} else if (ch == '\0') {
@@ -227,11 +244,11 @@ char **argv;
 	    need_gnutar=1;
 	    need_compress_path=1;
 	    need_calcsize=1;
-	    check_disk(program, calcprog, disk, device, level);
+	    check_disk(program, calcprog, disk, amdevice, level, "");
 	} else {
 	    goto err;				/* bad syntax */
 	}
-	amfree(device);
+	amfree(amdevice);
     }
 
     check_overall();
@@ -271,8 +288,8 @@ char **argv;
 
 
 static void
-check_options(program, calcprog, disk, device, options)
-    char *program, *calcprog, *disk, *device;
+check_options(program, calcprog, disk, amdevice, options)
+    char *program, *calcprog, *disk, *amdevice;
     option_t *options;
 {
     char *myprogram = program;
@@ -288,8 +305,8 @@ check_options(program, calcprog, disk, device, options)
 	if(options->include_file) nb_include += options->include_file->nb_element;
 	if(options->include_list) nb_include += options->include_list->nb_element;
 
-	if(nb_exclude > 0) file_exclude = build_exclude(disk, device, options, 1);
-	if(nb_include > 0) file_include = build_include(disk, device, options, 1);
+	if(nb_exclude > 0) file_exclude = build_exclude(disk, amdevice, options, 1);
+	if(nb_include > 0) file_include = build_include(disk, amdevice, options, 1);
 
 	amfree(file_exclude);
 	amfree(file_include);
@@ -300,7 +317,7 @@ check_options(program, calcprog, disk, device, options)
 
     if(strcmp(myprogram,"GNUTAR") == 0) {
 	need_gnutar=1;
-        if(disk[0] == '/' && disk[1] == '/') {
+        if(amdevice[0] == '/' && amdevice[1] == '/') {
 	    if(options->exclude_file && options->exclude_file->nb_element > 1) {
 		printf("ERROR [samba support only one exclude file]\n");
 	    }
@@ -328,8 +345,8 @@ check_options(program, calcprog, disk, device, options)
 	    if(options->include_file) nb_include += options->include_file->nb_element;
 	    if(options->include_list) nb_include += options->include_list->nb_element;
 
-	    if(nb_exclude > 0) file_exclude = build_exclude(disk, device, options, 1);
-	    if(nb_include > 0) file_include = build_include(disk, device, options, 1);
+	    if(nb_exclude > 0) file_exclude = build_exclude(disk, amdevice, options, 1);
+	    if(nb_include > 0) file_include = build_include(disk, amdevice, options, 1);
 
 	    amfree(file_exclude);
 	    amfree(file_include);
@@ -357,7 +374,7 @@ check_options(program, calcprog, disk, device, options)
 #ifndef AIX_BACKUP
 #ifdef VDUMP
 #ifdef DUMP
-	if (strcmp(amname_to_fstype(disk), "advfs") == 0)
+	if (strcmp(amname_to_fstype(amdevice), "advfs") == 0)
 #else
 	if (1)
 #endif
@@ -371,7 +388,7 @@ check_options(program, calcprog, disk, device, options)
 #endif /* VDUMP */
 #ifdef XFSDUMP
 #ifdef DUMP
-	if (strcmp(amname_to_fstype(disk), "xfs") == 0)
+	if (strcmp(amname_to_fstype(amdevice), "xfs") == 0)
 #else
 	if (1)
 #endif
@@ -385,7 +402,7 @@ check_options(program, calcprog, disk, device, options)
 #endif /* XFSDUMP */
 #ifdef VXDUMP
 #ifdef DUMP
-	if (strcmp(amname_to_fstype(disk), "vxfs") == 0)
+	if (strcmp(amname_to_fstype(amdevice), "vxfs") == 0)
 #else
 	if (1)
 #endif
@@ -408,13 +425,16 @@ check_options(program, calcprog, disk, device, options)
 	    need_restore=1;
 #endif
     }
-    if(options->compress == COMPR_BEST || options->compress == COMPR_FAST) 
+    if(program_is_wrapper==1) {
+    }
+    if(options->compress == COMPR_BEST || options->compress == COMPR_FAST || options->compress == COMPR_CUST)
 	need_compress_path=1;
 }
 
-static void check_disk(program, calcprog, disk, amdevice, level)
+static void check_disk(program, calcprog, disk, amdevice, level, optstr)
 char *program, *calcprog, *disk, *amdevice;
 int level;
+char *optstr;
 {
     char *device = NULL;
     char *err = NULL;
@@ -486,7 +506,11 @@ int level;
 		goto common_exit;
 	    }
 
-	    nullfd = open("/dev/null", O_RDWR);
+	    if ((nullfd = open("/dev/null", O_RDWR)) == -1) {
+	        err = stralloc2("Cannot access /dev/null : ", strerror(errno));
+		goto common_exit;
+	    }
+
 	    if (pwtext_len > 0) {
 		pw_fd_env = "PASSWD_FD";
 	    } else {
@@ -555,7 +579,7 @@ int level;
 		    } else {
 			strappend(err, "returned ");
 		    }
-		    ap_snprintf(number, sizeof(number), "%d", ret);
+		    snprintf(number, sizeof(number), "%d", ret);
 		    strappend(err, number);
 		}
 	    }
@@ -570,17 +594,17 @@ int level;
 		amfree(extra_info);
 	    }
 #else
-	    err = stralloc2("This client is not configured for samba: ", amdevice);
+	    err = stralloc2("This client is not configured for samba: ", disk);
 #endif
 	    goto common_exit;
 	}
 	amode = F_OK;
 	device = amname_to_dirname(amdevice);
-    } else {
+    } else if (strcmp(program, "DUMP") == 0) {
 	if(amdevice[0] == '/' && amdevice[1] == '/') {
 	    err = vstralloc("The DUMP program cannot handle samba shares,",
 			    " use GNUTAR: ",
-			    amdevice,
+			    disk,
 			    NULL);
 	    goto common_exit;
 	}
@@ -603,6 +627,33 @@ int level;
 	    amode = R_OK;
 #endif
 	}
+    }
+    else { /* program_is_wrapper==1 */
+	int pid_wrapper;
+	fflush(stdout);fflush(stdin);
+	switch (pid_wrapper = fork()) {
+	case -1: error("fork: %s", strerror(errno));
+	case 0: /* child */
+	    {
+		char *argvchild[6];
+		char *cmd = vstralloc(DUMPER_DIR, "/", program, NULL);
+		argvchild[0] = program;
+		argvchild[1] = "selfcheck";
+		argvchild[2] = disk;
+		argvchild[3] = amdevice;
+		argvchild[4] = optstr;
+		argvchild[5] = NULL;
+		execve(cmd,argvchild,safe_env());
+		exit(127);
+	    }
+	default: /* parent */
+	    {
+		int status;
+		waitpid(pid_wrapper, &status, 0);
+	    }
+	}
+	fflush(stdout);fflush(stdin);
+	return;
     }
 
     dbprintf(("%s: device %s\n", debug_prefix_time(NULL), device));
@@ -795,9 +846,8 @@ static void check_overall()
 	}
     }
 
-    if( need_compress_path ) {
+    if( need_compress_path )
 	check_file(COMPRESS_PATH, X_OK);
-    }
 
     if( need_dump || need_xfsdump )
 	check_file("/var/lib/dumpdates",
@@ -808,9 +858,8 @@ static void check_overall()
 #endif
 		   );
 
-    if (need_vdump) {
+    if (need_vdump)
         check_file("/etc/vdumpdates", F_OK);
-    }
 
     check_access("/dev/null", R_OK|W_OK);
     check_space(AMANDA_TMPDIR, 64);	/* for amandad i/o */

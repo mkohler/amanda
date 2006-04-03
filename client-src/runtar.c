@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: runtar.c,v 1.11.4.2.6.1.2.3 2005/09/30 19:08:04 martinea Exp $
+ * $Id: runtar.c,v 1.17 2006/01/14 04:37:18 paddy_s Exp $
  *
  * runs GNUTAR program as root
  */
@@ -48,6 +48,9 @@ char **argv;
 
     set_pname("runtar");
 
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
+
     dbopen();
     dbprintf(("%s: version %s\n", argv[0], version()));
 
@@ -65,13 +68,11 @@ char **argv;
     }
 
 #ifdef FORCE_USERID
-    if (getuid() != client_uid) {
+    if (getuid() != client_uid)
 	error("error [must be invoked by %s]\n", CLIENT_LOGIN);
-    }
 
-    if (geteuid() != 0) {
+    if (geteuid() != 0)
 	error("error [must be setuid root]\n");
-    }
 #endif
 
 #if !defined (DONT_SUID_ROOT)

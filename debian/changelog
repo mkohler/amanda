@@ -1,3 +1,14 @@
+amanda (1:2.5.0-1) unstable; urgency=low
+
+  * new upstream version, closes: #360085
+  * add --with-maxtapeblocksize=256 to configure, to better support LTO-3
+    tapes like the HP Ultrium 960
+  * tweak packaging to handle changes in upstream makefiles, etc
+  * fix overlong line in amrestore man page synopsys
+  * move private shlibs to the amanda-common package to simplify deps
+
+ -- Bdale Garbee <bdale@gag.com>  Mon,  3 Apr 2006 00:28:17 -0700
+
 amanda (1:2.4.5p1-2) unstable; urgency=low
 
   * now that we're using it for debugging info, make sure /var/log/amanda

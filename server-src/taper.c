@@ -23,16 +23,18 @@
  * Authors: the Amanda Development Team.  Its members are listed in a
  * file named AUTHORS, in the root directory of this distribution.
  */
-/* $Id: taper.c,v 1.47.2.14.4.8.2.17.2.4 2005/10/11 11:10:20 martinea Exp $
+/* $Id: taper.c,v 1.118 2006/03/17 15:34:12 vectro Exp $
  *
  * moves files from holding disk to tape, or from a socket to tape
  */
 
 #include "amanda.h"
+#include "util.h"
 #include "conffile.h"
 #include "tapefile.h"
 #include "clock.h"
 #include "stream.h"
+#include "holding.h"
 #include "logfile.h"
 #include "tapeio.h"
 #include "changer.h"
@@ -42,9 +44,17 @@
 #include "amfeatures.h"
 #include "fileheader.h"
 #include "server_util.h"
+#include "taperscan.c"
+
+#ifdef HAVE_SYS_MMAN_H
+#include <sys/mman.h>
+#endif
+
 #ifdef HAVE_LIBVTBLC
 #include <vtblc.h>
 #include <strings.h>
+#include <math.h>
+
 
 static int vtbl_no   = -1;
 static int len       =  0;
@@ -66,10 +76,31 @@ static vtbl_lbls vtbl_entry[MAX_VOLUMES];
  * XXX advance to next tape first in next_tape
  * XXX label is being read twice?
  */
+long splitsize = 0; /* max size of dumpfile before split (Kb) */
+char *splitbuf = NULL;
+char *splitbuf_wr_ptr = NULL; /* the number of Kb we've written into splitbuf */
+int orig_holdfile = -1;
 
 /* NBUFS replaced by conf_tapebufs */
 /* #define NBUFS		20 */
 int conf_tapebufs;
+
+off_t maxseek = (off_t)1 << ((sizeof(off_t) * 8) - 11);
+
+char *holdfile_path = NULL;
+char *holdfile_path_thischunk = NULL;
+int num_holdfile_chunks = 0;
+dumpfile_t holdfile_hdr;
+dumpfile_t holdfile_hdr_thischunk;
+off_t holdfile_offset_thischunk = (off_t)0;
+int splitbuffer_fd = -1;
+char *splitbuffer_path = NULL;
+
+#define MODE_NONE 0
+#define MODE_FILE_WRITE 1
+#define MODE_PORT_WRITE 2
+
+int mode = MODE_NONE;
 
 /* This is now the number of empties, not full bufs */
 #define THRESHOLD	1
@@ -100,21 +131,36 @@ void tape_writer_side P((int rdpipe, int wrpipe));
 char *attach_buffers P((unsigned int size));
 void detach_buffers P((char *bufp));
 void destroy_buffers P((void));
+#define REMOVE_SHARED_MEMORY() \
+    detach_buffers(buffers); \
+    if (strcmp(procname, "reader") == 0) { \
+	destroy_buffers(); \
+    }
 
 /* synchronization pipe routines */
 void syncpipe_init P((int rd, int wr));
-char syncpipe_get P((void));
+char syncpipe_get P((int *intp));
 int  syncpipe_getint P((void));
 char *syncpipe_getstr P((void));
-void syncpipe_put P((int ch));
+void syncpipe_put P((int ch, int intval));
 void syncpipe_putint P((int i));
-void syncpipe_putstr P((char *str));
+void syncpipe_putstr P((const char *str));
 
 /* tape manipulation subsystem */
 int first_tape P((char *new_datestamp));
 int next_tape P((int writerr));
 int end_tape P((int writerr));
 int write_filemark P((void));
+
+/* support crap */
+int seek_holdfile P((int fd, buffer_t *bp, long kbytes));
+
+/* signal handling */
+static void install_signal_handlers P((void));
+static void signal_handler P((int));
+
+/* exit routine */
+static void cleanup P((void));
 
 /*
  * ========================================================================
@@ -132,6 +178,7 @@ int bufdebug = 0;
 
 char *buffers = NULL;
 buffer_t *buftable = NULL;
+int err;
 
 char *procname = "parent";
 
@@ -149,6 +196,14 @@ long buffer_size;
 int tt_file_pad;
 static unsigned long malloc_hist_1, malloc_size_1;
 static unsigned long malloc_hist_2, malloc_size_2;
+dumpfile_t file;
+dumpfile_t *save_holdfile = NULL;
+long cur_span_chunkstart = 0; /* start of current split dump chunk (Kb) */
+char *holdfile_name;
+int num_splits = 0;
+int expected_splits = 0;
+int num_holdfiles = 0;
+times_t curdump_rt;
 
 am_feature_t *their_features = NULL;
 
@@ -180,6 +235,9 @@ char **main_argv;
 
     set_pname("taper");
 
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
+
     malloc_size_1 = malloc_inuse(&malloc_hist_1);
 
     fprintf(stderr, "%s: pid %ld executable %s version %s\n",
@@ -204,6 +262,9 @@ char **main_argv;
     }
 
     safe_cd();
+
+    install_signal_handlers();
+    atexit(cleanup);
 
     /* print prompts and debug messages if running interactive */
 
@@ -351,12 +412,133 @@ char **main_argv;
  * FILE READER SIDE
  *
  */
-void read_file P((int fd, char *handle,
+int read_file P((int fd, char *handle,
 		  char *host, char *disk, char *datestamp, 
-		  int level, int port_flag));
+		  int level));
 int taper_fill_buffer P((int fd, buffer_t *bp, int buflen));
 void dumpbufs P((char *str1));
 void dumpstatus P((buffer_t *bp));
+int get_next_holding_file P((int fd, buffer_t *bp, char *strclosing, int rc));
+int predict_splits P((char *filename));
+void create_split_buffer P((char *split_diskbuffer, long fallback_splitsize, char *id_string));
+void free_split_buffer P(());
+
+
+/*
+ * Create a buffer, either in an mmapped file or in memory, where PORT-WRITE
+ * dumps can buffer the current split chunk in case of retry.
+ */
+void create_split_buffer(split_diskbuffer, fallback_splitsize, id_string)
+char *split_diskbuffer;
+long fallback_splitsize;
+char *id_string;
+{
+    char *buff_err = NULL;
+    void *nulls = NULL;
+    int c;
+    
+    /* don't bother if we're not actually splitting */
+    if(splitsize <= 0){
+	splitbuf = NULL;
+	splitbuf_wr_ptr = NULL;
+	return;
+    }
+
+#ifdef HAVE_MMAP
+#ifdef HAVE_SYS_MMAN_H
+    if(strcmp(split_diskbuffer, "NULL")){
+	splitbuffer_path = vstralloc(split_diskbuffer,
+				     "/splitdump_buffer_XXXXXX",
+				     NULL);
+#ifdef HAVE_MKSTEMP
+	splitbuffer_fd = mkstemp(splitbuffer_path);
+#else
+	log_add(L_INFO, "mkstemp not available, using plain open() for split buffer- make sure %s has safe permissions", split_diskbuffer);
+	splitbuffer_fd = open(splitbuffer_path, O_RDWR|O_CREAT, 0600);
+#endif
+	if(splitbuffer_fd == -1){
+	    buff_err = newvstralloc(buff_err, "mkstemp/open of ", 
+				    splitbuffer_path, "failed (",
+				    strerror(errno), ")", NULL);
+	    goto fallback;
+	}
+	nulls = alloc(1024); /* lame */
+	memset(nulls, 0, 1024);
+	for(c = 0; c < splitsize ; c++) {
+	    if(fullwrite(splitbuffer_fd, nulls, 1024) < 1024){
+		buff_err = newvstralloc(buff_err, "write to ", splitbuffer_path,
+					"failed (", strerror(errno), ")", NULL);
+		free_split_buffer();
+		goto fallback;
+	    }
+	}
+	amfree(nulls);
+
+        splitbuf = mmap(NULL, (size_t)splitsize*1024, PROT_READ|PROT_WRITE,
+			MAP_SHARED, splitbuffer_fd, (off_t)0);
+	if(splitbuf == (char*)-1){
+	    buff_err = newvstralloc(buff_err, "mmap failed (", strerror(errno),
+				    ")", NULL);
+	    free_split_buffer();
+	    goto fallback;
+	}
+	fprintf(stderr,
+		"taper: r: buffering %ldkb split chunks in mmapped file %s\n",
+		splitsize, splitbuffer_path);
+	splitbuf_wr_ptr = splitbuf;
+	return;
+    }
+    else{
+	buff_err = stralloc("no split_diskbuffer specified");
+    }
+#else
+    buff_err = stralloc("mman.h not available");
+    goto fallback;
+#endif
+#else
+    buff_err = stralloc("mmap not available");
+    goto fallback;
+#endif
+
+    /*
+      Buffer split dumps in memory, if we can't use a file.
+    */
+    fallback:
+        splitsize = fallback_splitsize;
+	log_add(L_INFO,
+	        "%s: using fallback split size of %dkb to buffer %s in-memory",
+		buff_err, splitsize, id_string);
+	splitbuf = alloc(splitsize * 1024);
+	splitbuf_wr_ptr = splitbuf;
+}
+
+/*
+ * Free up resources that create_split_buffer eats.
+ */
+void free_split_buffer()
+{
+    if(splitbuffer_fd != -1){
+#ifdef HAVE_MMAP
+#ifdef HAVE_SYS_MMAN_H
+	if(splitbuf != NULL) munmap(splitbuf, splitsize);
+#endif
+#endif
+	aclose(splitbuffer_fd);
+	splitbuffer_fd = -1;
+
+	if(unlink(splitbuffer_path) == -1){
+	    log_add(L_WARNING, "Failed to unlink %s: %s",
+	            splitbuffer_path, strerror(errno));
+	}
+	amfree(splitbuffer_path);
+	splitbuffer_path = NULL;
+    }
+    else if(splitbuf){
+	amfree(splitbuf);
+	splitbuf = NULL;
+    }
+}
+
 
 void file_reader_side(rdpipe, wrpipe)
 int rdpipe, wrpipe;
@@ -369,12 +551,17 @@ int rdpipe, wrpipe;
     char *diskname = NULL;
     char *result = NULL;
     char *datestamp = NULL;
+    char *split_diskbuffer = NULL;
+    char *id_string = NULL;
     char tok;
     char *q = NULL;
     int level, fd, data_port, data_socket, wpid;
+    char level_str[64];
     struct stat stat_file;
     int tape_started;
     int a;
+    long fallback_splitsize = 0;
+    int tmpint;
 
     procname = "reader";
     syncpipe_init(rdpipe, wrpipe);
@@ -394,12 +581,12 @@ int rdpipe, wrpipe;
     taper_datestamp = newstralloc(taper_datestamp, cmdargs.argv[2]);
 
     tape_started = 0;
-    syncpipe_put('S');
+    syncpipe_put('S', 0);
     syncpipe_putstr(taper_datestamp);
 
     /* get result of start command */
 
-    tok = syncpipe_get();
+    tok = syncpipe_get(&tmpint);
     switch(tok) {
     case 'S':
 	putresult(TAPER_OK, "\n");
@@ -412,9 +599,9 @@ int rdpipe, wrpipe;
 	q = squotef("[%s]", result ? result : "(null)");
 	putresult(TAPE_ERROR, "%s\n", q);
 	amfree(q);
-	log_add(L_ERROR,"no-tape [%s]", result);
+	log_add(L_ERROR,"no-tape [%s]", "No writable valid tape found");
 	amfree(result);
-	syncpipe_put('e');			/* ACK error */
+	syncpipe_put('e', 0);			/* ACK error */
 	break;
     default:
 	error("expected 'S' or 'E' for START-TAPER, got '%c'", tok);
@@ -440,7 +627,10 @@ int rdpipe, wrpipe;
 	     *   diskname
 	     *   level
 	     *   datestamp
+	     *   splitsize
+	     *   split_diskbuffer
 	     */
+	    mode = MODE_PORT_WRITE;
 	    cmdargs.argc++;			/* true count of args */
 	    a = 2;
 
@@ -475,15 +665,35 @@ int rdpipe, wrpipe;
 	    }
 	    datestamp = newstralloc(datestamp, cmdargs.argv[a++]);
 
+	    if(a >= cmdargs.argc) {
+		error("error [taper PORT-WRITE: not enough args: splitsize]");
+	    }
+	    splitsize = atoi(cmdargs.argv[a++]);
+
+	    if(a >= cmdargs.argc) {
+		error("error [taper PORT-WRITE: not enough args: split_diskbuffer]");
+	    }
+	    split_diskbuffer = newstralloc(split_diskbuffer, cmdargs.argv[a++]);
+
+	    if(a >= cmdargs.argc) {
+		error("error [taper PORT-WRITE: not enough args: fallback_splitsize]");
+	    }
+	    fallback_splitsize = atoi(cmdargs.argv[a++]);
+
 	    if(a != cmdargs.argc) {
 		error("error [taper file_reader_side PORT-WRITE: too many args: %d != %d]",
 		      cmdargs.argc, a);
 	    }
 
+	    snprintf(level_str, sizeof(level_str), "%d", level);
+	    id_string = newvstralloc(id_string, hostname, ":", diskname, ".",
+				     level_str, NULL);
+
+	    create_split_buffer(split_diskbuffer, fallback_splitsize, id_string);
+	    amfree(id_string);
+
 	    data_port = 0;
-	    data_socket = stream_server(&data_port,
-					-1,
-					STREAM_BUFSIZE);	
+	    data_socket = stream_server(&data_port, -1, STREAM_BUFSIZE);	
 	    if(data_socket < 0) {
 		char *m;
 
@@ -494,6 +704,7 @@ int rdpipe, wrpipe;
 		q = squote(m);
 		putresult(TAPE_ERROR, "%s %s\n", handle, q);
 		amfree(m);
+		amfree(q);
 		break;
 	    }
 	    putresult(PORT, "%d\n", data_port);
@@ -503,10 +714,15 @@ int rdpipe, wrpipe;
 		q = squote("[port connect timeout]");
 		putresult(TAPE_ERROR, "%s %s\n", handle, q);
 		aclose(data_socket);
+		amfree(q);
 		break;
 	    }
-	    read_file(fd, handle, hostname, diskname, datestamp, level, 1);
+	    expected_splits = -1;
+
+	    while(read_file(fd,handle,hostname,diskname,datestamp,level));
+
 	    aclose(data_socket);
+	    free_split_buffer();
 	    break;
 
 	case FILE_WRITE:
@@ -519,7 +735,9 @@ int rdpipe, wrpipe;
 	     *   diskname
 	     *   level
 	     *   datestamp
+	     *   splitsize
 	     */
+	    mode = MODE_FILE_WRITE;
 	    cmdargs.argc++;			/* true count of args */
 	    a = 2;
 
@@ -559,22 +777,49 @@ int rdpipe, wrpipe;
 	    }
 	    datestamp = newstralloc(datestamp, cmdargs.argv[a++]);
 
+	    if(a >= cmdargs.argc) {
+		error("error [taper FILE-WRITE: not enough args: splitsize]");
+	    }
+	    splitsize = atoi(cmdargs.argv[a++]);
+
 	    if(a != cmdargs.argc) {
 		error("error [taper file_reader_side FILE-WRITE: too many args: %d != %d]",
 		      cmdargs.argc, a);
 	    }
+	    if(holdfile_name != NULL) {
+		filename = newstralloc(filename, holdfile_name);
+	    }
 
-	    if(stat(filename,&stat_file)!=0) {
+	    if((expected_splits = predict_splits(filename)) < 0) {
+		break;
+	    }
+	    if(stat(filename, &stat_file)!=0) {
 		q = squotef("[%s]", strerror(errno));
 		putresult(TAPE_ERROR, "%s %s\n", handle, q);
+		amfree(q);
 		break;
 	    }
 	    if((fd = open(filename, O_RDONLY)) == -1) {
 		q = squotef("[%s]", strerror(errno));
 		putresult(TAPE_ERROR, "%s %s\n", handle, q);
+		amfree(q);
 		break;
 	    }
-	    read_file(fd, handle, hostname, diskname, datestamp, level, 0);
+	    holdfile_path = stralloc(filename);
+	    holdfile_path_thischunk = stralloc(filename);
+	    holdfile_offset_thischunk = (off_t)0;
+
+	    while(read_file(fd,handle,hostname,diskname,datestamp,level)){
+		if(splitsize > 0 && holdfile_path_thischunk)
+		    filename = newstralloc(filename, holdfile_path_thischunk);
+		if((fd = open(filename, O_RDONLY)) == -1) {
+		    q = squotef("[%s]", strerror(errno));
+		    putresult(TAPE_ERROR, "%s %s\n", handle, q);
+		    amfree(q);
+		    break;
+		}
+	    }
+
 	    break;
 
 	case QUIT:
@@ -582,7 +827,7 @@ int rdpipe, wrpipe;
 	    fprintf(stderr,"taper: DONE [idle wait: %s secs]\n",
 		    walltime_str(total_wait));
 	    fflush(stderr);
-	    syncpipe_put('Q');	/* tell writer we're exiting gracefully */
+	    syncpipe_put('Q', 0);	/* tell writer we're exiting gracefully */
 	    aclose(wrpipe);
 
 	    if((wpid = wait(NULL)) != writerpid) {
@@ -592,15 +837,17 @@ int rdpipe, wrpipe;
 		fflush(stderr);
 	    }
 
-	    detach_buffers(buffers);
-	    destroy_buffers();
-	    amfree(datestamp);
+	    if (datestamp != NULL)
+		amfree(datestamp);
 	    amfree(label);
 	    amfree(errstr);
 	    amfree(changer_resultstr);
 	    amfree(tapedev);
+	    amfree(conf_tapelist);
+	    amfree(filename);
 	    amfree(config_dir);
 	    amfree(config_name);
+	    if(holdfile_name != NULL) amfree(holdfile_name);
 
 	    malloc_size_2 = malloc_inuse(&malloc_hist_2);
 
@@ -619,14 +866,15 @@ int rdpipe, wrpipe;
 		q = stralloc("(no input?)");
 	    }
 	    putresult(BAD_COMMAND, "%s\n", q);
+	    amfree(q);
 	    break;
 	}
     }
-    amfree(q);
     amfree(handle);
-    amfree(filename);
+    am_release_feature_set(their_features);
     amfree(hostname);
     amfree(diskname);
+    fprintf(stderr, "TAPER AT END OF READER SIDE\n");
 }
 
 void dumpbufs(str1)
@@ -666,15 +914,15 @@ buffer_t *bp;
 
     pn[0] = procname[0];
     pn[1] = '\0';
-    ap_snprintf(bt, sizeof(bt), "%d", (int)(bp-buftable));
+    snprintf(bt, sizeof(bt), "%d", (int)(bp-buftable));
 
     switch(bp->status) {
-    case FULL:		ap_snprintf(status, sizeof(status), "F%d", bp->size);
+    case FULL:		snprintf(status, sizeof(status), "F%d", bp->size);
 			break;
     case FILLING:	status[0] = 'f'; status[1] = '\0'; break;
     case EMPTY:		status[0] = 'E'; status[1] = '\0'; break;
     default:
-	ap_snprintf(status, sizeof(status), "%ld", bp->status);
+	snprintf(status, sizeof(status), "%ld", bp->status);
 	break;
     }
 
@@ -683,21 +931,115 @@ buffer_t *bp;
     amfree(str);
 }
 
+/*
+  Handle moving to the next chunk of holding file, if any.  Returns -1 for
+  errors, 0 if there's no more file, or a positive integer for the amount of
+  stuff read that'll go into 'rc' (XXX That's fugly, maybe that should just
+  be another global.  What is rc anyway, 'read count?' I keep thinking it
+  should be 'return code')
+*/
+int get_next_holding_file(fd, bp, strclosing, rc)
+     int fd;
+     buffer_t *bp;
+     char *strclosing;
+{
+    int save_fd, rc1;
+    struct stat stat_file;
+    int ret = -1;
+    
+    save_fd = fd;
+    close(fd);
+    
+    /* see if we're fresh out of file */
+    if(file.cont_filename[0] == '\0') {
+ 	err = 0;
+ 	ret = 0;
+    } else if(stat(file.cont_filename, &stat_file) != 0) {
+ 	err = errno;
+ 	ret = -1;
+ 	strclosing = newvstralloc(strclosing,"can't stat: ",file.cont_filename,NULL);
+    } else if((fd = open(file.cont_filename,O_RDONLY)) == -1) {
+ 	err = errno;
+ 	ret = -1;
+ 	strclosing = newvstralloc(strclosing,"can't open: ",file.cont_filename,NULL);
+    } else if((fd != save_fd) && dup2(fd, save_fd) == -1) {
+ 	err = errno;
+ 	ret = -1;
+ 	strclosing = newvstralloc(strclosing,"can't dup2: ",file.cont_filename,NULL);
+    } else {
+ 	buffer_t bp1;
+ 	holdfile_path = stralloc(file.cont_filename);
+	
+ 	fprintf(stderr, "taper: r: switching to next holding chunk '%s'\n", file.cont_filename); 
+ 	num_holdfile_chunks++;
+	
+ 	bp1.status = EMPTY;
+ 	bp1.size = DISK_BLOCK_BYTES;
+ 	bp1.buffer = malloc(DISK_BLOCK_BYTES);
+	
+ 	if(fd != save_fd) {
+ 	    close(fd);
+ 	    fd = save_fd;
+ 	}
+	
+ 	rc1 = taper_fill_buffer(fd, &bp1, DISK_BLOCK_BYTES);
+ 	if(rc1 <= 0) {
+ 	    amfree(bp1.buffer);
+ 	    err = (rc1 < 0) ? errno : 0;
+ 	    ret = -1;
+ 	    strclosing = newvstralloc(strclosing,
+ 				      "Can't read header: ",
+ 				      file.cont_filename,
+ 				      NULL);
+ 	} else {
+ 	    parse_file_header(bp1.buffer, &file, rc1);
+	    
+ 	    amfree(bp1.buffer);
+ 	    bp1.buffer = bp->buffer + rc;
+	    
+ 	    rc1 = taper_fill_buffer(fd, &bp1, tt_blocksize - rc);
+ 	    if(rc1 <= 0) {
+ 		err = (rc1 < 0) ? errno : 0;
+ 		ret = -1;
+ 		if(rc1 < 0) {
+ 	    	    strclosing = newvstralloc(strclosing,
+ 					      "Can't read data: ",
+					      file.cont_filename,
+ 					      NULL);
+ 		}
+ 	    }
+ 	    else {
+ 		ret = rc1;
+ 		num_holdfiles++;
+ 	    }
+ 	}
+    }
+    
+    return(ret);
+}
 
-void read_file(fd, handle, hostname, diskname, datestamp, level, port_flag)
-    int fd, level, port_flag;
+
+int read_file(fd, handle, hostname, diskname, datestamp, level)
+    int fd, level;
     char *handle, *hostname, *diskname, *datestamp;
 {
     buffer_t *bp;
     char tok;
-    int rc, err, opening, closing, bufnum, need_closing;
+    int rc, opening, closing, bufnum, need_closing, nexting;
     long filesize;
     times_t runtime;
     char *strclosing = NULL;
+    char seekerrstr[STR_SIZE];
     char *str;
-    int header_read = 0;
+    int header_written = 0;
     int buflen;
-    dumpfile_t file;
+    dumpfile_t first_file;
+    dumpfile_t cur_holdfile;
+    long kbytesread = 0;
+    int header_read = 0;
+    char *cur_filename = NULL;
+    int retry_from_splitbuf = 0;
+    char *splitbuf_rd_ptr = NULL;
 
     char *q = NULL;
 
@@ -713,8 +1055,18 @@ void read_file(fd, handle, hostname, diskname, datestamp, level, port_flag)
     filesize = 0;
     closing = 0;
     need_closing = 0;
+    nexting = 0;
     err = 0;
+
+    /* don't break this if we're still on the same file as a previous init */
+    if(cur_span_chunkstart <= 0){
     fh_init(&file);
+      header_read = 0;
+    }
+    else if(mode == MODE_FILE_WRITE){
+      memcpy(&file, save_holdfile, sizeof(dumpfile_t));
+      memcpy(&cur_holdfile, save_holdfile, sizeof(dumpfile_t));
+    }
 
     if(bufdebug) {
 	fprintf(stderr, "taper: r: start file\n");
@@ -728,46 +1080,78 @@ void read_file(fd, handle, hostname, diskname, datestamp, level, port_flag)
     bp = buftable;
     if(interactive || bufdebug) dumpstatus(bp);
 
+    if(cur_span_chunkstart >= 0 && splitsize > 0){
+        /* We're supposed to start at some later part of the file, not read the
+	   whole thing. "Seek" forward to where we want to be. */
+	if(label) putresult(SPLIT_CONTINUE, "%s %s\n", handle, label);
+        if(mode == MODE_FILE_WRITE && cur_span_chunkstart > 0){
+	    fprintf(stderr, "taper: r: seeking %s to " OFF_T_FMT " kb\n",
+	                    holdfile_path_thischunk, holdfile_offset_thischunk);
+	    fflush(stderr);
+
+	    if(holdfile_offset_thischunk > maxseek){
+	      snprintf(seekerrstr, sizeof(seekerrstr), "Can't seek by " OFF_T_FMT " kb (compiled for %d-bit file offsets), recompile with large file support or set holdingdisk chunksize to <%ld Mb", holdfile_offset_thischunk, (int)(sizeof(off_t) * 8), (long)(maxseek/1024));
+	      log_add(L_ERROR, "%s", seekerrstr);
+	      fprintf(stderr, "taper: r: FATAL: %s\n", seekerrstr);
+	      fflush(stderr);
+	      syncpipe_put('X', 0);
+	      return -1;
+	    }
+	    if(lseek(fd, holdfile_offset_thischunk*1024, SEEK_SET) == (off_t)-1){
+	      fprintf(stderr, "taper: r: FATAL: seek_holdfile lseek error while seeking into %s by " OFF_T_FMT "kb: %s\n", holdfile_path_thischunk, holdfile_offset_thischunk, strerror(errno));
+	      fflush(stderr);
+	      syncpipe_put('X', 0);
+	      return -1;
+	    }
+        }
+        else if(mode == MODE_PORT_WRITE){
+	    fprintf(stderr, "taper: r: re-reading split dump piece from buffer\n");
+	    fflush(stderr);
+	    retry_from_splitbuf = 1;
+	    splitbuf_rd_ptr = splitbuf;
+	    if(splitbuf_rd_ptr >= splitbuf_wr_ptr) retry_from_splitbuf = 0;
+        }
+        if(cur_span_chunkstart > 0) header_read = 1; /* really initialized in prior run */
+    }
+
     /* tell writer to open tape */
 
     opening = 1;
-    syncpipe_put('O');
+    syncpipe_put('O', 0);
     syncpipe_putstr(datestamp);
     syncpipe_putstr(hostname);
     syncpipe_putstr(diskname);
     syncpipe_putint(level);
 
     startclock();
-
+    
     /* read file in loop */
-
+    
     while(1) {
-	tok = syncpipe_get();
+	tok = syncpipe_get(&bufnum);
 	switch(tok) {
-
+	    
 	case 'O':
 	    assert(opening);
 	    opening = 0;
 	    err = 0;
 	    break;
-
+	    
 	case 'R':
-	    bufnum = syncpipe_getint();
-
 	    if(bufdebug) {
 		fprintf(stderr, "taper: r: got R%d\n", bufnum);
 		fflush(stderr);
 	    }
-
+	    
 	    if(need_closing) {
-		syncpipe_put('C');
+		syncpipe_put('C', 0);
 		closing = 1;
 		need_closing = 0;
 		break;
 	    }
-
+	    
 	    if(closing) break;	/* ignore extra read tokens */
-
+	    
 	    assert(!opening);
 	    if(bp->status != EMPTY || bufnum != bp-buftable) {
 		/* XXX this SHOULD NOT HAPPEN.  Famous last words. */
@@ -790,166 +1174,206 @@ void read_file(fd, handle, hostname, diskname, datestamp, level, port_flag)
 		if(bp->status == EMPTY)
 		    fprintf(stderr, "taper: result now correct!\n");
 		fflush(stderr);
-
+		
 		errstr = newstralloc(errstr,
 				     "[fatal buffer mismanagement bug]");
 		q = squote(errstr);
 		putresult(TRYAGAIN, "%s %s\n", handle, q);
+		cur_span_chunkstart = 0;
 		amfree(q);
 		log_add(L_INFO, "retrying %s:%s.%d on new tape due to: %s",
 		        hostname, diskname, level, errstr);
 		closing = 1;
-		syncpipe_put('X');	/* X == buffer snafu, bail */
+		syncpipe_put('X', 0);	/* X == buffer snafu, bail */
 		do {
-		    tok = syncpipe_get();
-		    if(tok == 'R')
-			bufnum = syncpipe_getint();
+		    tok = syncpipe_get(&bufnum);
 		} while(tok != 'x');
 		aclose(fd);
-		return;
-	    }
+		return -1;
+	    } /* end 'if (bf->status != EMPTY || bufnum != bp-buftable)' */
 
 	    bp->status = FILLING;
 	    buflen = header_read ? tt_blocksize : DISK_BLOCK_BYTES;
 	    if(interactive || bufdebug) dumpstatus(bp);
-	    if((rc = taper_fill_buffer(fd, bp, buflen)) < 0) {
-		err = errno;
-		closing = 1;
-		strclosing = newvstralloc(strclosing,"Can't read data: ",NULL);
-		syncpipe_put('C');
-	    } else {
-		if(rc < buflen) { /* switch to next file */
-		    int save_fd;
-		    struct stat stat_file;
+ 	    if(header_written == 0 && (header_read == 1 || cur_span_chunkstart > 0)){
+ 		/* for split dumpfiles, modify headers for the second - nth
+ 		   pieces that signify that they're continuations of the last
+ 		   normal one */
+ 		char *cont_filename;
+ 		file.type = F_SPLIT_DUMPFILE;
+ 		file.partnum = num_splits + 1;
+ 		file.totalparts = expected_splits;
+                 cont_filename = stralloc(file.cont_filename);
+ 		file.cont_filename[0] = '\0';
+ 		build_header(bp->buffer, &file, tt_blocksize);
+  
+ 		if(cont_filename[0] != '\0') {
+ 		  file.type = F_CONT_DUMPFILE;
+                   strncpy(file.cont_filename, cont_filename,
+                           sizeof(file.cont_filename));
+  			}
+ 		memcpy(&cur_holdfile, &file, sizeof(dumpfile_t));
+  
+ 		if(interactive || bufdebug) dumpstatus(bp);
+ 		bp->size = tt_blocksize;
+ 		rc = tt_blocksize;
+ 		header_written = 1;
+ 		amfree(cont_filename);
+ 			}
+ 	    else if(retry_from_splitbuf){
+ 		/* quietly pull dump data from our in-memory cache, and the
+ 		   writer side need never know the wiser */
+ 		memcpy(bp->buffer, splitbuf_rd_ptr, tt_blocksize);
+ 		bp->size = tt_blocksize;
+ 		rc = tt_blocksize;
+ 
+ 		splitbuf_rd_ptr += tt_blocksize;
+ 		if(splitbuf_rd_ptr >= splitbuf_wr_ptr) retry_from_splitbuf = 0;
+ 	    }
+ 	    else if((rc = taper_fill_buffer(fd, bp, buflen)) < 0) {
+ 		err = errno;
+ 		closing = 1;
+ 		strclosing = newvstralloc(strclosing,"Can't read data: ",NULL);
+ 		syncpipe_put('C', 0);
+ 	    }
+  
+ 	    if(!closing) {
+ 	        if(rc < buflen) { /* switch to next holding file */
+ 		    int ret;
+ 		    if(file.cont_filename[0] != '\0'){
+ 		       cur_filename = newvstralloc(cur_filename, file.cont_filename, NULL);
+ 				}
+ 		    ret = get_next_holding_file(fd, bp, strclosing, rc);
+ 		    if(ret <= 0){
+ 			need_closing = 1;
+  			    }
+  			    else {
+ 		        memcpy(&cur_holdfile, &file, sizeof(dumpfile_t));
+ 		        rc += ret;
+  				bp->size = rc;
+  			    }
+  			}
+  		if(rc > 0) {
+  		    bp->status = FULL;
+ 		    /* rebuild the header block, which might have CONT junk */
+  		    if(header_read == 0) {
+  			char *cont_filename;
+ 			/* write the "real" filename if the holding-file
+ 			   is a partial one */
+  			parse_file_header(bp->buffer, &file, rc);
+  			parse_file_header(bp->buffer, &first_file, rc);
+  			cont_filename = stralloc(file.cont_filename);
+  			file.cont_filename[0] = '\0';
+ 			if(splitsize > 0){
+ 			    file.type = F_SPLIT_DUMPFILE;
+ 			    file.partnum = 1;
+ 			    file.totalparts = expected_splits;
+ 			}
+  			file.blocksize = tt_blocksize;
+  			build_header(bp->buffer, &file, tt_blocksize);
+ 			kbytesread += tt_blocksize/1024; /* XXX shady */
+ 
+ 			file.type = F_CONT_DUMPFILE;
+ 
+  			/* add CONT_FILENAME back to in-memory header */
+  			strncpy(file.cont_filename, cont_filename, 
+  				sizeof(file.cont_filename));
+  			if(interactive || bufdebug) dumpstatus(bp);
+  			bp->size = tt_blocksize; /* output a full tape block */
+ 			/* save the header, we'll need it if we jump tapes */
+ 			memcpy(&cur_holdfile, &file, sizeof(dumpfile_t));
+  			header_read = 1;
+ 			header_written = 1;
+  			amfree(cont_filename);
+  		    }
+  		    else {
+ 			filesize = kbytesread;
+  		    }
 
-		    save_fd = fd;
-		    close(fd);
-		    if(file.cont_filename[0] == '\0') {	/* no more file */
-			err = 0;
-			need_closing = 1;
-		    } else if(stat(file.cont_filename, &stat_file) != 0) {
-			err = errno;
-			need_closing = 1;
-			strclosing = newvstralloc(strclosing,"can't stat: ",file.cont_filename,NULL);
-		    } else if((fd = open(file.cont_filename,O_RDONLY)) == -1) {
-			err = errno;
-			need_closing = 1;
-			strclosing = newvstralloc(strclosing,"can't open: ",file.cont_filename,NULL);
-		    } else if((fd != save_fd) && dup2(fd, save_fd) == -1) {
-			err = errno;
-			need_closing = 1;
-			strclosing = newvstralloc(strclosing,"can't dup2: ",file.cont_filename,NULL);
-		    } else {
-			buffer_t bp1;
-			int rc1;
-
-			bp1.status = EMPTY;
-			bp1.size = DISK_BLOCK_BYTES;
-			bp1.buffer = malloc(DISK_BLOCK_BYTES);
-
-			if(fd != save_fd) {
-			    close(fd);
-			    fd = save_fd;
-			}
-
-			rc1 = taper_fill_buffer(fd, &bp1, DISK_BLOCK_BYTES);
-			if(rc1 <= 0) {
-			    amfree(bp1.buffer);
-			    err = (rc1 < 0) ? errno : 0;
-			    need_closing = 1;
-			    strclosing = newvstralloc(strclosing,
-						      "Can't read header: ",
-						      file.cont_filename,
-						      NULL);
-			} else {
-			    parse_file_header(bp1.buffer, &file, rc1);
-
-			    amfree(bp1.buffer);
-			    bp1.buffer = bp->buffer + rc;
-
-			    rc1 = taper_fill_buffer(fd, &bp1, tt_blocksize - rc);
-			    if(rc1 <= 0) {
-				err = (rc1 < 0) ? errno : 0;
-				need_closing = 1;
-				if(rc1 < 0) {
-			    	    strclosing = newvstralloc(strclosing,
-							      "Can't read data: ",
-							      file.cont_filename,
-							      NULL);
-				}
-			    }
-			    else {
-				rc += rc1;
-				bp->size = rc;
-			    }
-			}
-		    }
-		}
-		if(rc > 0) {
-		    bp->status = FULL;
-		    if(header_read == 0) {
-			char *cont_filename;
-
-			parse_file_header(bp->buffer, &file, rc);
-			cont_filename = stralloc(file.cont_filename);
-			file.cont_filename[0] = '\0';
-			file.blocksize = tt_blocksize;
-			build_header(bp->buffer, &file, tt_blocksize);
-
-			/* add CONT_FILENAME back to in-memory header */
-			strncpy(file.cont_filename, cont_filename, 
-				sizeof(file.cont_filename));
-			if(interactive || bufdebug) dumpstatus(bp);
-			bp->size = tt_blocksize; /* output a full tape block */
-			header_read = 1;
-			amfree(cont_filename);
-		    }
-		    else {
-			filesize += am_round(rc, 1024) / 1024;
-		    }
-		    if(interactive || bufdebug) dumpstatus(bp);
 		    if(bufdebug) {
 			fprintf(stderr,"taper: r: put W%d\n",(int)(bp-buftable));
 			fflush(stderr);
 		    }
-		    syncpipe_put('W');
-		    syncpipe_putint(bp-buftable);
+		    syncpipe_put('W', bp-buftable);
 		    bp = nextbuf(bp);
 		}
+
+		if(kbytesread + DISK_BLOCK_BYTES/1024 >= splitsize && splitsize > 0 && !need_closing){
+
+		    if(mode == MODE_PORT_WRITE){
+			splitbuf_wr_ptr = splitbuf;
+			splitbuf_rd_ptr = splitbuf;
+			memset(splitbuf, 0, sizeof(splitbuf));
+			retry_from_splitbuf = 0;
+		    }
+
+		    fprintf(stderr,"taper: r: end %s.%s.%s.%d part %d, splitting chunk that started at %ldkb after %ldkb (next chunk will start at %ldkb)\n", hostname, diskname, datestamp, level, num_splits+1, cur_span_chunkstart, kbytesread, cur_span_chunkstart+kbytesread);
+		    fflush(stderr);
+
+		    nexting = 1;
+		    need_closing = 1;
+		} /* end '(kbytesread >= splitsize && splitsize > 0)' */
 		if(need_closing && rc <= 0) {
-		    syncpipe_put('C');
+		    syncpipe_put('C', 0);
 		    need_closing = 0;
 		    closing = 1;
 		}
-	    }
+                kbytesread += rc/1024;
+	    } /* end the 'if(!closing)' (successful buffer fill) */
 	    break;
 
 	case 'T':
 	case 'E':
-	    syncpipe_put('e');	/* ACK error */
+	    syncpipe_put('e', 0);	/* ACK error */
 
-	    aclose(fd);
 	    str = syncpipe_getstr();
 	    errstr = newvstralloc(errstr, "[", str ? str : "(null)", "]", NULL);
 	    amfree(str);
 
 	    q = squote(errstr);
 	    if(tok == 'T') {
-		putresult(TRYAGAIN, "%s %s\n", handle, q);
-		log_add(L_INFO, "retrying %s:%s.%d on new tape due to: %s",
-		        hostname, diskname, level, errstr);
+		if(splitsize > 0){
+		    /* we'll be restarting this chunk on the next tape */
+		    if(mode == MODE_FILE_WRITE){
+		      aclose(fd);
+		    }
+
+		    putresult(SPLIT_NEEDNEXT, "%s %ld\n", handle, cur_span_chunkstart);
+		    log_add(L_INFO, "continuing %s:%s.%d on new tape from %ldkb mark: %s",
+			    hostname, diskname, level, cur_span_chunkstart, errstr);
+		    return 1;
+		}
+		else{
+		    /* restart the entire dump (failure propagates to driver) */
+		    aclose(fd);
+		    putresult(TRYAGAIN, "%s %s\n", handle, q);
+		    cur_span_chunkstart = 0;
+		    log_add(L_INFO, "retrying %s:%s.%d on new tape due to: %s",
+			    hostname, diskname, level, errstr);
+		}
 	    } else {
+		aclose(fd);
 		putresult(TAPE_ERROR, "%s %s\n", handle, q);
 		log_add(L_FAIL, "%s %s %s %d [out of tape]",
 			hostname, diskname, datestamp, level);
-		log_add(L_ERROR,"no-tape [%s]", errstr);
+		log_add(L_ERROR,"no-tape [%s]", "No more writable valid tape found");
 	    }
 	    amfree(q);
-	    return;
+
+	    return 0;
 
 	case 'C':
 	    assert(!opening);
 	    assert(closing);
+
+	    if(nexting){
+	      cur_span_chunkstart += kbytesread; /* XXX possibly wrong */
+	      holdfile_name = newvstralloc(holdfile_name, cur_filename, NULL);
+
+	      kbytesread = 0;
+	      if(cur_filename != NULL) amfree(cur_filename);
+	    }
+
 
 	    str = syncpipe_getstr();
 	    label = newstralloc(label, str ? str : "(null)");
@@ -961,8 +1385,13 @@ void read_file(fd, handle, hostname, diskname, datestamp, level, port_flag)
 		    label, filenum);
 	    fflush(stderr);
 
+	    /* we'll need that file descriptor if we're gonna write more */
+	    if(!nexting){
 	    aclose(fd);
+	    }
+
 	    runtime = stopclock();
+	    if(nexting) startclock();
 	    if(err) {
 		if(strclosing) {
 		    errstr = newvstralloc(errstr,
@@ -976,35 +1405,100 @@ void read_file(fd, handle, hostname, diskname, datestamp, level, port_flag)
 				          NULL);
 		q = squote(errstr);
 		putresult(TAPE_ERROR, "%s %s\n", handle, q);
+
 		amfree(q);
+		if(splitsize){
+		  log_add(L_FAIL, "%s %s %s.%d %d %s", hostname, diskname,
+			  datestamp, num_splits, level, errstr);
+		}
+		else{
 		log_add(L_FAIL, "%s %s %s %d %s",
 			hostname, diskname, datestamp, level, errstr);
+		}
 		str = syncpipe_getstr();	/* reap stats */
 		amfree(str);
+                amfree(errstr);
 	    } else {
 		char kb_str[NUM_STR_SIZE];
 		char kps_str[NUM_STR_SIZE];
 		double rt;
 
 		rt = runtime.r.tv_sec+runtime.r.tv_usec/1000000.0;
-		ap_snprintf(kb_str, sizeof(kb_str), "%ld", filesize);
-		ap_snprintf(kps_str, sizeof(kps_str), "%3.1f",
+		curdump_rt = timesadd(runtime, curdump_rt);
+		snprintf(kb_str, sizeof(kb_str), "%ld", filesize);
+		snprintf(kps_str, sizeof(kps_str), "%3.1f",
 				     rt ? filesize / rt : 0.0);
 		str = syncpipe_getstr();
 		errstr = newvstralloc(errstr,
 				      "[sec ", walltime_str(runtime),
 				      " kb ", kb_str,
 				      " kps ", kps_str,
-				      " ", str ? str : "(null)",
+				      " ", str,
 				      "]",
 				      NULL);
-		amfree(str);
 		q = squote(errstr);
-		putresult(DONE, "%s %s %d %s\n",
-			  handle, label, filenum, q);
-		amfree(q);
-		log_add(L_SUCCESS, "%s %s %s %d %s",
-		        hostname, diskname, datestamp, level, errstr);
+		if (splitsize == 0) { /* Ordinary dump */
+		    if(first_file.is_partial) {
+			putresult(PARTIAL, "%s %s %d %s\n",
+				  handle, label, filenum, q);
+			log_add(L_PARTIAL, "%s %s %s %d %s",
+				hostname, diskname, datestamp, level, errstr);
+		    }
+		    else {
+			putresult(DONE, "%s %s %d %s\n",
+				  handle, label, filenum, q);
+			log_add(L_SUCCESS, "%s %s %s %d %s",
+				hostname, diskname, datestamp, level, errstr);
+		    }
+		} else { /* Chunked dump */
+		    num_splits++;
+		    if(mode == MODE_FILE_WRITE){
+			holdfile_path_thischunk = stralloc(holdfile_path);
+			holdfile_offset_thischunk = (lseek(fd, (off_t)0, SEEK_CUR))/1024;
+			if(!save_holdfile){
+			    save_holdfile = alloc(sizeof(dumpfile_t));
+			}
+			memcpy(save_holdfile, &cur_holdfile,sizeof(dumpfile_t));
+		    }
+		    log_add(L_CHUNK, "%s %s %s %d %d %s", hostname, diskname,
+			    datestamp, num_splits, level, errstr);
+		    if(!nexting){ /* split dump complete */
+			rt =curdump_rt.r.tv_sec+curdump_rt.r.tv_usec/1000000.0;
+			snprintf(kb_str, sizeof(kb_str), "%ld",
+				    filesize+cur_span_chunkstart);
+			snprintf(kps_str, sizeof(kps_str), "%3.1f",
+				    rt ? (filesize+cur_span_chunkstart) / rt : 0.0);
+                        amfree(errstr);
+			errstr = newvstralloc(errstr,
+					      "[sec ", walltime_str(curdump_rt),
+					      " kb ", kb_str,
+					      " kps ", kps_str,
+					      " ", str,
+					      "]",
+					      NULL);
+                        q = squote(errstr);
+			putresult(DONE, "%s %s %d %s\n", handle, label,
+				  filenum, q);
+			log_add(L_CHUNKSUCCESS, "%s %s %s %d %s",
+				hostname, diskname, datestamp, level, errstr);
+			amfree(save_holdfile);
+			amfree(holdfile_path_thischunk);
+                        amfree(q);
+                    }
+ 		}
+		amfree(str);
+
+ 		if(!nexting){
+ 		    num_splits = 0;
+ 		    expected_splits = 0;
+ 		    amfree(holdfile_name);
+ 		    num_holdfiles = 0;
+ 		    cur_span_chunkstart = 0;
+ 		    curdump_rt = times_zero;
+ 		}
+		
+ 		amfree(errstr);
+		
 #ifdef HAVE_LIBVTBLC
 		/* 
 		 *  We have 44 characters available for the label string:
@@ -1045,8 +1539,7 @@ void read_file(fd, handle, hostname, diskname, datestamp, level, port_flag)
 		fflush(stderr);
 
 		/* pass label string on to tape writer */
-		syncpipe_put('L');
-		syncpipe_putint(filenum);
+		syncpipe_put('L', filenum);
 		syncpipe_putstr(vol_label);		
 
 		/* 
@@ -1060,18 +1553,38 @@ void read_file(fd, handle, hostname, diskname, datestamp, level, port_flag)
 			vol_date);
 
 		/* pass date string on to tape writer */		
-		syncpipe_put('D');
-		syncpipe_putint(filenum);
+		syncpipe_put('D', filenum);
 		syncpipe_putstr(vol_date);
 
 #endif /* HAVE_LIBVTBLC */
 	    }
-	    return;
+	    /* reset stuff that assumes we're on a new file */
+
+	    if(nexting){
+		opening = 1;
+		nexting = 0;
+		closing = 0;
+		filesize = 0;
+		syncpipe_put('O', 0);
+		syncpipe_putstr(datestamp);
+		syncpipe_putstr(hostname);
+		syncpipe_putstr(diskname);
+		syncpipe_putint(level);
+		for(bp = buftable; bp < buftable + conf_tapebufs; bp++) {
+		    bp->status = EMPTY;
+		}
+		bp = buftable;
+		header_written = 0;
+		break;
+	    }
+	    else return 0;
 
 	default:
 	    assert(0);
 	}
     }
+
+    return 0;
 }
 
 int taper_fill_buffer(fd, bp, buflen)
@@ -1086,28 +1599,67 @@ int buflen;
     bp->size = 0;
     spaceleft = buflen;
 
-    do {
-	cnt = read(fd, curptr, spaceleft);
-	switch(cnt) {
-	case 0:	/* eof */
-	    if(interactive) fputs("r0", stderr);
-	    return bp->size;
-	case -1:	/* error on read, punt */
-	    if(interactive) fputs("rE", stderr);
-	    return -1;
-	default:
-	    spaceleft -= cnt;
-	    curptr += cnt;
-	    bp->size += cnt;
+    cnt = fullread(fd, curptr, spaceleft);
+    switch(cnt) {
+    case 0:	/* eof */
+	if(interactive) fputs("r0", stderr);
+	return bp->size;
+    case -1:	/* error on read, punt */
+	if(interactive) fputs("rE", stderr);
+	return -1;
+    default:
+	if(mode == MODE_PORT_WRITE && splitsize > 0){
+	    memcpy(splitbuf_wr_ptr, curptr, (size_t)cnt);
+	    splitbuf_wr_ptr += cnt;
 	}
-
-    } while(spaceleft > 0);
+	spaceleft -= cnt;
+	curptr += cnt;
+	bp->size += cnt;
+    }
 
     if(interactive) fputs("R", stderr);
     return bp->size;
 }
 
+/* Given a dumpfile in holding, determine its size and figure out how many
+ * times we'd have to split it.
+ */
+int predict_splits(filename)
+char *filename;
+{
+    int splits = 0;
+    long total_kb = 0;
+    long adj_splitsize = splitsize - DISK_BLOCK_BYTES/1024;
 
+    if(splitsize <= 0) return(0);
+
+    if(adj_splitsize <= 0){
+      error("Split size must be > %ldk", DISK_BLOCK_BYTES/1024);
+    }
+
+    /* should only calculuate this once, not on retries etc */
+    if(expected_splits != 0) return(expected_splits);
+
+    total_kb = size_holding_files(filename, 1);
+    
+    if(total_kb <= 0){
+      fprintf(stderr, "taper: r: %ld kb holding file makes no sense, not precalculating splits\n", total_kb);
+      fflush(stderr);
+      return(0);
+    }
+
+    fprintf(stderr, "taper: r: Total dump size should be %ldkb, chunk size is %ldkb\n", total_kb, splitsize);
+    fflush(stderr);
+
+    splits = total_kb/adj_splitsize;
+    if(total_kb % adj_splitsize) splits++;
+
+
+    fprintf(stderr, "taper: r: Expecting to split into %d parts \n", splits);
+    fflush(stderr);
+
+    return(splits);
+}
 
 /*
  * ========================================================================
@@ -1132,6 +1684,7 @@ int getp, putp;
     char *diskname;
     char *datestamp;
     int level;
+    int tmpint;
 
 #ifdef HAVE_LIBVTBLC
     char *vol_label;
@@ -1146,7 +1699,7 @@ int getp, putp;
 
     while(1) {
 	startclock();
-	tok = syncpipe_get();
+	tok = syncpipe_get(&tmpint);
 	idlewait = timesadd(idlewait, stopclock());
 	if(tok != 'S' && tok != 'Q' && !tape_started) {
 	    error("writer: token '%c' before start", tok);
@@ -1163,17 +1716,17 @@ int getp, putp;
 		    tapefd_close(tape_fd);
 		    tape_fd = -1;
 		}
-		syncpipe_put('E');
+		syncpipe_put('E', 0);
 		syncpipe_putstr(errstr);
 		/* wait for reader to acknowledge error */
 		do {
-		    tok = syncpipe_get();
+		    tok = syncpipe_get(&tmpint);
 		    if(tok != 'e') {
 			error("writer: got '%c' unexpectedly after error", tok);
 		    }
 		} while(tok != 'e');
 	    } else {
-		syncpipe_put('S');
+		syncpipe_put('S', 0);
 		tape_started = 1;
 	    }
 	    amfree(str);
@@ -1197,7 +1750,7 @@ int getp, putp;
 
 #ifdef HAVE_LIBVTBLC
 	case 'L':		/* read vtbl label */
-	    vtbl_no = syncpipe_getint();
+	    vtbl_no = tmpint;
 	    vol_label = syncpipe_getstr();
 	    fprintf(stderr, "taper: read label string \"%s\" from pipe\n", 
 		    vol_label);
@@ -1205,7 +1758,7 @@ int getp, putp;
 	    break;
 
 	case 'D':		/* read vtbl date */
-	    vtbl_no = syncpipe_getint();
+	    vtbl_no = tmpint;
 	    vol_date = syncpipe_getstr();
 	    fprintf(stderr, "taper: read date string \"%s\" from pipe\n", 
 		    vol_date);
@@ -1216,12 +1769,12 @@ int getp, putp;
 	case 'Q':
 	    end_tape(0);	/* XXX check results of end tape ?? */
 	    clear_tapelist();
-	    detach_buffers(buffers);
 	    amfree(taper_datestamp);
 	    amfree(label);
 	    amfree(errstr);
 	    amfree(changer_resultstr);
 	    amfree(tapedev);
+	    amfree(conf_tapelist);
 	    amfree(config_dir);
 	    amfree(config_name);
 
@@ -1246,6 +1799,7 @@ void write_file()
     char tok;
     char number[NUM_STR_SIZE];
     char *rdwait_str, *wrwait_str, *fmwait_str;
+    int tmpint;
 
     rdwait = wrwait = times_zero;
     total_writes = 0;
@@ -1262,13 +1816,13 @@ void write_file()
     /*
      * Tell the reader that the tape is open, and give it all the buffers.
      */
-    syncpipe_put('O');
+    syncpipe_put('O', 0);
     for(i = 0; i < conf_tapebufs; i++) {
 	if(bufdebug) {
 	    fprintf(stderr, "taper: w: put R%d\n", i);
 	    fflush(stderr);
 	}
-	syncpipe_put('R'); syncpipe_putint(i);
+	syncpipe_put('R', i);
     }
 
     /*
@@ -1299,9 +1853,8 @@ void write_file()
 	if(interactive) fputs("[WS]", stderr);
 	startclock();
 	while(full_buffers < conf_tapebufs - THRESHOLD) {
-	    tok = syncpipe_get();
+	    tok = syncpipe_get(&bufnum);
 	    if(tok != 'W') break;
-	    bufnum = syncpipe_getint();
 	    if(bufdebug) {
 		fprintf(stderr,"taper: w: got W%d\n",bufnum);
 		fflush(stderr);
@@ -1343,9 +1896,8 @@ void write_file()
 	 */
 
 	while(tok == 'W' && bp->status == FULL) {
-	    tok = syncpipe_get();
+	    tok = syncpipe_get(&bufnum);
 	    if(tok == 'W') {
-		bufnum = syncpipe_getint();
 		if(bufdebug) {
 		    fprintf(stderr,"taper: w: got W%d\n",bufnum);
 		    fflush(stderr);
@@ -1355,7 +1907,7 @@ void write_file()
 			    "taper: tape-writer: my buf %d reader buf %d\n",
 			    (int)(bp-buftable), bufnum);
 		    fflush(stderr);
-		    syncpipe_put('E');
+		    syncpipe_put('E', 0);
 		    syncpipe_putstr("writer-side buffer mismatch");
 		    goto error_ack;
 		}
@@ -1381,15 +1933,15 @@ void write_file()
 	goto reader_buffer_snafu;
 
     assert(tok == 'C');
-    syncpipe_put('C');
+    syncpipe_put('C', 0);
 
     /* tell reader the tape and file number */
 
     syncpipe_putstr(label);
-    ap_snprintf(number, sizeof(number), "%d", filenum);
+    snprintf(number, sizeof(number), "%d", filenum);
     syncpipe_putstr(number);
 
-    ap_snprintf(number, sizeof(number), "%ld", total_writes);
+    snprintf(number, sizeof(number), "%ld", total_writes);
     rdwait_str = stralloc(walltime_str(rdwait));
     wrwait_str = stralloc(walltime_str(wrwait));
     fmwait_str = stralloc(walltime_str(fmwait));
@@ -1412,23 +1964,21 @@ void write_file()
 
  tape_error:
     /* got tape error */
-    if(next_tape(1)) syncpipe_put('T');	/* next tape in place, try again */
-    else syncpipe_put('E');		/* no more tapes, fail */
+    if(next_tape(1)) syncpipe_put('T', 0);	/* next tape in place, try again */
+    else syncpipe_put('E', 0);		/* no more tapes, fail */
     syncpipe_putstr(errstr);
 
  error_ack:
     /* wait for reader to acknowledge error */
     do {
-	tok = syncpipe_get();
+	tok = syncpipe_get(&tmpint);
 	if(tok != 'W' && tok != 'C' && tok != 'e')
 	    error("writer: got '%c' unexpectedly after error", tok);
-	if(tok == 'W')
-	    syncpipe_getint();	/* eat buffer number */
     } while(tok != 'e');
     return;
 
  reader_buffer_snafu:
-    syncpipe_put('x');
+    syncpipe_put('x', 0);
     return;
 }
 
@@ -1437,10 +1987,7 @@ buffer_t *bp;
 {
     int rc;
 
-    if(bp->status != FULL) {
-	/* XXX buffer management snafu */
-	assert(0);
-    }
+    assert(bp->status == FULL);
 
     startclock();
     rc = tapefd_write(tape_fd, bp->buffer, bp->size);
@@ -1470,7 +2017,7 @@ buffer_t *bp;
 	    fprintf(stderr, "taper: w: put R%d\n", (int)(bp-buftable));
 	    fflush(stderr);
 	}
-	syncpipe_put('R'); syncpipe_putint(bp-buftable);
+	syncpipe_put('R', bp-buftable);
 	return 1;
     } else {
 	errstr = newvstralloc(errstr,
@@ -1480,6 +2027,67 @@ buffer_t *bp;
 	wrwait = timesadd(wrwait, stopclock());
 	if(interactive) fputs("[WE]", stderr);
 	return 0;
+    }
+}
+
+
+static void 
+cleanup(void)
+{
+    REMOVE_SHARED_MEMORY(); 
+}
+
+
+/*
+ * Cleanup shared memory segments 
+ */
+static void 
+signal_handler(int signum)
+{
+    log_add(L_INFO, "Received signal %d", signum);
+
+    exit(1);
+}
+
+
+/*
+ * Installing signal handlers for signal whose default action is 
+ * process termination so that we can clean up shared memory
+ * segments
+ */
+static void
+install_signal_handlers(void) 
+{
+    struct sigaction act;
+
+    act.sa_handler = signal_handler;
+    act.sa_flags = 0;
+    sigemptyset(&act.sa_mask);
+
+    signal(SIGPIPE, SIG_IGN);
+
+    if (sigaction(SIGINT, &act, NULL) != 0) {
+	error("taper: couldn't install SIGINT handler [%s]", strerror(errno));
+    }
+
+    if (sigaction(SIGHUP, &act, NULL) != 0) {
+	error("taper: couldn't install SIGHUP handler [%s]", strerror(errno));
+    }
+   
+    if (sigaction(SIGTERM, &act, NULL) != 0) {
+	error("taper: couldn't install SIGTERM handler [%s]", strerror(errno));
+    }
+
+    if (sigaction(SIGUSR1, &act, NULL) != 0) {
+	error("taper: couldn't install SIGUSR1 handler [%s]", strerror(errno));
+    }
+
+    if (sigaction(SIGUSR2, &act, NULL) != 0) {
+	error("taper: couldn't install SIGUSR2 handler [%s]", strerror(errno));
+    }
+
+    if (sigaction(SIGALRM, &act, NULL) != 0) {
+	error("taper: couldn't install SIGALRM handler [%s]", strerror(errno));
     }
 }
 
@@ -1521,7 +2129,8 @@ char *attach_buffers(size)
 void detach_buffers(bufp)
     char *bufp;
 {
-    if(shmdt((SHM_ARG_TYPE *)bufp) == -1) {
+    if ((bufp != NULL) &&
+        (shmdt((SHM_ARG_TYPE *)bufp) == -1)) {
 	error("shmdt: %s", strerror(errno));
     }
 }
@@ -1580,11 +2189,13 @@ char *attach_buffers(size)
 void detach_buffers(bufp)
 char *bufp;
 {
-    if(munmap((void *)bufp, saved_size) == -1) {
+    if ((bufp != NULL) && 
+	(munmap((void *)bufp, saved_size) == -1)) {
 	error("detach_buffers: munmap: %s", strerror(errno));
     }
 
-    aclose(shmfd);
+    if (shmfd != -1)
+	aclose(shmfd);
 }
 
 void destroy_buffers()
@@ -1592,7 +2203,7 @@ void destroy_buffers()
 }
 
 #else
-error: must define either HAVE_SYSVSHM or HAVE_MMAP!
+#error: must define either HAVE_SYSVSHM or HAVE_MMAP!
 #endif
 #endif
 
@@ -1613,111 +2224,95 @@ int rd, wr;
     putpipe = wr;
 }
 
-char syncpipe_get()
+char syncpipe_get(intp)
+int *intp;
 {
     int rc;
-    char buf[1];
+    char buf[sizeof(char) + sizeof(int)];
 
-    rc = read(getpipe, buf, sizeof(buf));
+    rc = fullread(getpipe, buf, sizeof(buf));
     if(rc == 0)		/* EOF */
 	error("syncpipe_get: %c: unexpected EOF", *procname);
     else if(rc < 0)
 	error("syncpipe_get: %c: %s", *procname, strerror(errno));
+    else if(rc != sizeof(buf))
+	error("syncpipe_get: %s", "short read");
 
     if(bufdebug && *buf != 'R' && *buf != 'W') {
 	fprintf(stderr,"taper: %c: getc %c\n",*procname,*buf);
 	fflush(stderr);
     }
 
+    memcpy(intp, &buf[1], sizeof(int));
     return buf[0];
 }
 
 int syncpipe_getint()
 {
-    int rc;
-    int i;
-    int len = sizeof(i);
-    char *p;
+    int rc, i;
 
-    for(p = (char *)&i; len > 0; len -= rc, p += rc) {
-	if ((rc = read(getpipe, p, len)) <= 0) {
-	    error("syncpipe_getint: %s",
-		  rc < 0 ? strerror(errno) : "short read");
-	}
-    }
+    if ((rc = fullread(getpipe, &i, sizeof(i))) != sizeof(i))
+	error("syncpipe_getint: %s", rc < 0 ? strerror(errno) : "short read");
 
-    return i;
+    return (i);
 }
 
 
 char *syncpipe_getstr()
 {
-    int rc;
-    int len;
-    char *p;
+    int rc, len;
     char *str;
 
     if((len = syncpipe_getint()) <= 0) {
-	return NULL;
+	error("syncpipe_getstr: Protocol error - Invalid length (%d)", len);
+	/* NOTREACHED */
     }
 
     str = alloc(len);
 
-    for(p = str; len > 0; len -= rc, p += rc) {
-	if ((rc = read(getpipe, p, len)) <= 0) {
-	    error("syncpipe_getstr: %s",
-		  rc < 0 ? strerror(errno) : "short read");
-	}
+    if ((rc = fullread(getpipe, str, len)) != len) {
+	error("syncpipe_getstr: %s", rc < 0 ? strerror(errno) : "short read");
+	/* NOTREACHED */
     }
 
-    return str;
+    return (str);
 }
 
 
-void syncpipe_put(chi)
+void syncpipe_put(chi, intval)
 int chi;
+int intval;
 {
-    int l, n, s;
-    char ch = chi;
-    char *item = &ch;
+    char buf[sizeof(char) + sizeof(int)];
 
-    if(bufdebug && chi != 'R' && chi != 'W') {
-	fprintf(stderr,"taper: %c: putc %c\n",*procname,chi);
+    buf[0] = (char)chi;
+    memcpy(&buf[1], &intval, sizeof(int));
+    if(bufdebug && buf[0] != 'R' && buf[0] != 'W') {
+	fprintf(stderr,"taper: %c: putc %c\n",*procname,buf[0]);
 	fflush(stderr);
     }
 
-    for(l = 0, n = sizeof(ch); l < n; l += s) {
-	if((s = write(putpipe, item + l, n - l)) < 0) {
-	    error("syncpipe_put: %s", strerror(errno));
-	}
-    }
+    if (fullwrite(putpipe, buf, sizeof(buf)) < 0)
+	error("syncpipe_put: %s", strerror(errno));
 }
 
 void syncpipe_putint(i)
 int i;
 {
-    int l, n, s;
-    char *item = (char *)&i;
 
-    for(l = 0, n = sizeof(i); l < n; l += s) {
-	if((s = write(putpipe, item + l, n - l)) < 0) {
-	    error("syncpipe_putint: %s", strerror(errno));
-	}
-    }
+    if (fullwrite(putpipe, &i, sizeof(i)) < 0)
+	error("syncpipe_putint: %s", strerror(errno));
 }
 
-void syncpipe_putstr(item)
-char *item;
+void syncpipe_putstr(str)
+const char *str;
 {
-    int l, n, s;
+    int n;
 
-    n = strlen(item)+1;				/* send '\0' as well */
+    n = strlen(str)+1;				/* send '\0' as well */
     syncpipe_putint(n);
-    for(l = 0, n = strlen(item)+1; l < n; l += s) {
-	if((s = write(putpipe, item + l, n - l)) < 0) {
-	    error("syncpipe_putstr: %s", strerror(errno));
-	}
-    }
+    if (fullwrite(putpipe, str, n) < 0)
+	error("syncpipe_putstr: %s", strerror(errno));
 }
 
 
@@ -1728,84 +2323,24 @@ char *item;
  */
 
 /* local functions */
-int scan_init P((int rc, int ns, int bk));
-int taperscan_slot P((int rc, char *slotstr, char *device));
-char *taper_scan P((void));
 int label_tape P((void));
 
 int label_tape()
-{
+{  
     char *conf_tapelist_old = NULL;
-    char *olddatestamp = NULL;
     char *result;
-    tape_t *tp;
     static int first_call = 1;
+    char *timestamp;
+    char *error_msg;
 
-    if(have_changer) {
-	amfree(tapedev);
-	if ((tapedev = taper_scan()) == NULL) {
-	    errstr = newstralloc(errstr, changer_resultstr);
-	    return 0;
-	}
-    }
-
-#ifdef HAVE_LINUX_ZFTAPE_H
-    if (is_zftape(tapedev) == 1){
-	if((tape_fd = tape_open(tapedev, O_RDONLY)) == -1) {
-	    errstr = newstralloc2(errstr, "taper: ",
-				  (errno == EACCES) ? "tape is write-protected"
-				  : strerror(errno));
-	    return 0;
-	}
-	if((result = tapefd_rdlabel(tape_fd, &olddatestamp, &label)) != NULL) {
-	    amfree(olddatestamp);
-	    errstr = newstralloc(errstr, result);
-	    return 0;
-	}
-	if(tapefd_rewind(tape_fd) == -1) { 
-	    return 0;
-	} 
-	tapefd_close(tape_fd);
-	tape_fd = -1;
-    }
-    else
-#endif /* !HAVE_LINUX_ZFTAPE_H */
-    if((result = tape_rdlabel(tapedev, &olddatestamp, &label)) != NULL) {
-	amfree(olddatestamp);
-	errstr = newstralloc(errstr, result);
+    if (taper_scan(NULL, &label, &timestamp, &error_msg, &tapedev) < 0) {
+        fprintf(stderr, "%s\n", error_msg);
+	errstr = newstralloc(errstr, error_msg);
+        amfree(error_msg);
+        amfree(timestamp);
 	return 0;
     }
-
-    fprintf(stderr, "taper: read label `%s' date `%s'\n", label, olddatestamp);
-    fflush(stderr);
-    amfree(olddatestamp);
-
-    /* check against tape list */
-    if (strcmp(label, FAKE_LABEL) != 0) {
-	tp = lookup_tapelabel(label);
-	if(tp == NULL) {
-	    errstr = newvstralloc(errstr,
-				  "label ", label,
-		" match labelstr but it not listed in the tapelist file",
-				  NULL);
-	    return 0;
-	}
-	else if(tp != NULL && !reusable_tape(tp)) {
-	    errstr = newvstralloc(errstr,
-			          "cannot overwrite active tape ", label,
-			          NULL);
-	    return 0;
-	}
-
-	if(!match(labelstr, label)) {
-	    errstr = newvstralloc(errstr,
-			          "label ", label,
-			          " doesn\'t match labelstr \"", labelstr, "\"",
-			          NULL);
-	    return 0;
-	}
-    }
-
+    
     if((tape_fd = tape_open(tapedev, O_WRONLY)) == -1) {
 	if(errno == EACCES) {
 	    errstr = newstralloc(errstr,
@@ -1831,7 +2366,7 @@ int label_tape()
     fflush(stderr);
 
 #ifdef HAVE_LIBVTBLC
-    /* store time for the first volume entry */ 
+    /* store time for the first volume entry */
     time(&raw_time);
     tape_timep = localtime(&raw_time);
     strftime(start_datestr, 20, "%T %D", tape_timep);
@@ -1839,9 +2374,6 @@ int label_tape()
     fflush(stderr);
 #endif /* HAVE_LIBVTBLC */
 
-    /* write tape list */
-
-    /* XXX add cur_tape number to tape list structure */
     if (strcmp(label, FAKE_LABEL) != 0) {
 
 	if(cur_tape == 0) {
@@ -1849,9 +2381,9 @@ int label_tape()
 	} else {
 	    char cur_str[NUM_STR_SIZE];
 
-	    ap_snprintf(cur_str, sizeof(cur_str), "%d", cur_tape - 1);
+	    snprintf(cur_str, sizeof(cur_str), "%d", cur_tape - 1);
 	    conf_tapelist_old = vstralloc(conf_tapelist,
-					".today.", cur_str, NULL);
+					  ".today.", cur_str, NULL);
 	}
 	if(write_tapelist(conf_tapelist_old)) {
 	    error("could not write tapelist: %s", strerror(errno));
@@ -2090,167 +2622,3 @@ int write_filemark()
 }
 
 
-/*
- * ========================================================================
- * TAPE CHANGER SCAN
- *
- */
-int nslots, backwards, found, got_match, tapedays;
-char *first_match_label = NULL, *first_match = NULL, *found_device = NULL;
-char *searchlabel, *labelstr;
-tape_t *tp;
-
-int scan_init(rc, ns, bk)
-int rc, ns, bk;
-{
-    if(rc) {
-	fprintf(stderr, "%s: could not get changer info: %s\n",
-		get_pname(), changer_resultstr);
-	return rc;
-    }
-
-    nslots = ns;
-    backwards = bk;
-
-    return 0;
-}
-
-int taperscan_slot(rc, slotstr, device)
-     int rc;
-     char *slotstr;
-     char *device;
-{
-    char *t_errstr;
-    char *scan_datestamp = NULL;
-
-    if(rc == 2) {
-	fprintf(stderr, "%s: fatal slot %s: %s\n",
-		get_pname(), slotstr, changer_resultstr);
-	fflush(stderr);
-	return 1;
-    }
-    else if(rc == 1) {
-	fprintf(stderr, "%s: slot %s: %s\n", get_pname(),
-		slotstr, changer_resultstr);
-	fflush(stderr);
-	return 0;
-    }
-    else {
-	if((t_errstr = tape_rdlabel(device, &scan_datestamp, &label)) != NULL) {
-	    amfree(scan_datestamp);
-	    fprintf(stderr, "%s: slot %s: %s\n",
-		    get_pname(), slotstr, t_errstr);
-	    fflush(stderr);
-	}
-	else {
-	    /* got an amanda tape */
-	    fprintf(stderr, "%s: slot %s: date %-8s label %s",
-		    get_pname(), slotstr, scan_datestamp, label);
-	    fflush(stderr);
-	    amfree(scan_datestamp);
-	    if(searchlabel != NULL
-	       && (strcmp(label, FAKE_LABEL) == 0
-		   || strcmp(label, searchlabel) == 0)) {
-		/* it's the one we are looking for, stop here */
-		fprintf(stderr, " (exact label match)\n");
-		fflush(stderr);
-		found_device = newstralloc(found_device, device);
-		found = 1;
-		return 1;
-	    }
-	    else if(!match(labelstr, label)) {
-		fprintf(stderr, " (no match)\n");
-		fflush(stderr);
-	    }
-	    else {
-		/* not an exact label match, but a labelstr match */
-		/* check against tape list */
-		tp = lookup_tapelabel(label);
-		if(tp == NULL) {
-		    fprintf(stderr, "(not in tapelist)\n");
-		    fflush(stderr);
-		}
-		else if(!reusable_tape(tp)) {
-		    fprintf(stderr, " (active tape)\n");
-		    fflush(stderr);
-		}
-		else if(got_match == 0 && tp->datestamp == 0) {
-		    got_match = 1;
-		    first_match = newstralloc(first_match, slotstr);
-		    first_match_label = newstralloc(first_match_label, label);
-		    fprintf(stderr, " (new tape)\n");
-		    fflush(stderr);
-		    found = 3;
-		    found_device = newstralloc(found_device, device);
-		    return 1;
-		}
-		else if(got_match) {
-		    fprintf(stderr, " (labelstr match)\n");
-		    fflush(stderr);
-		}
-		else {
-		    got_match = 1;
-		    first_match = newstralloc(first_match, slotstr);
-		    first_match_label = newstralloc(first_match_label, label);
-		    fprintf(stderr, " (first labelstr match)\n");
-		    fflush(stderr);
-		    if(!backwards || !searchlabel) {
-			found = 2;
-			found_device = newstralloc(found_device, device);
-			return 1;
-		    }
-		}
-	    }
-	}
-    }
-    return 0;
-}
-
-char *taper_scan()
-{
-    char *outslot = NULL;
-
-    if((tp = lookup_last_reusable_tape(0)) == NULL)
-	searchlabel = NULL;
-    else
-	searchlabel = tp->label;
-
-    found = 0;
-    got_match = 0;
-
-    if (searchlabel != NULL)
-      changer_find(scan_init, taperscan_slot, searchlabel);
-    else
-      changer_scan(scan_init, taperscan_slot);
-
-    if(found == 2 || found == 3)
-	searchlabel = first_match_label;
-    else if(!found && got_match) {
-	searchlabel = first_match_label;
-	amfree(found_device);
-	if(changer_loadslot(first_match, &outslot, &found_device) == 0) {
-	    found = 1;
-	}
-	amfree(outslot);
-    }
-    else if(!found) {
-	if(searchlabel) {
-	    changer_resultstr = newvstralloc(changer_resultstr,
-					     "label ", searchlabel,
-					     " or new tape not found in rack",
-					     NULL);
-	} else {
-	    changer_resultstr = newstralloc(changer_resultstr,
-					    "new tape not found in rack");
-	}
-    }
-
-    if(found) {
-	outslot = found_device;
-	found_device = NULL;		/* forget about our copy */
-    } else {
-	outslot = NULL;
-	amfree(found_device);
-    }
-    return outslot;
-}

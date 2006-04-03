@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: infofile.c,v 1.44.4.4.8.5 2005/09/30 19:13:36 martinea Exp $
+ * $Id: infofile.c,v 1.57 2006/03/10 11:56:06 martinea Exp $
  *
  * manage current info file
  */
@@ -34,11 +34,19 @@
 #include "infofile.h"
 #include "token.h"
 
+static void zero_info P((info_t *));
+
 #ifdef TEXTDB
   static char *infodir = (char *)0;
   static char *infofile = (char *)0;
   static char *newinfofile;
   static int writing;
+
+  static FILE *open_txinfofile P((char *, char *, char *));
+  static int close_txinfofile P((FILE *));
+  static int read_txinfofile P((FILE *, info_t *));
+  static int write_txinfofile P((FILE *, info_t *));
+  static int delete_txinfofile P((char *, char *));
 #else
 #  define MAX_KEY 256
 /*#  define HEADER	(sizeof(info_t)-DUMP_LEVELS*sizeof(stats_t))*/
@@ -49,7 +57,7 @@
 
 #ifdef TEXTDB
 
-FILE *open_txinfofile(host, disk, mode)
+static FILE *open_txinfofile(host, disk, mode)
 char *host;
 char *disk;
 char *mode;
@@ -101,7 +109,7 @@ char *mode;
     return infof;
 }
 
-int close_txinfofile(infof)
+static int close_txinfofile(infof)
 FILE *infof;
 {
     int rc = 0;
@@ -124,7 +132,7 @@ FILE *infof;
     return rc;
 }
 
-int read_txinfofile(infof, info) /* XXX - code assumes AVG_COUNT == 3 */
+static int read_txinfofile(infof, info) /* XXX - code assumes AVG_COUNT == 3 */
 FILE *infof;
 info_t *info;
 {
@@ -259,7 +267,8 @@ info_t *info;
 
 	onestat.date = date;	/* time_t not guarranteed to be long */
 
-	if(level < 0 || level > DUMP_LEVELS-1) break;
+	if(level < 0 || level > DUMP_LEVELS-1)
+	    break;
 
 	info->inf[level] = onestat;
     }
@@ -268,7 +277,7 @@ info_t *info;
 
     rc = sscanf(line, "last_level: %d %d", 
 		&info->last_level, &info->consecutive_runs);
-		
+
     amfree(line);
     if(rc > 2) return -2;
     rc = 0;
@@ -277,6 +286,7 @@ info_t *info;
     for(i=0;i<=NB_HISTORY;i++) {
 	info->history[i].level = -2;
     }
+
     for(rc = -2; (line = agets(infof)) != NULL; free(line)) {
 	history_t onehistory;	/* one history record */
 	long date;
@@ -295,6 +305,7 @@ info_t *info;
 
 #define sc "history:"
 	if(strncmp(line, sc, sizeof(sc)-1) != 0) {
+	    amfree(line);
 	    break;
 	}
 	s += sizeof(sc)-1;
@@ -303,24 +314,28 @@ info_t *info;
 
 	skip_whitespace(s, ch);
 	if(ch == '\0' || sscanf((s - 1), "%d", &onehistory.level) != 1) {
+	    amfree(line);
 	    break;
 	}
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);
 	if(ch == '\0' || sscanf((s - 1), "%ld", &onehistory.size) != 1) {
+	    amfree(line);
 	    break;
 	}
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);
 	if(ch == '\0' || sscanf((s - 1), "%ld", &onehistory.csize) != 1) {
+	    amfree(line);
 	    break;
 	}
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);
 	if(ch == '\0' || sscanf((s - 1), "%ld", &date) != 1) {
+	    amfree(line);
 	    break;
 	}
 	skip_integer(s, ch);
@@ -331,6 +346,7 @@ info_t *info;
 	skip_whitespace(s, ch);
 	if(ch != '\0') {
 	    if(sscanf((s - 1), "%ld", &onehistory.secs) != 1) {
+		amfree(line);
 		break;
 	    }
 	    skip_integer(s, ch);
@@ -338,6 +354,7 @@ info_t *info;
 
 	info->history[nb_history++] = onehistory;
     }
+    amfree(line);
 
     if((line = agets(infof)) == NULL) return -1; /* // line */
     amfree(line);
@@ -345,7 +362,7 @@ info_t *info;
     return rc;
 }
 
-int write_txinfofile(infof, info)
+static int write_txinfofile(infof, info)
 FILE *infof;
 info_t *info;
 {
@@ -410,7 +427,7 @@ info_t *info;
     return 0;
 }
 
-int delete_txinfofile(host, disk)
+static int delete_txinfofile(host, disk)
 char *host;
 char *disk;
 {
@@ -513,7 +530,7 @@ int lev;
     }
 
     t = gmtime(&last);
-    ap_snprintf(stamp, sizeof(stamp), "%d:%d:%d:%d:%d:%d",
+    snprintf(stamp, sizeof(stamp), "%d:%d:%d:%d:%d:%d",
 		t->tm_year+1900, t->tm_mon+1, t->tm_mday,
 		t->tm_hour, t->tm_min, t->tm_sec);
 
@@ -545,7 +562,7 @@ double d;	/* default value */
     return sum / n;
 }
 
-void zero_info(info)
+static void zero_info(info)
 info_t *info;
 {
     int i;

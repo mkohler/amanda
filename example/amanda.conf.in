@@ -107,15 +107,21 @@ runtapes 1		# number of tapes to be used in a single run of amdump
 tpchanger "chg-manual"	# the tape-changer glue script
 tapedev "@DEFAULT_TAPE_DEVICE@"	# the no-rewind tape device to be used
 rawtapedev "@DEFAULT_RAW_TAPE_DEVICE@"	# the raw device to be used (ftape only)
-changerfile "/usr/adm/amanda/@DEFAULT_CONFIG@/changer"
-changerfile "/usr/adm/amanda/@DEFAULT_CONFIG@/changer-status"
+#changerfile "@CONFIG_DIR@/@DEFAULT_CONFIG@/changer"
+#changerfile "@CONFIG_DIR@/@DEFAULT_CONFIG@/changer-status"
 changerfile "@CONFIG_DIR@/@DEFAULT_CONFIG@/changer.conf"
 changerdev "@DEFAULT_CHANGER_DEVICE@"
+
+# If you want Amanda to automatically label any non-Amanda tapes it
+# encounters, uncomment the line below. Note that this will ERASE any
+# non-Amanda tapes you may have, and may also ERASE any near-failing tapes.
+# Use with caution.
+## label_new_tapes "@DEFAULT_CONFIG@-%%%"
 
 maxdumpsize -1		# Maximum number of bytes the planner will schedule
 			# for a run (default: runtapes * tape_length).
 tapetype HP-DAT		# what kind of tape it is (see tapetypes below)
-labelstr "^@DEFAULT_CONFIG@[0-9][0-9]*$"	# label constraint regex: all tapes must match
+labelstr "^@DEFAULT_CONFIG@-[0-9][0-9]*$"	# label constraint regex: all tapes must match
 
 amrecover_do_fsf yes		# amrecover will call amrestore with the
 				# -f flag for faster positioning of the tape.
@@ -211,12 +217,11 @@ autoflush no #
 # Note that, although the keyword below is infofile, it is only so for
 # historic reasons, since now it is supposed to be a directory (unless
 # you have selected some database format other than the `text' default)
-infofile "/usr/adm/amanda/@DEFAULT_CONFIG@/curinfo"	# database DIRECTORY
-logdir   "/usr/adm/amanda/@DEFAULT_CONFIG@"		# log directory
-indexdir "/usr/adm/amanda/@DEFAULT_CONFIG@/index"	# index directory
-#tapelist "/usr/adm/amanda/@DEFAULT_CONFIG@/tapelist"	# list of used tapes
+infofile "@CONFIG_DIR@/@DEFAULT_CONFIG@/curinfo"	# database DIRECTORY
+logdir   "@CONFIG_DIR@/@DEFAULT_CONFIG@"		# log directory
+indexdir "@CONFIG_DIR@/@DEFAULT_CONFIG@/index"	# index directory
+#tapelist "@CONFIG_DIR/@DEFAULT_CONFIG@/tapelist"	# list of used tapes
 # tapelist is stored, by default, in the directory that contains amanda.conf
-
 
 # tapetypes
 
@@ -252,7 +257,7 @@ indexdir "/usr/adm/amanda/@DEFAULT_CONFIG@/index"	# index directory
 
 # define tapetype EXB-8500 {
 # ...
-#     lbl-templ "/usr/local/amanda/config/lbl.exabyte.ps"
+#     lbl-templ "@CONFIG_DIR@/config/lbl.exabyte.ps"
 # }
 
 
@@ -328,7 +333,8 @@ define tapetype MIMSY-MEGATAPE {
 # These are referred to by the disklist file.  The dumptype specifies
 # certain parameters for dumping including:
 #   auth	- authentication scheme to use between server and client.
-#		  Valid values are "bsd" and "krb4".  Default: [auth bsd]
+#		  Valid values are "bsd", "krb4", "krb5" and "ssh".  
+#		  Default: [auth bsd]
 #   comment	- just a comment string
 #   comprate	- set default compression rate.  Should be followed by one or
 #		  two numbers, optionally separated by a comma.  The 1st is
@@ -342,11 +348,19 @@ define tapetype MIMSY-MEGATAPE {
 #		  "client best" - compress on the client using the best (and
 #				  probably slowest) algorithm.
 #		  "client fast" - compress on the client using fast algorithm.
+#	          "client custom" - compress using your custom client compression program.
+#				    use client_custom_compress "PROG" to specify
+#				    the custom compression program.
+#				    PROG must not contain white space.
 #		  "server best" - compress on the tape host using the best (and
 #				  probably slowest) algorithm.
 #		  "server fast" - compress on the tape host using a fast
 #				  algorithm.  This may be useful when a fast
 #				  tape host is backing up slow clients.
+#	          "server custom" - compress using your server custom compression program.
+#				    use server_custom_compress "PROG" to specify
+#				    the custom compression program.
+#				    PROG must not contain white space.
 #		  Default: [compress client fast]
 #   dumpcycle	- set the number of days in the dump cycle, ie, set how often a
 #		  full dump should be performed.  Default: from DUMPCYCLE above
@@ -361,6 +375,19 @@ define tapetype MIMSY-MEGATAPE {
 #				it takes only a few seconds but the result is not 
 #				accurate if your disk usage changes from day to day.
 #		  Default: [client]
+#   encrypt     - specify encryption of the backed up data. Valid values are:
+#		  "none"   - don't encrypt the dump output.
+#		  "client" - encrypt on the client using the program specified by 
+#                            client_encrypt "PROG".
+#			     Use client_decrypt_option to specify the decrypt- 
+#                            parameter, default is "-d".
+#                            PROG and decrypt-parameter must not contain white space.     
+#		  "server" - encrypt on the server using the program specified by 
+#                            server_encrypt "PROG".
+#                            Use server_decrypt_option to specify the decrypt- 
+#                            parameter, default is "-d".
+#                            PROG and decrypt-parameter must not contain white space.
+#                 Default: [none]
 #   exclude	- specify files and directories to be excluded from the dump.
 #		  Useful with gnutar only; silently ignored by dump and samba.
 #		  Valid values are:
@@ -422,9 +449,6 @@ define tapetype MIMSY-MEGATAPE {
 #			       prototype.  Amanda then backs up just the
 #			       changes.
 #		  "noinc"    - do level 0 dumps every time.
-#			       Unfortunately, this is not currently
-#			       implemented.  Use `dumpcycle 0'
-#			       instead.
 #		  "skip"     - skip all dumps.  Useful for sharing a single
 #			       disklist in several configurations.
 #		  "incronly" - do only incremental dumps. This is similar
@@ -433,9 +457,28 @@ define tapetype MIMSY-MEGATAPE {
 #                              only be performed when an 'amadmin force' 
 #                              has been issued 
 #		  Default: [strategy standard]
+# tape_splitsize - (optional) split dump file into pieces of a specified size.
+#		  This allows dumps to be spread across multiple tapes, and can
+#		  potentially make more efficient use of tape space.  Note that
+#		  if this value is too large (more than half the size of the
+#		  average dump being split), substantial tape space can be
+#		  wasted.  If too small, large dumps will be split into
+#		  innumerable tiny dumpfiles, adding to restoration complexity.
+#		  A good rule of thumb, usually, is 1/10 of the size of your
+#		  tape.  Default: [disabled]
+# split_diskbuffer - (optional) When dumping a split dump  in  PORT-WRITE
+#                 mode (usually meaning "no holding disk"), buffer the split
+#		  chunks to a file in the directory specified by this option.
+#		  Default: [none]
+# fallback_splitsize - (optional) When dumping a split dump  in  PORT-WRITE
+#                 mode, if no split_diskbuffer is specified (or if we somehow
+#                 fail to use our split_diskbuffer), we must buffer split
+#                 chunks in memory.  This specifies the maximum size split
+#                 chunks can be in this scenario, and thus the maximum amount
+#                 of memory consumed for in-memory splitting.  Default: [10m]
 #
-# Note that you may specify previously defined dumptypes as a shorthand way
-# of defining parameters.
+# Note that you may specify previously defined dumptypes as a shorthand way of
+# defining parameters.
 
 define dumptype global {
     comment "Global definitions"
@@ -452,6 +495,8 @@ define dumptype global {
     # indexing, recording, etc.  Some examples:
     # index yes
     # record no
+    # split_diskbuffer "/raid/amanda"
+    # fallback_splitsize 64m
 }
 
 define dumptype always-full {
@@ -468,13 +513,20 @@ define dumptype root-tar {
     comment "root partitions dumped with tar"
     compress none
     index
-    exclude list "/usr/local/lib/amanda/exclude.gtar"
+#   exclude list "@CONFIG_DIR@/exclude.gtar"
     priority low
 }
 
 define dumptype user-tar {
     root-tar
     comment "user partitions dumped with tar"
+    priority medium
+}
+
+define dumptype user-tar-span {
+    root-tar
+    tape_splitsize 3 Gb
+    comment "tape-spanning user partitions dumped with tar"
     priority medium
 }
 
@@ -495,6 +547,11 @@ define dumptype comp-user-tar {
     compress client fast
 }
 
+define dumptype comp-user-tar-span {
+    user-tar-span
+    compress client fast
+}
+
 define dumptype holding-disk {
     global
     comment "The master-host holding disk itself"
@@ -509,9 +566,23 @@ define dumptype comp-user {
     priority medium
 }
 
+define dumptype comp-user-span {
+    global
+    tape_splitsize 5 Gb
+    comment "Tape-spanning non-root partitions on reasonably fast machines"
+    compress client fast
+    priority medium
+}
+
 define dumptype nocomp-user {
     comp-user
     comment "Non-root partitions on slow machines"
+    compress none
+}
+
+define dumptype nocomp-user-span {
+    comp-user-span
+    comment "Tape-spanning non-root partitions on slow machines"
     compress none
 }
 
@@ -555,6 +626,24 @@ define dumptype comp-test {
     compress client fast
 }
 
+define dumptype custom-compress {
+   global
+   program "GNUTAR"
+   comment "test dump with custom client compression"
+   compress client custom
+   client_custom_compress "/usr/bin/bzip2"
+}
+
+define dumptype encrypt-fast {
+   global
+   program "GNUTAR"
+   comment "test dump with fast client compression and server symmetric encryption"
+   compress client fast
+   encrypt server
+   server_encrypt "/usr/local/sbin/amcrypt"
+   server_decrypt_option "-d"
+}
+
 # network interfaces
 #
 # These are referred to by the disklist file.  They define the attributes
@@ -585,4 +674,4 @@ define interface le0 {
 # dumptypes, tapetypes and interface definitions among several
 # configurations.
 
-#includefile "/usr/local/amanda.conf.main"
+#includefile "@CONFIG_DIR@/amanda.conf.main"

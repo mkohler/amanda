@@ -8,6 +8,5 @@ usr/lib/amanda/selfcheck
 usr/lib/amanda/sendbackup
 usr/lib/amanda/sendsize
 usr/lib/amanda/versionsuffix
-usr/lib/libamclient*
 usr/share/man/man8/amrecover.8.gz
 usr/sbin/amrecover
