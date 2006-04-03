@@ -1,3 +1,9 @@
+amanda (1:2.5.0-2) unstable; urgency=low
+
+  * tighten amandahosts permissions to user-only in the amanda-common postinst
+
+ -- Bdale Garbee <bdale@gag.com>  Mon,  3 Apr 2006 05:03:29 -0700
+
 amanda (1:2.5.0-1) unstable; urgency=low
 
   * new upstream version, closes: #360085
