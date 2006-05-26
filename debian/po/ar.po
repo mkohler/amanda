@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: amanda_1:2.4.5-1\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2003-06-20 01:36-0600\n"
+"Report-Msgid-Bugs-To: bdale@gag.com\n"
+"POT-Creation-Date: 2006-05-25 23:06-0600\n"
 "PO-Revision-Date: 2005-07-19 18:48+0300\n"
 "Last-Translator: Ossama M. Khayat <okhayat@yahoo.com>\n"
 "Language-Team: Arabic <debian-l10n-arabic@lists.debian.org>\n"
@@ -24,11 +24,14 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: KBabel 1.9.1\n"
 
+#. Type: note
 #. Description
 #: ../templates:3
-msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates."
+#, fuzzy
+msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates"
 msgstr "الرجاء دمج /var/lib/amandates و /var/lib/amanda/amandates."
 
+#. Type: note
 #. Description
 #: ../templates:3
 msgid ""
@@ -36,6 +39,6 @@ msgid ""
 "review the files, and merge the contents you care about to the /var/lib/"
 "amanda/amandates location, and remove the old file /var/lib/amandates."
 msgstr ""
-"لديك كلاً من /var/lib/amandates و /var/lib/amanda/amandates. الرجاء معاينة الملفات، ودمج المحتويات التي تهمك حول موقع /var/lib/"
-"amanda/amandates، وإزالة الملف /var/lib/amandates القديم."
-
+"لديك كلاً من /var/lib/amandates و /var/lib/amanda/amandates. الرجاء معاينة "
+"الملفات، ودمج المحتويات التي تهمك حول موقع /var/lib/amanda/amandates، وإزالة "
+"الملف /var/lib/amandates القديم."

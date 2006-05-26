@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: amanda_1%3A2.4.4p1-1_pt\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2003-06-20 01:36-0600\n"
+"Report-Msgid-Bugs-To: bdale@gag.com\n"
+"POT-Creation-Date: 2006-05-25 23:06-0600\n"
 "PO-Revision-Date: 2003-10-18 13:47+0100\n"
 "Last-Translator: Bruno Rodrigues <bruno.rodrigues@litux.org>\n"
 "Language-Team: Portuguese <debian-l10n-portuguese@lists.debian.org>\n"
@@ -24,11 +24,15 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: KBabel 1.0.2\n"
 
+#. Type: note
 #. Description
 #: ../templates:3
-msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates."
-msgstr "Deverá integrar o conteúdo de /var/lib/amandates em /var/lib/amanda/amandates"
+#, fuzzy
+msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates"
+msgstr ""
+"Deverá integrar o conteúdo de /var/lib/amandates em /var/lib/amanda/amandates"
 
+#. Type: note
 #. Description
 #: ../templates:3
 msgid ""
@@ -37,6 +41,5 @@ msgid ""
 "amanda/amandates location, and remove the old file /var/lib/amandates."
 msgstr ""
 "Existem dois ficheiros de dados, um em /var/lib e outro em /var/lib/amanda. "
-"Deverá rever o conteúdo dos dois ficheiros, integrar o que for importante no "
-"/var/lib/amanda/amandates e apagar o ficheiro antigo /var/lib/amandates."
-
+"Deverá rever o conteúdo dos dois ficheiros, integrar o que for importante "
+"no /var/lib/amanda/amandates e apagar o ficheiro antigo /var/lib/amandates."

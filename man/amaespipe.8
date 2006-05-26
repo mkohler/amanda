@@ -18,30 +18,36 @@
 .IP "\\$1" \\$2
 ..
 .TH "AMAESPIPE" 8 "" "" ""
-.SH NAME
-amaespipe \- wrapper program for aespipe
+.SH "NAME"
+amaespipe - wrapper program for aespipe
 .SH "SYNOPSIS"
-.ad l
-.hy 0
 .HP 10
 \fBamaespipe\fR
-.ad
-.hy
-
 .SH "DESCRIPTION"
-
 .PP
- \fBamaespipe\fR requires \fBaespipe\fR and \fBgpg\fR to work\&. Aespipe is available from : http://loop-aes.sourceforge.net
-
+\fBamaespipe\fR
+requires
+\fBaespipe\fR
+and
+\fBgpg\fR
+to work. Aespipe is available from
+: http://loop-aes.sourceforge.net
 .PP
- \fBamaespipe\fR will search for the aespipe program in the following directories: /usr/bin:/usr/local/bin:/sbin:/usr/sbin\&.
-\fBamaespipe\fR is called by  \fBamcrypt\fR for \fBAmanda\fR data encryption\&.
-
+\fBamaespipe\fR
+will search for the aespipe program in the following directories: /usr/bin:/usr/local/bin:/sbin:/usr/sbin.
+\fBamaespipe\fR is called by  \fBamcrypt\fR for \fBAmanda\fR data encryption.
 .PP
- \fBamaespipe\fR is based on aespipe's bzaespipe program\&. It calls aespipe to encrypt data using AES256 as the encryption and SHA256 as the hash function\&. GPG key should be stored in $AMANDA_HOME/\&.gnupg/am_key\&.gpg\&. \fBamaespipe\fR reads passphrase from file descriptor 3\&. During decryption, \fBamaespipe\fR autodects encryption type and hash function from the encrypted image\&.
-
+\fBamaespipe\fR
+is based on aespipe's bzaespipe program. It calls aespipe to encrypt data using AES256 as the encryption and SHA256 as the hash function. GPG key should be stored in $AMANDA_HOME/.gnupg/am_key.gpg.
+\fBamaespipe\fR
+reads passphrase from file descriptor 3. During decryption,
+\fBamaespipe\fR
+autodects encryption type and hash function from the encrypted image.
 .SH "SEE ALSO"
-
 .PP
-\fBamanda\fR(8), \fBamanda\&.conf\fR(5), \fBaespipe\fR(1), \fBamcrypt\fR(8), \fBgpg\fR(1) 
+\fBamanda\fR(8),
+\fBamanda.conf\fR(5),
+\fBaespipe\fR(1),
+\fBamcrypt\fR(8),
+\fBgpg\fR(1)
 

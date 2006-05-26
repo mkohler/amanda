@@ -18,61 +18,61 @@
 .IP "\\$1" \\$2
 ..
 .TH "AMRMTAPE" 8 "" "" ""
-.SH NAME
-amrmtape \- remove a tape from the Amanda database
+.SH "NAME"
+amrmtape - remove a tape from the Amanda database
 .SH "SYNOPSIS"
-.ad l
-.hy 0
 .HP 9
-\fBamrmtape\fR [\-n] [\-v] [\-q] [\-d] \fIconfig\fR \fIlabel\fR
-.ad
-.hy
-
+\fBamrmtape\fR [-n] [-v] [-q] [-d] \fIconfig\fR \fIlabel\fR
 .SH "DESCRIPTION"
-
 .PP
-\fBAmrmtape\fR invalidates the contents of an existing backup tape in the configuration database\&. This is meant as a recovery mechanism when a good backup is damaged either by faulty hardware or user error, e\&.g\&. the tape is eaten by the drive or is overwritten\&.
-
+\fBAmrmtape\fR
+invalidates the contents of an existing backup tape in the configuration database. This is meant as a recovery mechanism when a good backup is damaged either by faulty hardware or user error, e.g. the tape is eaten by the drive or is overwritten.
 .PP
-See the \fBamanda\fR(8) man page for more details about \fBAmanda\fR\&.
-
+See the
+\fBamanda\fR(8)
+man page for more details about
+\fBAmanda\fR.
 .SH "OPTIONS"
-
 .TP
-\fB\-n\fR
-Generate new \fBtapelist\fR and database files with \fBlabel\fR removed, but leave them in \fI/tmp\fR and do not update the original copies\&.
-
+\fB-n\fR
+Generate new
+\fBtapelist\fR
+and database files with
+\fBlabel\fR
+removed, but leave them in
+\fI/tmp\fR
+and do not update the original copies.
 .TP
-\fB\-v\fR
-List backups of hosts and disks that are being discarded\&. Enabled by default\&.
-
+\fB-v\fR
+List backups of hosts and disks that are being discarded. Enabled by default.
 .TP
-\fB\-q\fR
-Opposite of \fB\-v\fR\&.
-
+\fB-q\fR
+Opposite of
+\fB-v\fR.
 .TP
-\fB\-d\fR
-Run in debugging mode so all executed commands are shown\&.
-
+\fB-d\fR
+Run in debugging mode so all executed commands are shown.
 .SH "EXAMPLE"
-
 .PP
-Remove tape labeled \fBDAILY034\fR from the \fBDailySet1\fR configuration\&.
+Remove tape labeled
+\fBDAILY034\fR
+from the
+\fBDailySet1\fR
+configuration.
 .nf
 
 # amrmtape DailySet1 DAILY034
 .fi
-
 .SH "AUTHOR"
-
 .PP
-Adrian T\&. Filipi\-Martin <atf3r@cs\&.virginia\&.edu>: Original text
-
+Adrian T. Filipi-Martin
+<atf3r@cs.virginia.edu>: Original text
 .PP
-Stefan G\&. Weichinger, <sgw@amanda\&.org>, maintainer of the \fBAmanda\fR\-documentation: XML\-conversion
-
+Stefan G. Weichinger,
+<sgw@amanda.org>, maintainer of the
+\fBAmanda\fR-documentation: XML-conversion
 .SH "SEE ALSO"
-
 .PP
-\fBamadmin\fR(8), \fBamanda\fR(8)
+\fBamadmin\fR(8),
+\fBamanda\fR(8)
 

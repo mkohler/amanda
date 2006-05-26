@@ -1,4 +1,65 @@
-2006-03-28  Jean-Louis Martineau <martineau@zmanda.com>
+2006-05-28  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c (service_new): Apply the correct patch.
+
+2006-05-28  Jean-Louis Martineau <martineau@zmanda.com>
+	* Amanda 2.5.0p2 released.
+	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.5.0p2).
+	* NEWS: Changes in release 2.5.0p2.
+
+2006-05-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c (service_new): Make sure that the 3 data[] fd
+	  are not in the range DATA_FD_OFFSET to
+	  DATA_FD_OFFSET+DATA_FD_COUNT-1.
+
+2006-05-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/taper.c: Write the slot number in the
+	                      'taper: wrote label' line.
+	* server-src/amverifyrun.sh.in: Parse that line.
+
+2006-05-02  Jean-Louis Martineau <martineau@zmanda.com>
+	* amstatus.pl.in: Limit characters for hostname in setup_estimate line.
+
+2006-04-28  Jean-Louis Martineau <martineau@zmanda.com>
+	* Amanda 2.5.0p1 released.
+	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.5.0p1).
+	* NEWS: Changes in release 2.5.0p1.
+
+2006-04-24  Ian Turner <ian@zmanda.com>
+	* server-src/changer.c: Don't crash if we go to taperscan "Plan B".
+
+2006-04-24  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/planner.c: Fix divide by zero if runtapes==0.
+
+2006-04-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c (handle_chunker_result): make sure that
+						       est_size > act-size.
+
+2006-04-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/chunker.c: Read the START command to set the datestamp.
+	* server-src/driver.c: Send a START command to the chunker.
+	* server-src/driverio.c (chunker_cmd): Add the START command.
+	* server-src/server_util.c (cmdstr): Add the START command.
+	* server-src/server_util.h (cmd_t): Add the START command.
+
+2006-04-14  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amtape.c: Add update command.
+
+2006-04-11  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/krb4-security.c: Increase timeout to 60 seconds.
+	* common-src/rsh-security.c: Increase timeout to 60 seconds.
+	* common-src/ssh-security.c: Increase timeout to 60 seconds.
+
+2006-04-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* restore-src/amrestore.c: reset count_error to 0 on a restore.
+
+2006-04-05  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: Change expression to remove overflow.
+
+2006-03-29  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/calcsize.c: Don't use declaration after instruction,
+	  older compiler don't accept it.
+
+2006-03-23  Jean-Louis Martineau <martineau@zmanda.com>
 	* Amanda 2.5.0 released.
 	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.5.0).
 	* NEWS: Update for 2.5.0

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: driver.c,v 1.164 2006/03/22 15:07:08 martinea Exp $
+ * $Id: driver.c,v 1.165.2.2 2006/04/23 23:04:33 martinea Exp $
  *
  * controlling process for the Amanda backup system
  */
@@ -791,6 +791,7 @@ start_some_dumps(rq)
 	    chunker->result = LAST_TOK;
 	    dumper->result = LAST_TOK;
 	    startup_chunk_process(chunker,chunker_program);
+	    chunker_cmd(chunker, START, (void *)datestamp);
 	    chunker->dumper = dumper;
 	    chunker_cmd(chunker, PORT_WRITE, diskp);
 	    cmd = getresult(chunker->fd, 1, &result_argc, result_argv, MAX_ARGS+1);
@@ -1466,8 +1467,11 @@ handle_chunker_result(cookie)
 		chunker_cmd( chunker, CONTINUE, dp );
 	    } else { /* !h[++activehd] - must allocate more space */
 		sched(dp)->act_size = sched(dp)->est_size; /* not quite true */
-		sched(dp)->est_size = sched(dp)->act_size * 21 / 20; /* +5% */
+		sched(dp)->est_size = (sched(dp)->act_size/20) * 21; /* +5% */
 		sched(dp)->est_size = am_round(sched(dp)->est_size, DISK_BLOCK_KB);
+		if(sched(dp)->est_size <=  sched(dp)->act_size + DISK_BLOCK_KB)
+		    sched(dp)->est_size = sched(dp)->act_size + 
+					  2 * DISK_BLOCK_KB;
 		h = find_diskspace( sched(dp)->est_size - sched(dp)->act_size,
 				    &dummy,
 				    h[activehd-1] );

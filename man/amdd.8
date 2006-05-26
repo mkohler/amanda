@@ -18,91 +18,97 @@
 .IP "\\$1" \\$2
 ..
 .TH "AMDD" 8 "" "" ""
-.SH NAME
-amdd \- Amanda version of dd
+.SH "NAME"
+amdd - Amanda version of dd
 .SH "SYNOPSIS"
-.ad l
-.hy 0
 .HP 5
-\fBamdd\fR [\-d] [\fIif=input\fR] [\fIof=output\fR] [\fIbs=blocksize\fR] [\fIskip=count\fR] [\fIcount=count\fR]
-.ad
-.hy
-
+\fBamdd\fR [-d] [\fIif=input\fR] [\fIof=output\fR] [\fIbs=blocksize\fR] [\fIskip=count\fR] [\fIcount=count\fR]
 .SH "DESCRIPTION"
-
 .PP
-\fBAmdd\fR provides just enough of the standard UNIX \fBdd\fR command for the needs of \fBAmanda\fR\&. This is handy when doing a full restore and the standard \fBdd\fR program has not yet been found\&.
-
+\fBAmdd\fR
+provides just enough of the standard UNIX
+\fBdd\fR
+command for the needs of
+\fBAmanda\fR. This is handy when doing a full restore and the standard
+\fBdd\fR
+program has not yet been found.
 .PP
-\fBAmdd\fR also provides access to the \fBAmanda\fR output drivers that support various tape simulations\&. This may be used for debugging or to convert from one format to another\&.
-
+\fBAmdd\fR
+also provides access to the
+\fBAmanda\fR
+output drivers that support various tape simulations. This may be used for debugging or to convert from one format to another.
 .PP
-See the \fBamanda\fR(8) man page for more details about \fBAmanda\fR\&. See the \fBOUTPUT DRIVERS\fR section of \fBamanda(8)\fR for more information on the \fBAmanda\fR output drivers\&.
-
+See the
+\fBamanda\fR(8)
+man page for more details about
+\fBAmanda\fR. See the
+\fBOUTPUT DRIVERS\fR
+section of
+\fBamanda(8)\fR
+for more information on the
+\fBAmanda\fR
+output drivers.
 .SH "OPTIONS"
-
 .TP
-\fB\-d\fR
-Turn on debugging output\&.
-
+\fB-d\fR
+Turn on debugging output.
 .TP
-\fB\-l\fR\fIlength\fR
-Set the output length\&. If the output driver limits the output size, this controls when end of tape will be simulated\&.
-
-\fBLength\fR may have a multiplier suffix:
-
-
+\fB-l\fR\fIlength\fR
+Set the output length. If the output driver limits the output size, this controls when end of tape will be simulated.
+.sp
+\fBLength\fR
+may have a multiplier suffix:
+.sp
 .nf
 
-k \-> 1024 (Kilobytes)
-b \-> 512 (Blocks)
-M \-> 1024*1024 (Megabytes)
+k -> 1024 (Kilobytes)
+b -> 512 (Blocks)
+M -> 1024*1024 (Megabytes)
 
 .fi
-The default is no multiplier (bytes)\&.
-
+The default is no multiplier (bytes).
 .TP
 \fBif=\fR\fBinput\fR
-Input to \fBdd\fR\&. Default is stdin\&.
-
+Input to
+\fBdd\fR. Default is stdin.
 .TP
 \fBof=\fR\fBoutput\fR
-Where to send the output of \fBdd\fR\&. Default is stdout\&.
-
+Where to send the output of
+\fBdd\fR. Default is stdout.
 .TP
 \fBbs=\fR\fBblocksize\fR
-Size of each record\&. Input records smaller than this will \fBnot\fR be padded\&. Output records will be the same size as the corresponding input record\&. Default is 512 bytes\&.
-
-\fBBlocksize\fR may have a multiplier suffix:
-
-
+Size of each record. Input records smaller than this will
+\fBnot\fR
+be padded. Output records will be the same size as the corresponding input record. Default is 512 bytes.
+.sp
+\fBBlocksize\fR
+may have a multiplier suffix:
+.sp
 .nf
 
-k \-> 1024 (Kilobytes)
-b \-> 512 (Blocks)
-M \-> 1024*1024 (Megabytes)
+k -> 1024 (Kilobytes)
+b -> 512 (Blocks)
+M -> 1024*1024 (Megabytes)
 
 .fi
-The default is no multiplier (bytes)\&.
-
+The default is no multiplier (bytes).
 .TP
 \fBcount=\fR\fBcount\fR
-Number of records to copy\&. Default is all records until end of file\&.
-
+Number of records to copy. Default is all records until end of file.
 .TP
 \fBskip=\fR\fBcount\fR
-Number of records to skip before copying input to output\&. Default is zero\&.
-
+Number of records to skip before copying input to output. Default is zero.
 .SH "AUTHOR"
-
 .PP
-Marc Mengel <mengel@fnal\&.gov>, John R\&. Jackson <jrj@purdue\&.edu> : Original text
-
+Marc Mengel
+<mengel@fnal.gov>, John R. Jackson
+<jrj@purdue.edu>
+: Original text
 .PP
-Stefan G\&. Weichinger, <sgw@amanda\&.org>, maintainer of the \fBAmanda\fR\-documentation: XML\-conversion
-
+Stefan G. Weichinger,
+<sgw@amanda.org>, maintainer of the
+\fBAmanda\fR-documentation: XML-conversion
 .SH "SEE ALSO"
-
 .PP
 \fBamanda\fR(8)
 

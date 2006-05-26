@@ -50,6 +50,7 @@ clean:
 	-test -r /usr/share/misc/config.guess && \
 		cp -f /usr/share/misc/config.guess config/config.guess
 
+	debconf-updatepo
 	dh_clean
 
 # Build architecture-independent files here.

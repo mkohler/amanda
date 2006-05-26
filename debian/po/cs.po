@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: amanda\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2003-06-20 01:36-0600\n"
+"Report-Msgid-Bugs-To: bdale@gag.com\n"
+"POT-Creation-Date: 2006-05-25 23:06-0600\n"
 "PO-Revision-Date: 2005-03-01 14:27+0100\n"
 "Last-Translator: Miroslav Kure <kurem@debian.cz>\n"
 "Language-Team: Czech <debian-l10n-czech@debian.org>\n"
@@ -23,11 +23,14 @@ msgstr ""
 "Content-Type: text/plain; charset=ISO-8859-2\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#. Type: note
 #. Description
 #: ../templates:3
-msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates."
+#, fuzzy
+msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates"
 msgstr "Spojte prosím /var/lib/amandates a /var/lib/amanda/amandates."
 
+#. Type: note
 #. Description
 #: ../templates:3
 msgid ""
@@ -35,7 +38,6 @@ msgid ""
 "review the files, and merge the contents you care about to the /var/lib/"
 "amanda/amandates location, and remove the old file /var/lib/amandates."
 msgstr ""
-"V systému máte soubor /var/lib/amandates i /var/lib/amanda/amandates. "
-"Oba soubory prohlédnìte, zajímavý obsah sluète do /var/lib/amanda/amandates "
-"a starý soubor /var/lib/amandates sma¾te."
-
+"V systému máte soubor /var/lib/amandates i /var/lib/amanda/amandates. Oba "
+"soubory prohlédnìte, zajímavý obsah sluète do /var/lib/amanda/amandates a "
+"starý soubor /var/lib/amandates sma¾te."

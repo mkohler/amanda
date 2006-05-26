@@ -15,8 +15,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: amanda 2.4.4p2\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2003-06-20 01:36-0600\n"
+"Report-Msgid-Bugs-To: bdale@gag.com\n"
+"POT-Creation-Date: 2006-05-25 23:06-0600\n"
 "PO-Revision-Date: 2004-02-21 01:08+0900\n"
 "Last-Translator: Hideki Yamane <henrich@samba.gr.jp>\n"
 "Language-Team: Japanese <debian-japanese@lists.debian.org>\n"
@@ -24,17 +24,21 @@ msgstr ""
 "Content-Type: text/plain; charset=EUC-JP\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#. Type: note
 #. Description
 #: ../templates:3
-msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates."
+#, fuzzy
+msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates"
 msgstr "/var/lib/amandates と /var/lib/amanda/amandates をマージしてください。"
 
+#. Type: note
 #. Description
 #: ../templates:3
 msgid ""
 "You have both /var/lib/amandates and /var/lib/amanda/amandates. Please "
 "review the files, and merge the contents you care about to the /var/lib/"
 "amanda/amandates location, and remove the old file /var/lib/amandates."
-msgstr "/var/lib/amandates と /var/lib/amanda/amandates の両方があります。"
-"ファイルを確認し、/var/lib/amanda/amandates に注意が必要な内容をマージしてから、"
-"古いファイル /var/lib/amandates を削除してください。"
+msgstr ""
+"/var/lib/amandates と /var/lib/amanda/amandates の両方があります。ファイルを"
+"確認し、/var/lib/amanda/amandates に注意が必要な内容をマージしてから、古い"
+"ファイル /var/lib/amandates を削除してください。"

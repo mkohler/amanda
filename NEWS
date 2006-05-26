@@ -1,3 +1,14 @@
+Changes in release 2.5.0p2
+
+* Fix major bug in amandad.
+* amverifyeun works.
+* amstatus works with ':' in diskname.
+
+Changes in release 2.5.0p1
+
+* Add the 'amtape update' command.
+* Many small bug fix.
+
 Changes in release 2.5.0
 
 * Communication security/authentication: Kerberos 4/5, OpenSSH

@@ -18,62 +18,86 @@
 .IP "\\$1" \\$2
 ..
 .TH "AMDUMP" 8 "" "" ""
-.SH NAME
-amdump \- back up all disks in an Amanda configuration
+.SH "NAME"
+amdump - back up all disks in an Amanda configuration
 .SH "SYNOPSIS"
-.ad l
-.hy 0
 .HP 7
-\fBamdump\fR \fIconfig\fR [\fIhost\fR\ [\fIdisk\fR...]...]
-.ad
-.hy
-
+\fBamdump\fR \fIconfig\fR [\fIhost\fR [\fIdisk\fR...]...]
 .SH "DESCRIPTION"
-
 .PP
-\fBAmdump\fR switches to the appropriate \fBAmanda\fR configuration directory, e\&.g\&. /usr/local/etc/amanda/\fBconfig\fR, then attempts to back up every disk specified by the \fBamanda\&.conf\fR file\&. \fBAmdump\fR is normally run by \fBcron\fR\&.
-
+\fBAmdump\fR
+switches to the appropriate
+\fBAmanda\fR
+configuration directory, e.g. /usr/local/etc/amanda/\fBconfig\fR, then attempts to back up every disk specified by the
+\fBamanda.conf\fR
+file.
+\fBAmdump\fR
+is normally run by
+\fBcron\fR.
 .PP
-You can specify many host/disk expressions, only disks that match an expression will be dumped\&. All disks are dumped if no expressions are given\&.
-
+You can specify many host/disk expressions, only disks that match an expression will be dumped. All disks are dumped if no expressions are given.
 .PP
-If the file /usr/local/etc/amanda/\fBconfig\fR/hold exists, \fBamdump\fR will wait until it is removed before starting the backups\&. This allows scheduled backups to be delayed when circumstances warrant, for example, if the tape device is being used for some other purpose\&. While waiting, \fBamdump\fR checks for the hold file every minute\&.
-
+If the file /usr/local/etc/amanda/\fBconfig\fR/hold exists,
+\fBamdump\fR
+will wait until it is removed before starting the backups. This allows scheduled backups to be delayed when circumstances warrant, for example, if the tape device is being used for some other purpose. While waiting,
+\fBamdump\fR
+checks for the hold file every minute.
 .PP
-See the \fBamanda\fR(8) man page for more details about \fBAmanda\fR\&.
-
+See the
+\fBamanda\fR(8)
+man page for more details about
+\fBAmanda\fR.
 .SH "EXAMPLE"
-
 .PP
-Here is a typical crontab entry\&. It runs \fBamdump\fR every weeknight at 1 a\&.m\&. as user \fBbin\fR:
+Here is a typical crontab entry. It runs
+\fBamdump\fR
+every weeknight at 1 a.m. as user
+\fBbin\fR:
 .nf
 
-0 1 * * 1\-5 bin /usr/local/sbin/amdump daily
+0 1 * * 1-5 bin /usr/local/sbin/amdump daily
 .fi
-
 .PP
-Please see the \fBcrontab\fR(5) or \fBcrontab\fR(1) manual page for the correct crontab format for your system\&.
-
+Please see the
+\fBcrontab\fR(5)
+or
+\fBcrontab\fR(1)
+manual page for the correct crontab format for your system.
 .SH "MESSAGES"
-
 .TP
 amdump: waiting for hold file to be removed
-The "hold" file exists and \fBamdump\fR is waiting for it to be removed before starting backups\&.
-
+The "hold" file exists and
+\fBamdump\fR
+is waiting for it to be removed before starting backups.
 .TP
 amdump: amdump or amflush is already running, or you must run amcleanup
-Amdump detected another \fBamdump\fR or \fBamflush\fR running, or the remains of a previous incomplete \fBamdump\fR or \fBamflush\fR run\&. This run is terminated\&. If the problem is caused by the remains of a previous run, you must execute \fBamcleanup\fR(8) and then rerun \fBamdump\fR\&.
-
+Amdump detected another
+\fBamdump\fR
+or
+\fBamflush\fR
+running, or the remains of a previous incomplete
+\fBamdump\fR
+or
+\fBamflush\fR
+run. This run is terminated. If the problem is caused by the remains of a previous run, you must execute
+\fBamcleanup\fR(8)
+and then rerun
+\fBamdump\fR.
 .SH "AUTHOR"
-
 .PP
-James da Silva, <jds@amanda\&.org> : Original text
-
+James da Silva,
+<jds@amanda.org>
+: Original text
 .PP
-Stefan G\&. Weichinger, <sgw@amanda\&.org>, maintainer of the \fBAmanda\fR\-documentation: XML\-conversion
-
+Stefan G. Weichinger,
+<sgw@amanda.org>, maintainer of the
+\fBAmanda\fR-documentation: XML-conversion
 .SH "SEE ALSO"
-
 .PP
-\fBamanda\fR(8), \fBamcheck\fR(8), \fBamcleanup\fR(8), \fBamrestore\fR(8), \fBamflush\fR(8), \fBcron\fR(8)
+\fBamanda\fR(8),
+\fBamcheck\fR(8),
+\fBamcleanup\fR(8),
+\fBamrestore\fR(8),
+\fBamflush\fR(8),
+\fBcron\fR(8)
 
