@@ -1,3 +1,4 @@
+etc/xinetd.d
 etc/amanda/DailySet1
 usr/sbin
 usr/share/doc/amanda-server

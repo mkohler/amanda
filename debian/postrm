@@ -26,6 +26,9 @@ case "$1" in
 	fi
 
 	rm -f ~backup/.amandahosts
+
+	deluser backup disk
+	deluser backup tape
   ;;
   remove|upgrade|deconfigure)
   ;;

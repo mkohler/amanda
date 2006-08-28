@@ -1,9 +1,14 @@
+# Italian (it) translation of debconf templates for amanda
+# Copyright (C) 2004 Software in the Public Interest
+# This file is distributed under the same license as the amanda package.
+# Luca Monducci <luca.mo@tiscali.it>, 2004-2006.
+#
 msgid ""
 msgstr ""
-"Project-Id-Version: amanda 1:2.4.4p2 (templates)\n"
+"Project-Id-Version: amanda 1:2.5.0p2 italian debconf templates\n"
 "Report-Msgid-Bugs-To: bdale@gag.com\n"
-"POT-Creation-Date: 2006-05-25 23:06-0600\n"
-"PO-Revision-Date: 2004-05-14 12:16+0200\n"
+"POT-Creation-Date: 2006-08-28 13:34-0400\n"
+"PO-Revision-Date: 2006-05-30 10:30+0200\n"
 "Last-Translator: Luca Monducci <luca.mo@tiscali.it>\n"
 "Language-Team: Italian <debian-l10n-italian@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
@@ -12,19 +17,18 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../templates:3
-#, fuzzy
+#: ../templates:1001
 msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates"
 msgstr "Unire /var/lib/amandates e /var/lib/amanda/amndates."
 
 #. Type: note
 #. Description
-#: ../templates:3
+#: ../templates:1001
 msgid ""
 "You have both /var/lib/amandates and /var/lib/amanda/amandates. Please "
 "review the files, and merge the contents you care about to the /var/lib/"
 "amanda/amandates location, and remove the old file /var/lib/amandates."
 msgstr ""
-"Esiste sia /var/lib/amandates che /var/lib/amanda/amandates. Controllare i "
-"file e unire il contenuto interessante in /var/lib/amanda/amndates e "
-"rimuovere i file inutili da /var/lib/amanadates."
+"Esistono sia /var/lib/amandates che /var/lib/amanda/amandates. Controllare i "
+"file e unire tutte le parti utili in /var/lib/amanda/amandates e poi "
+"rimuovere il file /var/lib/amanadates."

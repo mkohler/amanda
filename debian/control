@@ -7,7 +7,7 @@ Standards-Version: 3.7.2
 
 Package: amanda-common
 Architecture: any
-Depends: ${shlibs:Depends}, netbase (>=3.03), tar (>=1.12), perl5, mailx, debconf | debconf-2.0
+Depends: ${shlibs:Depends}, netbase (>=3.03), tar (>=1.12), perl5, mailx, debconf | debconf-2.0, adduser
 Suggests: amanda-server (= ${Source-Version}) | amanda-client (= ${Source-Version})
 Conflicts: amanda
 Replaces: amanda

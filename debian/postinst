@@ -13,7 +13,8 @@ if [ "$1" = configure ]; then
 	groupadd -g 34 backup 2> /dev/null
 	groupadd -g 26 tape 2> /dev/null
 
-	usermod -G disk,tape backup
+	adduser backup disk
+	adduser backup tape
 
 	# in case we get installed first
 	if [ ! -d /var/lib/amanda ]; then

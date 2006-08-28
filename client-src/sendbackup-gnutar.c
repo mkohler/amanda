@@ -147,6 +147,9 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
     char *error_pn = NULL;
     char *compopt  = NULL;
     char *encryptopt = skip_argument;
+    int infd, outfd;
+    ssize_t nb;
+    char buf[32768];
 
     error_pn = stralloc2(get_pname(), "-smbclient");
 
@@ -211,10 +214,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	char *s;
 	int ch;
 	char *inputname = NULL;
-	FILE *in = NULL;
-	FILE *out;
 	int baselevel;
-	char *line = NULL;
 
 	basename = vstralloc(GNUTAR_LISTED_INCREMENTAL_DIR,
 			     "/",
@@ -235,12 +235,13 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	unlink(incrname);
 
 	/*
-	 * Open the listed incremental file for the previous level.  Search
+	 * Open the listed incremental file from the previous level.  Search
 	 * backward until one is found.  If none are found (which will also
 	 * be true for a level 0), arrange to read from /dev/null.
 	 */
 	baselevel = level;
-	while (in == NULL) {
+	infd = -1;
+	while (infd == -1) {
 	    if (--baselevel >= 0) {
 		snprintf(number, sizeof(number), "%d", baselevel);
 		inputname = newvstralloc(inputname,
@@ -248,7 +249,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	    } else {
 		inputname = newstralloc(inputname, "/dev/null");
 	    }
-	    if ((in = fopen(inputname, "r")) == NULL) {
+	    if ((infd = open(inputname, O_RDONLY)) == -1) {
 		int save_errno = errno;
 
 		dbprintf(("%s: error opening %s: %s\n",
@@ -264,28 +265,27 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	/*
 	 * Copy the previous listed incremental file to the new one.
 	 */
-	if ((out = fopen(incrname, "w")) == NULL) {
+	if ((outfd = open(incrname, O_WRONLY|O_CREAT, 0600)) == -1) {
 	    error("error [opening %s: %s]", incrname, strerror(errno));
 	}
 
-	for (; (line = agets(in)) != NULL; free(line)) {
-	    if(fputs(line, out) == EOF || putc('\n', out) == EOF) {
-		error("error [writing to %s: %s]", incrname, strerror(errno));
+	while ((nb = read(infd, &buf, sizeof(buf))) > 0) {
+	    if (fullwrite(outfd, &buf, nb) < nb) {
+		error("error [writing to '%s': %s]", incrname,
+		       strerror(errno));
 	    }
 	}
-	amfree(line);
 
-	if (ferror(in)) {
+	if (nb < 0) {
 	    error("error [reading from %s: %s]", inputname, strerror(errno));
 	}
-	if (fclose(in) == EOF) {
+
+	if (close(infd) != 0) {
 	    error("error [closing %s: %s]", inputname, strerror(errno));
 	}
-	in = NULL;
-	if (fclose(out) == EOF) {
+	if (close(outfd) != 0) {
 	    error("error [closing %s: %s]", incrname, strerror(errno));
 	}
-	out = NULL;
 
 	dbprintf(("%s: doing level %d dump as listed-incremental",
 		  debug_prefix_time("-gnutar"), level));

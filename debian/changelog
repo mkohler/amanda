@@ -1,3 +1,20 @@
+amanda (1:2.5.0p2-2) unstable; urgency=low
+
+  * merge updated French translation, closes: #369243
+  * merge updated Italian translation, closes: #369588
+  * merge updated Czech translaterion, closes: #370299
+  * merge updated Dutch translaterion, closes: #374850
+  * merge updated Swedish translaterion, closes: #375747
+  * rework postinst to use adduser instead of usermod to add user backup to
+    groups disk and tape, and add postrm support for removing user backup from
+    those groups on purge, closes: #380336
+  * patch from upstream 2.5.1b1 via Geert Uytterhoeven to support tar 1.15.91,
+    closes: #378558
+  * accept patch from Raphael Pinson adding xinetd support
+  * Clean debian/po/templates.pot after build
+
+ -- Bdale Garbee <bdale@gag.com>  Mon, 28 Aug 2006 09:15:23 -0400
+
 amanda (1:2.5.0p2-1) unstable; urgency=low
 
   * new upstream version

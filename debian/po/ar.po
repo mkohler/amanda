@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: amanda_1:2.4.5-1\n"
 "Report-Msgid-Bugs-To: bdale@gag.com\n"
-"POT-Creation-Date: 2006-05-25 23:06-0600\n"
+"POT-Creation-Date: 2006-08-28 13:34-0400\n"
 "PO-Revision-Date: 2005-07-19 18:48+0300\n"
 "Last-Translator: Ossama M. Khayat <okhayat@yahoo.com>\n"
 "Language-Team: Arabic <debian-l10n-arabic@lists.debian.org>\n"
@@ -26,14 +26,14 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../templates:3
+#: ../templates:1001
 #, fuzzy
 msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates"
 msgstr "الرجاء دمج /var/lib/amandates و /var/lib/amanda/amandates."
 
 #. Type: note
 #. Description
-#: ../templates:3
+#: ../templates:1001
 msgid ""
 "You have both /var/lib/amandates and /var/lib/amanda/amandates. Please "
 "review the files, and merge the contents you care about to the /var/lib/"

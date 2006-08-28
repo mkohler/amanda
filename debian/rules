@@ -43,6 +43,7 @@ clean:
 	-make clean
 	-make distclean
 	-rm -f build-stamp missing config/config.h common-src/genversion
+	-rm -f debian/po/templates.pot
 	-find . -type d -name .deps -exec rm -rf {} \;
 
 	-test -r /usr/share/misc/config.sub && \
@@ -72,6 +73,9 @@ binary-arch: build
 	install -d $(r)/usr/share/doc/amanda-common/examples
 	cp -a example/* $(r)/usr/share/doc/amanda-common/examples
 	cp ChangeLog $(r)/usr/share/doc/amanda-common/changelog
+	cp debian/xinetd.d/amandaidx $(server)/etc/xinetd.d
+	cp debian/xinetd.d/amidxtape $(server)/etc/xinetd.d
+	cp debian/xinetd.d/amanda $(r)/etc/xinetd.d			
 	dh_installmenu -a
 	dh_installcron -a
 	dh_installchangelogs -a

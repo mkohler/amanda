@@ -1,0 +1,12 @@
+# default: on
+# description: The amanda service
+service amanda
+{
+	disable		= no
+	socket_type	= dgram
+	protocol	= udp
+	wait		= yes
+	user		= backup
+	group		= backup
+	server		= /usr/lib/amanda/amandad
+}
