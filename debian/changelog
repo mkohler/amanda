@@ -1,3 +1,11 @@
+amanda (1:2.5.0p2-2.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Added Replaces:amanda-client to amanda-common control information; thanks
+    to Bill Alombert (closes: #391026).
+
+ -- martin f. krafft <madduck@debian.org>  Sat,  7 Oct 2006 13:11:08 +0200
+
 amanda (1:2.5.0p2-2) unstable; urgency=low
 
   * merge updated French translation, closes: #369243

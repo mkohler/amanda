@@ -10,7 +10,7 @@ Architecture: any
 Depends: ${shlibs:Depends}, netbase (>=3.03), tar (>=1.12), perl5, mailx, debconf | debconf-2.0, adduser
 Suggests: amanda-server (= ${Source-Version}) | amanda-client (= ${Source-Version})
 Conflicts: amanda
-Replaces: amanda
+Replaces: amanda, amanda-client
 Description: Advanced Maryland Automatic Network Disk Archiver (Libs)
  This package contains libraries required by the amanda client and
  server packages.
