@@ -41,7 +41,6 @@ build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
 sbin_PROGRAMS = amrecover$(EXEEXT)
-@WANT_SERVER_TRUE@am__append_1 = ../tape-src/libamtape.$(LIB_EXTENSION)
 subdir = recover-src
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in uparse.c uparse.h uscan.c
@@ -56,18 +55,16 @@ CONFIG_CLEAN_FILES =
 am__installdirs = "$(DESTDIR)$(sbindir)"
 sbinPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(sbin_PROGRAMS)
-am_amrecover_OBJECTS = amrecover.$(OBJEXT) display_commands.$(OBJEXT) \
-	extract_list.$(OBJEXT) help.$(OBJEXT) set_commands.$(OBJEXT) \
-	uparse.$(OBJEXT) uscan.$(OBJEXT)
+am__objects_1 = amrecover.$(OBJEXT) display_commands.$(OBJEXT) \
+	extract_list.$(OBJEXT) help.$(OBJEXT) set_commands.$(OBJEXT)
+am_amrecover_OBJECTS = $(am__objects_1) uparse.$(OBJEXT) \
+	uscan.$(OBJEXT)
 amrecover_OBJECTS = $(am_amrecover_OBJECTS)
 amrecover_LDADD = $(LDADD)
-@WANT_SERVER_TRUE@am__DEPENDENCIES_1 =  \
-@WANT_SERVER_TRUE@	../tape-src/libamtape.$(LIB_EXTENSION)
-am__DEPENDENCIES_2 =
+am__DEPENDENCIES_1 =
 amrecover_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../client-src/libamclient.$(LIB_EXTENSION) \
-	$(am__DEPENDENCIES_1) ../common-src/libamanda.$(LIB_EXTENSION) \
-	$(am__DEPENDENCIES_2)
+	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)/config
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -97,11 +94,14 @@ AMANDA_DEBUG_DAYS = @AMANDA_DEBUG_DAYS@
 AMANDA_TMPDIR = @AMANDA_TMPDIR@
 AMDEP_FALSE = @AMDEP_FALSE@
 AMDEP_TRUE = @AMDEP_TRUE@
+AMLINT = @AMLINT@
+AMLINTFLAGS = @AMLINTFLAGS@
 AMPLOT_CAT_COMPRESS = @AMPLOT_CAT_COMPRESS@
 AMPLOT_CAT_GZIP = @AMPLOT_CAT_GZIP@
 AMPLOT_CAT_PACK = @AMPLOT_CAT_PACK@
 AMPLOT_COMPRESS = @AMPLOT_COMPRESS@
 AMTAR = @AMTAR@
+AM_CFLAGS = @AM_CFLAGS@
 AR = @AR@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
@@ -109,6 +109,8 @@ AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
 AWK_VAR_ASSIGNMENT_OPT = @AWK_VAR_ASSIGNMENT_OPT@
 BINARY_OWNER = @BINARY_OWNER@
+BUILD_MAN_PAGES_FALSE = @BUILD_MAN_PAGES_FALSE@
+BUILD_MAN_PAGES_TRUE = @BUILD_MAN_PAGES_TRUE@
 CAT = @CAT@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
@@ -291,9 +293,10 @@ target_os = @target_os@
 target_vendor = @target_vendor@
 INCLUDES = -I$(top_builddir)/common-src \
 		-I$(top_srcdir)/common-src   \
-		-I$(top_srcdir)/client-src   \
-		-I$(top_srcdir)/tape-src
+		-I$(top_srcdir)/client-src
 
+LINT = @AMLINT@
+LINTFLAGS = @AMLINTFLAGS@
 LIB_EXTENSION = la
 @WANT_RUNTIME_PSEUDO_RELOC_TRUE@AM_LDFLAGS = -Wl,-enable-runtime-pseudo-reloc
 
@@ -303,14 +306,17 @@ LIB_EXTENSION = la
 # need to list libamanda twice here, first to override the system library
 # routines, and second to pick up any references in the other libraries.
 ###
-LDADD = ../common-src/libamanda.$(LIB_EXTENSION) @LEXLIB@ \
-	../client-src/libamclient.$(LIB_EXTENSION) $(am__append_1) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(READLINE_LIBS)
-amrecover_SOURCES = amrecover.c					\
-			display_commands.c		extract_list.c	\
-			help.c				set_commands.c	\
-			uparse.y			uscan.l
+LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
+	@LEXLIB@ \
+	../client-src/libamclient.$(LIB_EXTENSION) \
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	$(READLINE_LIBS)
 
+amrecover_CSRC = amrecover.c					\
+			display_commands.c		extract_list.c	\
+			help.c				set_commands.c
+
+amrecover_SOURCES = $(amrecover_CSRC)	uparse.y	uscan.l
 noinst_HEADERS = amrecover.h uparse.h
 AM_YFLAGS = -d
 all: all-am
@@ -630,6 +636,16 @@ uninstall-am: uninstall-info-am uninstall-sbinPROGRAMS
 	uninstall-sbinPROGRAMS
 
 
+# so that uscan.c is never generated before uparse.h
+# otherwise we might have makedepend problems
+$(srcdir)/uscan.c: $(srcdir)/uparse.h
+
+uscan.$(OBJEXT): $(srcdir)/uscan.c
+	$(CC) $(CFLAGS) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CPPFLAGS) -c $<
+
+uparse.$(OBJEXT): $(srcdir)/uparse.c
+	$(CC) $(CFLAGS) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CPPFLAGS) -c $<
+
 install-exec-hook:
 	@list="$(sbin_PROGRAMS)"; \
 	for p in $$list; do \
@@ -642,9 +658,18 @@ install-exec-hook:
 		chmod o-rwx $$pa; \
 	done
 
-# so that uscan.c is never generated before uparse.h
-# otherwise we might have makedepend problems
-uscan.c: uparse.h
+lint:
+	@f="$(amrecover_CSRC)";							\
+	(cd ../common-src; make listlibsrc);					\
+	f="$$f "`cat ../common-src/listlibsrc.output`;				\
+	(cd ../server-src; make listlibsrc);					\
+	f="$$f "`cat ../server-src/listlibsrc.output`;				\
+	echo $(LINT) $$f;							\
+	$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I../config $(INCLUDES) $$f;\
+	if [ $$? -ne 0 ]; then							\
+	    exit 1;								\
+	fi;									\
+        exit 0
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

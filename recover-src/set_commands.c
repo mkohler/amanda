@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: set_commands.c,v 1.23 2004/02/11 13:15:18 martinea Exp $
+ * $Id: set_commands.c,v 1.26 2006/07/05 13:14:58 martinea Exp $
  *
  * implements the "set" commands in amrecover
  */
@@ -37,8 +37,9 @@ extern unsigned short samba_extract_method;
 #endif /* SAMBA_CLIENT */
 
 /* sets a date, mapping given date into standard form if needed */
-int set_date(date)
-char *date;
+int
+set_date(
+    char *	date)
 {
     char *cmd = NULL;
 
@@ -68,13 +69,13 @@ char *date;
 	}
     }
     amfree(cmd);
-
     return 0;
 }
 
 
-void set_host(host)
-char *host;
+void
+set_host(
+    const char *host)
 {
     char *cmd = NULL;
     struct hostent *hp;
@@ -138,10 +139,21 @@ char *host;
     amfree(cmd);
 }
 
+void
+list_host(void)
+{
+    char *cmd = NULL;
 
-void set_disk(dsk, mtpt)
-char *dsk;
-char *mtpt;
+    cmd = stralloc("LISTHOST");
+    if (converse(cmd) == -1)
+        exit(1);
+    amfree(cmd);
+}
+
+void
+set_disk(
+    char *	dsk,
+    char *	mtpt)
 {
     char *cmd = NULL;
 
@@ -209,8 +221,9 @@ char *mtpt;
     }
 }
 
-void list_disk(amdevice)
-char *amdevice;
+void
+list_disk(
+    char *	amdevice)
 {
     char *cmd = NULL;
 
@@ -228,8 +241,9 @@ char *amdevice;
     }
 }
 
-void cd_glob(glob)
-char *glob;
+void
+cd_glob(
+    char *	glob)
 {
     char *regex;
     char *regex_path;
@@ -278,8 +292,9 @@ char *glob;
     amfree(path_on_disk);
 }
 
-void cd_regex(regex)
-char *regex;
+void
+cd_regex(
+    char *	regex)
 {
     char *s;
 
@@ -310,9 +325,10 @@ char *regex;
     amfree(path_on_disk);
 }
 
-void cd_dir(path_on_disk, default_dir)
-char *path_on_disk;
-char *default_dir;
+void
+cd_dir(
+    char *	path_on_disk,
+    char *	default_dir)
 {
     char *path_on_disk_slash = NULL;
     char *dir = NULL;
@@ -343,10 +359,12 @@ char *default_dir;
 		    dir[strlen(dir)-1] = '\0'; /* remove last / */
 		/* remove everything before the last / */
 		dir1 = rindex(dir,'/');
-		dir1++;
-		dir2 = stralloc(dir1);
-		amfree(dir);
-		dir = dir2;
+		if (dir1) {
+		    dir1++;
+		    dir2 = stralloc(dir1);
+		    amfree(dir);
+		    dir = dir2;
+		}
 	    }
 	}
     }
@@ -364,8 +382,9 @@ char *default_dir;
     amfree(dir);
 }
 
-void set_directory(dir)
-char *dir;
+void
+set_directory(
+    char *	dir)
 {
     char *cmd = NULL;
     char *new_dir = NULL;
@@ -376,11 +395,13 @@ char *dir;
     if(strcmp(dir,".")==0) {
 	show_directory();		/* say where we are */
 	return;
+	/*NOTREACHED*/
     }
 
     if (disk_name == NULL) {
 	printf("Must select disk before setting directory\n");
 	return;
+	/*NOTREACHED*/
     }
 
     ldir = stralloc(dir);
@@ -402,6 +423,7 @@ char *dir;
 		       mount_point);
 		amfree(ldir);
 		return;
+		/*NOTREACHED*/
 	    }
 	    new_dir = stralloc(ldir+strlen(mount_point));
 	    if (strlen(new_dir) == 0) {
@@ -435,9 +457,12 @@ char *dir;
 		/* at top of disk */
 		printf("Invalid directory - Can't cd outside mount point \"%s\"\n",
 		       mount_point);
+		/*@ignore@*/
 		amfree(new_dir);
+		/*@end@*/
 		amfree(ldir);
 		return;
+		/*NOTREACHED*/
 	    }
 	    de = strrchr(new_dir, '/');	/* always at least 1 */
 	    if (de == new_dir)
@@ -450,17 +475,22 @@ char *dir;
 		*de = '\0';
  	    }
 	} else {
+	    /*@ignore@*/
 	    if (strcmp(new_dir, "/") != 0) {
 		strappend(new_dir, "/");
 	    }
 	    strappend(new_dir, ldir);
+	    /*@end@*/
 	}
     }
 
     cmd = stralloc2("OISD ", new_dir);
-    if (exchange(cmd) == -1)
+    if (exchange(cmd) == -1) {
 	exit(1);
+	/*NOTREACHED*/
+    }
     amfree(cmd);
+
     if (server_happy())
     {
 	disk_path = newstralloc(disk_path, new_dir);
@@ -472,13 +502,16 @@ char *dir;
 	printf("Invalid directory - %s\n", dir);
     }
 
+    /*@ignore@*/
     amfree(new_dir);
     amfree(ldir);
+    /*@end@*/
 }
 
 
 /* prints the current working directory */
-void show_directory P((void))
+void
+show_directory(void)
 {
     if (mount_point == NULL || disk_path == NULL)
         printf("Must select disk first\n");
@@ -492,8 +525,9 @@ void show_directory P((void))
 
 
 /* set the tape server and device */
-void set_tape (tape)
-    char *tape;
+void
+set_tape(
+    char *	tape)
 {
     char *tapedev = strchr(tape, ':');
 
@@ -539,8 +573,9 @@ void set_tape (tape)
 		server_name);
 }
 
-void set_mode (mode)
-int mode;
+void
+set_mode(
+    int		mode)
 {
 #ifdef SAMBA_CLIENT
   if (mode == SAMBA_SMBCLIENT) {
@@ -552,10 +587,13 @@ int mode;
       samba_extract_method = SAMBA_TAR;
     }
   }
+#else
+  (void)mode;	/* Quiet unused parameter warning */
 #endif /* SAMBA_CLIENT */
 }
 
-void show_mode (void) 
+void
+show_mode(void) 
 {
 #ifdef SAMBA_CLIENT
   printf ("SAMBA dumps are extracted ");

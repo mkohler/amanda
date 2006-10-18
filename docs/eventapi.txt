@@ -1,10 +1,10 @@
 
-         Chapter 24. AMANDA Event API
+         Chapter 25. Amanda Event API
 Prev  Part V. Technical Background  Next
 
 -------------------------------------------------------------------------------
 
-Chapter 24. AMANDA Event API
+Chapter 25. Amanda Event API
 
 
 Mike Grupenhoff
@@ -31,6 +31,8 @@ Table of Contents
         event_release
 
         event_loop
+
+        event_wait
 
         event_wakeup
 
@@ -101,6 +103,12 @@ until all events have been released. If the argument is nonzero, this will do
 one pass over all pending events, and fire the ones that are immediately ready,
 and then return.
 
+ event_wait
+
+void event_wait(event_id_t id);
+Like event_loop(0), except that it will stop as soon as the event id is
+serviced.
+
  event_wakeup
 
 int event_wakeup(event_id_t id);
@@ -163,5 +171,5 @@ argument equal to the argument this event was registered with.
 -------------------------------------------------------------------------------
 
 Prev                           Up                              Next
-Chapter 23. AMANDA Internals  Home  Chapter 25. AMANDA Security API
+Chapter 24. Amanda Internals  Home  Chapter 26. Amanda Security API
 

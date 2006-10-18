@@ -24,14 +24,19 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: rundump.c,v 1.28 2006/01/14 04:37:18 paddy_s Exp $
+ * $Id: rundump.c,v 1.33 2006/07/25 18:27:56 martinea Exp $
  *
  * runs DUMP program as root
+ *
+ * argv[0] is the rundump program name
+ * argv[1] is the config name or NOCONFIG
+ * argv[2] will be argv[0] of the DUMP program
+ * ...
  */
 #include "amanda.h"
 #include "version.h"
 
-int main P((int argc, char **argv));
+int main(int argc, char **argv);
 
 #if defined(VDUMP) || defined(XFSDUMP)
 #  undef USE_RUNDUMP
@@ -48,9 +53,10 @@ int main P((int argc, char **argv));
 #  endif
 #endif
 
-int main(argc, argv)
-int argc;
-char **argv;
+int
+main(
+    int		argc,
+    char **	argv)
 {
 #ifndef ERRMSG
     char *dump_program;
@@ -66,8 +72,13 @@ char **argv;
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
-    dbopen();
-    dbprintf(("%s: version %s\n", argv[0], version()));
+    dbopen(DBG_SUBDIR_CLIENT);
+    if (argc < 3) {
+	error("%s: Need at least 3 arguments\n", debug_prefix(NULL));
+	/*NOTREACHED*/
+    }
+
+    dbprintf(("%s: version %s\n", debug_prefix(NULL), version()));
 
 #ifdef ERRMSG							/* { */
 
@@ -80,19 +91,34 @@ char **argv;
 
     if(client_uid == (uid_t) -1) {
 	error("error [cannot find user %s in passwd file]\n", CLIENT_LOGIN);
+	/*NOTREACHED*/
     }
 
 #ifdef FORCE_USERID
-    if (getuid() != client_uid)
+    if (getuid() != client_uid) {
 	error("error [must be invoked by %s]\n", CLIENT_LOGIN);
+	/*NOTREACHED*/
+    }
 
-    if (geteuid() != 0)
+    if (geteuid() != 0) {
 	error("error [must be setuid root]\n");
+	/*NOTREACHED*/
+    }
 #endif	/* FORCE_USERID */
 
 #if !defined (DONT_SUID_ROOT)
     setuid(0);
 #endif
+
+    /* skip argv[0] */
+    argc--;
+    argv++;
+
+    dbprintf(("config: %s\n", argv[0]));
+    if (strcmp(argv[0], "NOCONFIG") != 0)
+	dbrename(argv[0], DBG_SUBDIR_CLIENT);
+    argc--;
+    argv++;
 
 #ifdef XFSDUMP
 

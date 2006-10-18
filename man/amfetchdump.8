@@ -22,7 +22,8 @@
 amfetchdump - extract backup images from multiple Amanda tapes.
 .SH "SYNOPSIS"
 .HP 12
-\fBamfetchdump\fR [-pcClawns] [-d \fIdevice\fR] [-o \fIdirectory\fR] [-i \fIlogfile\fR] [-b \fIblocksize\fR] \fIconfig\fR \fIhostname\fR [\fIdisk\fR [ \fIdate\fR [ \fIlevel\fR [ \fIhostname\fR [...] ] ] ]]
+\fBamfetchdump\fR [-pcClawns] [-d \fIdevice\fR] [-O \fIdirectory\fR] [-i \fIlogfile\fR] [-b \fIblocksize\fR] \fIconfig\fR \fIhostname\fR [\fIdisk\fR [ \fIdate\fR [ \fIlevel\fR [ \fIhostname\fR [...] ] ] ]] [-o \fIconfigoption\fR]*
+
 .SH "DESCRIPTION"
 .PP
 \fBAmfetchdump\fR
@@ -60,7 +61,7 @@ Pipe exactly one complete dump file to
 \fB-d\fR \fIdevice\fR
 Restore from this tape device instead of the default.
 .TP
-\fB-o\fR \fIdirectory\fR
+\fB-O\fR \fIdirectory\fR
 Output restored files to this directory, instead of to the current working directory.
 .TP
 \fB-c\fR
@@ -101,6 +102,10 @@ Do not fast-forward straight to needed files on tape. This will slow down most r
 .TP
 \fB-b\fR \fIblocksize\fR
 Force a particular block size when reading from tapes. This value will usually be autodetected, and should not normally need to be set.
+.TP
+\fB-o\fR \fIconfigoption\fR
+See the "\fBCONFIGURATION OVERWRITE\fR" section in
+\fBamanda\fR(8).
 .SH "EXAMPLES"
 .PP
 All the examples here assume your configuration is called

@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 1999 University of Maryland at College Park
+ * Copyright (c) 1991-1998 University of Maryland at College Park
  * All Rights Reserved.
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -23,19 +23,34 @@
  * Authors: the Amanda Development Team.  Its members are listed in a
  * file named AUTHORS, in the root directory of this distribution.
  */
-/*
- * $Id: amandad.h,v 1.2 1999/04/16 05:12:39 kashmir Exp $
+/* 
+ * $Id: amandad.h,v 1.5 2006/07/19 17:46:07 martinea Exp $
+ *
  */
-#ifndef	AMANDAD_H
-#define	AMANDAD_H
 
-/*
- * General-use pipes inherited by sendbackup that are connected to the
- * data, mesg, index, etc connections on the server.  amandad sets these
- * up before calling sendbackup, and will relay data sent on them
- * back to the server.
- */
-#define	DATA_FD_COUNT	3		/* number of general-use pipes */
-#define	DATA_FD_OFFSET	50		/* fd at which they start */
+#ifndef AMANDAD_UTIL_H
+#define AMANDAD_UTIL_H
 
-#endif	/* AMANDAD_H */
+#include "amanda.h"
+#include "amfeatures.h"
+#include "sl.h"
+#include "util.h"		/* for bstrncmp() */
+
+#define DATA_FD_COUNT   3               /* number of general-use pipes */
+#define DATA_FD_OFFSET  50  
+
+typedef struct g_option_s {
+    char *str;
+    am_feature_t *features;
+    char *hostname;
+    char *auth;
+    int maxdumps;
+    char *config;
+} g_option_t;
+
+
+void init_g_options(g_option_t *g_options);
+g_option_t *parse_g_options(char *str, int verbose);
+void free_g_options(g_option_t *);
+
+#endif

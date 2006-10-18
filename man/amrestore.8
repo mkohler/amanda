@@ -22,7 +22,7 @@
 amrestore - extract backup images from an Amanda tape
 .SH "SYNOPSIS"
 .HP 10
-\fBamrestore\fR [-r -c -C] [-b \fIblocksize\fR] [-f \fIfileno\fR] [-l \fIlabel\fR] [-p] [-h] \fItapedevice\fR \fIholdingfile\fR [\fIhostname\fR [\fIdiskname\fR [\fIdatestamp\fR [\fIhostname\fR [\fIdiskname\fR [\fIdatestamp\fR...]]]]]] 
+\fBamrestore\fR [-r -c -C] [-b \fIblocksize\fR] [-f \fIfileno\fR] [-l \fIlabel\fR] [-p] [-h] \fItapedevice\fR| \fIholdingfile\fR  [\fIhostname\fR [\fIdiskname\fR [\fIdatestamp\fR [\fIhostname\fR [\fIdiskname\fR [\fIdatestamp\fR ...]]]]]]
 .SH "DESCRIPTION"
 .PP
 \fBAmrestore\fR
@@ -163,6 +163,10 @@ may also be used to compress the result.
 uses the header to determine the restore program to use.
 .PP
 If a header is written (-r or -h), only 32 KBytes are output regardless of the tape blocksize. This makes the resulting image usable as a holding file.
+.TP
+\fB-o\fR \fIconfigoption\fR
+See the "\fBCONFIGURATION OVERWRITE\fR" section in
+\fBamanda\fR(8).
 .SH "EXAMPLES"
 .PP
 The following does an interactive restore of disk

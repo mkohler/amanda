@@ -1,5 +1,5 @@
 Template: amanda-common/merge_amandates
-Type: note
+Type: error
 _Description: Please merge /var/lib/amandates and /var/lib/amanda/amandates
  You have both /var/lib/amandates and /var/lib/amanda/amandates. Please
  review the files, and merge the contents you care about to the

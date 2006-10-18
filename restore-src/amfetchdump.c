@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amfetchdump.c,v 1.7 2006/03/14 13:12:01 martinea Exp $
+ * $Id: amfetchdump.c,v 1.16 2006/08/24 01:57:15 paddy_s Exp $
  *
  * retrieves specific dumps from a set of amanda tapes
  */
@@ -42,7 +42,6 @@
 
 #define CREAT_MODE	0640
 
-extern char *rst_conf_logdir;
 extern char *rst_conf_logfile;
 extern char *config_dir;
 int get_lock = 0;
@@ -57,35 +56,39 @@ typedef struct needed_tapes_s {
 
 /* local functions */
 
-void errexit P((void));
-void handle_sigpipe P((int sig));
-tapelist_t *list_needed_tapes P((match_list_t *match_list));
-void usage P((void));
-int main P((int argc, char **argv));
+void errexit(void);
+tapelist_t *list_needed_tapes(match_list_t *match_list);
+void usage(void);
+int main(int argc, char **argv);
 
 /* exit routine */
-static int parent_pid = -1;
-static void cleanup P((void));
+static pid_t parent_pid = -1;
+static void cleanup(void);
 
-void errexit()
+
 /*
  * Do exit(2) after an error, rather than exit(1).
  */
+
+void
+errexit(void)
 {
     exit(2);
 }
 
 
-void usage()
 /*
  * Print usage message and terminate.
  */
+
+void
+usage(void)
 {
-    fprintf(stderr, "Usage: amfetchdump [options] config hostname [diskname [datestamp [level [hostname [diskname [datestamp [level ... ]]]]]]]\n\n");
+    fprintf(stderr, "Usage: amfetchdump [options] config hostname [diskname [datestamp [level [hostname [diskname [datestamp [level ... ]]]]]]] [-o configoption]*\n\n");
     fprintf(stderr, "Goes and grabs a dump from tape, moving tapes around and assembling parts as\n");
     fprintf(stderr, "necessary.  Files are restored to the current directory, unless otherwise\nspecified.\n\n");
     fprintf(stderr, "  -p Pipe exactly *one* complete dumpfile to stdout, instead of to disk.\n");
-    fprintf(stderr, "  -o <output dir> Restore files to this directory.\n");
+    fprintf(stderr, "  -O <output dir> Restore files to this directory.\n");
     fprintf(stderr, "  -d <device> Force restoration from a particular tape device.\n");
     fprintf(stderr, "  -c Compress output, fastest method available.\n");
     fprintf(stderr, "  -C Compress output, best filesize method available.\n");
@@ -105,8 +108,9 @@ void usage()
  * files we want from said tapes while we're at it (the whole find_result
  * should do fine)
  */
-tapelist_t *list_needed_tapes(match_list)
-match_list_t *match_list;
+tapelist_t *
+list_needed_tapes(
+    match_list_t *	match_list)
 {
     needed_tape_t *needed_tapes = NULL, *curtape = NULL;
     disklist_t diskqp;
@@ -126,6 +130,7 @@ match_list_t *match_list;
     }
     if(read_diskfile(conf_diskfile, &diskqp) != 0) {
         error("could not load disklist \"%s\"", conf_diskfile);
+	/*NOTREACHED*/
     }
     if (*conf_tapelist == '/') {
         conf_tapelist = stralloc(conf_tapelist);
@@ -134,18 +139,19 @@ match_list_t *match_list;
     }
     if(read_tapelist(conf_tapelist)) {
         error("could not load tapelist \"%s\"", conf_tapelist);
+	/*NOTREACHED*/
     }
     amfree(conf_diskfile);
     amfree(conf_tapelist);
 
     /* Grab a find_output_t of all logged dumps */
-    alldumps = find_dump(1, &diskqp); 
+    alldumps = find_dump(1, &diskqp);
     free_disklist(&diskqp);
     if(alldumps == NULL){
         fprintf(stderr, "No dump records found\n");
         exit(1);
     }
- 
+
     /* Compare all known dumps to our match list, note what we'll need */
     for(me = match_list; me; me = me->next) {
 	find_result_t *curmatch = NULL;	
@@ -157,8 +163,8 @@ match_list_t *match_list;
 	for(curmatch = matches; curmatch; curmatch = curmatch->next){
 	    int havetape = 0;
 	    if(strcmp("OK", curmatch->status)){
-		fprintf(stderr,"Dump %d %s %s %d had status '%s', skipping\n",
-		                 curmatch->datestamp, curmatch->hostname,
+		fprintf(stderr,"Dump %s %s %s %d had status '%s', skipping\n",
+		                 curmatch->timestamp, curmatch->hostname,
 				 curmatch->diskname, curmatch->level,
 				 curmatch->status);
 		continue;
@@ -166,10 +172,10 @@ match_list_t *match_list;
 	    for(curtape = needed_tapes; curtape; curtape = curtape->next) {
 		if(!strcmp(curtape->label, curmatch->label)){
 		    find_result_t *rsttemp = NULL;
-		    find_result_t *rstfile = alloc(sizeof(find_result_t));
+		    find_result_t *rstfile = alloc(SIZEOF(find_result_t));
 		    int keep = 1;
 
-		    memcpy(rstfile, curmatch, sizeof(find_result_t));
+		    memcpy(rstfile, curmatch, SIZEOF(find_result_t));
 
 		    havetape = 1;
 
@@ -177,7 +183,10 @@ match_list_t *match_list;
 			    rsttemp;
 			    rsttemp=rsttemp->next){
 			if(rstfile->filenum == rsttemp->filenum){
-			    fprintf(stderr, "Seeing multiple entries for tape %s file %d, using most recent\n", curtape->label, rstfile->filenum);
+			    fprintf(stderr, "Seeing multiple entries for tape "
+				   "%s file " OFF_T_FMT ", using most recent\n",
+				    curtape->label,
+				    (OFF_T_FMT_TYPE)rstfile->filenum);
 			    keep = 0;
 			}
 		    }
@@ -194,10 +203,10 @@ match_list_t *match_list;
 		}
 	    }
 	    if(!havetape){
-		find_result_t *rstfile = alloc(sizeof(find_result_t));
+		find_result_t *rstfile = alloc(SIZEOF(find_result_t));
 		needed_tape_t *newtape =
-		                          alloc(sizeof(needed_tape_t));
-		memcpy(rstfile, curmatch, sizeof(find_result_t));
+		                          alloc(SIZEOF(needed_tape_t));
+		memcpy(rstfile, curmatch, SIZEOF(find_result_t));
 		rstfile->next = NULL;
 		newtape->files = rstfile;
 		if(curmatch->filenum < 1) newtape->isafile = 1;
@@ -225,6 +234,7 @@ match_list_t *match_list;
     if(numtapes == 0){
       fprintf(stderr, "No matching dumps found\n");
       exit(1);
+      /* NOTREACHED */
     }
 
     /* stick that list in a structure that librestore will understand */
@@ -240,13 +250,16 @@ match_list_t *match_list;
     return(tapes);
 }
 
-int main(argc, argv)
-int argc;
-char **argv;
+
 /*
  * Parses command line, then loops through all files on tape, restoring
  * files that match the command line criteria.
  */
+
+int
+main(
+    int		argc,
+    char **	argv)
 {
     extern int optind;
     int opt;
@@ -261,8 +274,10 @@ char **argv;
     int arg_state;
     rst_flags_t *rst_flags;
     struct passwd *pwent;
+    int    new_argc,   my_argc;
+    char **new_argv, **my_argv;
 
-    for(fd = 3; fd < FD_SETSIZE; fd++) {
+    for(fd = 3; fd < (int)FD_SETSIZE; fd++) {
 	/*
 	 * Make sure nobody spoofs us with a lot of extra open files
 	 * that would cause an open we do to get a very high file
@@ -273,6 +288,8 @@ char **argv;
     }
 
     set_pname("amfetchdump");
+
+    dbopen(DBG_SUBDIR_SERVER);
 
 #ifdef FORCE_USERID
 
@@ -286,9 +303,12 @@ char **argv;
     if(geteuid() == 0) {
 	if(client_uid == (uid_t) -1) {
 	    error("error [cannot find user %s in passwd file]\n", CLIENT_LOGIN);
+	    /*NOTREACHED*/
 	}
 
+	/*@ignore@*/
 	initgroups(CLIENT_LOGIN, client_gid);
+	/*@end@*/
 	setgid(client_gid);
 	setuid(client_uid);
     }
@@ -302,36 +322,45 @@ char **argv;
 
     onerror(errexit);
 
-    if(argc <= 1) usage();
+    parse_server_conf(argc, argv, &new_argc, &new_argv);
+    my_argc = new_argc;
+    my_argv = new_argv;
+
+    if(my_argc <= 1) {
+	usage();
+	/*NOTREACHED*/
+    }
 
     rst_flags = new_rst_flags();
     rst_flags->wait_tape_prompt = 1;
-    
+
     /* handle options */
-    while( (opt = getopt(argc, argv, "alht:scCpb:nwi:d:o:")) != -1) {
+    while( (opt = getopt(my_argc, my_argv, "alht:scCpb:nwi:d:O:")) != -1) {
 	switch(opt) {
-	case 'b': rst_flags->compress = 1; break;
-            rst_flags->blocksize = strtol(optarg, &e, 10);
+	case 'b':
+            rst_flags->blocksize = (ssize_t)strtol(optarg, &e, 10);
             if(*e == 'k' || *e == 'K') {
 	        rst_flags->blocksize *= 1024;
 	    } else if(*e == 'm' || *e == 'M') {
 	        rst_flags->blocksize *= 1024 * 1024;
 	    } else if(*e != '\0') {
 	        error("invalid blocksize value \"%s\"", optarg);
+		/*NOTREACHED*/
 	    }
 	    if(rst_flags->blocksize < DISK_BLOCK_BYTES) {
 	        error("minimum block size is %dk", DISK_BLOCK_BYTES / 1024);
+		/*NOTREACHED*/
 	    }
 	    break;
 	case 'c': rst_flags->compress = 1; break;
-	case 'o': rst_flags->restore_dir = stralloc(optarg) ; break;
+	case 'O': rst_flags->restore_dir = stralloc(optarg) ; break;
 	case 'd': rst_flags->alt_tapedev = stralloc(optarg) ; break;
 	case 'C':
 	    rst_flags->compress = 1;
 	    rst_flags->comp_type = COMPRESS_BEST_OPT;
 	    break;
 	case 'p': rst_flags->pipe_to_fd = fileno(stdout); break;
-	case 's': rst_flags->fsf = 0; break;
+	case 's': rst_flags->fsf = (off_t)0; break;
 	case 'l': rst_flags->leave_comp = 1; break;
 	case 'i': rst_flags->inventory_log = stralloc(optarg); break;
 	case 'n': rst_flags->inline_assemble = 0; break;
@@ -340,6 +369,7 @@ char **argv;
 	case 'h': rst_flags->headers = 1; break;
 	default:
 	    usage();
+	    /*NOTREACHED*/
 	}
     }
 
@@ -350,6 +380,7 @@ char **argv;
 	rst_flags->leave_comp = 1;
 	if(rst_flags->compress){
 	    error("Cannot force compression when doing inventory/search");
+	    /*NOTREACHED*/
 	}
 	fprintf(stderr, "Doing inventory/search, dumps will not be uncompressed or assembled on-the-fly.\n");
     }
@@ -360,20 +391,26 @@ char **argv;
     }
 
     /* make sure our options all make sense otherwise */
-    if(check_rst_flags(rst_flags) == -1) usage();
+    if(check_rst_flags(rst_flags) == -1) {
+    	usage();
+	/*NOTREACHED*/
+    }
 
-    config_name = argv[optind++];
+    config_name = my_argv[optind++];
     config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
     conffile = stralloc2(config_dir, CONFFILE_NAME);
     if (read_conffile(conffile)) {
 	error("errors processing config file \"%s\"", conffile);
+	/*NOTREACHED*/
     }
     amfree(conffile);
 
+    dbrename(config_name, DBG_SUBDIR_SERVER);
 
-    if((argc - optind) < 1 && !rst_flags->inventory_log){
+    if((my_argc - optind) < 1 && !rst_flags->inventory_log){
 	fprintf(stderr, "Not enough arguments\n\n");
 	usage();
+	/*NOTREACHED*/
     }
 
 #define ARG_GET_HOST 0
@@ -382,14 +419,14 @@ char **argv;
 #define ARG_GET_LEVL 3
 
     arg_state = ARG_GET_HOST;
-    while(optind < argc) {
+    while(optind < my_argc) {
         switch(arg_state) {
         case ARG_GET_HOST:
             /*
              * New host/disk/date/level set, so allocate a match_list.
              */
-            me = alloc(sizeof(*me));
-            me->hostname = argv[optind++];
+            me = alloc(SIZEOF(*me));
+            me->hostname = my_argv[optind++];
             me->diskname = "";
             me->datestamp = "";
             me->level = "";
@@ -400,43 +437,47 @@ char **argv;
                 fprintf(stderr, "%s: bad hostname regex \"%s\": %s\n",
                         get_pname(), me->hostname, errstr);
                 usage();
+		/*NOTREACHED*/
             }
             arg_state = ARG_GET_DISK;
             break;
         case ARG_GET_DISK:
-            me->diskname = argv[optind++];
+            me->diskname = my_argv[optind++];
             if(me->diskname[0] != '\0'
                && (errstr=validate_regexp(me->diskname)) != NULL) {
                 fprintf(stderr, "%s: bad diskname regex \"%s\": %s\n",
                         get_pname(), me->diskname, errstr);
                 usage();
+		/*NOTREACHED*/
             }
             arg_state = ARG_GET_DATE;
             break;
         case ARG_GET_DATE:
-            me->datestamp = argv[optind++];
+            me->datestamp = my_argv[optind++];
             if(me->datestamp[0] != '\0'
                && (errstr=validate_regexp(me->datestamp)) != NULL) {
                 fprintf(stderr, "%s: bad datestamp regex \"%s\": %s\n",
                         get_pname(), me->datestamp, errstr);
                 usage();
+		/*NOTREACHED*/
             }
             arg_state = ARG_GET_LEVL;
             break;
         case ARG_GET_LEVL:
-            me->level = argv[optind++];
+            me->level = my_argv[optind++];
             if(me->level[0] != '\0'
                && (errstr=validate_regexp(me->level)) != NULL) {
                 fprintf(stderr, "%s: bad level regex \"%s\": %s\n",
                         get_pname(), me->level, errstr);
                 usage();
+		/*NOTREACHED*/
             }
         }
     }
 
     /* XXX I don't think this can happen */
     if(match_list == NULL && !rst_flags->inventory_log) {
-        match_list = alloc(sizeof(*match_list));
+        match_list = alloc(SIZEOF(*match_list));
         match_list->hostname = "";
         match_list->diskname = "";
         match_list->datestamp = "";
@@ -457,10 +498,13 @@ char **argv;
 
     /* Decide what tapes we'll need */
     needed_tapes = list_needed_tapes(match_list);
-    
+
     parent_pid = getpid();
     atexit(cleanup);
     get_lock = lock_logfile(); /* config is loaded, should be ok here */
+    if(get_lock == 0) {
+	error("%s exists: amdump or amflush is already running, or you must run amcleanup", rst_conf_logfile);
+    }
     search_tapes(NULL, 1, needed_tapes, match_list, rst_flags, NULL);
     cleanup();
 
@@ -471,6 +515,7 @@ char **argv;
     else flush_open_outputs(0, NULL);
 
     free_rst_flags(rst_flags);
+    free_new_argv(new_argc, new_argv);
 
     return(0);
 }
@@ -482,4 +527,3 @@ cleanup(void)
 	if(get_lock) unlink(rst_conf_logfile);
     }
 }
-

@@ -14,24 +14,23 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: amanda 2.4.4p2\n"
+"Project-Id-Version: amanda 2.5.0p2-2.1\n"
 "Report-Msgid-Bugs-To: bdale@gag.com\n"
-"POT-Creation-Date: 2006-08-28 13:34-0400\n"
-"PO-Revision-Date: 2004-02-21 01:08+0900\n"
-"Last-Translator: Hideki Yamane <henrich@samba.gr.jp>\n"
+"POT-Creation-Date: 2006-10-18 01:32-0600\n"
+"PO-Revision-Date: 2006-10-11 00:08+0900\n"
+"Last-Translator: Hideki Yamane (Debian-JP) <henrich@debian.or.jp>\n"
 "Language-Team: Japanese <debian-japanese@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=EUC-JP\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#. Type: note
+#. Type: error
 #. Description
 #: ../templates:1001
-#, fuzzy
 msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates"
-msgstr "/var/lib/amandates ¤È /var/lib/amanda/amandates ¤ò¥Ş¡¼¥¸¤·¤Æ¤¯¤À¤µ¤¤¡£"
+msgstr "/var/lib/amandates ã¨ /var/lib/amanda/amandates ã‚’ãƒãƒ¼ã‚¸ã—ã¦ãã ã•ã„ã€‚"
 
-#. Type: note
+#. Type: error
 #. Description
 #: ../templates:1001
 msgid ""
@@ -39,6 +38,6 @@ msgid ""
 "review the files, and merge the contents you care about to the /var/lib/"
 "amanda/amandates location, and remove the old file /var/lib/amandates."
 msgstr ""
-"/var/lib/amandates ¤È /var/lib/amanda/amandates ¤ÎÎ¾Êı¤¬¤¢¤ê¤Ş¤¹¡£¥Õ¥¡¥¤¥ë¤ò"
-"³ÎÇ§¤·¡¢/var/lib/amanda/amandates ¤ËÃí°Õ¤¬É¬Í×¤ÊÆâÍÆ¤ò¥Ş¡¼¥¸¤·¤Æ¤«¤é¡¢¸Å¤¤"
-"¥Õ¥¡¥¤¥ë /var/lib/amandates ¤òºï½ü¤·¤Æ¤¯¤À¤µ¤¤¡£"
+"/var/lib/amandates ã¨ /var/lib/amanda/amandates ã®ä¸¡æ–¹ãŒã‚ã‚Šã¾ã™ã€‚ãƒ•ã‚¡ã‚¤ãƒ«ã‚’"
+"ç¢ºèªã—ã€/var/lib/amanda/amandates ã«æ³¨æ„ãŒå¿…è¦ãªå†…å®¹ã‚’ãƒãƒ¼ã‚¸ã—ã¦ã‹ã‚‰ã€å¤ã„"
+"ãƒ•ã‚¡ã‚¤ãƒ« /var/lib/amandates ã‚’å‰Šé™¤ã—ã¦ãã ã•ã„ã€‚"

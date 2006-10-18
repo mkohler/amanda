@@ -20,13 +20,16 @@
  */
 
 /*
- * $Id: taperscan.h,v 1.1 2005/12/21 19:07:51 paddy_s Exp $
+ * $Id: taperscan.h,v 1.3 2006/05/25 01:47:20 johnfranks Exp $
  *
  * This contains the interface to the tape-scan algorithm implementation.
  * The interface is rather simple: Calling programs (taper, amcheck,
  * amtape) call the function below with a desired tape label, and get back
  * all the relevant label information, along with any other error messages.
  */
+#ifndef TAPERSCAN_H
+#define TAPERSCAN_H
+
 
 /* taper_scan(): Scans the changer to find a tape to use. Reads the tape
  *               label, or invents a new one if label_new_tapes is in use.
@@ -47,6 +50,12 @@
  *
  * All returned strings are newly-allocated. */
 
-int taper_scan P((char* wantlabel,
-                  char** gotlabel, char** timestamp, char** error_message,
-                  char **tapedev));
+int taper_scan (char* wantlabel,
+                  char** gotlabel, char** timestamp,
+                  char **tapedev,
+		  void taperscan_output_callback(void *data, char *msg),
+		  void *data);
+void FILE_taperscan_output_callback(void *data, char *msg);
+void CHAR_taperscan_output_callback(void *data, char *msg);
+
+#endif	/* !TAPERSCAN_H */

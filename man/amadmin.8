@@ -22,7 +22,8 @@
 amadmin - administrative interface to control Amanda backups
 .SH "SYNOPSIS"
 .HP 8
-\fBamadmin\fR \fIconfig\fR \fIcommand\fR [\fIcommand\fR \fIoptions\fR]
+\fBamadmin\fR \fIconfig\fR \fIcommand\fR [\fIcommand\fR\fIoptions\fR] [-o \fIconfigoption\fR]*
+
 .SH "DESCRIPTION"
 .PP
 \fBAmadmin\fR
@@ -193,6 +194,10 @@ Display the database record for each of the
 on
 \fBhostname\fR
 (or all hosts). Mostly used for debugging.
+.TP
+\fB-o\fR \fIconfigoption\fR
+See the "\fBCONFIGURATION OVERWRITE\fR" section in
+\fBamanda\fR(8).
 .SH "EXAMPLES"
 .PP
 Request three specific file systems on

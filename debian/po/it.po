@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: amanda 1:2.5.0p2 italian debconf templates\n"
 "Report-Msgid-Bugs-To: bdale@gag.com\n"
-"POT-Creation-Date: 2006-08-28 13:34-0400\n"
+"POT-Creation-Date: 2006-10-18 01:32-0600\n"
 "PO-Revision-Date: 2006-05-30 10:30+0200\n"
 "Last-Translator: Luca Monducci <luca.mo@tiscali.it>\n"
 "Language-Team: Italian <debian-l10n-italian@lists.debian.org>\n"
@@ -15,13 +15,13 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#. Type: note
+#. Type: error
 #. Description
 #: ../templates:1001
 msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates"
 msgstr "Unire /var/lib/amandates e /var/lib/amanda/amndates."
 
-#. Type: note
+#. Type: error
 #. Description
 #: ../templates:1001
 msgid ""

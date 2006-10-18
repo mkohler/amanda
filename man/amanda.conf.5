@@ -25,6 +25,10 @@ amanda.conf - Main configuration file for Amanda, the Advanced Maryland Automati
 \fIamanda.conf\fR
 is the main configuration file for
 \fBAmanda\fR. This manpage lists the relevant sections and parameters of this file for quick reference.
+.PP
+The file
+\fB<CONFIG_DIR>/<config>/amanda.conf\fR
+is loaded.
 .SH "PARAMETERS"
 .PP
 There are a number of configuration parameters that control the behavior of the
@@ -167,25 +171,18 @@ It is considered good administrative practice to set the
 \fBtapecycle\fR
 parameter slightly lower than the actual number of tapes in rotation. This allows the administrator to more easily cope with damaged or misplaced tapes or schedule adjustments that call for slight adjustments in the rotation order.
 .TP
+\fBusetimestamps\fR \fB bool\fR
+Default:
+\fBNo\fR. By default, Amanda can only track at most one run per calendar day. When this option is enabled, however, Amanda can track as many runs as you care to make.
+.sp
+\fBWARNING\fR: This option is not backward-compatible. Do not enable it if you intend to downgrade your server installation to Amanda community edition 2.5.0
+.TP
 \fBlabel_new_tapes\fR \fB string\fR
 Default: not set. When set, this directive will cause
 \fBAmanda\fR
 to automatically write an
 \fBAmanda\fR
 tape label to any blank tape she encounters. This option is DANGEROUS because when set,
-\fBAmanda\fR
-will ERASE any non-\fBAmanda\fR
-tapes you may have, and may also ERASE any near-failing tapes. Use with caution.
-.sp
-When using this directive, specify the template for new tape labels. The template should contain some number of contiguous '%' characters, which will be replaced with a generated number. Be sure to specify enough '%' characters that you do not run out of tape labels. Example:
-label_new_tapes "DailySet1-%%%"
-.TP
-\fBlabel_new_tapes\fR \fB string\fR
-
-=======
-  Default: not set. When set, this directive will cause
-\fBAmanda\fR
-to automatically write an Amanda tape label to any black tape she encounters. This option is DANGEROUS because when set,
 \fBAmanda\fR
 will ERASE any non-\fBAmanda\fR
 tapes you may have, and may also ERASE any near-failing tapes. Use with caution.
@@ -519,11 +516,11 @@ Default:
 .TP
 \fBamrecover_do_fsf\fR \fB bool\fR
 Default:
-\fBoff\fR. Amrecover will call amrestore with the -f flag for faster positioning of the tape.
+\fBon\fR. Amrecover will call amrestore with the -f flag for faster positioning of the tape.
 .TP
 \fBamrecover_check_label\fR \fB bool\fR
 Default:
-\fBoff\fR. Amrecover will call amrestore with the -l flag to check the label.
+\fBon\fR. Amrecover will call amrestore with the -l flag to check the label.
 .TP
 \fBamrecover_changer\fR \fB string\fR
 Default: ''. Amrecover will use the changer if you use 'settape <string>' and that string is the same as the amrecover_changer setting.
@@ -605,7 +602,8 @@ file may define one or more holding disks used as buffers to hold backup images 
 holdingdisk \fBname\fR {
     \fBholdingdisk-option\fR \fBholdingdisk-value\fR
     ...
-}.fi
+}
+.fi
 .PP
 \fBName\fR
 is a logical name for this holding disk.
@@ -693,14 +691,31 @@ The dumptype options and values are:
 Default:
 \fBbsd\fR. Type of authorization to perform between tape server and backup client hosts.
 .sp
+\fBbsd\fR, bsd authorization with udp initial connection and one tcp connection by data stream.
+.sp
+\fBbsdtcp\fR, bsd authorization but use only one tcp connection.
+.sp
+\fBbsdudp\fR, like bsd, but will use only one tcp connection for all data stream.
+.sp
 \fBkrb4\fR
 to use Kerberos-IV authorization.
 .sp
 \fBkrb5\fR
 to use Kerberos-V authorization.
 .sp
+\fBrsh\fR
+to use rsh authorization.
+.sp
 \fBssh\fR
 to use OpenSSH authorization.
+.TP
+\fBamandad_path\fR \fB string\fR
+Default:
+\fB$libexec/amandad\fR. Specify the amandad path of the client, only use with rsh/ssh authentification.
+.TP
+\fBclient_username\fR \fB string\fR
+Default:
+\fBCLIENT_LOGIN\fR. Specify the username to connect on the client, only use with rsh/ssh authentification.
 .TP
 \fBbumpsize\fR int
 Default:
@@ -848,7 +863,7 @@ Specify client_decrypt_option "decryption-parameter" Default: "-d"
 .sp
 decryption-parameter must not contain white space.
 .sp
-(See dumptype encrypt-fast in example/amanda.conf for reference)
+(See dumptype server-encrypt-fast in example/amanda.conf for reference)
 .TP
 &#8226;
 encrypt server
@@ -860,13 +875,15 @@ PROG must not contain white space.
 Specify server_decrypt_option "decryption-parameter" Default: "-d"
 .sp
 decryption-parameter must not contain white space.
+.sp
+(See dumptype client-encrypt-nocomp in example/amanda.conf for reference)
 .RE
 .PP
 Note that current logic assumes compression then encryption during backup(thus decrypt then uncompress during restore). So specifying client-encryption AND server-compression is not supported.
 \fBamcrypt\fR
 which is a wrapper of
 \fBaespipe\fR
-is provided as a reference encryption program.
+is provided as a reference symmetric encryption program.
 .TP
 \fBestimate\fR \fBclient|calcsize|server\fR
 Default:
@@ -948,15 +965,26 @@ for a backup of
 for a backup of
 \fI/usr/local\fR, and so on.
 .TP
-\fBholdingdisk\fR \fB boolean\fR
+\fBholdingdisk\fR [ \fBnever|auto|required]\fR ]
 Default:
-\fByes\fR. Whether a holding disk should be used for these backups or whether they should go directly to tape. If the holding disk is a portion of another file system that
+\fBauto\fR. Whether a holding disk should be used for these backups or whether they should go directly to tape. If the holding disk is a portion of another file system that
 \fBAmanda\fR
 is backing up, that file system should refer to a dumptype with
 \fBholdingdisk\fR
 set to
-\fBno\fR
+\fBnever\fR
 to avoid backing up the holding disk into itself.
+.RS
+.TP
+\fBnever\fR|no|false|off
+Never use a holdingdisk, the dump will always go directly to tape. There will be no dump if you have a tape error.
+.TP
+\fBauto\fR|yes|true|on
+Use the holding disk, unless there is a problem with the holding disk, the dump won't fit there or the medium doesn't require spooling (e.g., VFS device)
+.TP
+\fBrequired\fR
+Always dump to holdingdisk, never directly to tape. There will be no dump if it doesn't fit on holdingdisk
+.RE
 .TP
 \fBignore\fR \fB boolean\fR
 Default:
@@ -1349,6 +1377,7 @@ Stefan G. Weichinger,
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
+\fBamanda-client.conf\fR(5),
 \fBamcrypt\fR(8),
 \fBaespipe\fR(1),
 

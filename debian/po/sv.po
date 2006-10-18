@@ -15,7 +15,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: amanda 1:2.5.0p2-1\n"
 "Report-Msgid-Bugs-To: bdale@gag.com\n"
-"POT-Creation-Date: 2006-08-28 13:34-0400\n"
+"POT-Creation-Date: 2006-10-18 01:32-0600\n"
 "PO-Revision-Date: 2006-06-27 23:05+0100\n"
 "Last-Translator: Daniel Nylander <po@danielnylander.se>\n"
 "Language-Team: Swedish <tp-sv@listor.tp-sv.se>\n"
@@ -23,13 +23,13 @@ msgstr ""
 "Content-Type: text/plain; charset=ISO-8859-1\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#. Type: note
+#. Type: error
 #. Description
 #: ../templates:1001
 msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates"
 msgstr "Sammanfoga /var/lib/amandates och /var/lib/amanda/amandates"
 
-#. Type: note
+#. Type: error
 #. Description
 #: ../templates:1001
 msgid ""

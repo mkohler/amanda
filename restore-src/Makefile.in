@@ -75,18 +75,20 @@ PROGRAMS = $(libexec_PROGRAMS) $(sbin_PROGRAMS)
 am_amfetchdump_OBJECTS = amfetchdump.$(OBJEXT)
 amfetchdump_OBJECTS = $(am_amfetchdump_OBJECTS)
 amfetchdump_LDADD = $(LDADD)
+am__DEPENDENCIES_1 =
 amfetchdump_DEPENDENCIES = librestore.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION)
+	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 am_amidxtaped_OBJECTS = amidxtaped.$(OBJEXT)
 amidxtaped_OBJECTS = $(am_amidxtaped_OBJECTS)
-amidxtaped_LDADD = $(LDADD)
-amidxtaped_DEPENDENCIES = librestore.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION)
+am__DEPENDENCIES_2 = librestore.$(LIB_EXTENSION) \
+	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+amidxtaped_DEPENDENCIES = $(am__DEPENDENCIES_2) \
+	../amandad-src/libamandad.$(LIB_EXTENSION)
 amrestore_SOURCES = amrestore.c
 amrestore_OBJECTS = amrestore.$(OBJEXT)
 amrestore_LDADD = $(LDADD)
 amrestore_DEPENDENCIES = librestore.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION)
+	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)/config
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -113,11 +115,14 @@ AMANDA_DEBUG_DAYS = @AMANDA_DEBUG_DAYS@
 AMANDA_TMPDIR = @AMANDA_TMPDIR@
 AMDEP_FALSE = @AMDEP_FALSE@
 AMDEP_TRUE = @AMDEP_TRUE@
+AMLINT = @AMLINT@
+AMLINTFLAGS = @AMLINTFLAGS@
 AMPLOT_CAT_COMPRESS = @AMPLOT_CAT_COMPRESS@
 AMPLOT_CAT_GZIP = @AMPLOT_CAT_GZIP@
 AMPLOT_CAT_PACK = @AMPLOT_CAT_PACK@
 AMPLOT_COMPRESS = @AMPLOT_COMPRESS@
 AMTAR = @AMTAR@
+AM_CFLAGS = @AM_CFLAGS@
 AR = @AR@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
@@ -125,6 +130,8 @@ AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
 AWK_VAR_ASSIGNMENT_OPT = @AWK_VAR_ASSIGNMENT_OPT@
 BINARY_OWNER = @BINARY_OWNER@
+BUILD_MAN_PAGES_FALSE = @BUILD_MAN_PAGES_FALSE@
+BUILD_MAN_PAGES_TRUE = @BUILD_MAN_PAGES_TRUE@
 CAT = @CAT@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
@@ -308,8 +315,11 @@ target_vendor = @target_vendor@
 INCLUDES = -I$(top_builddir)/common-src \
 		-I$(top_srcdir)/common-src   \
 		-I$(top_srcdir)/tape-src     \
-		-I$(top_srcdir)/server-src
+		-I$(top_srcdir)/server-src   \
+		-I$(top_srcdir)/amandad-src
 
+LINT = @AMLINT@
+LINTFLAGS = @AMLINTFLAGS@
 lib_LTLIBRARIES = librestore.la
 LIB_EXTENSION = la
 
@@ -319,9 +329,11 @@ LIB_EXTENSION = la
 # need to list libamanda twice here, first to override the system library
 # routines, and second to pick up any references in the other libraries.
 ###
-LDADD = librestore.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION)
+LDADD = librestore.$(LIB_EXTENSION)              \
+      ../common-src/libamanda.$(LIB_EXTENSION) \
+      $(READLINE_LIBS)
 
+amidxtaped_LDADD = $(LDADD) ../amandad-src/libamandad.$(LIB_EXTENSION)
 amidxtaped_SOURCES = amidxtaped.c
 amfetchdump_SOURCES = amfetchdump.c
 librestore_la_SOURCES = restore.c
@@ -696,6 +708,24 @@ install-exec-hook:
 		echo chgrp $(SETUID_GROUP) $$pa; \
 		chgrp $(SETUID_GROUP) $$pa; \
 	done
+
+lint:
+	@ for p in $(libexec_PROGRAMS) $(sbin_PROGRAMS); do			\
+		f="$$p.c $(librestore_la_SOURCES)";				\
+		(cd ../common-src; make listlibsrc);				\
+		f="$$f "`cat ../common-src/listlibsrc.output`;			\
+		(cd ../server-src; make listlibsrc);				\
+		f="$$f "`cat ../server-src/listlibsrc.output`;			\
+		(cd ../tape-src; make listlibsrc);				\
+		f="$$f "`cat ../tape-src/listlibsrc.output`;			\
+		echo $(LINT) $$f;						\
+		$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I../config	\
+		    $(INCLUDES) $$f;						\
+		if [ $$? -ne 0 ]; then						\
+		    exit 1;							\
+		fi;								\
+	done;									\
+        exit 0
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

@@ -24,6 +24,12 @@
 /* Define as the user who owns installed binaries. */
 #undef BINARY_OWNER
 
+/* Define if BSDTCP transport should be enabled. */
+#undef BSDTCP_SECURITY
+
+/* Define if BSDUDP transport should be enabled. */
+#undef BSDUDP_SECURITY
+
 /* Define to use BSD .rhosts/.amandahosts security. */
 #undef BSD_SECURITY
 
@@ -151,6 +157,24 @@
 
 /* Define if atof is declared. */
 #undef HAVE_ATOF_DECL
+
+/* Define to 1 if you have the `atoi' function. */
+#undef HAVE_ATOI
+
+/* Define if atoi is declared. */
+#undef HAVE_ATOI_DECL
+
+/* Define to 1 if you have the `atol' function. */
+#undef HAVE_ATOL
+
+/* Define to 1 if you have the `atoll' function. */
+#undef HAVE_ATOLL
+
+/* Define if atoll is declared. */
+#undef HAVE_ATOLL_DECL
+
+/* Define if atol is declared. */
+#undef HAVE_ATOL_DECL
 
 /* Define to 1 if you have the `basename' function. */
 #undef HAVE_BASENAME
@@ -403,6 +427,12 @@
 /* Define to 1 if you have the `isascii' function. */
 #undef HAVE_ISASCII
 
+/* Define to 1 if you have the `isnormal' function. */
+#undef HAVE_ISNORMAL
+
+/* Define if isnormal is declared. */
+#undef HAVE_ISNORMAL_DECL
+
 /* Define to 1 if you have the `c' library (-lc). */
 #undef HAVE_LIBC
 
@@ -424,11 +454,20 @@
 /* Define to 1 if you have the `dbm' library (-ldbm). */
 #undef HAVE_LIBDBM
 
+/* Define to 1 if you have the `dbmalloc' library (-ldbmalloc). */
+#undef HAVE_LIBDBMALLOC
+
 /* Define to 1 if you have the `gdbm' library (-lgdbm). */
 #undef HAVE_LIBGDBM
 
+/* Define to 1 if you have the <libgen.h> header file. */
+#undef HAVE_LIBGEN_H
+
 /* Define to 1 if you have the `intl' library (-lintl). */
 #undef HAVE_LIBINTL
+
+/* Define to 1 if you have the `krb5support' library (-lkrb5support). */
+#undef HAVE_LIBKRB5SUPPORT
 
 /* Define to 1 if you have the `m' library (-lm). */
 #undef HAVE_LIBM
@@ -441,6 +480,9 @@
 
 /* Define to 1 if you have the `nsl' library (-lnsl). */
 #undef HAVE_LIBNSL
+
+/* Define to 1 if you have the `readline' library (-lreadline). */
+#undef HAVE_LIBREADLINE
 
 /* Define to 1 if you have the `resolv' library (-lresolv). */
 #undef HAVE_LIBRESOLV
@@ -483,6 +525,9 @@
 
 /* Define if malloc is declared. */
 #undef HAVE_MALLOC_DECL
+
+/* Define to 1 if you have the <math.h> header file. */
+#undef HAVE_MATH_H
 
 /* Define to 1 if you have the `memmove' function. */
 #undef HAVE_MEMMOVE
@@ -775,6 +820,9 @@
 /* Define to 1 if you have the `statvfs' function. */
 #undef HAVE_STATVFS
 
+/* Define to 1 if you have the <stdarg.h> header file. */
+#undef HAVE_STDARG_H
+
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
 
@@ -1002,6 +1050,9 @@
 /* Define if writev is declared. */
 #undef HAVE_WRITEV_DECL
 
+/* xslt is available to generate man pages */
+#undef HAVE_XSLTPROC
+
 /* Define if limits.h defines _POSIX2_RE_DUP_MAX. */
 #undef HAVE__POSIX2_RE_DUP_MAX
 
@@ -1025,6 +1076,11 @@
 
 /* Format for a long long printf. */
 #undef LL_FMT
+
+/* A comma-separated list of two integers, determining the minimum and maximum
+   reserved TCP port numbers sockets should be bound to. (mainly for
+   amrecover) */
+#undef LOW_TCPPORTRANGE
 
 /* Command for starting printing jobs. */
 #undef LPRCMD
@@ -1128,6 +1184,15 @@
 /* The size of a `short', as computed by sizeof. */
 #undef SIZEOF_SHORT
 
+/* The size of a `size_t', as computed by sizeof. */
+#undef SIZEOF_SIZE_T
+
+/* The size of a `ssize_t', as computed by sizeof. */
+#undef SIZEOF_SSIZE_T
+
+/* The size of a `time_t', as computed by sizeof. */
+#undef SIZEOF_TIME_T
+
 /* The size of a `void*', as computed by sizeof. */
 #undef SIZEOF_VOIDP
 
@@ -1210,6 +1275,9 @@
 /* Define to use Posix fcntl for file locking. */
 #undef USE_POSIX_FCNTL
 
+/* Define to set SO_REUSEADDR on network connections. */
+#undef USE_REUSEADDR
+
 /* Define to invoke rundump (setuid-root) instead of DUMP program directly. */
 #undef USE_RUNDUMP
 
@@ -1286,6 +1354,9 @@
 
 /* Define to `int' if <sys/types.h> does not define. */
 #undef pid_t
+
+/* Define if sa_family_t is not a standard system type */
+#undef sa_family_t
 
 /* Directory in which administrator binaries should be installed. */
 #undef sbindir

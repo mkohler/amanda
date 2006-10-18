@@ -22,7 +22,8 @@
 amreport - generate a formatted output of statistics for an Amanda run
 .SH "SYNOPSIS"
 .HP 9
-\fBamreport\fR [\fIconfig\fR] [-l \fIlogfile\fR] [-f \fIoutputfile\fR] [-p \fIpostscriptfile\fR]
+\fBamreport\fR [\fIconfig\fR] [-i] [-M \fIaddress\fR] [-l \fIlogfile\fR] [-f \fIoutputfile\fR] [-p \fIpostscriptfile\fR] [-o \fIconfigoption\fR]*
+
 .SH "DESCRIPTION"
 .PP
 \fBAmreport\fR
@@ -38,6 +39,17 @@ man page for more details about
 .TP
 \fBconfig\fR
 Name of the configuration to process.
+.TP
+\fB-i\fR
+Don't email the report.
+.TP
+\fB-M\fR \fIaddress\fR
+Mail the report to
+\fBaddress\fR
+instead of the
+\fBmailto\fR
+value from
+\fBamanda.conf\fR.
 .TP
 \fB-l\fR \fIlogfile\fR
 Name of the log file to parse to generate the report. If a log file is not specified, it defaults to the file:
@@ -66,6 +78,10 @@ instead of to the
 command. This option has an effect only if the
 \fBlbl-templ\fR
 directive is specified in amanda.conf.
+.TP
+\fB-o\fR \fIconfigoption\fR
+See the "\fBCONFIGURATION OVERWRITE\fR" section in
+\fBamanda\fR(8).
 .SH "LABEL PRINTING"
 .PP
 \fBAmanda\fR

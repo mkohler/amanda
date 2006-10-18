@@ -22,7 +22,10 @@
 amflush - flush Amanda backup files from holding disk to tape
 .SH "SYNOPSIS"
 .HP 8
-\fBamflush\fR [-b] [-f] [-s] [-D \fIdatestamp\fR...] \fIconfig\fR [\fIhost\fR [\fIdisk\fR...]...]
+\fBamflush\fR [-b] [-f] [-s] [-D \fIdatestamp\fR]*
+     \fIconfig\fR [\fIhost\fR [\fIdisk\fR]*]*
+     [-o \fIconfigoption\fR]*
+
 .SH "DESCRIPTION"
 .PP
 \fBAmflush\fR
@@ -66,6 +69,13 @@ specify a datestamp expression you want to flush, see the "DATESTAMP EXPRESSION"
 for a description.
 \fB-D 20001225-7\fR
 will flush all dumps from 25 december 2000 to 27 december 2000.
+.TP
+\fIhost\fR [\fIdisk\fR]*
+Specify the host and disk on which the command will work.
+.TP
+\fB-o\fR \fIconfigoption\fR
+See the "\fBCONFIGURATION OVERWRITE\fR" section in
+\fBamanda\fR(8).
 .PP
 You can specify many host/disk expressions, only disks that match an expression will be flushed. All disks are flushed if no expressions are given. see the "HOST & DISK EXPRESSION" section of
 \fBamanda\fR(8)

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: driver.c,v 1.165.2.2 2006/04/23 23:04:33 martinea Exp $
+ * $Id: driver.c,v 1.198 2006/08/24 01:57:16 paddy_s Exp $
  *
  * controlling process for the Amanda backup system
  */
@@ -34,7 +34,7 @@
  *     tape.  Probably not effective though, should do this in planner.
  */
 
-/*#define HOLD_DEBUG*/
+#define HOLD_DEBUG
 
 #include "amanda.h"
 #include "clock.h"
@@ -53,61 +53,63 @@ static disklist_t waitq, runq, tapeq, roomq;
 static int pending_aborts;
 static disk_t *taper_disk;
 static int degraded_mode;
-static unsigned long reserved_space;
-static unsigned long total_disksize;
+static off_t reserved_space;
+static off_t total_disksize;
 static char *dumper_program;
 static char *chunker_program;
 static int  inparallel;
 static int nodump = 0;
-static unsigned long tape_length, tape_left = 0;
+static off_t tape_length = (off_t)0;
+static off_t tape_left = (off_t)0;
 static int current_tape = 1;
 static int conf_taperalgo;
 static int conf_runtapes;
 static time_t sleep_time;
 static int idle_reason;
-static char *datestamp;
-static char *timestamp;
+static char *driver_timestamp;
+static char *hd_driver_timestamp;
 static am_host_t *flushhost = NULL;
 static int need_degraded=0;
 
 static event_handle_t *dumpers_ev_time = NULL;
 static event_handle_t *schedule_ev_read = NULL;
 
-static void allocate_bandwidth P((interface_t *ip, int kps));
-static int assign_holdingdisk P((assignedhd_t **holdp, disk_t *diskp));
-static void adjust_diskspace P((disk_t *diskp, cmd_t cmd));
-static void delete_diskspace P((disk_t *diskp));
-static assignedhd_t **build_diskspace P((char *destname));
-static int client_constrained P((disk_t *dp));
-static void deallocate_bandwidth P((interface_t *ip, int kps));
-static void dump_schedule P((disklist_t *qp, char *str));
-static int dump_to_tape P((disk_t *dp));
-static assignedhd_t **find_diskspace P((unsigned long size, int *cur_idle,
-					assignedhd_t *preferred));
-static int free_kps P((interface_t *ip));
-static unsigned long free_space P((void));
-static void dumper_result P((disk_t *dp));
-static void handle_dumper_result P((void *));
-static void handle_chunker_result P((void *));
-static void handle_dumpers_time P((void *));
-static void handle_taper_result P((void *));
-static void holdingdisk_state P((char *time_str));
-static dumper_t *idle_dumper P((void));
-static void interface_state P((char *time_str));
-static int num_busy_dumpers P((void));
-static int queue_length P((disklist_t q));
-static disklist_t read_flush P((void));
-static void read_schedule P((void *cookie));
-static void short_dump_state P((void));
-static void startaflush P((void));
-static void start_degraded_mode P((disklist_t *queuep));
-static void start_some_dumps P((disklist_t *rq));
-static void continue_port_dumps();
-static void update_failed_dump_to_tape P((disk_t *));
+static int wait_children(int count);
+static void wait_for_children(void);
+static void allocate_bandwidth(interface_t *ip, unsigned long kps);
+static int assign_holdingdisk(assignedhd_t **holdp, disk_t *diskp);
+static void adjust_diskspace(disk_t *diskp, cmd_t cmd);
+static void delete_diskspace(disk_t *diskp);
+static assignedhd_t **build_diskspace(char *destname);
+static int client_constrained(disk_t *dp);
+static void deallocate_bandwidth(interface_t *ip, unsigned long kps);
+static void dump_schedule(disklist_t *qp, char *str);
+static int dump_to_tape(disk_t *dp);
+static assignedhd_t **find_diskspace(off_t size, int *cur_idle,
+					assignedhd_t *preferred);
+static unsigned long free_kps(interface_t *ip);
+static off_t free_space(void);
+static void dumper_result(disk_t *dp);
+static void handle_dumper_result(void *);
+static void handle_chunker_result(void *);
+static void handle_dumpers_time(void *);
+static void handle_taper_result(void *);
+static void holdingdisk_state(char *time_str);
+static dumper_t *idle_dumper(void);
+static void interface_state(char *time_str);
+static int queue_length(disklist_t q);
+static disklist_t read_flush(void);
+static void read_schedule(void *cookie);
+static void short_dump_state(void);
+static void startaflush(void);
+static void start_degraded_mode(disklist_t *queuep);
+static void start_some_dumps(disklist_t *rq);
+static void continue_port_dumps(void);
+static void update_failed_dump_to_tape(disk_t *);
 #if 0
-static void dump_state P((const char *str));
+static void dump_state(const char *str);
 #endif
-int main P((int main_argc, char **main_argv));
+int main(int main_argc, char **main_argv);
 
 static const char *idle_strings[] = {
 #define NOT_IDLE		0
@@ -131,9 +133,9 @@ static const char *idle_strings[] = {
 };
 
 int
-main(main_argc, main_argv)
-     int main_argc;
-     char **main_argv;
+main(
+    int		main_argc,
+    char **	main_argv)
 {
     disklist_t origq;
     disk_t *diskp;
@@ -151,16 +153,22 @@ main(main_argc, main_argv)
     int result_argc;
     char *result_argv[MAX_ARGS+1];
     char *taper_program;
-    amwait_t retstat;
     char *conf_tapetype;
     tapetype_t *tape;
+    char *line;
+    int    new_argc,   my_argc;
+    char **new_argv, **my_argv;
 
     safe_fd(-1, 0);
 
-    setvbuf(stdout, (char *)NULL, _IOLBF, 0);
-    setvbuf(stderr, (char *)NULL, _IOLBF, 0);
+    setvbuf(stdout, (char *)NULL, (int)_IOLBF, 0);
+    setvbuf(stderr, (char *)NULL, (int)_IOLBF, 0);
 
     set_pname("driver");
+
+    dbopen(DBG_SUBDIR_SERVER);
+
+    atexit(wait_for_children);
 
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
@@ -172,23 +180,29 @@ main(main_argc, main_argv)
 
     startclock();
 
-    printf("%s: pid %ld executable %s version %s\n",
-	   get_pname(), (long) getpid(), main_argv[0], version());
+    parse_server_conf(main_argc, main_argv, &new_argc, &new_argv);
+    my_argc = new_argc;
+    my_argv = new_argv;
 
-    if (main_argc > 1) {
-	config_name = stralloc(main_argv[1]);
+    printf("%s: pid %ld executable %s version %s\n",
+	   get_pname(), (long) getpid(), my_argv[0], version());
+
+    if (my_argc > 1) {
+	config_name = stralloc(my_argv[1]);
 	config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
-	if(main_argc > 2) {
-	    if(strncmp(main_argv[2], "nodump", 6) == 0) {
+	if(my_argc > 2) {
+	    if(strncmp(my_argv[2], "nodump", 6) == 0) {
 		nodump = 1;
 	    }
 	}
 
     } else {
+
 	char my_cwd[STR_SIZE];
 
-	if (getcwd(my_cwd, sizeof(my_cwd)) == NULL) {
+	if (getcwd(my_cwd, SIZEOF(my_cwd)) == NULL) {
 	    error("cannot determine current working directory");
+	    /*NOTREACHED*/
 	}
 	config_dir = stralloc2(my_cwd, "/");
 	if ((config_name = strrchr(my_cwd, '/')) != NULL) {
@@ -201,13 +215,48 @@ main(main_argc, main_argv)
     conffile = stralloc2(config_dir, CONFFILE_NAME);
     if(read_conffile(conffile)) {
 	error("errors processing config file \"%s\"", conffile);
+	/*NOTREACHED*/
     }
     amfree(conffile);
 
-    amfree(datestamp);
-    datestamp = construct_datestamp(NULL);
-    timestamp = construct_timestamp(NULL);
-    log_add(L_START,"date %s", datestamp);
+    dbrename(config_name, DBG_SUBDIR_SERVER);
+
+    report_bad_conf_arg();
+
+    amfree(driver_timestamp);
+    /* read timestamp from stdin */
+    while ((line = agets(stdin)) != NULL) {
+	if (line[0] != '\0')
+	    break;
+	amfree(line);
+    }
+    if ( line == NULL ) {
+      error("Did not get DATE line from planner");
+      /*NOTREACHED*/
+    }
+    driver_timestamp = alloc(15);
+    strncpy(driver_timestamp, &line[5], 14);
+    driver_timestamp[14] = '\0';
+    amfree(line);
+    log_add(L_START,"date %s", driver_timestamp);
+
+    /* check that we don't do many dump in a day and usetimestamps is off */
+    if(strlen(driver_timestamp) == 8) {
+	char *conf_logdir = getconf_str(CNF_LOGDIR);
+	char *logfile    = vstralloc(conf_logdir, "/log.",
+				     driver_timestamp, ".0", NULL);
+	char *oldlogfile = vstralloc(conf_logdir, "/oldlog/log.",
+				     driver_timestamp, ".0", NULL);
+	if(access(logfile, F_OK) == 0 || access(oldlogfile, F_OK) == 0) {
+	    log_add(L_WARNING, "WARNING: This is not the first amdump run today. Enable the usetimestamps option in the configuration file if you want to run amdump more than once per calendar day.");
+	}
+	amfree(oldlogfile);
+	amfree(logfile);
+	hd_driver_timestamp = construct_timestamp(NULL);
+    }
+    else {
+	hd_driver_timestamp = stralloc(driver_timestamp);
+    }
 
     taper_program = vstralloc(libexecdir, "/", "taper", versionsuffix(), NULL);
     dumper_program = vstralloc(libexecdir, "/", "dumper", versionsuffix(),
@@ -215,20 +264,12 @@ main(main_argc, main_argv)
     chunker_program = vstralloc(libexecdir, "/", "chunker", versionsuffix(),
 			       NULL);
 
-    conf_taperalgo = getconf_int(CNF_TAPERALGO);
+    conf_taperalgo = getconf_taperalgo(CNF_TAPERALGO);
     conf_tapetype = getconf_str(CNF_TAPETYPE);
     conf_runtapes = getconf_int(CNF_RUNTAPES);
     tape = lookup_tapetype(conf_tapetype);
-    tape_length = tape->length;
-    printf("driver: tape size %ld\n", tape_length);
-
-    /* taper takes a while to get going, so start it up right away */
-
-    init_driverio();
-    if(conf_runtapes > 0) {
-	startup_tape_process(taper_program);
-	taper_cmd(START_TAPER, datestamp, NULL, 0, NULL);
-    }
+    tape_length = tapetype_get_length(tape);
+    printf("driver: tape size " OFF_T_FMT "\n", (OFF_T_FMT_TYPE)tape_length);
 
     /* start initializing: read in databases */
 
@@ -238,73 +279,90 @@ main(main_argc, main_argv)
     } else {
 	conf_diskfile = stralloc2(config_dir, conf_diskfile);
     }
-    if (read_diskfile(conf_diskfile, &origq) < 0)
+    if (read_diskfile(conf_diskfile, &origq) < 0) {
 	error("could not load disklist \"%s\"", conf_diskfile);
+	/*NOTREACHED*/
+    }
     amfree(conf_diskfile);
 
     /* set up any configuration-dependent variables */
 
     inparallel	= getconf_int(CNF_INPARALLEL);
 
-    reserve = getconf_int(CNF_RESERVE);
+    reserve = (unsigned long)getconf_int(CNF_RESERVE);
 
-    total_disksize = 0;
+    total_disksize = (off_t)0;
     for(hdp = getconf_holdingdisks(), dsk = 0; hdp != NULL; hdp = hdp->next, dsk++) {
-	hdp->up = (void *)alloc(sizeof(holdalloc_t));
+	hdp->up = (void *)alloc(SIZEOF(holdalloc_t));
 	holdalloc(hdp)->allocated_dumpers = 0;
-	holdalloc(hdp)->allocated_space = 0L;
+	holdalloc(hdp)->allocated_space = (off_t)0;
 
-	if(get_fs_stats(hdp->diskdir, &fs) == -1
-	   || access(hdp->diskdir, W_OK) == -1) {
+	if(get_fs_stats(holdingdisk_get_diskdir(hdp), &fs) == -1
+	   || access(holdingdisk_get_diskdir(hdp), W_OK) == -1) {
 	    log_add(L_WARNING, "WARNING: ignoring holding disk %s: %s\n",
-		    hdp->diskdir, strerror(errno));
+		    holdingdisk_get_diskdir(hdp), strerror(errno));
 	    hdp->disksize = 0L;
 	    continue;
 	}
 
-	if(fs.avail != -1) {
-	    if(hdp->disksize > 0) {
+	if(fs.avail != (off_t)-1) {
+	    if(hdp->disksize > (off_t)0) {
 		if(hdp->disksize > fs.avail) {
 		    log_add(L_WARNING,
-			    "WARNING: %s: %ld KB requested, but only %ld KB available.",
-			    hdp->diskdir, hdp->disksize, fs.avail);
+			    "WARNING: %s: " OFF_T_FMT " KB requested, "
+			    "but only " OFF_T_FMT " KB available.",
+			    holdingdisk_get_diskdir(hdp),
+			    (OFF_T_FMT_TYPE)hdp->disksize,
+			    (OFF_T_FMT_TYPE)fs.avail);
 			    hdp->disksize = fs.avail;
 		}
 	    }
-	    else if(fs.avail + hdp->disksize < 0) {
+	    else if((fs.avail + hdp->disksize) < (off_t)0) {
 		log_add(L_WARNING,
-			"WARNING: %s: not %ld KB free.",
-			hdp->diskdir, -hdp->disksize);
-		hdp->disksize = 0L;
+			"WARNING: %s: not " OFF_T_FMT " KB free.",
+			holdingdisk_get_diskdir(hdp), -hdp->disksize);
+		hdp->disksize = (off_t)0;
 		continue;
 	    }
 	    else
 		hdp->disksize += fs.avail;
 	}
 
-	printf("driver: adding holding disk %d dir %s size %ld chunksize %ld\n",
-	       dsk, hdp->diskdir, hdp->disksize, hdp->chunksize);
+	printf("driver: adding holding disk %d dir %s size "
+		OFF_T_FMT " chunksize " OFF_T_FMT "\n",
+	       dsk, holdingdisk_get_diskdir(hdp),
+	       (OFF_T_FMT_TYPE)hdp->disksize,
+	       (OFF_T_FMT_TYPE)(holdingdisk_get_chunksize(hdp)));
 
 	newdir = newvstralloc(newdir,
-			      hdp->diskdir, "/", timestamp,
+			      holdingdisk_get_diskdir(hdp), "/", hd_driver_timestamp,
 			      NULL);
 	if(!mkholdingdir(newdir)) {
-	    hdp->disksize = 0L;
+	    hdp->disksize = (off_t)0;
 	}
 	total_disksize += hdp->disksize;
     }
 
-    reserved_space = total_disksize * (reserve / 100.0);
+    reserved_space = total_disksize * (off_t)(reserve / 100);
 
-    printf("reserving %ld out of %ld for degraded-mode dumps\n",
-		reserved_space, free_space());
+    printf("reserving " OFF_T_FMT " out of " OFF_T_FMT
+    	   " for degraded-mode dumps\n",
+	   (OFF_T_FMT_TYPE)reserved_space, (OFF_T_FMT_TYPE)free_space());
 
     amfree(newdir);
 
     if(inparallel > MAX_DUMPERS) inparallel = MAX_DUMPERS;
 
+    /* taper takes a while to get going, so start it up right away */
+
+    init_driverio();
+    if(conf_runtapes > 0) {
+        startup_tape_process(taper_program);
+        taper_cmd(START_TAPER, driver_timestamp, NULL, 0, NULL);
+    }
+
     /* fire up the dumpers now while we are waiting */
-    if(!nodump) startup_dump_processes(dumper_program, inparallel);
+    if(!nodump) startup_dump_processes(dumper_program, inparallel, driver_timestamp);
 
     /*
      * Read schedule from stdin.  Usually, this is a pipe from planner,
@@ -323,11 +381,11 @@ main(main_argc, main_argv)
 
     log_add(L_STATS, "startup time %s", walltime_str(curclock()));
 
-    printf("driver: start time %s inparallel %d bandwidth %d diskspace %lu",
-	   walltime_str(curclock()), inparallel, free_kps((interface_t *)0),
-	   free_space());
+    printf("driver: start time %s inparallel %d bandwidth %lu diskspace "
+    	   OFF_T_FMT " ", walltime_str(curclock()), inparallel,
+	   free_kps((interface_t *)0), (OFF_T_FMT_TYPE)free_space());
     printf(" dir %s datestamp %s driver: drain-ends tapeq %s big-dumpers %s\n",
-	   "OBSOLETE", datestamp, taperalgo2str(conf_taperalgo),
+	   "OBSOLETE", driver_timestamp, taperalgo2str(conf_taperalgo),
 	   getconf_str(CNF_DUMPORDER));
     fflush(stdout);
 
@@ -352,7 +410,7 @@ main(main_argc, main_argv)
     if(!need_degraded) startaflush();
 
     if(!nodump)
-	schedule_ev_read = event_register(0, EV_READFD, read_schedule, NULL);
+	schedule_ev_read = event_register((event_id_t)0, EV_READFD, read_schedule, NULL);
 
     short_dump_state();
     event_loop(0);
@@ -361,7 +419,13 @@ main(main_argc, main_argv)
 
     while(!empty(runq) && taper > 0) {
 	diskp = dequeue_disk(&runq);
-	if(!degraded_mode) {
+	if (diskp->to_holdingdisk == HOLD_REQUIRED) {
+	    log_add(L_FAIL, "%s %s %s %d [%s]",
+		diskp->host->hostname, diskp->name, sched(diskp)->datestamp,
+		sched(diskp)->level,
+		"can't dump required holdingdisk");
+	}
+	else if (!degraded_mode) {
 	    int rc = dump_to_tape(diskp);
 	    if(rc == 1)
 		log_add(L_INFO,
@@ -380,9 +444,9 @@ main(main_argc, main_argv)
 	    log_add(L_FAIL, "%s %s %s %d [%s]",
 		diskp->host->hostname, diskp->name, sched(diskp)->datestamp,
 		sched(diskp)->level,
-		diskp->no_hold ?
-		    "can't dump no-hold disk in degraded mode" :
-		    "no more holding disk space");
+		diskp->to_holdingdisk == HOLD_AUTO ?
+		    "no more holding disk space" :
+		    "can't dump no-hold disk in degraded mode");
     }
 
     short_dump_state();				/* for amstatus */
@@ -393,7 +457,8 @@ main(main_argc, main_argv)
 
     if(!nodump) {
 	for(dumper = dmptable; dumper < dmptable + inparallel; dumper++) {
-	    dumper_cmd(dumper, QUIT, NULL);
+	    if(dumper->fd >= 0)
+		dumper_cmd(dumper, QUIT, NULL);
 	}
     }
 
@@ -402,53 +467,10 @@ main(main_argc, main_argv)
     }
 
     /* wait for all to die */
-
-    while(1) {
-	char number[NUM_STR_SIZE];
-	pid_t pid;
-	char *who;
-	char *what;
-	int code=0;
-
-	if((pid = wait(&retstat)) == -1) {
-	    if(errno == EINTR) continue;
-	    else break;
-	}
-	what = NULL;
-	if(! WIFEXITED(retstat)) {
-	    what = "signal";
-	    code = WTERMSIG(retstat);
-	} else if(WEXITSTATUS(retstat) != 0) {
-	    what = "code";
-	    code = WEXITSTATUS(retstat);
-	}
-	who = NULL;
-	for(dumper = dmptable; dumper < dmptable + inparallel; dumper++) {
-	    if(pid == dumper->pid) {
-		who = stralloc(dumper->name);
-		break;
-	    }
-	}
-	if(who == NULL && pid == taper_pid) {
-	    who = stralloc("taper");
-	}
-	if(what != NULL && who == NULL) {
-	    snprintf(number, sizeof(number), "%ld", (long)pid);
-	    who = stralloc2("unknown pid ", number);
-	}
-	if(who && what) {
-	    log_add(L_WARNING, "%s exited with %s %d\n", who, what, code);
-	    printf("driver: %s exited with %s %d\n", who, what, code);
-	}
-	amfree(who);
-    }
-
-    for(dumper = dmptable; dumper < dmptable + inparallel; dumper++) {
-	amfree(dumper->name);
-    }
+    wait_children(600);
 
     for(hdp = getconf_holdingdisks(); hdp != NULL; hdp = hdp->next) {
-	cleanup_holdingdisk(hdp->diskdir, 0);
+	cleanup_holdingdisk(holdingdisk_get_diskdir(hdp), 0);
 	amfree(hdp->up);
     }
     amfree(newdir);
@@ -456,10 +478,10 @@ main(main_argc, main_argv)
     check_unfree_serial();
     printf("driver: FINISHED time %s\n", walltime_str(curclock()));
     fflush(stdout);
-    log_add(L_FINISH,"date %s time %s", datestamp, walltime_str(curclock()));
-    amfree(datestamp);
-    amfree(timestamp);
+    log_add(L_FINISH,"date %s time %s", driver_timestamp, walltime_str(curclock()));
+    amfree(driver_timestamp);
 
+    free_new_argv(new_argc, new_argv);
     amfree(dumper_program);
     amfree(taper_program);
     amfree(config_dir);
@@ -471,16 +493,153 @@ main(main_argc, main_argv)
 	malloc_list(fileno(stderr), malloc_hist_1, malloc_hist_2);
     }
 
+    dbclose();
+
     return 0;
 }
 
+/* sleep up to count seconds, and wait for terminating child process */
+/* if sleep is negative, this function will not timeout              */
+/* exit once all child process are finished or the timout expired    */
+/* return 0 if no more children to wait                              */
+/* return 1 if some children are still alive                         */
+static int
+wait_children(int count)
+{
+    pid_t     pid;
+    amwait_t  retstat;
+    char     *who;
+    char     *what;
+    int       code=0;
+    dumper_t *dumper;
+    int       wait_errno;
+
+    do {
+	do {
+	    pid = waitpid((pid_t)-1, &retstat, WNOHANG);
+	    wait_errno = errno;
+	    if (pid > 0) {
+		what = NULL;
+		if (! WIFEXITED(retstat)) {
+		    what = "signal";
+		    code = WTERMSIG(retstat);
+		} else if (WEXITSTATUS(retstat) != 0) {
+		    what = "code";
+		    code = WEXITSTATUS(retstat);
+		}
+		who = NULL;
+		for (dumper = dmptable; dumper < dmptable + inparallel;
+		     dumper++) {
+		    if (pid == dumper->pid) {
+			who = stralloc(dumper->name);
+			dumper->pid = -1;
+			break;
+		    }
+		    if (pid == dumper->chunker->pid) {
+			who = stralloc(dumper->chunker->name);
+			dumper->chunker->pid = -1;
+			break;
+		    }
+		}
+		if (who == NULL && pid == taper_pid) {
+		    who = stralloc("taper");
+		    taper_pid = -1;
+		}
+		if(what != NULL && who == NULL) {
+		    who = stralloc("unknown");
+		}
+		if(who && what) {
+		    log_add(L_WARNING, "%s pid %u exited with %s %d\n", who, 
+			    (unsigned)pid, what, code);
+		    printf("driver: %s pid %u exited with %s %d\n", who,
+			   (unsigned)pid, what, code);
+		}
+		amfree(who);
+	    }
+	} while (pid > 0 || wait_errno == EINTR);
+	if (errno != ECHILD)
+	    sleep(1);
+	if (count > 0)
+	    count--;
+    } while ((errno != ECHILD) && (count != 0));
+    return (errno != ECHILD);
+}
+
 static void
-startaflush()
+kill_children(int signal)
+{
+    dumper_t *dumper;
+
+    if(!nodump) {
+        for(dumper = dmptable; dumper < dmptable + inparallel; dumper++) {
+	    if (!dumper->down && dumper->pid > 1) {
+		printf("driver: sending signal %d to %s pid %u\n", signal,
+		       dumper->name, (unsigned)dumper->pid);
+		if (kill(dumper->pid, signal) == -1 && errno == ESRCH) {
+		    if (dumper->chunker)
+			dumper->chunker->pid = 0;
+		}
+		if (dumper->chunker && dumper->chunker->pid > 1) {
+		    printf("driver: sending signal %d to %s pid %u\n", signal,
+			   dumper->chunker->name,
+			   (unsigned)dumper->chunker->pid);
+		    if (kill(dumper->chunker->pid, signal) == -1 &&
+			errno == ESRCH)
+			dumper->chunker->pid = 0;
+		}
+	    }
+        }
+    }
+
+    if(taper_pid > 1)
+	printf("driver: sending signal %d to %s pid %u\n", signal,
+	       "taper", (unsigned)taper_pid);
+	if (kill(taper_pid, signal) == -1 && errno == ESRCH)
+	    taper_pid = 0;
+}
+
+static void
+wait_for_children(void)
+{
+    dumper_t *dumper;
+
+    if(!nodump) {
+	for(dumper = dmptable; dumper < dmptable + inparallel; dumper++) {
+	    if (dumper->pid > 1 && dumper->fd >= 0) {
+		dumper_cmd(dumper, QUIT, NULL);
+		if (dumper->chunker && dumper->chunker->pid > 1 &&
+		    dumper->chunker->fd >= 0)
+		    chunker_cmd(dumper->chunker, QUIT, NULL);
+	    }
+	}
+    }
+
+    if(taper_pid > 1 && taper > 0) {
+	taper_cmd(QUIT, NULL, NULL, 0, NULL);
+    }
+
+    if(wait_children(60) == 0)
+	return;
+
+    kill_children(SIGHUP);
+    if(wait_children(60) == 0)
+	return;
+
+    kill_children(SIGKILL);
+    if(wait_children(-1) == 0)
+	return;
+
+}
+
+static void
+startaflush(void)
 {
     disk_t *dp = NULL;
     disk_t *fit = NULL;
     char *datestamp;
-    unsigned int extra_tapes = 0;
+    int extra_tapes = 0;
+    char *qname;
+
     if(!degraded_mode && !taper_busy && !empty(tapeq)) {
 	
 	datestamp = sched(tapeq.head)->datestamp;
@@ -491,10 +650,11 @@ startaflush()
 	case ALGO_FIRSTFIT:
 		fit = tapeq.head;
 		while (fit != NULL) {
-		    extra_tapes = (fit->tape_splitsize > 0) ? 
-						conf_runtapes - current_tape : 0;
-		    if(sched(fit)->act_size <= (tape_left + tape_length*extra_tapes) &&
-		       strcmp(sched(fit)->datestamp, datestamp) <= 0) {
+		    extra_tapes = (fit->tape_splitsize > (off_t)0) ? 
+					conf_runtapes - current_tape : 0;
+		    if(sched(fit)->act_size <= (tape_left +
+		             tape_length * (off_t)extra_tapes) &&
+			     strcmp(sched(fit)->datestamp, datestamp) <= 0) {
 			dp = fit;
 			fit = NULL;
 		    }
@@ -518,9 +678,10 @@ startaflush()
 	case ALGO_LARGESTFIT:
 		fit = tapeq.head;
 		while (fit != NULL) {
-		    extra_tapes = (fit->tape_splitsize > 0) ? 
-						conf_runtapes - current_tape : 0;
-		    if(sched(fit)->act_size <= (tape_left + tape_length*extra_tapes) &&
+		    extra_tapes = (fit->tape_splitsize > (off_t)0) ? 
+					conf_runtapes - current_tape : 0;
+		    if(sched(fit)->act_size <=
+		       (tape_left + tape_length * (off_t)extra_tapes) &&
 		       (!dp || sched(fit)->act_size > sched(dp)->act_size) &&
 		       strcmp(sched(fit)->datestamp, datestamp) <= 0) {
 			dp = fit;
@@ -552,21 +713,25 @@ startaflush()
 	    if(dp) remove_disk(&tapeq, dp);
 	}
 	if(taper_ev_read == NULL) {
-	    taper_ev_read = event_register(taper, EV_READFD,
+	    taper_ev_read = event_register((event_id_t)taper, EV_READFD,
 					   handle_taper_result, NULL);
 	}
-	if (dp != NULL) {
+	if (dp) {
 	    taper_disk = dp;
 	    taper_busy = 1;
+	    qname = quote_string(dp->name);
 	    taper_cmd(FILE_WRITE, dp, sched(dp)->destname, sched(dp)->level,
-		  sched(dp)->datestamp);
-	    fprintf(stderr,"driver: startaflush: %s %s %s %ld %ld\n",
-		    taperalgo2str(conf_taperalgo), dp->host->hostname,
-		    dp->name, sched(taper_disk)->act_size, tape_left);
+		      sched(dp)->datestamp);
+	    fprintf(stderr,"driver: startaflush: %s %s %s "
+		    OFF_T_FMT " " OFF_T_FMT "\n",
+		    taperalgo2str(conf_taperalgo), dp->host->hostname, qname,
+		    (OFF_T_FMT_TYPE)sched(taper_disk)->act_size,
+		    (OFF_T_FMT_TYPE)tape_left);
 	    if(sched(dp)->act_size <= tape_left)
 		tape_left -= sched(dp)->act_size;
 	    else
-		tape_left = 0;
+		tape_left = (off_t)0;
+	    amfree(qname);
 	} else {
 	    error("FATAL: Taper marked busy and no work found.");
 	    /*NOTREACHED*/
@@ -579,8 +744,8 @@ startaflush()
 
 
 static int
-client_constrained(dp)
-    disk_t *dp;
+client_constrained(
+    disk_t *	dp)
 {
     disk_t *dp2;
 
@@ -605,8 +770,8 @@ client_constrained(dp)
 }
 
 static void
-start_some_dumps(rq)
-    disklist_t *rq;
+start_some_dumps(
+    disklist_t *	rq)
 {
     int cur_idle;
     disk_t *diskp, *delayed_diskp, *diskp_accept;
@@ -635,7 +800,6 @@ start_some_dumps(rq)
 	}
 
 	if (dumper->ev_read != NULL) {
-/*	    assert(dumper->ev_read == NULL);*/
 	    event_release(dumper->ev_read);
 	    dumper->ev_read = NULL;
 	}
@@ -666,7 +830,7 @@ start_some_dumps(rq)
 	cur_idle = NOT_IDLE;
 
 	dumporder = getconf_str(CNF_DUMPORDER);
-	if(strlen(dumporder) > (dumper-dmptable)) {
+	if(strlen(dumporder) > (size_t)(dumper-dmptable)) {
 	    dumptype = dumporder[dumper-dmptable];
 	}
 	else {
@@ -678,10 +842,6 @@ start_some_dumps(rq)
 
 	for(diskp = rq->head; diskp != NULL; diskp = diskp->next) {
 	    assert(diskp->host != NULL && sched(diskp) != NULL);
-
-	    /* round estimate to next multiple of DISK_BLOCK_KB */
-	    sched(diskp)->est_size = am_round(sched(diskp)->est_size,
-					      DISK_BLOCK_KB);
 
 	    if (diskp->host->start_t > now) {
 		cur_idle = max(cur_idle, IDLE_START_WAIT);
@@ -700,12 +860,11 @@ start_some_dumps(rq)
 		cur_idle = max(cur_idle, IDLE_NO_BANDWIDTH);
 	    } else if(sched(diskp)->no_space) {
 		cur_idle = max(cur_idle, IDLE_NO_DISKSPACE);
-	    } else if ((holdp =
-		find_diskspace(sched(diskp)->est_size,&cur_idle,NULL)) == NULL) {
-		cur_idle = max(cur_idle, IDLE_NO_DISKSPACE);
-	    } else if (diskp->no_hold) {
-		free_assignedhd(holdp);
+	    } else if (diskp->to_holdingdisk == HOLD_NEVER) {
 		cur_idle = max(cur_idle, IDLE_NO_HOLD);
+	    } else if ((holdp =
+		find_diskspace(sched(diskp)->est_size, &cur_idle, NULL)) == NULL) {
+		cur_idle = max(cur_idle, IDLE_NO_DISKSPACE);
 	    } else if (client_constrained(diskp)) {
 		free_assignedhd(holdp);
 		cur_idle = max(cur_idle, IDLE_CLIENT_CONSTRAINED);
@@ -762,11 +921,11 @@ start_some_dumps(rq)
 	if (diskp == NULL && delayed_diskp != NULL) {
 	    assert(sleep_time > now);
 	    sleep_time -= now;
-	    dumpers_ev_time = event_register(sleep_time, EV_TIME,
+	    dumpers_ev_time = event_register((event_id_t)sleep_time, EV_TIME,
 		handle_dumpers_time, &runq);
 	    return;
 	} else if (diskp != NULL) {
-	    sched(diskp)->act_size = 0;
+	    sched(diskp)->act_size = (off_t)0;
 	    allocate_bandwidth(diskp->host->netif, sched(diskp)->est_kps);
 	    sched(diskp)->activehd = assign_holdingdisk(holdp, diskp);
 	    amfree(holdp);
@@ -777,42 +936,57 @@ start_some_dumps(rq)
 	    sched(diskp)->dumper = dumper;
 	    sched(diskp)->timestamp = now;
 
-	    dumper->ev_read = event_register(dumper->fd, EV_READFD,
-		handle_dumper_result, dumper);
 	    dumper->busy = 1;		/* dumper is now busy */
 	    dumper->dp = diskp;		/* link disk to dumper */
 	    remove_disk(rq, diskp);		/* take it off the run queue */
 
-	    sched(diskp)->origsize = -1;
-	    sched(diskp)->dumpsize = -1;
-	    sched(diskp)->dumptime = -1;
-	    sched(diskp)->tapetime = -1;
+	    sched(diskp)->origsize = (off_t)-1;
+	    sched(diskp)->dumpsize = (off_t)-1;
+	    sched(diskp)->dumptime = (time_t)0;
+	    sched(diskp)->tapetime = (time_t)0;
 	    chunker = dumper->chunker;
 	    chunker->result = LAST_TOK;
 	    dumper->result = LAST_TOK;
 	    startup_chunk_process(chunker,chunker_program);
-	    chunker_cmd(chunker, START, (void *)datestamp);
+	    chunker_cmd(chunker, START, (void *)driver_timestamp);
 	    chunker->dumper = dumper;
 	    chunker_cmd(chunker, PORT_WRITE, diskp);
 	    cmd = getresult(chunker->fd, 1, &result_argc, result_argv, MAX_ARGS+1);
 	    if(cmd != PORT) {
+		assignedhd_t **h=NULL;
+		int activehd;
+
 		printf("driver: did not get PORT from %s for %s:%s\n",
 		       chunker->name, diskp->host->hostname, diskp->name);
 		fflush(stdout);
-		return ;	/* fatal problem */
+
+		deallocate_bandwidth(diskp->host->netif, sched(diskp)->est_kps);
+		h = sched(diskp)->holdp;
+		activehd = sched(diskp)->activehd;
+		h[activehd]->used = 0;
+		holdalloc(h[activehd]->disk)->allocated_dumpers--;
+		adjust_diskspace(diskp, DONE);
+		delete_diskspace(diskp);
+		diskp->host->inprogress--;
+		diskp->inprogress = 0;
+		sched(diskp)->dumper = NULL;
+		dumper->busy = 0;
+		dumper->dp = NULL;
+		sched(diskp)->attempted++;
+		free_serial_dp(diskp);
+		if(sched(diskp)->attempted < 2)
+		    enqueue_disk(rq, diskp);
 	    }
-	    chunker->ev_read = event_register(chunker->fd, EV_READFD,
-		    handle_chunker_result, chunker);
-	    dumper->output_port = atoi(result_argv[2]);
+	    else {
+		dumper->ev_read = event_register((event_id_t)dumper->fd, EV_READFD,
+						 handle_dumper_result, dumper);
+		chunker->ev_read = event_register((event_id_t)chunker->fd, EV_READFD,
+						   handle_chunker_result, chunker);
+		dumper->output_port = atoi(result_argv[2]);
 
-	    dumper_cmd(dumper, PORT_DUMP, diskp);
-
+		dumper_cmd(dumper, PORT_DUMP, diskp);
+	    }
 	    diskp->host->start_t = now + 15;
-	} else if (/* cur_idle != NOT_IDLE && */
-	    (num_busy_dumpers() > 0 || taper_busy)) {
-	    /*
-	     * We are constrained.
-	     */
 	}
     }
 }
@@ -822,9 +996,10 @@ start_some_dumps(rq)
  * be because a disk has a delayed start, or amanda is constrained
  * by network or disk limits.
  */
+
 static void
-handle_dumpers_time(cookie)
-    void *cookie;
+handle_dumpers_time(
+    void *	cookie)
 {
     disklist_t *runq = cookie;
     event_release(dumpers_ev_time);
@@ -833,29 +1008,34 @@ handle_dumpers_time(cookie)
 }
 
 static void
-dump_schedule(qp, str)
-    disklist_t *qp;
-    char *str;
+dump_schedule(
+    disklist_t *qp,
+    char *	str)
 {
     disk_t *dp;
+    char *qname;
 
     printf("dump of driver schedule %s:\n--------\n", str);
 
     for(dp = qp->head; dp != NULL; dp = dp->next) {
-	printf("  %-20s %-25s lv %d t %5ld s %8lu p %d\n",
-	       dp->host->hostname, dp->name, sched(dp)->level,
-	       sched(dp)->est_time, sched(dp)->est_size, sched(dp)->priority);
+        qname = quote_string(dp->name);
+	printf("  %-20s %-25s lv %d t %5lu s " OFF_T_FMT " p %d\n",
+	       dp->host->hostname, qname, sched(dp)->level,
+	       sched(dp)->est_time,
+	       (OFF_T_FMT_TYPE)sched(dp)->est_size, sched(dp)->priority);
+        amfree(qname);
     }
     printf("--------\n");
 }
 
 static void
-start_degraded_mode(queuep)
-    disklist_t *queuep;
+start_degraded_mode(
+    /*@keep@*/ disklist_t *queuep)
 {
     disk_t *dp;
     disklist_t newq;
-    unsigned long est_full_size;
+    off_t est_full_size;
+    char *qname;
 
     if (taper_ev_read != NULL) {
 	event_release(taper_ev_read);
@@ -866,10 +1046,11 @@ start_degraded_mode(queuep)
 
     dump_schedule(queuep, "before start degraded mode");
 
-    est_full_size = 0;
+    est_full_size = (off_t)0;
     while(!empty(*queuep)) {
 	dp = dequeue_disk(queuep);
 
+	qname = quote_string(dp->name);
 	if(sched(dp)->level != 0)
 	    /* go ahead and do the disk as-is */
 	    enqueue_disk(&newq, dp);
@@ -882,27 +1063,30 @@ start_degraded_mode(queuep)
 	    else if(sched(dp)->degr_level != -1) {
 		sched(dp)->level = sched(dp)->degr_level;
 		sched(dp)->dumpdate = sched(dp)->degr_dumpdate;
-		sched(dp)->est_size = sched(dp)->degr_size;
+		sched(dp)->est_nsize = sched(dp)->degr_nsize;
+		sched(dp)->est_csize = sched(dp)->degr_csize;
 		sched(dp)->est_time = sched(dp)->degr_time;
 		sched(dp)->est_kps  = sched(dp)->degr_kps;
 		enqueue_disk(&newq, dp);
 	    }
 	    else {
 		log_add(L_FAIL,"%s %s %s %d [can't switch to incremental dump]",
-		        dp->host->hostname, dp->name, sched(dp)->datestamp,
+		        dp->host->hostname, qname, sched(dp)->datestamp,
 			sched(dp)->level);
 	    }
 	}
+        amfree(qname);
     }
 
-    *queuep = newq;
+    /*@i@*/ *queuep = newq;
     degraded_mode = 1;
 
     dump_schedule(queuep, "after start degraded mode");
 }
 
 
-static void continue_port_dumps()
+static void
+continue_port_dumps(void)
 {
     disk_t *dp, *ndp;
     assignedhd_t **h;
@@ -913,13 +1097,17 @@ static void continue_port_dumps()
     for( dp = roomq.head; dp; dp = ndp ) {
 	ndp = dp->next;
 	/* find last holdingdisk used by this dump */
-	for( i = 0, h = sched(dp)->holdp; h[i+1]; i++ );
+	for( i = 0, h = sched(dp)->holdp; h[i+1]; i++ ) {
+	    (void)h; /* Quiet lint */
+	}
 	/* find more space */
 	h = find_diskspace( sched(dp)->est_size - sched(dp)->act_size,
 			    &active_dumpers, h[i] );
 	if( h ) {
 	    for(dumper = dmptable; dumper < dmptable + inparallel &&
-				   dumper->dp != dp; dumper++);
+				   dumper->dp != dp; dumper++) {
+		(void)dp; /* Quiet lint */
+	    }
 	    assert( dumper < dmptable + inparallel );
 	    sched(dp)->activehd = assign_holdingdisk( h, dp );
 	    chunker_cmd( dumper->chunker, CONTINUE, dp );
@@ -965,7 +1153,7 @@ static void continue_port_dumps()
 	 * We abort that dump, hopefully not wasting too much time retrying it.
 	 */
 	remove_disk( &roomq, dp );
-	chunker_cmd( sched(dp)->dumper->chunker, ABORT, NULL );
+	chunker_cmd( sched(dp)->dumper->chunker, ABORT, NULL);
 	dumper_cmd( sched(dp)->dumper, ABORT, NULL );
 	pending_aborts++;
     }
@@ -973,15 +1161,18 @@ static void continue_port_dumps()
 
 
 static void
-handle_taper_result(void *cookie)
+handle_taper_result(
+    void *	cookie)
 {
     disk_t *dp;
-    int filenum;
+    off_t filenum;
     cmd_t cmd;
     int result_argc;
     char *result_argv[MAX_ARGS+1];
     int avail_tapes = 0;
     
+    (void)cookie;	/* Quiet unused parameter warning */
+
     assert(cookie == NULL);
     
     do {
@@ -996,12 +1187,13 @@ handle_taper_result(void *cookie)
 	case DONE:	/* DONE <handle> <label> <tape file> <err mess> */
 	    if(result_argc != 5) {
 		error("error: [taper DONE result_argc != 5: %d", result_argc);
+		/*NOTREACHED*/
 	    }
             
 	    dp = serial2disk(result_argv[2]);
 	    free_serial(result_argv[2]);
             
-	    filenum = atoi(result_argv[4]);
+	    filenum = OFF_T_ATOI(result_argv[4]);
 	    if(cmd == DONE) {
 		update_info_taper(dp, result_argv[3], filenum,
                                   sched(dp)->level);
@@ -1031,6 +1223,7 @@ handle_taper_result(void *cookie)
 	    if (result_argc < 2) {
 		error("error [taper TRYAGAIN result_argc < 2: %d]",
 		      result_argc);
+	        /*NOTREACHED*/
 	    }
 	    dp = serial2disk(result_argv[2]);
 	    free_serial(result_argv[2]);
@@ -1041,7 +1234,7 @@ handle_taper_result(void *cookie)
 	    /* See how many tapes we have left, but we alwyays
 	       retry once (why?) */
 	    current_tape++;
-	    if(dp->tape_splitsize > 0)
+	    if(dp->tape_splitsize > (off_t)0)
 		avail_tapes = conf_runtapes - current_tape;
 	    else
 		avail_tapes = 0;
@@ -1073,6 +1266,7 @@ handle_taper_result(void *cookie)
             if (result_argc != 3) {
                 error("error [taper SPLIT_CONTINUE result_argc != 3: %d]",
                       result_argc);
+		/*NOTREACHED*/
             }
             
             break;
@@ -1080,6 +1274,7 @@ handle_taper_result(void *cookie)
             if (result_argc != 3) {
                 error("error [taper SPLIT_NEEDNEXT result_argc != 3: %d]",
                       result_argc);
+		/*NOTREACHED*/
             }
             
             /* Update our tape counter and reset tape_left */
@@ -1089,7 +1284,7 @@ handle_taper_result(void *cookie)
             /* Reduce the size of the dump by amount written and reduce
                tape_left by the amount left over */
             dp = serial2disk(result_argv[2]);
-            sched(dp)->act_size -= atoi(result_argv[3]);
+            sched(dp)->act_size -= OFF_T_ATOI(result_argv[3]);
             if (sched(dp)->act_size < tape_left)
                 tape_left -= sched(dp)->act_size;
             else
@@ -1104,14 +1299,14 @@ handle_taper_result(void *cookie)
                    walltime_str(curclock()), dp->host->hostname, dp->name);
             fflush(stdout);
             log_add(L_WARNING, "Taper  error: %s", result_argv[3]);
-            /* FALLSTHROUGH */
+            /*FALLTHROUGH*/
 
         case BOGUS:
             if (cmd == BOGUS) {
         	log_add(L_WARNING, "Taper protocol error");
             }
             /*
-             * Since we've gotten a taper error, we can't send anything more
+             * Since we received a taper error, we can't send anything more
              * to the taper.  Go into degraded mode to try to get everthing
              * onto disk.  Later, these dumps can be flushed to a new tape.
              * The tape queue is zapped so that it appears empty in future
@@ -1137,6 +1332,7 @@ handle_taper_result(void *cookie)
 	default:
             error("driver received unexpected token (%s) from taper",
                   cmdstr[cmd]);
+	    /*NOTREACHED*/
 	}
 	/*
 	 * Wakeup any dumpers that are sleeping because of network
@@ -1148,7 +1344,7 @@ handle_taper_result(void *cookie)
 }
 
 static dumper_t *
-idle_dumper()
+idle_dumper(void)
 {
     dumper_t *dumper;
 
@@ -1158,29 +1354,16 @@ idle_dumper()
     return NULL;
 }
 
-static int
-num_busy_dumpers()
-{
-    dumper_t *dumper;
-    int n;
-
-    n = 0;
-    for(dumper = dmptable; dumper < dmptable+inparallel; dumper++)
-	if(dumper->busy) n += 1;
-
-    return n;
-}
-
-
 static void
-dumper_result(dp)
-    disk_t *dp;
+dumper_result(
+    disk_t *	dp)
 {
     dumper_t *dumper;
     chunker_t *chunker;
     assignedhd_t **h=NULL;
-    int activehd, i, dummy;
-    long size;
+    int activehd, i;
+    off_t dummy;
+    off_t size;
     int is_partial;
 
     dumper = sched(dp)->dumper;
@@ -1194,6 +1377,13 @@ dumper_result(dp)
     if(dumper->result == DONE && chunker->result == DONE) {
 	update_info_dumper(dp, sched(dp)->origsize,
 			   sched(dp)->dumpsize, sched(dp)->dumptime);
+	log_add(L_STATS, "estimate %s %s %s %d [sec %ld nkb " OFF_T_FMT
+		" ckb " OFF_T_FMT " kps %d]",
+		dp->host->hostname, dp->name, sched(dp)->datestamp,
+		sched(dp)->level,
+		sched(dp)->est_time, (OFF_T_FMT_TYPE)sched(dp)->est_nsize, 
+                (OFF_T_FMT_TYPE)sched(dp)->est_csize,
+		sched(dp)->est_kps);
     }
 
     deallocate_bandwidth(dp->host->netif, sched(dp)->est_kps);
@@ -1201,7 +1391,7 @@ dumper_result(dp)
     is_partial = dumper->result != DONE || chunker->result != DONE;
     rename_tmp_holding(sched(dp)->destname, !is_partial);
 
-    dummy = 0;
+    dummy = (off_t)0;
     for( i = 0, h = sched(dp)->holdp; i < activehd; i++ ) {
 	dummy += h[i]->used;
     }
@@ -1218,7 +1408,7 @@ dumper_result(dp)
 	delete_diskspace(dp);
 	enqueue_disk(&runq, dp);
     }
-    else if(size > DISK_BLOCK_KB) {
+    else if(size > (off_t)DISK_BLOCK_KB) {
 	sched(dp)->attempted = 0;
 	enqueue_disk(&tapeq, dp);
 	startaflush();
@@ -1237,6 +1427,8 @@ dumper_result(dp)
     chunker->down = 1;
     
     dp = NULL;
+    if (chunker->result == ABORT_FINISHED)
+	pending_aborts--;
     continue_port_dumps();
     /*
      * Wakeup any dumpers that are sleeping because of network
@@ -1247,14 +1439,15 @@ dumper_result(dp)
 
 
 static void
-handle_dumper_result(cookie)
-    void *cookie;
+handle_dumper_result(
+    void *	cookie)
 {
     /*static int pending_aborts = 0;*/
     dumper_t *dumper = cookie;
     disk_t *dp, *sdp;
     cmd_t cmd;
     int result_argc;
+    char *qname;
     char *result_argv[MAX_ARGS+1];
 
     assert(dumper != NULL);
@@ -1270,24 +1463,29 @@ handle_dumper_result(cookie)
 	if(cmd != BOGUS) {
 	    /* result_argv[2] always contains the serial number */
 	    sdp = serial2disk(result_argv[2]);
-	    assert(sdp == dp);
+	    if (sdp != dp) {
+		error("%s: Invalid serial number", get_pname(), result_argv[2]);
+		/*NOTREACHED*/
+	    }
 	}
 
+	qname = quote_string(dp->name);
 	switch(cmd) {
 
 	case DONE: /* DONE <handle> <origsize> <dumpsize> <dumptime> <errstr> */
 	    if(result_argc != 6) {
 		error("error [dumper DONE result_argc != 6: %d]", result_argc);
+		/*NOTREACHED*/
 	    }
 
 	    /*free_serial(result_argv[2]);*/
 
-	    sched(dp)->origsize = (long)atof(result_argv[3]);
-	    sched(dp)->dumptime = (long)atof(result_argv[5]);
+	    sched(dp)->origsize = OFF_T_ATOI(result_argv[3]);
+	    sched(dp)->dumptime = TIME_T_ATOI(result_argv[5]);
 
 	    printf("driver: finished-cmd time %s %s dumped %s:%s\n",
 		   walltime_str(curclock()), dumper->name,
-		   dp->host->hostname, dp->name);
+		   dp->host->hostname, qname);
 	    fflush(stdout);
 
 	    dumper->result = cmd;
@@ -1329,8 +1527,10 @@ handle_dumper_result(cookie)
 	    /* either EOF or garbage from dumper.  Turn it off */
 	    log_add(L_WARNING, "%s pid %ld is messed up, ignoring it.\n",
 		    dumper->name, (long)dumper->pid);
-	    event_release(dumper->ev_read);
-	    dumper->ev_read = NULL;
+	    if (dumper->ev_read) {
+		event_release(dumper->ev_read);
+		dumper->ev_read = NULL;
+	    }
 	    aclose(dumper->fd);
 	    dumper->busy = 0;
 	    dumper->down = 1;	/* mark it down so it isn't used again */
@@ -1338,12 +1538,12 @@ handle_dumper_result(cookie)
 		/* if it was dumping something, zap it and try again */
 		if(sched(dp)->attempted) {
 	    	log_add(L_FAIL, "%s %s %s %d [%s died]",
-	    		dp->host->hostname, dp->name, sched(dp)->datestamp,
+	    		dp->host->hostname, qname, sched(dp)->datestamp,
 	    		sched(dp)->level, dumper->name);
 		}
 		else {
 	    	log_add(L_WARNING, "%s died while dumping %s:%s lev %d.",
-	    		dumper->name, dp->host->hostname, dp->name,
+	    		dumper->name, dp->host->hostname, qname,
 	    		sched(dp)->level);
 		}
 	    }
@@ -1353,8 +1553,11 @@ handle_dumper_result(cookie)
 	default:
 	    assert(0);
 	}
+        amfree(qname);
+
 	/* send the dumper result to the chunker */
-	if(dumper->chunker->down == 0 && dumper->chunker->fd != -1) {
+	if(dumper->chunker->down == 0 && dumper->chunker->fd != -1 &&
+	   dumper->chunker->result == LAST_TOK) {
 	    if(cmd == DONE) {
 		chunker_cmd(dumper->chunker, DONE, dp);
 	    }
@@ -1371,8 +1574,8 @@ handle_dumper_result(cookie)
 
 
 static void
-handle_chunker_result(cookie)
-    void *cookie;
+handle_chunker_result(
+    void *	cookie)
 {
     /*static int pending_aborts = 0;*/
     chunker_t *chunker = cookie;
@@ -1384,7 +1587,7 @@ handle_chunker_result(cookie)
     char *result_argv[MAX_ARGS+1];
     int dummy;
     int activehd = -1;
-
+    char *qname;
 
     assert(chunker != NULL);
     dumper = chunker->dumper;
@@ -1409,7 +1612,10 @@ handle_chunker_result(cookie)
 	if(cmd != BOGUS) {
 	    /* result_argv[2] always contains the serial number */
 	    sdp = serial2disk(result_argv[2]);
-	    assert(sdp == dp);
+	    if (sdp != dp) {
+		error("%s: Invalid serial number", get_pname(), result_argv[2]);
+		/*NOTREACHED*/
+	    }
 	}
 
 	switch(cmd) {
@@ -1419,15 +1625,18 @@ handle_chunker_result(cookie)
 	    if(result_argc != 4) {
 		error("error [chunker %s result_argc != 4: %d]", cmdstr[cmd],
 		      result_argc);
+	        /*NOTREACHED*/
 	    }
 	    /*free_serial(result_argv[2]);*/
 
-	    sched(dp)->dumpsize = (long)atof(result_argv[3]);
+	    sched(dp)->dumpsize = (off_t)atof(result_argv[3]);
 
+	    qname = quote_string(dp->name);
 	    printf("driver: finished-cmd time %s %s chunked %s:%s\n",
 		   walltime_str(curclock()), chunker->name,
-		   dp->host->hostname, dp->name);
+		   dp->host->hostname, qname);
 	    fflush(stdout);
+            amfree(qname);
 
 	    event_release(chunker->ev_read);
 
@@ -1436,8 +1645,9 @@ handle_chunker_result(cookie)
 	    break;
 
 	case TRYAGAIN: /* TRY-AGAIN <handle> <errstr> */
-	    assert(0);
 	    event_release(chunker->ev_read);
+
+	    chunker->result = cmd;
 
 	    break;
 	case FAILED: /* FAILED <handle> <errstr> */
@@ -1450,15 +1660,21 @@ handle_chunker_result(cookie)
 	    break;
 
 	case NO_ROOM: /* NO-ROOM <handle> <missing_size> */
-	    assert( h && activehd >= 0 );
-	    h[activehd]->used -= atoi(result_argv[3]);
-	    h[activehd]->reserved -= atoi(result_argv[3]);
-	    holdalloc(h[activehd]->disk)->allocated_space -= atoi(result_argv[3]);
-	    h[activehd]->disk->disksize -= atoi(result_argv[3]);
+	    if (!h || activehd < 0) { /* should never happen */
+		error("!h || activehd < 0");
+		/*NOTREACHED*/
+	    }
+	    h[activehd]->used -= OFF_T_ATOI(result_argv[3]);
+	    h[activehd]->reserved -= OFF_T_ATOI(result_argv[3]);
+	    holdalloc(h[activehd]->disk)->allocated_space -= OFF_T_ATOI(result_argv[3]);
+	    h[activehd]->disk->disksize -= OFF_T_ATOI(result_argv[3]);
 	    break;
 
 	case RQ_MORE_DISK: /* RQ-MORE-DISK <handle> */
-	    assert( h && activehd >= 0 );
+	    if (!h || activehd < 0) { /* should never happen */
+		error("!h || activehd < 0");
+		/*NOTREACHED*/
+	    }
 	    holdalloc(h[activehd]->disk)->allocated_dumpers--;
 	    h[activehd]->used = h[activehd]->reserved;
 	    if( h[++activehd] ) { /* There's still some allocated space left.
@@ -1467,11 +1683,10 @@ handle_chunker_result(cookie)
 		chunker_cmd( chunker, CONTINUE, dp );
 	    } else { /* !h[++activehd] - must allocate more space */
 		sched(dp)->act_size = sched(dp)->est_size; /* not quite true */
-		sched(dp)->est_size = (sched(dp)->act_size/20) * 21; /* +5% */
-		sched(dp)->est_size = am_round(sched(dp)->est_size, DISK_BLOCK_KB);
-		if(sched(dp)->est_size <=  sched(dp)->act_size + DISK_BLOCK_KB)
-		    sched(dp)->est_size = sched(dp)->act_size + 
-					  2 * DISK_BLOCK_KB;
+		sched(dp)->est_size = (sched(dp)->act_size/(off_t)20) * (off_t)21; /* +5% */
+		sched(dp)->est_size = am_round(sched(dp)->est_size, (off_t)DISK_BLOCK_KB);
+		if (sched(dp)->est_size < sched(dp)->act_size + 2*DISK_BLOCK_KB)
+		    sched(dp)->est_size += 2 * DISK_BLOCK_KB;
 		h = find_diskspace( sched(dp)->est_size - sched(dp)->act_size,
 				    &dummy,
 				    h[activehd-1] );
@@ -1513,17 +1728,22 @@ handle_chunker_result(cookie)
 
 	    if(dp) {
 		/* if it was dumping something, zap it and try again */
-		assert( h && activehd >= 0 );
+		if (!h || activehd < 0) { /* should never happen */
+		    error("!h || activehd < 0");
+		    /*NOTREACHED*/
+		}
+		qname = quote_string(dp->name);
 		if(sched(dp)->attempted) {
 		    log_add(L_FAIL, "%s %s %s %d [%s died]",
-	    		    dp->host->hostname, dp->name, sched(dp)->datestamp,
+	    		    dp->host->hostname, qname, sched(dp)->datestamp,
 	    		    sched(dp)->level, chunker->name);
 		}
 		else {
 	    	    log_add(L_WARNING, "%s died while dumping %s:%s lev %d.",
-	    		    chunker->name, dp->host->hostname, dp->name,
+	    		    chunker->name, dp->host->hostname, qname,
 	    		    sched(dp)->level);
 		}
+        	amfree(qname);
 		dp = NULL;
 	    }
 
@@ -1545,7 +1765,7 @@ handle_chunker_result(cookie)
 
 
 static disklist_t
-read_flush()
+read_flush(void)
 {
     sched_t *sp;
     disk_t *dp;
@@ -1560,11 +1780,14 @@ read_flush()
     char *s;
     int ch;
     disklist_t tq;
+    char *qname = NULL;
 
     tq.head = tq.tail = NULL;
 
     for(line = 0; (inpline = agets(stdin)) != NULL; free(inpline)) {
 	line++;
+	if (inpline[0] == '\0')
+	    continue;
 
 	s = inpline;
 	ch = *s++;
@@ -1572,7 +1795,7 @@ read_flush()
 	skip_whitespace(s, ch);                 /* find the command */
 	if(ch == '\0') {
 	    error("flush line %d: syntax error (no command)", line);
-	    continue;
+	    /*NOTREACHED*/
 	}
 	command = s - 1;
 	skip_non_whitespace(s, ch);
@@ -1584,13 +1807,13 @@ read_flush()
 
 	if(strcmp(command,"FLUSH") != 0) {
 	    error("flush line %d: syntax error (%s != FLUSH)", line, command);
-	    continue;
+	    /*NOTREACHED*/
 	}
 
 	skip_whitespace(s, ch);			/* find the hostname */
 	if(ch == '\0') {
 	    error("flush line %d: syntax error (no hostname)", line);
-	    continue;
+	    /*NOTREACHED*/
 	}
 	hostname = s - 1;
 	skip_non_whitespace(s, ch);
@@ -1599,16 +1822,17 @@ read_flush()
 	skip_whitespace(s, ch);			/* find the diskname */
 	if(ch == '\0') {
 	    error("flush line %d: syntax error (no diskname)", line);
-	    continue;
+	    /*NOTREACHED*/
 	}
-	diskname = s - 1;
-	skip_non_whitespace(s, ch);
-	s[-1] = '\0';
+	qname = s - 1;
+	skip_quoted_string(s, ch);
+	s[-1] = '\0';				/* terminate the disk name */
+	diskname = unquote_string(qname);
 
 	skip_whitespace(s, ch);			/* find the datestamp */
 	if(ch == '\0') {
 	    error("flush line %d: syntax error (no datestamp)", line);
-	    continue;
+	    /*NOTREACHED*/
 	}
 	datestamp = s - 1;
 	skip_non_whitespace(s, ch);
@@ -1617,14 +1841,14 @@ read_flush()
 	skip_whitespace(s, ch);			/* find the level number */
 	if(ch == '\0' || sscanf(s - 1, "%d", &level) != 1) {
 	    error("flush line %d: syntax error (bad level)", line);
-	    continue;
+	    /*NOTREACHED*/
 	}
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);			/* find the filename */
 	if(ch == '\0') {
 	    error("flush line %d: syntax error (no filename)", line);
-	    continue;
+	    /*NOTREACHED*/
 	}
 	destname = s - 1;
 	skip_non_whitespace(s, ch);
@@ -1634,6 +1858,7 @@ read_flush()
 	if( file.type != F_DUMPFILE) {
 	    if( file.type != F_CONT_DUMPFILE )
 		log_add(L_INFO, "%s: ignoring cruft file.", destname);
+	    amfree(diskname);
 	    continue;
 	}
 
@@ -1642,8 +1867,10 @@ read_flush()
 	   strcmp(datestamp, file.datestamp) != 0) {
 	    log_add(L_INFO, "disk %s:%s not consistent with file %s",
 		    hostname, diskname, destname);
+	    amfree(diskname);
 	    continue;
 	}
+	amfree(diskname);
 
 	dp = lookup_disk(file.name, file.disk);
 
@@ -1659,13 +1886,13 @@ read_flush()
 	    continue;
 	}
 
-	dp1 = (disk_t *)alloc(sizeof(disk_t));
+	dp1 = (disk_t *)alloc(SIZEOF(disk_t));
 	*dp1 = *dp;
 	dp1->next = dp1->prev = NULL;
 
 	/* add it to the flushhost list */
 	if(!flushhost) {
-	    flushhost = alloc(sizeof(am_host_t));
+	    flushhost = alloc(SIZEOF(am_host_t));
 	    flushhost->next = NULL;
 	    flushhost->hostname = stralloc("FLUSHHOST");
 	    flushhost->up = NULL;
@@ -1674,17 +1901,18 @@ read_flush()
 	dp1->hostnext = flushhost->disks;
 	flushhost->disks = dp1;
 
-	sp = (sched_t *) alloc(sizeof(sched_t));
+	sp = (sched_t *) alloc(SIZEOF(sched_t));
 	sp->destname = stralloc(destname);
 	sp->level = file.dumplevel;
 	sp->dumpdate = NULL;
 	sp->degr_dumpdate = NULL;
 	sp->datestamp = stralloc(file.datestamp);
-	sp->est_size = 0;
+	sp->est_nsize = (off_t)0;
+	sp->est_csize = (off_t)0;
 	sp->est_time = 0;
+	sp->est_kps = 10;
 	sp->priority = 0;
 	sp->degr_level = -1;
-	sp->est_kps = 10;
 	sp->attempted = 0;
 	sp->act_size = size_holding_files(destname, 0);
 	sp->holdp = build_diskspace(destname);
@@ -1698,34 +1926,39 @@ read_flush()
     }
     amfree(inpline);
 
-    return tq;
+    /*@i@*/ return tq;
 }
 
 static void
-read_schedule(cookie)
-    void *cookie;
+read_schedule(
+    void *	cookie)
 {
     sched_t *sp;
     disk_t *dp;
-    disklist_t rq;
     int level, line, priority;
     char *dumpdate, *degr_dumpdate;
     int degr_level;
-    long time, degr_time;
-    unsigned long size, degr_size;
+    time_t time, degr_time;
+    time_t *time_p = &time;
+    time_t *degr_time_p = &degr_time;
+    off_t nsize, csize, degr_nsize, degr_csize;
+    unsigned long kps, degr_kps;
     char *hostname, *features, *diskname, *datestamp, *inpline = NULL;
     char *command;
     char *s;
     int ch;
-    long flush_size = 0;
+    off_t flush_size = (off_t)0;
+    char *qname = NULL;
 
-    rq.head = rq.tail = NULL;
+    (void)cookie;	/* Quiet unused parameter warning */
 
     event_release(schedule_ev_read);
 
     /* read schedule from stdin */
 
     for(line = 0; (inpline = agets(stdin)) != NULL; free(inpline)) {
+	if (inpline[0] == '\0')
+	    continue;
 	line++;
 
 	s = inpline;
@@ -1734,7 +1967,7 @@ read_schedule(cookie)
 	skip_whitespace(s, ch);			/* find the command */
 	if(ch == '\0') {
 	    error("schedule line %d: syntax error (no command)", line);
-	    continue;
+	    /*NOTREACHED*/
 	}
 	command = s - 1;
 	skip_non_whitespace(s, ch);
@@ -1742,13 +1975,13 @@ read_schedule(cookie)
 
 	if(strcmp(command,"DUMP") != 0) {
 	    error("schedule line %d: syntax error (%s != DUMP)", line, command);
-	    continue;
+	    /*NOTREACHED*/
 	}
 
 	skip_whitespace(s, ch);			/* find the host name */
 	if(ch == '\0') {
 	    error("schedule line %d: syntax error (no host name)", line);
-	    continue;
+	    /*NOTREACHED*/
 	}
 	hostname = s - 1;
 	skip_non_whitespace(s, ch);
@@ -1757,7 +1990,7 @@ read_schedule(cookie)
 	skip_whitespace(s, ch);			/* find the feature list */
 	if(ch == '\0') {
 	    error("schedule line %d: syntax error (no feature list)", line);
-	    continue;
+	    /*NOTREACHED*/
 	}
 	features = s - 1;
 	skip_non_whitespace(s, ch);
@@ -1766,16 +1999,17 @@ read_schedule(cookie)
 	skip_whitespace(s, ch);			/* find the disk name */
 	if(ch == '\0') {
 	    error("schedule line %d: syntax error (no disk name)", line);
-	    continue;
+	    /*NOTREACHED*/
 	}
-	diskname = s - 1;
-	skip_non_whitespace(s, ch);
-	s[-1] = '\0';
+	qname = s - 1;
+	skip_quoted_string(s, ch);
+	s[-1] = '\0';				/* terminate the disk name */
+	diskname = unquote_string(qname);
 
 	skip_whitespace(s, ch);			/* find the datestamp */
 	if(ch == '\0') {
 	    error("schedule line %d: syntax error (no datestamp)", line);
-	    continue;
+	    /*NOTREACHED*/
 	}
 	datestamp = s - 1;
 	skip_non_whitespace(s, ch);
@@ -1784,36 +2018,53 @@ read_schedule(cookie)
 	skip_whitespace(s, ch);			/* find the priority number */
 	if(ch == '\0' || sscanf(s - 1, "%d", &priority) != 1) {
 	    error("schedule line %d: syntax error (bad priority)", line);
-	    continue;
+	    /*NOTREACHED*/
 	}
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);			/* find the level number */
 	if(ch == '\0' || sscanf(s - 1, "%d", &level) != 1) {
 	    error("schedule line %d: syntax error (bad level)", line);
-	    continue;
+	    /*NOTREACHED*/
 	}
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);			/* find the dump date */
 	if(ch == '\0') {
 	    error("schedule line %d: syntax error (bad dump date)", line);
-	    continue;
+	    /*NOTREACHED*/
 	}
 	dumpdate = s - 1;
 	skip_non_whitespace(s, ch);
 	s[-1] = '\0';
 
-	skip_whitespace(s, ch);			/* find the size number */
-	if(ch == '\0' || sscanf(s - 1, "%lu", &size) != 1) {
-	    error("schedule line %d: syntax error (bad size)", line);
-	    continue;
+	skip_whitespace(s, ch);			/* find the native size */
+	if(ch == '\0' || sscanf(s - 1, OFF_T_FMT, 
+				(OFF_T_FMT_TYPE *)&nsize) != 1) {
+	    error("schedule line %d: syntax error (bad nsize)", line);
+	    /*NOTREACHED*/
+	}
+	skip_integer(s, ch);
+
+	skip_whitespace(s, ch);			/* find the compressed size */
+	if(ch == '\0' || sscanf(s - 1, OFF_T_FMT, 
+				(OFF_T_FMT_TYPE *)&csize) != 1) {
+	    error("schedule line %d: syntax error (bad csize)", line);
+	    /*NOTREACHED*/
 	}
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);			/* find the time number */
-	if(ch == '\0' || sscanf(s - 1, "%ld", &time) != 1) {
+	if(ch == '\0' || sscanf(s - 1, TIME_T_FMT,
+				(TIME_T_FMT_TYPE *)time_p) != 1) {
 	    error("schedule line %d: syntax error (bad estimated time)", line);
+	    /*NOTREACHED*/
+	}
+	skip_integer(s, ch);
+
+	skip_whitespace(s, ch);			/* find the kps number */
+	if(ch == '\0' || sscanf(s - 1, "%lu", &kps) != 1) {
+	    error("schedule line %d: syntax error (bad kps)", line);
 	    continue;
 	}
 	skip_integer(s, ch);
@@ -1823,30 +2074,47 @@ read_schedule(cookie)
 	if(ch != '\0') {
 	    if(sscanf(s - 1, "%d", &degr_level) != 1) {
 		error("schedule line %d: syntax error (bad degr level)", line);
-		continue;
+		/*NOTREACHED*/
 	    }
 	    skip_integer(s, ch);
 
 	    skip_whitespace(s, ch);		/* find the degr dump date */
 	    if(ch == '\0') {
 		error("schedule line %d: syntax error (bad degr dump date)", line);
-		continue;
+		/*NOTREACHED*/
 	    }
 	    degr_dumpdate = s - 1;
 	    skip_non_whitespace(s, ch);
 	    s[-1] = '\0';
 
-	    skip_whitespace(s, ch);		/* find the degr size number */
-	    if(ch == '\0'  || sscanf(s - 1, "%lu", &degr_size) != 1) {
-		error("schedule line %d: syntax error (bad degr size)", line);
-		continue;
+	    skip_whitespace(s, ch);		/* find the degr native size */
+	    if(ch == '\0'  || sscanf(s - 1, OFF_T_FMT, 
+			(OFF_T_FMT_TYPE *)&degr_nsize) != 1) {
+		error("schedule line %d: syntax error (bad degr nsize)", line);
+		/*NOTREACHED*/
+	    }
+	    skip_integer(s, ch);
+
+	    skip_whitespace(s, ch);		/* find the degr compressed size */
+	    if(ch == '\0'  || sscanf(s - 1, OFF_T_FMT, 
+			(OFF_T_FMT_TYPE *)&degr_csize) != 1) {
+		error("schedule line %d: syntax error (bad degr csize)", line);
+		/*NOTREACHED*/
 	    }
 	    skip_integer(s, ch);
 
 	    skip_whitespace(s, ch);		/* find the degr time number */
-	    if(ch == '\0' || sscanf(s - 1, "%lu", &degr_time) != 1) {
+	    if(ch == '\0' || sscanf(s - 1, TIME_T_FMT,
+				(TIME_T_FMT_TYPE *)degr_time_p) != 1) {
 		error("schedule line %d: syntax error (bad degr estimated time)", line);
-		continue;
+		/*NOTREACHED*/
+	    }
+	    skip_integer(s, ch);
+
+	    skip_whitespace(s, ch);		/* find the degr kps number */
+	    if(ch == '\0' || sscanf(s - 1, "%lu", &degr_kps) != 1) {
+		error("schedule line %d: syntax error (bad degr kps)", line);
+		/*NOTREACHED*/
 	    }
 	    skip_integer(s, ch);
 	}
@@ -1854,43 +2122,43 @@ read_schedule(cookie)
 	dp = lookup_disk(hostname, diskname);
 	if(dp == NULL) {
 	    log_add(L_WARNING,
-		    "schedule line %d: %s:%s not in disklist, ignored",
-		    line, hostname, diskname);
+		    "schedule line %d: %s:'%s' not in disklist, ignored",
+		    line, hostname, qname);
+	    amfree(diskname);
 	    continue;
 	}
 
-	sp = (sched_t *) alloc(sizeof(sched_t));
-	sp->level    = level;
+	sp = (sched_t *) alloc(SIZEOF(sched_t));
+	/*@ignore@*/
+	sp->level = level;
 	sp->dumpdate = stralloc(dumpdate);
-	sp->est_size = DISK_BLOCK_KB + size; /* include header */
+	sp->est_nsize = DISK_BLOCK_KB + nsize; /* include header */
+	sp->est_csize = DISK_BLOCK_KB + csize; /* include header */
+	/* round estimate to next multiple of DISK_BLOCK_KB */
+	sp->est_csize = am_round(sp->est_csize, DISK_BLOCK_KB);
+	sp->est_size = sp->est_csize;
 	sp->est_time = time;
+	sp->est_kps = kps;
 	sp->priority = priority;
 	sp->datestamp = stralloc(datestamp);
 
 	if(degr_dumpdate) {
 	    sp->degr_level = degr_level;
 	    sp->degr_dumpdate = stralloc(degr_dumpdate);
-	    sp->degr_size = DISK_BLOCK_KB + degr_size;
+	    sp->degr_nsize = DISK_BLOCK_KB + degr_nsize;
+	    sp->degr_csize = DISK_BLOCK_KB + degr_csize;
+	    /* round estimate to next multiple of DISK_BLOCK_KB */
+	    sp->degr_csize = am_round(sp->degr_csize, DISK_BLOCK_KB);
 	    sp->degr_time = degr_time;
+	    sp->degr_kps = degr_kps;
 	} else {
 	    sp->degr_level = -1;
 	    sp->degr_dumpdate = NULL;
 	}
-
-	if(time <= 0)
-	    sp->est_kps = 10;
-	else
-	    sp->est_kps = size/time;
-
-	if(sp->degr_level != -1) {
-	    if(degr_time <= 0)
-		sp->degr_kps = 10;
-	    else
-		sp->degr_kps = degr_size/degr_time;
-	}
+	/*@end@*/
 
 	sp->attempted = 0;
-	sp->act_size = 0;
+	sp->act_size = (off_t)0;
 	sp->holdp = NULL;
 	sp->activehd = -1;
 	sp->dumper = NULL;
@@ -1905,8 +2173,9 @@ read_schedule(cookie)
 	remove_disk(&waitq, dp);
 	enqueue_disk(&runq, dp);
 	flush_size += sp->act_size;
+	amfree(diskname);
     }
-    printf("driver: flush size %ld\n", flush_size);
+    printf("driver: flush size " OFF_T_FMT "\n", (OFF_T_FMT_TYPE)flush_size);
     amfree(inpline);
     if(line == 0)
 	log_add(L_WARNING, "WARNING: got empty schedule from planner");
@@ -1914,83 +2183,80 @@ read_schedule(cookie)
     start_some_dumps(&runq);
 }
 
-static int
-free_kps(ip)
-    interface_t *ip;
+static unsigned long
+free_kps(
+    interface_t *ip)
 {
-    int res;
+    unsigned long res;
 
     if (ip == (interface_t *)0) {
 	interface_t *p;
-	int maxusage=0;
-	int curusage=0;
+	unsigned long maxusage=0;
+	unsigned long curusage=0;
 	for(p = lookup_interface(NULL); p != NULL; p = p->next) {
-	    maxusage += p->maxusage;
+	    maxusage += interface_get_maxusage(p);
 	    curusage += p->curusage;
 	}
 	res = maxusage - curusage;
-    }
-    else {
-	res = ip->maxusage - ip->curusage;
+#ifndef __lint
+    } else {
+	res = interface_get_maxusage(ip) - ip->curusage;
+#endif
     }
 
     return res;
 }
 
 static void
-interface_state(time_str)
-    char *time_str;
+interface_state(
+    char *time_str)
 {
     interface_t *ip;
 
     printf("driver: interface-state time %s", time_str);
 
     for(ip = lookup_interface(NULL); ip != NULL; ip = ip->next) {
-	printf(" if %s: free %d", ip->name, free_kps(ip));
+	printf(" if %s: free %lu", ip->name, free_kps(ip));
     }
     printf("\n");
 }
 
 static void
-allocate_bandwidth(ip, kps)
-    interface_t *ip;
-    int kps;
+allocate_bandwidth(
+    interface_t *	ip,
+    unsigned long	kps)
 {
     ip->curusage += kps;
 }
 
 static void
-deallocate_bandwidth(ip, kps)
-    interface_t *ip;
-    int kps;
+deallocate_bandwidth(
+    interface_t *	ip,
+    unsigned long	kps)
 {
     assert(kps <= ip->curusage);
     ip->curusage -= kps;
 }
 
 /* ------------ */
-static unsigned long
-free_space()
+static off_t
+free_space(void)
 {
     holdingdisk_t *hdp;
-    unsigned long total_free;
-    long diff;
+    off_t total_free;
+    off_t diff;
 
-    total_free = 0L;
+    total_free = (off_t)0;
     for(hdp = getconf_holdingdisks(); hdp != NULL; hdp = hdp->next) {
 	diff = hdp->disksize - holdalloc(hdp)->allocated_space;
-	if(diff > 0)
+	if(diff > (off_t)0)
 	    total_free += diff;
     }
     return total_free;
 }
 
-static assignedhd_t **
-find_diskspace(size, cur_idle, pref)
-    unsigned long size;
-    int *cur_idle;
-    assignedhd_t *pref;
-/* We return an array of pointers to assignedhd_t. The array contains at
+/*
+ * We return an array of pointers to assignedhd_t. The array contains at
  * most one entry per holding disk. The list of pointers is terminated by
  * a NULL pointer. Each entry contains a pointer to a holdingdisk and
  * how much diskspace to use on that disk. Later on, assign_holdingdisk
@@ -1998,18 +2264,28 @@ find_diskspace(size, cur_idle, pref)
  * If there is not enough room on the holdingdisks, NULL is returned.
  */
 
+static assignedhd_t **
+find_diskspace(
+    off_t		size,
+    int *		cur_idle,
+    assignedhd_t *	pref)
 {
     assignedhd_t **result = NULL;
     holdingdisk_t *minp, *hdp;
     int i=0, num_holdingdisks=0; /* are we allowed to use the global thing? */
     int j, minj;
     char *used;
-    long halloc, dalloc, hfree, dfree;
+    off_t halloc, dalloc, hfree, dfree;
 
-    size = am_round(size, DISK_BLOCK_KB);
+    (void)cur_idle;	/* Quiet unused parameter warning */
+
+    if (size < 2*DISK_BLOCK_KB)
+	size = 2*DISK_BLOCK_KB;
+    size = am_round(size, (off_t)DISK_BLOCK_KB);
 
 #ifdef HOLD_DEBUG
-    printf("%s: want %lu K\n", debug_prefix_time(": find_diskspace"), size);
+    printf("%s: want " OFF_T_FMT " K\n", debug_prefix_time(": find_diskspace"),
+	   (OFF_T_FMT_TYPE)size);
     fflush(stdout);
 #endif
 
@@ -2017,24 +2293,24 @@ find_diskspace(size, cur_idle, pref)
 	num_holdingdisks++;
     }
 
-    used = alloc(sizeof(char) * num_holdingdisks);/*disks used during this run*/
-    memset( used, 0, num_holdingdisks );
-    result = alloc( sizeof(assignedhd_t *) * (num_holdingdisks+1) );
+    used = alloc(SIZEOF(*used) * num_holdingdisks);/*disks used during this run*/
+    memset( used, 0, (size_t)num_holdingdisks );
+    result = alloc(SIZEOF(assignedhd_t *) * (num_holdingdisks + 1));
     result[0] = NULL;
 
-    while( i < num_holdingdisks && size > 0 ) {
+    while( i < num_holdingdisks && size > (off_t)0 ) {
 	/* find the holdingdisk with the fewest active dumpers and among
 	 * those the one with the biggest free space
 	 */
 	minp = NULL; minj = -1;
 	for(j = 0, hdp = getconf_holdingdisks(); hdp != NULL; hdp = hdp->next, j++ ) {
 	    if( pref && pref->disk == hdp && !used[j] &&
-		holdalloc(hdp)->allocated_space <= hdp->disksize - DISK_BLOCK_KB) {
+		holdalloc(hdp)->allocated_space <= hdp->disksize - (off_t)DISK_BLOCK_KB) {
 		minp = hdp;
 		minj = j;
 		break;
 	    }
-	    else if( holdalloc(hdp)->allocated_space <= hdp->disksize - 2*DISK_BLOCK_KB &&
+	    else if( holdalloc(hdp)->allocated_space <= hdp->disksize - (off_t)(2*DISK_BLOCK_KB) &&
 		!used[j] &&
 		(!minp ||
 		 holdalloc(hdp)->allocated_dumpers < holdalloc(minp)->allocated_dumpers ||
@@ -2053,33 +2329,39 @@ find_diskspace(size, cur_idle, pref)
 	hfree = minp->disksize - holdalloc(minp)->allocated_space;
 
 	/* dfree = free space for data, remove 1 header for each chunksize */
-	dfree = hfree - (((hfree-1)/minp->chunksize)+1) * DISK_BLOCK_KB;
+	dfree = hfree - (((hfree-(off_t)1)/holdingdisk_get_chunksize(minp))+(off_t)1) * (off_t)DISK_BLOCK_KB;
 
 	/* dalloc = space I can allocate for data */
 	dalloc = ( dfree < size ) ? dfree : size;
 
 	/* halloc = space to allocate, including 1 header for each chunksize */
-	halloc = dalloc + (((dalloc-1)/minp->chunksize)+1) * DISK_BLOCK_KB;
+	halloc = dalloc + (((dalloc-(off_t)1)/holdingdisk_get_chunksize(minp))+(off_t)1) * (off_t)DISK_BLOCK_KB;
 
 #ifdef HOLD_DEBUG
-	printf("%s: find diskspace: size %ld hf %ld df %ld da %ld ha %ld\n",
+	printf("%s: find diskspace: size " OFF_T_FMT " hf " OFF_T_FMT
+	       " df " OFF_T_FMT " da " OFF_T_FMT " ha " OFF_T_FMT "\n",
 	       debug_prefix_time(": find_diskspace"),
-	       size, hfree, dfree, dalloc, halloc);
+	       (OFF_T_FMT_TYPE)size,
+	       (OFF_T_FMT_TYPE)hfree,
+	       (OFF_T_FMT_TYPE)dfree,
+	       (OFF_T_FMT_TYPE)dalloc,
+	       (OFF_T_FMT_TYPE)halloc);
 	fflush(stdout);
 #endif
 	size -= dalloc;
-	result[i] = alloc(sizeof(assignedhd_t));
+	result[i] = alloc(SIZEOF(assignedhd_t));
 	result[i]->disk = minp;
 	result[i]->reserved = halloc;
-	result[i]->used = 0;
+	result[i]->used = (off_t)0;
 	result[i]->destname = NULL;
 	result[i+1] = NULL;
 	i++;
     } /* while i < num_holdingdisks && size > 0 */
     amfree(used);
 
-    if( size ) { /* not enough space available */
-	printf("find diskspace: not enough diskspace. Left with %lu K\n", size);
+    if(size != (off_t)0) { /* not enough space available */
+	printf("find diskspace: not enough diskspace. Left with "
+	       OFF_T_FMT " K\n", (OFF_T_FMT_TYPE)size);
 	fflush(stdout);
 	free_assignedhd(result);
 	result = NULL;
@@ -2087,11 +2369,12 @@ find_diskspace(size, cur_idle, pref)
 
 #ifdef HOLD_DEBUG
     for( i = 0; result && result[i]; i++ ) {
-	printf("%s: find diskspace: selected %s free %ld reserved %ld dumpers %d\n",
+	printf("%s: find diskspace: selected %s free " OFF_T_FMT " reserved " OFF_T_FMT " dumpers %d\n",
 		debug_prefix_time(": find_diskspace"),
-		result[i]->disk->diskdir,
-		result[i]->disk->disksize - holdalloc(result[i]->disk)->allocated_space,
-		result[i]->reserved,
+		holdingdisk_get_diskdir(result[i]->disk),
+		(OFF_T_FMT_TYPE)(result[i]->disk->disksize -
+		  holdalloc(result[i]->disk)->allocated_space),
+		(OFF_T_FMT_TYPE)result[i]->reserved,
 		holdalloc(result[i]->disk)->allocated_dumpers);
     }
     fflush(stdout);
@@ -2101,28 +2384,31 @@ find_diskspace(size, cur_idle, pref)
 }
 
 static int
-assign_holdingdisk(holdp, diskp)
-    assignedhd_t **holdp;
-    disk_t *diskp;
+assign_holdingdisk(
+    assignedhd_t **	holdp,
+    disk_t *		diskp)
 {
     int i, j, c, l=0;
-    unsigned long size;
+    off_t size;
     char *sfn = sanitise_filename(diskp->name);
     char lvl[64];
     assignedhd_t **new_holdp;
+    char *qname;
 
-    snprintf( lvl, sizeof(lvl), "%d", sched(diskp)->level );
+    snprintf( lvl, SIZEOF(lvl), "%d", sched(diskp)->level );
 
     size = am_round(sched(diskp)->est_size - sched(diskp)->act_size,
-		    DISK_BLOCK_KB);
+		    (off_t)DISK_BLOCK_KB);
 
-    for( c = 0; holdp[c]; c++ ); /* count number of disks */
+    for( c = 0; holdp[c]; c++ )
+	(void)c; /* count number of disks */
 
     /* allocate memory for sched(diskp)->holdp */
-    for(j = 0; sched(diskp)->holdp && sched(diskp)->holdp[j]; j++) {}
-    new_holdp = (assignedhd_t **)alloc(sizeof(assignedhd_t*)*(j+c+1));
+    for(j = 0; sched(diskp)->holdp && sched(diskp)->holdp[j]; j++)
+	(void)j;	/* Quiet lint */
+    new_holdp = (assignedhd_t **)alloc(SIZEOF(assignedhd_t*)*(j+c+1));
     if (sched(diskp)->holdp) {
-	memcpy(new_holdp, sched(diskp)->holdp, j * sizeof(*new_holdp));
+	memcpy(new_holdp, sched(diskp)->holdp, j * SIZEOF(*new_holdp));
 	amfree(sched(diskp)->holdp);
     }
     sched(diskp)->holdp = new_holdp;
@@ -2135,17 +2421,20 @@ assign_holdingdisk(holdp, diskp)
 	if( sched(diskp)->holdp[j-1]->disk == holdp[0]->disk ) { /* Yes! */
 	    sched(diskp)->holdp[j-1]->reserved += holdp[0]->reserved;
 	    holdalloc(holdp[0]->disk)->allocated_space += holdp[0]->reserved;
-	    size = (holdp[0]->reserved>size) ? 0 : size-holdp[0]->reserved;
+	    size = (holdp[0]->reserved>size) ? (off_t)0 : size-holdp[0]->reserved;
+	    qname = quote_string(diskp->name);
 #ifdef HOLD_DEBUG
-	    printf("%s: merging holding disk %s to disk %s:%s, add %lu for reserved %lu, left %lu\n",
+	    printf("%s: merging holding disk %s to disk %s:%s, add " OFF_T_FMT " for reserved " OFF_T_FMT ", left " OFF_T_FMT "\n",
 		   debug_prefix_time(": assign_holdingdisk"),
-		   sched(diskp)->holdp[j-1]->disk->diskdir,
-		   diskp->host->hostname, diskp->name,
-		   holdp[0]->reserved, sched(diskp)->holdp[j-1]->reserved,
-		   size );
+		   holdingdisk_get_diskdir(sched(diskp)->holdp[j-1]->disk),
+		   diskp->host->hostname, qname,
+		   (OFF_T_FMT_TYPE)holdp[0]->reserved,
+		   (OFF_T_FMT_TYPE)sched(diskp)->holdp[j-1]->reserved,
+		   (OFF_T_FMT_TYPE)size);
 	    fflush(stdout);
 #endif
 	    i++;
+	    amfree(qname);
 	    amfree(holdp[0]);
 	    l=j-1;
 	}
@@ -2154,21 +2443,25 @@ assign_holdingdisk(holdp, diskp)
     /* copy assignedhd_s to sched(diskp), adjust allocated_space */
     for( ; holdp[i]; i++ ) {
 	holdp[i]->destname = newvstralloc( holdp[i]->destname,
-					   holdp[i]->disk->diskdir, "/",
-					   timestamp, "/",
+					   holdingdisk_get_diskdir(holdp[i]->disk), "/",
+					   hd_driver_timestamp, "/",
 					   diskp->host->hostname, ".",
 					   sfn, ".",
 					   lvl, NULL );
 	sched(diskp)->holdp[j++] = holdp[i];
 	holdalloc(holdp[i]->disk)->allocated_space += holdp[i]->reserved;
-	size = (holdp[i]->reserved>size) ? 0 : size-holdp[i]->reserved;
+	size = (holdp[i]->reserved > size) ? (off_t)0 :
+		  (size - holdp[i]->reserved);
+	qname = quote_string(diskp->name);
 #ifdef HOLD_DEBUG
-	printf("%s: %d assigning holding disk %s to disk %s:%s, reserved %lu, left %lu\n",
+	printf("%s: %d assigning holding disk %s to disk %s:%s, reserved " OFF_T_FMT ", left " OFF_T_FMT "\n",
 		debug_prefix_time(": assign_holdingdisk"),
-		i, holdp[i]->disk->diskdir, diskp->host->hostname, diskp->name,
-		holdp[i]->reserved, size );
+		i, holdingdisk_get_diskdir(holdp[i]->disk), diskp->host->hostname, qname,
+		(OFF_T_FMT_TYPE)holdp[i]->reserved,
+		(OFF_T_FMT_TYPE)size);
 	fflush(stdout);
 #endif
+	amfree(qname);
 	holdp[i] = NULL; /* so it doesn't get free()d... */
     }
     sched(diskp)->holdp[j] = NULL;
@@ -2178,63 +2471,74 @@ assign_holdingdisk(holdp, diskp)
 }
 
 static void
-adjust_diskspace(diskp, cmd)
-    disk_t *diskp;
-    cmd_t cmd;
+adjust_diskspace(
+    disk_t *	diskp,
+    cmd_t	cmd)
 {
     assignedhd_t **holdp;
-    unsigned long total=0;
-    long diff;
+    off_t total = (off_t)0;
+    off_t diff;
     int i;
+    char *qname, *hqname, *qdest;
 
+    (void)cmd;	/* Quiet unused parameter warning */
+
+    qname = quote_string(diskp->name);
+    qdest = quote_string(sched(diskp)->destname);
 #ifdef HOLD_DEBUG
     printf("%s: %s:%s %s\n",
 	   debug_prefix_time(": adjust_diskspace"),
-	   diskp->host->hostname, diskp->name, sched(diskp)->destname);
+	   diskp->host->hostname, qname, qdest);
     fflush(stdout);
 #endif
 
     holdp = sched(diskp)->holdp;
 
-    assert(holdp);
+    assert(holdp != NULL);
 
     for( i = 0; holdp[i]; i++ ) { /* for each allocated disk */
 	diff = holdp[i]->used - holdp[i]->reserved;
 	total += holdp[i]->used;
 	holdalloc(holdp[i]->disk)->allocated_space += diff;
-
+	hqname = quote_string(holdp[i]->disk->name);
 #ifdef HOLD_DEBUG
-	printf("%s: hdisk %s done, reserved %ld used %ld diff %ld alloc %ld dumpers %d\n",
+	printf("%s: hdisk %s done, reserved " OFF_T_FMT " used " OFF_T_FMT " diff " OFF_T_FMT " alloc " OFF_T_FMT " dumpers %d\n",
 		debug_prefix_time(": adjust_diskspace"),
-		holdp[i]->disk->name, holdp[i]->reserved, holdp[i]->used, diff,
-		holdalloc(holdp[i]->disk)->allocated_space,
+		holdp[i]->disk->name,
+		(OFF_T_FMT_TYPE)holdp[i]->reserved,
+		(OFF_T_FMT_TYPE)holdp[i]->used,
+		(OFF_T_FMT_TYPE)diff,
+		(OFF_T_FMT_TYPE)holdalloc(holdp[i]->disk)->allocated_space,
 		holdalloc(holdp[i]->disk)->allocated_dumpers );
 	fflush(stdout);
 #endif
 	holdp[i]->reserved += diff;
+	amfree(hqname);
     }
 
     sched(diskp)->act_size = total;
 
 #ifdef HOLD_DEBUG
-    printf("%s: after: disk %s:%s used %ld\n",
+    printf("%s: after: disk %s:%s used " OFF_T_FMT "\n",
 	   debug_prefix_time(": adjust_diskspace"),
-	   diskp->host->hostname, diskp->name, sched(diskp)->act_size );
+	   diskp->host->hostname, qname,
+	   (OFF_T_FMT_TYPE)sched(diskp)->act_size);
     fflush(stdout);
 #endif
-
+    amfree(qdest);
+    amfree(qname);
 }
 
 static void
-delete_diskspace(diskp)
-    disk_t *diskp;
+delete_diskspace(
+    disk_t *diskp)
 {
     assignedhd_t **holdp;
     int i;
 
     holdp = sched(diskp)->holdp;
 
-    assert(holdp);
+    assert(holdp != NULL);
 
     for( i = 0; holdp[i]; i++ ) { /* for each disk */
 	/* find all files of this dump on that disk, and subtract their
@@ -2249,32 +2553,34 @@ delete_diskspace(diskp)
 						 * using cont_filename */
     free_assignedhd(sched(diskp)->holdp);
     sched(diskp)->holdp = NULL;
-    sched(diskp)->act_size = 0;
+    sched(diskp)->act_size = (off_t)0;
 }
 
-static assignedhd_t **build_diskspace(destname)
-char *destname;
+static assignedhd_t **
+build_diskspace(
+    char *	destname)
 {
     int i, j;
     int fd;
-    int buflen;
+    ssize_t buflen;
     char buffer[DISK_BLOCK_BYTES];
     dumpfile_t file;
     assignedhd_t **result;
     holdingdisk_t *hdp;
-    int *used;
+    off_t *used;
     int num_holdingdisks=0;
     char dirname[1000], *ch;
     struct stat finfo;
     char *filename = destname;
 
+    memset(buffer, 0, sizeof(buffer));
     for(hdp = getconf_holdingdisks(); hdp != NULL; hdp = hdp->next) {
         num_holdingdisks++;
     }
-    used = alloc(sizeof(int) * num_holdingdisks);
+    used = alloc(SIZEOF(off_t) * num_holdingdisks);
     for(i=0;i<num_holdingdisks;i++)
-	used[i] = 0;
-    result = alloc( sizeof(assignedhd_t *) * (num_holdingdisks+1) );
+	used[i] = (off_t)0;
+    result = alloc(SIZEOF(assignedhd_t *) * (num_holdingdisks + 1));
     result[0] = NULL;
     while(filename != NULL && filename[0] != '\0') {
 	strncpy(dirname, filename, 999);
@@ -2286,23 +2592,23 @@ char *destname;
 
 	for(j = 0, hdp = getconf_holdingdisks(); hdp != NULL;
 						 hdp = hdp->next, j++ ) {
-	    if(strcmp(dirname,hdp->diskdir)==0) {
+	    if(strcmp(dirname, holdingdisk_get_diskdir(hdp))==0) {
 		break;
 	    }
 	}
 
 	if(stat(filename, &finfo) == -1) {
 	    fprintf(stderr, "stat %s: %s\n", filename, strerror(errno));
-	    finfo.st_size = 0;
+	    finfo.st_size = (off_t)0;
 	}
-	used[j] += (finfo.st_size+1023)/1024;
+	used[j] += ((off_t)finfo.st_size+(off_t)1023)/(off_t)1024;
 	if((fd = open(filename,O_RDONLY)) == -1) {
 	    fprintf(stderr,"build_diskspace: open of %s failed: %s\n",
 		    filename, strerror(errno));
 	    return NULL;
 	}
-	if ((buflen = fullread(fd, buffer, sizeof(buffer))) > 0) {;
-		parse_file_header(buffer, &file, buflen);
+	if ((buflen = fullread(fd, buffer, SIZEOF(buffer))) > 0) {;
+		parse_file_header(buffer, &file, (size_t)buflen);
 	}
 	close(fd);
 	filename = file.cont_filename;
@@ -2310,8 +2616,8 @@ char *destname;
 
     for(j = 0, i=0, hdp = getconf_holdingdisks(); hdp != NULL;
 						  hdp = hdp->next, j++ ) {
-	if(used[j]) {
-	    result[i] = alloc(sizeof(assignedhd_t));
+	if(used[j] != (off_t)0) {
+	    result[i] = alloc(SIZEOF(assignedhd_t));
 	    result[i]->disk = hdp;
 	    result[i]->reserved = used[j];
 	    result[i]->used = used[j];
@@ -2326,26 +2632,26 @@ char *destname;
 }
 
 static void
-holdingdisk_state(time_str)
-    char *time_str;
+holdingdisk_state(
+    char *	time_str)
 {
     holdingdisk_t *hdp;
     int dsk;
-    long diff;
+    off_t diff;
 
     printf("driver: hdisk-state time %s", time_str);
 
     for(hdp = getconf_holdingdisks(), dsk = 0; hdp != NULL; hdp = hdp->next, dsk++) {
 	diff = hdp->disksize - holdalloc(hdp)->allocated_space;
-	printf(" hdisk %d: free %ld dumpers %d", dsk, diff,
-	       holdalloc(hdp)->allocated_dumpers);
+	printf(" hdisk %d: free " OFF_T_FMT " dumpers %d", dsk,
+	       (OFF_T_FMT_TYPE)diff, holdalloc(hdp)->allocated_dumpers);
     }
     printf("\n");
 }
 
 static void
-update_failed_dump_to_tape(dp)
-    disk_t *dp;
+update_failed_dump_to_tape(
+    disk_t *	dp)
 {
 /* JLM
  * should simply set no_bump
@@ -2358,29 +2664,31 @@ update_failed_dump_to_tape(dp)
      * gnutar-lists might have been updated already, and a bumped
      * incremental might be created.  */
     sched(dp)->timestamp = 0;
-    update_info_dumper(dp, -1, -1, -1);
+    update_info_dumper(dp, (off_t)-1, (off_t)-1, (time_t)-1);
     sched(dp)->timestamp = save_timestamp;
 }
 
 /* ------------------- */
 static int
-dump_to_tape(dp)
-    disk_t *dp;
+dump_to_tape(
+    disk_t *	dp)
 {
     dumper_t *dumper;
     int failed = 0;
-    int filenum;
-    long origsize = 0;
-    long dumpsize = 0;
-    long dumptime = 0;
-    float tapetime = 0;
+    off_t filenum;
+    off_t origsize = (off_t)0;
+    off_t dumpsize = (off_t)0;
+    time_t dumptime = (time_t)0;
+    double tapetime = 0.0;
     cmd_t cmd;
-    int result_argc;
+    int result_argc, rc;
     char *result_argv[MAX_ARGS+1];
     int dumper_tryagain = 0;
+    char *qname;
 
+    qname = quote_string(dp->name);
     printf("driver: dumping %s:%s directly to tape\n",
-	   dp->host->hostname, dp->name);
+	   dp->host->hostname, qname);
     fflush(stdout);
 
     /* pick a dumper and fail if there are no idle dumpers */
@@ -2388,10 +2696,11 @@ dump_to_tape(dp)
     dumper = idle_dumper();
     if (!dumper) {
 	printf("driver: no idle dumpers for %s:%s.\n", 
-		dp->host->hostname, dp->name);
+		dp->host->hostname, qname);
 	fflush(stdout);
 	log_add(L_WARNING, "no idle dumpers for %s:%s.\n",
-	        dp->host->hostname, dp->name);
+	        dp->host->hostname, qname);
+        amfree(qname);
 	return 2;	/* fatal problem */
     }
 
@@ -2401,8 +2710,9 @@ dump_to_tape(dp)
     cmd = getresult(taper, 1, &result_argc, result_argv, MAX_ARGS+1);
     if(cmd != PORT) {
 	printf("driver: did not get PORT from taper for %s:%s\n",
-		dp->host->hostname, dp->name);
+		dp->host->hostname, qname);
 	fflush(stdout);
+        amfree(qname);
 	return 2;	/* fatal problem */
     }
     /* copy port number */
@@ -2428,9 +2738,6 @@ dump_to_tape(dp)
 
     cmd = getresult(dumper->fd, 1, &result_argc, result_argv, MAX_ARGS+1);
 
-    if(cmd != BOGUS)
-	free_serial(result_argv[2]);
-
     switch(cmd) {
     case BOGUS:
 	/* either eof or garbage from dumper */
@@ -2442,16 +2749,14 @@ dump_to_tape(dp)
 
     case DONE: /* DONE <handle> <origsize> <dumpsize> <dumptime> <errstr> */
 	/* everything went fine */
-	origsize = (long)atof(result_argv[3]);
-	/*dumpsize = (long)atof(result_argv[4]);*/
-	dumptime = (long)atof(result_argv[5]);
+	origsize = (off_t)atof(result_argv[3]);
+	/*dumpsize = (off_t)atof(result_argv[4]);*/
+	dumptime = (time_t)atof(result_argv[5]);
 	break;
 
     case NO_ROOM: /* NO-ROOM <handle> */
 	dumper_cmd(dumper, ABORT, dp);
 	cmd = getresult(dumper->fd, 1, &result_argc, result_argv, MAX_ARGS+1);
-	if(cmd != BOGUS)
-	    free_serial(result_argv[2]);
 	assert(cmd == ABORT_FINISHED);
 
     case TRYAGAIN: /* TRY-AGAIN <handle> <errstr> */
@@ -2486,6 +2791,7 @@ dump_to_tape(dp)
     case DONE: /* DONE <handle> <label> <tape file> <err mess> */
 	if(result_argc != 5) {
 	    error("error [dump to tape DONE result_argc != 5: %d]", result_argc);
+	    /*NOTREACHED*/
 	}
 
 	if(failed == 1) goto tryagain;	/* dump didn't work */
@@ -2493,12 +2799,25 @@ dump_to_tape(dp)
 
 	free_serial(result_argv[2]);
 
-	sscanf(result_argv[5],"[sec %f kb %ld ", &tapetime, &dumpsize);
+	if (*result_argv[5] == '"') {
+	    /* String was quoted */
+	    rc = sscanf(result_argv[5],"\"[sec %lf kb " OFF_T_FMT " ",
+			&tapetime, (OFF_T_FMT_TYPE *)&dumpsize);
+	} else {
+	    /* String was not quoted */
+	    rc = sscanf(result_argv[5],"[sec %lf kb " OFF_T_FMT " ",
+			&tapetime, (OFF_T_FMT_TYPE *)&dumpsize);
+	}
+	if (rc < 2) {
+	    error("error [malformed result: %d items matched in '%s']",
+		  rc, result_argv[5]);
+	    /*NOTREACHED*/
+	}
 
 	if(cmd == DONE) {
 	    /* every thing went fine */
 	    update_info_dumper(dp, origsize, dumpsize, dumptime);
-	    filenum = atoi(result_argv[4]);
+	    filenum = OFF_T_ATOI(result_argv[4]);
 	    update_info_taper(dp, result_argv[3], filenum, sched(dp)->level);
 	    /* note that update_info_dumper() must be run before
 	       update_info_taper(), since update_info_dumper overwrites
@@ -2526,16 +2845,17 @@ dump_to_tape(dp)
     case SPLIT_CONTINUE:  /* SPLIT_CONTINUE <handle> <new_label> */
         if (result_argc != 3) {
             error("error [taper SPLIT_CONTINUE result_argc != 3: %d]", result_argc);
+	    /*NOTREACHED*/
         }
-        fprintf(stderr, "driver: Got SPLIT_CONTINUE %s %s\n", result_argv[2], result_argv[3]);
- 
+        fprintf(stderr, "driver: Got SPLIT_CONTINUE %s %s\n",
+		result_argv[2], result_argv[3]);
         goto continue_port_dump;
-        break;
+
     case SPLIT_NEEDNEXT:
         fprintf(stderr, "driver: Got SPLIT_NEEDNEXT %s %s\n", result_argv[2], result_argv[3]);
 
         goto continue_port_dump;
-        break;
+
     case TAPE_ERROR: /* TAPE-ERROR <handle> <err mess> */
     case BOGUS:
     default:
@@ -2543,6 +2863,7 @@ dump_to_tape(dp)
 	free_serial(result_argv[2]);
 	failed = 2;	/* fatal problem */
 	start_degraded_mode(&runq);
+	break;
     }
 
     /* reset statistics & return */
@@ -2551,23 +2872,25 @@ dump_to_tape(dp)
     dp->host->inprogress -= 1;
     dp->inprogress = 0;
     deallocate_bandwidth(dp->host->netif, sched(dp)->est_kps);
+    amfree(qname);
 
     return failed;
 }
 
 static int
-queue_length(q)
-    disklist_t q;
+queue_length(
+    disklist_t	q)
 {
     disk_t *p;
     int len;
 
-    for(len = 0, p = q.head; p != NULL; len++, p = p->next);
+    for(len = 0, p = q.head; p != NULL; len++, p = p->next)
+	(void)len;	/* Quiet lint */
     return len;
 }
 
 static void
-short_dump_state()
+short_dump_state(void)
 {
     int i, nidle;
     char *wall_time;
@@ -2575,8 +2898,9 @@ short_dump_state()
     wall_time = walltime_str(curclock());
 
     printf("driver: state time %s ", wall_time);
-    printf("free kps: %d space: %lu taper: ",
-	   free_kps((interface_t *)0), free_space());
+    printf("free kps: %lu space: " OFF_T_FMT " taper: ",
+	   free_kps((interface_t *)0),
+	   (OFF_T_FMT_TYPE)free_space());
     if(degraded_mode) printf("DOWN");
     else if(!taper_busy) printf("idle");
     else printf("writing");
@@ -2595,18 +2919,21 @@ short_dump_state()
 
 #if 0
 static void
-dump_state(str)
-    const char *str;
+dump_state(
+    const char *str)
 {
     int i;
     disk_t *dp;
+    char *qname;
 
     printf("================\n");
     printf("driver state at time %s: %s\n", walltime_str(curclock()), str);
-    printf("free kps: %d, space: %lu\n", free_kps((interface_t *)0), free_space());
+    printf("free kps: %lu, space: " OFF_T_FMT "\n",
+    	   free_kps((interface_t *)0),
+    	   (OFF_T_FMT_TYPE)free_space());
     if(degraded_mode) printf("taper: DOWN\n");
     else if(!taper_busy) printf("taper: idle\n");
-    else printf("taper: writing %s:%s.%d est size %lu\n",
+    else printf("taper: writing %s:%s.%d est size " OFF_T_FMT "\n",
 		taper_disk->host->hostname, taper_disk->name,
 		sched(taper_disk)->level,
 		sched(taper_disk)->est_size);
@@ -2615,9 +2942,11 @@ dump_state(str)
 	if(!dmptable[i].busy)
 	  printf("%s: idle\n", dmptable[i].name);
 	else
-	  printf("%s: dumping %s:%s.%d est kps %d size %lu time %ld\n",
-		dmptable[i].name, dp->host->hostname, dp->name, sched(dp)->level,
+	  qname = quote_string(dp->name);
+	  printf("%s: dumping %s:%s.%d est kps %d size " OFF_T_FMT " time %lu\n",
+		dmptable[i].name, dp->host->hostname, qname, sched(dp)->level,
 		sched(dp)->est_kps, sched(dp)->est_size, sched(dp)->est_time);
+          amfree(qname);
     }
     dump_queue("TAPE", tapeq, 5, stdout);
     dump_queue("ROOM", roomq, 5, stdout);

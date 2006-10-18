@@ -19,7 +19,7 @@ if WANT_RESTORE
 RESTORE_SUBDIRS = restore-src
 endif
 if WANT_RECOVER
-RECOVER_SUBDIRS = recover-src
+RECOVER_SUBDIRS = recover-src oldrecover-src
 endif
 if WANT_AMPLOT
 PLOT_SUBDIRS = amplot
@@ -28,6 +28,7 @@ endif
 SUBDIRS = \
 	config \
 	common-src \
+	amandad-src \
 	$(TAPE_SUBDIRS) \
 	$(CLIENT_SUBDIRS) \
 	$(SERVER_SUBDIRS) \
@@ -37,6 +38,7 @@ SUBDIRS = \
 	man docs example
 
 pkgdata_DATA = \
+	ReleaseNotes			\
 	COPYRIGHT			\
 	COPYRIGHT-APACHE		\
 	COPYRIGHT-REGEX
@@ -106,6 +108,18 @@ CONFIG_STATUS = config.status
 $(CONFIG_STATUS): $(SNAPSHOT_STAMP)
 SNAPSHOT:
 	: SNAPSHOT file was removed, will reconfigure...
+
+lint:
+	(cd amandad-src; make lint)
+	(cd changer-src; make lint)
+	(cd client-src; make lint)
+	(cd common-src; make lint)
+	(cd oldrecover-src; make lint)
+	(cd recover-src; make lint)
+	(cd regex-src; make lint)
+	(cd restore-src; make lint)
+	(cd server-src; make lint)
+	(cd tape-src; make lint)
 
 ## Do not release the *.test.c sources.  They get built on the fly and
 ## would contain a path from the distribution machine, which will just

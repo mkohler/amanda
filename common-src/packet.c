@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: packet.c,v 1.6 2004/02/13 14:00:35 martinea Exp $
+ * $Id: packet.c,v 1.8 2006/05/25 01:47:12 johnfranks Exp $
  *
  * Routines for modifying the amanda protocol packet type
  */
@@ -45,7 +45,7 @@ static const struct {
     { "ACK", P_ACK },
     { "NAK", P_NAK }
 };
-#define	NPKTYPES	(sizeof(pktypes) / sizeof(pktypes[0]))
+#define	NPKTYPES	(int)(SIZEOF(pktypes) / SIZEOF(pktypes[0]))
 
 /*
  * Initialize a packet
@@ -53,17 +53,24 @@ static const struct {
 printf_arglist_function2(void pkt_init, pkt_t *, pkt, pktype_t, type,
     const char *, fmt)
 {
-    va_list argp;
+    va_list	argp;
 
     assert(pkt != NULL);
     assert(strcmp(pkt_type2str(type), "BOGUS") != 0);
     assert(fmt != NULL);
 
     pkt->type = type;
-
+    pkt->packet_size = 1000;
+    pkt->body = alloc(pkt->packet_size);
     arglist_start(argp, fmt);
-    vsnprintf(pkt->body, sizeof(pkt->body), fmt, argp);
+    while (vsnprintf(pkt->body, pkt->packet_size, fmt, argp) >=
+		(int)(pkt->packet_size - 1)) {
+	pkt->packet_size *= 2;
+	amfree(pkt->body);
+	pkt->body = alloc(pkt->packet_size);
+    }
     arglist_end(argp);
+    pkt->size = strlen(pkt->body);
 }
 
 /*
@@ -71,36 +78,43 @@ printf_arglist_function2(void pkt_init, pkt_t *, pkt, pktype_t, type,
  */
 printf_arglist_function1(void pkt_cat, pkt_t *, pkt, const char *, fmt)
 {
-    size_t len, bufsize;
-    va_list argp;
+    size_t	len;
+    va_list	argp;
+    char *	pktbody;
 
     assert(pkt != NULL);
     assert(fmt != NULL);
 
     len = strlen(pkt->body);
-    assert(len < sizeof(pkt->body));
-
-    bufsize = sizeof(pkt->body) - len;
-    if (bufsize <= 0)
-	return;
 
     arglist_start(argp, fmt);
-    vsnprintf(pkt->body + len, bufsize, fmt, argp);
+    while (vsnprintf(pkt->body + len, pkt->packet_size - len, fmt,argp) >=
+		(int)(pkt->packet_size - len - 1)) {
+	pkt->packet_size *= 2;
+	pktbody = alloc(pkt->packet_size);
+	strncpy(pktbody, pkt->body, len);
+	pktbody[len] = '\0';
+	amfree(pkt->body);
+	pkt->body = pktbody;
+	arglist_end(argp);
+	arglist_start(argp, fmt);
+    }
     arglist_end(argp);
+    pkt->size = strlen(pkt->body);
 }
 
 /*
  * Converts a string into a packet type
  */
 pktype_t
-pkt_str2type(typestr)
-    const char *typestr;
+pkt_str2type(
+    const char *typestr)
 {
     int i;
 
     assert(typestr != NULL);
 
-    for (i = 0; i < NPKTYPES; i++)
+    for (i = 0; i < (int)NPKTYPES; i++)
 	if (strcmp(typestr, pktypes[i].name) == 0)
 	    return (pktypes[i].type);
     return ((pktype_t)-1);
@@ -110,12 +124,12 @@ pkt_str2type(typestr)
  * Converts a packet type into a string
  */
 const char *
-pkt_type2str(type)
-    pktype_t type;
+pkt_type2str(
+    pktype_t	type)
 {
     int i;
 
-    for (i = 0; i < NPKTYPES; i++)
+    for (i = 0; i < (int)NPKTYPES; i++)
 	if (pktypes[i].type == type)
 	    return (pktypes[i].name);
     return ("BOGUS");

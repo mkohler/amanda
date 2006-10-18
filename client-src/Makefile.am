@@ -1,12 +1,16 @@
 # Makefile for Amanda client programs.
 
 INCLUDES =	-I$(top_builddir)/common-src \
-		-I$(top_srcdir)/common-src
+		-I$(top_srcdir)/common-src \
+		-I$(top_srcdir)/amandad-src
+
+LINT=@AMLINT@
+LINTFLAGS=@AMLINTFLAGS@
 
 lib_LTLIBRARIES =	libamclient.la
 LIB_EXTENSION = la
 
-libexec_PROGRAMS =	amandad noop calcsize killpgrp rundump runtar selfcheck sendbackup sendsize versionsuffix
+libexec_PROGRAMS =	noop calcsize killpgrp rundump runtar selfcheck sendbackup sendsize versionsuffix
 
 sbin_SCRIPTS =		@CLIENT_SCRIPTS_OPT@
 
@@ -22,7 +26,7 @@ endif
 
 libamclient_la_SOURCES=	amandates.c		getfsent.c	\
 			unctime.c		client_util.c	\
-			$(samba_sources)
+			clientconf.c		$(samba_sources)
 
 libamclient_la_LDFLAGS = -release $(VERSION)
 
@@ -34,11 +38,9 @@ libamclient_la_LDFLAGS = -release $(VERSION)
 ###
 
 LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamclient.$(LIB_EXTENSION)
-if WANT_SERVER
-LDADD += ../tape-src/libamtape.$(LIB_EXTENSION)
-endif
-LDADD += ../common-src/libamanda.$(LIB_EXTENSION)
+	libamclient.$(LIB_EXTENSION) \
+	../amandad-src/libamandad.$(LIB_EXTENSION) \
+	../common-src/libamanda.$(LIB_EXTENSION)
 
 SUFFIXES =		.sh .pl
 
@@ -64,11 +66,12 @@ DISTCLEANFILES = 	$(EXTRA_SCRIPTS)
 
 EXTRA_DIST =		amhpfixdevs.sh		amsinixfixdevs.sh
 
-sendbackup_SOURCES = 	sendbackup.c		sendbackup.h	\
+sendbackup_SOURCES = 	sendbackup.c		sendbackup.h	  \
 			sendbackup-dump.c	sendbackup-gnutar.c
 
-noinst_HEADERS	= 	amandad.h	amandates.h	getfsent.h	\
-			findpass.h	client_util.h
+noinst_HEADERS	= 	amandates.h	getfsent.h	\
+			findpass.h	client_util.h	\
+			clientconf.h
 
 install-exec-hook:
 	@list="$(sbin_SCRIPTS)"; \
@@ -100,6 +103,20 @@ if WANT_SETUID_CLIENT
 		fi; \
 	done
 endif
+
+lint:
+	@ for p in $(libexec_PROGRAMS); do					\
+		f="$$p.c $(libamclient_la_SOURCES)";				\
+		(cd ../common-src; make listlibsrc);				\
+		f="$$f "`cat ../common-src/listlibsrc.output`;			\
+		echo $(LINT) $$f;						\
+		$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I../config	\
+		    $(INCLUDES) $$f;						\
+		if [ $$? -ne 0 ]; then						\
+		    exit 1;							\
+		fi;								\
+	done;									\
+        exit 0
 
 getfsent_SOURCES = getfsent.test.c
 

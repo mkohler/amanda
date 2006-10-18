@@ -22,7 +22,8 @@
 amgetconf - look up amanda.conf variables
 .SH "SYNOPSIS"
 .HP 10
-\fBamgetconf\fR [\fIconfig\fR] \fIparameter\fR
+\fBamgetconf\fR [\fIconfig\fR] \fIparameter\fR [-o \fIconfigoption\fR]*
+
 .SH "DESCRIPTION"
 .PP
 \fBAmgetconf\fR
@@ -66,6 +67,11 @@ See the
 \fBamanda\fR(8)
 man page for more details about
 \fBAmanda\fR.
+.SH "OPTIONS"
+.TP
+\fB-o\fR \fIconfigoption\fR
+See the "\fBCONFIGURATION OVERWRITE\fR" section in
+\fBamanda\fR(8).
 .SH "EXAMPLE"
 .PP
 Find out the path to the log file directory:
@@ -115,9 +121,7 @@ Parameter
 \fBparam\fR
 is not a known keyword (e.g. not a valid
 \fBamanda.conf\fR
-keyword). In this case,
-\fBamgetconf\fR
-will write "\fBBUGGY\fR" to stdout as the value.
+keyword).
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8)

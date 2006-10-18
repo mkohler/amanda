@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: match.c,v 1.21 2005/10/11 01:17:00 vectro Exp $
+ * $Id: match.c,v 1.23 2006/05/25 01:47:12 johnfranks Exp $
  *
  * functions for checking and matching regular expressions
  */
@@ -32,8 +32,11 @@
 #include "amanda.h"
 #include "regex.h"
 
-char *validate_regexp(regex)
-char *regex;
+static int match_word(const char *glob, const char *word, const char separator);
+
+char *
+validate_regexp(
+    const char *	regex)
 {
     regex_t regc;
     int result;
@@ -41,7 +44,7 @@ char *regex;
 
     if ((result = regcomp(&regc, regex,
 			  REG_EXTENDED|REG_NOSUB|REG_NEWLINE)) != 0) {
-      regerror(result, &regc, errmsg, sizeof(errmsg));
+      regerror(result, &regc, errmsg, SIZEOF(errmsg));
       return errmsg;
     }
 
@@ -50,8 +53,9 @@ char *regex;
     return NULL;
 }
 
-char *clean_regex(regex)
-char *regex;
+char *
+clean_regex(
+    const char *	regex)
 {
     char *result;
     int j;
@@ -63,12 +67,14 @@ char *regex;
 	    result[j++]='\\';
 	result[j++]=regex[i];
     }
-    result[j++] = '\0';
+    result[j] = '\0';
     return result;
 }
 
-int match(regex, str)
-char *regex, *str;
+int
+match(
+    const char *	regex,
+    const char *	str)
 {
     regex_t regc;
     int result;
@@ -76,14 +82,16 @@ char *regex, *str;
 
     if((result = regcomp(&regc, regex,
 			 REG_EXTENDED|REG_NOSUB|REG_NEWLINE)) != 0) {
-        regerror(result, &regc, errmsg, sizeof(errmsg));
+        regerror(result, &regc, errmsg, SIZEOF(errmsg));
 	error("regex \"%s\": %s", regex, errmsg);
+	/*NOTREACHED*/
     }
 
     if((result = regexec(&regc, str, 0, 0, 0)) != 0
        && result != REG_NOMATCH) {
-        regerror(result, &regc, errmsg, sizeof(errmsg));
+        regerror(result, &regc, errmsg, SIZEOF(errmsg));
 	error("regex \"%s\": %s", regex, errmsg);
+	/*NOTREACHED*/
     }
 
     regfree(&regc);
@@ -91,10 +99,11 @@ char *regex, *str;
     return result == 0;
 }
 
-char *validate_glob(glob)
-char *glob;
+char *
+validate_glob(
+    const char *	glob)
 {
-    char *regex = NULL;
+    char *regex;
     regex_t regc;
     int result;
     static char errmsg[STR_SIZE];
@@ -102,7 +111,7 @@ char *glob;
     regex = glob_to_regex(glob);
     if ((result = regcomp(&regc, regex,
 			  REG_EXTENDED|REG_NOSUB|REG_NEWLINE)) != 0) {
-      regerror(result, &regc, errmsg, sizeof(errmsg));
+      regerror(result, &regc, errmsg, SIZEOF(errmsg));
       amfree(regex);
       return errmsg;
     }
@@ -113,10 +122,12 @@ char *glob;
     return NULL;
 }
 
-int match_glob(glob, str)
-char *glob, *str;
+int
+match_glob(
+    const char *	glob,
+    const char *	str)
 {
-    char *regex = NULL;
+    char *regex;
     regex_t regc;
     int result;
     char errmsg[STR_SIZE];
@@ -124,14 +135,16 @@ char *glob, *str;
     regex = glob_to_regex(glob);
     if((result = regcomp(&regc, regex,
 			 REG_EXTENDED|REG_NOSUB|REG_NEWLINE)) != 0) {
-        regerror(result, &regc, errmsg, sizeof(errmsg));
+        regerror(result, &regc, errmsg, SIZEOF(errmsg));
 	error("glob \"%s\" -> regex \"%s\": %s", glob, regex, errmsg);
+	/*NOTREACHED*/
     }
 
     if((result = regexec(&regc, str, 0, 0, 0)) != 0
        && result != REG_NOMATCH) {
-        regerror(result, &regc, errmsg, sizeof(errmsg));
+        regerror(result, &regc, errmsg, SIZEOF(errmsg));
 	error("glob \"%s\" -> regex \"%s\": %s", glob, regex, errmsg);
+	/*NOTREACHED*/
     }
 
     regfree(&regc);
@@ -140,8 +153,9 @@ char *glob, *str;
     return result == 0;
 }
 
-char *glob_to_regex(glob)
-char *glob;
+char *
+glob_to_regex(
+    const char *	glob)
 {
     char *regex;
     char *r;
@@ -178,12 +192,12 @@ char *glob;
     last_ch = '\0';
     for (ch = *glob++; ch != '\0'; last_ch = ch, ch = *glob++) {
 	if (last_ch == '\\') {
-	    *r++ = ch;
+	    *r++ = (char)ch;
 	    ch = '\0';			/* so last_ch != '\\' next time */
 	} else if (last_ch == '[' && ch == '!') {
 	    *r++ = '^';
 	} else if (ch == '\\') {
-	    *r++ = ch;
+	    *r++ = (char)ch;
 	} else if (ch == '*' || ch == '?') {
 	    *r++ = '[';
 	    *r++ = '^';
@@ -202,9 +216,9 @@ char *glob;
 		   || ch == '$'
 		   || ch == '|') {
 	    *r++ = '\\';
-	    *r++ = ch;
+	    *r++ = (char)ch;
 	} else {
-	    *r++ = ch;
+	    *r++ = (char)ch;
 	}
     }
     if (last_ch != '\\') {
@@ -216,10 +230,12 @@ char *glob;
 }
 
 
-int match_tar(glob, str)
-char *glob, *str;
+int
+match_tar(
+    const char *	glob,
+    const char *	str)
 {
-    char *regex = NULL;
+    char *regex;
     regex_t regc;
     int result;
     char errmsg[STR_SIZE];
@@ -227,14 +243,16 @@ char *glob, *str;
     regex = tar_to_regex(glob);
     if((result = regcomp(&regc, regex,
 			 REG_EXTENDED|REG_NOSUB|REG_NEWLINE)) != 0) {
-        regerror(result, &regc, errmsg, sizeof(errmsg));
+        regerror(result, &regc, errmsg, SIZEOF(errmsg));
 	error("glob \"%s\" -> regex \"%s\": %s", glob, regex, errmsg);
+	/*NOTREACHED*/
     }
 
     if((result = regexec(&regc, str, 0, 0, 0)) != 0
        && result != REG_NOMATCH) {
-        regerror(result, &regc, errmsg, sizeof(errmsg));
+        regerror(result, &regc, errmsg, SIZEOF(errmsg));
 	error("glob \"%s\" -> regex \"%s\": %s", glob, regex, errmsg);
+	/*NOTREACHED*/
     }
 
     regfree(&regc);
@@ -243,8 +261,9 @@ char *glob, *str;
     return result == 0;
 }
 
-char *tar_to_regex(glob)
-char *glob;
+char *
+tar_to_regex(
+    const char *	glob)
 {
     char *regex;
     char *r;
@@ -281,12 +300,12 @@ char *glob;
     last_ch = '\0';
     for (ch = *glob++; ch != '\0'; last_ch = ch, ch = *glob++) {
 	if (last_ch == '\\') {
-	    *r++ = ch;
+	    *r++ = (char)ch;
 	    ch = '\0';			/* so last_ch != '\\' next time */
 	} else if (last_ch == '[' && ch == '!') {
 	    *r++ = '^';
 	} else if (ch == '\\') {
-	    *r++ = ch;
+	    *r++ = (char)ch;
 	} else if (ch == '*') {
 	    *r++ = '.';
 	    *r++ = '*';
@@ -305,9 +324,9 @@ char *glob;
 		   || ch == '$'
 		   || ch == '|') {
 	    *r++ = '\\';
-	    *r++ = ch;
+	    *r++ = (char)ch;
 	} else {
-	    *r++ = ch;
+	    *r++ = (char)ch;
 	}
     }
     if (last_ch != '\\') {
@@ -319,9 +338,11 @@ char *glob;
 }
 
 
-int match_word(glob, word, separator)
-char *glob, *word;
-char separator;
+static int
+match_word(
+    const char *	glob,
+    const char *	word,
+    const char		separator)
 {
     char *regex;
     char *r;
@@ -332,7 +353,8 @@ char separator;
     size_t  lenword;
     char *nword;
     char *nglob;
-    char *g, *w;
+    char *g; 
+    const char *w;
     int  i;
 
     lenword = strlen(word);
@@ -410,12 +432,12 @@ char separator;
 	for (ch = *g++; ch != '\0'; last_ch = ch, ch = *g++) {
 	    next_ch = *g;
 	    if (last_ch == '\\') {
-		*r++ = ch;
+		*r++ = (char)ch;
 		ch = '\0';		/* so last_ch != '\\' next time */
 	    } else if (last_ch == '[' && ch == '!') {
 		*r++ = '^';
 	    } else if (ch == '\\') {
-		*r++ = ch;
+		*r++ = (char)ch;
 	    } else if (ch == '*' || ch == '?') {
 		if(ch == '*' && next_ch == '*') {
 		    *r++ = '.';
@@ -436,7 +458,7 @@ char separator;
 		    *r++ = '\\';
 		    *r++ = separator;
 		}
-		*r++ = ch;
+		*r++ = (char)ch;
 	    } else if (   ch == '('
 		       || ch == ')'
 		       || ch == '{'
@@ -447,9 +469,9 @@ char separator;
 		       || ch == '$'
 		       || ch == '|') {
 		*r++ = '\\';
-		*r++ = ch;
+		*r++ = (char)ch;
 	    } else {
-		*r++ = ch;
+		*r++ = (char)ch;
 	    }
 	}
 	if(last_ch != '\\') {
@@ -470,51 +492,59 @@ char separator;
 }
 
 
-int match_host(glob, host)
-char *glob, *host;
+int
+match_host(
+    const char *	glob,
+    const char *	host)
 {
     char *lglob, *lhost;
-    char *c, *d;
+    char *c;
+    const char *d;
     int i;
 
     
     lglob = (char *)alloc(strlen(glob)+1);
     c = lglob, d=glob;
     while( *d != '\0')
-	*c++ = tolower(*d++);
+	*c++ = (char)tolower(*d++);
     *c = *d;
 
     lhost = (char *)alloc(strlen(host)+1);
     c = lhost, d=host;
     while( *d != '\0')
-	*c++ = tolower(*d++);
+	*c++ = (char)tolower(*d++);
     *c = *d;
 
-    i = match_word(lglob, lhost, '.');
+    i = match_word(lglob, lhost, (int)'.');
     amfree(lglob);
     amfree(lhost);
     return i;
 }
 
 
-int match_disk(glob, disk)
-char *glob, *disk;
+int
+match_disk(
+    const char *	glob,
+    const char *	disk)
 {
     return match_word(glob, disk, '/');
 }
 
-int match_datestamp(dateexp, datestamp)
-char *dateexp, *datestamp;
+int
+match_datestamp(
+    const char *	dateexp,
+    const char *	datestamp)
 {
     char *dash;
     size_t len, len_suffix;
-    int len_prefix;
+    size_t len_prefix;
     char firstdate[100], lastdate[100];
     char mydateexp[100];
     int match_exact;
 
     if(strlen(dateexp) >= 100 || strlen(dateexp) < 1) {
 	error("Illegal datestamp expression %s",dateexp);
+	/*NOTREACHED*/
     }
    
     if(dateexp[0] == '^') {
@@ -536,14 +566,11 @@ char *dateexp, *datestamp;
     if((dash = strchr(mydateexp,'-'))) {
 	if(match_exact == 1) {
 	    error("Illegal datestamp expression %s",dateexp);
+	    /*NOTREACHED*/
 	}
-	len = dash - mydateexp;
+	len = (size_t)(dash - mydateexp);
 	len_suffix = strlen(dash) - 1;
 	len_prefix = len - len_suffix;
-
-	if(len_prefix < 0) {
-	    error("Illegal datestamp expression %s",dateexp);
-	}
 
 	dash++;
 	strncpy(firstdate, mydateexp, len);
@@ -565,18 +592,21 @@ char *dateexp, *datestamp;
 }
 
 
-int match_level(levelexp, level)
-char *levelexp, *level;
+int
+match_level(
+    const char *	levelexp,
+    const char *	level)
 {
     char *dash;
     size_t len, len_suffix;
-    int len_prefix;
+    size_t len_prefix;
     char lowend[100], highend[100];
     char mylevelexp[100];
     int match_exact;
 
     if(strlen(levelexp) >= 100 || strlen(levelexp) < 1) {
 	error("Illegal level expression %s",levelexp);
+	/*NOTREACHED*/
     }
    
     if(levelexp[0] == '^') {
@@ -598,14 +628,11 @@ char *levelexp, *level;
     if((dash = strchr(mylevelexp,'-'))) {
 	if(match_exact == 1) {
 	    error("Illegal level expression %s",levelexp);
+	    /*NOTREACHED*/
 	}
-	len = dash - mylevelexp;
+	len = (size_t)(dash - mylevelexp);
 	len_suffix = strlen(dash) - 1;
 	len_prefix = len - len_suffix;
-
-	if(len_prefix < 0) {
-	    error("Illegal level expression %s",levelexp);
-	}
 
 	dash++;
 	strncpy(lowend, mylevelexp, len);

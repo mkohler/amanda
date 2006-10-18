@@ -24,10 +24,14 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: killpgrp.c,v 1.12 2005/09/20 21:32:25 jrjackson Exp $
+ * $Id: killpgrp.c,v 1.17 2006/07/25 18:27:56 martinea Exp $
  *
  * if it is the process group leader, it kills all processes in its
  * process group when it is killed itself.
+ *
+ * argv[0] is the killpgrp program name
+ * argv[1] is the config name or NOCONFIG
+ *
  */
 #include "amanda.h"
 #include "version.h"
@@ -43,14 +47,15 @@
 #define AM_GETPGRP() getpid()
 #endif
  
-int main P((int argc, char **argv));
-static void term_kill_soft P((int sig));
-static void term_kill_hard P((int sig));
+int main(int argc, char **argv);
+static void term_kill_soft(int sig);
+static void term_kill_hard(int sig);
 
-int main(argc, argv)
-int argc;
-char **argv;
+int main(
+    int argc,
+    char **argv)
 {
+    int ch;
     amwait_t status;
 
     safe_fd(-1, 0);
@@ -58,19 +63,30 @@ char **argv;
 
     set_pname("killpgrp");
 
-    dbopen();
-    dbprintf(("%s: version %s\n", argv[0], version()));
+    dbopen(DBG_SUBDIR_CLIENT);
+    if (argc < 2) {
+	error("%s: Need at least 2 arguments\n", debug_prefix(NULL));
+	/*NOTREACHED*/
+    }
+    dbprintf(("%s: version %s\n", debug_prefix(NULL), version()));
+    dbprintf(("config: %s\n", argv[1]));
+    if (strcmp(argv[1], "NOCONFIG") != 0)
+	dbrename(argv[1], DBG_SUBDIR_CLIENT);
 
     if(client_uid == (uid_t) -1) {
 	error("error [cannot find user %s in passwd file]", CLIENT_LOGIN);
+	/*NOTREACHED*/
     }
 
 #ifdef FORCE_USERID
-    if (getuid() != client_uid)
+    if (getuid() != client_uid) {
 	error("error [must be invoked by %s]", CLIENT_LOGIN);
-
-    if (geteuid() != 0)
+	/*NOTREACHED*/
+    }
+    if (geteuid() != 0) {
 	error("error [must be setuid root]");
+	/*NOTREACHED*/
+    }
 #endif	/* FORCE_USERID */
 
 #if !defined (DONT_SUID_ROOT)
@@ -79,13 +95,16 @@ char **argv;
 
     if (AM_GETPGRP() != getpid()) {
 	error("error [must be the process group leader]");
+	/*NOTREACHED*/
     }
 
+    /* Consume any extranious input */
     signal(SIGTERM, term_kill_soft);
 
-    while (getchar() != EOF) {
+    do {
+	ch = getchar();
 	/* wait until EOF */
-    }
+    } while (ch != EOF);
 
     term_kill_soft(0);
 
@@ -94,20 +113,24 @@ char **argv;
 	    break;
 	if (errno != EINTR) {
 	    error("error [wait() failed: %s]", strerror(errno));
-	    return -1;
+	    /*NOTREACHED*/
 	}
     }
 
+    /*@ignore@*/
     dbprintf(("child process exited with status %d\n", WEXITSTATUS(status)));
 
     return WEXITSTATUS(status);
+    /*@end@*/
 }
 
-static void term_kill_soft(sig)
-int sig;
+static void term_kill_soft(
+    int sig)
 {
     pid_t dumppid = getpid();
     int killerr;
+
+    (void)sig;	/* Quiet unused parameter warning */
 
     signal(SIGTERM, SIG_IGN);
     signal(SIGALRM, term_kill_hard);
@@ -123,11 +146,13 @@ int sig;
     }
 }
 
-static void term_kill_hard(sig)
-int sig;
+static void term_kill_hard(
+    int sig)
 {
     pid_t dumppid = getpid();
     int killerr;
+
+    (void)sig;	/* Quiet unused parameter warning */
 
     dbprintf(("it won\'t die with SIGTERM, but SIGKILL should do\n"));
     dbprintf(("do\'t expect any further output, this will be suicide\n"));

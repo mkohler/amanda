@@ -25,7 +25,7 @@
  */
 
 /*
- * $Id: noop.c,v 1.3 2006/01/14 04:37:18 paddy_s Exp $
+ * $Id: noop.c,v 1.5 2006/06/01 14:54:39 martinea Exp $
  *
  * send back features.  This was pulled out to it's own program for
  * consistancy and because it's a hell of a lot easier to code in
@@ -36,22 +36,26 @@
 #include "amfeatures.h"
 #include "util.h"
 
-int main P((int argc, char **argv));
+int main(int argc, char **argv);
 
 int
-main(argc, argv)
-    int argc;
-    char **argv;
+main(
+    int		argc,
+    char **	argv)
 {
     char ch;
     am_feature_t *our_features = NULL;
     char *our_feature_string = NULL;
     char *options;
-    int n;
+    ssize_t n;
+
+    (void)argc;	/* Quiet unused parameter warning */
+    (void)argv;	/* Quiet unused parameter warning */
 
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
+    safe_fd(-1, 0);
     do {
  	/* soak up any stdin */
 	n = read(0, &ch, 1);
@@ -67,7 +71,11 @@ main(argc, argv)
     our_features = NULL;
     if (fullwrite(1, options, strlen(options)) < 0) {
 	error("error sending noop response: %s", strerror(errno));
+	/*NOTREACHED*/
     }
     amfree(options);
-    exit(0);
+    close(0);
+    close(1);
+    close(2);
+    return (0); /* exit */
 }

@@ -70,9 +70,9 @@ pkgdataDATA_INSTALL = $(INSTALL_DATA)
 DATA = $(pkgdata_DATA)
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = config common-src tape-src client-src dumper-src \
-	server-src changer-src restore-src recover-src amplot man docs \
-	example
+DIST_SUBDIRS = config common-src amandad-src tape-src client-src \
+	dumper-src server-src changer-src restore-src recover-src \
+	oldrecover-src amplot man docs example
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -91,11 +91,14 @@ AMANDA_DEBUG_DAYS = @AMANDA_DEBUG_DAYS@
 AMANDA_TMPDIR = @AMANDA_TMPDIR@
 AMDEP_FALSE = @AMDEP_FALSE@
 AMDEP_TRUE = @AMDEP_TRUE@
+AMLINT = @AMLINT@
+AMLINTFLAGS = @AMLINTFLAGS@
 AMPLOT_CAT_COMPRESS = @AMPLOT_CAT_COMPRESS@
 AMPLOT_CAT_GZIP = @AMPLOT_CAT_GZIP@
 AMPLOT_CAT_PACK = @AMPLOT_CAT_PACK@
 AMPLOT_COMPRESS = @AMPLOT_COMPRESS@
 AMTAR = @AMTAR@
+AM_CFLAGS = @AM_CFLAGS@
 AR = @AR@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
@@ -103,6 +106,8 @@ AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
 AWK_VAR_ASSIGNMENT_OPT = @AWK_VAR_ASSIGNMENT_OPT@
 BINARY_OWNER = @BINARY_OWNER@
+BUILD_MAN_PAGES_FALSE = @BUILD_MAN_PAGES_FALSE@
+BUILD_MAN_PAGES_TRUE = @BUILD_MAN_PAGES_TRUE@
 CAT = @CAT@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
@@ -292,12 +297,13 @@ ACINCLUDE_M4_DEPS = $(ACINCLUDE_M4I) $(LIBTOOL_M4I)
 @WANT_TAPE_TRUE@TAPE_SUBDIRS = tape-src
 @WANT_SERVER_TRUE@SERVER_SUBDIRS = server-src changer-src
 @WANT_RESTORE_TRUE@RESTORE_SUBDIRS = restore-src
-@WANT_RECOVER_TRUE@RECOVER_SUBDIRS = recover-src
+@WANT_RECOVER_TRUE@RECOVER_SUBDIRS = recover-src oldrecover-src
 @WANT_AMPLOT_TRUE@PLOT_SUBDIRS = amplot
 # order is significant, don't change it arbitrarily
 SUBDIRS = \
 	config \
 	common-src \
+	amandad-src \
 	$(TAPE_SUBDIRS) \
 	$(CLIENT_SUBDIRS) \
 	$(SERVER_SUBDIRS) \
@@ -307,6 +313,7 @@ SUBDIRS = \
 	man docs example
 
 pkgdata_DATA = \
+	ReleaseNotes			\
 	COPYRIGHT			\
 	COPYRIGHT-APACHE		\
 	COPYRIGHT-REGEX
@@ -816,6 +823,18 @@ libtool: $(LIBTOOL_DEPS)
 $(CONFIG_STATUS): $(SNAPSHOT_STAMP)
 SNAPSHOT:
 	: SNAPSHOT file was removed, will reconfigure...
+
+lint:
+	(cd amandad-src; make lint)
+	(cd changer-src; make lint)
+	(cd client-src; make lint)
+	(cd common-src; make lint)
+	(cd oldrecover-src; make lint)
+	(cd recover-src; make lint)
+	(cd regex-src; make lint)
+	(cd restore-src; make lint)
+	(cd server-src; make lint)
+	(cd tape-src; make lint)
 
 dist-hook:
 	find $(distdir)/. -name '*.test.c' -exec rm {} \;

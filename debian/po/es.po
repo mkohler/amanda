@@ -16,7 +16,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: bdale@gag.com\n"
-"POT-Creation-Date: 2006-08-28 13:34-0400\n"
+"POT-Creation-Date: 2006-10-18 01:32-0600\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -24,14 +24,14 @@ msgstr ""
 "Content-Type: text/plain; charset=ISO-8859-15\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#. Type: note
+#. Type: error
 #. Description
 #: ../templates:1001
 #, fuzzy
 msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates"
 msgstr "Por favor fusione los ficheros de datos"
 
-#. Type: note
+#. Type: error
 #. Description
 #: ../templates:1001
 msgid ""

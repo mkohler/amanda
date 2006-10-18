@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: stream.c,v 1.31 2006/01/14 04:37:19 paddy_s Exp $
+ * $Id: stream.c,v 1.39 2006/08/24 01:57:15 paddy_s Exp $
  *
  * functions for managing stream sockets
  */
@@ -35,22 +35,28 @@
 #include "util.h"
 
 /* local functions */
-static void try_socksize P((int sock, int which, int size));
+static void try_socksize(int sock, int which, size_t size);
+static int stream_client_internal(const char *hostname, in_port_t port,
+		size_t sendsize, size_t recvsize, in_port_t *localport,
+		int nonblock, int priv);
 
-int stream_server(portp, sendsize, recvsize)
-int *portp;
-int sendsize, recvsize;
+int
+stream_server(
+    in_port_t *portp,
+    size_t sendsize,
+    size_t recvsize,
+    int    priv)
 {
-    int server_socket;
+    int server_socket, retries;
     socklen_t len;
-#ifdef SO_KEEPALIVE
-    int on = 1;
+#if defined(SO_KEEPALIVE) || defined(USE_REUSEADDR)
+    const int on = 1;
     int r;
 #endif
     struct sockaddr_in server;
     int save_errno;
 
-    *portp = -1;				/* in case we error exit */
+    *portp = USHRT_MAX;				/* in case we error exit */
     if((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 	save_errno = errno;
 	dbprintf(("%s: stream_server: socket() failed: %s\n",
@@ -59,7 +65,7 @@ int sendsize, recvsize;
 	errno = save_errno;
 	return -1;
     }
-    if(server_socket < 0 || server_socket >= FD_SETSIZE) {
+    if(server_socket < 0 || server_socket >= (int)FD_SETSIZE) {
 	aclose(server_socket);
 	errno = EMFILE;				/* out of range */
 	save_errno = errno;
@@ -69,14 +75,22 @@ int sendsize, recvsize;
 	errno = save_errno;
 	return -1;
     }
-    memset(&server, 0, sizeof(server));
-    server.sin_family = AF_INET;
+    memset(&server, 0, SIZEOF(server));
+    server.sin_family = (sa_family_t)AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
 
-    if(sendsize >= 0) 
-        try_socksize(server_socket, SO_SNDBUF, sendsize);
-    if(recvsize >= 0) 
-        try_socksize(server_socket, SO_RCVBUF, recvsize);
+#ifdef USE_REUSEADDR
+    r = setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR,
+	(void *)&on, (socklen_t)sizeof(on));
+    if (r < 0) {
+	dbprintf(("%s: stream_server: setsockopt(SO_REUSEADDR) failed: %s\n",
+		  debug_prefix(NULL),
+		  strerror(errno)));
+    }
+#endif
+
+    try_socksize(server_socket, SO_SNDBUF, sendsize);
+    try_socksize(server_socket, SO_RCVBUF, recvsize);
 
     /*
      * If a port range was specified, we try to get a port in that
@@ -89,31 +103,51 @@ int sendsize, recvsize;
      * to get the desired port, and to make sure we return a port that
      * is within the range it requires.
      */
+    for (retries = 0; ; retries++) {
 #ifdef TCPPORTRANGE
-    if (bind_portrange(server_socket, &server, TCPPORTRANGE, "tcp") == 0)
-	goto out;
+	if (bind_portrange(server_socket, &server, TCPPORTRANGE, "tcp") == 0)
+	    goto out;
+	dbprintf(("%s: stream_server: Could not bind to port in range: %d - %d.\n",
+		  debug_prefix(NULL), TCPPORTRANGE));
 #endif
 
-    if (bind_portrange(server_socket, &server, 512, IPPORT_RESERVED - 1, "tcp") == 0)
-	goto out;
+	if(priv) {
+	    if (bind_portrange(server_socket, &server,
+			   (in_port_t)512, (in_port_t)(IPPORT_RESERVED - 1), "tcp") == 0)
+		goto out;
+	    dbprintf(("%s: stream_server: Could not bind to port in range 512 - %d.\n",
+		      debug_prefix(NULL), IPPORT_RESERVED - 1));
+	}
 
-    server.sin_port = INADDR_ANY;
-    if (bind(server_socket, (struct sockaddr *)&server, (socklen_t) sizeof(server)) == -1) {
-	save_errno = errno;
-	dbprintf(("%s: stream_server: bind(INADDR_ANY) failed: %s\n",
+	server.sin_port = INADDR_ANY;
+	if (bind(server_socket, (struct sockaddr *)&server, (socklen_t)sizeof(server)) == 0)
+	    goto out;
+	dbprintf(("%s: stream_server: Could not bind to any port: %s\n",
+		  debug_prefix(NULL), strerror(errno)));
+
+	if (retries >= BIND_CYCLE_RETRIES)
+	    break;
+
+	dbprintf(("%s: stream_server: Retrying entire range after 10 second delay.\n",
+		  debug_prefix(NULL)));
+
+	sleep(15);
+    }
+
+    save_errno = errno;
+    dbprintf(("%s: stream_server: bind(INADDR_ANY) failed: %s\n",
 		  debug_prefix(NULL),
 		  strerror(save_errno)));
-	aclose(server_socket);
-	errno = save_errno;
-	return -1;
-    }
+    aclose(server_socket);
+    errno = save_errno;
+    return -1;
 
 out:
     listen(server_socket, 1);
 
     /* find out what port was actually used */
 
-    len = sizeof(server);
+    len = SIZEOF(server);
     if(getsockname(server_socket, (struct sockaddr *)&server, &len) == -1) {
 	save_errno = errno;
 	dbprintf(("%s: stream_server: getsockname() failed: %s\n",
@@ -138,7 +172,7 @@ out:
     }
 #endif
 
-    *portp = (int) ntohs(server.sin_port);
+    *portp = (in_port_t)ntohs(server.sin_port);
     dbprintf(("%s: stream_server: waiting for connection: %s.%d\n",
 	      debug_prefix_time(NULL),
 	      inet_ntoa(server.sin_addr),
@@ -147,31 +181,25 @@ out:
 }
 
 static int
-stream_client_internal(hostname,
-		       port,
-		       sendsize,
-		       recvsize,
-		       localport,
-		       nonblock,
-		       priv)
-    const char *hostname;
-    int port, sendsize, recvsize, *localport, nonblock, priv;
+stream_client_internal(
+    const char *hostname,
+    in_port_t port,
+    size_t sendsize,
+    size_t recvsize,
+    in_port_t *localport,
+    int nonblock,
+    int priv)
 {
-    int client_socket;
-    socklen_t len;
-#ifdef SO_KEEPALIVE
-    int on = 1;
-    int r;
-#endif
     struct sockaddr_in svaddr, claddr;
     struct hostent *hostp;
     int save_errno;
     char *f;
+    int client_socket;
 
     f = priv ? "stream_client_privileged" : "stream_client";
 
     if((hostp = gethostbyname(hostname)) == NULL) {
-	save_errno = errno;
+	save_errno = EHOSTUNREACH;
 	dbprintf(("%s: %s: gethostbyname(%s) failed\n",
 		  debug_prefix(NULL),
 		  f,
@@ -180,43 +208,14 @@ stream_client_internal(hostname,
 	return -1;
     }
 
-    memset(&svaddr, 0, sizeof(svaddr));
-    svaddr.sin_family = AF_INET;
-    svaddr.sin_port = htons(port);
-    memcpy(&svaddr.sin_addr, hostp->h_addr, hostp->h_length);
+    memset(&svaddr, 0, SIZEOF(svaddr));
+    svaddr.sin_family = (sa_family_t)AF_INET;
+    svaddr.sin_port = (in_port_t)htons(port);
+    memcpy(&svaddr.sin_addr, hostp->h_addr, (size_t)hostp->h_length);
 
-    if((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-	save_errno = errno;
-	dbprintf(("%s: %s: socket() failed: %s\n",
-		  debug_prefix(NULL),
-		  f,
-		  strerror(save_errno)));
-	errno = save_errno;
-	return -1;
-    }
-    if(client_socket < 0 || client_socket >= FD_SETSIZE) {
-	aclose(client_socket);
-	errno = EMFILE;				/* out of range */
-	return -1;
-    }
 
-#ifdef SO_KEEPALIVE
-    r = setsockopt(client_socket, SOL_SOCKET, SO_KEEPALIVE,
-	(void *)&on, sizeof(on));
-    if(r == -1) {
-	save_errno = errno;
-	dbprintf(("%s: %s: setsockopt() failed: %s\n",
-		  debug_prefix(NULL),
-		  f,
-		  strerror(save_errno)));
-        aclose(client_socket);
-	errno = save_errno;
-        return -1;
-    }
-#endif
-
-    memset(&claddr, 0, sizeof(claddr));
-    claddr.sin_family = AF_INET;
+    memset(&claddr, 0, SIZEOF(claddr));
+    claddr.sin_family = (sa_family_t)AF_INET;
     claddr.sin_addr.s_addr = INADDR_ANY;
 
     /*
@@ -230,104 +229,68 @@ stream_client_internal(hostname,
      * is within the range it requires.
      */
     if (priv) {
-	int b;
+#ifdef LOW_TCPPORTRANGE
+	client_socket = connect_portrange(&claddr, LOW_TCPPORTRANGE,
+                                          "tcp", &svaddr, nonblock);
+#else
+	client_socket = connect_portrange(&claddr, (socklen_t)512,
+					  (socklen_t)(IPPORT_RESERVED - 1),
+                                          "tcp", &svaddr, nonblock);
+#endif
+					  
+	if (client_socket > 0)
+	    goto out;
 
-	b = bind_portrange(client_socket, &claddr, 512, IPPORT_RESERVED - 1, "tcp");
-	if (b == 0) {
-	    goto out;				/* got what we wanted */
-	}
-	save_errno = errno;
-	dbprintf(("%s: %s: bind(IPPORT_RESERVED) failed: %s\n",
-		  debug_prefix(NULL),
-		  f,
-		  strerror(save_errno)));
-	aclose(client_socket);
-	errno = save_errno;
-	return -1;
+#ifdef LOW_TCPPORTRANGE
+	dbprintf((
+		"%s: stream_client: Could not bind to port in range %d-%d.\n",
+		debug_prefix(NULL), LOW_TCPPORTRANGE));
+#else
+	dbprintf((
+		"%s: stream_client: Could not bind to port in range 512-%d.\n",
+		debug_prefix(NULL), IPPORT_RESERVED - 1));
+#endif
     }
 
 #ifdef TCPPORTRANGE
-    if (bind_portrange(client_socket, &claddr, TCPPORTRANGE, "tcp") == 0)
+    client_socket = connect_portrange(&claddr, TCPPORTRANGE,
+                                      "tcp", &svaddr, nonblock);
+    if(client_socket > 0)
 	goto out;
+
+    dbprintf(("%s: stream_client: Could not bind to port in range %d - %d.\n",
+	      debug_prefix(NULL), TCPPORTRANGE));
 #endif
 
-    claddr.sin_port = INADDR_ANY;
-    if (bind(client_socket, (struct sockaddr *)&claddr, sizeof(claddr)) == -1) {
-	save_errno = errno;
-	dbprintf(("%s: %s: bind(INADDR_ANY) failed: %s\n",
-		  debug_prefix(NULL),
-		  f,
-		  strerror(save_errno)));
-	aclose(client_socket);
-	errno = save_errno;
-	return -1;
-    }
+    client_socket = connect_portrange(&claddr, (socklen_t)(IPPORT_RESERVED+1),
+				      (socklen_t)(65535),
+                                      "tcp", &svaddr, nonblock);
+
+    if(client_socket > 0)
+	goto out;
+
+    save_errno = errno;
+    dbprintf(("%s: stream_client: Could not bind to any port: %s\n",
+	      debug_prefix(NULL), strerror(save_errno)));
+    errno = save_errno;
+    return -1;
 
 out:
-
-    /* find out what port was actually used */
-
-    len = sizeof(claddr);
-    if(getsockname(client_socket, (struct sockaddr *)&claddr, &len) == -1) {
-	save_errno = errno;
-	dbprintf(("%s: %s: getsockname() failed: %s\n",
-		  debug_prefix(NULL),
-		  f,
-		  strerror(save_errno)));
-	aclose(client_socket);
-	errno = save_errno;
-	return -1;
-    }
-
-    if (nonblock)
-	fcntl(client_socket, F_SETFL,
-	    fcntl(client_socket, F_GETFL, 0)|O_NONBLOCK);
-
-    if(connect(client_socket, (struct sockaddr *)&svaddr, sizeof(svaddr))
-       == -1 && !nonblock) {
-	save_errno = errno;
-	dbprintf(("%s: %s: connect to %s.%d failed: %s\n",
-		  debug_prefix_time(NULL),
-		  f,
-		  inet_ntoa(svaddr.sin_addr),
-		  ntohs(svaddr.sin_port),
-		  strerror(save_errno)));
-	aclose(client_socket);
-	errno = save_errno;
-	return -1;
-    }
-
-    dbprintf(("%s: %s: connected to %s.%d\n",
-	      debug_prefix_time(NULL),
-	      f,
-	      inet_ntoa(svaddr.sin_addr),
-	      ntohs(svaddr.sin_port)));
-    dbprintf(("%s: %s: our side is %s.%d\n",
-	      debug_prefix(NULL),
-	      f,
-	      inet_ntoa(claddr.sin_addr),
-	      ntohs(claddr.sin_port)));
-
-    if(sendsize >= 0) 
-	try_socksize(client_socket, SO_SNDBUF, sendsize);
-    if(recvsize >= 0) 
-	try_socksize(client_socket, SO_RCVBUF, recvsize);
-
+    try_socksize(client_socket, SO_SNDBUF, sendsize);
+    try_socksize(client_socket, SO_RCVBUF, recvsize);
     if (localport != NULL)
-	*localport = ntohs(claddr.sin_port);
-
+	*localport = (in_port_t)ntohs(claddr.sin_port);
     return client_socket;
 }
 
 int
-stream_client_privileged(hostname,
-			 port,
-			 sendsize,
-			 recvsize,
-			 localport,
-			 nonblock)
-    const char *hostname;
-    int port, sendsize, recvsize, *localport, nonblock;
+stream_client_privileged(
+    const char *hostname,
+    in_port_t port,
+    size_t sendsize,
+    size_t recvsize,
+    in_port_t *localport,
+    int nonblock)
 {
     return stream_client_internal(hostname,
 				  port,
@@ -339,9 +302,13 @@ stream_client_privileged(hostname,
 }
 
 int
-stream_client(hostname, port, sendsize, recvsize, localport, nonblock)
-    const char *hostname;
-    int port, sendsize, recvsize, *localport, nonblock;
+stream_client(
+    const char *hostname,
+    in_port_t port,
+    size_t sendsize,
+    size_t recvsize,
+    in_port_t *localport,
+    int nonblock)
 {
     return stream_client_internal(hostname,
 				  port,
@@ -356,62 +323,69 @@ stream_client(hostname, port, sendsize, recvsize, localport, nonblock)
 static struct sockaddr_in addr;
 static socklen_t addrlen;
 
-int stream_accept(server_socket, timeout, sendsize, recvsize)
-int server_socket, timeout, sendsize, recvsize;
+int
+stream_accept(
+    int server_socket,
+    int timeout,
+    size_t sendsize,
+    size_t recvsize)
 {
-    fd_set readset;
+    SELECT_ARG_TYPE readset;
     struct timeval tv;
     int nfound, connected_socket;
     int save_errno;
+    int ntries = 0;
 
     assert(server_socket >= 0);
 
-    tv.tv_sec = timeout;
-    tv.tv_usec = 0;
-    FD_ZERO(&readset);
-    FD_SET(server_socket, &readset);
-    nfound = select(server_socket+1, (SELECT_ARG_TYPE *)&readset, NULL, NULL, &tv);
-    if(nfound <= 0 || !FD_ISSET(server_socket, &readset)) {
-	save_errno = errno;
-	if(nfound < 0) {
-	    dbprintf(("%s: stream_accept: select() failed: %s\n",
+    do {
+	ntries++;
+	memset(&tv, 0, SIZEOF(tv));
+	tv.tv_sec = timeout;
+	memset(&readset, 0, SIZEOF(readset));
+	FD_ZERO(&readset);
+	FD_SET(server_socket, &readset);
+	nfound = select(server_socket+1, &readset, NULL, NULL, &tv);
+	if(nfound <= 0 || !FD_ISSET(server_socket, &readset)) {
+	    save_errno = errno;
+	    if(nfound < 0) {
+		dbprintf(("%s: stream_accept: select() failed: %s\n",
 		      debug_prefix_time(NULL),
 		      strerror(save_errno)));
-	} else if(nfound == 0) {
-	    dbprintf(("%s: stream_accept: timeout after %d second%s\n",
+	    } else if(nfound == 0) {
+		dbprintf(("%s: stream_accept: timeout after %d second%s\n",
 		      debug_prefix_time(NULL),
 		      timeout,
 		      (timeout == 1) ? "" : "s"));
-	    save_errno = ENOENT;			/* ??? */
-	} else if (!FD_ISSET(server_socket, &readset)) {
-	    int i;
+		errno = ENOENT;			/* ??? */
+		return -1;
+	    } else if (!FD_ISSET(server_socket, &readset)) {
+		int i;
 
-	    for(i = 0; i < server_socket + 1; i++) {
-		if(FD_ISSET(i, &readset)) {
-		    dbprintf(("%s: stream_accept: got fd %d instead of %d\n",
+		for(i = 0; i < server_socket + 1; i++) {
+		    if(FD_ISSET(i, &readset)) {
+			dbprintf(("%s: stream_accept: got fd %d instead of %d\n",
 			      debug_prefix_time(NULL),
 			      i,
 			      server_socket));
+		    }
 		}
+	        save_errno = EBADF;
 	    }
-	    save_errno = EBADF;
-	}
-	errno = save_errno;
-	return -1;
-    }
+	    if (ntries > 5) {
+		errno = save_errno;
+		return -1;
+	    }
+        }
+    } while (nfound <= 0);
 
     while(1) {
-	addrlen = sizeof(struct sockaddr);
+	addrlen = (socklen_t)sizeof(struct sockaddr);
 	connected_socket = accept(server_socket,
 				  (struct sockaddr *)&addr,
 				  &addrlen);
 	if(connected_socket < 0) {
-	    save_errno = errno;
-	    dbprintf(("%s: stream_accept: accept() failed: %s\n",
-		      debug_prefix_time(NULL),
-		      strerror(save_errno)));
-	    errno = save_errno;
-	    return -1;
+	    break;
 	}
 	dbprintf(("%s: stream_accept: connection from %s.%d\n",
 	          debug_prefix_time(NULL),
@@ -421,10 +395,13 @@ int server_socket, timeout, sendsize, recvsize;
 	 * Make certain we got an inet connection and that it is not
 	 * from port 20 (a favorite unauthorized entry tool).
 	 */
-	if(addr.sin_family == AF_INET && ntohs(addr.sin_port) != 20) {
-	    break;
+	if((addr.sin_family == (sa_family_t)AF_INET)
+	  && (ntohs(addr.sin_port) != (in_port_t)20)) {
+	    try_socksize(connected_socket, SO_SNDBUF, sendsize);
+	    try_socksize(connected_socket, SO_RCVBUF, recvsize);
+	    return connected_socket;
 	}
-	if(addr.sin_family != AF_INET) {
+	if(addr.sin_family != (sa_family_t)AF_INET) {
 	    dbprintf(("%s: family is %d instead of %d(AF_INET): ignored\n",
 		      debug_prefix_time(NULL),
 		      addr.sin_family,
@@ -438,24 +415,32 @@ int server_socket, timeout, sendsize, recvsize;
 	aclose(connected_socket);
     }
 
-    if(sendsize >= 0) 
-	try_socksize(connected_socket, SO_SNDBUF, sendsize);
-    if(recvsize >= 0) 
-	try_socksize(connected_socket, SO_RCVBUF, recvsize);
-
-    return connected_socket;
+    save_errno = errno;
+    dbprintf(("%s: stream_accept: accept() failed: %s\n",
+	      debug_prefix_time(NULL),
+	      strerror(save_errno)));
+    errno = save_errno;
+    return -1;
 }
 
-static void try_socksize(sock, which, size)
-int sock, which, size;
+static void
+try_socksize(
+    int sock,
+    int which,
+    size_t size)
 {
-    int origsize;
+    size_t origsize;
+
+    if (size == 0)
+	return;
 
     origsize = size;
     /* keep trying, get as big a buffer as possible */
-    while(size > 1024 &&
-	  setsockopt(sock, SOL_SOCKET, which, (void *) &size, sizeof(int)) < 0)
+    while((size > 1024) &&
+	  (setsockopt(sock, SOL_SOCKET,
+		      which, (void *) &size, (socklen_t)sizeof(int)) < 0)) {
 	size -= 1024;
+    }
     if(size > 1024) {
 	dbprintf(("%s: try_socksize: %s buffer size is %d\n",
 		  debug_prefix(NULL),

@@ -23,27 +23,31 @@
  * Authors: the Amanda Development Team.  Its members are listed in a
  * file named AUTHORS, in the root directory of this distribution.
  */
-/* $Id: disk_history.h,v 1.4 2005/10/11 01:17:01 vectro Exp $
+/* $Id: disk_history.h,v 1.6 2006/05/25 01:47:19 johnfranks Exp $
  *
  * interface for obtaining disk backup history
  */
+#ifndef DISK_HISTORY_H
+#define DISK_HISTORY_H
 
 #include "tapelist.h"
 
 typedef struct DUMP_ITEM
 {
-    char date[11];
+    char date[20];
     int  level;
     int  is_split;
     char tape[256];
     tapelist_t *tapes;
-    int  file;
+    off_t  file;
 
     struct DUMP_ITEM *next;
 }
 DUMP_ITEM;
 
-extern void clear_list P((void));
-extern void add_dump P((char *date, int level, char *tape, int file, int partnum));
-extern DUMP_ITEM *first_dump P((void));
-extern DUMP_ITEM *next_dump P((DUMP_ITEM *item));
+#define next_dump(item)	((item)->next)
+
+extern void clear_list(void);
+extern void add_dump(char *date, int level, char *tape, off_t file, int partnum);
+extern DUMP_ITEM *first_dump(void);
+#endif	/* !DISK_HISTORY_H */

@@ -22,7 +22,10 @@
 amcheck - run Amanda self-checks
 .SH "SYNOPSIS"
 .HP 8
-\fBamcheck\fR [-mwsclt] [-Maddress] \fIconfig\fR [\fIhost\fR [\fIdisk\fR...]...]
+\fBamcheck\fR [-am] [-w] [-sclt] [-M \fIaddress\fR]*
+     \fIconfig\fR [\fIhost\fR [\fIdisk\fR]*]*
+     [-o \fIconfigoption\fR]*
+
 .SH "DESCRIPTION"
 .PP
 \fBAmcheck\fR
@@ -54,7 +57,7 @@ Run the tape server local and tape checks (same as
 \fB-lt\fR).
 .TP
 \fB-c\fR
-Run the client host checks.
+Run the client host checks.Multiple specific clients can be checked by specifying the client name.
 .TP
 \fB-l\fR
 Run the local tests (e.g. permissions) on the server host.
@@ -65,9 +68,7 @@ Run the tape tests on the server host.
 \fB-w\fR
 Enables a DESTRUCTIVE check for write-protection on the tape (which would otherwise cause the subsequent
 \fBamdump\fR
-to fail). If the tape is writable, this check causes all data after the tape label to be erased. If the label_new_tapes option is enabled, this check may ERASE any non-Amanda tape in the drive or changer. The check implies
-\fB-t\fR
-and is only made if the tape is otherwise correct.
+to fail). If the tape is writable, this check causes all data after the tape label to be erased. If the label_new_tapes option is enabled, this check may ERASE any non-Amanda tape in the drive or changer. The check enable the tape tests on the server host and is only made if the tape is otherwise correct.
 .TP
 \fB-m\fR
 Nothing is printed, but mail is sent if any errors are detected. The mail goes to the
@@ -85,7 +86,7 @@ Like
 \fB-m\fR
 but the mail is always sent.
 .TP
-\fB-M\fR\fIaddress\fR
+\fB-M\fR \fIaddress\fR
 Mail the report to
 \fBaddress\fR
 instead of the
@@ -93,6 +94,13 @@ instead of the
 value from
 \fBamanda.conf\fR. Implies
 \fB-m\fR.
+.TP
+\fIhost\fR [\fIdisk\fR]*
+Specify the host and disk on which the command will work.
+.TP
+\fB-o\fR \fIconfigoption\fR
+See the "\fBCONFIGURATION OVERWRITE\fR" section in
+\fBamanda\fR(8).
 .PP
 The default is
 \fB-cs\fR.

@@ -54,6 +54,11 @@ Sam Johnston <samj@samj.net> reported problems with an Amanda server on which
 bastille was used with the "restrict system resources" option.  See bug
 118616 in the Debian bug tracking system for more information.
 
+If you choose to use the SSH authentication method and associated transport,
+please be aware that there may be problems if /usr/libamanda/dumper is suid.
+You can fix this on your server with chmod u-s /usr/lib/amanda/dumper, or
+investigate dpkg-statoverride.
+
 Concerns have been expressed about the reliability of 'dump' as a backup tool
 on live Linux systems.  Nothing can guarantee a consistent and meaningful 
 backup of a live filesystem under all circumstances.  The tar utility is 

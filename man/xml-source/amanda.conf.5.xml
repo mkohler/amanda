@@ -22,6 +22,7 @@
 <refsect1><title>DESCRIPTION</title>
 <para>&amconf; is the main configuration file for &A;. This manpage lists the
 relevant sections and parameters of this file for quick reference.</para> 
+<para> The file <emphasis remap='B'>&lt;CONFIG_DIR&gt;/&lt;config&gt;/amanda.conf</emphasis> is loaded.</para>
 </refsect1>
 
 <refsect1><title>PARAMETERS</title>
@@ -227,32 +228,29 @@ with damaged or misplaced tapes or schedule adjustments that call for slight adj
   </varlistentry>
 
   <varlistentry>
+  <term><emphasis remap='B'>usetimestamps</emphasis>
+	<emphasis remap='I'> bool</emphasis></term>
+    <listitem>
+      <para>Default: <emphasis remap='B'>No</emphasis>.
+By default, Amanda can only track at most one run per calendar day. When
+this option is enabled, however, Amanda can track as many runs as you care
+to make.
+      </para>
+      <para>
+<emphasis remap='B'>WARNING</emphasis>: This option is not backward-compatible.
+Do not enable it if you intend to downgrade your server installation to
+Amanda community edition 2.5.0
+      </para>
+    </listitem>
+  </varlistentry>
+
+  <varlistentry>
   <term><emphasis remap='B'>label_new_tapes</emphasis>
         <emphasis remap='I'> string</emphasis></term>
 <listitem>
     <para>Default: not set.
 When set, this directive will cause &A; to automatically write an &A;
 tape label to any blank tape she encounters. This option is DANGEROUS 
-because when set, &A; will ERASE any non-&A; tapes you may have, and may 
-also ERASE any near-failing tapes. Use with caution.</para>
-<para>When using this directive, specify the template for new tape 
-labels. The template should contain some number of contiguous '%' 
-characters, which will be replaced with a generated number. Be sure to 
-specify enough '%' characters that you do not run out of tape labels. 
-Example: 
-<markup>label_new_tapes "DailySet1-%%%"</markup>
-</para>
-</listitem>
-</varlistentry>
-
-  <varlistentry>
-=======
-  <term><emphasis remap='B'>label_new_tapes</emphasis>
-        <emphasis remap='I'> string</emphasis></term>
-<listitem>
-    <para>Default: not set.
-When set, this directive will cause &A; to automatically write an Amanda 
-tape label to any black tape she encounters. This option is DANGEROUS 
 because when set, &A; will ERASE any non-&A; tapes you may have, and may 
 also ERASE any near-failing tapes. Use with caution.</para>
 <para>When using this directive, specify the template for new tape 
@@ -787,7 +785,7 @@ Whether an amdump run will flush the dumps from holding disk to tape.</para>
   <term><emphasis remap='B'>amrecover_do_fsf</emphasis> <emphasis remap='I'> bool</emphasis></term>
   <listitem>
 <para>Default:
-<emphasis remap='I'>off</emphasis>.
+<emphasis remap='I'>on</emphasis>.
 Amrecover will call amrestore with the -f flag for faster positioning of the tape.</para>
   </listitem>
   </varlistentry>
@@ -795,7 +793,7 @@ Amrecover will call amrestore with the -f flag for faster positioning of the tap
   <term><emphasis remap='B'>amrecover_check_label</emphasis> <emphasis remap='I'> bool</emphasis></term>
   <listitem>
 <para>Default:
-<emphasis remap='I'>off</emphasis>.
+<emphasis remap='I'>on</emphasis>.
 Amrecover will call amrestore with the -l flag to check the label.</para>
   </listitem>
   </varlistentry>
@@ -881,7 +879,8 @@ The syntax is:</para>
 holdingdisk <emphasis remap='I'>name</emphasis> {
     <emphasis remap='I'>holdingdisk-option</emphasis> <emphasis remap='I'>holdingdisk-value</emphasis>
     <literal>...</literal>
-}</programlisting>
+}
+</programlisting>
 
 <para><emphasis remap='I'>Name</emphasis>
 is a logical name for this holding disk.</para>
@@ -991,13 +990,41 @@ are defined.</para>
 <para>Default:
 <emphasis remap='I'>bsd</emphasis>.
 Type of authorization to perform between tape server and backup client hosts.</para>
+<para><emphasis remap='B'>bsd</emphasis>, bsd authorization with udp initial
+connection and one tcp connection by data stream.</para>
+<para><emphasis remap='B'>bsdtcp</emphasis>, bsd authorization but use only
+one tcp connection.</para> 
+<para><emphasis remap='B'>bsdudp</emphasis>, like bsd, but will use only one
+tcp connection for all data stream.</para>
 <para><emphasis remap='B'>krb4</emphasis> to use Kerberos-IV
 authorization.</para>
 <para><emphasis remap='B'>krb5</emphasis> to use Kerberos-V
 authorization.</para>
+<para><emphasis remap='B'>rsh</emphasis> to use rsh
+authorization.</para>
 <para><emphasis remap='B'>ssh</emphasis> to use OpenSSH
 authorization.</para>
 
+  </listitem>
+  </varlistentry>
+
+  <varlistentry>
+  <term><emphasis remap='B'>amandad_path</emphasis> <emphasis remap='I'> string</emphasis></term>
+  <listitem>
+<para>Default:
+<emphasis remap='I'>$libexec/amandad</emphasis>.
+Specify the amandad path of the client, only use with rsh/ssh authentification.
+</para>
+  </listitem>
+  </varlistentry>
+
+  <varlistentry>
+  <term><emphasis remap='B'>client_username</emphasis> <emphasis remap='I'> string</emphasis></term>
+  <listitem>
+<para>Default:
+<emphasis remap='I'>CLIENT_LOGIN</emphasis>.
+Specify the username to connect on the client, only use with rsh/ssh authentification.
+</para>
   </listitem>
   </varlistentry>
 
@@ -1171,13 +1198,14 @@ server host as it goes from the network into the holding disk or to tape.</para>
 <para>PROG must not contain white space.</para>
 <para>Specify client_decrypt_option &quot;decryption-parameter&quot; Default: &quot;-d&quot;</para>
 <para>decryption-parameter must not contain white space.</para>
-<para>(See dumptype encrypt-fast in example/amanda.conf for reference)</para>
+<para>(See dumptype server-encrypt-fast in example/amanda.conf for reference)</para>
 </listitem>
 <listitem><para>encrypt server</para>
 <para>Specify server_encrypt &quot;PROG&quot;</para>
 <para>PROG must not contain white space.</para>
 <para>Specify server_decrypt_option &quot;decryption-parameter&quot; Default: &quot;-d&quot;</para>
 <para>decryption-parameter must not contain white space.</para>
+<para>(See dumptype client-encrypt-nocomp in example/amanda.conf for reference)</para>
 </listitem>
 </itemizedlist>
 </listitem>
@@ -1186,7 +1214,7 @@ backup(thus decrypt then uncompress during restore). So specifying
 client-encryption AND server-compression is not supported.
 <emphasis remap='I'>amcrypt</emphasis> which is a wrapper of
 	    <emphasis remap='I'>aespipe</emphasis> is provided as a reference
-		encryption program.</para>
+		symmetric encryption program.</para>
 </varlistentry>
 
 
@@ -1271,17 +1299,39 @@ for a backup of <filename>/var</filename>,
 </varlistentry>
 
   <varlistentry>
-  <term><emphasis remap='B'>holdingdisk</emphasis> <emphasis remap='I'> boolean</emphasis></term>
+  <term><emphasis remap='B'>holdingdisk</emphasis> [ <emphasis remap='I'>never|auto|required]</emphasis> ]</term>
   <listitem>
 <para>Default:
-<emphasis remap='I'>yes</emphasis>.
+<emphasis remap='I'>auto</emphasis>.
 Whether a holding disk should be used for these backups or whether they should go directly to tape.
 If the holding disk is a portion of another file system that &A;
 is backing up, that file system should refer to a dumptype with
 <emphasis remap='B'>holdingdisk</emphasis>
 set to
-<emphasis remap='I'>no</emphasis>
+<emphasis remap='I'>never</emphasis>
 to avoid backing up the holding disk into itself.</para>
+
+  <variablelist remap='TP'>
+  <varlistentry>
+  <term><emphasis remap='B'>never</emphasis>|no|false|off</term>
+  <listitem>
+  <para>Never use a holdingdisk, the dump will always go directly to tape. There will be no dump if you have a tape error.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>auto</emphasis>|yes|true|on</term>
+  <listitem>
+  <para>Use the holding disk, unless there is a problem with the holding disk, the dump won't fit there or the medium doesn't require spooling (e.g., VFS device)</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>required</emphasis></term>
+  <listitem>
+  <para>Always dump to holdingdisk, never directly to tape. There will be no dump if it doesn't fit on holdingdisk</para>
+  </listitem>
+  </varlistentry>
+  </variablelist>
+
   </listitem>
   </varlistentry>
 
@@ -1803,6 +1853,7 @@ At the moment, this is of little use.</para>
 <refsect1><title>SEE ALSO</title>
 <para>
 <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+<citerefentry><refentrytitle>amanda-client.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
 <citerefentry><refentrytitle>amcrypt</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
 <citerefentry><refentrytitle>aespipe</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
 </para>

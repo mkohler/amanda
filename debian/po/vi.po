@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: amanda 1/2.4.4p3-2\n"
 "Report-Msgid-Bugs-To: bdale@gag.com\n"
-"POT-Creation-Date: 2006-08-28 13:34-0400\n"
+"POT-Creation-Date: 2006-10-18 01:32-0600\n"
 "PO-Revision-Date: 2005-05-05 13:29+0930\n"
 "Last-Translator: Clytie Siddall <clytie@riverland.net.au>\n"
 "Language-Team: Vietnamese <gnomevi-list@lists.sourceforge.net>\n"
@@ -15,14 +15,14 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0\n"
 
-#. Type: note
+#. Type: error
 #. Description
 #: ../templates:1001
 #, fuzzy
 msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates"
 msgstr "Hãy kết hợp /var/lib/amandates và /var/lib/amanda/amandates"
 
-#. Type: note
+#. Type: error
 #. Description
 #: ../templates:1001
 msgid ""

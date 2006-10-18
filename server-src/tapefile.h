@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: tapefile.h,v 1.7 1999/05/14 21:40:21 kashmir Exp $
+ * $Id: tapefile.h,v 1.9 2006/05/25 01:47:20 johnfranks Exp $
  *
  * interface for active tape list manipulation routines
  */
@@ -37,23 +37,23 @@
 typedef struct tape_s {
     struct tape_s *next, *prev;
     int position;
-    int datestamp;
+    char * datestamp;
     int reuse;
     char *label;
 } tape_t;
 
-int read_tapelist P((char *tapefile));
-int write_tapelist P((char *tapefile));
-void clear_tapelist P((void));
-tape_t *lookup_tapelabel P((char *label));
-tape_t *lookup_tapepos P((int pos));
-tape_t *lookup_tapedate P((int datestamp));
-int lookup_nb_tape P((void));
-tape_t *lookup_last_reusable_tape P((int skip));
-void remove_tapelabel P((char *label));
-tape_t *add_tapelabel P((int datestamp, char *label));
-int reusable_tape P((tape_t *tp));
+int read_tapelist(char *tapefile);
+int write_tapelist(char *tapefile);
+void clear_tapelist(void);
+tape_t *lookup_tapelabel(char *label);
+tape_t *lookup_tapepos(int pos);
+tape_t *lookup_tapedate(char *datestamp);
+int lookup_nb_tape(void);
+tape_t *lookup_last_reusable_tape(int skip);
+void remove_tapelabel(char *label);
+tape_t *add_tapelabel(char *datestamp, char *label);
+int reusable_tape(tape_t *tp);
 
-int guess_runs_from_tapelist P((void));
+int guess_runs_from_tapelist(void);
 
 #endif /* !TAPEFILE_H */

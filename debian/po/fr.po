@@ -19,7 +19,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: fr\n"
 "Report-Msgid-Bugs-To: bdale@gag.com\n"
-"POT-Creation-Date: 2006-08-28 13:34-0400\n"
+"POT-Creation-Date: 2006-10-18 01:32-0600\n"
 "PO-Revision-Date: 2006-05-28 17:13+0200\n"
 "Last-Translator: Christian Perrier <bubulle@debian.org>\n"
 "Language-Team: French <debian-l10n-french@lists.debian.org>\n"
@@ -28,14 +28,14 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: KBabel 1.11.2\n"
 
-#. Type: note
+#. Type: error
 #. Description
 #: ../templates:1001
 msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates"
 msgstr ""
 "Fusion indispensable de /var/lib/amandates et /var/lib/amanda/amandates"
 
-#. Type: note
+#. Type: error
 #. Description
 #: ../templates:1001
 msgid ""

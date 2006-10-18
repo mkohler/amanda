@@ -37,10 +37,6 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-@WANT_AMPLOT_TRUE@am__append_1 = $(AMPLOT_MAN8_PAGES)
-@WANT_SERVER_TRUE@am__append_2 = $(SERVER_MAN8_PAGES)
-@WANT_RECOVER_TRUE@am__append_3 = $(RECOVER_MAN8_PAGES)
-@WANT_RESTORE_TRUE@am__append_4 = $(RESTORE_MAN8_PAGES)
 subdir = man
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -67,11 +63,14 @@ AMANDA_DEBUG_DAYS = @AMANDA_DEBUG_DAYS@
 AMANDA_TMPDIR = @AMANDA_TMPDIR@
 AMDEP_FALSE = @AMDEP_FALSE@
 AMDEP_TRUE = @AMDEP_TRUE@
+AMLINT = @AMLINT@
+AMLINTFLAGS = @AMLINTFLAGS@
 AMPLOT_CAT_COMPRESS = @AMPLOT_CAT_COMPRESS@
 AMPLOT_CAT_GZIP = @AMPLOT_CAT_GZIP@
 AMPLOT_CAT_PACK = @AMPLOT_CAT_PACK@
 AMPLOT_COMPRESS = @AMPLOT_COMPRESS@
 AMTAR = @AMTAR@
+AM_CFLAGS = @AM_CFLAGS@
 AR = @AR@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
@@ -79,6 +78,8 @@ AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
 AWK_VAR_ASSIGNMENT_OPT = @AWK_VAR_ASSIGNMENT_OPT@
 BINARY_OWNER = @BINARY_OWNER@
+BUILD_MAN_PAGES_FALSE = @BUILD_MAN_PAGES_FALSE@
+BUILD_MAN_PAGES_TRUE = @BUILD_MAN_PAGES_TRUE@
 CAT = @CAT@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
@@ -259,9 +260,13 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-AMPLOT_MAN8_PAGES = amplot.8
+@WANT_AMPLOT_TRUE@AMPLOT_MAN8_PAGES = amplot.8
 COMMON_MAN8_PAGES = amanda.8
-COMMON_MAN5_PAGES = amanda.conf.5
+COMMON_MAN5_PAGES = amanda.conf.5 \
+		    amanda-client.conf.5
+
+
+#if WANT_SERVER
 SERVER_MAN8_PAGES = amadmin.8 \
 		    amcheck.8 \
 		    amcheckdb.8 \
@@ -283,12 +288,19 @@ SERVER_MAN8_PAGES = amadmin.8 \
 		    amverifyrun.8 \
 		    amfetchdump.8 \
 		    amcrypt.8 \
-		    amaespipe.8
+		    amaespipe.8 \
+		    amcrypt-ossl.8 \
+		    amcrypt-ossl-asym.8
 
+#endif
 @WANT_RECOVER_TRUE@RECOVER_MAN8_PAGES = amrecover.8
 @WANT_RESTORE_TRUE@RESTORE_MAN8_PAGES = amrestore.8
-man8_MANS = $(COMMON_MAN8_PAGES) $(am__append_1) $(am__append_2) \
-	$(am__append_3) $(am__append_4)
+man8_MANS = $(COMMON_MAN8_PAGES) \
+	    $(AMPLOT_MAN8_PAGES) \
+	    $(SERVER_MAN8_PAGES) \
+	    $(RECOVER_MAN8_PAGES) \
+	    $(RESTORE_MAN8_PAGES)
+
 man5_MANS = $(COMMON_MAN5_PAGES)
 ALL_MAN_PAGES = $(AMPLOT_MAN8_PAGES) \
 	   $(COMMON_MAN5_PAGES) \
@@ -307,9 +319,9 @@ EXTRA_XML = xslt/expand-sambadoc.xsl \
 	    entities/xinclude.dtd
 
 EXTRA_DIST = $(ALL_MAN_PAGES) $(MAN_XML) $(EXTRA_XML)
-@HAVE_XSLTPROC_TRUE@GEN_XML = $(ALL_MAN_PAGES:%=xml-source/%.proc.xml)
-@HAVE_XSLTPROC_TRUE@MOSTLYCLEANFILES = $(GEN_XML)
-@HAVE_XSLTPROC_TRUE@MAINTAINERCLEANFILES = $(ALL_MAN_PAGES)
+GEN_XML = $(ALL_MAN_PAGES:%=xml-source/%.proc.xml)
+MOSTLYCLEANFILES = $(GEN_XML)
+MAINTAINERCLEANFILES = $(ALL_MAN_PAGES)
 all: all-am
 
 .SUFFIXES:
@@ -484,7 +496,7 @@ installdirs:
 	for dir in "$(DESTDIR)$(man5dir)" "$(DESTDIR)$(man8dir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
 	done
-install: install-am
+@BUILD_MAN_PAGES_TRUE@install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
 uninstall: uninstall-am
@@ -510,6 +522,7 @@ maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
 	-test -z "$(MAINTAINERCLEANFILES)" || rm -f $(MAINTAINERCLEANFILES)
+@BUILD_MAN_PAGES_FALSE@install-data-hook:
 clean: clean-am
 
 clean-am: clean-generic clean-libtool mostlyclean-am
@@ -572,31 +585,44 @@ uninstall-man: uninstall-man5 uninstall-man8
 	uninstall-info-am uninstall-man uninstall-man5 uninstall-man8
 
 
-@HAVE_XSLTPROC_TRUE@xml-source/%.proc.xml: $(SRCMANPAGEDIR)/%.xml $(srcdir)/xslt/expand-sambadoc.xsl
-@HAVE_XSLTPROC_TRUE@	$(XSLTPROC) --path $(srcdir)/xslt/ --xinclude --stringparam latex.imagebasedir "$*/" --stringparam noreference 1 --output $@ $(srcdir)/xslt/expand-sambadoc.xsl $<
+@BUILD_MAN_PAGES_TRUE@@HAVE_XSLTPROC_TRUE@xml-source/%.proc.xml: $(SRCMANPAGEDIR)/%.xml $(srcdir)/xslt/expand-sambadoc.xsl
+@BUILD_MAN_PAGES_TRUE@@HAVE_XSLTPROC_TRUE@	$(XSLTPROC) --path $(srcdir)/xslt/ --xinclude --stringparam latex.imagebasedir "$*/" --stringparam noreference 1 --output $@ $(srcdir)/xslt/expand-sambadoc.xsl $<
 
-@HAVE_XSLTPROC_TRUE@%: xml-source/%.proc.xml $(srcdir)/xslt/man.xsl
-@HAVE_XSLTPROC_TRUE@	$(XSLTPROC) --path $(srcdir)/xslt/ --output $@ man.xsl $<
+@BUILD_MAN_PAGES_TRUE@@HAVE_XSLTPROC_TRUE@%: xml-source/%.proc.xml $(srcdir)/xslt/man.xsl
+@BUILD_MAN_PAGES_TRUE@@HAVE_XSLTPROC_TRUE@	$(XSLTPROC) --path $(srcdir)/xslt/ --output $@ man.xsl $<
 
-# ^- HAVE_XSLTPROC
+@BUILD_MAN_PAGES_TRUE@@HAVE_XSLTPROC_FALSE@xml-source/%.proc.xml: $(SRCMANPAGEDIR)/%.xml $(srcdir)/xslt/expand-sambadoc.xsl
+@BUILD_MAN_PAGES_TRUE@@HAVE_XSLTPROC_FALSE@	@echo WARNING: $@ can not be generated: xsltproc is not available.
 
-install-data-hook:
-	@list="$(man8_MANS)"; \
-	for p in $$list; do \
-		pa=$(DESTDIR)$(man8dir)/`echo $$p|sed '$(transform)'`; \
-		echo chown $(BINARY_OWNER) $$pa; \
-		chown $(BINARY_OWNER) $$pa; \
-		echo chgrp $(SETUID_GROUP) $$pa; \
-		chgrp $(SETUID_GROUP) $$pa; \
-	done
-	@list="$(man5_MANS)"; \
-	for p in $$list; do \
-		pa=$(DESTDIR)$(man5dir)/`echo $$p|sed '$(transform)'`; \
-		echo chown $(BINARY_OWNER) $$pa; \
-		chown $(BINARY_OWNER) $$pa; \
-		echo chgrp $(SETUID_GROUP) $$pa; \
-		chgrp $(SETUID_GROUP) $$pa; \
-	done
+@BUILD_MAN_PAGES_TRUE@@HAVE_XSLTPROC_FALSE@%: xml-source/%.proc.xml $(srcdir)/xslt/man.xsl
+@BUILD_MAN_PAGES_TRUE@@HAVE_XSLTPROC_FALSE@	@echo WARNING: $@ can not be generated: xsltproc is not available.
+
+@BUILD_MAN_PAGES_FALSE@xml-source/%.proc.xml: $(SRCMANPAGEDIR)/%.xml $(srcdir)/xslt/expand-sambadoc.xsl
+@BUILD_MAN_PAGES_FALSE@	@echo  Build of $@ skipped.
+
+@BUILD_MAN_PAGES_FALSE@%: xml-source/%.proc.xml $(srcdir)/xslt/man.xsl
+@BUILD_MAN_PAGES_FALSE@	@echo  Build of $@ skipped.
+
+@BUILD_MAN_PAGES_TRUE@install-data-hook:
+@BUILD_MAN_PAGES_TRUE@	@list="$(man8_MANS)"; \
+@BUILD_MAN_PAGES_TRUE@	for p in $$list; do \
+@BUILD_MAN_PAGES_TRUE@		pa=$(DESTDIR)$(man8dir)/`echo $$p|sed '$(transform)'`; \
+@BUILD_MAN_PAGES_TRUE@		echo chown $(BINARY_OWNER) $$pa; \
+@BUILD_MAN_PAGES_TRUE@		chown $(BINARY_OWNER) $$pa; \
+@BUILD_MAN_PAGES_TRUE@		echo chgrp $(SETUID_GROUP) $$pa; \
+@BUILD_MAN_PAGES_TRUE@		chgrp $(SETUID_GROUP) $$pa; \
+@BUILD_MAN_PAGES_TRUE@	done
+@BUILD_MAN_PAGES_TRUE@	@list="$(man5_MANS)"; \
+@BUILD_MAN_PAGES_TRUE@	for p in $$list; do \
+@BUILD_MAN_PAGES_TRUE@		pa=$(DESTDIR)$(man5dir)/`echo $$p|sed '$(transform)'`; \
+@BUILD_MAN_PAGES_TRUE@		echo chown $(BINARY_OWNER) $$pa; \
+@BUILD_MAN_PAGES_TRUE@		chown $(BINARY_OWNER) $$pa; \
+@BUILD_MAN_PAGES_TRUE@		echo chgrp $(SETUID_GROUP) $$pa; \
+@BUILD_MAN_PAGES_TRUE@		chgrp $(SETUID_GROUP) $$pa; \
+@BUILD_MAN_PAGES_TRUE@	done
+
+@BUILD_MAN_PAGES_FALSE@install:
+@BUILD_MAN_PAGES_FALSE@	@echo Skipping man page installation.
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

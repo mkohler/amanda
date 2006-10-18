@@ -23,10 +23,11 @@
 <refsynopsisdiv>
 <cmdsynopsis>
   <command>amrecover</command>    
-    <arg choice='opt'><arg choice='opt'>-C </arg><arg choice='plain'><replaceable>config</replaceable></arg></arg>
-    <arg choice='opt'><arg choice='plain'>-s </arg><arg choice='plain'><replaceable>index-server</replaceable></arg></arg>
-    <arg choice='opt'><arg choice='plain'>-t </arg><arg choice='plain'><replaceable>tape-server</replaceable></arg></arg>
-    <arg choice='opt'><arg choice='plain'>-d </arg><arg choice='plain'><replaceable>tape-device</replaceable></arg></arg>
+    <group><arg choice='opt'>-C </arg><arg choice='plain'><replaceable>config</replaceable></arg></group>
+    <group><arg choice='plain'>-s </arg><arg choice='plain'><replaceable>index-server</replaceable></arg></group>
+    <group><arg choice='plain'>-t </arg><arg choice='plain'><replaceable>tape-server</replaceable></arg></group>
+    <group><arg choice='plain'>-d </arg><arg choice='plain'><replaceable>tape-device</replaceable></arg></group>
+    <group><arg choice='plain'>-o </arg><arg choice='plain'><replaceable>clientconfigoption</replaceable></arg></group>*
 </cmdsynopsis>
 </refsynopsisdiv>
 
@@ -43,6 +44,8 @@ from the root of the backed up filesystem, or use
 to move into that directory, otherwise a directory tree that resembles 
 the backed up filesystem will be created in the current directory.
 See the examples below for details.</para>
+
+<para>Amrecover will read the <emphasis remap='B'>amanda-client.conf</emphasis> file and the <replaceable>config</replaceable><emphasis remap='B'>/amanda-client.conf</emphasis> file.</para>
 
 <para>See the
 <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
@@ -78,6 +81,15 @@ client-custom-compressed tapes.</note>
 <para>Tape device to use on the tape server host.</para>
   </listitem>
   </varlistentry>
+
+  <varlistentry>
+  <term><emphasis remap='B'>-o</emphasis> <replaceable>clientconfigoption</replaceable></term>
+  <listitem>
+<para>See the "<emphasis remap='B'>CONFIGURATION OVERWRITE</emphasis>"
+ section in <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>.</para>
+  </listitem>
+  </varlistentry>
+
 </variablelist>
 </refsect1>
 
@@ -101,9 +113,9 @@ The following commands are available:</para>
   </listitem>
   </varlistentry>
   <varlistentry>
-  <term><emphasis remap='B'>setdate YYYY-MM-DD</emphasis></term>
+  <term><emphasis remap='B'>setdate YYYY-MM-DD-HH-MM[-SS] | YYYY-MM-DD</emphasis></term>
   <listitem>
-<para>Set the date (default: today).
+<para>Set the restore time (default: now).
 File listing commands only return information on
 backup images for this day,
 for the day before with the next lower dump level,
@@ -120,8 +132,8 @@ the specified date is encountered.</para>
 1996-07-06 through 1997-07-08 were level 2 backups
 </literallayout> <!-- .fi -->
 
-<para>then if 1997-07-08 is the requested date,
-files from the following days would be used:</para>
+<para>then the command <emphasis remap='B'>setdate 1997-07-08-00</emphasis>
+would yield files from the following days:</para>
 
 <!-- .RS -->
 <literallayout remap='.nf'>
@@ -175,6 +187,13 @@ If
 <emphasis remap='I'>mountpoint</emphasis>
 is not specified, all pathnames will be relative to the (unknown)
 mount point instead of full pathnames.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>listhost [diskdevice]</emphasis></term>
+  <listitem>
+<para>List all
+<emphasis remap='B'>host</emphasis></para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -558,6 +577,16 @@ commands will use $PAGER to display the file lists.
 Defaults to
 <emphasis remap='I'>more</emphasis>
 if PAGER is not set.</para>
+<para><envar>AMANDA_SERVER</envar>
+If set, $AMANDA_SERVER will be used as index-server.
+The value will take precedence over the compiled default,
+but will be overridden by the -s switch.
+</para>
+<para><envar>AMANDA_TAPE_SERVER</envar>
+If set, $AMANDA_TAPE_SERVER will be used as tape-server.
+The value will take precedence over the compiled default,
+but will be overridden by the -t switch.
+</para>
 <!-- .RE -->
 </refsect1>
 
@@ -568,6 +597,7 @@ if PAGER is not set.</para>
 
 <refsect1><title>SEE ALSO</title>
 <para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+<citerefentry><refentrytitle>amanda-client.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
 <citerefentry><refentrytitle>amrestore</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
 <citerefentry><refentrytitle>amfetchdump</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
 <citerefentry><refentrytitle>readline</refentrytitle><manvolnum>3</manvolnum></citerefentry></para>

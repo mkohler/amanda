@@ -1,10 +1,16 @@
-amanda (1:2.5.0p2-2.1) unstable; urgency=medium
+amanda (1:2.5.1-1) unstable; urgency=low
 
-  * Non-maintainer upload.
-  * Added Replaces:amanda-client to amanda-common control information; thanks
-    to Bill Alombert (closes: #391026).
+  * new upstream version, closes: #361716
+  * incorporate patch from NMU by Martin Krafft based on a suggestion by
+    Bill Alombert (thanks!), accounting for the fact that we now deliver
+    content in amanda-common that used to be in amanda-client, closes: #391026
+  * updated ja.po from Hideki Yamane, closes: #392153
+  * change debconf notification about old/rare conflict with amandadates file
+    to be of type 'error' instead of 'note', closes: #388707
+  * add --with-ssh-security to configure and note issue with suid of dumper
+    to README.Debian, closes: #365306
 
- -- martin f. krafft <madduck@debian.org>  Sat,  7 Oct 2006 13:11:08 +0200
+ -- Bdale Garbee <bdale@gag.com>  Wed, 18 Oct 2006 01:02:23 -0600
 
 amanda (1:2.5.0p2-2) unstable; urgency=low
 

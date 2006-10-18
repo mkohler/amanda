@@ -64,13 +64,14 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libamanda_la_DEPENDENCIES = @LTLIBOBJS@ @LTALLOCA@
-am_libamanda_la_OBJECTS = alloc.lo amflock.lo bsd-security.lo clock.lo \
-	debug.lo dgram.lo event.lo error.lo amfeatures.lo file.lo \
-	fileheader.lo krb4-security.lo krb5-security.lo match.lo \
-	packet.lo pipespawn.lo protocol.lo regcomp.lo regerror.lo \
-	regexec.lo regfree.lo rsh-security.lo security.lo sl.lo \
+am_libamanda_la_OBJECTS = alloc.lo amfeatures.lo amflock.lo \
+	bsd-security.lo bsdtcp-security.lo bsdudp-security.lo clock.lo \
+	debug.lo dgram.lo error.lo event.lo file.lo fileheader.lo \
+	krb4-security.lo krb5-security.lo match.lo packet.lo \
+	pipespawn.lo protocol.lo regcomp.lo regerror.lo regexec.lo \
+	regfree.lo rsh-security.lo security.lo security-util.lo sl.lo \
 	ssh-security.lo statfs.lo stream.lo tapelist.lo token.lo \
-	util.lo versuff.lo version.lo
+	util.lo version.lo versuff.lo
 libamanda_la_OBJECTS = $(am_libamanda_la_OBJECTS)
 am__EXEEXT_1 = statfs$(EXEEXT) token$(EXEEXT) file$(EXEEXT) \
 	bsdsecurity$(EXEEXT) amfeatures$(EXEEXT)
@@ -78,7 +79,7 @@ am_amfeatures_OBJECTS = amfeatures.test.$(OBJEXT)
 amfeatures_OBJECTS = $(am_amfeatures_OBJECTS)
 am__DEPENDENCIES_1 = @LTLIBOBJS@ @LTALLOCA@
 am__DEPENDENCIES_2 = alloc.$(OBJEXT) clock.$(OBJEXT) debug.$(OBJEXT) \
-	error.$(OBJEXT) util.$(OBJEXT)
+	error.$(OBJEXT) util.$(OBJEXT) match.$(OBJEXT)
 am__DEPENDENCIES_3 = $(am__DEPENDENCIES_2) file.$(OBJEXT)
 amfeatures_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_3)
 am_bsdsecurity_OBJECTS = bsd-security.test.$(OBJEXT)
@@ -92,7 +93,7 @@ file_OBJECTS = $(am_file_OBJECTS)
 file_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2)
 am_genversion_OBJECTS = genversion.$(OBJEXT)
 genversion_OBJECTS = $(am_genversion_OBJECTS)
-genversion_DEPENDENCIES = $(am__DEPENDENCIES_1) versuff.o
+genversion_DEPENDENCIES = $(am__DEPENDENCIES_1) versuff.lo
 am_statfs_OBJECTS = statfs.test.$(OBJEXT)
 statfs_OBJECTS = $(am_statfs_OBJECTS)
 statfs_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_3)
@@ -127,11 +128,14 @@ AMANDA_DEBUG_DAYS = @AMANDA_DEBUG_DAYS@
 AMANDA_TMPDIR = @AMANDA_TMPDIR@
 AMDEP_FALSE = @AMDEP_FALSE@
 AMDEP_TRUE = @AMDEP_TRUE@
+AMLINT = @AMLINT@
+AMLINTFLAGS = @AMLINTFLAGS@
 AMPLOT_CAT_COMPRESS = @AMPLOT_CAT_COMPRESS@
 AMPLOT_CAT_GZIP = @AMPLOT_CAT_GZIP@
 AMPLOT_CAT_PACK = @AMPLOT_CAT_PACK@
 AMPLOT_COMPRESS = @AMPLOT_COMPRESS@
 AMTAR = @AMTAR@
+AM_CFLAGS = @AM_CFLAGS@
 AR = @AR@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
@@ -139,6 +143,8 @@ AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
 AWK_VAR_ASSIGNMENT_OPT = @AWK_VAR_ASSIGNMENT_OPT@
 BINARY_OWNER = @BINARY_OWNER@
+BUILD_MAN_PAGES_FALSE = @BUILD_MAN_PAGES_FALSE@
+BUILD_MAN_PAGES_TRUE = @BUILD_MAN_PAGES_TRUE@
 CAT = @CAT@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
@@ -323,49 +329,79 @@ lib_LTLIBRARIES = libamanda.la
 REGDIR = ../regex-src
 REGsrcdir = $(srcdir)/$(REGDIR)
 INCLUDES = -I$(REGsrcdir)
+LINT = @AMLINT@
+LINTFLAGS = @AMLINTFLAGS@
 libamanda_la_SOURCES = \
-	alloc.c		amflock.c	\
-	bsd-security.c	\
-	clock.c		\
-	debug.c		dgram.c		\
-	event.c		error.c		\
-	amfeatures.c	\
-	file.c		fileheader.c	\
-	krb4-security.c	krb5-security.c	\
-	match.c		\
-	packet.c	pipespawn.c	protocol.c	\
-	regcomp.c	regerror.c	regexec.c	regfree.c	\
-	rsh-security.c	\
-	security.c	sl.c		ssh-security.c	statfs.c	\
-	stream.c	tapelist.c	\
-	token.c		\
-	util.c		\
-	versuff.c	version.c
+	alloc.c			\
+	amfeatures.c		\
+	amflock.c		\
+	bsd-security.c		\
+	bsdtcp-security.c	\
+	bsdudp-security.c	\
+	clock.c			\
+	debug.c			\
+	dgram.c			\
+	error.c			\
+	event.c			\
+	file.c			\
+	fileheader.c		\
+	krb4-security.c		\
+	krb5-security.c		\
+	match.c			\
+	packet.c		\
+	pipespawn.c		\
+	protocol.c		\
+	regcomp.c		\
+	regerror.c		\
+	regexec.c		\
+	regfree.c		\
+	rsh-security.c		\
+	security.c		\
+	security-util.c		\
+	sl.c			\
+	ssh-security.c		\
+	statfs.c		\
+	stream.c		\
+	tapelist.c		\
+	token.c			\
+	util.c			\
+	version.c		\
+	versuff.c
 
 libamanda_la_LIBADD = @LTLIBOBJS@ @LTALLOCA@
 libamanda_la_LDFLAGS = -release $(VERSION)
-noinst_HEADERS = amanda.h	amregex.h	arglist.h	\
-			clock.h		\
-			dgram.h		\
-			event.h		\
-			amfeatures.h	\
-			packet.h	pipespawn.h	protocol.h	\
-			queue.h		\
-			sl.h		security.h	statfs.h	\
-			stream.h	\
-			tapelist.h	\
-			token.h		\
-			util.h		\
-			version.h	\
-			fileheader.h
+noinst_HEADERS = \
+	amanda.h		\
+	amfeatures.h		\
+	amregex.h		\
+	arglist.h		\
+	clock.h			\
+	dgram.h			\
+	event.h			\
+	fileheader.h		\
+	packet.h		\
+	pipespawn.h		\
+	protocol.h		\
+	queue.h			\
+	security.h		\
+	security-util.h		\
+	sl.h			\
+	statfs.h		\
+	stream.h		\
+	tapelist.h		\
+	token.h			\
+	util.h			\
+	version.h
 
 genversion_SOURCES = genversion.c
-genversion_LDADD = $(libamanda_la_LIBADD) versuff.o
-REGEXHSRC = $(REGsrcdir)/regex2.h \
-		$(REGsrcdir)/regcomp.c \
-		$(REGsrcdir)/regexec.c \
-		$(REGsrcdir)/regerror.c \
+genversion_LDADD = $(libamanda_la_LIBADD) versuff.lo
+REGEXCSRC = $(REGsrcdir)/regcomp.c	\
+		$(REGsrcdir)/regexec.c	\
+		$(REGsrcdir)/regerror.c	\
 		$(REGsrcdir)/regfree.c
+
+REGEXHSRC = $(REGsrcdir)/regex2.h	\
+		$(REGEXCSRC)
 
 
 # these are used for testing only:
@@ -379,7 +415,8 @@ STANDARD_COMMON_STUFF_NOT_FILE = \
 	clock.$(OBJEXT) \
 	debug.$(OBJEXT) \
 	error.$(OBJEXT) \
-	util.$(OBJEXT)
+	util.$(OBJEXT) \
+	match.$(OBJEXT)
 
 STANDARD_COMMON_STUFF = \
 	$(STANDARD_COMMON_STUFF_NOT_FILE) \
@@ -514,6 +551,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amflock.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bsd-security.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bsd-security.test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bsdtcp-security.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bsdudp-security.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/clock.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debug.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dgram.Plo@am__quote@
@@ -534,6 +573,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/regexec.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/regfree.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rsh-security.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/security-util.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/security.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sl.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ssh-security.Plo@am__quote@
@@ -774,16 +814,28 @@ regerror.@OBJEXT@ regerror.lo: regex.h regerror.ih
 regfree.@OBJEXT@ regfree.lo: regex.h
 
 regex.h: $(REGEXHSRC) $(REGsrcdir)/mkh
-	sh $(REGsrcdir)/mkh -o -i _REGEX_H_ $(REGEXHSRC) >$@
+	sh $(REGsrcdir)/mkh -i _REGEX_H_ $(REGEXHSRC) >$@
 
 regcomp.ih: $(REGsrcdir)/regcomp.c $(REGsrcdir)/mkh
-	sh $(REGsrcdir)/mkh -o -p $(REGsrcdir)/regcomp.c >$@
+	sh $(REGsrcdir)/mkh -p $(REGsrcdir)/regcomp.c >$@
 
 engine.ih: $(REGsrcdir)/engine.c $(REGsrcdir)/mkh
-	sh $(REGsrcdir)/mkh -o -p $(REGsrcdir)/engine.c >$@
+	sh $(REGsrcdir)/mkh -p $(REGsrcdir)/engine.c >$@
 
 regerror.ih: $(REGsrcdir)/regerror.c $(REGsrcdir)/mkh
-	sh $(REGsrcdir)/mkh -o -p $(REGsrcdir)/regerror.c >$@
+	sh $(REGsrcdir)/mkh -p $(REGsrcdir)/regerror.c >$@
+
+lint:
+	@echo $(LINT) $(libamanda_la_SOURCES)
+	@$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I../config $(INCLUDES) $(libamanda_la_SOURCES)
+	@echo $(LINT) $(genversion_SOURCES)
+	@$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I../config $(INCLUDES) $(genversion_SOURCES)
+
+listlibsrc:
+	@ for p in $(libamanda_la_SOURCES) $(REGEXCSRC); do	\
+		listlibsrcs="$$listlibsrcs `pwd`/$$p";		\
+	done;							\
+	echo $$listlibsrcs >listlibsrc.output
 
 %.test.c: $(srcdir)/%.c
 	echo '#define TEST' >$@
