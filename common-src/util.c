@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: util.c,v 1.42 2006/08/24 01:57:15 paddy_s Exp $
+ * $Id: util.c,v 1.42.2.4 2006/09/21 11:12:21 martinea Exp $
  */
 
 #include "amanda.h"
@@ -37,6 +37,7 @@ int token_pushed;
 
 tok_t tok, pushed_tok;
 val_t tokenval;
+keytab_t *keytable;
 
 int conf_line_num, got_parserror;
 FILE *conf_conf = (FILE *)NULL;
@@ -56,7 +57,7 @@ static int make_socket(void);
 static int connect_port(struct sockaddr_in *addrp, in_port_t port, char *proto,
 			struct sockaddr_in *svaddr, int nonblock);
 
-char conftoken_getc(void);
+int conftoken_getc(void);
 int conftoken_ungetc(int c);
 
 /*
@@ -250,10 +251,10 @@ connect_port(
     }
 
     if(servPort == NULL)
-	dbprintf(("%s: connect_port: Try  port %d: Available   - ",
+	dbprintf(("%s: connect_port: Try  port %d: Available   - \n",
 		  debug_prefix_time(NULL), port));
     else {
-	dbprintf(("%s: connect_port: Try  port %d: Owned by %s - ",
+	dbprintf(("%s: connect_port: Try  port %d: Owned by %s - \n",
 		  debug_prefix_time(NULL), port, servPort->s_name));
     }
 
@@ -305,6 +306,8 @@ connect_port(
 	aclose(s);
 	errno = save_errno;
 	if (save_errno == ECONNREFUSED ||
+	    save_errno == EHOSTUNREACH ||
+	    save_errno == ENETUNREACH ||
 	    save_errno == ETIMEDOUT)  {
 	    return -2	;
 	}
@@ -1285,7 +1288,7 @@ unget_conftoken(void)
     return;
 }
 
-char
+int
 conftoken_getc(void)
 {
     if(conf_line == NULL)
@@ -2505,8 +2508,9 @@ void
 dump_sockaddr(
 	struct sockaddr_in *	sa)
 {
-	dbprintf(("%s: (sockaddr_in *)%p = { %d, %hd, %s }\n",
-		debug_prefix(NULL), sa, sa->sin_family, sa->sin_port,
+	dbprintf(("%s: (sockaddr_in *)%p = { %d, %d, %s }\n",
+		debug_prefix_time(NULL), sa, sa->sin_family,
+		(int)ntohs(sa->sin_port),
 		inet_ntoa(sa->sin_addr)));
 }
 
