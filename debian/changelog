@@ -1,3 +1,12 @@
+amanda (1:2.5.1p1-2) unstable; urgency=medium
+
+  * fix broken way of setting default CLN_AMANDATES in client-src/clientconf.c
+    so that the file ends up where we expect it, closes: #394796
+  * make this medium priority because of the amandates location problem
+  * updated German translation, closes: #396029
+
+ -- Bdale Garbee <bdale@gag.com>  Sun, 29 Oct 2006 11:24:39 -0700
+
 amanda (1:2.5.1p1-1) unstable; urgency=low
 
   * new upstream version, closes: #395319

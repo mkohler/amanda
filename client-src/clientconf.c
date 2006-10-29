@@ -295,7 +295,7 @@ init_defaults(void)
 #else
     conf_init_string(&client_conf[CLN_GNUTAR_LIST_DIR], NULL);
 #endif
-    conf_init_string(&client_conf[CLN_AMANDATES], "/etc/amandates");
+    conf_init_string(&client_conf[CLN_AMANDATES], AMANDATES_FILE);
     /* defaults for internal variables */
 
     conf_line_num = got_parserror = 0;
