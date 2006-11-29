@@ -1,3 +1,15 @@
+amanda (1:2.5.1p1-2.1) unstable; urgency=medium
+
+  * Non maintainer upload.
+  * Do not fail postrm when removing the backup user from either
+    group disk or tape does not succeed.  Also, try this only
+    when the backup user is in those groups to begin with.  Also
+    handles the case of deluser not existing anymore.
+    Based in parts on the patch provided by Andreas Henriksson and
+    the cupsys postinst script (closes: #399790).
+
+ -- Peter Palfrader <weasel@debian.org>  Wed, 29 Nov 2006 01:57:01 +0100
+
 amanda (1:2.5.1p1-2) unstable; urgency=medium
 
   * fix broken way of setting default CLN_AMANDATES in client-src/clientconf.c
