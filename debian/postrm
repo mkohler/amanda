@@ -27,17 +27,8 @@ case "$1" in
 
 	rm -f ~backup/.amandahosts
 
-	if which deluser >/dev/null 2>&1 ; then
-		for group in disk tape; do
-			# only call deluser when backup is in $group
-			if getent group "$group" |
-			   awk -F: '{ print $4 }' |
-			   awk -F, '{ for (i=1; i <= NF; i++ ) print $i }' |
-			   grep '^backup$' > /dev/null; then
-				deluser backup "$group" || true
-			fi
-		done
-	fi
+	deluser backup disk
+	deluser backup tape
   ;;
   remove|upgrade|deconfigure)
   ;;

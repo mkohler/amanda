@@ -141,6 +141,7 @@ LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
 LL_FMT = @LL_FMT@
+LL_RFMT = @LL_RFMT@
 LN_S = @LN_S@
 LTALLOCA = @LTALLOCA@
 LTLIBOBJS = @LTLIBOBJS@
@@ -171,6 +172,7 @@ SETUID_GROUP = @SETUID_GROUP@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SNAPSHOT_STAMP = @SNAPSHOT_STAMP@
+SORT = @SORT@
 STRIP = @STRIP@
 USE_VERSION_SUFFIXES = @USE_VERSION_SUFFIXES@
 VDUMP = @VDUMP@
@@ -589,7 +591,7 @@ uninstall-man: uninstall-man5 uninstall-man8
 @BUILD_MAN_PAGES_TRUE@@HAVE_XSLTPROC_TRUE@	$(XSLTPROC) --path $(srcdir)/xslt/ --xinclude --stringparam latex.imagebasedir "$*/" --stringparam noreference 1 --output $@ $(srcdir)/xslt/expand-sambadoc.xsl $<
 
 @BUILD_MAN_PAGES_TRUE@@HAVE_XSLTPROC_TRUE@%: xml-source/%.proc.xml $(srcdir)/xslt/man.xsl
-@BUILD_MAN_PAGES_TRUE@@HAVE_XSLTPROC_TRUE@	$(XSLTPROC) --path $(srcdir)/xslt/ --output $@ man.xsl $<
+@BUILD_MAN_PAGES_TRUE@@HAVE_XSLTPROC_TRUE@	$(XSLTPROC) --path $(srcdir)/xslt/ --output $@ http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl $<
 
 @BUILD_MAN_PAGES_TRUE@@HAVE_XSLTPROC_FALSE@xml-source/%.proc.xml: $(SRCMANPAGEDIR)/%.xml $(srcdir)/xslt/expand-sambadoc.xsl
 @BUILD_MAN_PAGES_TRUE@@HAVE_XSLTPROC_FALSE@	@echo WARNING: $@ can not be generated: xsltproc is not available.

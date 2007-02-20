@@ -144,6 +144,7 @@ LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
 LL_FMT = @LL_FMT@
+LL_RFMT = @LL_RFMT@
 LN_S = @LN_S@
 LTALLOCA = @LTALLOCA@
 LTLIBOBJS = @LTLIBOBJS@
@@ -174,6 +175,7 @@ SETUID_GROUP = @SETUID_GROUP@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SNAPSHOT_STAMP = @SNAPSHOT_STAMP@
+SORT = @SORT@
 STRIP = @STRIP@
 USE_VERSION_SUFFIXES = @USE_VERSION_SUFFIXES@
 VDUMP = @VDUMP@
@@ -305,6 +307,7 @@ pkgdata_DATA = \
 	howto-auth.txt \
 	howto-cygwin.txt \
 	howto-filedriver.txt \
+	howto-gpg.txt \
 	howto-wrapper.txt \
 	howtos.txt \
 	index.txt \

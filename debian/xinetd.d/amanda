@@ -2,11 +2,14 @@
 # description: The amanda service
 service amanda
 {
-	disable		= no
+#	only_from	= <Amanda server>
 	socket_type	= dgram
 	protocol	= udp
 	wait		= yes
 	user		= backup
 	group		= backup
+	groups		= yes
 	server		= /usr/lib/amanda/amandad
+	server_args	= -auth=bsd amdump amindexd amidxtaped
+	disable		= no
 }

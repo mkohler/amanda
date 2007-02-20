@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: planner.c,v 1.206.2.1 2006/09/27 11:24:39 martinea Exp $
+ * $Id: planner.c,v 1.206.2.6 2006/11/24 18:05:06 martinea Exp $
  *
  * backup schedule planner for the Amanda backup system.
  */
@@ -172,7 +172,7 @@ int main(int argc, char **argv)
     int    new_argc,   my_argc;
     char **new_argv, **my_argv;
     int    nb_disk;
-    char  *errstr;
+    char  *errstr = NULL;
 
     safe_fd(-1, 0);
 
@@ -326,6 +326,10 @@ int main(int argc, char **argv)
 	error("could not open info db \"%s\"", conf_infofile);
 	/*NOTREACHED*/
     }
+    if (check_infofile(conf_infofile, &origq, &errstr) == -1) {
+	log_add(L_WARNING, "problem copying infofile: %s", errstr);
+	amfree(errstr);
+    }
     amfree(conf_infofile);
 
     conf_tapetype = getconf_str(CNF_TAPETYPE);
@@ -334,7 +338,7 @@ int main(int argc, char **argv)
     conf_dumpcycle = getconf_int(CNF_DUMPCYCLE);
     conf_runspercycle = getconf_int(CNF_RUNSPERCYCLE);
     conf_tapecycle = getconf_int(CNF_TAPECYCLE);
-    conf_etimeout = getconf_time(CNF_ETIMEOUT);
+    conf_etimeout = getconf_int(CNF_ETIMEOUT);
     conf_reserve  = getconf_int(CNF_RESERVE);
     conf_autoflush = getconf_boolean(CNF_AUTOFLUSH);
     conf_usetimestamps = getconf_boolean(CNF_USETIMESTAMPS);
@@ -1595,7 +1599,7 @@ static void getsize(
 	 * We use ctimeout for the "noop" request because it should be
 	 * very fast and etimeout has other side effects.
 	 */
-	timeout = getconf_time(CNF_CTIMEOUT);
+	timeout = getconf_int(CNF_CTIMEOUT);
     }
 
     secdrv = security_getdriver(hostp->disks->security_driver);
@@ -1653,6 +1657,7 @@ static void handle_result(
     int tch;
     char *qname;
     char *disk;
+    OFF_T_FMT_TYPE size_;
 
     hostp = (am_host_t *)datap;
     hostp->up = HOST_READY;
@@ -1758,10 +1763,11 @@ static void handle_result(
 	s = t;
 	ch = tch;
 
-	if (sscanf(t - 1, "%d SIZE " OFF_T_FMT , &level,
-		   (OFF_T_FMT_TYPE *)&size) != 2) {
+	size_ = (OFF_T_FMT_TYPE)0;
+	if (sscanf(t - 1, "%d SIZE " OFF_T_FMT , &level, &size_) != 2) {
 	    goto bad_msg;
 	}
+	size = size_;
 	dp = lookup_hostdisk(hostp, disk);
 	amfree(disk);
 
@@ -2274,10 +2280,18 @@ static void delay_dumps(void)
 	full_size = est_tape_size(dp, 0);
 	if (full_size > tapetype_get_length(tape) * (off_t)avail_tapes) {
 	    char *qname = quote_string(dp->name);
-	    log_add(L_WARNING, "disk %s:%s, full dump (" OFF_T_FMT 
-		    "KB) will be larger than available tape space",
-		    dp->host->hostname, qname,
-		    (OFF_T_FMT_TYPE)full_size);
+	    if (conf_runtapes > 1 && dp->tape_splitsize == (off_t)0) {
+		log_add(L_WARNING, "disk %s:%s, full dump (" OFF_T_FMT 
+			"KB) will be larger than available tape space"
+			", you could define a splitsize",
+			dp->host->hostname, qname,
+			(OFF_T_FMT_TYPE)full_size);
+	    } else {
+		log_add(L_WARNING, "disk %s:%s, full dump (" OFF_T_FMT 
+			"KB) will be larger than available tape space",
+			dp->host->hostname, qname,
+			(OFF_T_FMT_TYPE)full_size);
+	    }
 	    amfree(qname);
 	}
 

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: driver.c,v 1.198 2006/08/24 01:57:16 paddy_s Exp $
+ * $Id: driver.c,v 1.198.2.6 2006/12/27 14:44:48 martinea Exp $
  *
  * controlling process for the Amanda backup system
  */
@@ -242,16 +242,18 @@ main(
 
     /* check that we don't do many dump in a day and usetimestamps is off */
     if(strlen(driver_timestamp) == 8) {
-	char *conf_logdir = getconf_str(CNF_LOGDIR);
-	char *logfile    = vstralloc(conf_logdir, "/log.",
-				     driver_timestamp, ".0", NULL);
-	char *oldlogfile = vstralloc(conf_logdir, "/oldlog/log.",
-				     driver_timestamp, ".0", NULL);
-	if(access(logfile, F_OK) == 0 || access(oldlogfile, F_OK) == 0) {
-	    log_add(L_WARNING, "WARNING: This is not the first amdump run today. Enable the usetimestamps option in the configuration file if you want to run amdump more than once per calendar day.");
+	if (!nodump) {
+	    char *conf_logdir = getconf_str(CNF_LOGDIR);
+	    char *logfile    = vstralloc(conf_logdir, "/log.",
+					 driver_timestamp, ".0", NULL);
+	    char *oldlogfile = vstralloc(conf_logdir, "/oldlog/log.",
+					 driver_timestamp, ".0", NULL);
+	    if(access(logfile, F_OK) == 0 || access(oldlogfile, F_OK) == 0) {
+		log_add(L_WARNING, "WARNING: This is not the first amdump run today. Enable the usetimestamps option in the configuration file if you want to run amdump more than once per calendar day.");
+	    }
+	    amfree(oldlogfile);
+	    amfree(logfile);
 	}
-	amfree(oldlogfile);
-	amfree(logfile);
 	hd_driver_timestamp = construct_timestamp(NULL);
     }
     else {
@@ -535,7 +537,7 @@ wait_children(int count)
 			dumper->pid = -1;
 			break;
 		    }
-		    if (pid == dumper->chunker->pid) {
+		    if (dumper->chunker && pid == dumper->chunker->pid) {
 			who = stralloc(dumper->chunker->name);
 			dumper->chunker->pid = -1;
 			break;
@@ -1378,7 +1380,7 @@ dumper_result(
 	update_info_dumper(dp, sched(dp)->origsize,
 			   sched(dp)->dumpsize, sched(dp)->dumptime);
 	log_add(L_STATS, "estimate %s %s %s %d [sec %ld nkb " OFF_T_FMT
-		" ckb " OFF_T_FMT " kps %d]",
+		" ckb " OFF_T_FMT " kps %lu]",
 		dp->host->hostname, dp->name, sched(dp)->datestamp,
 		sched(dp)->level,
 		sched(dp)->est_time, (OFF_T_FMT_TYPE)sched(dp)->est_nsize, 
@@ -1464,7 +1466,7 @@ handle_dumper_result(
 	    /* result_argv[2] always contains the serial number */
 	    sdp = serial2disk(result_argv[2]);
 	    if (sdp != dp) {
-		error("%s: Invalid serial number", get_pname(), result_argv[2]);
+		error("%s: Invalid serial number: %s", get_pname(), result_argv[2]);
 		/*NOTREACHED*/
 	    }
 	}
@@ -1613,7 +1615,7 @@ handle_chunker_result(
 	    /* result_argv[2] always contains the serial number */
 	    sdp = serial2disk(result_argv[2]);
 	    if (sdp != dp) {
-		error("%s: Invalid serial number", get_pname(), result_argv[2]);
+		error("%s: Invalid serial number: %s", get_pname(), result_argv[2]);
 		/*NOTREACHED*/
 	    }
 	}
@@ -1949,6 +1951,10 @@ read_schedule(
     int ch;
     off_t flush_size = (off_t)0;
     char *qname = NULL;
+    OFF_T_FMT_TYPE nsize_;
+    OFF_T_FMT_TYPE csize_;
+    OFF_T_FMT_TYPE degr_nsize_;
+    OFF_T_FMT_TYPE degr_csize_;
 
     (void)cookie;	/* Quiet unused parameter warning */
 
@@ -2039,19 +2045,21 @@ read_schedule(
 	s[-1] = '\0';
 
 	skip_whitespace(s, ch);			/* find the native size */
-	if(ch == '\0' || sscanf(s - 1, OFF_T_FMT, 
-				(OFF_T_FMT_TYPE *)&nsize) != 1) {
+	nsize_ = (OFF_T_FMT_TYPE)0;
+	if(ch == '\0' || sscanf(s - 1, OFF_T_FMT, &nsize_) != 1) {
 	    error("schedule line %d: syntax error (bad nsize)", line);
 	    /*NOTREACHED*/
 	}
+	nsize = nsize_;
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);			/* find the compressed size */
-	if(ch == '\0' || sscanf(s - 1, OFF_T_FMT, 
-				(OFF_T_FMT_TYPE *)&csize) != 1) {
+	csize_ = (OFF_T_FMT_TYPE)0;
+	if(ch == '\0' || sscanf(s - 1, OFF_T_FMT, &csize_) != 1) {
 	    error("schedule line %d: syntax error (bad csize)", line);
 	    /*NOTREACHED*/
 	}
+	csize = csize_;
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);			/* find the time number */
@@ -2088,19 +2096,21 @@ read_schedule(
 	    s[-1] = '\0';
 
 	    skip_whitespace(s, ch);		/* find the degr native size */
-	    if(ch == '\0'  || sscanf(s - 1, OFF_T_FMT, 
-			(OFF_T_FMT_TYPE *)&degr_nsize) != 1) {
+	    degr_nsize_ = (OFF_T_FMT_TYPE)0;
+	    if(ch == '\0'  || sscanf(s - 1, OFF_T_FMT, &degr_nsize_) != 1) {
 		error("schedule line %d: syntax error (bad degr nsize)", line);
 		/*NOTREACHED*/
 	    }
+	    degr_nsize = degr_nsize_;
 	    skip_integer(s, ch);
 
 	    skip_whitespace(s, ch);		/* find the degr compressed size */
-	    if(ch == '\0'  || sscanf(s - 1, OFF_T_FMT, 
-			(OFF_T_FMT_TYPE *)&degr_csize) != 1) {
+	    degr_csize_ = (OFF_T_FMT_TYPE)0;
+	    if(ch == '\0'  || sscanf(s - 1, OFF_T_FMT, &degr_csize_) != 1) {
 		error("schedule line %d: syntax error (bad degr csize)", line);
 		/*NOTREACHED*/
 	    }
+	    degr_csize = degr_csize_;
 	    skip_integer(s, ch);
 
 	    skip_whitespace(s, ch);		/* find the degr time number */
@@ -2799,6 +2809,7 @@ dump_to_tape(
 
 	free_serial(result_argv[2]);
 
+	dumpsize = (off_t)0;
 	if (*result_argv[5] == '"') {
 	    /* String was quoted */
 	    rc = sscanf(result_argv[5],"\"[sec %lf kb " OFF_T_FMT " ",

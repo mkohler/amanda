@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /* 
- * $Id: sendbackup.c,v 1.88 2006/07/25 18:27:56 martinea Exp $
+ * $Id: sendbackup.c,v 1.88.2.3 2006/12/12 14:56:38 martinea Exp $
  *
  * common code for the sendbackup-* programs.
  */
@@ -440,7 +440,7 @@ main(
     fflush(stdout);
     if (freopen("/dev/null", "w", stdout) == NULL) {
 	dbprintf(("%s: error redirecting stdout to /dev/null: %s\n",
-	    debug_prefix_time(NULL), mesgfd, strerror(errno)));
+	    debug_prefix_time(NULL), strerror(errno)));
         exit(1);
     }
 
@@ -549,9 +549,10 @@ check_status(
     amwait_t	w)
 {
     char *thiserr = NULL;
-    char *str;
+    char *str, *strX;
     int ret, sig, rc;
     char number[NUM_STR_SIZE];
+    char numberpid[NUM_STR_SIZE];
 
     str = childstr(pid);
 
@@ -570,54 +571,62 @@ check_status(
 	 * but the failure is noted.
 	 */
 	if(ret != 0) {
-	    fprintf(stderr, "? %s returned %d\n", str, ret);
+	    fprintf(stderr, "? index %s returned %d\n", str, ret);
 	    rc = 0;
 	}
-    }
-
-#ifndef HAVE_GZIP
-    if(pid == comppid) {
+	indexpid = -1;
+	strX = "index ";
+    } else if(pid == comppid) {
 	/*
 	 * compress returns 2 sometimes, but it is ok.
 	 */
+#ifndef HAVE_GZIP
 	if(ret == 2) {
 	    rc = 0;
 	}
-    }
 #endif
-
-#ifdef DUMP_RETURNS_1
-    if(pid == dumppid && tarpid == -1) {
+	comppid = -1;
+	strX = "compress ";
+    } else if(pid == dumppid && tarpid == -1) {
         /*
 	 * Ultrix dump returns 1 sometimes, but it is ok.
 	 */
+#ifdef DUMP_RETURNS_1
         if(ret == 1) {
 	    rc = 0;
 	}
-    }
 #endif
-
-#ifdef IGNORE_TAR_ERRORS
-    if(pid == tarpid) {
+	dumppid = -1;
+	strX = "dump ";
+    } else if(pid == tarpid) {
+	if (ret == 1) {
+	    rc = 0;
+	}
 	/*
 	 * tar bitches about active filesystems, but we do not care.
 	 */
+#ifdef IGNORE_TAR_ERRORS
         if(ret == 2) {
 	    rc = 0;
 	}
-    }
 #endif
+	dumppid = tarpid = -1;
+	strX = "dump ";
+    } else {
+	strX = "unknown ";
+    }
 
     if(rc == 0) {
 	return 0;				/* normal exit */
     }
 
+    snprintf(numberpid, SIZEOF(number), "%d", (int)pid);
     if(ret == 0) {
 	snprintf(number, SIZEOF(number), "%d", sig);
-	thiserr = vstralloc(str, " got signal ", number, NULL);
+	thiserr = vstralloc(strX, "(", numberpid, ") ", str, " got signal ", number, NULL);
     } else {
 	snprintf(number, SIZEOF(number), "%d", ret);
-	thiserr = vstralloc(str, " returned ", number, NULL);
+	thiserr = vstralloc(strX, "(", numberpid, ") ", str, " returned ", number, NULL);
     }
 
     if(errorstr) {
@@ -733,8 +742,45 @@ parse_backup_messages(
 	/*NOTREACHED*/
     }
 
-    while((wpid = wait(&retstat)) != -1) {
+    while((wpid = waitpid((pid_t)-1, &retstat, WNOHANG)) > 0) {
 	if(check_status(wpid, retstat)) goterror = 1;
+    }
+
+    if (dumppid != -1) {
+	sleep(5);
+	while((wpid = waitpid((pid_t)-1, &retstat, WNOHANG)) > 0) {
+	    if(check_status(wpid, retstat)) goterror = 1;
+	}
+    }
+    if (dumppid != -1) {
+	dbprintf(("%s: Sending SIGHUP to dump process %d\n",
+		  debug_prefix_time(NULL), (int)dumppid));
+	if(dumppid != -1) {
+	    if(kill(dumppid, SIGHUP) == -1) {
+		dbprintf(("%s: Can't send SIGHUP to %d: %s\n",
+			  debug_prefix_time(NULL), (int)dumppid,
+			  strerror(errno)));
+	    }
+	}
+	sleep(5);
+	while((wpid = waitpid((pid_t)-1, &retstat, WNOHANG)) > 0) {
+	    if(check_status(wpid, retstat)) goterror = 1;
+	}
+    }
+    if (dumppid != -1) {
+	dbprintf(("%s: Sending SIGKILL to dump process %d\n",
+		  debug_prefix_time(NULL), (int)dumppid));
+	if(dumppid != -1) {
+	    if(kill(dumppid, SIGKILL) == -1) {
+		dbprintf(("%s: Can't send SIGKILL to %d: %s\n",
+			  debug_prefix_time(NULL), (int)dumppid,
+			  strerror(errno)));
+	    }
+	}
+	sleep(5);
+	while((wpid = waitpid((pid_t)-1, &retstat, WNOHANG)) > 0) {
+	    if(check_status(wpid, retstat)) goterror = 1;
+	}
     }
 
     if(errorstr) {

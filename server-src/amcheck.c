@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amcheck.c,v 1.149.2.2 2006/09/21 11:16:57 martinea Exp $
+ * $Id: amcheck.c,v 1.149.2.10 2007/02/05 18:54:13 martinea Exp $
  *
  * checks for common problems in server and clients
  */
@@ -174,7 +174,7 @@ main(
 			exit(1);
 #endif
 			break;
-	case 's':	do_localchk = do_clientchk = do_tapechk = 1;
+	case 's':	do_localchk = do_tapechk = 1;
 			break;
 	case 'c':	do_clientchk = 1;
 			break;
@@ -244,7 +244,7 @@ main(
       }
     }
 
-    conf_ctimeout = getconf_time(CNF_CTIMEOUT);
+    conf_ctimeout = getconf_int(CNF_CTIMEOUT);
 
     conf_diskfile = getconf_str(CNF_DISKFILE);
     if (*conf_diskfile == '/') {
@@ -481,7 +481,7 @@ main(
 		    error("mailfd write: %s", strerror(errno));
 		    /*NOTREACHED*/
 		} else {
-		    error("mailfd write: wrote %d instead of %d", w, r);
+		    error("mailfd write: wrote %zd instead of %zd", w, r);
 		    /*NOTREACHED*/
 		}
 	    }
@@ -803,7 +803,13 @@ start_server_check(
 	amfree(tape_dir);
 	amfree(holdfile);
 	tapename = getconf_str(CNF_TAPEDEV);
-	if (strncmp(tapename, "null:", 5) == 0) {
+	if (tapename == NULL) {
+	    if (getconf_str(CNF_TPCHANGER) == NULL) {
+		fprintf(outf, "WARNING: No tapedev or tpchanger specified\n");
+		testtape = 0;
+		do_tapechk = 0;
+	    }
+	} else if (strncmp(tapename, "null:", 5) == 0) {
 	    fprintf(outf,
 		    "WARNING: tapedev is %s, dumps will be thrown away\n",
 		    tapename);
@@ -839,11 +845,6 @@ start_server_check(
 			"available space unknown (" OFF_T_FMT" KB requested)\n",
 			quoted, (OFF_T_FMT_TYPE)holdingdisk_get_disksize(hdp));
 		disklow = 1;
-	    }
-	    else if(holdingdisk_get_disksize(hdp) == (off_t)0) {
-		fprintf(outf, "WARNING: holding disk %s: "
-			"use nothing because 'use' is set to 0\n",
-			quoted);
 	    }
 	    else if(holdingdisk_get_disksize(hdp) > (off_t)0) {
 		if(fs.avail < holdingdisk_get_disksize(hdp)) {
@@ -886,7 +887,7 @@ start_server_check(
 			    quoted,
 			    (OFF_T_FMT_TYPE)(fs.avail/(off_t)unitdivisor),
 			    displayunit,
-			    (OFF_T_FMT_TYPE)(fs.avail + holdingdisk_get_disksize(hdp) / (off_t)unitdivisor),
+			    (OFF_T_FMT_TYPE)((fs.avail + holdingdisk_get_disksize(hdp)) / (off_t)unitdivisor),
 			    displayunit);
 		}
 	    }
@@ -978,6 +979,20 @@ start_server_check(
 
         tape_status = taper_scan(NULL, &label, &datestamp, &tapename,
 				 FILE_taperscan_output_callback, outf);
+	if (tapename) {
+	    if (tape_access(tapename,F_OK) == -1) {
+		fprintf(outf, "ERROR: Can't access device %s: %s\n", tapename,
+			strerror(errno));
+	    }
+	    if (tape_access(tapename,R_OK) == -1) {
+		fprintf(outf, "ERROR: Can't read device %s: %s\n", tapename,
+			strerror(errno));
+	    }
+	    if (tape_access(tapename,W_OK) == -1) {
+		fprintf(outf, "ERROR: Can't write to device %s: %s\n", tapename,
+			strerror(errno));
+	    }
+	}
         if (tape_status < 0) {
 	    tape_t *exptape = lookup_last_reusable_tape(0);
 	    fprintf(outf, "       (expecting ");
@@ -1090,6 +1105,11 @@ start_server_check(
 	    amfree(conf_infofile);
 	    infobad = 1;
 	} else {
+	    char *errmsg = NULL;
+	    if (check_infofile(conf_infofile, &origq, &errmsg) == -1) {
+		fprintf(outf, "ERROR: Can't copy infofile: %s\n", errmsg);
+		amfree(errmsg);
+	    }
 	    strappend(conf_infofile, "/");
 	}
 	amfree(quoted);

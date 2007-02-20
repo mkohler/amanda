@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amindexd.c,v 1.106.2.2 2006/09/27 12:04:09 martinea Exp $
+ * $Id: amindexd.c,v 1.106.2.9 2007/02/07 15:23:45 martinea Exp $
  *
  * This is the server daemon part of the index client/server system.
  * It is assumed that this is launched from inetd instead of being
@@ -55,6 +55,7 @@
 #include "tapefile.h"
 #include "util.h"
 #include "amandad.h"
+#include "pipespawn.h"
 
 #include <grp.h>
 
@@ -114,6 +115,7 @@ static int tapedev_is(void);
 static int are_dumps_compressed(void);
 static char *amindexd_nicedate (char *datestamp);
 static int cmp_date (const char *date1, const char *date2);
+static char *clean_backslash(char *line);
 int main(int, char **);
 
 static REMOVE_ITEM *
@@ -144,6 +146,18 @@ uncompress_file(
     struct stat stat_filename;
     int result;
     size_t len;
+    int pipe_from_gzip;
+    int pipe_to_sort;
+    int indexfd;
+    int nullfd;
+    int debugfd;
+    int debugnullfd;
+    char line[STR_SIZE];
+    FILE *pipe_stream;
+    pid_t pid_gzip;
+    pid_t pid_sort;
+    amwait_t  wait_status;
+
 
     filename = stralloc(filename_gz);
     len = strlen(filename);
@@ -173,24 +187,93 @@ uncompress_file(
 	    return NULL;
  	}
 
-	cmd = vstralloc(UNCOMPRESS_PATH,
 #ifdef UNCOMPRESS_OPT
-			" ", UNCOMPRESS_OPT,
+#  define PARAM_UNCOMPRESS_OPT UNCOMPRESS_OPT
+#else
+#  define PARAM_UNCOMPRESS_OPT skip_argument
 #endif
-			" \'", filename_gz, "\'",
-			" 2>/dev/null",
-			" | (LC_ALL=C; export LC_ALL ; sort) ",
-			" > ", "\'", filename, "\'",
-			NULL);
-	dbprintf(("%s: uncompress command: %s\n",
-		  debug_prefix_time(NULL), cmd));
-	if (system(cmd) != 0) {
-	    *emsg = newvstralloc(*emsg, "\"", cmd, "\" failed", NULL);
-	    unlink(filename);
-	    errno = -1;
+
+	debugfd = dbfd();
+	debugnullfd = 0;
+	if(debugfd < 0) {
+	    debugfd = open("/dev/null", O_WRONLY);
+	    debugnullfd = 1;
+	}
+
+	nullfd = open("/dev/null", O_RDONLY);
+	indexfd = open(filename,O_WRONLY|O_CREAT, 0600);
+	if (indexfd == -1) {
+	    *emsg = newvstralloc(*emsg, "Can't open '",
+				 filename, "' for writting: ",
+				 strerror(errno),
+				 NULL);
+	    dbprintf(("%s\n",*emsg));
 	    amfree(filename);
-	    amfree(cmd);
 	    return NULL;
+	}
+
+	/* start the uncompress process */
+	putenv(stralloc("LC_ALL=C"));
+	pid_gzip = pipespawn(UNCOMPRESS_PATH, STDOUT_PIPE,
+			     &nullfd, &pipe_from_gzip, &debugfd,
+			     UNCOMPRESS_PATH, PARAM_UNCOMPRESS_OPT,
+			     filename_gz, NULL);
+	aclose(nullfd);
+
+	pipe_stream = fdopen(pipe_from_gzip,"r");
+	if(pipe_stream == NULL) {
+	    *emsg = newvstralloc(*emsg, "Can't fdopen pipe from gzip: ",
+				 strerror(errno),
+				 NULL);
+	    dbprintf(("%s\n",*emsg));
+	    amfree(filename);
+	    return NULL;
+	}
+
+	/* start the sort process */
+	pid_sort = pipespawn(SORT_PATH, STDIN_PIPE,
+			     &pipe_to_sort, &indexfd, &debugfd,
+			     SORT_PATH, NULL);
+	if (debugnullfd == 1)
+	    aclose(debugfd);
+	aclose(indexfd);
+
+	/* send all ouput from uncompress process to sort process */
+	/* clean the data with clean_backslash */
+	while (fgets(line, STR_SIZE, pipe_stream) != NULL) {
+	    if (line[0] != '\0') {
+		if (index(line,'/')) {
+		    clean_backslash(line);
+		    fullwrite(pipe_to_sort,line,strlen(line));
+		}
+	    }
+	}
+
+	fclose(pipe_stream);
+	aclose(pipe_to_sort);
+	if (waitpid(pid_gzip, &wait_status, 0) < 0) {
+	    if (!WIFEXITED(wait_status)) {
+		dbprintf(("Uncompress exited with signal %d",
+			  WTERMSIG(wait_status)));
+	    } else if (WEXITSTATUS(wait_status) != 0) {
+		dbprintf(("Uncompress exited with status %d",
+			  WEXITSTATUS(wait_status)));
+	    } else {
+		dbprintf(("Uncompres returned negative value: %s",
+			  strerror(errno)));
+	    }
+	}
+	if (waitpid(pid_sort, &wait_status, 0)) {
+	    if (!WIFEXITED(wait_status)) {
+		dbprintf(("Sort exited with signal %d",
+			  WTERMSIG(wait_status)));
+	    } else if (WEXITSTATUS(wait_status) != 0) {
+		dbprintf(("Sort exited with status %d",
+			  WEXITSTATUS(wait_status)));
+	    } else {
+		dbprintf(("Sort returned negative value: %s",
+			  strerror(errno)));
+	    }
 	}
 
 	/* add at beginning */
@@ -219,7 +302,7 @@ process_ls_dump(
     int		recursive,
     char **	emsg)
 {
-    char *line = NULL;
+    char line[STR_SIZE];
     char *old_line = NULL;
     char *filename = NULL;
     char *filename_gz;
@@ -228,6 +311,7 @@ process_ls_dump(
     char *s;
     int ch;
     size_t len_dir_slash;
+    struct stat statbuf;
 
     if (strcmp(dir, "/") == 0) {
 	dir_slash = stralloc(dir);
@@ -237,6 +321,11 @@ process_ls_dump(
 
     filename_gz = getindexfname(dump_hostname, disk_name, dump_item->date,
 			        dump_item->level);
+    if (stat(filename_gz, &statbuf) < 0 && errno == ENOENT) {
+	amfree(filename_gz);
+	filename_gz = getoldindexfname(dump_hostname, disk_name,
+				       dump_item->date, dump_item->level);
+    }
     if((filename = uncompress_file(filename_gz, emsg)) == NULL) {
 	amfree(filename_gz);
 	amfree(dir_slash);
@@ -253,8 +342,10 @@ process_ls_dump(
 
     len_dir_slash=strlen(dir_slash);
 
-    while ((line = agets(fp)) != NULL) {
+    while (fgets(line, STR_SIZE, fp) != NULL) {
 	if (line[0] != '\0') {
+	    if(line[strlen(line)-1] == '\n')
+		line[strlen(line)-1] = '\0';
 	    if(strncmp(dir_slash, line, len_dir_slash) == 0) {
 		if(!recursive) {
 		    s = line + len_dir_slash;
@@ -269,12 +360,10 @@ process_ls_dump(
 		if(old_line == NULL || strcmp(line, old_line) != 0) {
 		    add_dir_list_item(dump_item, line);
 		    amfree(old_line);
-		    old_line = line;
-		    line = NULL;
+		    old_line = stralloc(line);
 		}
 	    }
 	}
-	/*@i@*/ amfree(line);
     }
     afclose(fp);
     /*@i@*/ amfree(old_line);
@@ -687,7 +776,7 @@ is_dir_valid_opaque(
     char *dir)
 {
     DUMP_ITEM *item;
-    char *line = NULL;
+    char line[STR_SIZE];
     FILE *fp;
     int last_level;
     char *ldir = NULL;
@@ -753,15 +842,16 @@ is_dir_valid_opaque(
 	    amfree(ldir);
 	    return -1;
 	}
-	for(; (line = agets(fp)) != NULL; free(line)) {
+	while (fgets(line, STR_SIZE, fp) != NULL) {
 	    if (line[0] == '\0')
 		continue;
+	    if(line[strlen(line)-1] == '\n')
+		line[strlen(line)-1] = '\0';
 	    if (strncmp(line, ldir, ldir_len) != 0) {
 		continue;			/* not found yet */
 	    }
 	    amfree(filename);
 	    amfree(ldir);
-	    amfree(line);
 	    afclose(fp);
 	    return 0;
 	}
@@ -961,9 +1051,9 @@ tapedev_is(void)
 	return 0;
     }
 
-    dbprintf(("%s: No tapedev or changer in config site.\n",
+    dbprintf(("%s: No tapedev or tpchanger in config site.\n",
               debug_prefix_time(NULL)));
-    reply(501, "Tapedev or changer not set in config file.");
+    reply(501, "Tapedev or tpchanger not set in config file.");
     return -1;
 }
 
@@ -1552,4 +1642,39 @@ cmp_date(
     const char *	date2)
 {
     return strncmp(date1, date2, strlen(date2));
+}
+
+static char *
+clean_backslash(
+    char *line)
+{
+    char *s = line, *s1, *s2;
+    char *p = line;
+    int i;
+
+    while(*s != '\0') {
+	if (*s == '\\') {
+	    s++;
+	    s1 = s+1;
+	    s2 = s+2;
+	    if (*s != '\0' && isdigit(*s) &&
+		*s1 != '\0' && isdigit(*s1) &&
+		*s2 != '\0' &&  isdigit(*s2)) {
+		/* this is \000, an octal value */
+		i = ((*s)-'0')*64 + ((*s1)-'0')*8 + ((*s2)-'0');
+		*p++ = i;
+		s += 3;
+	    } else if (*s == '\\') { /* we remove one / */
+		*p++ = *s++;
+	    } else { /* we keep the / */
+		*p++ = '\\';
+		*p++ = *s++;
+	    }
+	} else {
+	    *p++ = *s++;
+	}
+    }
+    *p = '\0';
+
+    return line;
 }

@@ -862,6 +862,18 @@
 /* Define to 1 if you have the `strstr' function. */
 #undef HAVE_STRSTR
 
+/* Define to 1 if you have the `strtol' function. */
+#undef HAVE_STRTOL
+
+/* Define to 1 if you have the `strtoll' function. */
+#undef HAVE_STRTOLL
+
+/* Define if strtoll is declared. */
+#undef HAVE_STRTOLL_DECL
+
+/* Define if strtol is declared. */
+#undef HAVE_STRTOL_DECL
+
 /* Define if the database header declares struct datum. */
 #undef HAVE_STRUCT_DATUM
 
@@ -1077,6 +1089,9 @@
 /* Format for a long long printf. */
 #undef LL_FMT
 
+/* Format for a long long printf. */
+#undef LL_RFMT
+
 /* A comma-separated list of two integers, determining the minimum and maximum
    reserved TCP port numbers sockets should be bound to. (mainly for
    amrecover) */
@@ -1195,6 +1210,9 @@
 
 /* The size of a `void*', as computed by sizeof. */
 #undef SIZEOF_VOIDP
+
+/* Define to the exact path to the sort program. */
+#undef SORT_PATH
 
 /* Define if SSH transport should be enabled. */
 #undef SSH_SECURITY

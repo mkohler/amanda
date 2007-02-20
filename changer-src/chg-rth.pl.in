@@ -25,6 +25,9 @@ require 5.001;
 
 use Getopt::Long;
 
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV', 'PATH'};
+$ENV{'PATH'} = "/usr/bin:/usr/sbin:/sbin:/bin";
+
 $pname = "rth-changer";
 
 $prefix="@prefix@";
@@ -51,6 +54,9 @@ if (-x "$sbindir/ammt$SUF") {
 }
 
 $tapeDevice=`$sbindir/amgetconf$SUF tapedev`;
+die "tapedev not found in amanda.conf"
+	if !$tapeDevice or $tapeDevice eq "" or
+	    $tapeDevice =~ m/no such parameter/;
 
 sub getCurrentTape {
 

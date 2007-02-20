@@ -25,7 +25,7 @@
  */
 
 /*
- * $Id: amandad.c,v 1.18.2.1 2006/09/15 17:18:06 martinea Exp $
+ * $Id: amandad.c,v 1.18.2.5 2007/01/10 16:26:57 martinea Exp $
  *
  * handle client-host side of Amanda network communications, including
  * security checks, execution of the proper service, and acking the
@@ -615,7 +615,7 @@ protocol_accept(
 		strcmp(as->arguments, arguments) == 0) {
 		    dbprintf(("%s: %s %s: already running, acking req\n",
 			debug_prefix_time(NULL), service, arguments));
-		    pkt_init(&pkt_out, P_ACK, "");
+		    pkt_init_empty(&pkt_out, P_ACK);
 		    goto send_pkt_out_no_delete;
 	    }
     }
@@ -730,6 +730,7 @@ state_machine(
 		pkt_type2str(pkt->type));
 	    do_sendpkt(as->security_handle, &nak);
 	    amfree(nak.body);
+	    security_recvpkt(as->security_handle, protocol_recv, as, -1);
 #ifdef AMANDAD_DEBUG
 	    dbprintf(("%s: state_machine: %p leaving (A_SENDNAK)\n",
 		debug_prefix_time(NULL), as));
@@ -770,7 +771,7 @@ s_sendack(
     (void)action;	/* Quiet unused parameter warning */
     (void)pkt;		/* Quiet unused parameter warning */
 
-    pkt_init(&ack, P_ACK, "");
+    pkt_init_empty(&ack, P_ACK);
     if (do_sendpkt(as->security_handle, &ack) < 0) {
 	dbprintf(("%s: error sending ACK: %s\n",
 	    debug_prefix_time(NULL), security_geterror(as->security_handle)));
@@ -823,8 +824,9 @@ s_repwait(
 	    dbprintf(("%s: received dup P_REQ packet, ACKing it\n",
 		debug_prefix_time(NULL)));
 	    amfree(as->rep_pkt.body);
-	    pkt_init(&as->rep_pkt, P_ACK, "");
+	    pkt_init_empty(&as->rep_pkt, P_ACK);
 	    do_sendpkt(as->security_handle, &as->rep_pkt);
+	    security_recvpkt(as->security_handle, protocol_recv, as, -1);
 	    return (A_PENDING);
 	}
 	/* something unexpected.  Nak it */
@@ -879,7 +881,7 @@ s_repwait(
 	    pkt_init(&as->rep_pkt, P_PREP, "%s", as->repbuf);
 	    do_sendpkt(as->security_handle, &as->rep_pkt);
 	    amfree(as->rep_pkt.body);
-	    pkt_init(&as->rep_pkt, P_REP, "");
+	    pkt_init_empty(&as->rep_pkt, P_REP);
 	}
  
 	return (A_PENDING);
@@ -934,7 +936,7 @@ s_processrep(
      */
     repbuf = stralloc(as->repbuf);
     amfree(as->rep_pkt.body);
-    pkt_init(&as->rep_pkt, P_REP, "");
+    pkt_init_empty(&as->rep_pkt, P_REP);
     tok = strtok(repbuf, " ");
     if (tok == NULL)
 	goto error;
@@ -1053,7 +1055,7 @@ s_ackwait(
 	if (dh->netfd == NULL)
 	    continue;
 	if (security_stream_accept(dh->netfd) < 0) {
-	    dbprintf(("%s: stream %d accept failed: %s\n",
+	    dbprintf(("%s: stream %ld accept failed: %s\n",
 		debug_prefix_time(NULL),
 		dh - &as->data[0], security_geterror(as->security_handle)));
 	    security_stream_close(dh->netfd);
@@ -1589,7 +1591,10 @@ do_sendpkt(
 {
     dbprintf(("%s: sending %s pkt:\n<<<<<\n%s>>>>>\n",
 	debug_prefix_time(NULL), pkt_type2str(pkt->type), pkt->body));
-    return security_sendpkt(handle, pkt);
+    if (handle)
+	return security_sendpkt(handle, pkt);
+    else
+	return 1;
 }
 
 #ifdef AMANDAD_DEBUG

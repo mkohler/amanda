@@ -1,14 +1,12 @@
-amanda (1:2.5.1p1-2.1) unstable; urgency=medium
+amanda (1:2.5.1p3-1) unstable; urgency=low
 
-  * Non maintainer upload.
-  * Do not fail postrm when removing the backup user from either
-    group disk or tape does not succeed.  Also, try this only
-    when the backup user is in those groups to begin with.  Also
-    handles the case of deluser not existing anymore.
-    Based in parts on the patch provided by Andreas Henriksson and
-    the cupsys postinst script (closes: #399790).
+  * new upstream version, closes: #402221
+  * merge updated es.po, closes: #409316
+  * merge updated pt.po, closes: #409697
+  * fix for segfault in amfetchdump, closes: #411470
+  * update inetd and xinetd configs for new security model, closes: #402215
 
- -- Peter Palfrader <weasel@debian.org>  Wed, 29 Nov 2006 01:57:01 +0100
+ -- Bdale Garbee <bdale@gag.com>  Tue, 20 Feb 2007 13:05:28 +0900
 
 amanda (1:2.5.1p1-2) unstable; urgency=medium
 

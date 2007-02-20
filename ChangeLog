@@ -1,3 +1,447 @@
+2007-02-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amindexd.c: Use dbfd.
+
+2007-02-06  Jean-Louis Martineau <martineau@zmanda.com>
+	* Amanda 2.5.1p3 released.
+	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.5.1p3).
+	* NEWS: Update for 2.5.1p3
+
+2007-02-06  Jean-Louis Martineau <martineau@zmanda.com>
+	* man/xml-source/amcheck.8.xml,
+	  server-src/amlabel.c: Merge from zmanda.
+
+2007-02-06  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/clock.c (timesub): The result must always be positive.
+
+2007-02-05  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-zd-mtx.sh.in: Fix for sed and IMPORT/EXPORT.
+
+2007-02-05  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amcheck.c: Add parentheses.
+
+2007-02-02  Jean-Louis Martineau <martineau@zmanda.com>
+	* docs/*.txt: Update from xml-docs.
+
+2007-02-02  Jean-Louis Martineau <martineau@zmanda.com>
+	* man/Makefile.am: Use http://docbook.sourceforge.net
+	* man/xml-source/amadmin.8.xml, man/xml-source/amaespipe.8.xml,
+	  man/xml-source/amanda.8.xml, man/xml-source/amanda-client.conf.5.xml,
+	  man/xml-source/amanda.conf.5.xml, man/xml-source/amcheck.8.xml,
+	  man/xml-source/amcrypt.8.xml, man/xml-source/amdump.8.xml,
+	  man/xml-source/amfetchdump.8.xml, man/xml-source/amflush.8.xml,
+	  man/xml-source/amgetconf.8.xml, man/xml-source/amlabel.8.xml,
+	  man/xml-source/ammt.8.xml, man/xml-source/amrecover.8.xml,
+	  man/xml-source/amreport.8.xml,
+	  man/xml-source/amtape.8.xml: Fix for xmllint.
+	* man/xslt/man.xsl: Remove bogus code.
+
+2007-02-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-zd-mtx.sh.in: Support IMPORT/EXPORT slot.
+
+2007-02-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amdump.sh.in: Output a starttime line.
+	* server-src/amflush.c: Output a starttime line.
+	* server-src/amstatus.pl.in: parse the starttime line.
+
+2007-01-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amdump.sh.in: Exit with a status.
+
+2007-01-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/diskfile.c: Use hostnext pointer.
+
+2007-01-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/reporter.c: Exit with a status.
+
+2007-01-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amstatus.pl.in: Exit with a status.
+
+2007-01-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amstatus.pl.in: Detect failed dump to tape.
+
+2007-01-25  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/changer.c (changer_command): Send stderr to dbfd().
+
+2007-01-25  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/diskfile.c: Check hostname have same case.
+
+2007-01-25  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-zd-mtx.sh.in: Check if MT and MTX exists.
+
+2007-01-25  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-zd-mtx.sh.in: Set CHANGER environment variable.
+
+2007-01-24  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/clientconf.c: Don;t check for duplicate -o options.
+	* common-src/util.c: Check for duplicate -o options.
+	* recover-src/amrecover.c: Change precedence of option.
+
+2007-01-24  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/diskfile.c: Fix compiler warning.
+
+2007-01-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/security-util.c (tcpm_recv_token): Check size < 0.
+
+2007-01-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/diskfile.c: Check duplicate DLE with match_host and
+				 match_disk.
+
+2007-01-18  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/selfcheck.c: Improve check if /etc/dumpdates in not there.
+
+2007-01-18  Jean-Louis Martineau <martineau@zmanda.com>
+	* restore-src/amfetchdump.c: Set arg_state to ARG_GET_HOST.
+
+2007-01-18  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amcheck.c: Check tape_access.
+	* server-src/taper.c: Improve message.
+
+2007-01-16  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/getconf.c: Fix segfault in parameter parsing.
+
+2007-01-11  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/conffile.c Set default length/filemark correctly.
+	* man/xml-source/amanda.conf.5.xml: Document they are in kbytes.
+
+2007-01-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c (do_sendpkt): Send packet if handle != NULL.
+
+2007-01-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/util.c, common-src/util.h, server-src/conffile.c,
+	  server-src/diskfile.c: Keep different list for exclude file and list.
+
+2007-01-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/taper.c (read_file): Don't count first header twice.
+
+2007-01-05  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amstatus.pl.in: Fix split-dump accounting.
+
+2007-01-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* restore-src/restore.c: Use prompt_in.
+
+2007-01-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-chio.pl.in, changer-src/chg-iomega.pl.in,
+	  changer-src/chg-rth.pl.in, dumper-src/gnutar.pl.in,
+	  server-src/amoverview.pl.in, server-src/amstatus.pl.in,
+	  server-src/amtoc.pl.in: Clean ENV and set PATH.
+
+2006-12-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: Don't repport error for many run in a day if
+			       it's amflush.
+
+2006-12-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/util.c (quote_string): Escape '\' character.
+
+2006-12-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* recover-src/display_commands.c: Send quoted text to amindexd.
+	* recover-src/extract_list.c: Send quoted text to amindexd.
+	* recover-src/set_commands.c: Send quoted text to amindexd.
+
+2006-12-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-disk.sh.in: LASTSLOT in a changerfile for chg-disk.
+
+2006-12-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendsize.c: Compilation fix.
+
+2006-12-18  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/packet.c (pkt_init_empty): New function.
+	* common-src/packet.h (pkt_init_empty): New prototype.
+	* amandad-src/amandad.c, common-src/protocol.c,
+	  common-src/security-util.c: Use pkt_init_empty.
+
+2006-12-18  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/conffile.c: Print nothing if the list is emtpy.
+
+2006-12-14  Jean-Louis Martineau <martineau@zmanda.com>
+	* restore-src/restore.c: Fix filename for output file.
+
+2006-12-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/util.c: Fix printf format error.
+
+2006-12-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/amanda.h: Define __attribute__ for gcc >= 3.
+	* common-src/packet.c (pkt_init): Accept NULL for fmt.
+	* amandad-src/amandad.c, common-src/protocol.c,
+	  common-src/security-util.c: Pass NULL to pkt_init.
+	* amandad-src/amandad.c, changer-src/chg-scsi.c,
+	  changer-src/scsi-linux.c, client-src/sendbackup.c,
+	  common-src/amanda.h, common-src/event.c,
+	  common-src/packet.c, common-src/security-util.c,
+	  common-src/stream.c, oldrecover-src/amrecover.c,
+	  restore-src/restore.c, server-src/amcheck.c,
+	  server-src/driver.c, server-src/driverio.c,
+	  server-src/taper.c: Fix printf format error.
+
+2006-12-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amindexd.c: Use fgets to read index file because they
+	                         are not quoted.
+
+2006-12-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* configure.in: Find patch for sort program.
+	* server-src/amindexd.c: Clean the indexd file between the uncompress
+				 and sort process.
+
+2006-12-08  Jean-Louis Martineau <martineau@zmanda.com>
+	* man/xml-source/amadmin.8.xml, man/xml-source/amanda.8.xml,
+	  man/xml-source/amanda.conf.5.xml, man/xml-source/amcheck.8.xml,
+	  man/xml-source/amfetchdump.8.xml, man/xml-source/ammt.8.xml,
+	  man/xml-source/amrecover.8.xml: Move </note> tag to beginning of line
+
+2006-12-08  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-rait.sh.in: Fix typo for -reset.
+
+2006-12-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/util.c (lookup_keyword): Use strcasecmp.
+	* common-src/util.c (get_conftoken): Don;t convert to uppercase.
+	* server-src/getconf.c: Don;t print extra '\n' for --list.
+
+2006-12-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amtape.h: Remove file.
+
+2006-11-29  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendbackup.c: Kill dump process on error.
+
+2006-11-29  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-chio.pl.in: Check tapedev is set.
+	* changer-src/chg-disk.sh.in: Check tapedev is set.
+	* changer-src/chg-iomega.pl.in: Check tapedev is set.
+	* changer-src/chg-manual.sh.in: Check tapedev is set.
+	* changer-src/chg-mtx.sh.in: Check tapedev is set.
+	* changer-src/chg-rth.pl.in: Check tapedev is set.
+	* server-src/amcheck.c: Tapedev is needed only if tpchanger is not set.
+	* server-src/amflush.c: Tapedev is needed only if tpchanger is not set.
+	* server-src/amindexd.c: Tapedev is needed only if tpchanger is not set
+	* server-src/taper.c: Tapedev is needed only if tpchanger is not set.
+
+2006-11-29  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendbackup.c: Ignore tar exit with status 1.
+
+2006-11-29  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amindexd.c (clean_backslash): New function use to unescape
+						 '\' characters in index files.
+
+2006-11-29  Jean-Louis Martineau <martineau@zmanda.com>
+	* restore-src/restore.c (search_tapes): Fix prompt_out setting.
+
+2006-11-24  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/util.c (copy_file): Fix compilation error.
+
+2006-11-24  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendbackup-dump.c, client-src/sendbackup-gnutar.c,
+	  client-src/sendsize.c,
+	  server-src/amindexd.c: Patch for gcc-3.2.3 to compile the new
+				 vstralloc macro.
+
+2006-11-24  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/file.c (old_sanitise_filename): New function.
+	* common-src/amanda.h (old_sanitise_filename): Prototype.
+	* common-src/util.c (copy_file): New function.
+	* common-src/util.h (copy_file): Prototype.
+	* server-src/diskfile.c: Check that two DLE doesn't get the same
+				 sanitized filename.
+	* server-src/amindex.c (getoldindexfname): New function.
+	* server-src/amindex.h (getoldindexfname): prototype.
+	* server-src/amindexd.c: Use the old sanitized filename if the new
+				 file doesn't exist.
+	* server-src/amcheck.c: Call check_infofile.
+	* server-src/planner.c: Call check_infofile.
+	* server-src/server_util.c (check_infofile): New function, will copy
+			 the old sanitizes info file if the new doesn't exist.
+	* server-src/server_util.h (check_infofile): Prototype.
+
+2006-11-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/security-util.c (tcpm_recv_token): amanda protocol
+	  packet can be larger than NETWORK_BLOCK_BYTES
+
+2006-11-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendsize.c: Open the amandates file after the
+				 <config>/amanda-client.conf file is loaded.
+
+2006-11-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/security-util.c, server-src/amcheck.c,
+	* server-src/driver.c, server-src/dumper.c,
+	* server-src/planner.c, tape-src/output-file.c: Lint cleanup.
+
+2006-11-20  Ian Turner <ian@zmanda.com>
+	* tape-src/output-file.c: Fix a compilation error related to
+	  improper type casts. Thanks to Satya Ganga for noticing this
+	  problem.
+
+2006-11-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: Use temporary variable to scanf an OFF_T_FMT.
+	* server-src/planner.c: Use temporary variable to scanf an OFF_T_FMT.
+
+2006-11-13  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/selfcheck.c: Work for estimate calcsize and
+				  program "DUMP".
+
+2006-11-13  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amcheck.c: Don't ouput an warning if holdingdisk 'use'
+				is set to 0.
+
+2006-11-09  Jean-Louis Martineau <martineau@zmanda.com>
+	* Amanda 2.5.1p2 released.
+	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.5.1p2).
+	* NEWS: Update for 2.5.1p2
+
+2006-11-09  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/conffile.c (getconf_byname):
+	                        Parse "DEFINE:identifer:parameter" format.
+	* server-src/conffile.c (getconf_list): New function to list a DEFINE.
+	* server-src/conffile.c (lookup_holdingdisk): New function.
+	* server-src/conffile.h (getconf_list,
+	                         lookup_holdingdisk): New prototype.
+	* server-src/getconf.c: accept --list argument and
+	                        "DEFINE:identifer:parameter" format.
+	* man/xml-source/amgetconf.8.xml: Document.
+
+2006-11-09  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-scsi.c: Don't remove '_' from "generic_changer".
+	
+2006-11-08  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/amanda.h, common-src/security-util.c,
+	  common-src/util.h, configure.in,
+	  oldrecover-src/amrecover.c, oldrecover-src/extract_list.c,
+	  recover-src/amrecover.c, recover-src/extract_list.c,
+	  restore-src/amrestore.c, server-src/conffile.c,
+	  server-src/dumper.c: Fix compiler error on Tru64.
+
+2006-11-08  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: set off_t variable to 0 before sscanf.
+	* server-src/planner.c: set off_t variable to 0 before sscanf.
+
+2006-11-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amstatus.pl.in: Improve error message.
+
+2006-11-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/security-util.c: Fix coverity bug 170.
+	* server-src/diskfile.c: Fix coverity bug 147.
+
+2006-11-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/conffile.c (validate_chunksize): Check chunksize is >=
+						      2*DISK_BLOCK_KB
+
+2006-11-06  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/amanda.h: Define OFF_T_STRTOL.
+	* configure.in: Check for strtol and strtoll.
+
+2006-11-02  Ian Turner <ian@zmanda.com>
+	* common-src/amanda.h: Use atol if atoll is missing.
+
+2006-11-02  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/security-util.c: Better message on invalid size.
+
+2006-11-02  Jean-Louis Martineau <martineau@zmanda.com>
+	* configure.in: List bsdudp as a udp transport.
+
+2006-11-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/diskfile.c: Don't use 0 for NULL.
+
+2006-11-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/clientconf.c: Define AMANDATES_FILE
+	* client-src/amandates.h: Don't define AMANDATES_FILE
+
+2006-11-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: Rename DUMPTYPE_START_T to DUMPTYPE_STARTTIME.
+	* common-src/conffile.h: Rename DUMPTYPE_START_T to DUMPTYPE_STARTTIME.
+	* server-src/amadmin.c (disklist_one): Print correct starttime.
+	* server-src/diskfile.c: Set start_t to starttime.
+	* server-src/diskfile.h (disk_t): Add starttime.
+	* common-src/conffile.c (conf_print): Add a parameter if we want
+	                                      CONFTYPE_STRING enclosed in ".
+	* server-src/planner.c: Use getconf_int to get etimeout value.
+	* common-src/conffile.c (CNF_CTIMEOUT, CNF_DTIMEOUT, CNF_ETIMEOUT):
+	  They are of type CONFTYPE_INT
+	  (CONFTYPE_TIME are for value parsed as "hhmm"")
+	* common-src/conffile.c (getconf_byname): Use conf_print().
+	* common-src/conffile.h: Add comment.
+	* server-src/amcheck.c, server-src/dumper.c, server-src/planner.c:
+	  Use getconf_int to get timeout value.
+
+2006-11-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/scsi-changer-driver.c: Add Tandberg SLR100,
+	                                     more debugging.
+	* changer-src/sense.c: Add Tandberg SLR100 Tape Drive "SLR100".
+
+2006-11-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/amanda.h: Define dbrename if !DEBUG_CODE.
+	* restore-src/amidxtaped.c: Declare i if !DEBUG_CODE.
+
+2006-10-25  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amtape.c: Use parse_conf instead of parse_server_conf.
+	* server-src/diskfile.c: Correct hostname allocation.
+
+2006-10-25  Jean-Louis Martineau <martineau@zmanda.com>
+	Patch by Jay Fenlason
+	* common-src/rsh-security.c: Fix.
+
+2006-10-24  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c (get_config_options): Build and argv of the
+	                                              -o arguments.
+	* common-src/conffile.h (get_config_options): Prototype.
+	* server-src/driverio.c: exec dumper/chunker/driver with the argv from
+	                         get_config_options
+	* server-src/amtape.c: Accept -o argument.
+	* man/xml-source/amtape.8.xml: Document it.
+
+2006-10-24  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/taper.c: Fix allocation problem on tapedev.
+
+2006-10-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/taper.c (free_split_buffer): Correct free.
+
+2006-10-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* man/xml-source/amanda.conf.5.xml: Fix formating.
+
+2006-10-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/calcsize.c: Quote amname.
+
+2006-10-16  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/dgram.c (dgram_cat),
+	  common-src/packet.c (pkt_init, pkt_cat): Works correctly with
+						   vsnprintf returning -1.
+
+2006-10-11  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/planner.c: Improve message for dump larger than available
+				tape space if runtapes > 1 and splitsize == 0.
+
+2006-10-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c (wait_children): Don't crash if dumper->chunker
+					       is NULL
+
+2006-10-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c: Call security_recvpkt() on A_SENDNACK
+				 and dup P_REQ.
+	* common-src/security-util.c: Improve message.
+
+2006-10-03  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amcleanupdisk.c: Accept -o arguments.
+	* server-src/amcleanup.sh.in: Add missing 'shift' for non-linux system.
+				      Accept -o arguments.
+
+2006-10-03  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amoverview.pl.in: Fix parsing of time field from amadmin.
+
+2006-10-03  Jean-Louis Martineau <martineau@zmanda.com>
+	* restore-src/amidxtaped.c, restore-src/restore.c,
+	  server-src/amcheck.c, server-src/amflush.c,
+	  server-src/amlabel.c, server-src/taper.c,
+	  server-src/taperscan.c: Check for CNF_TAPEDEV == NULL.
+
+2006-10-03  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/conffile.c: Don't set CNF_TAPEDEV to DEFAULT_TAPE_DEVICE.
+	* configure.in: Don't set DEFAULT_TAPE_DEVICE.
+
+2006-09-29  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/bsdtcp-security.c: Add logging on error.
+
+2006-09-29  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amoverview.pl.in: Use shellwords instead of quotewords,
+	  don't add date for disk not in the disklist.
+
+2006-09-28  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/bsd-security.c: Fix %hd printf argument format.
+	* common-src/security-util.c: Fix %hd printf argument format.
+
 2006-09-27  Jean-Louis Martineau <martineau@zmanda.com>
 	* Amanda 2.5.1p1 released.
 	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.5.1p1).

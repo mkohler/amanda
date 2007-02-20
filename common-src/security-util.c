@@ -25,7 +25,7 @@
  */
 
 /*
- * $Id: security-util.c,v 1.25 2006/07/22 12:04:47 martinea Exp $
+ * $Id: security-util.c,v 1.25.2.10 2007/01/24 00:35:14 martinea Exp $
  *
  * sec-security.c - security and transport over sec or a sec-like command.
  *
@@ -511,17 +511,51 @@ tcpm_recv_token(
     }
 
     *size = (ssize_t)ntohl(netint[0]);
-    if (*size > NETWORK_BLOCK_BYTES) {
-	*errmsg = newvstralloc(*errmsg, "tcpm_recv_token: invalid size",
+    *handle = (int)ntohl(netint[1]);
+    /* amanda protocol packet can be above NETWORK_BLOCK_BYTES */
+    if (*size > 128*NETWORK_BLOCK_BYTES || *size < 0) {
+	if (isprint((*size        ) & 0xFF) &&
+	    isprint((*size   >> 8 ) & 0xFF) &&
+	    isprint((*size   >> 16) & 0xFF) &&
+	    isprint((*size   >> 24) & 0xFF) &&
+	    isprint((*handle      ) & 0xFF) &&
+	    isprint((*handle >> 8 ) & 0xFF) &&
+	    isprint((*handle >> 16) & 0xFF) &&
+	    isprint((*handle >> 24) & 0xFF)) {
+	    char s[101];
+	    int i;
+	    s[0] = (*size   >> 24) & 0xFF;
+	    s[1] = (*size   >> 16) & 0xFF;
+	    s[2] = (*size   >>  8) & 0xFF;
+	    s[3] = (*size        ) & 0xFF;
+	    s[4] = (*handle >> 24) & 0xFF;
+	    s[5] = (*handle >> 16) & 0xFF;
+	    s[6] = (*handle >> 8 ) & 0xFF;
+	    s[7] = (*handle      ) & 0xFF;
+	    i = 8; s[i] = ' ';
+	    while(i<100 && isprint(s[i]) && s[i] != '\n') {
+		switch(net_read(fd, &s[i], 1, 0)) {
+		case -1: s[i] = '\0'; break;
+		case  0: s[i] = '\0'; break;
+		default: dbprintf(("read: %c\n", s[i])); i++; s[i]=' ';break;
+		}
+	    }
+	    s[i] = '\0';
+	    *errmsg = newvstralloc(*errmsg, "tcpm_recv_token: invalid size: ",
+				   s, NULL);
+	    dbprintf(("%s: tcpm_recv_token: invalid size: %s\n",
+		      debug_prefix_time(NULL), s));
+	} else {
+	    *errmsg = newvstralloc(*errmsg, "tcpm_recv_token: invalid size",
 				   NULL);
-	dbprintf(("%s: tcpm_recv_token: invalid size %d\n",
-		   debug_prefix_time(NULL), *size));
+	    dbprintf(("%s: tcpm_recv_token: invalid size %zd\n",
+		      debug_prefix_time(NULL), *size));
+	}
 	*size = -1;
 	return -1;
     }
     amfree(*buf);
     *buf = alloc((size_t)*size);
-    *handle = (int)ntohl(netint[1]);
 
     if(*size == 0) {
 	secprintf(("%s: tcpm_recv_token: read EOF from %d\n",
@@ -548,7 +582,7 @@ tcpm_recv_token(
 	break;
     }
 
-    secprintf(("%s: tcpm_recv_token: read %ld bytes from %d\n",
+    secprintf(("%s: tcpm_recv_token: read %zd bytes from %d\n",
 	       debug_prefix_time(NULL), *size, *handle));
     return((*size));
 }
@@ -599,7 +633,7 @@ tcpma_stream_client(
 
     if (id <= 0) {
 	security_seterror(&rh->sech,
-	    "%hd: invalid security stream id", id);
+	    "%d: invalid security stream id", id);
 	return (NULL);
     }
 
@@ -619,7 +653,7 @@ tcpma_stream_client(
 	rh->rc = rs->rc;
     }
 
-    secprintf(("%s: sec: stream_client: connected to stream %hd\n",
+    secprintf(("%s: sec: stream_client: connected to stream %d\n",
 	       debug_prefix_time(NULL), id));
 
     return (rs);
@@ -661,8 +695,6 @@ tcpma_stream_server(
 	return (NULL);
     }
     assert(strcmp(rh->hostname, rs->rc->hostname) == 0);
-    //amfree(rh->hostname);
-    //rh->hostname = stralloc(rs->rc->hostname);
     /*
      * so as not to conflict with the amanda server's handle numbers,
      * we start at 500000 and work down
@@ -1177,7 +1209,6 @@ udp_recvpkt_callback(
 	SIZEOF(rh->udp->peer.sin_addr)) != 0 ||
 	rh->peer.sin_port != rh->udp->peer.sin_port) {
 	amfree(rh->udp->handle);
-	//rh->udp->handle = NULL;
 	return;
     }
 
@@ -1237,8 +1268,8 @@ udp_inithandle(
     /*
      * Save the hostname and port info
      */
-    secprintf(("%s: udp_inithandle port %hd handle %s sequence %d\n",
-	       debug_prefix_time(NULL), ntohs(port),
+    secprintf(("%s: udp_inithandle port %u handle %s sequence %d\n",
+	       debug_prefix_time(NULL), (unsigned int)ntohs(port),
 	       handle, sequence));
     assert(he != NULL);
 
@@ -1266,7 +1297,7 @@ udp_inithandle(
     if (strncasecmp(rh->hostname, he->h_name, strlen(rh->hostname)) != 0) {
     secprintf(("%s: udp: cc\n", debug_prefix_time(NULL)));
 	security_seterror(&rh->sech,
-			  "%s: did not resolve to itself, it resolv to",
+			  "%s: did not resolve to itself, it resolv to %s",
 			  rh->hostname, he->h_name);
 	return (-1);
     }
@@ -1644,7 +1675,7 @@ stream_read_sync_callback(
 	return;
     }
     secprintf((
-	     "%s: sec: stream_read_callback_sync: read %ld bytes from %s:%d\n",
+	     "%s: sec: stream_read_callback_sync: read %zd bytes from %s:%d\n",
 	     debug_prefix_time(NULL),
         rs->rc->pktlen, rs->rc->hostname, rs->handle));
 }
@@ -1695,7 +1726,7 @@ stream_read_callback(
 	(*rs->fn)(rs->arg, NULL, rs->rc->pktlen);
 	return;
     }
-    secprintf(("%s: sec: stream_read_callback: read %ld bytes from %s:%d\n",
+    secprintf(("%s: sec: stream_read_callback: read %zd bytes from %s:%d\n",
 	       debug_prefix_time(NULL),
 	rs->rc->pktlen, rs->rc->hostname, rs->handle));
     (*rs->fn)(rs->arg, rs->rc->pkt, rs->rc->pktlen);
@@ -1736,7 +1767,8 @@ sec_tcp_conn_read_callback(
 	/* delete our 'accept' reference */
 	if (rc->accept_fn != NULL) {
 	    if(rc->refcnt != 1) {
-		dbprintf(("STRANGE, rc->refcnt should be 1"));
+		dbprintf(("STRANGE, rc->refcnt should be 1, it is %d\n",
+			  rc->refcnt));
 		rc->refcnt=1;
 	    }
 	    rc->accept_fn = NULL;
@@ -1875,7 +1907,7 @@ str2pkthdr(
     if ((tok = strtok(NULL, " ")) == NULL)
 	goto parse_error;
     amfree(pkt->body);
-    pkt_init(pkt, pkt_str2type(tok), "");
+    pkt_init_empty(pkt, pkt_str2type(tok));
     if (pkt->type == (pktype_t)-1)    
 	goto parse_error;
 
@@ -2379,7 +2411,8 @@ check_security(
     if (ntohs(addr->sin_port) >= IPPORT_RESERVED) {
 	char number[NUM_STR_SIZE];
 
-	snprintf(number, SIZEOF(number), "%hd", (short)ntohs(addr->sin_port));
+	snprintf(number, SIZEOF(number), "%u",
+		 (unsigned int)ntohs(addr->sin_port));
 	*errstr = vstralloc("[",
 			    "host ", remotehost, ": ",
 			    "port ", number, " not secure",

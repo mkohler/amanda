@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amanda.h,v 1.131 2006/07/25 18:27:56 martinea Exp $
+ * $Id: amanda.h,v 1.131.2.5 2006/12/12 14:56:38 martinea Exp $
  *
  * the central header file included by all amanda sources
  */
@@ -374,7 +374,7 @@ extern int errno;
  * for printf-like functions).  Only do this in gcc 2.7 or later ...
  * it may work on earlier stuff, but why chance it.
  */
-#if !defined(__GNUC__) || __GNUC__ < 2 || __GNUC_MINOR__ < 7 || defined(S_SPLINT_S) || defined(LINT) || defined(__lint)
+#if !defined(__GNUC__) || __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 7) || defined(S_SPLINT_S) || defined(LINT) || defined(__lint)
 #undef __attribute__
 #define __attribute__(__x)
 #endif
@@ -428,6 +428,7 @@ extern char *debug_prefix_time(char *);
 #else									/* }{ */
 #   define dbopen(a)
 #   define dbreopen(a,b)
+#   define dbrename(a,b)
 #   define dbclose()
 #   define dbprintf(p)
 #   define dbfd()	(-1)
@@ -852,6 +853,7 @@ extern int    amfunlock(int fd, char *resource);
 extern int    mkpdir(char *file, mode_t mode, uid_t uid, gid_t gid);
 extern int    rmpdir(char *file, char *topdir);
 extern char  *sanitise_filename(char *inp);
+extern char  *old_sanitise_filename(char *inp);
 
 /* from old bsd-security.c */
 extern int debug;
@@ -1338,11 +1340,19 @@ extern ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
 #endif
 
 #if SIZEOF_OFF_T > SIZEOF_LONG
-#  define        OFF_T_FMT       "%lld"
-#  define        OFF_T_RFMT       "lld"
+#  define        OFF_T_FMT       LL_FMT
+#  define        OFF_T_RFMT      LL_RFMT
 #  define        OFF_T_FMT_TYPE  long long
-#  define        OFF_T_ATOI	 (off_t)atoll
-#  define        OFF_T_STRTOL	 (off_t)strtoll
+#  ifdef HAVE_ATOLL
+#    define      OFF_T_ATOI	 (off_t)atoll
+#  else
+#    define      OFF_T_ATOI      (off_t)atol
+#  endif
+#  ifdef HAVE_STRTOLL
+#    define      OFF_T_STRTOL	 (off_t)strtoll
+#  else
+#    define      OFF_T_STRTOL      (off_t)strtol
+#  endif
 #else
 #  if SIZEOF_OFF_T == SIZEOF_LONG
 #    define        OFF_T_FMT       "%ld"

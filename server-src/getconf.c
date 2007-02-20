@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: getconf.c,v 1.26 2006/07/25 19:00:56 martinea Exp $
+ * $Id: getconf.c,v 1.26.2.3 2007/01/16 12:36:47 martinea Exp $
  *
  * a little wrapper to extract config variables for shell scripts
  */
@@ -424,9 +424,11 @@ main(
     char *conffile;
     char *parmname;
     int i;
+    int asklist;
     char number[NUM_STR_SIZE];
     int    new_argc,   my_argc;
     char **new_argv, **my_argv;
+    int myarg;
 
     safe_fd(-1, 0);
 
@@ -447,14 +449,25 @@ main(
     signal(SIGPIPE, SIG_IGN);
 
     if(my_argc < 2) {
-	fprintf(stderr, "Usage: %s [config] <parmname> [-o configoption]*\n", pgm);
+	fprintf(stderr, "Usage: %s [config] [--list] <parmname> [-o configoption]*\n", pgm);
 	exit(1);
     }
 
-    if (my_argc > 2) {
+    asklist = 0;
+    myarg = 1;
+    if (strcmp(my_argv[1],"--list") == 0) {
+	asklist = 1;
+	myarg = 2;
+    } else if (my_argc > 2 && strcmp(my_argv[2],"--list") == 0) {
+	asklist = 1;
+	myarg = 3;
+    } else if (my_argc > 2) {
+	myarg = 2;
+    }
+
+    if (myarg > asklist+1) {
 	config_name = stralloc(my_argv[1]);
 	config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
-	parmname = my_argv[2];
     } else {
 	char my_cwd[STR_SIZE];
 
@@ -466,8 +479,11 @@ main(
 	if ((config_name = strrchr(my_cwd, '/')) != NULL) {
 	    config_name = stralloc(config_name + 1);
 	}
-	parmname = my_argv[1];
     }
+    if (myarg >= my_argc) {
+	error("Must specify a parameter");
+    }
+    parmname = my_argv[myarg];
 
     safe_cd();
 
@@ -569,7 +585,11 @@ main(
 	amfree(conffile);
 	dbrename(config_name, DBG_SUBDIR_SERVER);
 	report_bad_conf_arg();
-	result = getconf_byname(parmname);
+	if (asklist) {
+	    result = getconf_list(parmname);
+	} else {
+	    result = getconf_byname(parmname);
+	}
     }
 
     if (result == NULL) {
@@ -577,7 +597,10 @@ main(
 		get_pname(), parmname);
 	fflush(stderr);
     } else {
-	puts(result);
+	if (asklist)
+	    fputs(result, stdout); /* don't add a '\n' */
+	else
+	    puts(result); /* add a '\n' */
     }
 
     free_new_argv(new_argc, new_argv);

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /* 
- * $Id: sendsize.c,v 1.171.2.1 2006/09/22 11:51:32 martinea Exp $
+ * $Id: sendsize.c,v 1.171.2.4 2006/12/22 14:42:42 martinea Exp $
  *
  * send estimated backup sizes using dump
  */
@@ -140,6 +140,7 @@ main(
     char *qamdevice = NULL;
     char *conffile;
     char *amandates_file;
+    int   amandates_read = 0;
 #if defined(USE_DBMALLOC)
     unsigned long malloc_hist_1, malloc_size_1;
     unsigned long malloc_hist_2, malloc_size_2;
@@ -181,10 +182,6 @@ main(
 
     /* handle all service requests */
 
-    amandates_file = client_getconf_str(CLN_AMANDATES);
-    if(!start_amandates(amandates_file, 0))
-        error("error [opening %s: %s]", amandates_file, strerror(errno));
-
     for(; (line = agets(stdin)) != NULL; free(line)) {
 	if (line[0] == '\0')
 	    continue;
@@ -224,6 +221,14 @@ main(
 	    }
 
 	    continue;
+	}
+
+	if (amandates_read == 0) {
+	    amandates_file = client_getconf_str(CLN_AMANDATES);
+	    if(!start_amandates(amandates_file, 0))
+	        error("error [opening %s: %s]", amandates_file,
+		      strerror(errno));
+	    amandates_read = 1;
 	}
 
 	s = line;
@@ -1054,7 +1059,7 @@ getsize_dump(
     char *qdisk = quote_string(disk);
     char *qdevice;
     char *config;
-#ifdef DUMP
+#if defined(DUMP) || defined(VDUMP) || defined(VXDUMP) || defined(XFSDUMP)
     int is_rundump = 1;
 #endif
 
@@ -1173,13 +1178,19 @@ getsize_dump(
 	dbprintf(("%s: running \"%s%s %s - %s\"\n",
 		  debug_prefix_time(NULL), cmd, name, dumpkeys, qdevice));
 # else							/* } { */
+#  ifdef HAVE_DUMP_ESTIMATE
+#    define PARAM_DUMP_ESTIMATE HAVE_DUMP_ESTIMATE
+#  else
+#    define PARAM_DUMP_ESTIMATE ""
+#  endif
+#  ifdef HAVE_HONOR_NODUMP
+#    define PARAM_HONOR_NODUMP "h"
+#  else
+#    define PARAM_HONOR_NODUMP ""
+#  endif
 	dumpkeys = vstralloc(level_str,
-#  ifdef HAVE_DUMP_ESTIMATE				/* { */
-			     HAVE_DUMP_ESTIMATE,
-#  endif						/* } */
-#  ifdef HAVE_HONOR_NODUMP				/* { */
-			     "h",
-#  endif						/* } */
+			     PARAM_DUMP_ESTIMATE,
+			     PARAM_DUMP_ESTIMATE,
 			     "s", "f", NULL);
 
 #  ifdef HAVE_DUMP_ESTIMATE
