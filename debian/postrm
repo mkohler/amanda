@@ -1,12 +1,6 @@
 #!/bin/sh -e
 case "$1" in
   purge)
-	if [ -d /etc/amanda ]; then
-		# remove all registered config files
-		rm -rf `cat /var/lib/dpkg/info/amanda-common.conffiles`
-		# remove /etc amanda if there are no files left
-		rmdir /etc/amanda 2> /dev/null || true
-	fi
 	if [ -d /var/log/amanda ]; then
 		rm -rf /var/log/amanda
 	fi
@@ -27,8 +21,17 @@ case "$1" in
 
 	rm -f ~backup/.amandahosts
 
-	deluser backup disk
-	deluser backup tape
+	if which deluser >/dev/null 2>&1 ; then
+		for group in disk tape; do
+			# only call deluser when backup is in $group
+			if getent group "$group" |
+			   awk -F: '{ print $4 }' |
+			   awk -F, '{ for (i=1; i <= NF; i++ ) print $i }' |
+			   grep '^backup$' > /dev/null; then
+				deluser backup "$group" || true
+			fi
+		done
+	fi
   ;;
   remove|upgrade|deconfigure)
   ;;

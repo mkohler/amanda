@@ -1,3 +1,16 @@
+amanda (1:2.5.1p3-2) unstable; urgency=low
+
+  * fold in diff from NMU of 1:2.5.1p1-2.1 by Peter Palfrader, closes: #399790
+    Do not fail postrm when removing the backup user from either
+    group disk or tape does not succeed.  Also, try this only
+    when the backup user is in those groups to begin with.  Also
+    handles the case of deluser not existing anymore.
+    Based in parts on the patch provided by Andreas Henriksson and
+    the cupsys postinst script.
+  * remove useless redundant clause in postrm, closes: #411739
+
+ -- Bdale Garbee <bdale@gag.com>  Wed, 21 Feb 2007 04:22:49 +0900
+
 amanda (1:2.5.1p3-1) unstable; urgency=low
 
   * new upstream version, closes: #402221
