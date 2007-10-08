@@ -1,11 +1,11 @@
 .\"     Title: amrecover
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 02/07/2007
+.\"      Date: 06/06/2007
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMRECOVER" "8" "02/07/2007" "" ""
+.TH "AMRECOVER" "8" "06/06/2007" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -73,7 +73,7 @@ Tape device to use on the tape server host.
 .PP
 \fB\-o\fR \fIclientconfigoption\fR
 .RS 4
-See the "\fBCONFIGURATION OVERWRITE\fR" section in
+See the "\fBCONFIGURATION OVERRIDE\fR" section in
 \fBamanda\fR(8).
 .RE
 .SH "COMMANDS"
@@ -134,7 +134,7 @@ dates in the current month of the current year
 .RE
 .RE
 .PP
-\fBsetdisk \fR\fIdiskname\fR [\fImountpoint\fR]
+\fBsetdisk\fR \fIdiskname\fR [\fImountpoint\fR]
 .RS 4
 Specifies which disk to consider (default: the disk holding the working directory where
 \fBamrecover\fR
@@ -150,19 +150,19 @@ configuration file. The disk must be local to the host. If
 is not specified, all pathnames will be relative to the (unknown) mount point instead of full pathnames.
 .RE
 .PP
-\fBlisthost \fR[\fIdiskdevice\fR]
+\fBlisthost\fR [\fIdiskdevice\fR]
 .RS 4
 List all
 \fBhost\fR
 .RE
 .PP
-\fBlistdisk \fR[\fIdiskdevice\fR]
+\fBlistdisk\fR [\fIdiskdevice\fR]
 .RS 4
 List all
 \fBdiskname\fR
 .RE
 .PP
-\fBsettape \fR[[\fIserver\fR]:][\fItapedev\fR|\fIdefault\fR]
+\fBsettape\fR [[\fIserver\fR]:][\fItapedev\fR|\fIdefault\fR]
 .RS 4
 Specifies the host to use as the tape server, and which of its tape devices to use. If the server is omitted, but the colon is not, the server name reverts to the configure\-time default. If the tape device is omitted, it remains unchanged. To use the default tape device selected by the tape server, the word
 \fIdefault\fR
@@ -192,7 +192,7 @@ Using tape /dev/nst2 from server server2.
 .RE
 .RE
 .PP
-\fBsetmode \fR\fImode\fR
+\fBsetmode\fR \fImode\fR
 .RS 4
 Set the extraction mode for Samba shares. If
 \fImode\fR
@@ -218,7 +218,7 @@ Show the backup history of the current host and disk. Dates, levels, tapes and f
 Display the name of the current backup working directory.
 .RE
 .PP
-\fBcd dir\fR
+\fBcd\fR \fIdir\fR
 .RS 4
 Change the backup working directory to
 \fIdir.\fR
@@ -228,7 +228,7 @@ If the mount point was specified with
 can be a shell style wildcards.
 .RE
 .PP
-\fBcdx \fR\fIdir\fR
+\fBcdx\fR \fIdir\fR
 .RS 4
 Like the
 \fBcd\fR
@@ -242,7 +242,7 @@ Display the
 working directory. Files will be restored under this directory, relative to the backed up filesystem.
 .RE
 .PP
-\fBlcd \fR\fIpath\fR
+\fBlcd\fR \fIpath\fR
 .RS 4
 Change the
 \fBamrecover\fR
@@ -257,27 +257,27 @@ List the contents of the current backup working directory. See the description o
 command for how the view of the directory is built up. The backup date is shown for each file.
 .RE
 .PP
-\fBadd \fR\fIitem1 item2 ...\fR
+\fBadd\fR \fIitem1 item2 ...\fR
 .RS 4
 Add the specified files or directories to the restore list. Each item may have shell style wildcards.
 .RE
 .PP
-\fBaddx \fR\fIitem1 item2 ...\fR
+\fBaddx\fR \fIitem1 item2 ...\fR
 .RS 4
 Add the specified files or directories to the restore list. Each item may be a regular expression.
 .RE
 .PP
-\fBdelete \fR\fIitem1 item2 ...\fR
+\fBdelete\fR \fIitem1 item2 ...\fR
 .RS 4
 Delete the specified files or directories from the restore list. Each item may have shell style wildcards.
 .RE
 .PP
-\fBdeletex \fR\fIitem1 item2 ...\fR
+\fBdeletex\fR \fIitem1 item2 ...\fR
 .RS 4
 Delete the specified files or directories from the restore list. Each item may be a regular expression.
 .RE
 .PP
-\fBlist \fR\fIfile\fR
+\fBlist\fR \fIfile\fR
 .RS 4
 Display the contents of the restore list. If a file name is specified, the restore list is written to that file. This can be used to manually extract the files from the
 \fIAmanda\fR

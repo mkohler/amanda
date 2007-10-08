@@ -48,11 +48,11 @@ typedef struct dgram_s {
     char data[MAX_DGRAM+1];
 } dgram_t;
 
-int	dgram_bind(dgram_t *dgram, in_port_t *portp);
+int	dgram_bind(dgram_t *dgram, sa_family_t family, in_port_t *portp);
 void	dgram_socket(dgram_t *dgram, int sock);
-int	dgram_send(char *hostname, in_port_t port, dgram_t *dgram);
-int	dgram_send_addr(struct sockaddr_in addr, dgram_t *dgram);
-ssize_t	dgram_recv(dgram_t *dgram, int timeout, struct sockaddr_in *fromaddr);
+int	dgram_send_addr(struct sockaddr_storage *addr, dgram_t *dgram);
+ssize_t	dgram_recv(dgram_t *dgram, int timeout,
+		   struct sockaddr_storage *fromaddr);
 void	dgram_zero(dgram_t *dgram);
 int	dgram_cat(dgram_t *dgram, const char *fmt, ...)
     __attribute__ ((format (printf, 2, 3)));

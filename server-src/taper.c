@@ -23,7 +23,7 @@
  * Authors: the Amanda Development Team.  Its members are listed in a
  * file named AUTHORS, in the root directory of this distribution.
  */
-/* $Id: taper.c,v 1.144.2.7 2007/01/18 12:57:16 martinea Exp $
+/* $Id: taper.c,v 1.144 2006/08/24 11:23:32 martinea Exp $
  *
  * moves files from holding disk to tape, or from a socket to tape
  */
@@ -50,11 +50,16 @@
 #include <sys/mman.h>
 #endif
 
+#define taper_debug(i,x) do {		\
+	if ((i) <= debug_taper) {	\
+	    dbprintf(x);		\
+	}				\
+} while (0)
+
 #ifdef HAVE_LIBVTBLC
 #include <vtblc.h>
 #include <strings.h>
 #include <math.h>
-
 
 static int vtbl_no   = -1;
 static int len       =  0;
@@ -71,6 +76,7 @@ typedef struct vtbl_lbls {
 } vtbl_lbls;
 static vtbl_lbls vtbl_entry[MAX_VOLUMES];
 #endif /* HAVE_LIBVTBLC */
+
 /*
  * XXX update stat collection/printing
  * XXX advance to next tape first in next_tape
@@ -173,11 +179,6 @@ static void cleanup(void);
 int interactive;
 pid_t writerpid;
 times_t total_wait;
-#ifdef TAPER_DEBUG
-int bufdebug = 1;
-#else
-int bufdebug = 0;
-#endif
 
 char *buffers = NULL;
 buffer_t *buftable = NULL;
@@ -248,7 +249,7 @@ main(
 
     malloc_size_1 = malloc_inuse(&malloc_hist_1);
 
-    parse_server_conf(main_argc, main_argv, &new_argc, &new_argv);
+    parse_conf(main_argc, main_argv, &new_argc, &new_argv);
     my_argc = new_argc;
     my_argv = new_argv;
 
@@ -316,6 +317,8 @@ main(
     }
 
     tapedev	= getconf_str(CNF_TAPEDEV);
+    if (tapedev != NULL)
+	tapedev = stralloc(tapedev);
     tapetype    = getconf_str(CNF_TAPETYPE);
     tt		= lookup_tapetype(tapetype);
 #ifdef HAVE_LIBVTBLC
@@ -377,7 +380,7 @@ main(
 	if ((buffers = attach_buffers(size)) != NULL) {
 	    break;
 	}
-	log_add(L_INFO, "attach_buffers: (%d tapebuf%s: %zu bytes) %s",
+	log_add(L_INFO, "attach_buffers: (%d tapebuf%s: " SIZE_T_FMT " bytes) %s",
 			conf_tapebufs,
 			(conf_tapebufs == 1) ? "" : "s",
 			size,
@@ -861,6 +864,9 @@ file_reader_side(
 		/*NOTREACHED*/
 	    }
 	    splitsize = OFF_T_ATOI(cmdargs.argv[a++]);
+	    if (SIZEOF_OFF_T == 4 && splitsize > 1048576) { /* 1G in 32 bits */
+		splitsize = 1048576;
+	    }
 
 	    if (a >= cmdargs.argc) {
 		error("error [taper PORT-WRITE: not enough args: split_diskbuffer]");
@@ -874,6 +880,9 @@ file_reader_side(
 	    }
 	    /* Must fit in memory... */
 	    fallback_splitsize = (size_t)atoi(cmdargs.argv[a++]);
+	    if (SIZEOF_OFF_T == 4 && fallback_splitsize > 1048576) { /* 1G */
+		fallback_splitsize = 1048576;
+	    }
 
 	    if (a != cmdargs.argc) {
 		error("error [taper file_reader_side PORT-WRITE: too many args: %d != %d]",
@@ -1057,7 +1066,6 @@ file_reader_side(
 	    free_split_buffer();
 	    amfree(datestamp);
 	    clear_tapelist();
-	    free_server_config();
 	    amfree(taper_timestamp);
 	    amfree(label);
 	    amfree(errstr);
@@ -1325,17 +1333,14 @@ read_file(
 	memcpy(&cur_holdfile, save_holdfile, SIZEOF(dumpfile_t));
     }
 
-    if (bufdebug) {
-	fprintf(stderr, "taper: r: start file\n");
-	fflush(stderr);
-    }
+    taper_debug(1, ("taper: r: start file\n"));
 
     for (bp = buftable; bp < buftable + conf_tapebufs; bp++) {
 	bp->status = EMPTY;
     }
 
     bp = buftable;
-    if (interactive || bufdebug)
+    if (interactive || debug_taper >= 1)
 	dumpstatus(bp);
 
     if ((cur_span_chunkstart >= (off_t)0) && (splitsize > (off_t)0)) {
@@ -1440,10 +1445,7 @@ read_file(
 	    break;
 	    
 	case 'R':
-	    if (bufdebug) {
-		fprintf(stderr, "taper: r: got R%d\n", bufnum);
-		fflush(stderr);
-	    }
+	    taper_debug(1, ("taper: r: got R%d\n", bufnum));
 	    
 	    if (need_closing) {
 		if (syncpipe_put('C', 0) == -1) {
@@ -1507,7 +1509,7 @@ read_file(
 
 	    bp->status = FILLING;
 	    buflen = header_read ? (size_t)tt_blocksize : DISK_BLOCK_BYTES;
-	    if (interactive || bufdebug)
+	    if (interactive || debug_taper >= 1)
 		dumpstatus(bp);
  	    if (header_written == 0 &&
 	    		(header_read == 1 || cur_span_chunkstart > (off_t)0)) {
@@ -1529,7 +1531,7 @@ read_file(
   			}
  		memcpy(&cur_holdfile, &file, SIZEOF(dumpfile_t));
   
- 		if (interactive || bufdebug)
+ 		if (interactive || debug_taper >= 1)
 		    dumpstatus(bp);
  		bp->size = (ssize_t)tt_blocksize;
  		rc = (ssize_t)tt_blocksize;
@@ -1596,7 +1598,7 @@ read_file(
   			/* add CONT_FILENAME back to in-memory header */
   			strncpy(file.cont_filename, cont_filename, 
   				SIZEOF(file.cont_filename));
-  			if (interactive || bufdebug)
+  			if (interactive || debug_taper >= 1)
 			    dumpstatus(bp);
   			bp->size = (ssize_t)tt_blocksize; /* output a full tape block */
  			/* save the header, we'll need it if we jump tapes */
@@ -1608,10 +1610,8 @@ read_file(
  			filesize = kbytesread;
   		    }
 
-		    if (bufdebug) {
-			fprintf(stderr,"taper: r: put W%d\n",(int)(bp-buftable));
-			fflush(stderr);
-		    }
+		    taper_debug(1, ("taper: r: put W%d\n",
+				    (int)(bp-buftable)));
 		    if (syncpipe_put('W', (int)(bp-buftable)) == -1) {
 			put_syncpipe_fault_result(handle);
 			return (-1);
@@ -2048,8 +2048,8 @@ predict_splits(
 	return(0);
 
     if (adj_splitsize <= (off_t)0) {
-      error("Split size must be > " OFF_T_FMT "k",
-      	(OFF_T_FMT_TYPE)(DISK_BLOCK_BYTES/1024));
+	error("Split size must be > " OFF_T_FMT "k",
+	      (OFF_T_FMT_TYPE)(DISK_BLOCK_BYTES/1024));
       /*NOTREACHED*/
     }
 
@@ -2057,14 +2057,15 @@ predict_splits(
     if (expected_splits != 0)
 	return(expected_splits);
 
-    total_kb = size_holding_files(filename, 1);
+    total_kb = holding_file_size(filename, 1);
     
     if (total_kb <= (off_t)0) {
-      fprintf(stderr, "taper: r: " OFF_T_FMT
-      		" kb holding file makes no sense, not precalculating splits\n",
+	fprintf(stderr, "taper: r: " OFF_T_FMT
+      		" kb holding file makes no sense, setting splitsize to 0\n",
 		(OFF_T_FMT_TYPE)total_kb);
-      fflush(stderr);
-      return(0);
+	fflush(stderr);
+	splitsize = 0;	/* disabling split */
+	return(0);
     }
 
     fprintf(stderr, "taper: r: Total dump size should be " OFF_T_FMT
@@ -2242,7 +2243,6 @@ tape_writer_side(
 	case 'Q':
 	    end_tape(0);	/* XXX check results of end tape ?? */
 	    clear_tapelist();
-	    free_server_config();
 	    amfree(taper_timestamp);
 	    amfree(label);
 	    amfree(errstr);
@@ -2283,10 +2283,7 @@ write_file(void)
     full_buffers = 0;
     tok = '?';
 
-    if (bufdebug) {
-	fprintf(stderr, "taper: w: start file\n");
-	fflush(stderr);
-    }
+    taper_debug(1, ("taper: w: start file\n"));
 
     /*
      * Tell the reader that the tape is open, and give it all the buffers.
@@ -2296,10 +2293,7 @@ write_file(void)
 	/*NOTREACHED*/
     }
     for (i = 0; i < conf_tapebufs; i++) {
-	if (bufdebug) {
-	    fprintf(stderr, "taper: w: put R%d\n", i);
-	    fflush(stderr);
-	}
+	taper_debug(1, ("taper: w: put R%d\n", i));
 	if (syncpipe_put('R', i) == -1) {
 	    error("writer: Syncpipe failure readying write buffers");
 	    /*NOTREACHED*/
@@ -2341,10 +2335,7 @@ write_file(void)
 	    }
 	    if (tok != 'W')
 		break;
-	    if (bufdebug) {
-		fprintf(stderr,"taper: w: got W%d\n",bufnum);
-		fflush(stderr);
-	    }
+	    taper_debug(1, ("taper: w: got W%d\n",bufnum));
 	    full_buffers++;
 	}
 	rdwait = timesadd(rdwait, stopclock());
@@ -2389,10 +2380,7 @@ write_file(void)
 	    }
 
 	    if (tok == 'W') {
-		if (bufdebug) {
-		    fprintf(stderr,"taper: w: got W%d\n",bufnum);
-		    fflush(stderr);
-		}
+		taper_debug(1, ("taper: w: got W%d\n",bufnum));
 		if(bufnum != (int)(bp - buftable)) {
 		    fprintf(stderr,
 			    "taper: tape-writer: my buf %d reader buf %d\n",
@@ -2474,6 +2462,8 @@ write_file(void)
     return;
 
  tape_error:
+    if (errstr) 
+	dbprintf(("tape_error: %s\n", errstr));
     /* got tape error */
     if (next_tape(1)) {
 	if (syncpipe_put('T', 0) == -1) {   /* next tape in place, try again */
@@ -2543,15 +2533,12 @@ write_buffer(
 	total_writes += 1;
 	total_tape_used += (off_t)rc;
 	bp->status = EMPTY;
-	if (interactive || bufdebug)
+	if (interactive || debug_taper >= 1)
 	    dumpstatus(bp);
 	if (interactive)
 	    fputs("W", stderr);
 
-	if (bufdebug) {
-	    fprintf(stderr, "taper: w: put R%d\n", (int)(bp-buftable));
-	    fflush(stderr);
-	}
+	taper_debug(1, ("taper: w: put R%d\n", (int)(bp-buftable)));
 	if (syncpipe_put('R', (int)(bp-buftable)) == -1) {
 	    error("writer: Syncpipe failure during advancing write bufffer");
 	    /*NOTREACHED*/
@@ -2862,9 +2849,8 @@ syncpipe_get(
 	return (-1);
     }
 
-    if (bufdebug && *buf != 'R' && *buf != 'W') {
-	fprintf(stderr,"taper: %c: getc %c\n", *procname, *buf);
-	fflush(stderr);
+    if (debug_taper >= 1 && *buf != 'R' && *buf != 'W') {
+	taper_debug(1, ("taper: %c: getc %c\n", *procname, *buf));
     }
 
     memcpy(intp, &buf[1], SIZEOF(int));
@@ -2923,9 +2909,8 @@ syncpipe_put(
 
     buf[0] = (char)chi;
     memcpy(&buf[1], &intval, SIZEOF(int));
-    if (bufdebug && buf[0] != 'R' && buf[0] != 'W') {
-	fprintf(stderr,"taper: %c: putc %c\n",*procname,buf[0]);
-	fflush(stderr);
+    if (debug_taper >= 1 && buf[0] != 'R' && buf[0] != 'W') {
+	taper_debug(1, ("taper: %c: putc %c\n",*procname,buf[0]));
     }
 
     rc = fullwrite(putpipe, buf, SIZEOF(buf));
@@ -2992,10 +2977,11 @@ label_tape(void)
     char *error_msg = NULL;
     char *s, *r;
     int slot = -1;
+    int scan_result;
 
     amfree(label);
     amfree(tapedev);
-    if (taper_scan(NULL, &label, &timestamp, &tapedev, CHAR_taperscan_output_callback, &error_msg) < 0) {
+    if ((scan_result = taper_scan(NULL, &label, &timestamp, &tapedev, CHAR_taperscan_output_callback, &error_msg)) < 0) {
 	fprintf(stderr, "%s\n", error_msg);
 	errstr = error_msg;
 	error_msg = NULL;
@@ -3003,6 +2989,7 @@ label_tape(void)
 	return 0;
     }
     amfree(timestamp);
+
     if(error_msg) {
 	s = error_msg; r = NULL;
 	while((s=strstr(s,"slot "))) { s += 5; r=s; };
@@ -3032,13 +3019,16 @@ label_tape(void)
 	return 0;
     }
 
-    if(slot > -1) {
-	fprintf(stderr, "taper: slot: %d wrote label `%s' date `%s'\n", slot,
-		label, taper_timestamp);
-    }
-    else {
-	fprintf(stderr, "taper: wrote label `%s' date `%s'\n", label,
-		taper_timestamp);
+    /* Output a description of what we just did. A result of '3' from taper_scan
+     * means that a new tape was found and will be labeled. */
+    if (slot > -1) {
+	fprintf(stderr, _("taper: slot: %d wrote label `%s' date `%s'\n"), slot, label, taper_timestamp);
+	if (scan_result == 3)
+	    log_add(L_INFO, _("Wrote new label `%s' to new (non-amanda) tape in slot %d"), label, slot);
+    } else {
+	fprintf(stderr, _("taper: wrote label `%s' date `%s'\n"), label, taper_timestamp);
+	if (scan_result == 3)
+	    log_add(L_INFO, _("Wrote new label `%s' to new (non-amanda) tape"), label);
     }
     fflush(stderr);
 

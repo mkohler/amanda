@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /* 
- * $Id: sendbackup.c,v 1.88.2.3 2006/12/12 14:56:38 martinea Exp $
+ * $Id: sendbackup.c,v 1.88 2006/07/25 18:27:56 martinea Exp $
  *
  * common code for the sendbackup-* programs.
  */
@@ -38,7 +38,13 @@
 #include "arglist.h"
 #include "getfsent.h"
 #include "version.h"
-#include "clientconf.h"
+#include "conffile.h"
+
+#define sendbackup_debug(i,x) do {	\
+	if ((i) <= debug_sendbackup) {	\
+	    dbprintf(x);		\
+	}				\
+} while (0)
 
 #define TIMEOUT 30
 
@@ -75,9 +81,9 @@ pid_t pipefork(void (*func)(void), char *fname, int *stdinfd,
 void parse_backup_messages(int mesgin);
 static void process_dumpline(char *str);
 static void save_fd(int *, int);
+void backup_api_info_tapeheader(int mesgfd, char *prog, option_t *options);
 
-double first_num(char *str);
-
+double the_num(char *str, int pos);
 
 
 char *
@@ -96,17 +102,17 @@ optionstr(
     char *exc = NULL;
     sle_t *excl;
 
-    if(options->compress == COMPR_BEST)
+    if(options->compress == COMP_BEST)
 	compress_opt = stralloc("compress-best;");
-    else if(options->compress == COMPR_FAST)
+    else if(options->compress == COMP_FAST)
 	compress_opt = stralloc("compress-fast;");
-    else if(options->compress == COMPR_SERVER_BEST)
+    else if(options->compress == COMP_SERVER_BEST)
 	compress_opt = stralloc("srvcomp-best;");
-    else if(options->compress == COMPR_SERVER_FAST)
+    else if(options->compress == COMP_SERVER_FAST)
 	compress_opt = stralloc("srvcomp-fast;");
-    else if(options->compress == COMPR_SERVER_CUST)
+    else if(options->compress == COMP_SERVER_CUST)
 	compress_opt = vstralloc("srvcomp-cust=", options->srvcompprog, ";", NULL);
-    else if(options->compress == COMPR_CUST)
+    else if(options->compress == COMP_CUST)
 	compress_opt = vstralloc("comp-cust=", options->clntcompprog, ";", NULL);
     else
 	compress_opt = stralloc("");
@@ -179,6 +185,7 @@ main(
     int level = 0;
     int mesgpipe[2];
     char *prog, *dumpdate, *stroptions;
+    int program_is_backup_api;
     char *disk = NULL;
     char *qdisk = NULL;
     char *amdevice = NULL;
@@ -191,6 +198,8 @@ main(
     int ch;
     unsigned long malloc_hist_1, malloc_size_1;
     unsigned long malloc_hist_2, malloc_size_2;
+    FILE *toolin;
+    int status;
 
     /* initialize */
 
@@ -252,6 +261,7 @@ main(
     amdevice = NULL;
     dumpdate = NULL;
     stroptions = NULL;
+    program_is_backup_api=0;
 
     for(; (line = agets(stdin)) != NULL; free(line)) {
 	if (line[0] == '\0')
@@ -260,9 +270,7 @@ main(
 	    fprintf(stderr, "%s> ", get_pname());
 	    fflush(stderr);
 	}
-#define sc "OPTIONS "
-	if(strncmp(line, sc, SIZEOF(sc)-1) == 0) {
-#undef sc
+	if(strncmp_const(line, "OPTIONS ") == 0) {
 	    g_options = parse_g_options(line+8, 1);
 	    if(!g_options->hostname) {
 		g_options->hostname = alloc(MAX_HOSTNAME_LENGTH+1);
@@ -301,6 +309,17 @@ main(
 	prog = s - 1;
 	skip_non_whitespace(s, ch);
 	s[-1] = '\0';
+
+	if(strcmp(prog,"BACKUP")==0) {
+	    program_is_backup_api=1;
+	    skip_whitespace(s, ch);		/* find dumper name */
+	    if (ch == '\0') {
+		goto err;			/* no program */
+	    }
+	    prog = s - 1;
+	    skip_non_whitespace(s, ch);
+	    s[-1] = '\0';
+	}
 	prog = stralloc(prog);
 
 	skip_whitespace(s, ch);			/* find the disk name */
@@ -327,16 +346,18 @@ main(
 	if(!isdigit((int)s[-1])) {
 	    amfree(amdevice);
 	    amfree(qamdevice);
-	    amdevice = s - 1;
-	    skip_non_whitespace(s, ch);
+	    qamdevice = s - 1;
+	    ch = *qamdevice;
+	    skip_quoted_string(s, ch);
 	    s[-1] = '\0';
-	    amdevice = stralloc(amdevice);
+	    qamdevice = stralloc(qamdevice);
+	    amdevice = unquote_string(qamdevice);
 	    skip_whitespace(s, ch);		/* find level number */
 	}
 	else {
 	    amdevice = stralloc(disk);
+	    qamdevice = stralloc(qdisk);
 	}
-	qamdevice = quote_string(amdevice);
 						/* find the level number */
 	if(ch == '\0' || sscanf(s - 1, "%d", &level) != 1) {
 	    err_extra = "bad level";
@@ -360,14 +381,10 @@ main(
 	    err_extra = "no options";
 	    goto err;				/* no options */
 	}
-#define sc "OPTIONS "
-	if(strncmp(s - 1, sc, SIZEOF(sc)-1) != 0) {
+	if(strncmp_const_skip(s - 1, "OPTIONS ", s, ch) != 0) {
 	    err_extra = "no OPTIONS keyword";
 	    goto err;				/* no options */
 	}
-	s += SIZEOF(sc)-1;
-	ch = s[-1];
-#undef sc
 	skip_whitespace(s, ch);			/* find the options string */
 	if(ch == '\0') {
 	    err_extra = "bad options string";
@@ -394,16 +411,22 @@ main(
     dbprintf(("                     since %s\n", dumpdate));
     dbprintf(("                     options `%s'\n", stroptions));
 
-    for(i = 0; programs[i]; i++) {
-	if (strcmp(programs[i]->name, prog) == 0) {
-	    break;
+    if(program_is_backup_api==1) {
+	/* check that the backup_api exist */
+    }
+    else {
+	for(i = 0; programs[i]; i++) {
+	    if (strcmp(programs[i]->name, prog) == 0) {
+		break;
+	    }
 	}
+	if (programs[i] == NULL) {
+	    dbprintf(("ERROR [%s: unknown program %s]\n", get_pname(), prog));
+	    error("ERROR [%s: unknown program %s]", get_pname(), prog);
+	    /*NOTREACHED*/
+	}
+	program = programs[i];
     }
-    if (programs[i] == NULL) {
-	error("ERROR [%s: unknown program %s]", get_pname(), prog);
-	/*NOTREACHED*/
-    }
-    program = programs[i];
 
     options = parse_options(stroptions, disk, amdevice, g_options->features, 0);
 
@@ -462,26 +485,135 @@ main(
       }
     }
 
-    if(!interactive) {
-      /* redirect stderr */
-      if(dup2(mesgfd, 2) == -1) {
-	  dbprintf(("%s: error redirecting stderr to fd %d: %s\n",
-	      debug_prefix_time(NULL), mesgfd, strerror(errno)));
-	  dbclose();
-	  exit(1);
-      }
-    }
+    if(program_is_backup_api==1) {
+	pid_t backup_api_pid;
+	int i, j;
+	char *cmd=NULL;
+	char *argvchild[20];
+	char levelstr[20];
+	int property_pipe[2];
+	backup_support_option_t *bsu;
 
-    if(pipe(mesgpipe) == -1) {
-      error("error [opening mesg pipe: %s]", strerror(errno));
-      /*NOTREACHED*/
-    }
+	if (pipe(property_pipe) < 0) {
+	    error("Can't create pipe: %s",strerror(errno));
+	    /*NOTREACHED*/
+	}
+	bsu = backup_support_option(prog, g_options, disk, amdevice);
 
-    program->start_backup(g_options->hostname, disk, amdevice, level, dumpdate, datafd, mesgpipe[1],
-			  indexfd);
-    dbprintf(("%s: started backup\n", debug_prefix_time(NULL)));
-    parse_backup_messages(mesgpipe[0]);
-    dbprintf(("%s: parsed backup messages\n", debug_prefix_time(NULL)));
+	switch(backup_api_pid=fork()) {
+	case 0:
+	    aclose(property_pipe[1]);
+	    if(dup2(property_pipe[0], 0) == -1) {
+		error("Can't dup2: %s",strerror(errno));
+		/*NOTREACHED*/
+	    }
+	    if(dup2(datafd, 1) == -1) {
+		error("Can't dup2: %s",strerror(errno));
+		/*NOTREACHED*/
+	    }
+	    if(dup2(mesgfd, 2) == -1) {
+		error("Can't dup2: %s",strerror(errno));
+		/*NOTREACHED*/
+	    }
+	    if(indexfd != 0) {
+		if(dup2(indexfd, 3) == -1) {
+		    error("Can't dup2: %s",strerror(errno));
+		    /*NOTREACHED*/
+		}
+		fcntl(indexfd, F_SETFD, 0);
+		fcntl(3, F_SETFD, 0);
+	    }
+	    cmd = vstralloc(DUMPER_DIR, "/", prog, NULL);
+	    i=0;
+	    argvchild[i++] = prog;
+	    argvchild[i++] = "backup";
+	    if (bsu->message_line == 1) {
+		argvchild[i++] = "--message";
+		argvchild[i++] = "line";
+	    }
+	    if (g_options->config && bsu->config == 1) {
+		argvchild[i++] = "--config";
+		argvchild[i++] = g_options->config;
+	    }
+	    if (g_options->hostname && bsu->host == 1) {
+		argvchild[i++] = "--host";
+		argvchild[i++] = g_options->hostname;
+	    }
+	    if (disk && bsu->disk == 1) {
+		argvchild[i++] = "--disk";
+		argvchild[i++] = disk;
+	    }
+	    argvchild[i++] = "--device";
+	    argvchild[i++] = amdevice;
+	    if (level <= bsu->max_level) {
+		argvchild[i++] = "--level";
+		snprintf(levelstr,19,"%d",level);
+		argvchild[i++] = levelstr;
+	    }
+	    if (indexfd != 0 && bsu->index_line == 1) {
+		argvchild[i++] = "--index";
+		argvchild[i++] = "line";
+	    }
+	    if (!options->no_record && bsu->record == 1) {
+		argvchild[i++] = "--record";
+	    }
+	    argvchild[i] = NULL;
+	    dbprintf(("%s: running \"%s", get_pname(), cmd));
+	    for(j=1;j<i;j++) dbprintf((" %s",argvchild[j]));
+	    dbprintf(("\"\n"));
+	    backup_api_info_tapeheader(mesgfd, prog, options);
+	    execve(cmd, argvchild, safe_env());
+	    exit(1);
+	    break;
+ 
+	default:
+	    aclose(property_pipe[0]);
+	    toolin = fdopen(property_pipe[1],"w");
+	    if (!toolin) {
+		error("Can't fdopen: %s", strerror(errno));
+		/*NOTREACHED*/
+	    }
+	    output_tool_property(toolin, options);
+	    fflush(toolin);
+	    fclose(toolin);
+	    break;
+	case -1:
+	    error("%s: fork returned: %s", get_pname(), strerror(errno));
+	}
+	amfree(bsu);
+	if (waitpid(backup_api_pid, &status, 0) < 0) {
+	    if (!WIFEXITED(status)) {
+		dbprintf(("Tool exited with signal %d", WTERMSIG(status)));
+	    } else if (WEXITSTATUS(status) != 0) {
+		dbprintf(("Tool exited with status %d", WEXITSTATUS(status)));
+	    } else {
+		dbprintf(("waitpid returned negative value"));
+	    }
+	}
+     }
+    else {
+	if(!interactive) {
+	    /* redirect stderr */
+	    if(dup2(mesgfd, 2) == -1) {
+		dbprintf(("%s: error redirecting stderr to fd %d: %s\n",
+			  debug_prefix_time(NULL), mesgfd, strerror(errno)));
+		dbclose();
+		exit(1);
+	    }
+	}
+ 
+	if(pipe(mesgpipe) == -1) {
+	    s = strerror(errno);
+	    dbprintf(("error [opening mesg pipe: %s]\n", s));
+	    error("error [opening mesg pipe: %s]", s);
+	}
+
+	program->start_backup(g_options->hostname, disk, amdevice, level,
+			      dumpdate, datafd, mesgpipe[1], indexfd);
+	dbprintf(("%s: started backup\n", debug_prefix_time(NULL)));
+	parse_backup_messages(mesgpipe[0]);
+	dbprintf(("%s: parsed backup messages\n", debug_prefix_time(NULL)));
+    }
 
     amfree(prog);
     amfree(disk);
@@ -650,7 +782,7 @@ info_tapeheader(void)
     fprintf(stderr, "%s: info BACKUP=%s\n", get_pname(), program->backup_name);
 
     fprintf(stderr, "%s: info RECOVER_CMD=", get_pname());
-    if (options->compress == COMPR_FAST || options->compress == COMPR_BEST)
+    if (options->compress == COMP_FAST || options->compress == COMP_BEST)
 	fprintf(stderr, "%s %s |", UNCOMPRESS_PATH,
 #ifdef UNCOMPRESS_OPT
 		UNCOMPRESS_OPT
@@ -659,13 +791,74 @@ info_tapeheader(void)
 #endif
 		);
 
-    fprintf(stderr, "%s -f - ...\n", program->restore_name);
+    fprintf(stderr, "%s -xpGf - ...\n", program->restore_name);
 
-    if (options->compress == COMPR_FAST || options->compress == COMPR_BEST)
+    if (options->compress == COMP_FAST || options->compress == COMP_BEST)
 	fprintf(stderr, "%s: info COMPRESS_SUFFIX=%s\n",
 			get_pname(), COMPRESS_SUFFIX);
 
     fprintf(stderr, "%s: info end\n", get_pname());
+}
+
+void
+backup_api_info_tapeheader(
+    int       mesgfd,
+    char     *prog,
+    option_t *options)
+{
+    char line[1024];
+
+    snprintf(line, 1024, "%s: info BACKUP=DUMPER\n", get_pname());
+    if (fullwrite(mesgfd, line, strlen(line)) != (ssize_t)strlen(line)) {
+	dbprintf(("error writing to mesgfd socket: %s", strerror(errno)));
+	return;
+    }
+
+    snprintf(line, 1024, "%s: info DUMPER=%s\n", get_pname(), prog);
+    if (fullwrite(mesgfd, line, strlen(line)) != (ssize_t)strlen(line)) {
+	dbprintf(("error writing to mesgfd socket: %s", strerror(errno)));
+	return;
+    }
+
+    snprintf(line, 1024, "%s: info RECOVER_CMD=", get_pname());
+    if (fullwrite(mesgfd, line, strlen(line)) != (ssize_t)strlen(line)) {
+	dbprintf(("error writing to mesgfd socket: %s", strerror(errno)));
+	return;
+    }
+
+    if (options->compress) {
+	snprintf(line, 1024, "%s %s |", UNCOMPRESS_PATH,
+#ifdef UNCOMPRESS_OPT
+		 UNCOMPRESS_OPT
+#else
+		 ""
+#endif
+		 );
+	if (fullwrite(mesgfd, line, strlen(line)) != (ssize_t)strlen(line)) {
+	    dbprintf(("error writing to mesgfd socket: %s", strerror(errno)));
+	    return;
+	}
+    }
+    snprintf(line, 1024, "%s -f... -\n", prog);
+    if (fullwrite(mesgfd, line, strlen(line)) != (ssize_t)strlen(line)) {
+	dbprintf(("error writing to mesgfd socket: %s", strerror(errno)));
+	return;
+    }
+
+    if (options->compress) {
+	snprintf(line, 1024, "%s: info COMPRESS_SUFFIX=%s\n",
+		 get_pname(), COMPRESS_SUFFIX);
+	if (fullwrite(mesgfd, line, strlen(line)) != (ssize_t)strlen(line)) {
+	    dbprintf(("error writing to mesgfd socket: %s", strerror(errno)));
+	    return;
+	}
+    }
+
+    snprintf(line, 1024, "%s: info end\n", get_pname());
+    if (fullwrite(mesgfd, line, strlen(line)) != (ssize_t)strlen(line)) {
+	dbprintf(("error writing to mesgfd socket: %s", strerror(errno)));
+	return;
+    }
 }
 
 pid_t
@@ -803,15 +996,21 @@ parse_backup_messages(
  */
 
 double
-first_num(
-    char *	str)
+the_num(
+    char *	str,
+    int         pos)
 {
     char *num;
     int ch;
     double d;
 
-    ch = *str++;
-    while(ch && !isdigit(ch)) ch = *str++;
+    do {
+	ch = *str++;
+	while(ch && !isdigit(ch)) ch = *str++;
+	if (pos == 1) break;
+	pos--;
+	while(ch && (isdigit(ch) || ch == '.')) ch = *str++;
+    } while (ch);
     num = str - 1;
     while(isdigit(ch) || ch == '.') ch = *str++;
     str[-1] = '\0';
@@ -835,7 +1034,7 @@ process_dumpline(
 	}
     }
     if(rp->typ == DMP_SIZE) {
-	dump_size = (long)((first_num(str) * rp->scale + 1023.0)/1024.0);
+	dump_size = (long)((the_num(str, rp->field)* rp->scale+1023.0)/1024.0);
     }
     switch(rp->typ) {
     case DMP_NORMAL:

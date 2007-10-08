@@ -73,12 +73,12 @@ Table of Contents
 
   amverifyrun  check the tapes written by the last Amanda run
 
+This chapter contains the manual pages from the official Amanda distribution.
 
 Note
 
 Refer to http://www.amanda.org/docs/manpages.html for the current version of
 this document.
-This chapter contains the manual pages from the official Amanda distribution.
 -------------------------------------------------------------------------------
 
 Prev                   Up      Next

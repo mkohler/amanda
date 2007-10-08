@@ -45,31 +45,6 @@
 
 #ifdef SSH_SECURITY
 
-/*#define	SSH_DEBUG*/
-
-#ifdef SSH_DEBUG
-int	ssh_debug = 1; 
-#else
-int	ssh_debug = 0; 
-#endif
-
-#define	sshprintf(x)				\
-	    do {				\
-		if (ssh_debug) {		\
-		    dbprintf(x);		\
-		}				\
-	    } while (0)
-
-/*
- * Path to the ssh binary.  This should be configurable.
- */
-#define	SSH_PATH	"/usr/bin/ssh"
-
-/*
- * Arguments to ssh.  This should also be configurable
- */
-#define	SSH_ARGS	"-x", "-o", "BatchMode=yes", "-o", "PreferredAuthentications=publickey"
-
 /*
  * Number of seconds ssh has to start up
  */
@@ -110,6 +85,8 @@ const security_driver_t ssh_security_driver = {
     tcpm_stream_read_sync,
     tcpm_stream_read_cancel,
     tcpm_close_connection,
+    NULL,
+    NULL
 };
 
 static int newhandle = 1;
@@ -132,7 +109,6 @@ ssh_connect(
     void *		datap)
 {
     struct sec_handle *rh;
-    struct hostent *he;
     char *amandad_path=NULL, *client_username=NULL, *ssh_keys=NULL;
 
     assert(fn != NULL);
@@ -140,8 +116,8 @@ ssh_connect(
 
     (void)conf_fn;	/* Quiet unused parameter warning */
 
-    sshprintf(("%s: ssh: ssh_connect: %s\n", debug_prefix_time(NULL),
-	       hostname));
+    auth_debug(1, ("%s: ssh: ssh_connect: %s\n", debug_prefix_time(NULL),
+		   hostname));
 
     rh = alloc(SIZEOF(*rh));
     security_handleinit(&rh->sech, &ssh_security_driver);
@@ -150,13 +126,13 @@ ssh_connect(
     rh->ev_timeout = NULL;
     rh->rc = NULL;
 
-    if ((he = gethostbyname(hostname)) == NULL) {
+    rh->hostname = NULL;
+    if (try_resolving_hostname(hostname, &rh->hostname)) {
 	security_seterror(&rh->sech,
 	    "%s: ssh could not resolve hostname", hostname);
 	(*fn)(arg, &rh->sech, S_ERROR);
 	return;
     }
-    rh->hostname = stralloc(he->h_name);	/* will be replaced */
     rh->rs = tcpma_stream_client(rh, newhandle++);
 
     if (rh->rs == NULL)
@@ -256,16 +232,16 @@ runssh(
     if(!xclient_username || strlen(xclient_username) <= 1)
 	xclient_username = CLIENT_LOGIN;
     if(!ssh_keys || strlen(ssh_keys) <= 1) {
-	execlp(SSH_PATH, SSH_PATH, SSH_ARGS, "-l", xclient_username,
+	execlp(SSH, SSH, SSH_OPTIONS, "-l", xclient_username,
 	       rc->hostname, xamandad_path, "-auth=ssh", "amdump", "amindexd",
 	       "amidxtaped", (char *)NULL);
     }
     else {
-	execlp(SSH_PATH, SSH_PATH, SSH_ARGS, "-l", xclient_username,
+	execlp(SSH, SSH, SSH_OPTIONS, "-l", xclient_username,
 	       "-i", xssh_keys, rc->hostname, xamandad_path, "-auth=ssh",
 	       "amdump", "amindexd", "amidxtaped", (char *)NULL);
     }
-    error("error: couldn't exec %s: %s", SSH_PATH, strerror(errno));
+    error("error: couldn't exec %s: %s", SSH, strerror(errno));
 
     /* should never go here, shut up compiler warning */
     return(-1);

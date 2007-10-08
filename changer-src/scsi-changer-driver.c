@@ -1,4 +1,4 @@
-static char rcsid[] = "$Id: scsi-changer-driver.c,v 1.52.2.1 2006/11/01 13:55:55 martinea Exp $";
+static char rcsid[] = "$Id: scsi-changer-driver.c,v 1.52 2006/07/21 00:25:50 martinea Exp $";
 /*
  * Interface to control a tape robot/library connected to the SCSI bus
  *

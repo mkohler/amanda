@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: packet.c,v 1.8.2.4 2006/12/18 20:43:50 martinea Exp $
+ * $Id: packet.c,v 1.8 2006/05/25 01:47:12 johnfranks Exp $
  *
  * Routines for modifying the amanda protocol packet type
  */

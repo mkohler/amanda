@@ -41,8 +41,8 @@ build-stamp: /sbin/dump /usr/bin/smbclient debian/po/templates.pot
 clean:
 	dh_testdir
 	dh_testroot
-	-make clean
-	-make distclean
+	[ ! -f Makefile ] || make clean
+	[ ! -f Makefile ] || make distclean
 	-rm -f build-stamp missing config/config.h common-src/genversion
 	-rm -f debian/po/templates.pot
 	-find . -type d -name .deps -exec rm -rf {} \;

@@ -62,6 +62,41 @@ DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/amverifyrun.sh.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
+	$(top_srcdir)/config/gnulib/absolute-header.m4 \
+	$(top_srcdir)/config/gnulib/alloca.m4 \
+	$(top_srcdir)/config/gnulib/arpa_inet_h.m4 \
+	$(top_srcdir)/config/gnulib/eoverflow.m4 \
+	$(top_srcdir)/config/gnulib/extensions.m4 \
+	$(top_srcdir)/config/gnulib/getaddrinfo.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-cache.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-common.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-comp.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-tool.m4 \
+	$(top_srcdir)/config/gnulib/inet_ntop.m4 \
+	$(top_srcdir)/config/gnulib/intmax_t.m4 \
+	$(top_srcdir)/config/gnulib/inttypes_h.m4 \
+	$(top_srcdir)/config/gnulib/lib-ld.m4 \
+	$(top_srcdir)/config/gnulib/lib-link.m4 \
+	$(top_srcdir)/config/gnulib/lib-prefix.m4 \
+	$(top_srcdir)/config/gnulib/lock.m4 \
+	$(top_srcdir)/config/gnulib/longdouble.m4 \
+	$(top_srcdir)/config/gnulib/longlong.m4 \
+	$(top_srcdir)/config/gnulib/netinet_in_h.m4 \
+	$(top_srcdir)/config/gnulib/onceonly_2_57.m4 \
+	$(top_srcdir)/config/gnulib/size_max.m4 \
+	$(top_srcdir)/config/gnulib/snprintf.m4 \
+	$(top_srcdir)/config/gnulib/socklen.m4 \
+	$(top_srcdir)/config/gnulib/sockpfaf.m4 \
+	$(top_srcdir)/config/gnulib/stdbool.m4 \
+	$(top_srcdir)/config/gnulib/stdint_h.m4 \
+	$(top_srcdir)/config/gnulib/strdup.m4 \
+	$(top_srcdir)/config/gnulib/string_h.m4 \
+	$(top_srcdir)/config/gnulib/sys_socket_h.m4 \
+	$(top_srcdir)/config/gnulib/vasnprintf.m4 \
+	$(top_srcdir)/config/gnulib/visibility.m4 \
+	$(top_srcdir)/config/gnulib/wchar_t.m4 \
+	$(top_srcdir)/config/gnulib/wint_t.m4 \
+	$(top_srcdir)/config/gnulib/xsize.m4 \
 	$(top_srcdir)/configure.in
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
@@ -82,11 +117,11 @@ am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(libexecdir)" \
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libamserver_la_LIBADD =
-am_libamserver_la_OBJECTS = amindex.lo changer.lo conffile.lo \
-	diskfile.lo driverio.lo holding.lo infofile.lo logfile.lo \
+am_libamserver_la_OBJECTS = amindex.lo changer.lo diskfile.lo \
+	driverio.lo cmdline.lo holding.lo infofile.lo logfile.lo \
 	tapefile.lo find.lo server_util.lo taperscan.lo
 libamserver_la_OBJECTS = $(am_libamserver_la_OBJECTS)
-am__EXEEXT_1 = diskfile$(EXEEXT) conffile$(EXEEXT) infofile$(EXEEXT)
+am__EXEEXT_1 = diskfile$(EXEEXT) infofile$(EXEEXT)
 libexecPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 sbinPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(libexec_PROGRAMS) $(sbin_PROGRAMS)
@@ -99,7 +134,8 @@ amadmin_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 amcheck_SOURCES = amcheck.c
 amcheck_OBJECTS = amcheck.$(OBJEXT)
 amcheck_LDADD = $(LDADD)
@@ -108,7 +144,8 @@ amcheck_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 amcleanupdisk_SOURCES = amcleanupdisk.c
 amcleanupdisk_OBJECTS = amcleanupdisk.$(OBJEXT)
 amcleanupdisk_LDADD = $(LDADD)
@@ -117,7 +154,8 @@ amcleanupdisk_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 amflush_SOURCES = amflush.c
 amflush_OBJECTS = amflush.$(OBJEXT)
 amflush_LDADD = $(LDADD)
@@ -126,7 +164,8 @@ amflush_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 am_amgetconf_OBJECTS = getconf.$(OBJEXT)
 amgetconf_OBJECTS = $(am_amgetconf_OBJECTS)
 amgetconf_LDADD = $(LDADD)
@@ -135,7 +174,8 @@ amgetconf_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 am__objects_1 = amindexd.$(OBJEXT) disk_history.$(OBJEXT) \
 	list_dir.$(OBJEXT)
 am_amindexd_OBJECTS = $(am__objects_1)
@@ -146,7 +186,8 @@ amindexd_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION)
 amlabel_SOURCES = amlabel.c
 amlabel_OBJECTS = amlabel.$(OBJEXT)
 amlabel_LDADD = $(LDADD)
@@ -155,7 +196,8 @@ amlabel_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 amlogroll_SOURCES = amlogroll.c
 amlogroll_OBJECTS = amlogroll.$(OBJEXT)
 amlogroll_LDADD = $(LDADD)
@@ -164,7 +206,8 @@ amlogroll_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 am_amreport_OBJECTS = reporter.$(OBJEXT)
 amreport_OBJECTS = $(am_amreport_OBJECTS)
 amreport_LDADD = $(LDADD)
@@ -173,7 +216,8 @@ amreport_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 amtape_SOURCES = amtape.c
 amtape_OBJECTS = amtape.$(OBJEXT)
 amtape_LDADD = $(LDADD)
@@ -182,7 +226,8 @@ amtape_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 amtrmidx_SOURCES = amtrmidx.c
 amtrmidx_OBJECTS = amtrmidx.$(OBJEXT)
 amtrmidx_LDADD = $(LDADD)
@@ -191,7 +236,8 @@ amtrmidx_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 amtrmlog_SOURCES = amtrmlog.c
 amtrmlog_OBJECTS = amtrmlog.$(OBJEXT)
 amtrmlog_LDADD = $(LDADD)
@@ -200,7 +246,8 @@ amtrmlog_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 chunker_SOURCES = chunker.c
 chunker_OBJECTS = chunker.$(OBJEXT)
 chunker_LDADD = $(LDADD)
@@ -209,16 +256,8 @@ chunker_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
-am_conffile_OBJECTS = conffile.test.$(OBJEXT)
-conffile_OBJECTS = $(am_conffile_OBJECTS)
-conffile_LDADD = $(LDADD)
-conffile_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamserver.$(LIB_EXTENSION) \
-	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
-	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 am_diskfile_OBJECTS = diskfile.test.$(OBJEXT)
 diskfile_OBJECTS = $(am_diskfile_OBJECTS)
 diskfile_LDADD = $(LDADD)
@@ -227,7 +266,8 @@ diskfile_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 driver_SOURCES = driver.c
 driver_OBJECTS = driver.$(OBJEXT)
 driver_LDADD = $(LDADD)
@@ -236,7 +276,8 @@ driver_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 dumper_SOURCES = dumper.c
 dumper_OBJECTS = dumper.$(OBJEXT)
 dumper_LDADD = $(LDADD)
@@ -245,7 +286,8 @@ dumper_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 am_infofile_OBJECTS = infofile.test.$(OBJEXT)
 infofile_OBJECTS = $(am_infofile_OBJECTS)
 infofile_LDADD = $(LDADD)
@@ -254,7 +296,8 @@ infofile_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 planner_SOURCES = planner.c
 planner_OBJECTS = planner.$(OBJEXT)
 planner_LDADD = $(LDADD)
@@ -263,7 +306,8 @@ planner_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 taper_SOURCES = taper.c
 taper_OBJECTS = taper.$(OBJEXT)
 taper_LDADD = $(LDADD)
@@ -272,7 +316,8 @@ taper_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION) $(am__DEPENDENCIES_1)
 sbinSCRIPT_INSTALL = $(INSTALL_SCRIPT)
 SCRIPTS = $(sbin_SCRIPTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)/config
@@ -289,21 +334,21 @@ LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 SOURCES = $(libamserver_la_SOURCES) amadmin.c amcheck.c \
 	amcleanupdisk.c amflush.c $(amgetconf_SOURCES) \
 	$(amindexd_SOURCES) amlabel.c amlogroll.c $(amreport_SOURCES) \
-	amtape.c amtrmidx.c amtrmlog.c chunker.c $(conffile_SOURCES) \
-	$(diskfile_SOURCES) driver.c dumper.c $(infofile_SOURCES) \
-	planner.c taper.c
+	amtape.c amtrmidx.c amtrmlog.c chunker.c $(diskfile_SOURCES) \
+	driver.c dumper.c $(infofile_SOURCES) planner.c taper.c
 DIST_SOURCES = $(libamserver_la_SOURCES) amadmin.c amcheck.c \
 	amcleanupdisk.c amflush.c $(amgetconf_SOURCES) \
 	$(amindexd_SOURCES) amlabel.c amlogroll.c $(amreport_SOURCES) \
-	amtape.c amtrmidx.c amtrmlog.c chunker.c $(conffile_SOURCES) \
-	$(diskfile_SOURCES) driver.c dumper.c $(infofile_SOURCES) \
-	planner.c taper.c
+	amtape.c amtrmidx.c amtrmlog.c chunker.c $(diskfile_SOURCES) \
+	driver.c dumper.c $(infofile_SOURCES) planner.c taper.c
 HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
+ABSOLUTE_STRING_H = @ABSOLUTE_STRING_H@
 ACLOCAL = @ACLOCAL@
 ALLOCA = @ALLOCA@
+ALLOCA_H = @ALLOCA_H@
 AMANDA_DBGDIR = @AMANDA_DBGDIR@
 AMANDA_DEBUG_DAYS = @AMANDA_DEBUG_DAYS@
 AMANDA_TMPDIR = @AMANDA_TMPDIR@
@@ -318,18 +363,17 @@ AMPLOT_COMPRESS = @AMPLOT_COMPRESS@
 AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
 AR = @AR@
+ARPA_INET_H = @ARPA_INET_H@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
-AWK_VAR_ASSIGNMENT_OPT = @AWK_VAR_ASSIGNMENT_OPT@
 BINARY_OWNER = @BINARY_OWNER@
-BUILD_MAN_PAGES_FALSE = @BUILD_MAN_PAGES_FALSE@
-BUILD_MAN_PAGES_TRUE = @BUILD_MAN_PAGES_TRUE@
 CAT = @CAT@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CFLAG_VISIBILITY = @CFLAG_VISIBILITY@
 CHIO = @CHIO@
 CHS = @CHS@
 CLIENT_LOGIN = @CLIENT_LOGIN@
@@ -362,18 +406,40 @@ ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
+ENABLE_MANPAGE_BUILD_FALSE = @ENABLE_MANPAGE_BUILD_FALSE@
+ENABLE_MANPAGE_BUILD_TRUE = @ENABLE_MANPAGE_BUILD_TRUE@
+EOVERFLOW = @EOVERFLOW@
+EXAMPLE_TAPEDEV = @EXAMPLE_TAPEDEV@
 EXEEXT = @EXEEXT@
 F77 = @F77@
 FFLAGS = @FFLAGS@
+GCC_COMPILER_FALSE = @GCC_COMPILER_FALSE@
+GCC_COMPILER_TRUE = @GCC_COMPILER_TRUE@
 GETCONF = @GETCONF@
+GL_COND_LIBTOOL_FALSE = @GL_COND_LIBTOOL_FALSE@
+GL_COND_LIBTOOL_TRUE = @GL_COND_LIBTOOL_TRUE@
 GNUPLOT = @GNUPLOT@
 GNUTAR = @GNUTAR@
 GNUTAR_LISTED_INCREMENTAL_DIR = @GNUTAR_LISTED_INCREMENTAL_DIR@
 GNUTAR_LISTED_INCREMENTAL_DIRX = @GNUTAR_LISTED_INCREMENTAL_DIRX@
 GREP = @GREP@
 GZIP = @GZIP@
-HAVE_XSLTPROC_FALSE = @HAVE_XSLTPROC_FALSE@
-HAVE_XSLTPROC_TRUE = @HAVE_XSLTPROC_TRUE@
+HAVE_DECL_MEMMEM = @HAVE_DECL_MEMMEM@
+HAVE_DECL_MEMRCHR = @HAVE_DECL_MEMRCHR@
+HAVE_DECL_STRDUP = @HAVE_DECL_STRDUP@
+HAVE_DECL_STRNCASECMP = @HAVE_DECL_STRNCASECMP@
+HAVE_DECL_STRNDUP = @HAVE_DECL_STRNDUP@
+HAVE_DECL_STRNLEN = @HAVE_DECL_STRNLEN@
+HAVE_DECL_STRTOK_R = @HAVE_DECL_STRTOK_R@
+HAVE_MEMPCPY = @HAVE_MEMPCPY@
+HAVE_STPCPY = @HAVE_STPCPY@
+HAVE_STPNCPY = @HAVE_STPNCPY@
+HAVE_STRCHRNUL = @HAVE_STRCHRNUL@
+HAVE_STRNDUP = @HAVE_STRNDUP@
+HAVE_STRPBRK = @HAVE_STRPBRK@
+HAVE_STRSEP = @HAVE_STRSEP@
+HAVE_VISIBILITY = @HAVE_VISIBILITY@
+HAVE__BOOL = @HAVE__BOOL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
@@ -382,22 +448,31 @@ LDFLAGS = @LDFLAGS@
 LEX = @LEX@
 LEXLIB = @LEXLIB@
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
+LIBMULTITHREAD = @LIBMULTITHREAD@
 LIBOBJS = @LIBOBJS@
+LIBPTH = @LIBPTH@
+LIBPTH_PREFIX = @LIBPTH_PREFIX@
 LIBS = @LIBS@
+LIBTHREAD = @LIBTHREAD@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
 LL_FMT = @LL_FMT@
 LL_RFMT = @LL_RFMT@
 LN_S = @LN_S@
 LTALLOCA = @LTALLOCA@
+LTLIBMULTITHREAD = @LTLIBMULTITHREAD@
 LTLIBOBJS = @LTLIBOBJS@
+LTLIBPTH = @LTLIBPTH@
+LTLIBTHREAD = @LTLIBTHREAD@
 MAILER = @MAILER@
 MAKEINFO = @MAKEINFO@
 MAXTAPEBLOCKSIZE = @MAXTAPEBLOCKSIZE@
 MCUTIL = @MCUTIL@
+MKDIR_P = @MKDIR_P@
 MT = @MT@
 MTX = @MTX@
 MT_FILE_FLAG = @MT_FILE_FLAG@
+NETINET_IN_H = @NETINET_IN_H@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
@@ -411,6 +486,9 @@ PERL = @PERL@
 PRINT = @PRINT@
 RANLIB = @RANLIB@
 READLINE_LIBS = @READLINE_LIBS@
+REPLACE_STRCASECMP = @REPLACE_STRCASECMP@
+REPLACE_STRCASESTR = @REPLACE_STRCASESTR@
+REPLACE_STRSTR = @REPLACE_STRSTR@
 RESTORE = @RESTORE@
 SAMBA_CLIENT = @SAMBA_CLIENT@
 SERVICE_SUFFIX = @SERVICE_SUFFIX@
@@ -419,7 +497,10 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SNAPSHOT_STAMP = @SNAPSHOT_STAMP@
 SORT = @SORT@
+SSH = @SSH@
+STDBOOL_H = @STDBOOL_H@
 STRIP = @STRIP@
+SYS_SOCKET_H = @SYS_SOCKET_H@
 USE_VERSION_SUFFIXES = @USE_VERSION_SUFFIXES@
 VDUMP = @VDUMP@
 VERSION = @VERSION@
@@ -458,6 +539,7 @@ WANT_TAPE_TRUE = @WANT_TAPE_TRUE@
 XFSDUMP = @XFSDUMP@
 XFSRESTORE = @XFSRESTORE@
 XSLTPROC = @XSLTPROC@
+XSLTPROC_FLAGS = @XSLTPROC_FLAGS@
 YACC = @YACC@
 ac_c = @ac_c@
 ac_ct_AR = @ac_ct_AR@
@@ -484,6 +566,8 @@ build_os = @build_os@
 build_vendor = @build_vendor@
 datadir = @datadir@
 exec_prefix = @exec_prefix@
+gl_LIBOBJS = @gl_LIBOBJS@
+gl_LTLIBOBJS = @gl_LTLIBOBJS@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -512,7 +596,8 @@ INCLUDES = -I$(top_builddir)/common-src \
 		-I$(top_srcdir)/common-src   \
 		-I$(top_srcdir)/restore-src  \
 		-I$(top_srcdir)/tape-src     \
-		-I$(top_srcdir)/amandad-src
+		-I$(top_srcdir)/amandad-src  \
+		-I$(top_srcdir)/gnulib
 
 LINT = @AMLINT@
 LINTFLAGS = @AMLINTFLAGS@
@@ -525,7 +610,7 @@ sbin_SCRIPTS = amcheckdb	amcleanup	amdump		\
 			amcrypt-ossl-asym
 
 libamserver_la_SOURCES = amindex.c	changer.c			\
-			conffile.c	diskfile.c	driverio.c	\
+			diskfile.c	driverio.c	cmdline.c  \
 			holding.c	infofile.c	logfile.c	\
 			tapefile.c	find.c		server_util.c   \
                         taperscan.c
@@ -538,12 +623,13 @@ libamserver_la_LDFLAGS = -release $(VERSION)
 # need to list libamanda twice here, first to override the system library
 # routines, and second to pick up any references in the other libraries.
 ###
-LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamserver.$(LIB_EXTENSION)             \
-	../tape-src/libamtape.$(LIB_EXTENSION)   \
-	../common-src/libamanda.$(LIB_EXTENSION) \
-	../tape-src/libamtape.$(LIB_EXTENSION)   \
-	../common-src/libamanda.$(LIB_EXTENSION) \
+LDADD = ../common-src/libamanda.$(LIB_EXTENSION)   \
+	libamserver.$(LIB_EXTENSION)               \
+	../tape-src/libamtape.$(LIB_EXTENSION)     \
+	../common-src/libamanda.$(LIB_EXTENSION)   \
+	../tape-src/libamtape.$(LIB_EXTENSION)     \
+	../common-src/libamanda.$(LIB_EXTENSION)   \
+	../gnulib/libgnu.$(LIB_EXTENSION)          \
         $(READLINE_LIBS)
 
 amindexd_LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
@@ -552,25 +638,25 @@ amindexd_LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION)
 
 SUFFIXES = .sh .pl
 
 # there are used for testing only:
-TEST_PROGS = diskfile conffile infofile
+TEST_PROGS = diskfile infofile
 CLEANFILES = *.test.c $(sbin_SCRIPTS)
 amindexd_CSRC = amindexd.c	disk_history.c	list_dir.c
 amindexd_SOURCES = disk_history.h	list_dir.h	$(amindexd_CSRC)
 amreport_SOURCES = reporter.c
 amgetconf_SOURCES = getconf.c
 noinst_HEADERS = amindex.h	changer.h			\
-			conffile.h	diskfile.h	driverio.h	\
+			diskfile.h	driverio.h	\
 			holding.h	infofile.h	logfile.h	\
 			tapefile.h	find.h		server_util.h	\
-			taperscan.h
+			taperscan.h cmdline.h
 
 diskfile_SOURCES = diskfile.test.c
-conffile_SOURCES = conffile.test.c
 infofile_SOURCES = infofile.test.c
 all: all-am
 
@@ -757,9 +843,6 @@ amtrmlog$(EXEEXT): $(amtrmlog_OBJECTS) $(amtrmlog_DEPENDENCIES)
 chunker$(EXEEXT): $(chunker_OBJECTS) $(chunker_DEPENDENCIES) 
 	@rm -f chunker$(EXEEXT)
 	$(LINK) $(chunker_LDFLAGS) $(chunker_OBJECTS) $(chunker_LDADD) $(LIBS)
-conffile$(EXEEXT): $(conffile_OBJECTS) $(conffile_DEPENDENCIES) 
-	@rm -f conffile$(EXEEXT)
-	$(LINK) $(conffile_LDFLAGS) $(conffile_OBJECTS) $(conffile_LDADD) $(LIBS)
 diskfile$(EXEEXT): $(diskfile_OBJECTS) $(diskfile_DEPENDENCIES) 
 	@rm -f diskfile$(EXEEXT)
 	$(LINK) $(diskfile_LDFLAGS) $(diskfile_OBJECTS) $(diskfile_LDADD) $(LIBS)
@@ -817,8 +900,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amtrmlog.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/changer.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chunker.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/conffile.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/conffile.test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cmdline.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/disk_history.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/diskfile.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/diskfile.test.Po@am__quote@
@@ -1053,7 +1135,7 @@ uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES \
 .pl:
 			cat $< > $@
 			chmod a+x $@
-			-test -z "$(PERL)" || $(PERL) -c $@
+			-test -z "$(PERL)" || $(PERL) -c -w -W -t -T $@
 
 .sh:
 			cat $< > $@

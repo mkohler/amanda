@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: restore.h,v 1.8.2.1 2006/09/27 12:04:09 martinea Exp $
+ * $Id: restore.h,v 1.8 2006/06/22 17:16:39 martinea Exp $
  *
  * 
  */

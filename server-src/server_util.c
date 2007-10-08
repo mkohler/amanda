@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: server_util.c,v 1.17.2.1 2006/11/24 18:05:07 martinea Exp $
+ * $Id: server_util.c,v 1.17 2006/05/25 01:47:20 johnfranks Exp $
  *
  */
 

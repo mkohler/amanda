@@ -23,7 +23,7 @@
  * Authors: the Amanda Development Team.  Its members are listed in a
  * file named AUTHORS, in the root directory of this distribution.
  */
-/* $Id: dumper.c,v 1.190.2.2 2006/11/08 17:11:41 martinea Exp $
+/* $Id: dumper.c,v 1.190 2006/08/30 19:53:57 martinea Exp $
  *
  * requests remote amandad processes to dump filesystems
  */
@@ -44,6 +44,12 @@
 #include "amfeatures.h"
 #include "server_util.h"
 #include "util.h"
+
+#define dumper_debug(i,x) do {		\
+	if ((i) <= debug_dumper) {	\
+	    dbprintf(x);		\
+	}				\
+} while (0)
 
 #ifndef SEEK_SET
 #define SEEK_SET 0
@@ -169,7 +175,7 @@ check_options(
     else if ((compmode = strstr(options, "srvcomp-cust=")) != NULL) {
 	compend = strchr(compmode, ';');
 	if (compend ) {
-	    srvcompress = COMP_SERV_CUST;
+	    srvcompress = COMP_SERVER_CUST;
 	    *compend = '\0';
 	    srvcompprog = stralloc(compmode + strlen("srvcomp-cust="));
 	    *compend = ';';
@@ -246,6 +252,9 @@ main(
     uid_t ruid;
     int    new_argc,   my_argc;
     char **new_argv, **my_argv;
+    struct addrinfo hints;
+    int res;
+    struct addrinfo *gaires = NULL;
 
     safe_fd(-1, 0);
 
@@ -261,7 +270,7 @@ main(
     erroutput_type = (ERR_AMANDALOG|ERR_INTERACTIVE);
     set_logerror(logerror);
 
-    parse_server_conf(main_argc, main_argv, &new_argc, &new_argv);
+    parse_conf(main_argc, main_argv, &new_argc, &new_argv);
     my_argc = new_argc;
     my_argv = new_argv;
 
@@ -327,7 +336,7 @@ main(
 
     signal(SIGPIPE, SIG_IGN);
 
-    conf_dtimeout = getconf_int(CNF_DTIMEOUT);
+    conf_dtimeout = (time_t)getconf_int(CNF_DTIMEOUT);
 
     protocol_init();
 
@@ -454,9 +463,32 @@ main(
 	        /*NOTREACHED*/
 	    }
 
-	    if ((gethostbyname("localhost")) == NULL) {
-		errstr = newstralloc(errstr,
-				     "could not resolve localhost");
+	    /* Double-check that 'localhost' resolves properly */
+#ifdef WORKING_IPV6
+	    hints.ai_flags = AI_CANONNAME | AI_V4MAPPED | AI_ALL;
+	    hints.ai_family = AF_UNSPEC;
+#else
+	    hints.ai_flags = AI_CANONNAME;
+	    hints.ai_family = AF_INET;
+#endif
+	    hints.ai_socktype = 0;
+	    hints.ai_protocol = 0;
+	    hints.ai_addrlen = 0;
+	    hints.ai_addr = NULL;
+	    hints.ai_canonname = NULL;
+	    hints.ai_next = NULL;
+	    res = getaddrinfo("localhost", NULL, &hints, &gaires);
+#ifdef WORKING_IPV6
+	    if (res != 0) {
+		hints.ai_flags = AI_CANONNAME;
+		hints.ai_family = AF_UNSPEC;
+		res = getaddrinfo("localhost", NULL, &hints, &gaires);
+	    }
+#endif
+	    if (res != 0) {
+		errstr = newvstralloc(errstr,
+				     _("could not resolve localhost: "),
+				     gai_strerror(res), NULL);
 		q = squotef(errstr);
 		putresult(FAILED, "%s %s\n", handle, q);
 		log_add(L_FAIL, "%s %s %s %d [%s]", hostname, qdiskname,
@@ -464,6 +496,8 @@ main(
 		amfree(q);
 		break;
 	    }
+	    if (gaires) freeaddrinfo(gaires);
+
 	    /* connect outf to chunker/taper port */
 
 	    outfd = stream_client("localhost", taper_port,
@@ -688,6 +722,7 @@ parse_info_line(
 	size_t len;
     } fields[] = {
 	{ "BACKUP", file.program, SIZEOF(file.program) },
+	{ "DUMPER", file.dumper, SIZEOF(file.dumper) },
 	{ "RECOVER_CMD", file.recover_cmd, SIZEOF(file.recover_cmd) },
 	{ "COMPRESS_SUFFIX", file.comp_suffix, SIZEOF(file.comp_suffix) },
 	{ "SERVER_CUSTOM_COMPRESS", file.srvcompprog, SIZEOF(file.srvcompprog) },
@@ -947,7 +982,7 @@ finish_tapeheader(
 #ifndef UNCOMPRESS_OPT
 #define	UNCOMPRESS_OPT	""
 #endif
-	if (srvcompress == COMP_SERV_CUST) {
+	if (srvcompress == COMP_SERVER_CUST) {
 	    snprintf(file->uncompress_cmd, SIZEOF(file->uncompress_cmd),
 		     " %s %s |", srvcompprog, "-d");
 	    strncpy(file->comp_suffix, "cust", SIZEOF(file->comp_suffix) - 1);
@@ -1024,13 +1059,12 @@ write_tapeheader(
 
     build_header(buffer, file, SIZEOF(buffer));
 
-    written = write(outfd, buffer, SIZEOF(buffer));
+    written = fullwrite(outfd, buffer, SIZEOF(buffer));
     if(written == (ssize_t)sizeof(buffer))
 	return 0;
     if(written < 0)
 	return written;
 
-    errno = ENOSPC;
     return -1;
 }
 
@@ -1300,11 +1334,6 @@ read_mesgfd(
 	break;
     }
 
-    /*
-     * Reset the timeout for future reads
-     */
-    timeout(conf_dtimeout);
-
     if (ISSET(status, GOT_INFO_ENDLINE) && !ISSET(status, HEADER_DONE)) {
 	SET(status, HEADER_DONE);
 	/* time to do the header */
@@ -1340,6 +1369,11 @@ read_mesgfd(
 	security_stream_read(streams[DATAFD].fd, read_datafd, db);
 	set_datafd = 1;
     }
+
+    /*
+     * Reset the timeout for future reads
+     */
+    timeout(conf_dtimeout);
 }
 
 /*
@@ -1365,11 +1399,6 @@ read_datafd(
 	stop_dump();
 	return;
     }
-
-    /*
-     * Reset the timeout for future reads
-     */
-    timeout(conf_dtimeout);
 
     /* The header had better be written at this point */
     assert(ISSET(status, HEADER_DONE));
@@ -1403,6 +1432,12 @@ read_datafd(
 	stop_dump();
 	return;
     }
+
+    /*
+     * Reset the timeout for future reads
+     */
+    timeout(conf_dtimeout);
+
     security_stream_read(streams[DATAFD].fd, read_datafd, cookie);
 }
 
@@ -1564,7 +1599,7 @@ runcompress(
 	    /*NOTREACHED*/
 	}
 	safe_fd(-1, 0);
-	if (comptype != COMP_SERV_CUST) {
+	if (comptype != COMP_SERVER_CUST) {
 	    execlp(COMPRESS_PATH, COMPRESS_PATH, (  comptype == COMP_BEST ?
 		COMPRESS_BEST_OPT : COMPRESS_FAST_OPT), (char *)NULL);
 	    error("error: couldn't exec %s: %s", COMPRESS_PATH, strerror(errno));
@@ -1652,14 +1687,14 @@ sendbackup_response(
     assert(response_error != NULL);
     assert(sech != NULL);
 
-    security_close_connection(sech, hostname);
-
     if (pkt == NULL) {
 	errstr = newvstralloc(errstr, "[request failed: ",
 	    security_geterror(sech), "]", NULL);
 	*response_error = 1;
 	return;
     }
+
+    security_close_connection(sech, hostname);
 
     extra = NULL;
     memset(ports, 0, SIZEOF(ports));
@@ -1761,11 +1796,9 @@ bad_nak:
 	    }
 
 	    while((p = strchr(tok, ';')) != NULL) {
+		char ch;
 		*p++ = '\0';
-#define sc "features="
-		if(strncmp(tok, sc, SIZEOF(sc) - 1) == 0) {
-		    tok += SIZEOF(sc) - 1;
-#undef sc
+		if(strncmp_const_skip(tok, "features=", tok, ch) == 0) {
 		    am_release_feature_set(their_features);
 		    if((their_features = am_string_to_feature(tok)) == NULL) {
 			errstr = newvstralloc(errstr,
@@ -1815,7 +1848,7 @@ bad_nak:
 	 * with old clients.
 	 * It is wrong to delve into sech, but we have no choice here.
 	 */
-	if (strcasecmp(sech->driver->name, "krb4") != 0 && i == INDEXFD)
+	if (strcasecmp(sech->driver->name, "krb4") == 0 && i == INDEXFD)
 	    continue;
 #endif
 	if (security_stream_auth(streams[i].fd) < 0) {
@@ -1837,7 +1870,6 @@ bad_nak:
 
     /* everything worked */
     *response_error = 0;
-    security_close_connection(sech, hostname);
     return;
 
 parse_error:
@@ -1848,13 +1880,11 @@ parse_error:
 			  NULL);
     amfree(extra);
     *response_error = 2;
-    security_close_connection(sech, hostname);
     return;
 
 connect_error:
     stop_dump();
     *response_error = 1;
-    security_close_connection(sech, hostname);
 }
 
 static char *
@@ -1899,7 +1929,7 @@ startup_dump(
     char *authopt, *endauthopt, authoptbuf[80];
     int response_error;
     const security_driver_t *secdrv;
-    char *dumper_api;
+    char *backup_api;
     int has_features;
     int has_hostname;
     int has_device;
@@ -1938,11 +1968,11 @@ startup_dump(
     }
 
     snprintf(level_string, SIZEOF(level_string), "%d", level);
-    if(strncmp(progname, "DUMP", 4) == 0
-       || strncmp(progname, "GNUTAR", 6) == 0) {
-	dumper_api = "";
+    if(strcmp(progname, "DUMP") == 0
+       || strcmp(progname, "GNUTAR") == 0) {
+	backup_api = "";
     } else {
-	dumper_api = "DUMPER ";
+	backup_api = "BACKUP ";
     }
     req = vstralloc("SERVICE sendbackup\n",
 		    "OPTIONS ",
@@ -1956,7 +1986,7 @@ startup_dump(
 		    has_config   ? config_name : "",
 		    has_config   ? ";" : "",
 		    "\n",
-		    dumper_api, progname,
+		    backup_api, progname,
 		    " ", qdiskname,
 		    " ", device && has_device ? device : "",
 		    " ", level_string,

@@ -91,7 +91,7 @@ COMMANDS
       tape, but do not load it.
 
   -o configoption
-      See the "CONFIGURATION OVERWRITE" section in amanda(8).
+      See the "CONFIGURATION OVERRIDE" section in amanda(8).
 
 This is useful with non-gravity stackers to unload the last tape used and set
 up Amanda for the next run. If you just use eject, the current tape will be

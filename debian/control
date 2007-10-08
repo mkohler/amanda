@@ -7,8 +7,8 @@ Standards-Version: 3.7.2
 
 Package: amanda-common
 Architecture: any
-Depends: ${shlibs:Depends}, netbase (>=3.03), tar (>=1.12), perl5, mailx, debconf | debconf-2.0, adduser
-Suggests: amanda-server (= ${Source-Version}) | amanda-client (= ${Source-Version})
+Depends: ${shlibs:Depends}, update-inetd, tar (>=1.12), perl5, mailx, debconf | debconf-2.0, adduser, openbsd-inetd | inet-superserver
+Suggests: amanda-server (= ${binary:Version}) | amanda-client (= ${binary:Version})
 Conflicts: amanda
 Replaces: amanda, amanda-client
 Description: Advanced Maryland Automatic Network Disk Archiver (Libs)
@@ -17,15 +17,15 @@ Description: Advanced Maryland Automatic Network Disk Archiver (Libs)
 
 Package: amanda-server
 Architecture: any
-Depends: ${shlibs:Depends}, amanda-common (= ${Source-Version}), mailx
-Suggests: perl5, gnuplot, amanda-client (= ${Source-Version}), cpio | mt-st
+Depends: ${shlibs:Depends}, amanda-common (= ${binary:Version}), mailx
+Suggests: perl5, gnuplot, amanda-client (= ${binary:Version}), cpio | mt-st
 Conflicts: amanda
 Replaces: amanda-common (<< 1:2.4.4)
 Description: Advanced Maryland Automatic Network Disk Archiver (Server)
  Amanda is a backup system designed to archive many computers on a
  network to a single large-capacity tape drive. This package is
  suitable for large amounts of data to backup. For smaller solutions
- take a look at afbackup, tob, taper, ... 
+ take a look at afbackup, tob, ... 
  .
   Features:
    * will back up multiple machines in parallel to a holding disk, blasting
@@ -65,7 +65,7 @@ Description: Advanced Maryland Automatic Network Disk Archiver (Server)
 
 Package: amanda-client
 Architecture: any
-Depends: ${shlibs:Depends}, amanda-common (= ${Source-Version})
+Depends: ${shlibs:Depends}, amanda-common (= ${binary:Version})
 Suggests: gnuplot, dump, smbclient
 Conflicts: amanda, amanda-common (<< 1:2.4.2)
 Replaces: amanda-common (<< 1:2.4.2)
@@ -73,7 +73,7 @@ Description: Advanced Maryland Automatic Network Disk Archiver (Client)
  Amanda is a backup system designed to archive many computers on a
  network to a single large-capacity tape drive. This package is
  suitable for large amounts of data to backup. For smaller solutions
- take a look at afbackup, tob, taper, ... 
+ take a look at afbackup, tob, ... 
  .
   Features:
    * will back up multiple machines in parallel to a holding disk, blasting

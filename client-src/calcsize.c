@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /* 
- * $Id: calcsize.c,v 1.44.2.1 2006/10/19 18:47:25 martinea Exp $
+ * $Id: calcsize.c,v 1.44 2006/07/25 18:27:56 martinea Exp $
  *
  * traverse directory tree to get backup size estimates
  *
@@ -157,7 +157,7 @@ main(
 #else
     int i;
     char *dirname=NULL;
-    char *amname=NULL, *qamname = NULL;
+    char *amname=NULL, *qamname=NULL;
     char *filename=NULL, *qfilename = NULL;
     unsigned long malloc_hist_1, malloc_size_1;
     unsigned long malloc_hist_2, malloc_size_2;
@@ -168,7 +168,7 @@ main(
     set_pname("calcsize");
 
     dbopen(DBG_SUBDIR_CLIENT);
-    dbprintf(("%s: version %s\n", debug_prefix(NULL), version()));
+    dbprintf(("%s: version %s\n", debug_prefix_time(NULL), version()));
 
     malloc_size_1 = malloc_inuse(&malloc_hist_1);
 
@@ -329,11 +329,6 @@ main(
     for(i = 0; i < ndumps; i++) {
 
 	amflock(1, "size");
-
-	if (fseek(stderr, 0L, SEEK_END) < 0) {
-	    dbprintf(("calcsize: warning - seek failed: %s\n",
-		      strerror(errno)));
-	}
 
 	dbprintf(("calcsize: %s %d SIZE " OFF_T_FMT "\n",
 	       qamname, dumplevel[i],

@@ -45,6 +45,12 @@
 #include "util.h"
 #include "holding.h"
 
+#define chunker_debug(i,x) do {		\
+	if ((i) <= debug_chunker) {	\
+	    dbprintf(x);		\
+	}				\
+} while (0)
+
 #ifndef SEEK_SET
 #define SEEK_SET 0
 #endif
@@ -137,7 +143,7 @@ main(
     erroutput_type = (ERR_AMANDALOG|ERR_INTERACTIVE);
     set_logerror(logerror);
 
-    parse_server_conf(main_argc, main_argv, &new_argc, &new_argv);
+    parse_conf(main_argc, main_argv, &new_argc, &new_argv);
     my_argc = new_argc;
     my_argv = new_argv;
 
@@ -877,7 +883,7 @@ common_exit:
 
 
 /*
- * Send an Amanda dump header to the output file.
+ * Send an Amanda dump header to the output file and set file->blocksize
  */
 static ssize_t
 write_tapeheader(

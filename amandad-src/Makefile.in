@@ -47,6 +47,41 @@ DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
+	$(top_srcdir)/config/gnulib/absolute-header.m4 \
+	$(top_srcdir)/config/gnulib/alloca.m4 \
+	$(top_srcdir)/config/gnulib/arpa_inet_h.m4 \
+	$(top_srcdir)/config/gnulib/eoverflow.m4 \
+	$(top_srcdir)/config/gnulib/extensions.m4 \
+	$(top_srcdir)/config/gnulib/getaddrinfo.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-cache.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-common.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-comp.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-tool.m4 \
+	$(top_srcdir)/config/gnulib/inet_ntop.m4 \
+	$(top_srcdir)/config/gnulib/intmax_t.m4 \
+	$(top_srcdir)/config/gnulib/inttypes_h.m4 \
+	$(top_srcdir)/config/gnulib/lib-ld.m4 \
+	$(top_srcdir)/config/gnulib/lib-link.m4 \
+	$(top_srcdir)/config/gnulib/lib-prefix.m4 \
+	$(top_srcdir)/config/gnulib/lock.m4 \
+	$(top_srcdir)/config/gnulib/longdouble.m4 \
+	$(top_srcdir)/config/gnulib/longlong.m4 \
+	$(top_srcdir)/config/gnulib/netinet_in_h.m4 \
+	$(top_srcdir)/config/gnulib/onceonly_2_57.m4 \
+	$(top_srcdir)/config/gnulib/size_max.m4 \
+	$(top_srcdir)/config/gnulib/snprintf.m4 \
+	$(top_srcdir)/config/gnulib/socklen.m4 \
+	$(top_srcdir)/config/gnulib/sockpfaf.m4 \
+	$(top_srcdir)/config/gnulib/stdbool.m4 \
+	$(top_srcdir)/config/gnulib/stdint_h.m4 \
+	$(top_srcdir)/config/gnulib/strdup.m4 \
+	$(top_srcdir)/config/gnulib/string_h.m4 \
+	$(top_srcdir)/config/gnulib/sys_socket_h.m4 \
+	$(top_srcdir)/config/gnulib/vasnprintf.m4 \
+	$(top_srcdir)/config/gnulib/visibility.m4 \
+	$(top_srcdir)/config/gnulib/wchar_t.m4 \
+	$(top_srcdir)/config/gnulib/wint_t.m4 \
+	$(top_srcdir)/config/gnulib/xsize.m4 \
 	$(top_srcdir)/configure.in
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
@@ -72,7 +107,8 @@ amandad_OBJECTS = amandad.$(OBJEXT)
 amandad_LDADD = $(LDADD)
 amandad_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
 	libamandad.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)/config
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -90,8 +126,10 @@ HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
+ABSOLUTE_STRING_H = @ABSOLUTE_STRING_H@
 ACLOCAL = @ACLOCAL@
 ALLOCA = @ALLOCA@
+ALLOCA_H = @ALLOCA_H@
 AMANDA_DBGDIR = @AMANDA_DBGDIR@
 AMANDA_DEBUG_DAYS = @AMANDA_DEBUG_DAYS@
 AMANDA_TMPDIR = @AMANDA_TMPDIR@
@@ -106,18 +144,17 @@ AMPLOT_COMPRESS = @AMPLOT_COMPRESS@
 AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
 AR = @AR@
+ARPA_INET_H = @ARPA_INET_H@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
-AWK_VAR_ASSIGNMENT_OPT = @AWK_VAR_ASSIGNMENT_OPT@
 BINARY_OWNER = @BINARY_OWNER@
-BUILD_MAN_PAGES_FALSE = @BUILD_MAN_PAGES_FALSE@
-BUILD_MAN_PAGES_TRUE = @BUILD_MAN_PAGES_TRUE@
 CAT = @CAT@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CFLAG_VISIBILITY = @CFLAG_VISIBILITY@
 CHIO = @CHIO@
 CHS = @CHS@
 CLIENT_LOGIN = @CLIENT_LOGIN@
@@ -150,18 +187,40 @@ ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
+ENABLE_MANPAGE_BUILD_FALSE = @ENABLE_MANPAGE_BUILD_FALSE@
+ENABLE_MANPAGE_BUILD_TRUE = @ENABLE_MANPAGE_BUILD_TRUE@
+EOVERFLOW = @EOVERFLOW@
+EXAMPLE_TAPEDEV = @EXAMPLE_TAPEDEV@
 EXEEXT = @EXEEXT@
 F77 = @F77@
 FFLAGS = @FFLAGS@
+GCC_COMPILER_FALSE = @GCC_COMPILER_FALSE@
+GCC_COMPILER_TRUE = @GCC_COMPILER_TRUE@
 GETCONF = @GETCONF@
+GL_COND_LIBTOOL_FALSE = @GL_COND_LIBTOOL_FALSE@
+GL_COND_LIBTOOL_TRUE = @GL_COND_LIBTOOL_TRUE@
 GNUPLOT = @GNUPLOT@
 GNUTAR = @GNUTAR@
 GNUTAR_LISTED_INCREMENTAL_DIR = @GNUTAR_LISTED_INCREMENTAL_DIR@
 GNUTAR_LISTED_INCREMENTAL_DIRX = @GNUTAR_LISTED_INCREMENTAL_DIRX@
 GREP = @GREP@
 GZIP = @GZIP@
-HAVE_XSLTPROC_FALSE = @HAVE_XSLTPROC_FALSE@
-HAVE_XSLTPROC_TRUE = @HAVE_XSLTPROC_TRUE@
+HAVE_DECL_MEMMEM = @HAVE_DECL_MEMMEM@
+HAVE_DECL_MEMRCHR = @HAVE_DECL_MEMRCHR@
+HAVE_DECL_STRDUP = @HAVE_DECL_STRDUP@
+HAVE_DECL_STRNCASECMP = @HAVE_DECL_STRNCASECMP@
+HAVE_DECL_STRNDUP = @HAVE_DECL_STRNDUP@
+HAVE_DECL_STRNLEN = @HAVE_DECL_STRNLEN@
+HAVE_DECL_STRTOK_R = @HAVE_DECL_STRTOK_R@
+HAVE_MEMPCPY = @HAVE_MEMPCPY@
+HAVE_STPCPY = @HAVE_STPCPY@
+HAVE_STPNCPY = @HAVE_STPNCPY@
+HAVE_STRCHRNUL = @HAVE_STRCHRNUL@
+HAVE_STRNDUP = @HAVE_STRNDUP@
+HAVE_STRPBRK = @HAVE_STRPBRK@
+HAVE_STRSEP = @HAVE_STRSEP@
+HAVE_VISIBILITY = @HAVE_VISIBILITY@
+HAVE__BOOL = @HAVE__BOOL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
@@ -170,22 +229,31 @@ LDFLAGS = @LDFLAGS@
 LEX = @LEX@
 LEXLIB = @LEXLIB@
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
+LIBMULTITHREAD = @LIBMULTITHREAD@
 LIBOBJS = @LIBOBJS@
+LIBPTH = @LIBPTH@
+LIBPTH_PREFIX = @LIBPTH_PREFIX@
 LIBS = @LIBS@
+LIBTHREAD = @LIBTHREAD@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
 LL_FMT = @LL_FMT@
 LL_RFMT = @LL_RFMT@
 LN_S = @LN_S@
 LTALLOCA = @LTALLOCA@
+LTLIBMULTITHREAD = @LTLIBMULTITHREAD@
 LTLIBOBJS = @LTLIBOBJS@
+LTLIBPTH = @LTLIBPTH@
+LTLIBTHREAD = @LTLIBTHREAD@
 MAILER = @MAILER@
 MAKEINFO = @MAKEINFO@
 MAXTAPEBLOCKSIZE = @MAXTAPEBLOCKSIZE@
 MCUTIL = @MCUTIL@
+MKDIR_P = @MKDIR_P@
 MT = @MT@
 MTX = @MTX@
 MT_FILE_FLAG = @MT_FILE_FLAG@
+NETINET_IN_H = @NETINET_IN_H@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
@@ -199,6 +267,9 @@ PERL = @PERL@
 PRINT = @PRINT@
 RANLIB = @RANLIB@
 READLINE_LIBS = @READLINE_LIBS@
+REPLACE_STRCASECMP = @REPLACE_STRCASECMP@
+REPLACE_STRCASESTR = @REPLACE_STRCASESTR@
+REPLACE_STRSTR = @REPLACE_STRSTR@
 RESTORE = @RESTORE@
 SAMBA_CLIENT = @SAMBA_CLIENT@
 SERVICE_SUFFIX = @SERVICE_SUFFIX@
@@ -207,7 +278,10 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SNAPSHOT_STAMP = @SNAPSHOT_STAMP@
 SORT = @SORT@
+SSH = @SSH@
+STDBOOL_H = @STDBOOL_H@
 STRIP = @STRIP@
+SYS_SOCKET_H = @SYS_SOCKET_H@
 USE_VERSION_SUFFIXES = @USE_VERSION_SUFFIXES@
 VDUMP = @VDUMP@
 VERSION = @VERSION@
@@ -246,6 +320,7 @@ WANT_TAPE_TRUE = @WANT_TAPE_TRUE@
 XFSDUMP = @XFSDUMP@
 XFSRESTORE = @XFSRESTORE@
 XSLTPROC = @XSLTPROC@
+XSLTPROC_FLAGS = @XSLTPROC_FLAGS@
 YACC = @YACC@
 ac_c = @ac_c@
 ac_ct_AR = @ac_ct_AR@
@@ -272,6 +347,8 @@ build_os = @build_os@
 build_vendor = @build_vendor@
 datadir = @datadir@
 exec_prefix = @exec_prefix@
+gl_LIBOBJS = @gl_LIBOBJS@
+gl_LTLIBOBJS = @gl_LTLIBOBJS@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -297,7 +374,8 @@ target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
 INCLUDES = -I$(top_builddir)/common-src \
-		-I$(top_srcdir)/common-src
+		-I$(top_srcdir)/common-src \
+		-I$(top_srcdir)/gnulib
 
 LINT = @AMLINT@
 LINTFLAGS = @AMLINTFLAGS@
@@ -316,7 +394,8 @@ noinst_HEADERS = amandad.h
 ###
 LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
 	libamandad.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION)
 
 all: all-am
 

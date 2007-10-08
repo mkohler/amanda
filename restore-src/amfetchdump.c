@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amfetchdump.c,v 1.16.2.2 2007/01/18 20:07:55 martinea Exp $
+ * $Id: amfetchdump.c,v 1.16 2006/08/24 01:57:15 paddy_s Exp $
  *
  * retrieves specific dumps from a set of amanda tapes
  */
@@ -273,7 +273,9 @@ main(
     char *e;
     int arg_state;
     rst_flags_t *rst_flags;
+#ifdef FORCE_USERID
     struct passwd *pwent;
+#endif
     int    new_argc,   my_argc;
     char **new_argv, **my_argv;
 
@@ -322,7 +324,7 @@ main(
 
     onerror(errexit);
 
-    parse_server_conf(argc, argv, &new_argc, &new_argv);
+    parse_conf(argc, argv, &new_argc, &new_argv);
     my_argc = new_argc;
     my_argv = new_argv;
 

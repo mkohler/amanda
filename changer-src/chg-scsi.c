@@ -1,4 +1,4 @@
-static char rcsid[] = "$Id: chg-scsi.c,v 1.52.2.2 2006/12/12 14:56:37 martinea Exp $";
+static char rcsid[] = "$Id: chg-scsi.c,v 1.52 2006/07/25 18:18:46 martinea Exp $";
 /*
  * 
  *

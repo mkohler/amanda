@@ -1,11 +1,11 @@
 .\"     Title: amanda
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 02/07/2007
+.\"      Date: 06/06/2007
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMANDA" "8" "02/07/2007" "" ""
+.TH "AMANDA" "8" "06/06/2007" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -1041,7 +1041,53 @@ T}
 .TE
 .sp
 .PP
-.SH "CONFIGURATION OVERWRITE"
+.SH "DUMP SPECIFICATIONS"
+.PP
+A dump specification selects one or more dumps. It has the form
+\fI[host][:disk][@datestamp]\fR, where each component is a pattern as described above. If a component is missing, it is treated as a wildcard. The characters ':', '@', and '\e' may be escaped within any component by preceding them with a '\e'.
+.PP
+Some examples:
+.TS
+tab(:);
+l l
+l l
+l l
+l l
+l l
+l l.
+T{
+DUMPSPEC
+T}:T{
+DESCRIPTION
+T}
+T{
+client17
+T}:T{
+all dumps of client17
+T}
+T{
+@20080615
+T}:T{
+All dumps on with datestamps matching 20080615
+T}
+T{
+webserver:/var/www
+T}:T{
+All dumps of /var/www on host webserver
+T}
+T{
+webserver:/var/www@200806150317
+T}:T{
+The dump of webserver with datestamp 200806150317
+T}
+T{
+:/var/www
+T}:T{
+All dumps of /var/www on any host
+T}
+.TE
+.sp
+.SH "CONFIGURATION OVERRIDE"
 .PP
 Most command allow to overwrite any configuration parameter on the command line with the \-o option.
 .PP

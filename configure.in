@@ -13,10 +13,10 @@ AC_DEFINE_UNQUOTED(CONFIGURE_COMMAND,"$CONFIGURE_COMMAND",
 	  [Saves the original ./configure command line arguments])
 AC_SUBST(CONFIGURE_COMMAND)
 
-AM_INIT_AUTOMAKE(amanda, 2.5.1p3)
+AM_INIT_AUTOMAKE(amanda, 2.5.2p1)
 AM_CONFIG_HEADER(config/config.h)
 
-AC_PREREQ(2.57)		dnl Minimum Autoconf version required.
+AC_PREREQ(2.59)		dnl Minimum Autoconf version required.
 
 if test -f "$srcdir/SNAPSHOT"; then
   cat < "$srcdir/SNAPSHOT"
@@ -85,6 +85,8 @@ AC_ARG_WITH(cflags,
 CFLAGS="-D_GNU_SOURCE $CFLAGS"
 
 AC_PROG_CC
+gl_EARLY
+gl_INIT
 AC_OBJEXT
 AC_EXEEXT
 AC_SYS_LARGEFILE
@@ -562,7 +564,11 @@ AC_ARG_WITH(tape-device,
 if test ! -z "$DEFAULT_TAPE_DEVICE"; then
     AC_DEFINE_UNQUOTED(DEFAULT_TAPE_DEVICE,"$DEFAULT_TAPE_DEVICE",[This is the default no-rewinding tape device. ])
     AC_SUBST(DEFAULT_TAPE_DEVICE)
+    EXAMPLE_TAPEDEV=$DEFAULT_TAPE_DEVICE
+else
+    EXAMPLE_TAPEDEV="/dev/null"
 fi
+AC_SUBST(EXAMPLE_TAPEDEV)
 
 AC_ARG_WITH(ftape-raw-device,
     [  --with-ftape-rawdevice=ARG raw device on tape server HOST's if using Linux ftape >=3.04d],
@@ -917,9 +923,46 @@ n | no) : ;;
 y |  ye | yes) AC_DEFINE(SSH_SECURITY,1,[Define if SSH transport should be enabled. ])
 	       SSH_SECURITY_SET=true
   ;;
-*) AC_MSG_ERROR([*** You must not supply an argument the to --with-ssh-security option.])
+*) AC_MSG_ERROR([*** You must not supply an argument to --with-ssh-security.])
   ;;
 esac
+
+# find SSH and check for SSH options if we're using SSH security
+if test x"$SSH_SECURITY" = "xyes"; then
+    AC_PATH_PROGS(SSH, ssh, , $LOCSYSPATH)
+    AC_DEFINE_UNQUOTED(SSH, "$SSH", [Path to the SSH binary])
+
+    AC_ARG_WITH(ssh-options,
+    AS_HELP_STRING([--with-ssh-options=@<:@OPTIONS@:>@],
+		   [Use these ssh options for ssh security; the default should work]),
+	[ SSH_OPTIONS="$withval" ],
+	[ SSH_OPTIONS='' ]
+    )
+
+    case "$SSH_OPTIONS" in
+	y | ye | yes | n | no)
+	    AC_MSG_ERROR([*** You must supply an argument to --with-ssh-options.]);;
+	*) : ;;
+    esac
+
+    AC_MSG_CHECKING([SSH options])
+    # if we didn't get SSH options from the user, figure them out for ourselves
+    if test -z "$SSH_OPTIONS"; then
+	# TODO - quote these (or break them up in ssh-security??)
+	case `$SSH -V 2>&1` in
+	    OpenSSH*) SSH_OPTIONS='-x -o BatchMode=yes -o PreferredAuthentications=publickey';;
+	    *) SSH_OPTIONS='-x -o BatchMode=yes'
+	esac
+    fi
+
+    # now convert that to a comma-separated list of C strings
+    eval "set dummy ${SSH_OPTIONS}"; shift
+    SSH_OPTIONS=''
+    for i in "${@}"; do SSH_OPTIONS="${SSH_OPTIONS}${SSH_OPTIONS:+, }\"${i/\"/\\\"}\""; done
+    AC_MSG_RESULT($SSH_OPTIONS)
+
+    AC_DEFINE_UNQUOTED(SSH_OPTIONS, $SSH_OPTIONS, [Arguments to ssh])
+fi
 
 AC_ARG_WITH(bsdtcp-security,
     [  --with-bsdtcp-security use tcp as a transport],
@@ -1094,24 +1137,24 @@ for dir in $KRB5_SPOTS; do
     k5libdir=${dir}/${lib}
     if test -f ${k5libdir}/libkrb5.a -a -f ${k5libdir}/libgssapi_krb5.a -a -f ${k5libdir}/libcom_err.a; then
 	if test -f ${k5libdir}/libk5crypto.a; then
-	    K5CRYPTO=${k5libdir}/libk5crypto.a
+	    K5CRYPTO=-lk5crypto
 	elif test -f ${k5libdir}/libcrypto.a; then
-	    K5CRYPTO=${k5libdir}/libcrypto.a
+	    K5CRYPTO=-lcrypto
 	else
 	    K5CRYPTO=""
 	fi
 	if test -f ${k5libdir}/libkrb5support.a; then
-	    K5SUPPORT=${k5libdir}/libkrb5support.a
+	    K5SUPPORT=-lkrb5support
 	else
 	    K5SUPPORT=""
 	fi
 	KRB5_DIR_FOUND=$dir
-	KRB5LIBS="${k5libdir}/libgssapi_krb5.a ${k5libdir}/libkrb5.a $K5CRYPTO $K5SUPPORT ${k5libdir}/libcom_err.a"
+	KRB5LIBS="-lgssapi_krb5 -lkrb5 $K5CRYPTO $K5SUPPORT -lcom_err"
 	KRB5CFLAGS=""
 	break
     elif test -f ${k5libdir}/libkrb5.a -a -f ${k5libdir}/libasn1.a -a -f ${k5libdir}/libgssapi.a; then
 	KRB5_DIR_FOUND=$dir
-	KRB5LIBS="${k5libdir}/libgssapi.a ${k5libdir}/libkrb5.a ${k5libdir}/libasn1.a"
+	KRB5LIBS="-lgssapi.a -lkrb5.a -lasn1.a"
 	KRB5_CFLAGS="-DKRB5_HEIMDAL_INCLUDES"
 	break
     fi
@@ -1442,6 +1485,8 @@ case "$target" in
 			;;
   *-redhat-linux-*)
 			;;
+  *-suse-linux-*)
+			;;
   x86_64-*-linux-*)
 			;;
   alpha*-*-linux-*)
@@ -1543,12 +1588,6 @@ dnl Check for programs.
 AC_PATH_PROGS(AR,ar,,$LOCSYSPATH)
 
 AC_PROG_AWK
-AMANDA_PROG_AWK_VAR
-if test "x$amanda_cv_awk_var_assignment" = xno; then
-    NO_AMPLOT_MODE=true
-    AC_MSG_WARN([*** Your $awk cannot do command line variable assignment.  Amplot will not be installed.])
-fi
-
 AC_PROG_YACC
 AC_PATH_PROGS(CAT,cat,,$LOCSYSPATH)
 if test -z "$CAT"; then
@@ -1558,11 +1597,26 @@ AC_PATH_PROGS(COMPRESS,compress,,$LOCSYSPATH)
 AC_PATH_PROGS(DD,dd,,$LOCSYSPATH)
 AC_PATH_PROGS(GETCONF,getconf,,$SYSPATH)
 
-AC_PATH_PROGS(GNUPLOT,gnuplot,,$LOCSYSPATH)
-if test -z "$GNUPLOT"; then
-    NO_AMPLOT_MODE=true
-    AC_MSG_WARN([*** You do not have gnuplot.  Amplot will not be installed.])
+AC_ARG_WITH(gnuplot,
+AS_HELP_STRING([--with-gnuplot=PATH],
+               [use gnuplot executable at PATH in amplot]),
+    [ ac_with_gnuplot=$withval; ],
+    [ ac_with_gnuplot=maybe; ])
+
+if test "$ac_with_gnuplot" = "yes" -o "$ac_with_gnuplot" = "maybe"; then
+    AC_PATH_PROGS(GNUPLOT,gnuplot,,$LOCSYSPATH)
+else
+    if test "$ac_with_gnuplot" != "no"; then
+        if test -x "$ac_with_gnuplot"; then
+            GNUPLOT="$ac_with_gnuplot";
+        else
+            AC_MSG_WARN([Specified gnuplot of $ac_with_gnuplot isn't])
+            AC_MSG_WARN([executable, searching for an alternative.])
+	    AC_PATH_PROGS(GNUPLOT,gnuplot,,$LOCSYSPATH)
+        fi
+    fi
 fi
+AC_SUBST(GNUPLOT)
 
 AC_PATH_PROGS(GNUTAR,gtar gnutar tar,,$LOCSYSPATH)
 if test ! -z "$GNUTAR"; then
@@ -1691,6 +1745,14 @@ dnl AC_PATH_PROGS(MAKEINFO,makeinfo,,$LOCSYSPATH)
 dnl AC_PATH_PROGS(TEXI2DVI,texi2dvi,,$LOCSYSPATH)
 
 AC_PATH_PROGS(DUMP,$DUMP_PROGRAMS,,$SYSLOCPATH)
+if test -n "$DUMP"; then
+  if test "`basename $DUMP`" = "backup"; then
+    backup_gnutar=`$DUMP --version | $GREP "GNU tar"`
+    if test $? -eq 0; then
+      DUMP=
+    fi
+  fi
+fi
 AC_PATH_PROGS(RESTORE,ufsrestore restore,,$SYSLOCPATH)
 if test "$DUMP" -a "$RESTORE"; then
     AC_DEFINE_UNQUOTED(DUMP,"$DUMP",[Define the location of the ufsdump, backup, or dump program. ])
@@ -1827,6 +1889,8 @@ AC_SUBST(AMPLOT_CAT_GZIP)
 AC_SUBST(AMPLOT_CAT_COMPRESS)
 AC_SUBST(AMPLOT_CAT_PACK)
 
+AC_SOCKADDR_STORAGE
+
 # Determine the printf format characters to use when printing
 # values of type long long. This will normally be "ll", but where
 # the compiler treats "long long" as a alias for "long" and printf
@@ -1931,7 +1995,6 @@ AC_SUBST(LIBTOOL_DEPS)
 
 AC_PROG_GCC_TRADITIONAL
 AC_C_CONST
-AMANDA_C_VOLATILE
 AMANDA_C_UNSIGNED_LONG_CONSTANTS
 AC_TYPE_OFF_T
 AC_TYPE_PID_T
@@ -2735,7 +2798,6 @@ ICE_CHECK_DECL(fputs,stdio.h)
 ICE_CHECK_DECL(fread,stdio.h stdlib.h)
 ICE_CHECK_DECL(fseek,stdio.h)
 ICE_CHECK_DECL(fwrite,stdio.h stdlib.h)
-AC_REPLACE_FUNCS(getcwd)
 AC_CHECK_FUNCS(getfsent)
 ICE_CHECK_DECL(gethostname,unistd.h)
 AC_FUNC_GETMNTENT
@@ -2754,13 +2816,11 @@ ICE_CHECK_DECL(isnormal,math.h)
 ICE_CHECK_DECL(listen,sys/types.h sys/socket.h)
 ICE_CHECK_DECL(lstat,sys/types.h sys/stat.h)
 ICE_CHECK_DECL(malloc,stdlib.h)
-AC_REPLACE_FUNCS(memmove)
 ICE_CHECK_DECL(memmove,string.h strings.h)
 ICE_CHECK_DECL(memset,string.h strings.h)
 AC_CHECK_FUNCS(mkdir)
 ICE_CHECK_DECL(mkstemp,stdlib.h)
 ICE_CHECK_DECL(mktemp,stdlib.h)
-AC_REPLACE_FUNCS(mktime)
 ICE_CHECK_DECL(mktime,time.h sys/time.h)
 AC_FUNC_MMAP
 dnl atexit() is prefered, sunos (maybe others?) define on_exit
@@ -2788,6 +2848,8 @@ AC_CHECK_FUNCS(shquote)
 
 ICE_CHECK_DECL(setresgid,unistd.h)
 ICE_CHECK_DECL(setresuid,unistd.h)
+ICE_CHECK_DECL(snprintf,stdio.h)
+ICE_CHECK_DECL(vsnprintf,stdio.h)
 
 dnl arguments for setpgrp or not
 AC_CHECK_FUNC(setpgid, [
@@ -2831,32 +2893,15 @@ if test "x$ac_cv_func_mmap_fixed_mapped" != xyes; then
     esac
 fi
 
-dnl Some systems have snprintf but not vsnprintf.  If either snprintf or
-dnl vsnprintf are missing, then use the snprintf.c we provide.
-ICE_CHECK_DECL(snprintf,stdio.h)
-ICE_CHECK_DECL(vsnprintf,stdio.h)
-if test x"$ice_have_snprintf" != x"yes" ||
-   test x"$ice_have_vsnprintf" != x"yes"; then
-    AC_LIBOBJ([snprintf])
-    if false; then :
-	dnl so that automake includes snprintf.c in the distribution
-	AC_REPLACE_FUNCS(snprintf) 
-    fi
-fi
-
 AC_CHECK_FUNCS(sigaction sigemptyset sigvec)
 ICE_CHECK_DECL(socket,sys/types.h sys/socket.h)
 ICE_CHECK_DECL(socketpair,sys/types.h sys/socket.h)
 ICE_CHECK_DECL(sscanf,stdio.h)
 AC_CHECK_FUNCS(statfs statvfs)
-AC_REPLACE_FUNCS(strerror)
 ICE_CHECK_DECL(strerror,string.h strings.h)
 AC_FUNC_STRFTIME
-AC_REPLACE_FUNCS(strftime)
 ICE_CHECK_DECL(strftime,time.h sys/time.h)
-AC_REPLACE_FUNCS(strncasecmp)
 ICE_CHECK_DECL(strncasecmp,string.h strings.h)
-AC_REPLACE_FUNCS(strstr)
 ICE_CHECK_DECL(syslog,syslog.h)
 ICE_CHECK_DECL(system,stdlib.h)
 ICE_CHECK_DECL(time,time.h sys/time.h)
@@ -2868,10 +2913,8 @@ ICE_CHECK_DECL(vfprintf,stdio.h stdlib.h)
 ICE_CHECK_DECL(vprintf,stdio.h stdlib.h)
 ICE_CHECK_DECL(vsprintf,stdio.h stdlib.h)
 AC_CHECK_FUNC(wait4)
-AC_REPLACE_FUNCS(waitpid)
-AC_REPLACE_FUNCS(writev)
+#AC_REPLACE_FUNCS(writev)
 ICE_CHECK_DECL(writev, unistd.h sys/uio.h)
-AC_REPLACE_FUNCS(strcasecmp)
 ICE_CHECK_DECL(strcasecmp,string.h strings.h)
 
 AC_CHECK_FUNCS(fnmatch)
@@ -3107,21 +3150,78 @@ AC_SUBST(LTALLOCA)
 DOC_BUILD_DATE=`date '+%d-%m-%Y'`
 AC_SUBST(DOC_BUILD_DATE)
 
-AC_ARG_WITH(built-manpages,
-    [  --without-built-manpages Do not build manpages from XML source.],
-    [ BUILDMANPAGES=$withval; ],
-    [ BUILDMANPAGES=yes; ])
-AM_CONDITIONAL(BUILD_MAN_PAGES, test "x$BUILDMANPAGES" = "xyes")
+AC_ARG_ENABLE(manpage-build,
+AS_HELP_STRING([--enable-manpage-build],
+	       [Build the manpages from their XML source (shipped manpages are usually sufficient)]),
+    [ ENABLE_MANPAGE_BUILD=$enableval ],
+    [ ENABLE_MANPAGE_BUILD=no ])
 
-AC_PATH_PROGS(XSLTPROC,xsltproc,,$LOCSYSPATH)
-if test -z "$XSLTPROC"; then
-  USE_XSLTPROC=no
-  AC_MSG_WARN([can't find xsltproc, xsltproc support is unavailable])
-else
-  USE_XSLTPROC=yes
-  AC_DEFINE(HAVE_XSLTPROC,1,[xslt is available to generate man pages])
+AC_PROG_XSLTPROC([--nonet])
+AC_CHECK_DOCBOOK_XSLT([1.72.0])
+AC_CHECK_DOCBOOK_DTD([4.1.2])
+AC_CHECK_DOCBOOK_DTD([4.2])
+
+# and ensure that everything docbook-related is OK if we'll be using it
+if test "x$ENABLE_MANPAGE_BUILD" = "xyes"; then
+    if test -z "$XSLTPROC"; then
+	AC_MSG_ERROR([Cannot build manpages: 'xsltproc' was not found.])
+    fi
+
+    if test "x$HAVE_DOCBOOK_XSLT_1_72_0" = "xno"; then
+	AC_MSG_ERROR([Cannot build manpages: docbook version 1.72.0 was not found.])
+    fi
+
+    if test "x$HAVE_DOCBOOK_DTD_4_1_2" = "xno" || test "x$HAVE_DOCBOOK_DTD_4_2" = "xno"; then
+	AC_MSG_WARN([Docbook DTD versions 4.1.2 and 4.2 are required for manpage validation; disabling validation])
+	XSLTPROC_FLAGS="$XSLTPROC_FLAGS --novalid"
+    fi
 fi
-AM_CONDITIONAL(HAVE_XSLTPROC, test "x$USE_XSLTPROC" = "xyes")
+AM_CONDITIONAL(ENABLE_MANPAGE_BUILD, test "x$ENABLE_MANPAGE_BUILD" = "xyes")
+
+AC_CACHE_CHECK([for working IPv6],
+	       amanda_working_ipv6,
+  [AC_TRY_RUN([#include <sys/types.h>
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#ifdef HAVE_WINSOCK2_H
+#include <winsock2.h>
+#endif
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <errno.h>
+
+main()
+{
+   int aa;
+   aa = socket(AF_INET6, SOCK_STREAM, 0);
+   if (aa > 0) return 0;
+   return aa;
+}],amanda_working_ipv6=yes,
+   amanda_working_ipv6=no,
+   amanda_working_ipv6=yes
+  )
+  ]
+)
+
+if test "$BROKEN_IPV6" = true; then
+    amanda_working_ipv6=no;
+fi
+
+if test "$amanda_working_ipv6" = yes; then
+    if test "$amanda_ipv6" != false; then
+	AC_DEFINE(WORKING_IPV6,1,[Define if IPv6 is working. ])
+    fi
+else
+    if test "$amanda_ipv6" = true; then
+        AC_MSG_ERROR([Asked for IPv6 but it is not working.])
+    fi
+fi
+
+AM_CONDITIONAL([GCC_COMPILER], [test "x$CC" = "xgcc"])
 
 #### Enforce amanda code cleanliness rules.
 #### Done here to allow configuration code to remain intact.
@@ -3187,6 +3287,8 @@ fi
 AC_SUBST(AM_CFLAGS)
 
 AC_CONFIG_FILES([\
+	gnulib/Makefile							\
+									\
 	amplot/amcat.awk		amplot/amplot.sh		\
 	amplot/Makefile							\
 									\
@@ -3199,10 +3301,11 @@ AC_CONFIG_FILES([\
 	changer-src/chg-juke.sh		changer-src/chg-rait.sh		\
 	changer-src/chg-null.sh		changer-src/chg-mcutil.sh	\
 	changer-src/chg-disk.sh		changer-src/chg-iomega.pl	\
+    changer-src/chg-lib.sh                                  \
 									\
 	client-src/patch-system.sh	client-src/Makefile		\
 									\
-        dumper-src/gnutar.pl		dumper-src/generic-dumper.pl	\
+        dumper-src/amgtar.pl		dumper-src/generic-dumper.pl	\
 	dumper-src/Makefile						\
 									\
 	common-src/versuff.c		common-src/Makefile		\

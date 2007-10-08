@@ -252,6 +252,13 @@ PARAMETERS
       will be interpreted as a total amount of time to wait per client instead
       of per disk.
 
+  connect_tries int
+      Default: 3. How many times the server will try a connection.
+
+  req_tries int
+      Default: 3. How many times the server will resend a REQ packet if it
+      doesn't get the ACK packet.
+
   netusage int
       Default: 300 Kbps. The maximum network bandwidth allocated to Amanda, in
       Kbytes per second. See also the interface section.
@@ -418,6 +425,45 @@ PARAMETERS
       Default: none. The name of an Amanda configuration file to include within
       the current file. Useful for sharing dumptypes, tapetypes and interface
       definitions among several configurations.
+
+  debug_auth int
+      Default: 0. Debug level of the auth module
+
+  debug_event int
+      Default: 0. Debug level of the event module
+
+  debug_holding int
+      Default: 0. Debug level of the holdingdisk module
+
+  debug_protocol int
+      Default: 0. Debug level of the protocol module
+
+  debug_planner int
+      Default: 0. Debug level of the planner process
+
+  debug_driver int
+      Default: 0. Debug level of the driver process
+
+  debug_dumper int
+      Default: 0. Debug level of the dumper process
+
+  debug_chunker int
+      Default: 0. Debug level of the chunker process
+
+  debug_taper int
+      Default: 0. Debug level of the taper process
+
+  reserved-udp-port int,int
+      Default: --with-udpportrange or 512,1023. Reserved udp port that will be
+      used (bsd, bsdudp)
+
+  reserved-tcp-port int,int
+      Default: --with-low-tcpportrange or 512,1023. Reserved tcp port that will
+      be used (bsdtcp)
+
+  unreserved-tcp-port int,int
+      Default: --with-tcpportrange or 1025,65536. Unreserved tcp port that will
+      be used (bsd, bsdudp)
 
 
 HOLDINGDISK SECTION
@@ -912,6 +958,13 @@ The tapetype options and values are:
       reduced below the default 32 KBytes. The parameter blocksize can only be
       raised if Amanda was compiled with the configure option --with-
       maxtapeblocksize=N set with "N" greater than 32 during configure.
+
+  readblocksize int
+      Default: (from configure --with-maxtapeblocksize). How much data will be
+      read in each tape record expressed in KiloBytes. Some hardware require a
+      value not too large, and some require it to be equal to the blocksize. It
+      is useful if you configured amanda with a big --with-maxtapeblocksize and
+      your hardware don't work with a value that big.
 
   file-pad boolean
       Default: true. If true, every record, including the last one in the file,

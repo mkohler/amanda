@@ -43,11 +43,44 @@ target_triplet = @target@
 EXTRA_PROGRAMS = genversion$(EXEEXT) $(am__EXEEXT_1)
 subdir = common-src
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
-	$(srcdir)/Makefile.in $(srcdir)/versuff.c.in alloca.c getcwd.c \
-	memmove.c mktime.c snprintf.c strcasecmp.c strerror.c \
-	strftime.c strncasecmp.c strstr.c waitpid.c writev.c
+	$(srcdir)/Makefile.in $(srcdir)/versuff.c.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
+	$(top_srcdir)/config/gnulib/absolute-header.m4 \
+	$(top_srcdir)/config/gnulib/alloca.m4 \
+	$(top_srcdir)/config/gnulib/arpa_inet_h.m4 \
+	$(top_srcdir)/config/gnulib/eoverflow.m4 \
+	$(top_srcdir)/config/gnulib/extensions.m4 \
+	$(top_srcdir)/config/gnulib/getaddrinfo.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-cache.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-common.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-comp.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-tool.m4 \
+	$(top_srcdir)/config/gnulib/inet_ntop.m4 \
+	$(top_srcdir)/config/gnulib/intmax_t.m4 \
+	$(top_srcdir)/config/gnulib/inttypes_h.m4 \
+	$(top_srcdir)/config/gnulib/lib-ld.m4 \
+	$(top_srcdir)/config/gnulib/lib-link.m4 \
+	$(top_srcdir)/config/gnulib/lib-prefix.m4 \
+	$(top_srcdir)/config/gnulib/lock.m4 \
+	$(top_srcdir)/config/gnulib/longdouble.m4 \
+	$(top_srcdir)/config/gnulib/longlong.m4 \
+	$(top_srcdir)/config/gnulib/netinet_in_h.m4 \
+	$(top_srcdir)/config/gnulib/onceonly_2_57.m4 \
+	$(top_srcdir)/config/gnulib/size_max.m4 \
+	$(top_srcdir)/config/gnulib/snprintf.m4 \
+	$(top_srcdir)/config/gnulib/socklen.m4 \
+	$(top_srcdir)/config/gnulib/sockpfaf.m4 \
+	$(top_srcdir)/config/gnulib/stdbool.m4 \
+	$(top_srcdir)/config/gnulib/stdint_h.m4 \
+	$(top_srcdir)/config/gnulib/strdup.m4 \
+	$(top_srcdir)/config/gnulib/string_h.m4 \
+	$(top_srcdir)/config/gnulib/sys_socket_h.m4 \
+	$(top_srcdir)/config/gnulib/vasnprintf.m4 \
+	$(top_srcdir)/config/gnulib/visibility.m4 \
+	$(top_srcdir)/config/gnulib/wchar_t.m4 \
+	$(top_srcdir)/config/gnulib/wint_t.m4 \
+	$(top_srcdir)/config/gnulib/xsize.m4 \
 	$(top_srcdir)/configure.in
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
@@ -63,23 +96,22 @@ am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
 am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libamanda_la_DEPENDENCIES = @LTLIBOBJS@ @LTALLOCA@
+libamanda_la_LIBADD =
 am_libamanda_la_OBJECTS = alloc.lo amfeatures.lo amflock.lo \
 	bsd-security.lo bsdtcp-security.lo bsdudp-security.lo clock.lo \
-	debug.lo dgram.lo error.lo event.lo file.lo fileheader.lo \
-	krb4-security.lo krb5-security.lo match.lo packet.lo \
-	pipespawn.lo protocol.lo regcomp.lo regerror.lo regexec.lo \
-	regfree.lo rsh-security.lo security.lo security-util.lo sl.lo \
-	ssh-security.lo statfs.lo stream.lo tapelist.lo token.lo \
-	util.lo version.lo versuff.lo
+	conffile.lo debug.lo dgram.lo error.lo event.lo file.lo \
+	fileheader.lo krb4-security.lo krb5-security.lo match.lo \
+	packet.lo pipespawn.lo protocol.lo rsh-security.lo security.lo \
+	security-util.lo sl.lo ssh-security.lo statfs.lo stream.lo \
+	tapelist.lo token.lo util.lo version.lo versuff.lo
 libamanda_la_OBJECTS = $(am_libamanda_la_OBJECTS)
 am__EXEEXT_1 = statfs$(EXEEXT) token$(EXEEXT) file$(EXEEXT) \
 	bsdsecurity$(EXEEXT) amfeatures$(EXEEXT)
 am_amfeatures_OBJECTS = amfeatures.test.$(OBJEXT)
 amfeatures_OBJECTS = $(am_amfeatures_OBJECTS)
-am__DEPENDENCIES_1 = @LTLIBOBJS@ @LTALLOCA@
+am__DEPENDENCIES_1 =
 am__DEPENDENCIES_2 = alloc.$(OBJEXT) clock.$(OBJEXT) debug.$(OBJEXT) \
-	error.$(OBJEXT) util.$(OBJEXT) match.$(OBJEXT)
+	error.$(OBJEXT) util.$(OBJEXT) match.$(OBJEXT) sl.$(OBJEXT)
 am__DEPENDENCIES_3 = $(am__DEPENDENCIES_2) file.$(OBJEXT)
 amfeatures_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_3)
 am_bsdsecurity_OBJECTS = bsd-security.test.$(OBJEXT)
@@ -121,8 +153,10 @@ HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
+ABSOLUTE_STRING_H = @ABSOLUTE_STRING_H@
 ACLOCAL = @ACLOCAL@
 ALLOCA = @ALLOCA@
+ALLOCA_H = @ALLOCA_H@
 AMANDA_DBGDIR = @AMANDA_DBGDIR@
 AMANDA_DEBUG_DAYS = @AMANDA_DEBUG_DAYS@
 AMANDA_TMPDIR = @AMANDA_TMPDIR@
@@ -137,18 +171,17 @@ AMPLOT_COMPRESS = @AMPLOT_COMPRESS@
 AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
 AR = @AR@
+ARPA_INET_H = @ARPA_INET_H@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
-AWK_VAR_ASSIGNMENT_OPT = @AWK_VAR_ASSIGNMENT_OPT@
 BINARY_OWNER = @BINARY_OWNER@
-BUILD_MAN_PAGES_FALSE = @BUILD_MAN_PAGES_FALSE@
-BUILD_MAN_PAGES_TRUE = @BUILD_MAN_PAGES_TRUE@
 CAT = @CAT@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CFLAG_VISIBILITY = @CFLAG_VISIBILITY@
 CHIO = @CHIO@
 CHS = @CHS@
 CLIENT_LOGIN = @CLIENT_LOGIN@
@@ -181,18 +214,40 @@ ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
+ENABLE_MANPAGE_BUILD_FALSE = @ENABLE_MANPAGE_BUILD_FALSE@
+ENABLE_MANPAGE_BUILD_TRUE = @ENABLE_MANPAGE_BUILD_TRUE@
+EOVERFLOW = @EOVERFLOW@
+EXAMPLE_TAPEDEV = @EXAMPLE_TAPEDEV@
 EXEEXT = @EXEEXT@
 F77 = @F77@
 FFLAGS = @FFLAGS@
+GCC_COMPILER_FALSE = @GCC_COMPILER_FALSE@
+GCC_COMPILER_TRUE = @GCC_COMPILER_TRUE@
 GETCONF = @GETCONF@
+GL_COND_LIBTOOL_FALSE = @GL_COND_LIBTOOL_FALSE@
+GL_COND_LIBTOOL_TRUE = @GL_COND_LIBTOOL_TRUE@
 GNUPLOT = @GNUPLOT@
 GNUTAR = @GNUTAR@
 GNUTAR_LISTED_INCREMENTAL_DIR = @GNUTAR_LISTED_INCREMENTAL_DIR@
 GNUTAR_LISTED_INCREMENTAL_DIRX = @GNUTAR_LISTED_INCREMENTAL_DIRX@
 GREP = @GREP@
 GZIP = @GZIP@
-HAVE_XSLTPROC_FALSE = @HAVE_XSLTPROC_FALSE@
-HAVE_XSLTPROC_TRUE = @HAVE_XSLTPROC_TRUE@
+HAVE_DECL_MEMMEM = @HAVE_DECL_MEMMEM@
+HAVE_DECL_MEMRCHR = @HAVE_DECL_MEMRCHR@
+HAVE_DECL_STRDUP = @HAVE_DECL_STRDUP@
+HAVE_DECL_STRNCASECMP = @HAVE_DECL_STRNCASECMP@
+HAVE_DECL_STRNDUP = @HAVE_DECL_STRNDUP@
+HAVE_DECL_STRNLEN = @HAVE_DECL_STRNLEN@
+HAVE_DECL_STRTOK_R = @HAVE_DECL_STRTOK_R@
+HAVE_MEMPCPY = @HAVE_MEMPCPY@
+HAVE_STPCPY = @HAVE_STPCPY@
+HAVE_STPNCPY = @HAVE_STPNCPY@
+HAVE_STRCHRNUL = @HAVE_STRCHRNUL@
+HAVE_STRNDUP = @HAVE_STRNDUP@
+HAVE_STRPBRK = @HAVE_STRPBRK@
+HAVE_STRSEP = @HAVE_STRSEP@
+HAVE_VISIBILITY = @HAVE_VISIBILITY@
+HAVE__BOOL = @HAVE__BOOL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
@@ -201,22 +256,31 @@ LDFLAGS = @LDFLAGS@
 LEX = @LEX@
 LEXLIB = @LEXLIB@
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
+LIBMULTITHREAD = @LIBMULTITHREAD@
 LIBOBJS = @LIBOBJS@
+LIBPTH = @LIBPTH@
+LIBPTH_PREFIX = @LIBPTH_PREFIX@
 LIBS = @LIBS@
+LIBTHREAD = @LIBTHREAD@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
 LL_FMT = @LL_FMT@
 LL_RFMT = @LL_RFMT@
 LN_S = @LN_S@
 LTALLOCA = @LTALLOCA@
+LTLIBMULTITHREAD = @LTLIBMULTITHREAD@
 LTLIBOBJS = @LTLIBOBJS@
+LTLIBPTH = @LTLIBPTH@
+LTLIBTHREAD = @LTLIBTHREAD@
 MAILER = @MAILER@
 MAKEINFO = @MAKEINFO@
 MAXTAPEBLOCKSIZE = @MAXTAPEBLOCKSIZE@
 MCUTIL = @MCUTIL@
+MKDIR_P = @MKDIR_P@
 MT = @MT@
 MTX = @MTX@
 MT_FILE_FLAG = @MT_FILE_FLAG@
+NETINET_IN_H = @NETINET_IN_H@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
@@ -230,6 +294,9 @@ PERL = @PERL@
 PRINT = @PRINT@
 RANLIB = @RANLIB@
 READLINE_LIBS = @READLINE_LIBS@
+REPLACE_STRCASECMP = @REPLACE_STRCASECMP@
+REPLACE_STRCASESTR = @REPLACE_STRCASESTR@
+REPLACE_STRSTR = @REPLACE_STRSTR@
 RESTORE = @RESTORE@
 SAMBA_CLIENT = @SAMBA_CLIENT@
 SERVICE_SUFFIX = @SERVICE_SUFFIX@
@@ -238,7 +305,10 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SNAPSHOT_STAMP = @SNAPSHOT_STAMP@
 SORT = @SORT@
+SSH = @SSH@
+STDBOOL_H = @STDBOOL_H@
 STRIP = @STRIP@
+SYS_SOCKET_H = @SYS_SOCKET_H@
 USE_VERSION_SUFFIXES = @USE_VERSION_SUFFIXES@
 VDUMP = @VDUMP@
 VERSION = @VERSION@
@@ -277,6 +347,7 @@ WANT_TAPE_TRUE = @WANT_TAPE_TRUE@
 XFSDUMP = @XFSDUMP@
 XFSRESTORE = @XFSRESTORE@
 XSLTPROC = @XSLTPROC@
+XSLTPROC_FLAGS = @XSLTPROC_FLAGS@
 YACC = @YACC@
 ac_c = @ac_c@
 ac_ct_AR = @ac_ct_AR@
@@ -303,6 +374,8 @@ build_os = @build_os@
 build_vendor = @build_vendor@
 datadir = @datadir@
 exec_prefix = @exec_prefix@
+gl_LIBOBJS = @gl_LIBOBJS@
+gl_LTLIBOBJS = @gl_LTLIBOBJS@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -327,10 +400,8 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
+INCLUDES = -I$(top_srcdir)/gnulib   
 lib_LTLIBRARIES = libamanda.la
-REGDIR = ../regex-src
-REGsrcdir = $(srcdir)/$(REGDIR)
-INCLUDES = -I$(REGsrcdir)
 LINT = @AMLINT@
 LINTFLAGS = @AMLINTFLAGS@
 libamanda_la_SOURCES = \
@@ -341,6 +412,7 @@ libamanda_la_SOURCES = \
 	bsdtcp-security.c	\
 	bsdudp-security.c	\
 	clock.c			\
+	conffile.c		\
 	debug.c			\
 	dgram.c			\
 	error.c			\
@@ -353,10 +425,6 @@ libamanda_la_SOURCES = \
 	packet.c		\
 	pipespawn.c		\
 	protocol.c		\
-	regcomp.c		\
-	regerror.c		\
-	regexec.c		\
-	regfree.c		\
 	rsh-security.c		\
 	security.c		\
 	security-util.c		\
@@ -370,14 +438,15 @@ libamanda_la_SOURCES = \
 	version.c		\
 	versuff.c
 
-libamanda_la_LIBADD = @LTLIBOBJS@ @LTALLOCA@
+
+#libamanda_la_LIBADD =	@LTLIBOBJS@
 libamanda_la_LDFLAGS = -release $(VERSION)
 noinst_HEADERS = \
 	amanda.h		\
 	amfeatures.h		\
-	amregex.h		\
 	arglist.h		\
 	clock.h			\
+	conffile.h		\
 	dgram.h			\
 	event.h			\
 	fileheader.h		\
@@ -397,18 +466,10 @@ noinst_HEADERS = \
 
 genversion_SOURCES = genversion.c
 genversion_LDADD = $(libamanda_la_LIBADD) versuff.lo
-REGEXCSRC = $(REGsrcdir)/regcomp.c	\
-		$(REGsrcdir)/regexec.c	\
-		$(REGsrcdir)/regerror.c	\
-		$(REGsrcdir)/regfree.c
-
-REGEXHSRC = $(REGsrcdir)/regex2.h	\
-		$(REGEXCSRC)
-
 
 # these are used for testing only:
 TEST_PROGS = statfs token file bsdsecurity amfeatures
-CLEANFILES = regex.h regcomp.ih engine.ih regerror.ih *.test.c
+CLEANFILES = *.test.c
 DISTCLEANFILES = version.c genversion.h genversion amanda-int.h
 
 # used for testing only
@@ -418,7 +479,8 @@ STANDARD_COMMON_STUFF_NOT_FILE = \
 	debug.$(OBJEXT) \
 	error.$(OBJEXT) \
 	util.$(OBJEXT) \
-	match.$(OBJEXT)
+	match.$(OBJEXT) \
+	sl.$(OBJEXT)
 
 STANDARD_COMMON_STUFF = \
 	$(STANDARD_COMMON_STUFF_NOT_FILE) \
@@ -535,18 +597,6 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/alloca.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/getcwd.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/memmove.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/mktime.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/snprintf.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/strcasecmp.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/strerror.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/strftime.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/strncasecmp.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/strstr.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/waitpid.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/writev.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/alloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amfeatures.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amfeatures.test.Po@am__quote@
@@ -556,6 +606,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bsdtcp-security.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bsdudp-security.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/clock.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/conffile.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debug.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dgram.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/error.Plo@am__quote@
@@ -570,10 +621,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/packet.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pipespawn.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/protocol.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/regcomp.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/regerror.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/regexec.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/regfree.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rsh-security.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/security-util.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/security.Plo@am__quote@
@@ -734,7 +781,7 @@ clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
 	mostlyclean-am
 
 distclean: distclean-am
-	-rm -rf $(DEPDIR) ./$(DEPDIR)
+	-rm -rf ./$(DEPDIR)
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-libtool distclean-tags
@@ -760,7 +807,7 @@ install-man:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-am
-	-rm -rf $(DEPDIR) ./$(DEPDIR)
+	-rm -rf ./$(DEPDIR)
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 
@@ -808,24 +855,6 @@ genversion.h: $(top_builddir)/config.status
 version.c:	genversion$(EXEEXT)
 	-rm -f version.c
 	./genversion > version.c
-
-match.@OBJEXT@ match.lo: regex.h
-regcomp.@OBJEXT@ regcomp.lo: regex.h regcomp.ih
-regexec.@OBJEXT@ regexec.lo: regex.h engine.ih
-regerror.@OBJEXT@ regerror.lo: regex.h regerror.ih
-regfree.@OBJEXT@ regfree.lo: regex.h
-
-regex.h: $(REGEXHSRC) $(REGsrcdir)/mkh
-	sh $(REGsrcdir)/mkh -i _REGEX_H_ $(REGEXHSRC) >$@
-
-regcomp.ih: $(REGsrcdir)/regcomp.c $(REGsrcdir)/mkh
-	sh $(REGsrcdir)/mkh -p $(REGsrcdir)/regcomp.c >$@
-
-engine.ih: $(REGsrcdir)/engine.c $(REGsrcdir)/mkh
-	sh $(REGsrcdir)/mkh -p $(REGsrcdir)/engine.c >$@
-
-regerror.ih: $(REGsrcdir)/regerror.c $(REGsrcdir)/mkh
-	sh $(REGsrcdir)/mkh -p $(REGsrcdir)/regerror.c >$@
 
 lint:
 	@echo $(LINT) $(libamanda_la_SOURCES)

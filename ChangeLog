@@ -1,14 +1,549 @@
+2007-06-06  Jean-Louis Martineau <martineau@zmanda.com>
+	* Amanda 2.5.2p1 released.
+
+2007-06-06  Jean-Louis Martineau <martineau@zmanda.com>
+	* restore-src/restore.c: accept all header with size >= DISK_BLOCK_BYTES
+
+2007-06-06  Jean-Louis Martineau <martineau@zmanda.com>
+	* NEWS: Change in 2.5.2p1.
+	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.5.2p1).
+
+2007-06-06  Jean-Louis Martineau <martineau@zmanda.com>
+	* configure.in: Fix check backup is not from gnutar.
+
+2007-06-04  Jean-Louis Martineau <martineau@zmanda.com>
+	Original patch by franz Fischer
+	* tape-src/tapetype.c: close and open after a rewind.
+
+2007-06-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/krb5-security.c, common-src/bsdtcp-security.c,
+	  common-src/security-util.c: Check return code of getnameinfo.
+
+2007-06-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amstatus.pl.in: Perl argument are '-Tw'.
+
+2007-06-04  Dustin J. Mitchell <dustin@zmanda.com>
+	* server-src/holding.c: Forgotten ==0 in strcmp().
+
+2007-05-31  Jean-Louis Martineau <martineau@zmanda.com>
+	* configure.in: Check backup is not from gnutar.
+
+2007-05-31  Jean-Louis Martineau <martineau@zmanda.com>
+	* recover-src/set_commands.c (cd_dir): Validate regex.
+
+2007-05-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/krb5-security.c: Use keytab_name.
+	* server-src/holding.c: Remove unused date_matches variable.
+
+2007-05-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amstatus.pl.in: Set and use chunk_time.
+
+2007-05-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/util.c: Don't use -w flags for od execution.
+
+2007-05-29  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/planner.c: Don't report overwrite if no label.
+
+2007-05-29  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-manual.sh.in: Don't reset the slot to 0 on eject.
+
+2007-05-25  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amstatus.pl.in: Put all flags in one arguments.
+
+2007-05-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/util.c: Fix missing NULL in vstralloc call.
+
+2007-05-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amstatus.pl.in: Use compressed size.
+
+2007-05-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: Check dumper->down.
+	* server-src/dumper.c (sendbackup_response): Only call
+	  security_close_connection if pkt != NULL.
+
+2007-05-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/find.c: Send ouput to stderr.
+
+2007-05-17  Jean-Louis Martineau <martineau@zmanda.com>
+	* amplot/amplot.sh.in: Remove function keyword.
+	* changer-src/chg-lib.sh.in: Remove function keyword.
+	* changer-src/chg-multi.sh.in: Remove function keyword.
+	* changer-src/chg-zd-mtx.sh.in: Remove function keyword.
+
+2007-05-16  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/dumper.c (read_datafd): Reset timeout after the write.
+
+2007-05-15  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendsize.c: Set qlist before using it.
+
+2007-05-15  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amadmin.c, server-src/cmdline.c,
+	  server-src/find.c: Call holding_get_files will NULL date_list.
+	* server-src/holding.c (holding_get_directories_per_disk): New
+	  date_list param, scan only the date_list directories.
+	* server-src/holding.c (holding_get_directories): New
+	  date_list param.
+	* server-src/holding.c (holding_get_files): New
+	  date_list param.
+	* server-src/holding.c (holding_get_files_for_flush): Don't loop over
+	  date.
+	* server-src/holding.h (holding_get_directories,
+	  holding_get_files): New prototype.
+
+2007-05-14  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/bsd-security.c: Open an IPv4 and an IPv6 socket.
+	* common-src/bsdudp-security.c: Open an IPv4 and an IPv6 socket.
+
+2007-05-11  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amcrypt-ossl-asym.sh.in: Use CLIENT_LOGIN.
+	* server-src/amcrypt-ossl.sh.in: Use CLIENT_LOGIN.
+
+2007-05-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* util.c (cmp_sockaddr): Fix compilation.
+
+2007-05-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* util.c (cmp_sockaddr): un-map V4mapped address before comparison.
+	* common-src/security-util.c: add debugging.
+
+2007-05-08  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/diskfile.c: Fix double free.
+
+2007-05-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/alloc.c (debug_vstrallocf): Remove file and line.
+	* common-src/amanda.h (vstrallocf): Change define.
+
+2007-05-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/amanda.h: define sockaddr_storage and ss_family.
+	* common-src/amanda.h: define INET_ADDRSTRLEN.
+	* config/acinclude.m4i (AC_SOCKADDR_STORAGE): New macro.
+	* configure.in: AC_SOCKADDR_STORAGE.
+
+2007-05-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/amanda.h: Define AI_V4MAPPED and AI_ALL.
+
+2007-05-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/bsd-security.c, common-src/bsdtcp-security.c,
+	  common-src/bsdudp-security.c, common-src/krb5-security.c,
+	  common-src/stream.c, server-src/amcheck.c,
+	  server-src/dumper.c: Retry getaddrinfo with ai_flags = AI_CANONNAME
+
+2007-05-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/stream.c: pass correct sockaddr size to bind()
+
+2007-05-07  Pieter Bowman <bowman@math.utah.edu>
+	* common-src/file.c: reverse the order of chown/chmod to correctly
+			     create temporary files.
+
+2007-05-03  Jean-Louis Martineau <martineau@zmanda.com>
+	* docs/*.txt: Update from xml-docs.
+
+2007-05-03  Jean-Louis Martineau <martineau@zmanda.com>
+	* man/xml-source/amrecover.8.xml: Fix space.
+
+2007-05-03  Jean-Louis Martineau <martineau@zmanda.com>
+	* Amanda 2.5.2 released.
+	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.5.2).
+
+2007-05-02  Jean-Louis Martineau <martineau@zmanda.com>
+	* docs/*.txt, man/xml-source/*.xml: Change OVERWRITE bu OVERRIDE.
+	* man/xml-source/amadmin.8.xml: Add notees on no-reuse command.
+
+2007-05-02  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c: Improve 'invalid service' message.
+
+2007-05-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* recover-src/extract_list.c: Report the error message.
+	* recover-src/extract_list.c: Don't call close_connection.
+	* common-src/security-util.c: (tcpm_close_connection): Check for rh->rc
+
+2007-04-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/security-util.c (tcp1_stream_client): Set rh->rc->driver.
+
+2007-04-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/bsd-security.c, common-src/bsdudp-security.c,
+	  common-src/krb4-security.c: Fix ntohs for port number.
+	* common-src/dgram.c: Add socket number in comment.
+
+2007-04-27  Dustin J. Mitchell <dustin@zmanda.com>
+	* server-src/holding.c server-src/holding.h server-src/find.c:
+	  use holding module in find.c:search_holding_disk()
+
+2007-04-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amcheck.c: Fix infobad setting.
+
+2007-04-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amcheck.c: Set *bad on error.
+
+2007-04-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amflush.c: Quote L_DISK and FLUSH line.
+	* server-src/driver.c: Parse quoted FLUSH line.
+	* server-src/planner.c:  Quote L_DISK and FLUSH line.
+
+2007-04-25  Dustin J. Mitchell <dustin@zmanda.com>
+	* configure.in common-src/ssh-security.c: allow build-time configuration of SSH options
+
+2007-04-23  Paddy Sreenivasan <paddy@zmanda.com>
+	* changer-src/scsi-solaris.c common-src/protocol.c: changes to build on Solaris
+
+2007-04-20  Dustin J. Mitchell <dustin@zmanda.com>
+	* configure.in: remove unused AMANDA_C_VOLATILE
+	* config/acinclude.m4: remove unused AMANDA_C_VOLATILE
+
+2007-04-20  Dustin J. Mitchell <dustin@zmanda.com>
+	* autogen: silence unnecessary warnings about GNU make, return exit status
+
+2007-04-20  Dustin J. Mitchell <dustin@zmanda.com>
+	* common-src/stream.c: retry socket creation if OS does not support IPv6
+	  at runtime
+
+2007-04-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* amplot/amplot.sh.in (test_awk,find_gnuplot): Imported from zmanda.
+	* amplot/amplot.awk: Fix some parsing.
+	* server-src/driver.c (free_kps): Return 0 instead of big value.
+
+2007-04-18  Jean-Louis Martineau <martineau@zmanda.com>
+	* oldrecover-src/Makefile.am, changer-src/Makefile.am,
+	  client-src/Makefile.am, amandad-src/Makefile.am,
+	  recover-src/Makefile.am, server-src/Makefile.am,
+	  restore-src/Makefile.am: Link libgnu after libamanda.
+
+2007-04-18  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendbackup.c: Improve tar argument in amanda header for
+				   extraction.
+
+2007-04-18  Dustin J. Mitchell <dustin@zmanda.com>
+	* man/Makefile.am configure.in config/acinclude.m4i: add xsltproc- and docbook-
+	  related autoconf macros, use them to ensure the environment is appropriate for
+	  building manpages; manpage build is off by default.
+
+2007-04-17  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-disk.sh.in: Send error message to stdout.
+
+2007-04-17  Dustin J. Mitchell <dustin@zmanda.com>
+	* changer-src/chg-zd-mtx.sh.in: fix more typos (thanks to
+	  "Stefan G. Weichinger" <sgw@amanda.org>)
+
+2007-04-17  Jean-Louis Martineau <martineau@zmanda.com>
+	* restore-src/restore.c: Fix restoration of split and encrypted backup.
+
+2007-04-13  Dustin J. Mitchell <dustin@zmanda.com>
+	* changer-src/chg-zd-mtx.sh.in: fix typo in error message
+
+2007-04-13  Jean-Louis Martineau <martineau@zmanda.com>
+	* Amanda 2.5.2b1 released.
+	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.5.2b1).
+
+2007-04-13  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendbackup.c (first_num): Removed function.
+	* client-src/sendbackup.c (the_num): return the nth number in a string.
+	* client-src/sendbackup.h (AM_SIZE_RE): Need a field.
+	* client-src/sendbackup-dump.c: Use new AM_SIZE_RE.
+	* client-src/sendbackup-gnutar.c: Use new AM_SIZE_RE.
+
+2007-04-13  Jean-Louis Martineau <martineau@zmanda.com>
+	* NEWS: Change in amanda-2.5.2
+	* ReleaseNotes: Releases Notes for 2.5.2
+	* server-src/chunker.c (write_tapeheader): Set errno to ENOSPC.
+
+2007-04-12  Dustin J. Mitchell <dustin@zmanda.com>
+	* server-src/dumper.c: use fullwrite() instead of write()
+
+2007-04-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c: Remove duplicate setsockopt(,,SO_REUSEADDR).
+	* common-src/bsd-security.c: Use int for setsockopt.
+	* common-src/stream.c (try_socksize): Use int for setsockopt.
+
+2007-04-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amcheck.c: Remove duplicate test.
+	* server-src/dumper.c: Use newvstralloc.
+
+2007-04-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/reporter.c: Take value from chunker if it succeed and
+				 taper fail.
+
+2007-04-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* configure.in: Use krb5 shared library.
+
+2007-04-10  Dustin J. Mitchell <dustin@zmanda.com>
+	* changer-src/chg-zd-mtx.sh.in: remove configurability of mt, mtx paths
+
+2007-04-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/krb5-security.c: Initialize rc->gss_context.
+
+2007-04-09  Dustin J. Mitchell <dustin@zmanda.com>
+	* changer-src/chg-zd-mtx.sh.in: fix bugs in configuration for mt, mtx paths
+
+2007-04-06  Dustin J. Mitchell <dustin@zmanda.com>
+	* oldrecover-src/extract_list.c oldrecover-src/display_commands.c
+	  client-src/sendbackup.c client-src/getfsent.c client-src/sendsize.c
+	  client-src/selfcheck.c recover-src/amrecover.c recover-src/extract_list.c
+	  recover-src/display_commands.c server-src/amlogroll.c
+	  server-src/amindexd.c server-src/tapefile.c server-src/amcheck.c
+	  server-src/dumper.c server-src/planner.c server-src/reporter.c
+	  server-src/amadmin.c server-src/find.c server-src/infofile.c
+	  restore-src/amidxtaped.c common-src/security-util.c common-src/amanda.h:
+	  improve parsing with strcmp_const and strcmp_const_skip
+
+2007-04-06  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/taper.c: Limit splitsize to 1G in PORT-WRITE.
+
+2007-04-06  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/krb5-security.c: Report client hostname.
+
+2007-04-06  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/tapelist.c (append_to_tape): Don't call dump_tapelist.
+
+2007-04-05  Dustin J. Mitchell <dustin@zmanda.com>
+	* contrib/macosx/org.amanda.amandad.bsd*.plist: updated to use username
+	  'amandabackup'
+
+2007-04-05  Dustin J. Mitchell <dustin@zmanda.com>
+	* amplot/amplot.sh.in configure.in config/acinclude.m4i:
+	  move checks for gnuplot, awk to runtime for easier packaging;
+	  add fake gettext functions to ease the transition to
+	  full gettext support
+
+2007-04-05  Dustin J. Mitchell <dustin@zmanda.com> 
+	* server-src/amindex.c: fix bug where debug fd was closed by safe_fd,
+	  remove remote_hostname, rewrite to use getaddrinfo/getnameinfo
+	* server-src/dumper.c server-src/amcheck.c recover-src/set_commands.c:
+	  use getaddrinfo/getnameinfo
+	* common-src/security-util.[ch]: add try_resolving_hostname()
+	* common-src/ssh-security.c common-src/rsh-security.c:
+	  use try_resolving_hostname, rewrite to avoid gethostbyname
+	* common-src/krb5-security.c: use getaddrinfo instead of gethostbyname
+
+2007-04-05  Dustin J. Mitchell <dustin@zmanda.com>
+	* changer-src/chg-lib.sh.in changer-src/chg-mtx.sh.in
+	  changer-src/chg-manual.sh.in changer-src/chg-zd-mtx.sh.in
+	  changer-src/chg-multi.sh.in changer-src/Makefile.am
+	  configure.in: make the path to MTX and other executables configurable
+	  in changer scripts; introduce new changer shell library to reduce
+	  code duplication; add fake gettext functions to ease the transition to
+	  full gettext support
+
+2007-04-04  Dustin J. Mitchell <dustin@zmanda.com>
+	* server-src/dumper.c server-src/chunker.c: remove assumed ENOSPC
+	  error in static write_tapeheader functions
+
+2007-04-03  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/security-util.c: Remove buggy &.
+
+2007-04-03  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: Add READBLOCKSIZE tapetype config option.
+	* common-src/conffile.c(getconf_readblocksize): Function to retrieve
+	  the tapetype readblocksize or the configured maxtapeblocksize.
+	* common-src/conffile.h: Add READBLOCKSIZE tapetype config option.
+	* man/xml-source/amanda.conf.5.xml: Document it.
+	* tape-src/output-tape.c: Use getconf_readblocksize.
+	* tape-src/tapeio.c: Use getconf_readblocksize.
+
+2007-04-03  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/bsd-security.c, common-src/bsdtcp-security.c,
+	  common-src/bsdudp-security.c,
+	  common-src/security-util.c: Fix auth_debug and dbprintf usage.
+
+2007-04-03  Jean-Louis Martineau <martineau@zmanda.com>
+	Merge from zmanda ext.
+	* man/xml-source/amadmin.8.xml man/xml-source/amanda.8.xml
+	  server-src/amflush.c server-src/cmdline.c server-src/cmdline.h
+	  server-src/holding.c server-src/holding.h server-src/driver.c
+	  server-src/planner.c server-src/amadmin.c server-src/taper.c
+	  server-src/amcleanupdisk.c server-src/find.c
+	  server-src/Makefile.am: revise holding-disk management, add new
+	  'amadmin' subcommand to list and delete dumps from the holding
+	  disk.
+	* server-src/amadmin.c: Add 'amadmin XX holding list -l'
+
+2007-04-02  Dustin J. Mitchell <dustin@zmanda.com>
+	* common-src/bsdtcp-security.c common-src/bsd-security.c 
+	  common-src/security-util.c common-src/bsdudp-security.c:
+	  bugfixes, always check for NULL ai_canonname
+	* common-src/util.c common-src/util.h common-src/krb4-security.c 
+	  common-src/security-util.c: bugfix for hosts with multiple addresses,
+	  improved cmp_sockaddr, remove redundant checks
+	* server-src/taper.c: add log message when new tapes are auto-labeled
+	* common-src/security-util.c: patch to avoid spurious compiler warnings
+	  noticed on FC3
+
+2007-03-30  Dustin J. Mitchell <dustin@zmanda.com>
+	* common-src/file.c: remove unused amanda_setup()
+
+2007-03-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/amanda.h: Define a _() macro.
+
+2007-03-28  Dustin J. Mitchell <dustin@zmanda.com>
+	* common/amanda.h: fix typo in SS_SET_INADDR_ANY for non-IPv6 
+	  machines
+	* gnulib/regenerate/regenerate: update to include visibility
+	  and lock modules (See 2007-03-14)
+	* recover-src/extract_list.c common-src/krb4-security.c
+	  common-src/event.c common-src/security-util.c: use
+	  SELECT_ARG_TYPE instead of fd_set
+
+2007-03-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/krb5-security.c: Fix for krb5 and IPv6.
+	* common-src/security-util.c: Fix for krb5 and IPv6.
+
+2007-03-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/krb5-security.c: Compile with heimdal kerberos.
+
+2007-03-27  Jean-Louis Martineau <martineau@zmanda.com>
+	Fix solaris 9 problem:
+	* common-src/krb5-security.c: Use putenv instead of setenv.
+	* common-src/security-util.c: Set flags according to family.
+
+2007-03-27  Jean-Louis Martineau <martineau@zmanda.com>
+	Merge from zmanda EXT.
+
+2007-03-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* Makefile.am (EXTRA_DIST): Remove contrib/gnulib-update-current.
+
+2007-03-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/reporter.c: Ouput quoted diskname in "DUMP SUMMARY"
+	  section.
+
+2007-03-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-zd-mtx.sh.in: Exit with a message if the
+					configuration file doesn't exist.
+
+2007-03-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: Fix error message.
+
+2007-03-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c: Fix segfault.
+
+2007-03-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/security-util.c: Use SS_LEN.
+	* common-src/util.c: Use SS_LEN.
+
+2007-03-21  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/security.h (security_driver): Add data_encrypt and
+						   data_decrypt function.
+	* common-src/bsd-security.c, common-src/bsdtcp-security.c,
+	  common-src/bsdudp-security.c, common-src/krb4-security.c,
+	  common-src/rsh-security.c,
+	  common-src/ssh-security.c: Set data_encrypt and data_decrypt to NULL.
+
+	* common-src/conffile.c: Parse KRB5KEYTAB and KRB5PRINCIPAL on client.
+	* common-src/krb5-security.c: Complete rewrite.
+	* common-src/security-util.h: Change many prototype.
+	* common-src/security-util.c: Change argument to function.
+	* recover-src/amrecover.c: Use generic_client_get_security_conf.
+	* recover-src/extract_list.c: Use generic_client_get_security_conf.
+
+2007-03-21  Jean-Louis Martineau <martineau@zmanda.com>
+	Merge from zmanda EXT.
+	- Add SS_INIT, SS_SET_INADDR_ANY, SS_GET_PORT and SS_SET_PORT
+	  macros for IPv6 portability
+	- add SS_LEN() macro for calculating length of a
+	  struct sockaddr, use it in a few locations where incorrect
+	  lengths were being passed.
+	- New script for rebuilding gnulib from scratch; current
+	  gnulib is from "cvs update -D '2007-01-31 13:12:51 -0600'"
+
+2007-03-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* recover-src/set_commands.c (set_tape): Don't amfree(tape).
+	* oldrecover-src/set_commands.c (set_tape): Don't amfree(tape).
+
+2007-02-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/scsi-linux.c, common-src/security-util.c,
+	  common-src/stream.c, oldrecover-src/amrecover.c,
+	  restore-src/restore.c, server-src/amcheck.c,
+	  server-src/taper.c: Use SIZE_T_FMT and SSIZE_T_FMT instead of %z.
+
+2007-02-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/bsd-security.c: Always retry getaddrinfo if INET6 failed.
+	* common-src/bsdudp-security.c: Ditto.
+
+2007-02-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/debug.c: Remove old file in current directory.
+
+2007-02-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-chio.pl.in: Typo.
+
+2007-02-21  Jean-Louis Martineau <martineau@zmanda.com>
+	* recover-src/extract_list.c: Remove match for path_on_disk_slash.
+
+2007-02-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/stream.c, common-src/util.c: Pass exact socklen_t to
+						  bind and connect call.
+
+2007-02-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/taper.c: Set splitsize to 0 if no data in file.
+	* server-src/amflush.c: Don't send FLUSH request if no data in file.
+	* server-src/planner.c: Don't send FLUSH request if no data in file.
+	* server-src/driver.c: Don't send request to taper if no data in file.
+
+2007-02-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c: Fix compilation with --without-ipv6.
+
+2007-02-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amverify.sh.in: Remove bogus fi.
+
+2007-02-16  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amverify.sh.in: Add timeout on wait for device ready.
+	* changer-src/chg-chio.pl.in: Wait (with timeout) for drive ready.
+
+2007-02-15  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/taper.c: Don't call free_server_config.
+
+2007-02-15  Jean-Louis Martineau <martineau@zmanda.com>
+	* patching file oldrecover-src/amrecover.h (local_cd): Prototype.
+	* oldrecover-src/set_commands.c: Works with quoted arguments.
+	* oldrecover-src/uparse.y (LCD): Call local_cd.
+	* recover-src/amrecover.h (local_cd): Prototype.
+	* recover-src/set_commands.c: Works with quoted arguments.
+	* recover-src/uparse.y (LCD): Call local_cd.
+
+2007-02-14  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/security-util.c: Add "on the client" message.
+
+2007-02-13  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amstatus.pl.in: fix for chunk and displayunit.
+
+2007-02-13  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/dumper.c: Fix if krb4 is compiled but another auth is
+			       used.
+
+2007-02-13  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/alloc.c (safe_env): Remove LANG and LC_* only if we are
+					 priviledged process.
+
+2007-02-13  Jean-Louis Martineau <martineau@zmanda.com>
+	* dumper-src/amgtar.pl.in: Replace -t options by -T.
+	* dumper-src/Makefile.am: Remove perl -t options.
+
+2007-02-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/Makefile.am (STANDARD_COMMON_STUFF_NOT_FILE): Add sl.
+	* common-src/statfs.c: Fix scale function.
+
+2007-02-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendsize.c: Fix PARAM_HONOR_NODUMP.
+
+2007-02-09  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/reporter.c: Fix postscript crash.
+
+2007-02-09  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-manual.sh.in: Add tty, email, tty_email request mode.
+
 2007-02-07  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/amindexd.c: Use dbfd.
 
 2007-02-06  Jean-Louis Martineau <martineau@zmanda.com>
-	* Amanda 2.5.1p3 released.
-	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.5.1p3).
-	* NEWS: Update for 2.5.1p3
+	* common-src/alloc.c (vstrallocf): New function.
+	* common-src/amanda.h (vstrallocf): Prototype.
+	* client-src/sendsize.c: Send error if fe_rep_sendsize_quoted_error.
+	* common-src/amfeatures.c (am_init_feature_set): Set
+						 fe_rep_sendsize_quoted_error.
+	* common-src/amfeatures.h (fe_rep_sendsize_quoted_error): new features.
+	* server-src/planner.c: Receive error message from sendsize.
 
 2007-02-06  Jean-Louis Martineau <martineau@zmanda.com>
-	* man/xml-source/amcheck.8.xml,
-	  server-src/amlabel.c: Merge from zmanda.
+	* amandad-src/amandad.c, changer-src/scsi-linux.c,
+	  common-src/conffile.c, configure.in,
+	  man/Makefile.am, man/xml-source/amcheck.8.xml,
+	  server-src/amlabel.c, server-src/taper.c: Merge from zmanda.
 
 2007-02-06  Jean-Louis Martineau <martineau@zmanda.com>
 	* common-src/clock.c (timesub): The result must always be positive.
@@ -20,7 +555,8 @@
 	* server-src/amcheck.c: Add parentheses.
 
 2007-02-02  Jean-Louis Martineau <martineau@zmanda.com>
-	* docs/*.txt: Update from xml-docs.
+	* contrib/gnulib-update-current: New file.
+	* Makefile.am (EXTRA_DIST): Add contrib/gnulib-update-current.
 
 2007-02-02  Jean-Louis Martineau <martineau@zmanda.com>
 	* man/Makefile.am: Use http://docbook.sourceforge.net
@@ -44,6 +580,9 @@
 	* server-src/amstatus.pl.in: parse the starttime line.
 
 2007-01-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* configure.in: Fix --with-ipv6 option.
+
+2007-01-26  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/amdump.sh.in: Exit with a status.
 
 2007-01-26  Jean-Louis Martineau <martineau@zmanda.com>
@@ -59,6 +598,9 @@
 	* server-src/amstatus.pl.in: Detect failed dump to tape.
 
 2007-01-25  Jean-Louis Martineau <martineau@zmanda.com>
+	* configure.in: Add --with-ipv6 option.
+
+2007-01-25  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/changer.c (changer_command): Send stderr to dbfd().
 
 2007-01-25  Jean-Louis Martineau <martineau@zmanda.com>
@@ -71,8 +613,10 @@
 	* changer-src/chg-zd-mtx.sh.in: Set CHANGER environment variable.
 
 2007-01-24  Jean-Louis Martineau <martineau@zmanda.com>
-	* client-src/clientconf.c: Don;t check for duplicate -o options.
-	* common-src/util.c: Check for duplicate -o options.
+	* common-src/conffile.c: Cleanup conf_print function.
+
+2007-01-24  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: Check for duplicate -o options.
 	* recover-src/amrecover.c: Change precedence of option.
 
 2007-01-24  Jean-Louis Martineau <martineau@zmanda.com>
@@ -96,17 +640,32 @@
 	* server-src/taper.c: Improve message.
 
 2007-01-16  Jean-Louis Martineau <martineau@zmanda.com>
+	* configure.in: Define GCC_COMPILER.
+	* gnulib/Makefile.am: Add -Wno-error to AM_CFLAGS if GCC_COMPILER.
+
+2007-01-16  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/getconf.c: Fix segfault in parameter parsing.
 
+2007-01-15  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/bsd-security.c, common-src/bsdtcp-security.c,
+	  common-src/bsdudp-security.c,
+	  common-src/stream.c: Don't call check_addrinfo_give_name.
+	* common-src/security-util.c (check_addrinfo_give_name): Always log
+	                                                         error message.
+
 2007-01-11  Jean-Louis Martineau <martineau@zmanda.com>
-	* server-src/conffile.c Set default length/filemark correctly.
+	* common-src/conffile.c Set default length/filemark correctly.
 	* man/xml-source/amanda.conf.5.xml: Document they are in kbytes.
+
+2007-01-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* config/gnulib/gnulib-common.m4: New file.
+	* config/gnulib.m4i: Load config/gnulib/gnulib-common.m4.
 
 2007-01-10  Jean-Louis Martineau <martineau@zmanda.com>
 	* amandad-src/amandad.c (do_sendpkt): Send packet if handle != NULL.
 
 2007-01-10  Jean-Louis Martineau <martineau@zmanda.com>
-	* common-src/util.c, common-src/util.h, server-src/conffile.c,
+	* common-src/conffile.c, common-src/conffile.h,
 	  server-src/diskfile.c: Keep different list for exclude file and list.
 
 2007-01-10  Jean-Louis Martineau <martineau@zmanda.com>
@@ -119,8 +678,16 @@
 	* restore-src/restore.c: Use prompt_in.
 
 2007-01-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c, common-src/bsd-security.c,
+	  common-src/bsdtcp-security.c, common-src/bsdudp-security.c,
+	  common-src/dgram.c, common-src/security-util.c,
+	  common-src/stream.c,
+	  common-src/util.c: Replace HAVE_IPV6 by WORKING_IPV6.
+	* configure.in: Define HAVE_IPV6 if IPv6 is working.
+
+2007-01-04  Jean-Louis Martineau <martineau@zmanda.com>
 	* changer-src/chg-chio.pl.in, changer-src/chg-iomega.pl.in,
-	  changer-src/chg-rth.pl.in, dumper-src/gnutar.pl.in,
+	  changer-src/chg-rth.pl.in, dumper-src/amgtar.pl.in,
 	  server-src/amoverview.pl.in, server-src/amstatus.pl.in,
 	  server-src/amtoc.pl.in: Clean ENV and set PATH.
 
@@ -149,13 +716,10 @@
 	  common-src/security-util.c: Use pkt_init_empty.
 
 2006-12-18  Jean-Louis Martineau <martineau@zmanda.com>
-	* server-src/conffile.c: Print nothing if the list is emtpy.
+	* common-src/conffile.c: Print nothing if the list is emtpy.
 
 2006-12-14  Jean-Louis Martineau <martineau@zmanda.com>
 	* restore-src/restore.c: Fix filename for output file.
-
-2006-12-12  Jean-Louis Martineau <martineau@zmanda.com>
-	* common-src/util.c: Fix printf format error.
 
 2006-12-12  Jean-Louis Martineau <martineau@zmanda.com>
 	* common-src/amanda.h: Define __attribute__ for gcc >= 3.
@@ -164,9 +728,10 @@
 	  common-src/security-util.c: Pass NULL to pkt_init.
 	* amandad-src/amandad.c, changer-src/chg-scsi.c,
 	  changer-src/scsi-linux.c, client-src/sendbackup.c,
-	  common-src/amanda.h, common-src/event.c,
-	  common-src/packet.c, common-src/security-util.c,
-	  common-src/stream.c, oldrecover-src/amrecover.c,
+	  common-src/amanda.h, common-src/conffile.c,
+	  common-src/event.c, common-src/packet.c,
+	  common-src/security-util.c, common-src/stream.c,
+	  common-src/util.c, oldrecover-src/amrecover.c,
 	  restore-src/restore.c, server-src/amcheck.c,
 	  server-src/driver.c, server-src/driverio.c,
 	  server-src/taper.c: Fix printf format error.
@@ -181,6 +746,11 @@
 				 and sort process.
 
 2006-12-08  Jean-Louis Martineau <martineau@zmanda.com>
+	* configure.in: Add ICE_CHECK_DECL(snprintf,stdio.h)
+	* configure.in: Add ICE_CHECK_DECL(vsnprintf,stdio.h)
+	* client-src/sendbackup.c: Fix ignoring return value of write.
+
+2006-12-08  Jean-Louis Martineau <martineau@zmanda.com>
 	* man/xml-source/amadmin.8.xml, man/xml-source/amanda.8.xml,
 	  man/xml-source/amanda.conf.5.xml, man/xml-source/amcheck.8.xml,
 	  man/xml-source/amfetchdump.8.xml, man/xml-source/ammt.8.xml,
@@ -190,12 +760,50 @@
 	* changer-src/chg-rait.sh.in: Fix typo for -reset.
 
 2006-12-07  Jean-Louis Martineau <martineau@zmanda.com>
-	* common-src/util.c (lookup_keyword): Use strcasecmp.
-	* common-src/util.c (get_conftoken): Don;t convert to uppercase.
+	* server-src/amindexd.c: Fix host case problem.
+	* server-src/diskfile.c (add_disk, parse_diskline): Update hostname
+							    field.
+	* server-src/diskfile.h (disk_s): New hostname field.
+	* server-src/disk_history.c (add_dump): New hostname parameter.
+	* server-src/disk_history.h (DUMP_ITEM): New hostname field.
+	* server-src/disk_history.h (add_dump): Protoype change.
+
+2006-12-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c: Add missing HAVE_IPV6.
+	* common-src/security-util.c: Add missing HAVE_IPV6.
+	* common-src/bsd-security.c, common-src/bsdtcp-security.c,
+	  common-src/bsdudp-security.c, common-src/dgram.c,
+	  common-src/dgram.h, common-src/stream.c,
+	  common-src/util.c: Fix for broken getaddrinfo:not returning V4MAPPED
+
+2006-12-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c (lookup_keyword): Use strcasecmp.
+	* common-src/conffile.c (get_conftoken): Don;t convert to uppercase.
 	* server-src/getconf.c: Don;t print extra '\n' for --list.
 
 2006-12-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/util.c (str_sockaddr): Use host byte order for port.
+
+2006-12-04  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/amtape.h: Remove file.
+
+2006-12-04  Jean-Louis Martineau <martineau@zmanda.com>
+	Application API phase 1.
+	* client-src/client_util.c, client-src/client_util.h,
+	  client-src/selfcheck.c, client-src/sendbackup.c,
+	  client-src/sendsize.c, common-src/amfeatures.c,
+	  common-src/amfeatures.h, common-src/fileheader.c,
+	  common-src/fileheader.h, recover-src/extract_list.c,
+	  server-src/amcheck.c, server-src/amstatus.pl.in,
+	  server-src/dumper.c, server-src/Makefile.am,
+	  server-src/planner.c: Fix for Application API.
+	* configure.in: Fix for moved files.
+	* dumper-src/generic-dumper.pl.in: Fix for Application API.
+	* dumper-src/Makefile.am: Fix for renamed files.
+	* dumper-src/gnutar.pl.in: Renamed to dumper-src/amgtar.pl.in.
+	* dumper-src/amgtar.pl.in: Fix for Application API.
+	* dumper-src/star.pl.in: Renamed to dumper-src/amstar.pl.in.
+	* dumper-src/amstar.pl.in: Fix for Application API.
 
 2006-11-29  Jean-Louis Martineau <martineau@zmanda.com>
 	* client-src/sendbackup.c: Kill dump process on error.
@@ -222,8 +830,38 @@
 2006-11-29  Jean-Louis Martineau <martineau@zmanda.com>
 	* restore-src/restore.c (search_tapes): Fix prompt_out setting.
 
-2006-11-24  Jean-Louis Martineau <martineau@zmanda.com>
+2006-11-28  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/amanda.h: Don't include gnulib header if CONFIGURE_TEST
+			       is defined.
+	* common-src/amflock.c (main): Remove unused fd variable.
+
+2006-11-28  Jean-Louis Martineau <martineau@zmanda.com>
+	* config/Makefile.am (EXTRA_DIST): Add gnulib.m4i.
+
+2006-11-27  Jean-Louis Martineau <martineau@zmanda.com>
 	* common-src/util.c (copy_file): Fix compilation error.
+
+2006-11-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/stream.c: Fix compilation error.
+
+2006-11-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/amanda.h (NI_MAXHOST): Define if not defined.
+	* common-src/bsd-security.c, common-src/bsdtcp-security.c,
+	  common-src/bsdudp-security.c, common-src/dgram.c,
+	  common-src/security-util.c, common-src/stream.c,
+	  common-src/util.c: HAVE_IPV6 conditional code
+
+2006-11-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* config/gnulib/*: m4 files for gnulib.
+	* config/gnulib.m4i: File to load all m4 files for gnulib.
+	* gnulib/*: gnulib source.
+	* */Makefile.am (INCLUDES): Add $(top_srcdir)/gnulib.
+	* */Makefile.am (LDADD): Add ../gnulib/libgnu.$(LIB_EXTENSION).
+	* Makefile.am (ACINCLUDE_M4_DEPS): Add $(srcdir)/config/gnulib.m4i.
+	* Makefile.am (SUBDIRS): Add gnulib.
+	* configure.in: AC_PREREQ(2.59), gl_EARLY, gl_INIT.
+	* configure.in (AC_CONFIG_FILES): Add gnulib/Makefile.
+	* autogen: Add config/gnulib.m4i to acinclude.m4.
 
 2006-11-24  Jean-Louis Martineau <martineau@zmanda.com>
 	* client-src/sendbackup-dump.c, client-src/sendbackup-gnutar.c,
@@ -252,9 +890,32 @@
 	* common-src/security-util.c (tcpm_recv_token): amanda protocol
 	  packet can be larger than NETWORK_BLOCK_BYTES
 
+2006-11-21  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/stream.c: Fix compiler error.
+
+2006-11-21  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c, common-src/amanda.h,
+	  common-src/bsd-security.c, common-src/bsdtcp-security.c,
+	  common-src/bsdudp-security.c, common-src/dgram.c,
+	  common-src/dgram.h, common-src/krb4-security.c,
+	  common-src/krb5-security.c, common-src/security-util.c,
+	  common-src/security-util.h, common-src/stream.c,
+	  common-src/util.c, common-src/util.h,
+	  restore-src/amidxtaped.c, server-src/amindexd.c: IPV6.
+
+2006-11-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendsize.c, oldrecover-src/display_commands.c,
+	  oldrecover-src/extract_list.c, recover-src/display_commands.c,
+	  recover-src/extract_list.c,
+	  server-src/driver.c: Fix compiler error.
+
 2006-11-20  Jean-Louis Martineau <martineau@zmanda.com>
 	* client-src/sendsize.c: Open the amandates file after the
 				 <config>/amanda-client.conf file is loaded.
+
+2006-11-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendsize.c: Fix compiler error on boris.
+	* server-src/driver.c: Fix compiler error on rocky.
 
 2006-11-20  Jean-Louis Martineau <martineau@zmanda.com>
 	* common-src/security-util.c, server-src/amcheck.c,
@@ -279,31 +940,29 @@
 				is set to 0.
 
 2006-11-09  Jean-Louis Martineau <martineau@zmanda.com>
-	* Amanda 2.5.1p2 released.
-	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.5.1p2).
-	* NEWS: Update for 2.5.1p2
-
-2006-11-09  Jean-Louis Martineau <martineau@zmanda.com>
-	* server-src/conffile.c (getconf_byname):
-	                        Parse "DEFINE:identifer:parameter" format.
-	* server-src/conffile.c (getconf_list): New function to list a DEFINE.
-	* server-src/conffile.c (lookup_holdingdisk): New function.
-	* server-src/conffile.h (getconf_list,
-	                         lookup_holdingdisk): New prototype.
-	* server-src/getconf.c: accept --list argument and
-	                        "DEFINE:identifer:parameter" format.
-	* man/xml-source/amgetconf.8.xml: Document.
+	* man/xml-source/amgetconf.8.xml: Document --list.
 
 2006-11-09  Jean-Louis Martineau <martineau@zmanda.com>
 	* changer-src/chg-scsi.c: Don't remove '_' from "generic_changer".
-	
+
 2006-11-08  Jean-Louis Martineau <martineau@zmanda.com>
-	* common-src/amanda.h, common-src/security-util.c,
-	  common-src/util.h, configure.in,
-	  oldrecover-src/amrecover.c, oldrecover-src/extract_list.c,
-	  recover-src/amrecover.c, recover-src/extract_list.c,
-	  restore-src/amrestore.c, server-src/conffile.c,
+	* common-src/amanda.h, common-src/conffile.c,
+	  common-src/conffile.h, common-src/security-util.c,
+	  configure.in, oldrecover-src/amrecover.c,
+	  oldrecover-src/extract_list.c, recover-src/amrecover.c,
+	  recover-src/extract_list.c, restore-src/amrestore.c,
 	  server-src/dumper.c: Fix compiler error on Tru64.
+
+2006-11-08  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c (getconf_byname):
+				Parse "DEFINE:identifer:parameter" format.
+	* common-src/conffile.c (getconf_list): New function to list a DEFINE.
+	* common-src/conffile.c (lookup_holdingdisk): New function.
+	* common-src/conffile.h (getconf_list,
+				 lookup_holdingdisk): New prototype.
+	* server-src/getconf.c: accept --list argument and
+				"DEFINE:identifer:parameter" format.
+	* man/xml-source/amgetconf.8.xml: Document.
 
 2006-11-08  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/driver.c: set off_t variable to 0 before sscanf.
@@ -317,7 +976,7 @@
 	* server-src/diskfile.c: Fix coverity bug 147.
 
 2006-11-07  Jean-Louis Martineau <martineau@zmanda.com>
-	* server-src/conffile.c (validate_chunksize): Check chunksize is >=
+	* common-src/conffile.c (validate_chunksize): Check chunksize is >=
 						      2*DISK_BLOCK_KB
 
 2006-11-06  Jean-Louis Martineau <martineau@zmanda.com>
@@ -337,7 +996,8 @@
 	* server-src/diskfile.c: Don't use 0 for NULL.
 
 2006-11-01  Jean-Louis Martineau <martineau@zmanda.com>
-	* client-src/clientconf.c: Define AMANDATES_FILE
+	Revert Ian patch of 2006-10-29.
+	* common-src/conffile.c: Defile AMANDATES_FILE
 	* client-src/amandates.h: Don't define AMANDATES_FILE
 
 2006-11-01  Jean-Louis Martineau <martineau@zmanda.com>
@@ -346,16 +1006,6 @@
 	* server-src/amadmin.c (disklist_one): Print correct starttime.
 	* server-src/diskfile.c: Set start_t to starttime.
 	* server-src/diskfile.h (disk_t): Add starttime.
-	* common-src/conffile.c (conf_print): Add a parameter if we want
-	                                      CONFTYPE_STRING enclosed in ".
-	* server-src/planner.c: Use getconf_int to get etimeout value.
-	* common-src/conffile.c (CNF_CTIMEOUT, CNF_DTIMEOUT, CNF_ETIMEOUT):
-	  They are of type CONFTYPE_INT
-	  (CONFTYPE_TIME are for value parsed as "hhmm"")
-	* common-src/conffile.c (getconf_byname): Use conf_print().
-	* common-src/conffile.h: Add comment.
-	* server-src/amcheck.c, server-src/dumper.c, server-src/planner.c:
-	  Use getconf_int to get timeout value.
 
 2006-11-01  Jean-Louis Martineau <martineau@zmanda.com>
 	* changer-src/scsi-changer-driver.c: Add Tandberg SLR100,
@@ -366,9 +1016,25 @@
 	* common-src/amanda.h: Define dbrename if !DEBUG_CODE.
 	* restore-src/amidxtaped.c: Declare i if !DEBUG_CODE.
 
-2006-10-25  Jean-Louis Martineau <martineau@zmanda.com>
-	* server-src/amtape.c: Use parse_conf instead of parse_server_conf.
+2006-10-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amadmin.c (disklist_one): Print ignore field.
+	* server-src/amoverview.pl.in: Ignore 'ignore yes' and 'strategy skip'.
 	* server-src/diskfile.c: Correct hostname allocation.
+	                         Keep 'ignore yes' and 'strategy skip' DLE in
+				 memory, set there todo to 0.
+	* server-src/diskfile.h: (struct disk_s): New ignore field.
+
+2006-10-29  Ian Turner <ian@zmanda.com>
+	This was reported as debian bug 394796. Thanks to Damyan Ivanov 
+	<dam@modsoftsys.com> for reporting and to Bdale Garbee 
+	<bdale@gag.com> for a preliminary patch.
+	* common-src/conffile.c: Use AMANDATES_FILE as default for 
+	  location of amandates.
+	* common-src/amandates.h: Move from client-src/
+	* client-src/amandates.h: Move to common-src/
+	* common-src/Makefile.am: Update to reflect new location of 
+	  amandates.h.
+	* client-src/Makefile.am: ditto.
 
 2006-10-25  Jean-Louis Martineau <martineau@zmanda.com>
 	Patch by Jay Fenlason
@@ -387,18 +1053,75 @@
 	* server-src/taper.c: Fix allocation problem on tapedev.
 
 2006-10-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c (conf_print): Add a parameter if we want
+					      CONFTYPE_STRING enclosed in ".
+	* server-src/planner.c: Use getconf_int to get etimeout value.
+
+2006-10-20  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/taper.c (free_split_buffer): Correct free.
+
+2006-10-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendbackup.c: Parse quote amdevice.
+	* server-src/amcheck.c: Send quoted amdevice.
+	* server-src/planner.c: Send quoted amdevice.
+
+2006-10-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c (CNF_CTIMEOUT, CNF_DTIMEOUT, CNF_ETIMEOUT):
+	  They are of type CONFTYPE_INT
+	  (CONFTYPE_TIME are for value parsed as "hhmm"")
+	* common-src/conffile.c (getconf_byname): Use conf_print().
+	* common-src/conffile.h: Add comment.
+	* server-src/amcheck.c, server-src/dumper.c, server-src/planner.c:
+	  Use getconf_int to get timeout value.
 
 2006-10-19  Jean-Louis Martineau <martineau@zmanda.com>
 	* man/xml-source/amanda.conf.5.xml: Fix formating.
 
 2006-10-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/calcsize.c, client-src/sendsize.c: Remove bogus fseek.
+
+2006-10-19  Jean-Louis Martineau <martineau@zmanda.com>
 	* client-src/calcsize.c: Quote amname.
+
+2006-10-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: Print an L_STATS with the hostname
+	* server-src/reporter.c: Print hostname, org, config and date at the
+				 beginning of the report
 
 2006-10-16  Jean-Louis Martineau <martineau@zmanda.com>
 	* common-src/dgram.c (dgram_cat),
 	  common-src/packet.c (pkt_init, pkt_cat): Works correctly with
 						   vsnprintf returning -1.
+
+2006-10-11  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/Makefile.am (libamanda_la_LIBADD) Remove @LTLIBOBJS@.
+
+2006-10-11  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/taper.c: stralloc(tapedev).
+	* configure.in (EXAMPLE_TAPEDEV): Set to /dev/null if no tape-device.
+	* example/amanda-client.conf.in, example/amanda.conf.in
+	  example/chg-mcutil.conf.in: Use EXAMPLE_TAPEDEV.
+
+2006-10-11  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/alloca.c, common-src/getcwd.c, common-src/mktime.c,
+	  common-src/memmove.c, common-src/snprintf.c,
+	  common-src/strcasecmp.c, common-src/strerror.c,
+	  common-src/strftime.c, common-src/strncasecmp.c,
+	  common-src/strstr.c, common-src/waitpid.c,
+	  COPYRIGHT-APACHE: Removed files.
+	* configure.in: Remove many AC_REPLACE_FUNCS.
+	* Makefile.am (pkgdata_DATA): Remove COPYRIGHT-APACHE.
+
+2006-10-11  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/Makefile.am: Remove all reference to our regex
+	* common-src/match.c: #include <regex.h>, the system regex
+	* common-src/memmove.c: No more memmove in regex-src
+	* Makefile.am (pkgdata_DATA): Remove COPYRIGHT-REGEX
+	* Makefile.am (EXTRA_DIST): Remove regex-src/*
+	* regex-src: Remove directory.
+	* common-src/regcomp.c, common-src/regerror.c,
+	  common-src/regexec.c, common-src/regfree.c,
+	  common-src/amregex.h: Remove files.
 
 2006-10-11  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/planner.c: Improve message for dump larger than available
@@ -416,7 +1139,7 @@
 2006-10-03  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/amcleanupdisk.c: Accept -o arguments.
 	* server-src/amcleanup.sh.in: Add missing 'shift' for non-linux system.
-				      Accept -o arguments.
+	                              Accept -o arguments.
 
 2006-10-03  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/amoverview.pl.in: Fix parsing of time field from amadmin.
@@ -428,7 +1151,7 @@
 	  server-src/taperscan.c: Check for CNF_TAPEDEV == NULL.
 
 2006-10-03  Jean-Louis Martineau <martineau@zmanda.com>
-	* server-src/conffile.c: Don't set CNF_TAPEDEV to DEFAULT_TAPE_DEVICE.
+	* common-src/conffile.c: Don't set CNF_TAPEDEV to DEFAULT_TAPE_DEVICE.
 	* configure.in: Don't set DEFAULT_TAPE_DEVICE.
 
 2006-09-29  Jean-Louis Martineau <martineau@zmanda.com>
@@ -442,10 +1165,9 @@
 	* common-src/bsd-security.c: Fix %hd printf argument format.
 	* common-src/security-util.c: Fix %hd printf argument format.
 
-2006-09-27  Jean-Louis Martineau <martineau@zmanda.com>
-	* Amanda 2.5.1p1 released.
-	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.5.1p1).
-	* NEWS: Update for 2.5.1p1
+2006-09-28  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c (client_keytab): Add DEBUG_*.
+	* oldrecover-src/amrecover.c: Call read_clientconf.
 
 2006-09-27  Jean-Louis Martineau <martineau@zmanda.com>
 	* restore-src/restore.c: Improve debugging.
@@ -453,14 +1175,14 @@
 
 2006-09-27  Jean-Louis Martineau <martineau@zmanda.com>
 	* restore-src/amfetchdump.c: Pass new prompt_in parameter to
-				     search_tapes.
+	                             search_tapes.
 	* restore-src/restore.c (search_tapes, load_manual_tape): New prompt_in
-								  parameter.
+	                                                          parameter.
 	* restore-src/restore.h (search_tapes): New prompt_in parameter.
 	* restore-src/amidxtaped.c: Set new 'FILE *' instead of reusing stdin
-				    and stdout.
+	                            and stdout.
 	* server-src/amindexd.c: Set new 'FILE *' instead of reusing stdin
-				 and stdout.
+	                         and stdout.
 
 2006-09-27  Jean-Louis Martineau <martineau@zmanda.com>
 	Patch by Orion Poplawski <orion@cora.nwra.com>
@@ -469,6 +1191,16 @@
 2006-09-23  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/amstatus.pl.in: Fix parsing of 'taper: wrote label' line.
 	* server-src/amtoc.pl.in: Fix parsing of 'START taper' line.
+
+2006-09-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.h: New CONFTYPE_INTRANGE conftype_t.
+	* common-src/conffile.c: New CNF_RESERVED_UDP_PORT,
+	                         CNF_RESERVED_TCP_PORT,
+	                         CNF_UNRESERVED_TCP_PORT config options.
+	* common-src/dgram.c: Use the new CNF_RESERVED_UDP_PORT option.
+	* common-src/stream.c: Use the new CNF_*RESERVED_PORT options.
+	* man/xml-source/amanda-client.conf.5.xml: Document it.
+	* man/xml-source/amanda.conf.5.xml: Document it.
 
 2006-09-22  Jean-Louis Martineau <martineau@zmanda.com>
 	Patch by William Jojo
@@ -482,14 +1214,6 @@
 2006-09-21  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/amcheck.c: Don't assert if holding use is set to 0.
 
-2006-09-21  Jean-Louis Martineau <martineau@zmanda.com>
-	* common-src/util.c: Declare keytable.
-	* common-src/util.h: Declare keytable as extern.
-
-2006-09-19  Jean-Louis Martineau <martineau@zmanda.com>
-	* contrib/sst: Removed
-	* Makefile.am (EXTRA_DIST): Remove sst files.
-
 2006-09-19  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/find.c (search_logfile): Count 'PARTIAL taper line'.
 
@@ -501,6 +1225,77 @@
 	* common-src/dgram.c (dgram_bind): Remove unused variables.
 
 2006-09-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c, common-src/conffile.h: Add debug_amandad,
+	  debug_amidxtaped, debug_amindexd, debug_amrecover, debug_auth,
+	  debug_event, debug_holding, debug_protocol, debug_planner,
+	  debug_driver, debug_dumper, debug_chunker, debug_taper,
+	  debug_selfcheck, debug_sendsize, debug_sendbackup
+	  configurations options.
+	* common-sc/debug.c: Use it's own clock function.
+	* amandad-src/amandad.c, amandad-src/amandad_util.c,
+	  client-src/calcsize.c, client-src/client_util.c,
+	  client-src/killpgrp.c, client-src/rundump.c,
+	  client-src/runtar.c, client-src/selfcheck.c,
+	  client-src/sendbackup.c, client-src/sendsize.c,
+	  common-src/bsd-security.c, common-src/bsdtcp-security.c,
+	  common-src/bsdudp-security.c, common-src/debug.c,
+	  common-src/dgram.c, common-src/event.c,
+	  common-src/krb5-security.c, common-src/pipespawn.c,
+	  common-src/protocol.c, common-src/rsh-security.c,
+	  common-src/security.c, common-src/security-util.c,
+	  common-src/security-util.h, common-src/ssh-security.c,
+	  common-src/stream.c, common-src/util.c,
+	  recover-src/amrecover.c, restore-src/amidxtaped.c,
+	  server-src/amindexd.c, server-src/chunker.c,
+	  server-src/driver.c, server-src/dumper.c,
+	  server-src/planner.c,
+	  server-src/taper.c: Use the debug_* configuration options.
+			      Use debug_prefix_time to print the time on
+			      all debugging message.
+
+2006-09-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c: Use CNF_REP_TRIES.
+	* common-src/conffile.c: New CONNECT_TRIES, REQ_TRIES, REP_TRIES
+	                         configuration options.
+	* common-src/conffile.h: New CONNECT_TRIES, REQ_TRIES, REP_TRIES
+	                         configuration options.
+	* common-src/protocol.c: Use CNF_CONNECT_TRIES and CNF_REQ_TRIES.
+	* common-src/protocol.c: Rename reqtries to resettries.
+	                         Rename acktries to reqtries.
+	* man/xml-source/amanda-client.conf.5.xml: Document new options.
+	* man/xml-source/amanda.conf.5.xml: Document new options.
+
+2006-09-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c: Read client configuratrion file.
+	* client-src/client_util.c, client-src/selfcheck.c,
+	  client-src/sendbackup.c, client-src/sendbackup-dump.c,
+	  client-src/sendbackup-gnutar.c, client-src/sendsize.c,
+	  recover-src/amrecover.c, recover-src/extract_list.c,
+	  restore-src/amfetchdump.c, server-src/amadmin.c,
+	  server-src/amcheck.c, server-src/amflush.c,
+	  server-src/amflush.c, server-src/amlabel.c,
+	  server-src/amlogroll.c, server-src/amtrmidx.c,
+	  server-src/amtrmlog.c, server-src/chunker.c,
+	  server-src/diskfile.c, server-src/driver.c,
+	  server-src/dumper.c, server-src/getconf.c,
+	  server-src/planner.c, server-src/reporter.c,
+	  server-src/taper.c: Use generic macro/functions instead of
+	                      client/server functions.
+	* client-src/client_util.h: Remove unuse macro.
+	* client-src/Makefile.am: Remove clientconf.? files.
+	* common-src/amanda.h: Define MAX_DUMPERS.
+	* common-src/conffile.c: New file, merge of client-src/clientconf.c
+	                                        and server-src/conffile.c
+	* common-src/conffile.h: New file, merge of client-src/clientconf.c
+	                                        and server-src/conffile.c
+	* common-src/Makefile.am (libamanda_la_SOURCES): Add conffile.c
+	* common-src/Makefile.am (noinst_HEADERS): Add conffile.h
+	* common-src/util.c: Move many thing to common-src/conffile.c.
+	* common-src/util.h: Move many thing to common-src/conffile.h.
+	* server-src/driverio.h: Remove MAX_DUMPERS define.
+	* server-src/Makefile.am: Remove conffile.[hc].
+
+2006-09-19  Jean-Louis Martineau <martineau@zmanda.com>
 	* common-src/dgram.c (dgram_bind): Don't set SO_REUSEADDR on socket.
 
 2006-09-19  Jean-Louis Martineau <martineau@zmanda.com>
@@ -509,7 +1304,7 @@
 
 2006-09-18  Jean-Louis Martineau <martineau@zmanda.com>
 	* common-src/util.c(dump_sockaddr): Convert from network to machine
-					    bytes order before printing.
+	                                    bytes order before printing.
 	* common-src/dgram.c (dgram_recv): Print the fromaddr.
 
 2006-09-15  Jean-Louis Martineau <martineau@zmanda.com>

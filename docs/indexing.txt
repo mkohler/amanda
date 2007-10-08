@@ -43,11 +43,6 @@ Table of Contents
 
   Known_Bugs
 
-
-Note
-
-Refer to http://www.amanda.org/docs/indexing.html for the current version of
-this document.
 This file describes how the index files are generated and how amrecover is
 used.
 
@@ -364,6 +359,11 @@ config/config-common.h
   specified by logical names, nor when an automounter is being used, or a link
   is in the path.
 
+
+Note
+
+Refer to http://www.amanda.org/docs/indexing.html for the current version of
+this document.
 -------------------------------------------------------------------------------
 
 Prev                   Up                                     Next

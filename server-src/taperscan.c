@@ -20,7 +20,7 @@
  */
 
 /*
- * $Id: taperscan.c,v 1.17.2.1 2006/10/03 11:35:52 martinea Exp $
+ * $Id: taperscan.c,v 1.17 2006/07/12 12:28:19 martinea Exp $
  *
  * This contains the implementation of the taper-scan algorithm, as it is
  * used by taper, amcheck, and amtape. See the header file taperscan.h for

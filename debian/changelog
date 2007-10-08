@@ -1,3 +1,23 @@
+amanda (1:2.5.2p1-1) unstable; urgency=low
+
+  * new upstream version, closes: #434607, #434606
+  * pull fresher chg-multi.sh.in from upstream to fix syntax error
+  * drop reference to non-existent 'taper' package in control, closes: #444330
+  * a number of tweaks to address issues found by lintian
+  * incorporate Galician translation, closes: #414113
+
+ -- Bdale Garbee <bdale@gag.com>  Sun, 07 Oct 2007 18:39:45 -0600
+
+amanda (1:2.5.1p3-3) unstable; urgency=low
+
+  * fix amcrypt-ossl and amcryopt-ossl-asym to use the right username for
+    Debian systems, closes: #417818
+  * patch from upstream for problem in get_fs_stats(), closes: #420100
+  * patch from upstream for problem in sendsize.c, closes: #420076
+  * replace netbase dependency with update-inetd
+
+ -- Bdale Garbee <bdale@gag.com>  Tue, 15 May 2007 11:44:34 -0600
+
 amanda (1:2.5.1p3-2) unstable; urgency=low
 
   * fold in diff from NMU of 1:2.5.1p1-2.1 by Peter Palfrader, closes: #399790

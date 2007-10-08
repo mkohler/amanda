@@ -1,11 +1,11 @@
 .\"     Title: amanda.conf
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 02/07/2007
+.\"      Date: 06/06/2007
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMANDA.CONF" "5" "02/07/2007" "" ""
+.TH "AMANDA.CONF" "5" "06/06/2007" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -410,6 +410,18 @@ will wait to get the dump size estimates. For instance, with the default of 300 
 will wait up to 20 minutes for that machine. A negative value will be interpreted as a total amount of time to wait per client instead of per disk.
 .RE
 .PP
+\fBconnect_tries\fR int
+.RS 4
+Default:
+\fI3\fR. How many times the server will try a connection.
+.RE
+.PP
+\fBreq_tries\fR int
+.RS 4
+Default:
+\fI3\fR. How many times the server will resend a REQ packet if it doesn't get the ACK packet.
+.RE
+.PP
 \fBnetusage\fR int
 .RS 4
 Default:
@@ -674,6 +686,78 @@ Default:
 \fInone\fR. The name of an
 \fIAmanda\fR
 configuration file to include within the current file. Useful for sharing dumptypes, tapetypes and interface definitions among several configurations.
+.RE
+.PP
+\fBdebug_auth\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the auth module
+.RE
+.PP
+\fBdebug_event\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the event module
+.RE
+.PP
+\fBdebug_holding\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the holdingdisk module
+.RE
+.PP
+\fBdebug_protocol\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the protocol module
+.RE
+.PP
+\fBdebug_planner\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the planner process
+.RE
+.PP
+\fBdebug_driver\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the driver process
+.RE
+.PP
+\fBdebug_dumper\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the dumper process
+.RE
+.PP
+\fBdebug_chunker\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the chunker process
+.RE
+.PP
+\fBdebug_taper\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the taper process
+.RE
+.PP
+\fBreserved\-udp\-port\fR int,int
+.RS 4
+Default: \-\-with\-udpportrange or
+\fI512,1023\fR. Reserved udp port that will be used (bsd, bsdudp)
+.RE
+.PP
+\fBreserved\-tcp\-port\fR int,int
+.RS 4
+Default: \-\-with\-low\-tcpportrange or
+\fI512,1023\fR. Reserved tcp port that will be used (bsdtcp)
+.RE
+.PP
+\fBunreserved\-tcp\-port\fR int,int
+.RS 4
+Default: \-\-with\-tcpportrange or
+\fI1025,65536\fR. Unreserved tcp port that will be used (bsd, bsdudp)
 .RE
 .SH "HOLDINGDISK SECTION"
 .PP
@@ -1462,6 +1546,11 @@ Default:
 \fIAmanda\fR
 was compiled with the configure option \-\-with\-maxtapeblocksize=N set with "N" greater than 32 during
 \fBconfigure\fR.
+.RE
+.PP
+\fBreadblocksize\fR \fI int\fR
+.RS 4
+Default: (\fIfrom configure \-\-with\-maxtapeblocksize\fR). How much data will be read in each tape record expressed in KiloBytes. Some hardware require a value not too large, and some require it to be equal to the blocksize. It is useful if you configured amanda with a big \-\-with\-maxtapeblocksize and your hardware don't work with a value that big.
 .RE
 .PP
 \fBfile\-pad\fR \fI boolean\fR

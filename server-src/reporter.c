@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: reporter.c,v 1.132.2.1 2007/01/26 13:12:43 martinea Exp $
+ * $Id: reporter.c,v 1.132 2006/08/28 17:02:48 martinea Exp $
  *
  * nightly Amanda Report generator
  */
@@ -127,6 +127,7 @@ static int degraded_mode = 0; /* defined in driverio too */
 static int normal_run = 0;
 static int amflush_run = 0;
 static int got_finish = 0;
+static char *ghostname = NULL;
 
 static char *tapestart_error = NULL;
 
@@ -360,7 +361,7 @@ main(
 	/*NOTREACHED*/
     }
 
-    parse_server_conf(argc, argv, &new_argc, &new_argv);
+    parse_conf(argc, argv, &new_argc, &new_argv);
     my_argc = new_argc;
     my_argv = new_argv;
 
@@ -702,6 +703,15 @@ main(
     if(mailf) {
 
     	if(!got_finish) fputs("*** THE DUMPS DID NOT FINISH PROPERLY!\n\n", mailf);
+
+	if (ghostname) {
+	    fprintf(mailf, "Hostname: %s\n", ghostname);
+	    fprintf(mailf, "Org     : %s\n", getconf_str(CNF_ORG));
+	    fprintf(mailf, "Config  : %s\n", config_name);
+	    fprintf(mailf, "Date    : %s\n",
+		    nicedate(run_datestamp ? run_datestamp : "0"));
+	    fprintf(mailf,"\n");
+	}
 
     	output_tapeinfo();
 
@@ -1210,13 +1220,17 @@ CalcMaxWidth(void)
     disk_t *dp;
     double f;
     repdata_t *repdata;
+    char *qdevname;
+
     for(dp = sortq.head; dp != NULL; dp = dp->next) {
       if(dp->todo) {
 	for(repdata = data(dp); repdata != NULL; repdata = repdata->next) {
 	    char TimeRateBuffer[40];
 
 	    CheckStringMax(&ColumnData[HostName], dp->host->hostname);
-	    CheckStringMax(&ColumnData[Disk], dp->name);
+	    qdevname = quote_string(dp->name);
+	    CheckStringMax(&ColumnData[Disk], qdevname);
+	    amfree(qdevname);
 	    if (repdata->dumper.result == L_BOGUS && 
 		repdata->taper.result == L_BOGUS)
 		continue;
@@ -1355,6 +1369,7 @@ output_summary(void)
 	char TimeRateBuffer[40];
 	for(repdata = data(dp); repdata != NULL; repdata = repdata->next) {
 	    char *devname;
+	    char *qdevname;
 	    size_t devlen;
 
 	    cd= &ColumnData[HostName];
@@ -1364,15 +1379,17 @@ output_summary(void)
 	    cd= &ColumnData[Disk];
 	    fprintf(mailf, "%*s", cd->PrefixSpace, "");
 	    devname = sanitize_string(dp->name);
-	    devlen = strlen(devname);
+	    qdevname = quote_string(devname);
+	    devlen = strlen(qdevname);
 	    if (devlen > (size_t)cd->Width) {
 	   	fputc('-', mailf); 
 		fprintf(mailf, cd->Format, cd->Width-1, cd->Precision-1,
-		  devname+devlen - (cd->Width-1) );
+			qdevname+devlen - (cd->Width-1) );
 	    }
 	    else
-		fprintf(mailf, cd->Format, cd->Width, cd->Width, devname);
+		fprintf(mailf, cd->Format, cd->Width, cd->Width, qdevname);
 	    amfree(devname);
+	    amfree(qdevname);
 	    cd= &ColumnData[Level];
 	    if (repdata->dumper.result == L_BOGUS &&
 		repdata->taper.result  == L_BOGUS) {
@@ -1414,13 +1431,14 @@ output_summary(void)
 		origsize = repdata->chunker.origsize;
 
 	    if(repdata->taper.result == L_SUCCESS ||
-	       repdata->taper.result == L_PARTIAL ||
 	       repdata->taper.result == L_CHUNKSUCCESS)
 		outsize  = repdata->taper.outsize;
 	    else if(repdata->chunker.result == L_SUCCESS ||
 		    repdata->chunker.result == L_PARTIAL ||
 		    repdata->chunker.result == L_CHUNKSUCCESS)
 		outsize  = repdata->chunker.outsize;
+	    else if (repdata->taper.result == L_PARTIAL)
+		outsize  = repdata->taper.outsize;
 	    else
 		outsize  = repdata->dumper.outsize;
 
@@ -1495,10 +1513,11 @@ output_summary(void)
 	    else
 		fprintf(mailf, "%*s", cd->Width, "N/A ");
 
-	    if(repdata->chunker.result == L_PARTIAL ||
-	       repdata->taper.result == L_PARTIAL) {
+	    if (repdata->chunker.result == L_PARTIAL)
 		fprintf(mailf, " PARTIAL");
-	    }
+	    else if(repdata->taper.result == L_PARTIAL)
+		fprintf(mailf, " TAPE-PARTIAL");
+
 	    fputc('\n', mailf);
 	}
       }
@@ -1561,14 +1580,11 @@ handle_start(void)
 	ch = *s++;
 
 	skip_whitespace(s, ch);
-#define sc "datestamp"
-	if(ch == '\0' || strncmp(s - 1, sc, SIZEOF(sc)-1) != 0) {
+	if(ch == '\0' || strncmp_const_skip(s - 1, "datestamp", s, ch) != 0) {
 	    bogus_line(s - 1);
 	    return;
 	}
-	s += SIZEOF(sc)-1;
-	ch = s[-1];
-#undef sc
+
 	skip_whitespace(s, ch);
 	if(ch == '\0') {
 	    bogus_line(s - 1);
@@ -1581,14 +1597,11 @@ handle_start(void)
 	s[-1] = (char)ch;
 
 	skip_whitespace(s, ch);
-#define sc "label"
-	if(ch == '\0' || strncmp(s - 1, sc, SIZEOF(sc)-1) != 0) {
+	if(ch == '\0' || strncmp_const_skip(s - 1, "label", s, ch) != 0) {
 	    bogus_line(s - 1);
 	    return;
 	}
-	s += SIZEOF(sc)-1;
-	ch = s[-1];
-#undef sc
+
 	skip_whitespace(s, ch);
 	if(ch == '\0') {
 	    bogus_line(s - 1);
@@ -1645,13 +1658,10 @@ handle_start(void)
 	ch = *s++;
 
 	skip_whitespace(s, ch);
-#define sc "date"
-	if(ch == '\0' || strncmp(s - 1, sc, SIZEOF(sc)-1) != 0) {
+	if(ch == '\0' || strncmp_const_skip(s - 1, "date", s, ch) != 0) {
 	    return;				/* ignore bogus line */
 	}
-	s += SIZEOF(sc)-1;
-	ch = s[-1];
-#undef sc
+
 	skip_whitespace(s, ch);
 	if(ch == '\0') {
 	    bogus_line(s - 1);
@@ -1685,14 +1695,10 @@ handle_finish(void)
 	ch = *s++;
 
 	skip_whitespace(s, ch);
-#define sc "date"
-	if(ch == '\0' || strncmp(s - 1, sc, SIZEOF(sc)-1) != 0) {
+	if(ch == '\0' || strncmp_const_skip(s - 1, "date", s, ch) != 0) {
 	    bogus_line(s - 1);
 	    return;
 	}
-	s += SIZEOF(sc)-1;
-	ch = s[-1];
-#undef sc
 
 	skip_whitespace(s, ch);
 	if(ch == '\0') {
@@ -1702,16 +1708,12 @@ handle_finish(void)
 	skip_non_whitespace(s, ch);	/* ignore the date string */
 
 	skip_whitespace(s, ch);
-#define sc "time"
-	if(ch == '\0' || strncmp(s - 1, sc, SIZEOF(sc)-1) != 0) {
+	if(ch == '\0' || strncmp_const_skip(s - 1, "time", s, ch) != 0) {
 	    /* older planner doesn't write time */
 	    if(curprog == P_PLANNER) return;
 	    bogus_line(s - 1);
 	    return;
 	}
-	s += SIZEOF(sc)-1;
-	ch = s[-1];
-#undef sc
 
 	skip_whitespace(s, ch);
 	if(ch == '\0') {
@@ -1748,12 +1750,7 @@ handle_stats(void)
 	ch = *s++;
 
 	skip_whitespace(s, ch);
-#define sc "startup time"
-	if(ch != '\0' && strncmp(s - 1, sc, sizeof(sc)-1) == 0) {
-	    s += sizeof(sc)-1;
-	    ch = s[-1];
-#undef sc
-
+	if(ch != '\0' && strncmp_const_skip(s - 1, "startup time", s, ch) == 0) {
 	    skip_whitespace(s, ch);
 	    if(ch == '\0') {
 		bogus_line(s - 1);
@@ -1765,12 +1762,15 @@ handle_stats(void)
 	    }
 	    planner_time = startup_time;
 	}
-#define sc "estimate"
-	else if(ch != '\0' && strncmp(s - 1, sc, sizeof(sc)-1) == 0) {
-	    s += sizeof(sc)-1;
-	    ch = s[-1];
-#undef sc
-
+	else if(ch != '\0' && strncmp_const_skip(s - 1, "hostname", s, ch) == 0) {
+	    skip_whitespace(s, ch);
+	    if(ch == '\0') {
+		bogus_line(s - 1);
+		return;
+	    }
+	    ghostname = stralloc(s-1);
+	}
+	else if(ch != '\0' && strncmp_const_skip(s - 1, "estimate", s, ch) == 0) {
 	    skip_whitespace(s, ch);
 	    if(ch == '\0') {
 		bogus_line(s - 1);
@@ -1888,12 +1888,7 @@ handle_error(void)
 	ch = *s++;
 
 	skip_whitespace(s, ch);
-#define sc "no-tape"
-	if(ch != '\0' && strncmp(s - 1, sc, SIZEOF(sc)-1) == 0) {
-	    s += SIZEOF(sc)-1;
-	    ch = s[-1];
-#undef sc
-
+	if(ch != '\0' && strncmp_const_skip(s - 1, "no-tape", s, ch) == 0) {
 	    skip_whitespace(s, ch);
 	    if(ch != '\0') {
 		if((nl = strchr(s - 1, '\n')) != NULL) {
@@ -2392,10 +2387,11 @@ handle_strange(void)
     amfree(str);
 
     while(contline_next()) {
+	char *s, ch;
 	get_logline(logfile);
-#define sc "sendbackup: warning "
-	if(strncmp(curstr, sc, SIZEOF(sc)-1) == 0) {
-	    strangestr = newstralloc(strangestr, curstr+SIZEOF(sc)-1);
+	s = curstr;
+	if(strncmp_const_skip(curstr, "sendbackup: warning ", s, ch) == 0) {
+	    strangestr = newstralloc(strangestr, s);
 	}
 	addline(&errdet, curstr);
     }
@@ -2555,13 +2551,14 @@ generate_bad_estimate(void)
 	    for(repdata = data(dp); repdata != NULL; repdata = repdata->next) {
 		if(repdata->est_csize >= 0.1) {
 		    if(repdata->taper.result == L_SUCCESS ||
-		       repdata->taper.result == L_PARTIAL ||
 		       repdata->taper.result == L_CHUNKSUCCESS)
 			outsize  = repdata->taper.outsize;
 		    else if(repdata->chunker.result == L_SUCCESS ||
 			    repdata->chunker.result == L_PARTIAL ||
 			    repdata->chunker.result == L_CHUNKSUCCESS)
 			outsize  = repdata->chunker.outsize;
+		    else if(repdata->taper.result == L_PARTIAL)
+			outsize  = repdata->taper.outsize;
 		    else
 			outsize  = repdata->dumper.outsize;
 
@@ -2809,6 +2806,9 @@ do_postscript_output(void)
 	}
 
 	copy_template_file(tapetype_get_lbl_templ(tp));
+
+	if (postscript == NULL)
+	    return;
 
 	/* generate a few elements */
 	fprintf(postscript,"(%s) DrawDate\n\n",

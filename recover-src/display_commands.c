@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: display_commands.c,v 1.22.2.1 2006/12/22 15:10:26 martinea Exp $
+ * $Id: display_commands.c,v 1.22 2006/07/05 19:42:17 martinea Exp $
  *
  * implements the directory-display related commands in amrecover
  */
@@ -203,14 +203,12 @@ suck_dir_list_from_server(void)
 	    printf("%s\n", l);
 	    continue;
 	}
-#define sc "201-"
-	if (strncmp(l, sc, sizeof(sc)-1) != 0) {
+	s = l;
+	if (strncmp_const_skip(l, "201-", s, ch) != 0) {
 	    err = "bad reply: not 201-";
 	    continue;
 	}
-	s = l + sizeof(sc)-1;
 	ch = *s++;
-#undef sc
 	skip_whitespace(s, ch);
 	if(ch == '\0') {
 	    err = "bad reply: missing date field";
@@ -239,12 +237,13 @@ suck_dir_list_from_server(void)
 	*tape_undo = '\0';
 
 	if(am_has_feature(indexsrv_features, fe_amindexd_fileno_in_OLSD)) {
+	    OFF_T_FMT_TYPE fileno_ = (OFF_T_FMT_TYPE)0;
 	    skip_whitespace(s, ch);
-	    if(ch == '\0' || sscanf(s - 1, OFF_T_FMT,
-				    (OFF_T_FMT_TYPE *)&fileno) != 1) {
+	    if(ch == '\0' || sscanf(s - 1, OFF_T_FMT, &fileno_) != 1) {
 		err = "bad reply: cannot parse fileno field";
 		continue;
 	    }
+	    fileno = (off_t)fileno_;
 	    skip_integer(s, ch);
 	}
 	else {

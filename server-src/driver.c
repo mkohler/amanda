@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: driver.c,v 1.198.2.6 2006/12/27 14:44:48 martinea Exp $
+ * $Id: driver.c,v 1.198 2006/08/24 01:57:16 paddy_s Exp $
  *
  * controlling process for the Amanda backup system
  */
@@ -33,8 +33,6 @@
  * XXX possibly modify tape queue to be cognizant of how much room is left on
  *     tape.  Probably not effective though, should do this in planner.
  */
-
-#define HOLD_DEBUG
 
 #include "amanda.h"
 #include "clock.h"
@@ -48,6 +46,18 @@
 #include "version.h"
 #include "driverio.h"
 #include "server_util.h"
+
+#define driver_debug(i,x) do {		\
+	if ((i) <= debug_driver) {	\
+	    dbprintf(x);		\
+	}				\
+} while (0)
+
+#define hold_debug(i,x) do {		\
+	if ((i) <= debug_holding) {	\
+	    dbprintf(x);		\
+	}				\
+} while (0)
 
 static disklist_t waitq, runq, tapeq, roomq;
 static int pending_aborts;
@@ -158,6 +168,7 @@ main(
     char *line;
     int    new_argc,   my_argc;
     char **new_argv, **my_argv;
+    char hostname[1025];
 
     safe_fd(-1, 0);
 
@@ -180,7 +191,7 @@ main(
 
     startclock();
 
-    parse_server_conf(main_argc, main_argv, &new_argc, &new_argv);
+    parse_conf(main_argc, main_argv, &new_argc, &new_argv);
     my_argc = new_argc;
     my_argv = new_argv;
 
@@ -239,6 +250,9 @@ main(
     driver_timestamp[14] = '\0';
     amfree(line);
     log_add(L_START,"date %s", driver_timestamp);
+
+    gethostname(hostname, SIZEOF(hostname));
+    log_add(L_STATS,"hostname %s", hostname);
 
     /* check that we don't do many dump in a day and usetimestamps is off */
     if(strlen(driver_timestamp) == 8) {
@@ -797,7 +811,7 @@ start_some_dumps(
 
     for (dumper = dmptable; dumper < dmptable+inparallel; dumper++) {
 
-	if( dumper->busy ) {
+	if( dumper->busy || dumper->down) {
 	    continue;
 	}
 
@@ -1398,7 +1412,7 @@ dumper_result(
 	dummy += h[i]->used;
     }
 
-    size = size_holding_files(sched(dp)->destname, 0);
+    size = holding_file_size(sched(dp)->destname, 0);
     h[activehd]->used = size - dummy;
     holdalloc(h[activehd]->disk)->allocated_dumpers--;
     adjust_diskspace(dp, DONE);
@@ -1783,6 +1797,7 @@ read_flush(void)
     int ch;
     disklist_t tq;
     char *qname = NULL;
+    char *qdestname = NULL;
 
     tq.head = tq.tail = NULL;
 
@@ -1852,11 +1867,12 @@ read_flush(void)
 	    error("flush line %d: syntax error (no filename)", line);
 	    /*NOTREACHED*/
 	}
-	destname = s - 1;
-	skip_non_whitespace(s, ch);
+	qdestname = s - 1;
+	skip_quoted_string(s, ch);
 	s[-1] = '\0';
+	destname = unquote_string(qdestname);
 
-	get_dumpfile(destname, &file);
+	holding_file_get_dumpfile(destname, &file);
 	if( file.type != F_DUMPFILE) {
 	    if( file.type != F_CONT_DUMPFILE )
 		log_add(L_INFO, "%s: ignoring cruft file.", destname);
@@ -1888,6 +1904,12 @@ read_flush(void)
 	    continue;
 	}
 
+	if (holding_file_size(destname,1) <= 0) {
+	    log_add(L_INFO, "%s: removing file with no data.", destname);
+	    holding_file_unlink(destname);
+	    continue;
+	}
+
 	dp1 = (disk_t *)alloc(SIZEOF(disk_t));
 	*dp1 = *dp;
 	dp1->next = dp1->prev = NULL;
@@ -1916,7 +1938,7 @@ read_flush(void)
 	sp->priority = 0;
 	sp->degr_level = -1;
 	sp->attempted = 0;
-	sp->act_size = size_holding_files(destname, 0);
+	sp->act_size = holding_file_size(destname, 0);
 	sp->holdp = build_diskspace(destname);
 	if(sp->holdp == NULL) continue;
 	sp->dumper = NULL;
@@ -2050,7 +2072,7 @@ read_schedule(
 	    error("schedule line %d: syntax error (bad nsize)", line);
 	    /*NOTREACHED*/
 	}
-	nsize = nsize_;
+	nsize = (off_t)nsize_;
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);			/* find the compressed size */
@@ -2059,7 +2081,7 @@ read_schedule(
 	    error("schedule line %d: syntax error (bad csize)", line);
 	    /*NOTREACHED*/
 	}
-	csize = csize_;
+	csize = (off_t)csize_;
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);			/* find the time number */
@@ -2101,7 +2123,7 @@ read_schedule(
 		error("schedule line %d: syntax error (bad degr nsize)", line);
 		/*NOTREACHED*/
 	    }
-	    degr_nsize = degr_nsize_;
+	    degr_nsize = (off_t)degr_nsize_;
 	    skip_integer(s, ch);
 
 	    skip_whitespace(s, ch);		/* find the degr compressed size */
@@ -2110,7 +2132,7 @@ read_schedule(
 		error("schedule line %d: syntax error (bad degr csize)", line);
 		/*NOTREACHED*/
 	    }
-	    degr_csize = degr_csize_;
+	    degr_csize = (off_t)degr_csize_;
 	    skip_integer(s, ch);
 
 	    skip_whitespace(s, ch);		/* find the degr time number */
@@ -2127,6 +2149,12 @@ read_schedule(
 		/*NOTREACHED*/
 	    }
 	    skip_integer(s, ch);
+	} else {
+	    degr_level = -1;
+	    degr_nsize = (off_t)0;
+	    degr_csize = (off_t)0;
+	    degr_time = (time_t)0;
+	    degr_kps = 0;
 	}
 
 	dp = lookup_disk(hostname, diskname);
@@ -2207,10 +2235,16 @@ free_kps(
 	    maxusage += interface_get_maxusage(p);
 	    curusage += p->curusage;
 	}
-	res = maxusage - curusage;
+	if (maxusage >= curusage)
+	    res = maxusage - curusage;
+	else
+	    res = 0;
 #ifndef __lint
     } else {
-	res = interface_get_maxusage(ip) - ip->curusage;
+	if ((unsigned long)interface_get_maxusage(ip) >= ip->curusage)
+	    res = interface_get_maxusage(ip) - ip->curusage;
+	else
+	    res = 0;
 #endif
     }
 
@@ -2293,11 +2327,9 @@ find_diskspace(
 	size = 2*DISK_BLOCK_KB;
     size = am_round(size, (off_t)DISK_BLOCK_KB);
 
-#ifdef HOLD_DEBUG
-    printf("%s: want " OFF_T_FMT " K\n", debug_prefix_time(": find_diskspace"),
-	   (OFF_T_FMT_TYPE)size);
-    fflush(stdout);
-#endif
+    hold_debug(1, ("%s: want " OFF_T_FMT " K\n",
+		   debug_prefix_time(": find_diskspace"),
+		   (OFF_T_FMT_TYPE)size));
 
     for(hdp = getconf_holdingdisks(); hdp != NULL; hdp = hdp->next) {
 	num_holdingdisks++;
@@ -2347,17 +2379,14 @@ find_diskspace(
 	/* halloc = space to allocate, including 1 header for each chunksize */
 	halloc = dalloc + (((dalloc-(off_t)1)/holdingdisk_get_chunksize(minp))+(off_t)1) * (off_t)DISK_BLOCK_KB;
 
-#ifdef HOLD_DEBUG
-	printf("%s: find diskspace: size " OFF_T_FMT " hf " OFF_T_FMT
-	       " df " OFF_T_FMT " da " OFF_T_FMT " ha " OFF_T_FMT "\n",
-	       debug_prefix_time(": find_diskspace"),
-	       (OFF_T_FMT_TYPE)size,
-	       (OFF_T_FMT_TYPE)hfree,
-	       (OFF_T_FMT_TYPE)dfree,
-	       (OFF_T_FMT_TYPE)dalloc,
-	       (OFF_T_FMT_TYPE)halloc);
-	fflush(stdout);
-#endif
+	hold_debug(1, ("%s: find diskspace: size " OFF_T_FMT " hf " OFF_T_FMT
+		       " df " OFF_T_FMT " da " OFF_T_FMT " ha " OFF_T_FMT"\n",
+		       debug_prefix_time(": find_diskspace"),
+		       (OFF_T_FMT_TYPE)size,
+		       (OFF_T_FMT_TYPE)hfree,
+		       (OFF_T_FMT_TYPE)dfree,
+		       (OFF_T_FMT_TYPE)dalloc,
+		       (OFF_T_FMT_TYPE)halloc));
 	size -= dalloc;
 	result[i] = alloc(SIZEOF(assignedhd_t));
 	result[i]->disk = minp;
@@ -2377,18 +2406,18 @@ find_diskspace(
 	result = NULL;
     }
 
-#ifdef HOLD_DEBUG
-    for( i = 0; result && result[i]; i++ ) {
-	printf("%s: find diskspace: selected %s free " OFF_T_FMT " reserved " OFF_T_FMT " dumpers %d\n",
-		debug_prefix_time(": find_diskspace"),
-		holdingdisk_get_diskdir(result[i]->disk),
-		(OFF_T_FMT_TYPE)(result[i]->disk->disksize -
-		  holdalloc(result[i]->disk)->allocated_space),
-		(OFF_T_FMT_TYPE)result[i]->reserved,
-		holdalloc(result[i]->disk)->allocated_dumpers);
+    if (debug_holding > 1) {
+	for( i = 0; result && result[i]; i++ ) {
+	    hold_debug(1, ("%s: find diskspace: selected %s free " OFF_T_FMT
+			   " reserved " OFF_T_FMT " dumpers %d\n",
+			   debug_prefix_time(": find_diskspace"),
+			   holdingdisk_get_diskdir(result[i]->disk),
+			   (OFF_T_FMT_TYPE)(result[i]->disk->disksize -
+			     holdalloc(result[i]->disk)->allocated_space),
+			   (OFF_T_FMT_TYPE)result[i]->reserved,
+			   holdalloc(result[i]->disk)->allocated_dumpers));
+	}
     }
-    fflush(stdout);
-#endif
 
     return result;
 }
@@ -2433,16 +2462,16 @@ assign_holdingdisk(
 	    holdalloc(holdp[0]->disk)->allocated_space += holdp[0]->reserved;
 	    size = (holdp[0]->reserved>size) ? (off_t)0 : size-holdp[0]->reserved;
 	    qname = quote_string(diskp->name);
-#ifdef HOLD_DEBUG
-	    printf("%s: merging holding disk %s to disk %s:%s, add " OFF_T_FMT " for reserved " OFF_T_FMT ", left " OFF_T_FMT "\n",
-		   debug_prefix_time(": assign_holdingdisk"),
-		   holdingdisk_get_diskdir(sched(diskp)->holdp[j-1]->disk),
-		   diskp->host->hostname, qname,
-		   (OFF_T_FMT_TYPE)holdp[0]->reserved,
-		   (OFF_T_FMT_TYPE)sched(diskp)->holdp[j-1]->reserved,
-		   (OFF_T_FMT_TYPE)size);
-	    fflush(stdout);
-#endif
+	    hold_debug(1, ("%s: merging holding disk %s to disk %s:%s, add "
+			   OFF_T_FMT " for reserved " OFF_T_FMT ", left "
+			   OFF_T_FMT "\n",
+			   debug_prefix_time(": assign_holdingdisk"),
+			   holdingdisk_get_diskdir(
+					       sched(diskp)->holdp[j-1]->disk),
+			   diskp->host->hostname, qname,
+			   (OFF_T_FMT_TYPE)holdp[0]->reserved,
+			   (OFF_T_FMT_TYPE)sched(diskp)->holdp[j-1]->reserved,
+			   (OFF_T_FMT_TYPE)size));
 	    i++;
 	    amfree(qname);
 	    amfree(holdp[0]);
@@ -2463,14 +2492,14 @@ assign_holdingdisk(
 	size = (holdp[i]->reserved > size) ? (off_t)0 :
 		  (size - holdp[i]->reserved);
 	qname = quote_string(diskp->name);
-#ifdef HOLD_DEBUG
-	printf("%s: %d assigning holding disk %s to disk %s:%s, reserved " OFF_T_FMT ", left " OFF_T_FMT "\n",
-		debug_prefix_time(": assign_holdingdisk"),
-		i, holdingdisk_get_diskdir(holdp[i]->disk), diskp->host->hostname, qname,
-		(OFF_T_FMT_TYPE)holdp[i]->reserved,
-		(OFF_T_FMT_TYPE)size);
-	fflush(stdout);
-#endif
+	hold_debug(1,
+		   ("%s: %d assigning holding disk %s to disk %s:%s, reserved "
+                    OFF_T_FMT ", left " OFF_T_FMT "\n",
+		    debug_prefix_time(": assign_holdingdisk"),
+		    i, holdingdisk_get_diskdir(holdp[i]->disk),
+		    diskp->host->hostname, qname,
+		    (OFF_T_FMT_TYPE)holdp[i]->reserved,
+		    (OFF_T_FMT_TYPE)size));
 	amfree(qname);
 	holdp[i] = NULL; /* so it doesn't get free()d... */
     }
@@ -2495,12 +2524,9 @@ adjust_diskspace(
 
     qname = quote_string(diskp->name);
     qdest = quote_string(sched(diskp)->destname);
-#ifdef HOLD_DEBUG
-    printf("%s: %s:%s %s\n",
-	   debug_prefix_time(": adjust_diskspace"),
-	   diskp->host->hostname, qname, qdest);
-    fflush(stdout);
-#endif
+    hold_debug(1, ("%s: %s:%s %s\n",
+		   debug_prefix_time(": adjust_diskspace"),
+		   diskp->host->hostname, qname, qdest));
 
     holdp = sched(diskp)->holdp;
 
@@ -2511,30 +2537,27 @@ adjust_diskspace(
 	total += holdp[i]->used;
 	holdalloc(holdp[i]->disk)->allocated_space += diff;
 	hqname = quote_string(holdp[i]->disk->name);
-#ifdef HOLD_DEBUG
-	printf("%s: hdisk %s done, reserved " OFF_T_FMT " used " OFF_T_FMT " diff " OFF_T_FMT " alloc " OFF_T_FMT " dumpers %d\n",
-		debug_prefix_time(": adjust_diskspace"),
-		holdp[i]->disk->name,
-		(OFF_T_FMT_TYPE)holdp[i]->reserved,
-		(OFF_T_FMT_TYPE)holdp[i]->used,
-		(OFF_T_FMT_TYPE)diff,
-		(OFF_T_FMT_TYPE)holdalloc(holdp[i]->disk)->allocated_space,
-		holdalloc(holdp[i]->disk)->allocated_dumpers );
-	fflush(stdout);
-#endif
+	hold_debug(1, ("%s: hdisk %s done, reserved " OFF_T_FMT " used "
+		       OFF_T_FMT " diff " OFF_T_FMT " alloc " OFF_T_FMT
+		       " dumpers %d\n",
+		       debug_prefix_time(": adjust_diskspace"),
+		       holdp[i]->disk->name,
+		       (OFF_T_FMT_TYPE)holdp[i]->reserved,
+		       (OFF_T_FMT_TYPE)holdp[i]->used,
+		       (OFF_T_FMT_TYPE)diff,
+		       (OFF_T_FMT_TYPE)holdalloc(holdp[i]->disk)
+							     ->allocated_space,
+		       holdalloc(holdp[i]->disk)->allocated_dumpers ));
 	holdp[i]->reserved += diff;
 	amfree(hqname);
     }
 
     sched(diskp)->act_size = total;
 
-#ifdef HOLD_DEBUG
-    printf("%s: after: disk %s:%s used " OFF_T_FMT "\n",
-	   debug_prefix_time(": adjust_diskspace"),
-	   diskp->host->hostname, qname,
-	   (OFF_T_FMT_TYPE)sched(diskp)->act_size);
-    fflush(stdout);
-#endif
+    hold_debug(1, ("%s: after: disk %s:%s used " OFF_T_FMT "\n",
+		   debug_prefix_time(": adjust_diskspace"),
+		   diskp->host->hostname, qname,
+		   (OFF_T_FMT_TYPE)sched(diskp)->act_size));
     amfree(qdest);
     amfree(qname);
 }
@@ -2557,8 +2580,8 @@ delete_diskspace(
 	holdalloc(holdp[i]->disk)->allocated_space -= holdp[i]->used;
     }
 
-    unlink_holding_files(holdp[0]->destname);	/* no need for the entire list,
-						 * because unlink_holding_files
+    holding_file_unlink(holdp[0]->destname);	/* no need for the entire list,
+						 * because holding_file_unlink
 						 * will walk through all files
 						 * using cont_filename */
     free_assignedhd(sched(diskp)->holdp);
@@ -2812,12 +2835,16 @@ dump_to_tape(
 	dumpsize = (off_t)0;
 	if (*result_argv[5] == '"') {
 	    /* String was quoted */
+	    OFF_T_FMT_TYPE dumpsize_ = (OFF_T_FMT_TYPE)0;
 	    rc = sscanf(result_argv[5],"\"[sec %lf kb " OFF_T_FMT " ",
-			&tapetime, (OFF_T_FMT_TYPE *)&dumpsize);
+			&tapetime, &dumpsize_);
+	    dumpsize = (off_t)dumpsize_;
 	} else {
 	    /* String was not quoted */
+	    OFF_T_FMT_TYPE dumpsize_ = (OFF_T_FMT_TYPE)0;
 	    rc = sscanf(result_argv[5],"[sec %lf kb " OFF_T_FMT " ",
-			&tapetime, (OFF_T_FMT_TYPE *)&dumpsize);
+			&tapetime, &dumpsize_);
+	    dumpsize = (off_t)dumpsize_;
 	}
 	if (rc < 2) {
 	    error("error [malformed result: %d items matched in '%s']",

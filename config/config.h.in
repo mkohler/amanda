@@ -1,5 +1,8 @@
 /* config/config.h.in.  Generated from configure.in by autoheader.  */
 
+/* Define this to an absolute name of <string.h>. */
+#undef ABSOLUTE_STRING_H
+
 /* Define on AIX. */
 #undef AIX_BACKUP
 
@@ -113,6 +116,9 @@
 
 /* Define this if this system's dump exits with 1 as a success code. */
 #undef DUMP_RETURNS_1
+
+/* Define as good substitute value for EOVERFLOW. */
+#undef EOVERFLOW
 
 /* Define to force to another user on client machines. */
 #undef FORCE_USERID
@@ -252,6 +258,34 @@
 /* Define to 1 if you have the <db.h> header file. */
 #undef HAVE_DB_H
 
+/* Define to 1 if you have the declaration of `freeaddrinfo', and to 0 if you
+   don't. */
+#undef HAVE_DECL_FREEADDRINFO
+
+/* Define to 1 if you have the declaration of `gai_strerror', and to 0 if you
+   don't. */
+#undef HAVE_DECL_GAI_STRERROR
+
+/* Define to 1 if you have the declaration of `getaddrinfo', and to 0 if you
+   don't. */
+#undef HAVE_DECL_GETADDRINFO
+
+/* Define to 1 if you have the declaration of `getnameinfo', and to 0 if you
+   don't. */
+#undef HAVE_DECL_GETNAMEINFO
+
+/* Define to 1 if you have the declaration of `inet_ntop', and to 0 if you
+   don't. */
+#undef HAVE_DECL_INET_NTOP
+
+/* Define to 1 if you have the declaration of `snprintf', and to 0 if you
+   don't. */
+#undef HAVE_DECL_SNPRINTF
+
+/* Define to 1 if you have the declaration of `strdup', and to 0 if you don't.
+   */
+#undef HAVE_DECL_STRDUP
+
 /* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
    */
 #undef HAVE_DIRENT_H
@@ -334,11 +368,17 @@
 /* Define if fwrite is declared. */
 #undef HAVE_FWRITE_DECL
 
-/* Define to 1 if you have the `getcwd' function. */
-#undef HAVE_GETCWD
+/* Define to 1 if you have the `gai_strerror' function. */
+#undef HAVE_GAI_STRERROR
+
+/* Define to 1 if you have the `getaddrinfo' function. */
+#undef HAVE_GETADDRINFO
 
 /* Define to 1 if you have the `getfsent' function. */
 #undef HAVE_GETFSENT
+
+/* Define to 1 if you have the `gethostbyname' function. */
+#undef HAVE_GETHOSTBYNAME
 
 /* Define to 1 if you have the `gethostname' function. */
 #undef HAVE_GETHOSTNAME
@@ -406,20 +446,36 @@
 /* Define to enable HPUX chio based changer support. */
 #undef HAVE_HPUX_SCSI_CHIO
 
+/* Define to 1 if you have the `inet_ntop' function. */
+#undef HAVE_INET_NTOP
+
 /* Define to 1 if you have the `initgroups' function. */
 #undef HAVE_INITGROUPS
 
 /* Define if initgroups is declared. */
 #undef HAVE_INITGROUPS_DECL
 
+/* Define if you have the 'intmax_t' type in <stdint.h> or <inttypes.h>. */
+#undef HAVE_INTMAX_T
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
+
+/* Define if <inttypes.h> exists, doesn't clash with <sys/types.h>, and
+   declares uintmax_t. */
+#undef HAVE_INTTYPES_H_WITH_UINTMAX
 
 /* Define to 1 if you have the `ioctl' function. */
 #undef HAVE_IOCTL
 
 /* Define if ioctl is declared. */
 #undef HAVE_IOCTL_DECL
+
+/* Define to 1 if <sys/socket.h> defines AF_INET. */
+#undef HAVE_IPV4
+
+/* Define to 1 if <sys/socket.h> defines AF_INET6. */
+#undef HAVE_IPV6
 
 /* Define to enable IRIX tape-changer support */
 #undef HAVE_IRIX_LIKE_SCSI
@@ -514,6 +570,15 @@
 /* Define if listen is declared. */
 #undef HAVE_LISTEN_DECL
 
+/* Define if you have the 'long double' type. */
+#undef HAVE_LONG_DOUBLE
+
+/* Define if you have the 'long long' type. */
+#undef HAVE_LONG_LONG
+
+/* Define to 1 if the system has the type `long long int'. */
+#undef HAVE_LONG_LONG_INT
+
 /* Define to 1 if you have the `lstat' function. */
 #undef HAVE_LSTAT
 
@@ -598,6 +663,9 @@
 /* Define to 1 if you have the <netdb.h> header file. */
 #undef HAVE_NETDB_H
 
+/* Define to 1 if you have the <netinet/in.h> header file. */
+#undef HAVE_NETINET_IN_H
+
 /* Define to 1 if you have the <netinet/in_systm.h> header file. */
 #undef HAVE_NETINET_IN_SYSTM_H
 
@@ -630,6 +698,15 @@
 
 /* Define if printf is declared. */
 #undef HAVE_PRINTF_DECL
+
+/* Define if the <pthread.h> defines PTHREAD_MUTEX_RECURSIVE. */
+#undef HAVE_PTHREAD_MUTEX_RECURSIVE
+
+/* Define if the POSIX multithreading library has read/write locks. */
+#undef HAVE_PTHREAD_RWLOCK
+
+/* Define to 1 if the system has the type `ptrdiff_t'. */
+#undef HAVE_PTRDIFF_T
 
 /* Define to 1 if you have the `putenv' function. */
 #undef HAVE_PUTENV
@@ -793,6 +870,9 @@
 /* Define if snprintf is declared. */
 #undef HAVE_SNPRINTF_DECL
 
+/* if struct sockaddr_storage exists */
+#undef HAVE_SOCKADDR_STORAGE
+
 /* Define to 1 if you have the `socket' function. */
 #undef HAVE_SOCKET
 
@@ -823,8 +903,15 @@
 /* Define to 1 if you have the <stdarg.h> header file. */
 #undef HAVE_STDARG_H
 
+/* Define to 1 if stdbool.h conforms to C99. */
+#undef HAVE_STDBOOL_H
+
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
+
+/* Define if <stdint.h> exists, doesn't clash with <sys/types.h>, and declares
+   uintmax_t. */
+#undef HAVE_STDINT_H_WITH_UINTMAX
 
 /* Define to 1 if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H
@@ -834,6 +921,9 @@
 
 /* Define if strcasecmp is declared. */
 #undef HAVE_STRCASECMP_DECL
+
+/* Define to 1 if you have the `strdup' function. */
+#undef HAVE_STRDUP
 
 /* Define to 1 if you have the `strerror' function. */
 #undef HAVE_STRERROR
@@ -859,9 +949,6 @@
 /* Define if strncasecmp is declared. */
 #undef HAVE_STRNCASECMP_DECL
 
-/* Define to 1 if you have the `strstr' function. */
-#undef HAVE_STRSTR
-
 /* Define to 1 if you have the `strtol' function. */
 #undef HAVE_STRTOL
 
@@ -873,6 +960,9 @@
 
 /* Define if strtol is declared. */
 #undef HAVE_STRTOL_DECL
+
+/* Define to 1 if the system has the type `struct addrinfo'. */
+#undef HAVE_STRUCT_ADDRINFO
 
 /* Define if the database header declares struct datum. */
 #undef HAVE_STRUCT_DATUM
@@ -960,6 +1050,9 @@
 /* Define to 1 if you have the <sys/shm.h> header file. */
 #undef HAVE_SYS_SHM_H
 
+/* Define to 1 if you have the <sys/socket.h> header file. */
+#undef HAVE_SYS_SOCKET_H
+
 /* Define to 1 if you have the <sys/statfs.h> header file. */
 #undef HAVE_SYS_STATFS_H
 
@@ -1023,11 +1116,18 @@
 /* Define if the compiler support unsigned long constants. */
 #undef HAVE_UNSIGNED_LONG_CONSTANTS
 
+/* Define to 1 if you have the `vasnprintf' function. */
+#undef HAVE_VASNPRINTF
+
 /* Define to 1 if you have the `vfprintf' function. */
 #undef HAVE_VFPRINTF
 
 /* Define if vfprintf is declared. */
 #undef HAVE_VFPRINTF_DECL
+
+/* Define to 1 or 0, depending whether the compiler supports simple visibility
+   declarations. */
+#undef HAVE_VISIBILITY
 
 /* Define to 1 if you have the `vprintf' function. */
 #undef HAVE_VPRINTF
@@ -1050,11 +1150,20 @@
 /* Define to 1 if you have the <vtblc.h> header file. */
 #undef HAVE_VTBLC_H
 
-/* Define to 1 if you have the `waitpid' function. */
-#undef HAVE_WAITPID
-
 /* Define to 1 if you have the <wait.h> header file. */
 #undef HAVE_WAIT_H
+
+/* Define if you have the 'wchar_t' type. */
+#undef HAVE_WCHAR_T
+
+/* Define to 1 if you have the `wcslen' function. */
+#undef HAVE_WCSLEN
+
+/* Define to 1 if you have the <winsock2.h> header file. */
+#undef HAVE_WINSOCK2_H
+
+/* Define if you have the 'wint_t' type. */
+#undef HAVE_WINT_T
 
 /* Define to 1 if you have the `writev' function. */
 #undef HAVE_WRITEV
@@ -1062,8 +1171,11 @@
 /* Define if writev is declared. */
 #undef HAVE_WRITEV_DECL
 
-/* xslt is available to generate man pages */
-#undef HAVE_XSLTPROC
+/* Define to 1 if you have the <ws2tcpip.h> header file. */
+#undef HAVE_WS2TCPIP_H
+
+/* Define to 1 if the system has the type `_Bool'. */
+#undef HAVE__BOOL
 
 /* Define if limits.h defines _POSIX2_RE_DUP_MAX. */
 #undef HAVE__POSIX2_RE_DUP_MAX
@@ -1136,6 +1248,9 @@
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
+
+/* Define if the pthread_in_use() detection is hard. */
+#undef PTHREAD_IN_USE_DETECTION_HARD
 
 /* Define as the prefix for raw disk devices, commonly /dev/r or /dev/rdsk/ */
 #undef RDEV_PREFIX
@@ -1211,8 +1326,18 @@
 /* The size of a `void*', as computed by sizeof. */
 #undef SIZEOF_VOIDP
 
+/* Define as the maximum value of type 'size_t', if the system doesn't define
+   it. */
+#undef SIZE_MAX
+
 /* Define to the exact path to the sort program. */
 #undef SORT_PATH
+
+/* Path to the SSH binary */
+#undef SSH
+
+/* Arguments to ssh */
+#undef SSH_OPTIONS
 
 /* Define if SSH transport should be enabled. */
 #undef SSH_SECURITY
@@ -1293,15 +1418,39 @@
 /* Define to use Posix fcntl for file locking. */
 #undef USE_POSIX_FCNTL
 
+/* Define if the POSIX multithreading library can be used. */
+#undef USE_POSIX_THREADS
+
+/* Define if references to the POSIX multithreading library should be made
+   weak. */
+#undef USE_POSIX_THREADS_WEAK
+
+/* Define if the GNU Pth multithreading library can be used. */
+#undef USE_PTH_THREADS
+
+/* Define if references to the GNU Pth multithreading library should be made
+   weak. */
+#undef USE_PTH_THREADS_WEAK
+
 /* Define to set SO_REUSEADDR on network connections. */
 #undef USE_REUSEADDR
 
 /* Define to invoke rundump (setuid-root) instead of DUMP program directly. */
 #undef USE_RUNDUMP
 
+/* Define if the old Solaris multithreading library can be used. */
+#undef USE_SOLARIS_THREADS
+
+/* Define if references to the old Solaris multithreading library should be
+   made weak. */
+#undef USE_SOLARIS_THREADS_WEAK
+
 /* Define to have programs use version suffixes when calling other programs.
    */
 #undef USE_VERSION_SUFFIXES
+
+/* Define if the Win32 multithreading API can be used. */
+#undef USE_WIN32_THREADS
 
 /* Define on UnixWare. */
 #undef UWARE_TAPEIO
@@ -1333,6 +1482,9 @@
    first (like Motorola and SPARC, unlike Intel and VAX). */
 #undef WORDS_BIGENDIAN
 
+/* Define if IPv6 is working. */
+#undef WORKING_IPV6
+
 /* Define on XENIX/ISC. */
 #undef XENIX_TAPEIO
 
@@ -1346,11 +1498,44 @@
    `char[]'. */
 #undef YYTEXT_POINTER
 
+/* Define to 1 if on AIX 3.
+   System headers sometimes define this.
+   We just want to avoid a redefinition error message.  */
+#ifndef _ALL_SOURCE
+# undef _ALL_SOURCE
+#endif
+
 /* Number of bits in a file offset, on hosts where this is settable. */
 #undef _FILE_OFFSET_BITS
 
+/* Enable GNU extensions on systems that have them.  */
+#ifndef _GNU_SOURCE
+# undef _GNU_SOURCE
+#endif
+
 /* Define for large files, on AIX-style hosts. */
 #undef _LARGE_FILES
+
+/* Define to 1 if on MINIX. */
+#undef _MINIX
+
+/* Define to 2 if the system does not provide POSIX.1 features except with
+   this defined. */
+#undef _POSIX_1_SOURCE
+
+/* Define to 1 if you need to in order for `stat' and other things to work. */
+#undef _POSIX_SOURCE
+
+/* Enable extensions on Solaris.  */
+#ifndef __EXTENSIONS__
+# undef __EXTENSIONS__
+#endif
+#ifndef _POSIX_PTHREAD_SEMANTICS
+# undef _POSIX_PTHREAD_SEMANTICS
+#endif
+#ifndef _TANDEM_SOURCE
+# undef _TANDEM_SOURCE
+#endif
 
 /* Directory in which user binaries should be installed. */
 #undef bindir
@@ -1360,6 +1545,15 @@
 
 /* Define to `int' if <sys/types.h> doesn't define. */
 #undef gid_t
+
+/* Define to `__inline__' or `__inline' if that's what the C compiler
+   calls it, or to nothing if 'inline' is not supported under any name.  */
+#ifndef __cplusplus
+#undef inline
+#endif
+
+/* Define to long or long long if <stdint.h> and <inttypes.h> don't define. */
+#undef intmax_t
 
 /* Directory in which internal binaries should be installed. */
 #undef libexecdir
@@ -1372,6 +1566,10 @@
 
 /* Define to `int' if <sys/types.h> does not define. */
 #undef pid_t
+
+/* Define to equivalent of C99 restrict keyword, or to nothing if this is not
+   supported. Do not define if restrict is supported directly. */
+#undef restrict
 
 /* Define if sa_family_t is not a standard system type */
 #undef sa_family_t
@@ -1387,6 +1585,3 @@
 
 /* Define to `int' if <sys/types.h> doesn't define. */
 #undef uid_t
-
-/* Define to empty if the compiler does not support volatile. */
-#undef volatile

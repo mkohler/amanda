@@ -1,2 +1,2 @@
 amanda-common: executable-not-elf-or-script ./usr/lib/amanda/dumper.d/generic-dumper
-amanda-common: package-name-doesnt-match-sonames librestore-2.5.0 libamanda-2.5.0 libamtape-2.5.0 libamserver-2.5.0 libamclient-2.5.0
+amanda-common: package-name-doesnt-match-sonames libamanda-2.5.2p1 libamandad-2.5.2p1 libamclient-2.5.2p1 libamserver-2.5.2p1 libamtape-2.5.2p1 librestore-2.5.2p1

@@ -1,11 +1,8 @@
 # Makefile for Amanda library.
 
+INCLUDES =      -I$(top_srcdir)/gnulib   
+
 lib_LTLIBRARIES =	libamanda.la
-
-REGDIR = ../regex-src
-REGsrcdir = $(srcdir)/$(REGDIR)
-
-INCLUDES = -I$(REGsrcdir)
 
 LINT=@AMLINT@
 LINTFLAGS=@AMLINTFLAGS@
@@ -18,6 +15,7 @@ libamanda_la_SOURCES =		\
 	bsdtcp-security.c	\
 	bsdudp-security.c	\
 	clock.c			\
+	conffile.c		\
 	debug.c			\
 	dgram.c			\
 	error.c			\
@@ -30,10 +28,6 @@ libamanda_la_SOURCES =		\
 	packet.c		\
 	pipespawn.c		\
 	protocol.c		\
-	regcomp.c		\
-	regerror.c		\
-	regexec.c		\
-	regfree.c		\
 	rsh-security.c		\
 	security.c		\
 	security-util.c		\
@@ -47,15 +41,16 @@ libamanda_la_SOURCES =		\
 	version.c		\
 	versuff.c
 
-libamanda_la_LIBADD =	@LTLIBOBJS@ @LTALLOCA@
+#libamanda_la_LIBADD =	@LTLIBOBJS@
+
 libamanda_la_LDFLAGS =  -release $(VERSION)
 
 noinst_HEADERS =		\
 	amanda.h		\
 	amfeatures.h		\
-	amregex.h		\
 	arglist.h		\
 	clock.h			\
+	conffile.h		\
 	dgram.h			\
 	event.h			\
 	fileheader.h		\
@@ -94,38 +89,12 @@ version.c:	genversion$(EXEEXT)
 	-rm -f version.c
 	./genversion > version.c
 
-match.@OBJEXT@ match.lo: regex.h
-regcomp.@OBJEXT@ regcomp.lo: regex.h regcomp.ih
-regexec.@OBJEXT@ regexec.lo: regex.h engine.ih
-regerror.@OBJEXT@ regerror.lo: regex.h regerror.ih
-regfree.@OBJEXT@ regfree.lo: regex.h
-
-REGEXCSRC =	$(REGsrcdir)/regcomp.c	\
-		$(REGsrcdir)/regexec.c	\
-		$(REGsrcdir)/regerror.c	\
-		$(REGsrcdir)/regfree.c
-
-REGEXHSRC =	$(REGsrcdir)/regex2.h	\
-		$(REGEXCSRC)
-
 # these are used for testing only:
 TEST_PROGS = statfs token file bsdsecurity amfeatures
 
-CLEANFILES = regex.h regcomp.ih engine.ih regerror.ih *.test.c
+CLEANFILES = *.test.c
 
 DISTCLEANFILES = version.c genversion.h genversion amanda-int.h
-
-regex.h: $(REGEXHSRC) $(REGsrcdir)/mkh
-	sh $(REGsrcdir)/mkh -i _REGEX_H_ $(REGEXHSRC) >$@
-
-regcomp.ih: $(REGsrcdir)/regcomp.c $(REGsrcdir)/mkh
-	sh $(REGsrcdir)/mkh -p $(REGsrcdir)/regcomp.c >$@
-
-engine.ih: $(REGsrcdir)/engine.c $(REGsrcdir)/mkh
-	sh $(REGsrcdir)/mkh -p $(REGsrcdir)/engine.c >$@
-
-regerror.ih: $(REGsrcdir)/regerror.c $(REGsrcdir)/mkh
-	sh $(REGsrcdir)/mkh -p $(REGsrcdir)/regerror.c >$@
 
 # used for testing only
 
@@ -135,7 +104,8 @@ STANDARD_COMMON_STUFF_NOT_FILE = \
 	debug.$(OBJEXT) \
 	error.$(OBJEXT) \
 	util.$(OBJEXT) \
-	match.$(OBJEXT)
+	match.$(OBJEXT) \
+	sl.$(OBJEXT)
 
 STANDARD_COMMON_STUFF = \
 	$(STANDARD_COMMON_STUFF_NOT_FILE) \

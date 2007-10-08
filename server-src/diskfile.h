@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: diskfile.h,v 1.38.2.1 2006/11/01 14:45:41 martinea Exp $
+ * $Id: diskfile.h,v 1.38 2006/06/22 20:41:33 martinea Exp $
  *
  * interface for disklist file reading code
  */
@@ -55,6 +55,7 @@ typedef struct disk_s {
     am_host_t	*host;			/* host list */
     struct disk_s *hostnext;
 
+    char        *hostname;		/* hostname */
     char	*name;			/* label name for disk */
     char	*device;		/* device name for disk, eg "sd0g" */
     char	*dtype_name;		/* name of dump type   XXX shouldn't need this */
@@ -88,6 +89,7 @@ typedef struct disk_s {
     time_t	starttime;		/* start this dump after this time */
     time_t	start_t;		/* start this dump after this time */
     int		strategy;		/* what dump strategy to use */
+    int		ignore;			/* ignore */
     int		estimate;		/* what estimate strategy to use */
     int		compress;		/* type of compression to use */
     int		encrypt;		/* type of encryption to use */

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: extract_list.c,v 1.117.2.2 2006/12/22 15:10:26 martinea Exp $
+ * $Id: extract_list.c,v 1.117 2006/08/24 01:57:15 paddy_s Exp $
  *
  * implements the "extract" command in amrecover
  */
@@ -40,7 +40,7 @@
 #include "findpass.h"
 #endif
 #include "util.h"
-#include "clientconf.h"
+#include "conffile.h"
 #include "protocol.h"
 #include "event.h"
 #include "security.h"
@@ -166,7 +166,7 @@ read_buffer(
     long	timeout_s)
 {
     ssize_t size = 0;
-    fd_set readset;
+    SELECT_ARG_TYPE readset;
     struct timeval timeout;
     char *dataptr;
     ssize_t spaceleft;
@@ -736,7 +736,6 @@ add_file(
 {
     DIR_ITEM *ditem, lditem;
     char *path_on_disk = NULL;
-    char *path_on_disk_slash = NULL;
     char *cmd = NULL;
     char *err = NULL;
     int i;
@@ -786,8 +785,6 @@ add_file(
 	amfree(clean_disk_path);
     }
 
-    path_on_disk_slash = stralloc2(path_on_disk, "/");
-
     dbprintf(("add_file: Converted path=\"%s\" to path_on_disk=\"%s\"\n",
 	      regex, path_on_disk));
 
@@ -799,8 +796,7 @@ add_file(
 	quoted = quote_string(ditem->path);
 	dbprintf(("add_file: Pondering ditem->path=%s\n", quoted));
 	amfree(quoted);
-	if (match(path_on_disk, ditem->path)
-	    || match(path_on_disk_slash, ditem->path))
+	if (match(path_on_disk, ditem->path))
 	{
 	    found_one = 1;
 	    j = (ssize_t)strlen(ditem->path);
@@ -817,7 +813,6 @@ add_file(
 		    amfree(cmd);
 		    amfree(ditem_path);
 		    amfree(path_on_disk);
-		    amfree(path_on_disk_slash);
 		    exit(1);
 		}
 		amfree(cmd);
@@ -826,13 +821,11 @@ add_file(
 		if ((i = get_reply_line()) == -1) {
 		    amfree(ditem_path);
 		    amfree(path_on_disk);
-		    amfree(path_on_disk_slash);
 		    exit(1);
 		}
 		if(i==0) {		/* assume something wrong */
 		    amfree(ditem_path);
 		    amfree(path_on_disk);
-		    amfree(path_on_disk_slash);
 		    l = reply_line();
 		    printf("%s\n", l);
 		    return;
@@ -846,7 +839,6 @@ add_file(
 		    if (i == -1) {
 			amfree(ditem_path);
 		        amfree(path_on_disk);
-		        amfree(path_on_disk_slash);
 			exit(1);
 		    }
 		    if(err) {
@@ -862,15 +854,14 @@ add_file(
 			puts(l);
 			continue;
 		    }
-#define sc "201-"
-		    if(strncmp(l, sc, sizeof(sc)-1) != 0) {
+
+		    s = l;
+		    if(strncmp_const_skip(l, "201-", s, ch) != 0) {
 			err = "bad reply: not 201-";
 			continue;
 		    }
-
-		    s = l + sizeof(sc)-1;
 		    ch = *s++;
-#undef sc
+
 		    skip_whitespace(s, ch);
 		    if(ch == '\0') {
 			err = "bad reply: missing date field";
@@ -901,12 +892,14 @@ add_file(
                     s[-1] = (char)ch;
 
 		    if(am_has_feature(indexsrv_features, fe_amindexd_fileno_in_ORLD)) {
+			OFF_T_FMT_TYPE fileno_ = (OFF_T_FMT_TYPE)0;
 			skip_whitespace(s, ch);
-			if(ch == '\0' || sscanf(s - 1, OFF_T_FMT,
-				(OFF_T_FMT_TYPE *)&lditem.fileno) != 1) {
+			if(ch == '\0' ||
+			   sscanf(s - 1, OFF_T_FMT, &fileno_) != 1) {
 			    err = "bad reply: cannot parse fileno field";
 			    continue;
 			}
+			lditem.fileno = (off_t)fileno_;
 			skip_integer(s, ch);
 		    }
 
@@ -983,7 +976,6 @@ add_file(
     amfree(cmd);
     amfree(ditem_path);
     amfree(path_on_disk);
-    amfree(path_on_disk_slash);
 
     amfree(lditem.path);
     amfree(lditem.date);
@@ -1054,7 +1046,6 @@ delete_file(
 {
     DIR_ITEM *ditem, lditem;
     char *path_on_disk = NULL;
-    char *path_on_disk_slash = NULL;
     char *cmd = NULL;
     char *err = NULL;
     int i;
@@ -1110,8 +1101,6 @@ delete_file(
 	amfree(clean_disk_path);
     }
 
-    path_on_disk_slash = stralloc2(path_on_disk, "/");
-
     dbprintf(("delete_file: Converted path=\"%s\" to path_on_disk=\"%s\"\n",
 	      regex, path_on_disk));
     found_one = 0;
@@ -1120,8 +1109,7 @@ delete_file(
 	quoted = quote_string(ditem->path);
 	dbprintf(("delete_file: Pondering ditem->path=%s\n", quoted));
 	amfree(quoted);
-	if (match(path_on_disk, ditem->path)
-	    || match(path_on_disk_slash, ditem->path))
+	if (match(path_on_disk, ditem->path))
 	{
 	    found_one = 1;
 	    j = (ssize_t)strlen(ditem->path);
@@ -1138,7 +1126,6 @@ delete_file(
 		    amfree(cmd);
 		    amfree(ditem_path);
 		    amfree(path_on_disk);
-		    amfree(path_on_disk_slash);
 		    exit(1);
 		}
 		amfree(cmd);
@@ -1146,14 +1133,12 @@ delete_file(
 		if ((i = get_reply_line()) == -1) {
 		    amfree(ditem_path);
 		    amfree(path_on_disk);
-		    amfree(path_on_disk_slash);
 		    exit(1);
 		}
 		if(i==0)		/* assume something wrong */
 		{
 		    amfree(ditem_path);
 		    amfree(path_on_disk);
-		    amfree(path_on_disk_slash);
 		    l = reply_line();
 		    printf("%s\n", l);
 		    return;
@@ -1168,7 +1153,6 @@ delete_file(
 		    if (i == -1) {
 			amfree(ditem_path);
 			amfree(path_on_disk);
-			amfree(path_on_disk_slash);
 			exit(1);
 		    }
 		    if(err) {
@@ -1185,14 +1169,14 @@ delete_file(
 			puts(l);
 			continue;
 		    }
-#define sc "201-"
-		    if(strncmp(l, sc, sizeof(sc)-1) != 0) {
+
+		    s = l;
+		    if(strncmp_const_skip(l, "201-", s, ch) != 0) {
 			err = "bad reply: not 201-";
 			continue;
 		    }
-		    s = l + sizeof(sc)-1;
 		    ch = *s++;
-#undef sc
+
 		    skip_whitespace(s, ch);
 		    if(ch == '\0') {
 			err = "bad reply: missing date field";
@@ -1221,12 +1205,14 @@ delete_file(
 		    *tape_undo = '\0';
 
 		    if(am_has_feature(indexsrv_features, fe_amindexd_fileno_in_ORLD)) {
+			OFF_T_FMT_TYPE fileno_ = (OFF_T_FMT_TYPE)0;
 			skip_whitespace(s, ch);
-			if(ch == '\0' || sscanf(s - 1, OFF_T_FMT,
-				(OFF_T_FMT_TYPE *)&fileno) != 1) {
+			if(ch == '\0' ||
+			   sscanf(s - 1, OFF_T_FMT, &fileno_) != 1) {
 			    err = "bad reply: cannot parse fileno field";
 			    continue;
 			}
+			fileno = (off_t)fileno_;
 			skip_integer(s, ch);
 		    }
 
@@ -1297,7 +1283,6 @@ delete_file(
     amfree(cmd);
     amfree(ditem_path);
     amfree(path_on_disk);
-    amfree(path_on_disk_slash);
 
     if(! found_one) {
 	printf("File %s doesn't exist in directory\n", path);
@@ -1523,7 +1508,7 @@ extract_files_setup(
 				"auth=", authopt, ";",
 		    "\n", NULL);
     protocol_sendreq(tape_server_name, amidxtaped_secdrv,
-		     amidxtaped_client_get_security_conf, req, STARTUP_TIMEOUT,
+		     generic_client_get_security_conf, req, STARTUP_TIMEOUT,
 		     amidxtaped_response, &response_error);
     amfree(req);
     protocol_run();
@@ -1594,7 +1579,7 @@ extract_files_setup(
 	tt = newstralloc2(tt, "FEATURES=", our_features_string);
 	send_to_tape_server(amidxtaped_streams[CTLFD].fd, tt);
 	get_amidxtaped_line();
-	if(strncmp(amidxtaped_line,"FEATURES=",9) == 0) {
+	if(strncmp_const(amidxtaped_line,"FEATURES=") == 0) {
 	    tapesrv_features = am_string_to_feature(amidxtaped_line+9);
 	} else {
 	    fprintf(stderr, "amrecover - expecting FEATURES line from amidxtaped\n");
@@ -1708,7 +1693,8 @@ enum dumptypes {
 	IS_GNUTAR,
 	IS_TAR,
 	IS_SAMBA,
-	IS_SAMBA_TAR
+	IS_SAMBA_TAR,
+	IS_BACKUP_API
 };
 
 static void
@@ -1753,6 +1739,8 @@ extract_files_child(
     }
 
     if (file.program != NULL) {
+	if (strcmp(file.program, "BACKUP") == 0)
+	    dumptype = IS_BACKUP_API;
 #ifdef GNUTAR
 	if (strcmp(file.program, GNUTAR) == 0)
 	    dumptype = IS_GNUTAR;
@@ -1805,8 +1793,10 @@ extract_files_child(
 	}
 #endif
     	break;
+    case IS_BACKUP_API:
+	extra_params = 5;
+	break;
     }
-
     restore_args = (char **)alloc((size_t)((extra_params + files_off_tape + 1)
 				  * sizeof(char *)));
     switch(dumptype) {
@@ -1867,11 +1857,21 @@ extract_files_child(
         restore_args[j++] = stralloc("-");	/* data on stdin */
 	}
 #endif
+	break;
+    case IS_BACKUP_API:
+	restore_args[j++] = stralloc(file.dumper);
+	restore_args[j++] = stralloc("restore");
+	restore_args[j++] = stralloc("--config");
+	restore_args[j++] = stralloc(config);
+	restore_args[j++] = stralloc("--disk");
+	restore_args[j++] = stralloc(file.disk);
+	break;
     }
   
     for (i = 0, fn = elist->files; i < files_off_tape; i++, fn = fn->next)
     {
 	switch (dumptype) {
+    	case IS_BACKUP_API:
     	case IS_TAR:
     	case IS_GNUTAR:
     	case IS_SAMBA_TAR:
@@ -1896,6 +1896,7 @@ extract_files_child(
 	    {
 	    restore_args[j++] = stralloc(fn->path);
 	    }
+	    break;
   	}
     }
 #if defined(XFSDUMP)
@@ -1952,6 +1953,10 @@ extract_files_child(
 		    file.program);
 	    cmd = stralloc("restore");
 	}
+	break;
+    case IS_BACKUP_API:
+	cmd = vstralloc(DUMPER_DIR, "/", file.dumper, NULL);
+	break;
     }
     if (cmd) {
         dbprintf(("Exec'ing %s with arguments:\n", cmd));
@@ -2039,7 +2044,7 @@ writer_intermediary(
 		send_to_tape_server(amidxtaped_streams[CTLFD].fd, "ERROR");
 		break;
 	    }
-	} else if(strncmp(amidxtaped_line, "MESSAGE ", 8) == 0) {
+	} else if(strncmp_const(amidxtaped_line, "MESSAGE ") == 0) {
 	    printf("%s\n",&amidxtaped_line[8]);
 	} else {
 	    fprintf(stderr, "Strange message from tape server: %s",
@@ -2216,7 +2221,7 @@ extract_files(void)
 	/* connect to the tape handler daemon on the tape drive server */
 	if ((extract_files_setup(elist->tape, elist->fileno)) == -1)
 	{
-	    fprintf(stderr, "amrecover - can't talk to tape server\n");
+	    fprintf(stderr, "amrecover - can't talk to tape server: %s\n",errstr);
 	    return;
 	}
 
@@ -2247,13 +2252,13 @@ amidxtaped_response(
     assert(sech != NULL);
     memset(ports, -1, SIZEOF(ports));
 
-    security_close_connection(sech, dump_hostname);
     if (pkt == NULL) {
 	errstr = newvstralloc(errstr, "[request failed: ",
 			     security_geterror(sech), "]", NULL);
 	*response_error = 1;
 	return;
     }
+    security_close_connection(sech, dump_hostname);
 
     if (pkt->type == P_NAK) {
 #if defined(PACKET_DEBUG)
@@ -2355,10 +2360,8 @@ bad_nak:
 /*
 	    while((p = strchr(tok, ';')) != NULL) {
 		*p++ = '\0';
-#define sc "features="
-		if(strncmp(tok, sc, sizeof(sc)-1) == 0) {
-		    tok += sizeof(sc) - 1;
-#undef sc
+		if(strncmp_const(tok, "features=") == 0) {
+		    tok += sizeof("features=") - 1;
 		    am_release_feature_set(their_features);
 		    if((their_features = am_string_to_feature(tok)) == NULL) {
 			errstr = newvstralloc(errstr,
@@ -2551,10 +2554,10 @@ amidxtaped_client_get_security_conf(
 	return(NULL);
 
     if(strcmp(string, "auth")==0) {
-	return(client_getconf_str(CLN_AUTH));
+	return(getconf_str(CNF_AUTH));
     }
     if(strcmp(string, "ssh_keys")==0) {
-	return(client_getconf_str(CLN_SSH_KEYS));
+	return(getconf_str(CNF_SSH_KEYS));
     }
     return(NULL);
 }
