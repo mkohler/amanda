@@ -1,3 +1,14 @@
+amanda (1:2.5.2p1-2) unstable; urgency=low
+
+  * document holding disk constraint in amanda-server README.Debian file,
+    closes: #465746
+  * patch from Wolfgang Weisselberg for a problem in amstatus, closes: #471240
+  * enable both with-bsdtcp-security and with-bsdudp-security in configure,
+    perhaps that will help resolve some of the problems users are having
+    with 2.5.2?
+
+ -- Bdale Garbee <bdale@gag.com>  Thu, 20 Mar 2008 18:06:58 -0600
+
 amanda (1:2.5.2p1-1) unstable; urgency=low
 
   * new upstream version, closes: #434607, #434606

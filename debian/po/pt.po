@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: amanda\n"
-"Report-Msgid-Bugs-To: bdale@gag.com\n"
-"POT-Creation-Date: 2006-11-29 02:13+0100\n"
+"Report-Msgid-Bugs-To: amanda@packages.debian.org\n"
+"POT-Creation-Date: 2008-03-20 18:11-0600\n"
 "PO-Revision-Date: 2007-02-04 12:24+0000\n"
 "Last-Translator: Carlos Lisboa <carloslisboa@gmail.com>\n"
 "Language-Team: Portuguese <traduz@debianpt.org>\n"
@@ -19,7 +19,8 @@ msgstr ""
 #. Description
 #: ../templates:1001
 msgid "Please merge /var/lib/amandates and /var/lib/amanda/amandates"
-msgstr "Por favor faça a fusão de /var/lib/amandates e /var/lib/amanda/amandates"
+msgstr ""
+"Por favor faça a fusão de /var/lib/amandates e /var/lib/amanda/amandates"
 
 #. Type: error
 #. Description
@@ -29,7 +30,7 @@ msgid ""
 "review the files, and merge the contents you care about to the /var/lib/"
 "amanda/amandates location, and remove the old file /var/lib/amandates."
 msgstr ""
-"Possui tanto o /var/lib/amandates como o /var/lib/amanda/amandates. Por favor "
-"reveja esses ficheiros, e faça a fusão do conteúdo que pretende para o local "
-"/var/lib/amanda/amandates, e remova o ficheiro antigo /var/lib/amandates."
-
+"Possui tanto o /var/lib/amandates como o /var/lib/amanda/amandates. Por "
+"favor reveja esses ficheiros, e faça a fusão do conteúdo que pretende para o "
+"local /var/lib/amanda/amandates, e remova o ficheiro antigo /var/lib/"
+"amandates."

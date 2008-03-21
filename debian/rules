@@ -31,7 +31,8 @@ build-stamp: /sbin/dump /usr/bin/smbclient debian/po/templates.pot
 		--with-dumperdir=/usr/lib/amanda/dumper.d \
 		--with-tcpportrange=50000,50100 --with-udpportrange=840,860 \
 		--with-maxtapeblocksize=256 \
-		--with-ssh-security
+		--with-ssh-security \
+		--with-bsdtcp-security --with-bsdudp-security
 	touch missing
 	make CFLAGS="-O2 -g -Wall \
 		-DAMANDATES_FILE='\"/var/lib/amanda/amandates\"' \
