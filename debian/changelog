@@ -1,3 +1,15 @@
+amanda (1:2.5.2p1-3) unstable; urgency=low
+
+  * fix "bashisms" in the amcleanup and amverify scripts.  closes: #464489
+  * merge updated Russian translation, closes: #471030
+  * move example configuration 'DailySet1' from /etc/amanda to 
+    /usr/share/doc/amanda-server/examples to reduce confusion, update
+    the amanda-server README.Debian with fresh install notes.  closes: #420023
+  * move some binaries out of amanda-common into -server and -client
+  * harden forcing of /usr/bin/mail instead of /usr/bin/Mail, closes: #475771
+
+ -- Bdale Garbee <bdale@gag.com>  Wed, 16 Apr 2008 00:02:13 -0600
+
 amanda (1:2.5.2p1-2) unstable; urgency=low
 
   * document holding disk constraint in amanda-server README.Debian file,

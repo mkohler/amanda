@@ -331,7 +331,7 @@ fi
 cd @AMANDA_TMPDIR@ || exit 1
 
 TEMP=@AMANDA_TMPDIR@/amverify.$$
-trap 'rm -fr $TEMP' 0
+trap 'rm -fr $TEMP' EXIT
 if ( umask 077 ; mkdir $TEMP ) ; then
 	:
 else
@@ -343,7 +343,7 @@ REPORT=$TEMP/report; rm -f $REPORT
 TAPELIST=
 EXITSTAT=$TEMP/amrecover.exit; rm -rf $EXITSTAT
 
-trap 'report "aborted!"; echo "aborted!" >> $DEFECTS; sendreport; rm -fr $TEMP; exit 1' 1 2 3 4 5 6 7 8 10 12 13 14 15
+trap 'report "aborted!"; echo "aborted!" >> $DEFECTS; sendreport; rm -fr $TEMP; exit 1' EXIT
 
 $Echoe "Defects file is $DEFECTS"
 report "amverify $CONFIG"

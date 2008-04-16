@@ -1,21 +1,47 @@
 amanda for DEBIAN
 -----------------
 
-To configure your server, as root do:
+Since every Amanda installation is different, there is some work you need to
+do to configure your server.  For a simple setup, as root you need to:
 
-1. for a simple setup edit the files (see explanations there) 
-	/etc/amanda/DailySet1/amanda.conf
-	/etc/amanda/DailySet1/disklist
-	/etc/amanda/crontab
+1. Create a directory under /etc/amanda for your backup config, we'll assume
+   a name 'DailySet1' as our example.
 
-2. prepare the holding disk if you use one by 
+	mkdir /etc/amanda/DailySet1
+
+   Make sure that /etc/amanda and all the files under it are owner and group
+   backup with directory permissions of 770 and file permissions of 660.
+
+2. populate this directory with config files.  At a minimum, you need 
+   amanda.conf and disklist.
+
+	cp /usr/share/doc/amanda-server/examples/amanda.conf \
+		/etc/amanda/DailySet1/amanda.conf*
+	cp /usr/share/doc/amanda-server/examples/disklist \
+		/etc/amanda/DailySet1/disklist
+
+   Edit these files as needed, following the instructions in each file.
+
+3. Make sure that /etc/amanda and all the files under it are owner and group
+   backup with directory permissions of 770 and file permissions of 660.
+
+	chown -R backup:backup /etc/amanda
+
+3. Prepare the "holding disk" if you plan to use one (highly recommended!) by 
+   ensuring user backup can access it.  See the note below indicating that it
+   may be better to use a subdirectory and not a mount point to avoid having 
+   system artifacts like the lost+found directory confuse things.
+
 	chown -R backup:backup <holding disk location>
 
-3. do 
-	crontab -u backup /etc/amanda/crontab.amanda
+4. Install a suitable crontab for user backup.  If you used DailySet1 as your
+   configuration name, you can just install the provided example.  If you
+   picked some other name, you will obviously need to edit a copy of the
+   example before installing it.
 
+	crontab -u backup /usr/share/doc/amanda-server/examples/crontab.amanda
 
-To use all of Amanda's features, you may find it necessary to put each client
+To use all of Amanda's features, you probably also want to put each client
 machine's root user in the .rhosts or .amandahosts for ~backup on the server 
 machine.  On Debian systems, this is usually linked to /etc/amandahosts, but
 if you have clients running other operating systems you'll have to find the
@@ -31,8 +57,8 @@ For more complex setups, consult the manpages and the extra documents and
 example files in /usr/share/doc/amanda-common, or look at www.amanda.org on
 the web.
 
-Another Note: if you use floppy tapes you have to use the sftape
-interface for use with ftape(>=3.03).
+Another Note: if you use floppy tapes you have to use the sftape interface 
+for use with ftape(>=3.03).
 
 Jean Pierre LeJacq <jplejacq@mail.quoininc.com> reports the following about
 his experience using ftape:
@@ -55,16 +81,19 @@ bastille was used with the "restrict system resources" option.  See bug
 118616 in the Debian bug tracking system for more information.
 
 If you choose to use the SSH authentication method and associated transport,
-please be aware that there may be problems if /usr/libamanda/dumper is suid.
+please be aware that there may be problems if /usr/lib/amanda/dumper is suid.
 You can fix this on your server with chmod u-s /usr/lib/amanda/dumper, or
 investigate dpkg-statoverride.
 
 Concerns have been expressed about the reliability of 'dump' as a backup tool
 on live Linux systems.  Nothing can guarantee a consistent and meaningful 
-backup of a live filesystem under all circumstances.  The tar utility is 
-'essential' in Debian and so will always be around, is not tied to any specific
-filesystem type, and there are entries in the default amanda.conf file 
-defining dump types using tar.
+backup of a live filesystem under all circumstances, and the maintainer of
+these packages uses dump with good results.  
+
+The tar utility is 'essential' in Debian and so will always be around, is not 
+tied to any specific filesystem type, and there are entries in the default 
+amanda.conf file defining dump types using tar.  This may therefore be a good
+option to consider.
 
 Note that if you are using tar with amanda, and getting errors about missing
 exclude files (particularly on upgrades from older versions), then you may

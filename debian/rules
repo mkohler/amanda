@@ -9,9 +9,8 @@
 #export DH_VERBOSE=1
 
 r=$(shell pwd)/debian/amanda-common
-server=$(shell pwd)/debian/amanda-server
-client=$(shell pwd)/debian/amanda-client
-common=$(shell pwd)/debian/amanda-common
+s=$(shell pwd)/debian/amanda-server
+c=$(shell pwd)/debian/amanda-client
 
 build: build-stamp 
 build-stamp: /sbin/dump /usr/bin/smbclient debian/po/templates.pot
@@ -34,7 +33,7 @@ build-stamp: /sbin/dump /usr/bin/smbclient debian/po/templates.pot
 		--with-ssh-security \
 		--with-bsdtcp-security --with-bsdudp-security
 	touch missing
-	make CFLAGS="-O2 -g -Wall \
+	MAILER=/usr/bin/mail make CFLAGS="-O2 -g -Wall \
 		-DAMANDATES_FILE='\"/var/lib/amanda/amandates\"' \
 		-DIGNORE_TAR_ERRORS "
 	touch build-stamp
@@ -66,17 +65,12 @@ binary-arch: build
 	dh_clean -k
 	dh_installdirs -a
 	make install DESTDIR=$(r)
-	install -m 644 debian/amanda.conf.in \
-		$(server)/etc/amanda/DailySet1/amanda.conf
-	install -m 644 debian/disklist $(server)/etc/amanda/DailySet1/disklist
-	install -m 644 debian/crontab.amanda $(server)/etc/amanda
 	install -m 644 debian/amandahosts $(r)/etc/amandahosts
 	dh_installdocs -a
-	install -d $(r)/usr/share/doc/amanda-common/examples
-	cp -a example/* $(r)/usr/share/doc/amanda-common/examples
+	dh_installexamples -a
 	cp ChangeLog $(r)/usr/share/doc/amanda-common/changelog
-	cp debian/xinetd.d/amandaidx $(server)/etc/xinetd.d
-	cp debian/xinetd.d/amidxtape $(server)/etc/xinetd.d
+	cp debian/xinetd.d/amandaidx $(s)/etc/xinetd.d
+	cp debian/xinetd.d/amidxtape $(s)/etc/xinetd.d
 	cp debian/xinetd.d/amanda $(r)/etc/xinetd.d			
 	dh_installmenu -a
 	dh_installcron -a
@@ -85,38 +79,38 @@ binary-arch: build
 	dh_strip -a
 	dh_compress -a
 	dh_movefiles -a --sourcedir=debian/amanda-common
-	rm $(server)/usr/lib/amanda/chg-mtx
+	rm $(s)/usr/lib/amanda/chg-mtx
 	dh_fixperms -av
 	# fix perms manually
 	chown -R backup:backup debian/*/var/lib/*
 	chmod -R u=rwX,g=rwX,o-rwx debian/*/var/lib/*
-	chown -R backup:backup $(server)/var/log/amanda
-	chmod -R u=rwX,g=rwX,o-rwx $(server)/var/log/amanda
-	chown -R backup:backup $(server)/etc/amanda
-	chmod -R u=rwX,g=rwX,o-rwx $(server)/etc/amanda
-	chown -R backup:backup $(client)/var/lib/amanda/gnutar-lists
-	chmod -R u=rwX,g=rwX,o-rwx $(client)/var/lib/amanda/gnutar-lists
+	chown -R backup:backup $(s)/var/log/amanda
+	chmod -R u=rwX,g=rwX,o-rwx $(s)/var/log/amanda
+	chown -R backup:backup $(s)/etc/amanda
+	chmod -R u=rwX,g=rwX,o-rwx $(s)/etc/amanda
+	chown -R backup:backup $(c)/var/lib/amanda/gnutar-lists
+	chmod -R u=rwX,g=rwX,o-rwx $(c)/var/lib/amanda/gnutar-lists
 	# .. setuid
 	chown root:backup \
-		$(client)/usr/lib/amanda/killpgrp \
-		$(client)/usr/lib/amanda/rundump \
-		$(client)/usr/lib/amanda/runtar \
-		$(server)/usr/lib/amanda/dumper \
-		$(server)/usr/lib/amanda/planner \
-		$(server)/usr/sbin/amcheck
+		$(c)/usr/lib/amanda/killpgrp \
+		$(c)/usr/lib/amanda/rundump \
+		$(c)/usr/lib/amanda/runtar \
+		$(s)/usr/lib/amanda/dumper \
+		$(s)/usr/lib/amanda/planner \
+		$(s)/usr/sbin/amcheck
 	chmod u=srwx,g=rx,o=r \
-		$(client)/usr/lib/amanda/killpgrp \
-		$(client)/usr/lib/amanda/rundump \
-		$(client)/usr/lib/amanda/runtar \
-		$(server)/usr/lib/amanda/dumper \
-		$(server)/usr/lib/amanda/planner \
-		$(server)/usr/sbin/amcheck
+		$(c)/usr/lib/amanda/killpgrp \
+		$(c)/usr/lib/amanda/rundump \
+		$(c)/usr/lib/amanda/runtar \
+		$(s)/usr/lib/amanda/dumper \
+		$(s)/usr/lib/amanda/planner \
+		$(s)/usr/sbin/amcheck
 	install -o root -g root -m 0644 debian/amanda-client.lintian \
-		$(client)/usr/share/lintian/overrides/amanda-client
+		$(c)/usr/share/lintian/overrides/amanda-client
 	install -o root -g root -m 0644 debian/amanda-common.lintian \
-		$(common)/usr/share/lintian/overrides/amanda-common
+		$(r)/usr/share/lintian/overrides/amanda-common
 	install -o root -g root -m 0644 debian/amanda-server.lintian \
-		$(server)/usr/share/lintian/overrides/amanda-server
+		$(s)/usr/share/lintian/overrides/amanda-server
 	dh_makeshlibs -a
 	dh_installdeb -a
 	dh_shlibdeps -a -l"debian/amanda-common/usr/lib:debian/amanda-client/usr/lib:debian/amanda-server/usr/lib"

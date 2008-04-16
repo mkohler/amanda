@@ -1,0 +1,3 @@
+debian/amanda.conf.in
+debian/crontab.amanda
+debian/disklist
