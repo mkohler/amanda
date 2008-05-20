@@ -36,16 +36,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_triplet = @host@
 subdir = man
-DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
-	$(srcdir)/amadmin.8.in $(srcdir)/amanda.8.in \
-	$(srcdir)/amcheck.8.in $(srcdir)/amcheckdb.8.in \
-	$(srcdir)/amcleanup.8.in $(srcdir)/amdump.8.in \
-	$(srcdir)/amflush.8.in $(srcdir)/amgetconf.8.in \
-	$(srcdir)/amlabel.8.in $(srcdir)/amoverview.8.in \
-	$(srcdir)/amrecover.8.in $(srcdir)/amreport.8.in \
-	$(srcdir)/amrmtape.8.in $(srcdir)/amstatus.8.in \
-	$(srcdir)/amtapetype.8.in $(srcdir)/amtoc.8.in \
-	$(srcdir)/amverify.8.in $(srcdir)/amverifyrun.8.in
+DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
 	$(top_srcdir)/configure.in
@@ -53,10 +44,7 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/config/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config/config.h
-CONFIG_CLEAN_FILES = amadmin.8 amanda.8 amcheck.8 amcheckdb.8 \
-	amcleanup.8 amdump.8 amflush.8 amlabel.8 amoverview.8 \
-	amrecover.8 amrmtape.8 amtoc.8 amverify.8 amstatus.8 \
-	amreport.8 amgetconf.8 amverifyrun.8 amtapetype.8
+CONFIG_CLEAN_FILES =
 SOURCES =
 DIST_SOURCES =
 man8dir = $(mandir)/man8
@@ -279,7 +267,7 @@ COMMON_MAN_PAGES = amanda.8
 @WANT_RESTORE_TRUE@RESTORE_MAN_PAGES = amrestore.8
 
 # not autoconf-generated:
-EXTRA_DIST = amplot.8 amrestore.8 amtape.8 amdd.8 ammt.8
+EXTRA_DIST = amadmin.8 amanda.8 amcheck.8 amcheckdb.8 amcleanup.8 amdd.8 amdump.8 amflush.8 amgetconf.8 amlabel.8 ammt.8 amoverview.8 amplot.8 amreport.8 amrecover.8 amrestore.8 amrmtape.8 amstatus.8 amtape.8 amtapetype.8 amtoc.8 amverify.8 amverifyrun.8
 man_MANS = $(AMPLOT_MAN_PAGES) \
 	   $(COMMON_MAN_PAGES) \
 	   $(SERVER_MAN_PAGES) \
@@ -318,42 +306,6 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
-amadmin.8: $(top_builddir)/config.status $(srcdir)/amadmin.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amanda.8: $(top_builddir)/config.status $(srcdir)/amanda.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amcheck.8: $(top_builddir)/config.status $(srcdir)/amcheck.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amcheckdb.8: $(top_builddir)/config.status $(srcdir)/amcheckdb.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amcleanup.8: $(top_builddir)/config.status $(srcdir)/amcleanup.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amdump.8: $(top_builddir)/config.status $(srcdir)/amdump.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amflush.8: $(top_builddir)/config.status $(srcdir)/amflush.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amlabel.8: $(top_builddir)/config.status $(srcdir)/amlabel.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amoverview.8: $(top_builddir)/config.status $(srcdir)/amoverview.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amrecover.8: $(top_builddir)/config.status $(srcdir)/amrecover.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amrmtape.8: $(top_builddir)/config.status $(srcdir)/amrmtape.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amtoc.8: $(top_builddir)/config.status $(srcdir)/amtoc.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amverify.8: $(top_builddir)/config.status $(srcdir)/amverify.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amstatus.8: $(top_builddir)/config.status $(srcdir)/amstatus.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amreport.8: $(top_builddir)/config.status $(srcdir)/amreport.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amgetconf.8: $(top_builddir)/config.status $(srcdir)/amgetconf.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amverifyrun.8: $(top_builddir)/config.status $(srcdir)/amverifyrun.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amtapetype.8: $(top_builddir)/config.status $(srcdir)/amtapetype.8.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 
 mostlyclean-libtool:
 	-rm -f *.lo

@@ -14,7 +14,7 @@ use POSIX;
 
 sub Usage {
     print STDERR <<END;
-Usage: $0 [[-config] CONFIG] [-hostwidth width] [-diskwidth width] [-verbose]
+Usage: $0 [[-config] CONFIG] [-hostwidth width] [-diskwidth width] [-skipmissed] [-verbose]
 
 This script generates to standard output an overview of the filesystems
 dumped over time and the type of dump done on a particular day, such as
@@ -55,11 +55,13 @@ my $amadmin	= "$sbindir/amadmin$suf";
 my $opt_config		= "$config";
 my $opt_hostwidth	= 8;
 my $opt_diskwidth	= 20;
+my $opt_skipmissed	= 0;
 my $opt_verbose		= 0;
 
 GetOptions('config=s'		=> \$opt_config,
 	   'hostwidth=i'	=> \$opt_hostwidth,
 	   'diskwidth=i'	=> \$opt_diskwidth,
+	   'skipmissed'		=> \$opt_skipmissed,
 	   'verbose'		=> \$opt_verbose)
 or Usage();
 
@@ -106,6 +108,7 @@ while (<$fh>) {
     chomp;
     next if /found Amanda directory/;
     next if /skipping cruft directory/;
+    next if /skip-incr/;
     ($date, $host, $disk, $level, $tape, $file, $status) = split ' ', $_;
     next if $date eq 'date';
     next if $date eq 'Warning:';
@@ -124,6 +127,24 @@ while (<$fh>) {
 $fh->close or
     die "$0: error in closing `$amadmin $opt_config find|' pipe: $!\n";
 
+# Process the status to arrive at a "last" status
+for $host (sort keys %disks) {
+    for $disk (sort keys %{$disks{$host}}) {
+	$level{$host}{$disk}{"0000-LA-ST"} = '';
+	for $date (sort keys %dates) {
+	    if ($level{$host}{$disk}{$date} eq "E"
+		 && $level{$host}{$disk}{"0000-LA-ST"} =~ /^\d/ ) {
+		$level{$host}{$disk}{"0000-LA-ST"} .= $level{$host}{$disk}{$date};
+	    } elsif ($level{$host}{$disk}{$date} eq "") {
+		$level{$host}{$disk}{"0000-LA-ST"} =~ s/E//;
+	    } else {
+		$level{$host}{$disk}{"0000-LA-ST"} = $level{$host}{$disk}{$date};
+	    }
+	}
+    }
+}
+
+unless ($opt_skipmissed)
 # touch all the dates just in case whole days were missed.
 {
     my ($start, $finish) = 
@@ -138,7 +159,9 @@ $fh->close or
 	$start += 86400;
     }
 }
-    
+
+#Add the "last" entry    
+$dates{"0000-LA-ST"}=1;
 
 # make formats
 

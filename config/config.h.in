@@ -1207,6 +1207,9 @@
    * other hosts where the Veritas filesystem (vxfs) has been installed. */
 #undef VXRESTORE
 
+/* Defined if wait() puts the status in a int instead of a union wait. */
+#undef WAIT_USES_INT
+
 /* Defined if wait() puts the status in a union wait instead of int. */
 #undef WAIT_USES_UNION
 

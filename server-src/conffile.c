@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: conffile.c,v 1.54.2.16.2.5.2.20 2003/11/26 16:12:19 martinea Exp $
+ * $Id: conffile.c,v 1.54.2.16.2.5.2.20.2.8 2005/03/29 16:35:11 martinea Exp $
  *
  * read configuration file
  */
@@ -65,13 +65,13 @@
 
 typedef enum {
     UNKNOWN, ANY, COMMA, LBRACE, RBRACE, NL, END,
-    IDENT, INT, BOOL, REAL, STRING, TIME,
+    IDENT, INT, LONG, BOOL, REAL, STRING, TIME,
 
     /* config parameters */
     INCLUDEFILE,
     ORG, MAILTO, DUMPUSER,
     TAPECYCLE, TAPEDEV, CHNGRDEV, CHNGRFILE, LABELSTR,
-    BUMPSIZE, BUMPDAYS, BUMPMULT, ETIMEOUT, DTIMEOUT, CTIMEOUT,
+    BUMPPERCENT, BUMPSIZE, BUMPDAYS, BUMPMULT, ETIMEOUT, DTIMEOUT, CTIMEOUT,
     TAPEBUFS, TAPELIST, DISKFILE, INFOFILE, LOGDIR, LOGFILE,
     DISKDIR, DISKSIZE, INDEXDIR, NETUSAGE, INPARALLEL, DUMPORDER, TIMEOUT,
     TPCHANGER, RUNTAPES,
@@ -81,6 +81,7 @@ typedef enum {
     AMRECOVER_DO_FSF, AMRECOVER_CHECK_LABEL, AMRECOVER_CHANGER,
 
     TAPERALGO, FIRST, FIRSTFIT, LARGEST, LARGESTFIT, SMALLEST, LAST,
+    DISPLAYUNIT,
 
     /* holding disk */
     COMMENT, DIRECTORY, USE, CHUNKSIZE,
@@ -88,7 +89,7 @@ typedef enum {
     /* dump type */
     /*COMMENT,*/ PROGRAM, DUMPCYCLE, RUNSPERCYCLE, MAXCYCLE, MAXDUMPS,
     OPTIONS, PRIORITY, FREQUENCY, INDEX, MAXPROMOTEDAY,
-    STARTTIME, COMPRESS, AUTH, STRATEGY,
+    STARTTIME, COMPRESS, AUTH, STRATEGY, ESTIMATE,
     SKIP_INCR, SKIP_FULL, RECORD, HOLDING,
     EXCLUDE, INCLUDE, KENCRYPT, IGNORE, COMPRATE,
 
@@ -101,8 +102,8 @@ typedef enum {
     /* dump options (obsolete) */
     EXCLUDE_FILE, EXCLUDE_LIST,
 
-    /* compress */
-    NONE, FAST, BEST, SERVER, CLIENT,
+    /* compress, estimate */
+    NONE, FAST, BEST, SERVER, CLIENT, CALCSIZE,
 
     /* priority */
     LOW, MEDIUM, HIGH,
@@ -134,6 +135,7 @@ keytab_t *keytable;
 
 typedef union {
     int i;
+    long l;
     double r;
     char *s;
 } val_t;
@@ -162,6 +164,8 @@ char *config_dir = NULL;
 
 holdingdisk_t *holdingdisks;
 int num_holdingdisks;
+
+long int unit_divisor = 1;
 
 /* configuration parameters */
 
@@ -198,6 +202,7 @@ static val_t conf_netusage;
 static val_t conf_inparallel;
 static val_t conf_timeout;
 static val_t conf_maxdumps;
+static val_t conf_bumppercent;
 static val_t conf_bumpsize;
 static val_t conf_bumpdays;
 static val_t conf_etimeout;
@@ -210,6 +215,7 @@ static val_t conf_maxdumpsize;
 static val_t conf_amrecover_do_fsf;
 static val_t conf_amrecover_check_label;
 static val_t conf_taperalgo;
+static val_t conf_displayunit;
 
 /* reals */
 static val_t conf_bumpmult;
@@ -240,6 +246,7 @@ static int seen_infofile;
 static int seen_diskfile;
 static int seen_diskdir;
 static int seen_logdir;
+static int seen_bumppercent;
 static int seen_bumpsize;
 static int seen_bumpmult;
 static int seen_bumpdays;
@@ -266,6 +273,7 @@ static int seen_amrecover_do_fsf;
 static int seen_amrecover_check_label;
 static int seen_amrecover_changer;
 static int seen_taperalgo;
+static int seen_displayunit;
 
 static int allow_overwrites;
 static int token_pushed;
@@ -307,13 +315,14 @@ static void get_compress P((void));
 static void get_priority P((void));
 static void get_auth P((void));
 static void get_strategy P((void));
+static void get_estimate P((void));
 static void get_exclude P((void));
 static void get_include P((void));
 static void get_taperalgo P((val_t *c_taperalgo, int *s_taperalgo));
 
 static void get_simple P((val_t *var, int *seen, tok_t type));
 static int get_time P((void));
-static int get_number P((void));
+static long get_number P((void));
 static int get_bool P((void));
 static void ckseen P((int *seen));
 static void parserror P((char *format, ...))
@@ -396,6 +405,7 @@ struct byname {
     /*{ "DISKSIZE", CNF_DISKSIZE, INT },*/
     { "BUMPDAYS", CNF_BUMPDAYS, INT },
     { "BUMPSIZE", CNF_BUMPSIZE, INT },
+    { "BUMPPERCENT", CNF_BUMPPERCENT, INT },
     { "BUMPMULT", CNF_BUMPMULT, REAL },
     { "NETUSAGE", CNF_NETUSAGE, INT },
     { "INPARALLEL", CNF_INPARALLEL, INT },
@@ -412,6 +422,7 @@ struct byname {
     { "AMRECOVER_CHECK_LABEL", CNF_AMRECOVER_CHECK_LABEL, BOOL },
     { "AMRECOVER_CHANGER", CNF_AMRECOVER_CHANGER, STRING },
     { "TAPERALGO", CNF_TAPERALGO, INT },
+    { "DISPLAYUNIT", CNF_DISPLAYUNIT, STRING },
     { "AUTOFLUSH", CNF_AUTOFLUSH, BOOL },
     { "RESERVE", CNF_RESERVE, INT },
     { "MAXDUMPSIZE", CNF_MAXDUMPSIZE, INT },
@@ -441,6 +452,13 @@ char *str;
     if(np->typ == INT) {
 	ap_snprintf(number, sizeof(number), "%d", getconf_int(np->parm));
 	tmpstr = newstralloc(tmpstr, number);
+    } else if(np->typ == BOOL) {
+	if(getconf_int(np->parm) == 0) {
+	    tmpstr = newstralloc(tmpstr, "off");
+	}
+	else {
+	    tmpstr = newstralloc(tmpstr, "on");
+	}
     } else if(np->typ == REAL) {
 	ap_snprintf(number, sizeof(number), "%f", getconf_real(np->parm));
 	tmpstr = newstralloc(tmpstr, number);
@@ -472,6 +490,7 @@ confparm_t parm;
     /*case CNF_DISKDIR: return seen_diskdir;*/
     case CNF_LOGDIR: return seen_logdir;
     /*case CNF_LOGFILE: return seen_logfile;*/
+    case CNF_BUMPPERCENT: return seen_bumppercent;
     case CNF_BUMPSIZE: return seen_bumpsize;
     case CNF_BUMPMULT: return seen_bumpmult;
     case CNF_BUMPDAYS: return seen_bumpdays;
@@ -498,6 +517,7 @@ confparm_t parm;
     case CNF_AMRECOVER_CHECK_LABEL: return seen_amrecover_check_label;
     case CNF_AMRECOVER_CHANGER: return seen_amrecover_changer;
     case CNF_TAPERALGO: return seen_taperalgo;
+    case CNF_DISPLAYUNIT: return seen_displayunit;
     default: return 0;
     }
 }
@@ -514,6 +534,7 @@ confparm_t parm;
     case CNF_TAPECYCLE: r = conf_tapecycle.i; break;
     case CNF_RUNTAPES: r = conf_runtapes.i; break;
     /*case CNF_DISKSIZE: r = conf_disksize.i; break;*/
+    case CNF_BUMPPERCENT: r = conf_bumppercent.i; break;
     case CNF_BUMPSIZE: r = conf_bumpsize.i; break;
     case CNF_BUMPDAYS: r = conf_bumpdays.i; break;
     case CNF_NETUSAGE: r = conf_netusage.i; break;
@@ -582,6 +603,7 @@ confparm_t parm;
     case CNF_RAWTAPEDEV: r = conf_rawtapedev.s; break;
     case CNF_COLUMNSPEC: r = conf_columnspec.s; break;
     case CNF_AMRECOVER_CHANGER: r = conf_amrecover_changer.s; break;
+    case CNF_DISPLAYUNIT: r = conf_displayunit.s; break;
 
     default:
 	error("error [unknown getconf_str parm: %d]", parm);
@@ -701,6 +723,7 @@ static void init_defaults()
     malloc_mark(conf_dumporder.s);
     conf_amrecover_changer.s = stralloc("");
     conf_printer.s = stralloc("");
+    conf_displayunit.s = stralloc("k");
 
     conf_dumpcycle.i	= 10;
     conf_runspercycle.i	= 0;
@@ -711,6 +734,7 @@ static void init_defaults()
     conf_inparallel.i	= 10;
     conf_maxdumps.i	= 1;
     conf_timeout.i	= 2;
+    conf_bumppercent.i	= 0;
     conf_bumpsize.i	= 10*1024;
     conf_bumpdays.i	= 2;
     conf_bumpmult.r	= 1.5;
@@ -744,6 +768,7 @@ static void init_defaults()
     seen_diskfile = 0;
     seen_diskdir = 0;
     seen_logdir = 0;
+    seen_bumppercent = 0;
     seen_bumpsize = 0;
     seen_bumpmult = 0;
     seen_bumpdays = 0;
@@ -770,6 +795,7 @@ static void init_defaults()
     seen_amrecover_check_label = 0;
     seen_amrecover_changer = 0;
     seen_taperalgo = 0;
+    seen_displayunit = 0;
     line_num = got_parserror = 0;
     allow_overwrites = 0;
     token_pushed = 0;
@@ -900,6 +926,7 @@ keytab_t main_keytable[] = {
     { "BUMPDAYS", BUMPDAYS },
     { "BUMPMULT", BUMPMULT },
     { "BUMPSIZE", BUMPSIZE },
+    { "BUMPPERCENT", BUMPPERCENT },
     { "DEFINE", DEFINE },
     { "DISKDIR", DISKDIR },	/* XXX - historical */
     { "DISKFILE", DISKFILE },
@@ -947,6 +974,7 @@ keytab_t main_keytable[] = {
     { "AMRECOVER_CHECK_LABEL", AMRECOVER_CHECK_LABEL },
     { "AMRECOVER_CHANGER", AMRECOVER_CHANGER },
     { "TAPERALGO", TAPERALGO },
+    { "DISPLAYUNIT", DISPLAYUNIT },
     { NULL, IDENT }
 };
 
@@ -1005,6 +1033,11 @@ static int read_confline()
     case BUMPMULT:  get_simple(&conf_bumpmult,  &seen_bumpmult,  REAL);
 		    if(conf_bumpmult.r < 0.999) {
 			parserror("bumpmult must be positive");
+		    }
+		    break;
+    case BUMPPERCENT:  get_simple(&conf_bumppercent,  &seen_bumppercent,  INT);
+		    if(conf_bumppercent.i < 0 || conf_bumppercent.i > 100) {
+			parserror("bumppercent must be between 0 and 100");
 		    }
 		    break;
     case BUMPSIZE:  get_simple(&conf_bumpsize,  &seen_bumpsize,  INT);
@@ -1068,6 +1101,31 @@ static int read_confline()
     case AMRECOVER_CHANGER: get_simple(&conf_amrecover_changer,&seen_amrecover_changer, STRING); break;
 
     case TAPERALGO: get_taperalgo(&conf_taperalgo,&seen_taperalgo); break;
+    case DISPLAYUNIT: get_simple(&conf_displayunit,&seen_displayunit, STRING);
+		      if(strcmp(conf_displayunit.s,"k") == 0 ||
+			 strcmp(conf_displayunit.s,"K") == 0) {
+			  conf_displayunit.s[0] = toupper(conf_displayunit.s[0]);
+			  unit_divisor=1;
+		      }
+		      else if(strcmp(conf_displayunit.s,"m") == 0 ||
+			 strcmp(conf_displayunit.s,"M") == 0) {
+			  conf_displayunit.s[0] = toupper(conf_displayunit.s[0]);
+			  unit_divisor=1024;
+		      }
+		      else if(strcmp(conf_displayunit.s,"g") == 0 ||
+			 strcmp(conf_displayunit.s,"G") == 0) {
+			  conf_displayunit.s[0] = toupper(conf_displayunit.s[0]);
+			  unit_divisor=1024*1024;
+		      }
+		      else if(strcmp(conf_displayunit.s,"t") == 0 ||
+			 strcmp(conf_displayunit.s,"T") == 0) {
+			  conf_displayunit.s[0] = toupper(conf_displayunit.s[0]);
+			  unit_divisor=1024*1024*1024;
+		      }
+		      else {
+			  parserror("displayunit must be k,m,g or t.");
+		      }
+		      break;
 
     case LOGFILE: /* XXX - historical */
 	/* truncate the filename part and pretend he said "logdir" */
@@ -1188,11 +1246,11 @@ static void get_holdingdisk()
 	    get_simple((val_t *)&hdcur.diskdir, &hdcur.s_disk, STRING);
 	    break;
 	case USE:
-	    get_simple((val_t *)&hdcur.disksize, &hdcur.s_size, INT);
+	    get_simple((val_t *)&hdcur.disksize, &hdcur.s_size, LONG);
 	    hdcur.disksize = am_floor(hdcur.disksize, DISK_BLOCK_KB);
 	    break;
 	case CHUNKSIZE:
-	    get_simple((val_t *)&hdcur.chunksize, &hdcur.s_csize, INT);
+	    get_simple((val_t *)&hdcur.chunksize, &hdcur.s_csize, LONG);
 	    if(hdcur.chunksize == 0) {
 	        hdcur.chunksize =  ((INT_MAX / 1024) - (2 * DISK_BLOCK_KB));
 	    } else if(hdcur.chunksize < 0) {
@@ -1226,7 +1284,7 @@ static void init_holdingdisk_defaults()
     hdcur.diskdir = stralloc(conf_diskdir.s);
     malloc_mark(hdcur.diskdir);
     hdcur.disksize = 0;
-    hdcur.chunksize = 1024*1024*1024; /* 1 Gb */
+    hdcur.chunksize = 1024*1024/**1024*/; /* 1 Gb = 1M counted in 1Kb blocks */
 
     hdcur.s_comment = 0;
     hdcur.s_disk = 0;
@@ -1252,6 +1310,10 @@ static void save_holdingdisk()
 
 keytab_t dumptype_keytable[] = {
     { "AUTH", AUTH },
+    { "BUMPDAYS", BUMPDAYS },
+    { "BUMPMULT", BUMPMULT },
+    { "BUMPSIZE", BUMPSIZE },
+    { "BUMPPERCENT", BUMPPERCENT },
     { "COMMENT", COMMENT },
     { "COMPRATE", COMPRATE },
     { "COMPRESS", COMPRESS },
@@ -1274,6 +1336,7 @@ keytab_t dumptype_keytable[] = {
     { "SKIP-INCR", SKIP_INCR },
     { "STARTTIME", STARTTIME },
     { "STRATEGY", STRATEGY },
+    { "ESTIMATE", ESTIMATE },
     { NULL, IDENT }
 };
 
@@ -1390,6 +1453,30 @@ dumptype_t *read_dumptype(name, from, fname, linenum)
 		parserror("dpcur.maxpromoteday must be >= 0");
 	    }
 	    break;
+	case BUMPPERCENT:
+	    get_simple((val_t *)&dpcur.bumppercent,  &dpcur.s_bumppercent,  INT);
+	    if(dpcur.bumppercent < 0 || dpcur.bumppercent > 100) {
+		parserror("bumppercent must be between 0 and 100");
+	    }
+	    break;
+	case BUMPSIZE:
+	    get_simple((val_t *)&dpcur.bumpsize,  &dpcur.s_bumpsize,  INT);
+	    if(dpcur.bumpsize < 1) {
+		parserror("bumpsize must be positive");
+	    }
+	    break;
+	case BUMPDAYS:
+	    get_simple((val_t *)&dpcur.bumpdays,  &dpcur.s_bumpdays,  INT);
+	    if(dpcur.bumpdays < 1) {
+		parserror("bumpdays must be positive");
+	    }
+	    break;
+	case BUMPMULT:
+	    get_simple((val_t *)&dpcur.bumpmult,  &dpcur.s_bumpmult,  REAL);
+	    if(dpcur.bumpmult < 0.999) {
+		parserror("bumpmult must be positive (%f)",dpcur.bumpmult);
+	    }
+	    break;
 	case OPTIONS:
 	    get_dumpopts();
 	    break;
@@ -1420,7 +1507,9 @@ dumptype_t *read_dumptype(name, from, fname, linenum)
 	case STRATEGY:
 	    get_strategy();
 	    break;
-
+	case ESTIMATE:
+	    get_estimate();
+	    break;
 	case IDENT:
 	    copy_dumptype();
 	    break;
@@ -1481,6 +1570,10 @@ static void init_dumptype_defaults()
     dpcur.frequency = 1;
     dpcur.maxdumps = conf_maxdumps.i;
     dpcur.maxpromoteday = 10000;
+    dpcur.bumppercent = conf_bumppercent.i;
+    dpcur.bumpsize = conf_bumpsize.i;
+    dpcur.bumpdays = conf_bumpdays.i;
+    dpcur.bumpmult = conf_bumpmult.r;
     dpcur.start_t = 0;
 
     dpcur.auth = AUTH_BSD;
@@ -1488,6 +1581,7 @@ static void init_dumptype_defaults()
     /* options */
     dpcur.record = 1;
     dpcur.strategy = DS_STANDARD;
+    dpcur.estimate = ES_CLIENT;
     dpcur.compress = COMP_FAST;
     dpcur.comprate[0] = dpcur.comprate[1] = 0.50;
     dpcur.skip_incr = dpcur.skip_full = 0;
@@ -1508,10 +1602,15 @@ static void init_dumptype_defaults()
     dpcur.s_frequency = 0;
     dpcur.s_maxdumps = 0;
     dpcur.s_maxpromoteday = 0;
+    dpcur.s_bumppercent = 0;
+    dpcur.s_bumpsize = 0;
+    dpcur.s_bumpdays = 0;
+    dpcur.s_bumpmult = 0;
     dpcur.s_start_t = 0;
     dpcur.s_auth = 0;
     dpcur.s_record = 0;
     dpcur.s_strategy = 0;
+    dpcur.s_estimate = 0;
     dpcur.s_compress = 0;
     dpcur.s_comprate = 0;
     dpcur.s_skip_incr = 0;
@@ -1583,10 +1682,15 @@ static void copy_dumptype()
     dtcopy(frequency, s_frequency);
     dtcopy(maxdumps, s_maxdumps);
     dtcopy(maxpromoteday, s_maxpromoteday);
+    dtcopy(bumppercent, s_bumppercent);
+    dtcopy(bumpsize, s_bumpsize);
+    dtcopy(bumpdays, s_bumpdays);
+    dtcopy(bumpmult, s_bumpmult);
     dtcopy(start_t, s_start_t);
     dtcopy(auth, s_auth);
     dtcopy(record, s_record);
     dtcopy(strategy, s_strategy);
+    dtcopy(estimate, s_estimate);
     dtcopy(compress, s_compress);
     dtcopy(comprate[0], s_comprate);
     dtcopy(comprate[1], s_comprate);
@@ -1649,7 +1753,7 @@ static void get_tapetype()
 	    get_simple((val_t *)&tpcur.lbl_templ, &tpcur.s_lbl_templ, STRING);
 	    break;
 	case BLOCKSIZE:
-	    get_simple((val_t *)&tpcur.blocksize, &tpcur.s_blocksize, INT);
+	    get_simple((val_t *)&tpcur.blocksize, &tpcur.s_blocksize, LONG);
 	    if(tpcur.blocksize < DISK_BLOCK_KB) {
 		parserror("Tape blocksize must be at least %d KBytes",
 			  DISK_BLOCK_KB);
@@ -1663,21 +1767,21 @@ static void get_tapetype()
 	    tpcur.file_pad = (value.i != 0);
 	    break;
 	case LENGTH:
-	    get_simple(&value, &tpcur.s_length, INT);
-	    if(value.i < 0) {
+	    get_simple(&value, &tpcur.s_length, LONG);
+	    if(value.l < 0) {
 		parserror("Tape length must be positive");
 	    }
 	    else {
-		tpcur.length = value.i;
+		tpcur.length = (unsigned long) value.l;
 	    }
 	    break;
 	case FILEMARK:
-	    get_simple(&value, &tpcur.s_filemark, INT);
-	    if(value.i < 0) {
+	    get_simple(&value, &tpcur.s_filemark, LONG);
+	    if(value.l < 0) {
 		parserror("Tape file mark size must be positive");
 	    }
 	    else {
-		tpcur.filemark = value.i;
+		tpcur.filemark = (unsigned long) value.l;
 	    }
 	    break;
 	case SPEED:
@@ -2183,6 +2287,42 @@ static void get_strategy()
     keytable = save_kt;
 }
 
+keytab_t estimate_keytable[] = {
+    { "CLIENT", CLIENT },
+    { "SERVER", SERVER },
+    { "CALCSIZE", CALCSIZE }
+};
+
+static void get_estimate()
+{
+    int estime;
+    keytab_t *save_kt;
+
+    save_kt = keytable;
+    keytable = estimate_keytable;
+
+    ckseen(&dpcur.s_estimate);
+
+    get_conftoken(ANY);
+    switch(tok) {
+    case CLIENT:
+	estime = ES_CLIENT;
+	break;
+    case SERVER:
+	estime = ES_SERVER;
+	break;
+    case CALCSIZE:
+	estime = ES_CALCSIZE;
+	break;
+    default:
+	parserror("CLIENT, SERVER or CALCSIZE expected");
+	estime = ES_CLIENT;
+    }
+    dpcur.estimate = estime;
+
+    keytable = save_kt;
+}
+
 keytab_t exclude_keytable[] = {
     { "LIST", LIST },
     { "FILE", EFILE },
@@ -2333,6 +2473,9 @@ tok_t type;
     case INT:
 	var->i = get_number();
 	break;
+    case LONG:
+	var->l = get_number();
+	break;
     case BOOL:
 	var->i = get_bool();
 	break;
@@ -2409,9 +2552,9 @@ keytab_t numb_keytable[] = {
     { NULL, IDENT }
 };
 
-static int get_number()
+static long get_number()
 {
-    int val;
+    long val;
     keytab_t *save_kt;
 
     save_kt = keytable;
@@ -2421,10 +2564,10 @@ static int get_number()
 
     switch(tok) {
     case INT:
-	val = tokenval.i;
+	val = (long) tokenval.i;
 	break;
     case INFINITY:
-	val = BIGINT;
+	val = (long) BIGINT;
 	break;
     default:
 	parserror("an integer expected");
@@ -2833,6 +2976,10 @@ int taperalgo;
     return "UNKNOWN";
 }
 
+long int getconf_unit_divisor()
+{
+    return unit_divisor;
+}
 
 /* ------------------------ */
 
@@ -2872,6 +3019,7 @@ dump_configuration(filename)
     printf("conf_runspercycle = %d\n", getconf_int(CNF_RUNSPERCYCLE));
     printf("conf_runtapes = %d\n", getconf_int(CNF_RUNTAPES));
     printf("conf_tapecycle = %d\n", getconf_int(CNF_TAPECYCLE));
+    printf("conf_bumppercent = %d\n", getconf_int(CNF_BUMPPERCENT));
     printf("conf_bumpsize = %d\n", getconf_int(CNF_BUMPSIZE));
     printf("conf_bumpdays = %d\n", getconf_int(CNF_BUMPDAYS));
     printf("conf_bumpmult = %f\n", getconf_real(CNF_BUMPMULT));
@@ -2891,6 +3039,7 @@ dump_configuration(filename)
     printf("conf_amrecover_check_label  = %d\n", getconf_int(CNF_AMRECOVER_CHECK_LABEL));
     printf("conf_amrecover_changer = \"%s\"\n", getconf_str(CNF_AMRECOVER_CHANGER));
     printf("conf_taperalgo  = %s\n", taperalgo2str(getconf_int(CNF_TAPERALGO)));
+    printf("conf_displayunit  = %s\n", getconf_str(CNF_DISPLAYUNIT));
 
     /*printf("conf_diskdir = \"%s\"\n", getconf_str(CNF_DISKDIR));*/
     /*printf("conf_disksize = %d\n", getconf_int(CNF_DISKSIZE));*/
@@ -2982,6 +3131,19 @@ dump_configuration(filename)
 	    break;
 	case DS_INCRONLY:
 	    printf("INCRONLY");
+	    break;
+	}
+	putchar('\n');
+	printf("	ESTIMATE ");
+	switch(dp->estimate) {
+	case ES_CLIENT:
+	    printf("CLIENT");
+	    break;
+	case ES_SERVER:
+	    printf("SERVER");
+	    break;
+	case ES_CALCSIZE:
+	    printf("CALCSIZE");
 	    break;
 	}
 	putchar('\n');

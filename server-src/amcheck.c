@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amcheck.c,v 1.50.2.19.2.7.2.22 2004/03/16 19:03:39 martinea Exp $
+ * $Id: amcheck.c,v 1.50.2.19.2.7.2.20.2.10 2005/04/06 12:32:31 martinea Exp $
  *
  * checks for common problems in server and clients
  */
@@ -90,6 +90,8 @@ static unsigned long malloc_hist_2, malloc_size_2;
 
 static am_feature_t *our_features = NULL;
 static char *our_feature_string = NULL;
+static char *displayunit;
+static long int unitdivisor;
 
 int main(argc, argv)
 int argc;
@@ -251,6 +253,9 @@ char **argv;
 	      pw->pw_name,
 	      dumpuser);
     }
+
+    displayunit = getconf_str(CNF_DISPLAYUNIT);
+    unitdivisor = getconf_unit_divisor();
 
     /*
      * If both server and client side checks are being done, the server
@@ -791,7 +796,8 @@ int start_server_check(fd, do_localchk, do_tapechk)
 	char *tape_dir;
 	char *lastslash;
 	char *holdfile;
-
+	struct stat statbuf;
+	
 	conf_tapelist=getconf_str(CNF_TAPELIST);
 	if (*conf_tapelist == '/') {
 	    tapefile = stralloc(conf_tapelist);
@@ -809,7 +815,16 @@ int start_server_check(fd, do_localchk, do_tapechk)
 	 */
 	}
 	if(access(tape_dir, W_OK) == -1) {
-	    fprintf(outf, "ERROR: tapelist dir %s: not writable\n", tape_dir);
+	    fprintf(outf, "ERROR: tapelist dir %s: not writable.\n", tape_dir);
+	    tapebad = 1;
+	}
+	else if(stat(tapefile, &statbuf) == -1) {
+	    fprintf(outf, "ERROR: tapefile %s: %s, you must create an empty file.\n",
+		    tapefile, strerror(errno));
+	    tapebad = 1;
+	}
+	else if(access(tapefile, F_OK) != 0) {
+	    fprintf(outf, "ERROR: can't access tape list %s\n", tapefile);
 	    tapebad = 1;
 	} else if(access(tapefile, F_OK) == 0 && access(tapefile, W_OK) != 0) {
 	    fprintf(outf, "ERROR: tape list %s: not writable\n", tapefile);
@@ -840,12 +855,12 @@ int start_server_check(fd, do_localchk, do_tapechk)
     if(do_localchk) {
 	for(hdp = holdingdisks; hdp != NULL; hdp = hdp->next) {
 	    if(get_fs_stats(hdp->diskdir, &fs) == -1) {
-		fprintf(outf, "ERROR: holding disk %s: statfs: %s\n",
+		fprintf(outf, "ERROR: holding dir %s: %s, you must create a directory.\n",
 			hdp->diskdir, strerror(errno));
 		disklow = 1;
 	    }
 	    else if(access(hdp->diskdir, W_OK) == -1) {
-		fprintf(outf, "ERROR: holding disk %s: not writable: %s\n",
+		fprintf(outf, "ERROR: holding disk %s: not writable: %s.\n",
 			hdp->diskdir, strerror(errno));
 		disklow = 1;
 	    }
@@ -858,26 +873,28 @@ int start_server_check(fd, do_localchk, do_tapechk)
 	    else if(hdp->disksize > 0) {
 		if(fs.avail < hdp->disksize) {
 		    fprintf(outf,
-			    "WARNING: holding disk %s: only %ld KB free (%ld KB requested)\n",
-			    hdp->diskdir, (long)fs.avail, (long)hdp->disksize);
+			    "WARNING: holding disk %s: only %ld %sB free (%ld %sB requested)\n",
+			    hdp->diskdir, (long)fs.avail/unitdivisor, displayunit,
+			    (long)hdp->disksize/unitdivisor, displayunit);
 		    disklow = 1;
 		}
 		else
 		    fprintf(outf,
-			    "Holding disk %s: %ld KB disk space available, that's plenty\n",
-			    hdp->diskdir, fs.avail);
+			    "Holding disk %s: %ld %sB disk space available, that's plenty\n",
+			    hdp->diskdir, fs.avail/unitdivisor, displayunit);
 	    }
 	    else {
 		if(fs.avail < -hdp->disksize) {
 		    fprintf(outf,
-			    "WARNING: holding disk %s: only %ld KB free, using nothing\n",
-			    hdp->diskdir, fs.avail);
+			    "WARNING: holding disk %s: only %ld %sB free, using nothing\n",
+			    hdp->diskdir, fs.avail/unitdivisor, displayunit);
 		    disklow = 1;
 		}
 		else
 		    fprintf(outf,
-			    "Holding disk %s: %ld KB disk space available, using %ld KB\n",
-			    hdp->diskdir, fs.avail, fs.avail + hdp->disksize);
+			    "Holding disk %s: %ld %sB disk space available, using %ld %sB\n",
+			    hdp->diskdir, fs.avail/unitdivisor, displayunit,
+			    (fs.avail + hdp->disksize)/unitdivisor, displayunit);
 	    }
 	}
     }
@@ -889,6 +906,7 @@ int start_server_check(fd, do_localchk, do_tapechk)
 	char *logfile;
 	char *olddir;
 	struct stat stat_old;
+	struct stat statbuf;
 
 	conf_logdir = getconf_str(CNF_LOGDIR);
 	if (*conf_logdir == '/') {
@@ -898,7 +916,12 @@ int start_server_check(fd, do_localchk, do_tapechk)
 	}
 	logfile = vstralloc(conf_logdir, "/log", NULL);
 
-	if(access(conf_logdir, W_OK) == -1) {
+	if(stat(conf_logdir, &statbuf) == -1) {
+	    fprintf(outf, "ERROR: logdir %s: %s, you must create a directory.\n",
+		    conf_logdir, strerror(errno));
+	    disklow = 1;
+	}
+	else if(access(conf_logdir, W_OK) == -1) {
 	    fprintf(outf, "ERROR: log dir %s: not writable\n", conf_logdir);
 	    logbad = 1;
 	}
@@ -1019,7 +1042,7 @@ int start_server_check(fd, do_localchk, do_tapechk)
 	char *infofile = NULL;
 	struct stat statbuf;
 	disk_t *dp;
-	host_t *hostp;
+	am_host_t *hostp;
 	int indexdir_checked = 0;
 	int hostindexdir_checked = 0;
 	char *host;
@@ -1049,7 +1072,7 @@ int start_server_check(fd, do_localchk, do_tapechk)
 #if TEXTDB
 	if(stat(conf_infofile, &statbuf) == -1) {
 	    fprintf(outf, "NOTE: info dir %s: does not exist\n", conf_infofile);
-	    fprintf(outf, "NOTE: it will be created on the next run\n");
+	    fprintf(outf, "NOTE: it will be created on the next run.\n");
 	    amfree(conf_infofile);
 	} else if (!S_ISDIR(statbuf.st_mode)) {
 	    fprintf(outf, "ERROR: info dir %s: not a directory\n", conf_infofile);
@@ -1072,6 +1095,7 @@ int start_server_check(fd, do_localchk, do_tapechk)
 		if(stat(hostinfodir, &statbuf) == -1) {
 		    fprintf(outf, "NOTE: info dir %s: does not exist\n",
 			    hostinfodir);
+		    fprintf(outf, "NOTE: it will be created on the next run.\n");
 		    amfree(hostinfodir);
 		} else if (!S_ISDIR(statbuf.st_mode)) {
 		    fprintf(outf, "ERROR: info dir %s: not a directory\n",
@@ -1097,6 +1121,7 @@ int start_server_check(fd, do_localchk, do_tapechk)
 		    if(stat(diskdir, &statbuf) == -1) {
 			fprintf(outf, "NOTE: info dir %s: does not exist\n",
 				diskdir);
+			fprintf(outf, "NOTE: it will be created on the next run.\n");
 		    } else if (!S_ISDIR(statbuf.st_mode)) {
 			fprintf(outf, "ERROR: info dir %s: not a directory\n",
 				diskdir);
@@ -1108,6 +1133,7 @@ int start_server_check(fd, do_localchk, do_tapechk)
 		    } else if(stat(infofile, &statbuf) == -1) {
 			fprintf(outf, "WARNING: info file %s: does not exist\n",
 				infofile);
+			fprintf(outf, "NOTE: it will be created on the next run.\n");
 		    } else if (!S_ISREG(statbuf.st_mode)) {
 			fprintf(outf, "ERROR: info file %s: not a file\n",
 				infofile);
@@ -1125,6 +1151,7 @@ int start_server_check(fd, do_localchk, do_tapechk)
 			if(stat(conf_indexdir, &statbuf) == -1) {
 			    fprintf(outf, "NOTE: index dir %s: does not exist\n",
 				    conf_indexdir);
+			    fprintf(outf, "NOTE: it will be created on the next run.\n");
 			    amfree(conf_indexdir);
 			} else if (!S_ISDIR(statbuf.st_mode)) {
 			    fprintf(outf, "ERROR: index dir %s: not a directory\n",
@@ -1147,6 +1174,7 @@ int start_server_check(fd, do_localchk, do_tapechk)
 			    if(stat(hostindexdir, &statbuf) == -1) {
 			        fprintf(outf, "NOTE: index dir %s: does not exist\n",
 				        hostindexdir);
+				fprintf(outf, "NOTE: it will be created on the next run.\n");
 			        amfree(hostindexdir);
 			    } else if (!S_ISDIR(statbuf.st_mode)) {
 			        fprintf(outf, "ERROR: index dir %s: not a directory\n",
@@ -1168,6 +1196,7 @@ int start_server_check(fd, do_localchk, do_tapechk)
 			    if(stat(diskdir, &statbuf) == -1) {
 				fprintf(outf, "NOTE: index dir %s: does not exist\n",
 					diskdir);
+				fprintf(outf, "NOTE: it will be created on the next run.\n");
 			    } else if (!S_ISDIR(statbuf.st_mode)) {
 				fprintf(outf, "ERROR: index dir %s: not a directory\n",
 					diskdir);
@@ -1241,7 +1270,7 @@ static void handle_response P((proto_t *p, pkt_t *pkt));
 #define DISK_DONE				((void *)2)
 
 int start_host(hostp)
-    host_t *hostp;
+    am_host_t *hostp;
 {
     disk_t *dp;
     char *req = NULL;
@@ -1252,6 +1281,12 @@ int start_host(hostp)
 
     if(hostp->up != HOST_READY) {
 	return 0;
+    }
+
+    if (strncmp (hostp->hostname,"localhost",9) == 0) {
+        fprintf(outf,
+                    "WARNING: Usage of fully qualified hostname recommended for Client %s.\n",
+                    hostp->hostname);
     }
 
     /*
@@ -1327,6 +1362,7 @@ int start_host(hostp)
 	    char *l;
 	    int l_len;
 	    char *o;
+	    char* calcsize;
 
 	    if(dp->todo == 0) continue;
 
@@ -1362,10 +1398,22 @@ int start_host(hostp)
 		fprintf(outf, "ERROR: %s:%s does not support GNUTAR.\n",
 			hostp->hostname, dp->name);
 	    }
-	    l = vstralloc(dp->program, 
-			  " ",
-			  dp->name,
-			  " ",
+	    if(dp->estimate == ES_CALCSIZE &&
+	       !am_has_feature(hostp->features, fe_calcsize_estimate)) {
+		fprintf(outf, "ERROR: %s:%s does not support CALCSIZE for estimate, using CLIENT.\n",
+			hostp->hostname, dp->name);
+		dp->estimate = ES_CLIENT;
+	    }
+
+	    if(dp->estimate == ES_CALCSIZE &&
+	       am_has_feature(hostp->features, fe_selfcheck_calcsize))
+		calcsize = "CALCSIZE ";
+	    else
+		calcsize = "";
+
+	    l = vstralloc(calcsize, 
+			  dp->program, " ",
+			  dp->name, " ",
 			  dp->device ? dp->device : "",
 			  " 0 OPTIONS |",
 			  o,
@@ -1435,7 +1483,7 @@ int start_host(hostp)
 int start_client_checks(fd)
 int fd;
 {
-    host_t *hostp;
+    am_host_t *hostp;
     disk_t *dp;
     int hostcount, pid;
     struct servent *amandad;
@@ -1521,7 +1569,7 @@ static void handle_response(p, pkt)
 proto_t *p;
 pkt_t *pkt;
 {
-    host_t *hostp;
+    am_host_t *hostp;
     disk_t *dp;
     char *line;
     char *s;
@@ -1529,7 +1577,7 @@ pkt_t *pkt;
     int ch;
     int tch;
 
-    hostp = (host_t *) p->datap;
+    hostp = (am_host_t *) p->datap;
     hostp->up = HOST_READY;
 
     if(p->state == S_FAILED && pkt == NULL) {

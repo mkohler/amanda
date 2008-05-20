@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: diskfile.h,v 1.11.4.3.4.1.2.9 2003/01/04 03:35:54 martinea Exp $
+ * $Id: diskfile.h,v 1.11.4.3.4.1.2.9.2.3 2004/08/03 11:27:17 martinea Exp $
  *
  * interface for disklist file reading code
  */
@@ -36,8 +36,8 @@
 #include "conffile.h"
 #include "amfeatures.h"
 
-typedef struct host_s {
-    struct host_s *next;		/* next host */
+typedef struct amhost_s {
+    struct amhost_s *next;		/* next host */
     char *hostname;			/* name of host */
     struct disk_s *disks;		/* linked list of disk records */
     int inprogress;			/* # dumps in progress */
@@ -46,13 +46,13 @@ typedef struct host_s {
     time_t start_t;			/* start dump after this time */
     char *up;				/* generic user pointer */
     am_feature_t *features;		/* feature set */
-} host_t;
+} am_host_t;
 
 typedef struct disk_s {
     int line;				/* line number of last definition */
     struct disk_s *prev, *next;		/* doubly linked disk list */
 
-    host_t *host;			/* host list */
+    am_host_t *host;			/* host list */
     struct disk_s *hostnext;
 
     char *name;				/* label name for disk */
@@ -71,17 +71,22 @@ typedef struct disk_s {
     auth_t auth;			/* type of authentication (per system?) */
     int maxdumps;			/* max number of parallel dumps (per system) */
     int maxpromoteday;			/* maximum of promote day */
+    int bumppercent;
+    int bumpsize;
+    int bumpdays;
+    double bumpmult;
     time_t start_t;			/* start this dump after this time */
     int strategy;			/* what dump strategy to use */
+    int estimate;			/* what estimate strategy to use */
     int compress;			/* type of compression to use */
     float comprate[2];			/* default compression rates */
     /* flag options */
-    unsigned int record:1;			/* record dump in /etc/dumpdates ? */
-    unsigned int skip_incr:1;			/* incs done externally ? */
-    unsigned int skip_full:1;			/* fulls done externally ? */
-    unsigned int no_hold:1;			/* don't use holding disk ? */
+    unsigned int record:1;		/* record dump in /etc/dumpdates ? */
+    unsigned int skip_incr:1;		/* incs done externally ? */
+    unsigned int skip_full:1;		/* fulls done externally ? */
+    unsigned int no_hold:1;		/* don't use holding disk ? */
     unsigned int kencrypt:1;
-    unsigned int index:1;			/* produce an index ? */
+    unsigned int index:1;		/* produce an index ? */
     int spindle;			/* spindle # - for parallel dumps */
     int inprogress;			/* being dumped now? */
     int todo;
@@ -98,7 +103,7 @@ typedef struct disklist_s {
 disklist_t *read_diskfile P((char *filename));
 
 disk_t *add_disk P((char *hostname, char *diskname));
-host_t *lookup_host P((char *hostname));
+am_host_t *lookup_host P((char *hostname));
 disk_t *lookup_disk P((char *hostname, char *diskname));
 
 void enqueue_disk P((disklist_t *list, disk_t *disk));

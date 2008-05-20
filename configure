@@ -1947,7 +1947,7 @@ fi
 
 # Define the identity of the package.
  PACKAGE=amanda
- VERSION=2.4.4p3
+ VERSION=2.4.5
 
 
 cat >>confdefs.h <<_ACEOF
@@ -27418,6 +27418,237 @@ _ACEOF
 
 fi
 
+
+
+
+
+for ac_header in sys/wait.h wait.h
+do
+as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
+if eval "test \"\${$as_ac_Header+set}\" = set"; then
+  echo "$as_me:$LINENO: checking for $ac_header" >&5
+echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6
+if eval "test \"\${$as_ac_Header+set}\" = set"; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+fi
+echo "$as_me:$LINENO: result: `eval echo '${'$as_ac_Header'}'`" >&5
+echo "${ECHO_T}`eval echo '${'$as_ac_Header'}'`" >&6
+else
+  # Is the header compilable?
+echo "$as_me:$LINENO: checking $ac_header usability" >&5
+echo $ECHO_N "checking $ac_header usability... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <$ac_header>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  ac_header_compiler=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+ac_header_compiler=no
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+echo "${ECHO_T}$ac_header_compiler" >&6
+
+# Is the header present?
+echo "$as_me:$LINENO: checking $ac_header presence" >&5
+echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <$ac_header>
+_ACEOF
+if { (eval echo "$as_me:$LINENO: \"$ac_cpp conftest.$ac_ext\"") >&5
+  (eval $ac_cpp conftest.$ac_ext) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null; then
+  if test -s conftest.err; then
+    ac_cpp_err=$ac_c_preproc_warn_flag
+    ac_cpp_err=$ac_cpp_err$ac_c_werror_flag
+  else
+    ac_cpp_err=
+  fi
+else
+  ac_cpp_err=yes
+fi
+if test -z "$ac_cpp_err"; then
+  ac_header_preproc=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+  ac_header_preproc=no
+fi
+rm -f conftest.err conftest.$ac_ext
+echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+echo "${ECHO_T}$ac_header_preproc" >&6
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
+echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
+echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
+echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
+    { echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
+echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
+    { echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
+echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
+    { echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
+echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
+echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
+    { echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
+echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
+    (
+      cat <<\_ASBOX
+## ------------------------------------------ ##
+## Report this to the AC_PACKAGE_NAME lists.  ##
+## ------------------------------------------ ##
+_ASBOX
+    ) |
+      sed "s/^/$as_me: WARNING:     /" >&2
+    ;;
+esac
+echo "$as_me:$LINENO: checking for $ac_header" >&5
+echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6
+if eval "test \"\${$as_ac_Header+set}\" = set"; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  eval "$as_ac_Header=\$ac_header_preproc"
+fi
+echo "$as_me:$LINENO: result: `eval echo '${'$as_ac_Header'}'`" >&5
+echo "${ECHO_T}`eval echo '${'$as_ac_Header'}'`" >&6
+
+fi
+if test `eval echo '${'$as_ac_Header'}'` = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+
+fi
+
+done
+
+echo "$as_me:$LINENO: checking whether wait uses int" >&5
+echo $ECHO_N "checking whether wait uses int... $ECHO_C" >&6
+if test "${cf_cv_arg_int+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+#include <sys/types.h>
+
+#if HAVE_SYS_WAIT_H
+# include <sys/wait.h>
+#else
+# if HAVE_WAIT_H
+#  include <wait.h>
+# endif
+#endif
+
+#ifdef __STDC__
+pid_t wait(int *);
+#endif
+
+int
+main ()
+{
+
+  int x; int i;
+  wait(&x); i = WIFEXITED(x)
+
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext
+if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+  (eval $ac_compile) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest.$ac_objext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  cf_cv_arg_int=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+cf_cv_arg_int=no
+fi
+rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+echo "$as_me:$LINENO: result: $cf_cv_arg_int" >&5
+echo "${ECHO_T}$cf_cv_arg_int" >&6
+if test $cf_cv_arg_int = yes; then
+
+cat >>confdefs.h <<\_ACEOF
+#define WAIT_USES_INT 1
+_ACEOF
+
+fi
+
 echo "$as_me:$LINENO: checking whether time.h and sys/time.h may both be included" >&5
 echo $ECHO_N "checking whether time.h and sys/time.h may both be included... $ECHO_C" >&6
 if test "${ac_cv_header_time+set}" = set; then
@@ -49070,7 +49301,7 @@ LTLIBOBJS=`echo "$LIBOBJS" |
 LTALLOCA=`echo "$ALLOCA" | sed 's/\.'"${ac_objext}"'/\.lo/g'`
 
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ac_config_files="$ac_config_files amplot/amcat.awk amplot/amplot.sh amplot/Makefile changer-src/chg-manual.sh changer-src/chg-multi.sh changer-src/chg-mtx.sh changer-src/chg-chs.sh changer-src/chg-rth.pl changer-src/chg-chio.pl changer-src/chg-zd-mtx.sh changer-src/Makefile changer-src/chg-juke.sh changer-src/chg-rait.sh changer-src/chg-null.sh changer-src/chg-mcutil.sh changer-src/chg-disk.sh changer-src/chg-iomega.pl client-src/patch-system.sh client-src/Makefile common-src/versuff.c common-src/Makefile example/amanda.conf example/Makefile example/amanda.conf.chg-scsi example/chg-scsi-linux.conf example/chg-scsi-solaris.conf example/chg-scsi-hpux.conf example/chg-mcutil.conf man/amadmin.8 man/amanda.8 man/amcheck.8 man/amcheckdb.8 man/amcleanup.8 man/amdump.8 man/amflush.8 man/amlabel.8 man/amoverview.8 man/amrecover.8 man/amrmtape.8 man/amtoc.8 man/amverify.8 man/Makefile man/amstatus.8 man/amreport.8 man/amgetconf.8 man/amverifyrun.8 man/amtapetype.8 docs/Makefile recover-src/Makefile restore-src/Makefile server-src/amcheckdb.sh server-src/amcleanup.sh server-src/amdump.sh server-src/amfreetapes.sh server-src/amoverview.pl server-src/amrmtape.sh server-src/amtoc.pl server-src/amverify.sh server-src/Makefile server-src/amstatus.pl server-src/amverifyrun.sh tape-src/Makefile config/Makefile Makefile"
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ac_config_files="$ac_config_files amplot/amcat.awk amplot/amplot.sh amplot/Makefile changer-src/chg-manual.sh changer-src/chg-multi.sh changer-src/chg-mtx.sh changer-src/chg-chs.sh changer-src/chg-rth.pl changer-src/chg-chio.pl changer-src/chg-zd-mtx.sh changer-src/Makefile changer-src/chg-juke.sh changer-src/chg-rait.sh changer-src/chg-null.sh changer-src/chg-mcutil.sh changer-src/chg-disk.sh changer-src/chg-iomega.pl client-src/patch-system.sh client-src/Makefile common-src/versuff.c common-src/Makefile example/amanda.conf example/Makefile example/amanda.conf.chg-scsi example/chg-scsi-linux.conf example/chg-scsi-solaris.conf example/chg-scsi-hpux.conf example/chg-mcutil.conf man/Makefile docs/Makefile recover-src/Makefile restore-src/Makefile server-src/amcheckdb.sh server-src/amcleanup.sh server-src/amdump.sh server-src/amfreetapes.sh server-src/amoverview.pl server-src/amrmtape.sh server-src/amtoc.pl server-src/amverify.sh server-src/Makefile server-src/amstatus.pl server-src/amverifyrun.sh tape-src/Makefile config/Makefile Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -49751,25 +49982,7 @@ do
   "example/chg-scsi-solaris.conf" ) CONFIG_FILES="$CONFIG_FILES example/chg-scsi-solaris.conf" ;;
   "example/chg-scsi-hpux.conf" ) CONFIG_FILES="$CONFIG_FILES example/chg-scsi-hpux.conf" ;;
   "example/chg-mcutil.conf" ) CONFIG_FILES="$CONFIG_FILES example/chg-mcutil.conf" ;;
-  "man/amadmin.8" ) CONFIG_FILES="$CONFIG_FILES man/amadmin.8" ;;
-  "man/amanda.8" ) CONFIG_FILES="$CONFIG_FILES man/amanda.8" ;;
-  "man/amcheck.8" ) CONFIG_FILES="$CONFIG_FILES man/amcheck.8" ;;
-  "man/amcheckdb.8" ) CONFIG_FILES="$CONFIG_FILES man/amcheckdb.8" ;;
-  "man/amcleanup.8" ) CONFIG_FILES="$CONFIG_FILES man/amcleanup.8" ;;
-  "man/amdump.8" ) CONFIG_FILES="$CONFIG_FILES man/amdump.8" ;;
-  "man/amflush.8" ) CONFIG_FILES="$CONFIG_FILES man/amflush.8" ;;
-  "man/amlabel.8" ) CONFIG_FILES="$CONFIG_FILES man/amlabel.8" ;;
-  "man/amoverview.8" ) CONFIG_FILES="$CONFIG_FILES man/amoverview.8" ;;
-  "man/amrecover.8" ) CONFIG_FILES="$CONFIG_FILES man/amrecover.8" ;;
-  "man/amrmtape.8" ) CONFIG_FILES="$CONFIG_FILES man/amrmtape.8" ;;
-  "man/amtoc.8" ) CONFIG_FILES="$CONFIG_FILES man/amtoc.8" ;;
-  "man/amverify.8" ) CONFIG_FILES="$CONFIG_FILES man/amverify.8" ;;
   "man/Makefile" ) CONFIG_FILES="$CONFIG_FILES man/Makefile" ;;
-  "man/amstatus.8" ) CONFIG_FILES="$CONFIG_FILES man/amstatus.8" ;;
-  "man/amreport.8" ) CONFIG_FILES="$CONFIG_FILES man/amreport.8" ;;
-  "man/amgetconf.8" ) CONFIG_FILES="$CONFIG_FILES man/amgetconf.8" ;;
-  "man/amverifyrun.8" ) CONFIG_FILES="$CONFIG_FILES man/amverifyrun.8" ;;
-  "man/amtapetype.8" ) CONFIG_FILES="$CONFIG_FILES man/amtapetype.8" ;;
   "docs/Makefile" ) CONFIG_FILES="$CONFIG_FILES docs/Makefile" ;;
   "recover-src/Makefile" ) CONFIG_FILES="$CONFIG_FILES recover-src/Makefile" ;;
   "restore-src/Makefile" ) CONFIG_FILES="$CONFIG_FILES restore-src/Makefile" ;;

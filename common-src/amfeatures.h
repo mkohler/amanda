@@ -25,7 +25,7 @@
  */
 
 /*
- * $Id: amfeatures.h,v 1.1.2.6 2002/11/07 02:12:58 martinea Exp $
+ * $Id: amfeatures.h,v 1.1.2.6.2.3 2004/08/11 19:16:28 martinea Exp $
  *
  * Define feature test related items.
  */
@@ -133,6 +133,10 @@ typedef enum {
     fe_amidxtaped_header,
     fe_amidxtaped_nargs,
     fe_amidxtaped_config,
+
+    fe_partial_estimate,
+    fe_calcsize_estimate,
+    fe_selfcheck_calcsize,
 
     /*
      * All new features must be inserted immediately *before* this entry.

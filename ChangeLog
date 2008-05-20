@@ -1,13 +1,443 @@
-2004-06-22  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+2005-04-20  Jean-Louis Martineau <martineau@iro.umontreal.ca>
 
-	* Amanda 2.4.4p3 released.
-	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.4.4p3).
-	* News: Changes in release 2.4.4p3.
+	* Amanda 2.4.5 released.
+	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.4.5).
+	* NEWS: Update for 2.4.5.
+
+2005-04-20  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* docs/*: Update from latest xml-docs.
+
+2005-04-15  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* docs/*: Update from latest xml-docs.
+
+2005-04-14  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* changer-src/chg-zd-mtx.sh.in: Improve handling of
+	  "Unknown Storage Element Loaded".
+
+2005-04-14  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* man/amcheckdb.8: Update from latest xml-docs.
+
+2005-04-14  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* docs/*: New documentation from xml-docs.
+	* docs/Makefile.am (pkgdata_DATA): Update for new files.
+
+2005-04-06  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	- https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=144052
+
+	* server-src/amverifyrun.sh.in: Filter changer log file.
+
+2005-04-06  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amcheck.c: Improve messages.
+
+2005-04-06  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* client-src/sendsize.c (generic_calc_estimates): Use amname instead
+	  of dirname in message.
+
+2005-04-01  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* man/amanda.8, man/amdd.8, man/ammt.8: Updated.
+
+2005-03-31  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* man/Makefile.am (EXTRA_DIST): Add amadmin.8 amanda.8 amcheck.8
+	  amcheckdb.8 amcleanup.8 amdump.8 amflush.8 amgetconf.8 amlabel.8
+	  amoverview.8 amreport.8 amrecover.8 amrmtape.8 amstatus.8
+	  amtapetype.8 amtoc.8 amverify.8 amverifyrun.8
+
+2005-03-31  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* man/*: use man pages form xml-docs.
+	* configure.in (AC_CONFIG_FILES): Remove all man pages.
+
+2005-03-31  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/dumper.c (update_dataptr): Open a new chunk file even if
+	  size==0, the test must be (dataout < datain), which means we have
+	  something to write.
+
+2005-03-29  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* NEWS: new amoverview -skipmissed option.
+
+2005-03-29  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/conffile.h: Rename getcont_unit_divisor to
+	  getconf_unit_divisor.
+	* server-src/amadmin.c: Use getconf_unit_divisor.
+	* server-src/amcheck.c: Use getconf_unit_divisor.
+	* server-src/conffile.c: Use getconf_unit_divisor.
+	* server-src/conffile.c (unit_divisor): Init to 1.
+	* server-src/reporter.c: Use getconf_unit_divisor. The mb macro always
+	  divide by 1024. Add the du macro. Use mb or du where appropriate.
+
+2005-03-16  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/infofile.h (history_t): Add secs field.
+	* server-src/infofile.c (read_txinfofile): Parse info file with secs
+	  in history.
+	* server-src/infofile.c (write_txinfofile): Write secs in history.
+	* server-src/driverio.c (update_info_dumper): Update secs in history.
+
+2005-03-16  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/planner.c: Improve server estimate.
+	* server-src/planner.c: Write server estimate like others estimate.
+
+2005-02-14  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amstatus.pl.in: last_level is negative, on new disk.
+
+2005-02-09  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amstatus.pl.in: Use '-?' to match negative values
+	  instead of '-*'.
+
+2005-02-09  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Patch by Orion Poplawski <orion@cora.nwra.com>
+
+	* server-src/amoverview.pl.in: Print the total number of level 0
+	  dumps for each disk and the number of runs until the last level 0
+	  dump will be overwritten.
+
+2005-02-09  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Patch by Phil Homewood <pdh@snapgear.com>
+
+	* server-src/amoverview.pl.in: Add -skipmissed option.
+
+2005-02-09  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/driver.c: Print the chunksize to the log.
+
+2005-02-09  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* client-src/calcsize.c: Print estimate to STDERR.
+	* client-src/sendsize.c (generic_calc_estimates): Read calcsize result,
+	  and send it to amandad. Write debuging message.
+
+2005-02-09  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+        Patch by Franz G. Fischer
+
+	* server-src/conffile.c: Adds a value type LONG and a val_t.l long
+	  union member and changes get_number() to return long and
+	  get_simple() to fill val_t.l if called for a long value.  The
+	  get_simple() calls have been changed to LONG for typetype_t.blocksize
+	  typetype_t.length, typetype_t.filemark, holdingdisk_t.disksize and
+	  holdingdisk_t.chunksize.
+
+2005-02-09  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amdump.sh.in: Redirect in append mode.
+	* server-src/driver.c: Set stdout and stderr to not buffered.
+	* server-src/planner.c: Set stderr to not buffered.
+	  Print 'setup_estimate:' on one line.
+	* server-src/amstatus.pl.in: Parse new 'setup_estimate:' line.
+
+2005-02-09  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* client-src/calcsize.c: Improve estimate for sparse file and count
+	  space for filenames.
+
+2005-02-09  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/planner.c: Improve message if no incremental estimate.
+
+2005-01-23  Stefan G. Weichinger <monitor@oops.co.at> 
+	Patch by Jon LaBadie <jon@jgcomp.com>
+
+	* changer-src/chg-multi.sh.in: New header to explain the meaning of
+	  the "multi" in "chg-multi".
+
+2004-12-21  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Patch by Christopher Pascoe <c.pascoe@itee.uq.edu.au>
+
+	* common-src/match.c (match_glob, match_tar): Don't amfree(regex)
+	  before calling error().
+
+2004-11-22  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/driver.c (startaflush): Use ALGO_SMALLEST if nothing fit.
+
+2004-11-22  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/driver.c: Typo.
+
+2004-11-19  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* restore-src/amrestore.c: Should now work correctly with empty file.
+	* server-src/amverify.sh.in: Parse "End-of-Information detected."
+	  message from amrestore.
+
+2004-11-19  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/driver.c: tape_left should not become negative.
+
+2004-11-19  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Patch by Orion Poplawski <orion@cora.nwra.com>
+
+	* server-src/diskfile.c: Parse negative spindle (-1).
+
+2004-11-19  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amadmin.c: Balance subcommand use displayunit.
+	* server-src/amcheck.c: Small cleanup.
+
+2004-11-19  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* restore-src/amrestore.c: Undo patch from 2004-11-11, it break
+	  the file: dirver.
+
+2004-11-19  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amstatus.pl.in: Remove trace.
+
+2004-11-16  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* NEWS: new displayunit global option to select the unit use to
+	  display number: k=kilo, m=mega, g=giga, t=tera
+	* server-src/conffile.c: Parse displayunit,
+	  new fonction getcont_unit_divisor().
+	* server-src/conffile.h: Prototype of getcont_unit_divisor().
+	* server-src/amcheck.c: Use displayunit to display holding disk size.
+	* server-src/amstatus.pl.in: Use displayunit to display dump size.
+	* server-src/reporter.c: use displayunit to display dump size.
+	* man/amanda.8.in: Document displayunit.
+
+2004-11-16  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/reporter.c: Change 'Daily' for 'Incr.'.
+
+2004-11-15  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amstatus.pl.in Fix for level -1.
+
+2004-11-15  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Patch by Daniel Widyono <widyono@seas.upenn.edu>
+
+	* changer-src/chg-zd-mtx.sh.in: Fix for library with barcode.
+
+
+2004-11-11  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/planner.c: Print the time in the FINISH line.
+	* server-src/reporter.c: The estimate time is based on the planner
+	  FINISH line.
+
+2004-11-11  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* restore-src/amrestore.c: Read empty file.
+
+2004-11-10  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/driver.c (selectset): Make only one declaration in main.
+
+2004-11-10  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* tape-src/tapetype.c: Use new tape.
+
+2004-11-08  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amstatus.pl.in: Display partial estimate.
+
+2004-11-08  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Patch by Orion Poplawski <orion@cora.nwra.com>
+
+	* server-src/amstatus.pl.in: a FLUSH command can't be in an estimate
+	  phase.
+	* server-src/driver.c: Start autoflush while waiting for estimate.
+	* server-src/planner.c: Write FLUSH line before estimate.
+
+2004-11-08  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/diskfile.c (read_diskline): A spindle must be numerical.
+
+2004-10-22  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+        * Amanda 2.4.5b1 released.
+
+2004-10-21  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/holding.c (rename_tmp_holding): Always rename files.
+
+2004-10-21  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/driver.c: Print message when too many retry.
+	* server-src/amstatus.pl.in: Detect a failed dump after too many retry.
+	* amplot/amplot.awk: Parse these message.
+
+2004-10-21  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/driver.c (dump_to_tape): Don't retry a dump indefinitely
+	  if dumper returns DONE and taper returns TRYAGAIN.
+
+2004-10-21  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/driver.c (dump_to_tape): Don't retry a dump indefinitely
+	  if dumper returns TRYAGAIN and taper returns DONE.
+
+2004-10-20  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amflush.c: Don't start a driver if nothing to flush.
+
+2004-10-14  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Patch by Eric Siegerman <erics@telepres.com>
+
+	* example/3hole.ps: Fix for multiple tape.
+
+2004-10-04  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amverify.sh.in: Terminate if no tape online.
+
+2004-09-17  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amadmin.c (main): Call check_dumpuser() as soon as posible.
+
+2004-09-17  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/conffile.c (getconf_byname): Special case for typ == BOOL.
+
+2004-09-17  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/planner.c (promote_hills): Use dumpcycle instead of
+	  tapecycle.
+	* example/amanda.conf.in: Remove warning for tapecyle set to inf.
+
+2004-09-17  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amadmin.c (balance): Don't core dump if DUMPCYLE is too
+	  big.
+
+2004-09-15  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* tape-src/tapetype.c: New -o option, doesn't overwrite amanda
+	  tape without -o.
+	* man/amtapetype.8.in: Document new -o option.
+
+2004-09-15  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amstatus.pl.in: Works with failed dump to tape.
+
+2004-08-31  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* client-src/sendbackup-gnutar.c (end_backup): Write warning message
+	  in not fatal error.
+	* server-src/dumper.c (process_dumpline): Parse warning message.
+	* server-src/reporter.c (handle_strange): Print warning message in
+	  the STRANGE summary.
+
+2004-08-31  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/driverio.c (free_serial): Set stable[s].dp to NULL.
+	* server-src/driverio.c (disk2serial): Check that stable[s].dp == NULL.
+
+2004-08-31  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Patch by Joe Rhett <jrhett@isite.net>
+
+	* common-src/alloc.c (safe_env): Keep SYSTEMROOT if __CYGWIN__.
+
+2004-08-31  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Patch by Orion Poplawski <orion@cora.nwra.com>
+
+	* server-src/conffile.c (copy_dumptype): Copy maxpromoteday.
+
+2004-08-12  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* client-src/selfcheck.c (check_disk): More check for CALCSIZE.
+
+2004-08-11  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* common-src/amfeatures.h (fe_selfcheck_calcsize): New feature.
+	* common-src/amfeatures.c (am_init_feature_set): Set
+	  fe_selfcheck_calcsize.
+	* client-src/selfcheck.c: Check if calcsize binary is available if
+	  it is needed.
+	* server-src/amcheck.c (start_host): Call selfcheck with CALCSIZE
+	  if it support fe_selfcheck_calcsize.
+
+2004-08-05  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* man/amanda.8.in: Document 'estimate' dumptype option.
+
+2004-08-05  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* client-src/amqde.c: Change snprintf for ap_snprintf.
+
+2004-08-04  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amrmtape.sh.in: Understand history info.
+
+2004-08-03  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amstatus.pl.in: Parse CONTINUE and RQ-MORE-DISK line,
+	  print if a dump is waiting for holding disk space (roomq).
+
+2004-08-03  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/driverio.c (dumper_cmd): Print serial number for CONTINUE
+	  command.
+	* server-src/driverio.c (disk2serial): Try to find a 'dp' before
+	  allocating a new serial.
+	* server-src/dumper.c (update_dataptr): Read serial number for CONTINUE
+	  command.
+
+2004-08-03  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/planner.c (getsize): Do SERVER estimate, call sendsize with
+	  CALCSIZE estimate.
+
+2004-08-03  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* client-src/calcsize.c: Support exclude and include like gnutar,
+	  change in program argument.
+	* client-src/sendsize.c: Execute calcsize as requested.
+	* common-src/amfeatures.h (fe_calcsize_estimate): New feature.
+	* common-src/amfeatures.c (am_init_feature_set): set
+	  fe_calcsize_estimate.
+	* server-src/amcheck.c (start_host): Check if client support CALCSIZE
+	  estimate.
+
+2004-08-03  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/conffile.h (ES_CLIENT, ES_SERVER, ES_CALCSIZE): New define
+	  for estimate type.
+	* server-src/conffile.h (dumptype_t): Add 'estimate' and 's_estimate'
+	* server-src/conffile.c (get_estimate): New function to parse estimate
+	  type, ....
+	* server-src/diskfile.c (read_diskline): Copy 'estimate'.
+	* server-src/diskfile.h (disk_t): Add 'estimate'.
+	* server-src/amadmin.c (disklist_one): Print estimate type.
+
+2004-08-02  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* common-src/match.c (match_tar, tar_to_regex): New fonction similar
+	  to the exclude option of tar.
+	* common-src/amanda.h (match_tar, tar_to_regex): Prototype.
+
+2004-08-02  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+        * server-src/infofile.h (history_t): new struct.
+        * server-src/infofile.h (info_t): Add a history_t.
+        * server-src/infofile.c (read_txinfofile): Parse history data.
+        * server-src/infofile.c (write_txinfofile): Print history data.
+        * server-src/amadmin.c (export_one): export history data.
+        * server-src/amadmin.c (import_one): import history data.
+        * server-src/driverio.c (update_info_dumper): update history data.
 
 2004-05-10  Jean-Louis Martineau <martineau@iro.umontreal.ca>
 	Patch by Paul Bijnens <paul.bijnens@xplanation.com>
 
 	* server-src/planner.c: Log L_DISK for autoflush disk.
+
+2004-05-03  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/planner.c (handle_result): Add dp to pestq at the
+	  correct place.
 
 2004-04-30  Jean-Louis Martineau <martineau@iro.umontreal.ca>
 
@@ -69,6 +499,19 @@
 	* server-src/planner.c (setup_estimate): Typo.
 
 2004-04-22  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	Allow bumpsize, bumppercent, bumpdays and bumpmult to be in a dumptype.
+	* server-src/conffile.c: Parse.
+	* server-src/conffile.h: Define.
+	* server-src/amadmin.c (disklist_one): Use.
+	* server-src/diskfile.c (read_diskline): Initialize.
+	* server-src/diskfile.h: Define.
+	* server-src/planner.c: Use.
+	* man/amanda.8.in: Document.
+	* NEWS: bumpsize, bumppercent, bumpdays and bumpmult can be in a
+	  dumptype.
+
+2004-04-22  Jean-Louis Martineau <martineau@iro.umontreal.ca>
 	Fix by Paul Bijnens <paul.bijnens@xplanation.com>
 
 	* server-src/planner.c (setup_estimate): Only ask for level 0 estimate
@@ -93,6 +536,46 @@
 
 	* common-src/protocol.c: Fix EAGAIN on Linux.
 
+2004-04-06  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	New bumppercent global option.
+	* example/amanda.conf.in: Document it.
+	* man/amanda.8.in: Document it.
+	* server-src/amadmin.c (bumpsize): Write it.
+	* server-src/conffile.c: Parse it.
+	* server-src/conffile.h: Define It.
+	* server-src/planner.c (bump_thresh): New size_level_0 parameter,
+	  use the new bumppercent option.
+	* NEWS: Document it.
+
+2004-04-05  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amadmin.c: Rename host_t to amhost_t.
+	* server-src/amcheck.c: Ditto.
+	* server-src/amindexd.c: Ditto.
+	* server-src/diskfile.c: Ditto.
+	* server-src/diskfile.h: Ditto.
+	* server-src/driver.c: Ditto.
+	* server-src/planner.c: Ditto.
+
+2004-03-26  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* amplot/amplot.awk: Parse "driver: tape size" line.
+
+2004-03-22  Stefan G. Weichinger <monitor@oops.co.at>
+
+        * server-src/amcheck.c (start_host): Added warning for hostname
+	  localhost.
+	* docs/TOP-TEN-QUESTIONS: added note about localhost-warning.
+
+2004-03-19  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* docs/Makefile.am (pkgdata_DATA): Add TOP-TEN-QUESTIONS.
+
+2004-03-18  Stefan G. Weichinger <monitor@oops.co.at>
+
+	* docs/TOP-TEN-QUESTIONS: New file.
+
 2004-03-16  Jean-Louis Martineau <martineau@iro.umontreal.ca>
 
 	* server-src/amcheck.c: Do labelstr check in correct order.
@@ -107,7 +590,29 @@
 	* server-src/amcheck.c: Verify the tape is listed in the tapelist file.
 	* server-src/taper.c: Ditto
 	* NEWS: * amanda will not use a tape if it's label is not in the
-	          tapelist file (eg. after an amrmtape).
+		  tapelist file (eg. after an amrmtape).
+
+2004-02-13  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/driver.c (dump_schedule): Print complete name.
+
+2004-02-13  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	The estimate send a PREP (partial REP) packet after each estimate.
+	* client-src/amandad.c: Send PREP packet if sendsize.
+	* common-src/amfeatures.c (am_init_feature_set): Add
+	  fe_partial_estimate.
+	* common-src/amfeatures.h (am_feature_e): Add fe_partial_estimate.
+	* common-src/protocol.c: Handle PREP packet.
+	* common-src/protocol.h (pktype_t):  Add P_PREP.
+	* server-src/amstatus.pl.in: Parse "got partial result" line.
+	* server-src/planner.c: Handle PREP packet.
+
+2004-02-13  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Reported by Jason Brooks <jason.brooks@windriver.com>
+
+	* server-src/reporter.c: Remove duplicate setting of cd to
+	  &ColumnData[Level].
 
 2004-02-12  Jean-Louis Martineau <martineau@iro.umontreal.ca>
 	Patch by Philippe Charnier <charnier@xp11.frmug.org>
@@ -122,6 +627,39 @@
 
 	* recover-src/set_commands.c (cd_dir, set_directory): Fix memory leak.
 	* recover-src/uscan.l: Fix double amfree.
+
+2004-02-02  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/driver.c: Build holding disk name with timestamp.
+	* server-src/holding.c (is_datestr): Check also for timestamp.
+	* server-src/planner.c: Flush today's dump with autoflush.
+	* server-src/find.c: Find holding disk with timestamp.
+	* server-src/find.h (find_result_t): Add timestamp field.
+	* NEWS: holding disk disk use timestamped directory.
+	* NEWS: autoflush flush today's dump.
+
+2004-02-02  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* changer-src/chg-zd-mtx.sh.in: Works if all slot and tape are full.
+
+2004-02-02  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amverifyrun.sh.in: Do not execute amverify if no tape
+	  to verify.
+
+2004-02-02  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amdump.sh.in: Do not redirect to /dev/null.
+
+2004-02-02  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* config/acinclude.m4i: Define CF_WAIT_INT.
+	* configure.in: Call CF_WAIT_INT.
+	* common-src/amanda.h: Try to make waitpid doesn't warn.
+
+2004-02-02  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.4.5b1).
 
 2004-01-29  Jean-Louis Martineau <martineau@iro.umontreal.ca>
 

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: security.c,v 1.17.2.6.4.1.2.6 2004/04/29 20:47:40 martinea Exp $
+ * $Id: security.c,v 1.17.2.6.4.1.2.5.2.1 2004/04/29 20:47:22 martinea Exp $
  *
  * wrapper file for kerberos security
  */

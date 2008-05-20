@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: reporter.c,v 1.44.2.17.4.6.2.16 2003/11/26 16:10:23 martinea Exp $
+ * $Id: reporter.c,v 1.44.2.17.4.6.2.16.2.6 2005/03/29 16:35:11 martinea Exp $
  *
  * nightly Amanda Report generator
  */
@@ -96,7 +96,7 @@ typedef struct taper_s {
 taper_t *stats_by_tape = NULL;
 taper_t *current_tape = NULL;
 
-float total_time, startup_time;
+float total_time, startup_time, planner_time;
 
 /* count files to tape */
 int tapefcount = 0;
@@ -126,9 +126,8 @@ line_t *notes = NULL;
 
 static char MaxWidthsRequested = 0;	/* determined via config data */
 
-/*
-char *hostname = NULL, *diskname = NULL;
-*/
+char *displayunit;
+long int unitdivisor;
 
 /* local functions */
 int contline_next P((void));
@@ -404,6 +403,9 @@ char **argv;
 
     today_datestamp = construct_datestamp(NULL);
 
+    displayunit = getconf_str(CNF_DISPLAYUNIT);
+    unitdivisor = getconf_unit_divisor();
+
     ColumnSpec = getconf_str(CNF_COLUMNSPEC);
     if(SetColumDataFromString(ColumnData, ColumnSpec, &errstr) < 0) {
 	curlog = L_ERROR;
@@ -654,7 +656,8 @@ char **argv;
 
 /* ----- */
 
-#define mb(f)	((f)/1024.0)		/* kbytes -> mbytes */
+#define mb(f)	((f)/1024)		/* kbytes -> mbutes */
+#define du(f)	((f)/unitdivisor)	/* kbytes -> displayunit */
 #define pct(f)	((f)*100.0)		/* percent */
 #define hrmn(f) ((int)(f)+30)/3600, (((int)(f)+30)%3600)/60
 #define mnsc(f) ((int)(f+0.5))/60, ((int)(f+0.5)) % 60
@@ -682,7 +685,6 @@ char **argv;
 
 void output_stats()
 {
-    double idle_time;
     tapetype_t *tp = lookup_tapetype(getconf_str(CNF_TAPETYPE));
     int tapesize, marksize, lv, first;
 
@@ -700,19 +702,16 @@ void output_stats()
     stats[2].dumper_time = stats[0].dumper_time + stats[1].dumper_time;
 
     if(!got_finish)	/* no driver finish line, estimate total run time */
-	total_time = stats[2].taper_time + startup_time;
-
-    idle_time = (total_time - startup_time) - stats[2].taper_time;
-    if(idle_time < 0) idle_time = 0.0;
+	total_time = stats[2].taper_time + planner_time;
 
     fprintf(mailf,"STATISTICS:\n");
     fprintf(mailf,
-	    "                          Total       Full      Daily\n");
+	    "                          Total       Full      Incr.\n");
     fprintf(mailf,
 	    "                        --------   --------   --------\n");
 
     fprintf(mailf,
-	    "Estimate Time (hrs:min)   %2d:%02d\n", hrmn(startup_time));
+	    "Estimate Time (hrs:min)   %2d:%02d\n", hrmn(planner_time));
 
     fprintf(mailf,
 	    "Run Time (hrs:min)        %2d:%02d\n", hrmn(total_time));
@@ -817,7 +816,7 @@ void output_stats()
 	    current_tape = current_tape->next) {
 	    fprintf(mailf, "  %-*s", label_length, current_tape->label);
 	    fprintf(mailf, " %2d:%02d", hrmn(current_tape->taper_time));
-	    fprintf(mailf, " %9.1f  ", mb(current_tape->coutsize));
+	    fprintf(mailf, " %8.0f%s  ", du(current_tape->coutsize), displayunit);
 	    divzero(mailf, pct(current_tape->coutsize + 
 			       marksize * current_tape->tapedisks),
 			   tapesize);
@@ -1011,7 +1010,6 @@ void CalcMaxWidth() {
     disk_t *dp;
     float f;
     repdata_t *repdata;
-
     for(dp = sortq.head; dp != NULL; dp = dp->next) {
       if(dp->todo) {
 	for(repdata = data(dp); repdata != NULL; repdata = repdata->next) {
@@ -1025,8 +1023,8 @@ void CalcMaxWidth() {
 		continue;
 	    CheckIntMax(&ColumnData[Level], repdata->level);
 	    if(repdata->dumper.result == L_SUCCESS) {
-		CheckFloatMax(&ColumnData[OrigKB], repdata->dumper.origsize);
-		CheckFloatMax(&ColumnData[OutKB], repdata->dumper.outsize);
+		CheckFloatMax(&ColumnData[OrigKB], du(repdata->dumper.origsize));
+		CheckFloatMax(&ColumnData[OutKB], du(repdata->dumper.outsize));
 		if(dp->compress == COMP_NONE)
 		    f = 0.0;
 		else 
@@ -1128,6 +1126,16 @@ void output_summary()
 	    fmt= "%-*s";
 	else
 	    fmt= "%*s";
+	if(strcmp(cd->Title,"ORIG-KB") == 0) {
+	    /* cd->Title must be re-allocated in write-memory */
+	    cd->Title = stralloc("ORIG-KB");
+	    cd->Title[5] = displayunit[0];
+	}
+	if(strcmp(cd->Title,"OUT-KB") == 0) {
+	    /* cd->Title must be re-allocated in write-memory */
+	    cd->Title = stralloc("OUT-KB");
+	    cd->Title[4] = displayunit[0];
+	}
 	fprintf(mailf, fmt, cd->Width, cd->Title);
     }
     fputc('\n', mailf);
@@ -1174,7 +1182,6 @@ void output_summary()
 	      continue;
 	    }
 	    
-	    cd= &ColumnData[Level];
 	    fprintf(mailf, "%*s", cd->PrefixSpace, "");
 	    fprintf(mailf, cd->Format, cd->Width, cd->Precision,repdata->level);
 
@@ -1204,14 +1211,14 @@ void output_summary()
 	    cd= &ColumnData[OrigKB];
 	    fprintf(mailf, "%*s", cd->PrefixSpace, "");
 	    if(origsize != 0.0)
-		fprintf(mailf, cd->Format, cd->Width, cd->Precision, origsize);
+		fprintf(mailf, cd->Format, cd->Width, cd->Precision, du(origsize));
 	    else
 		fprintf(mailf, "%*.*s", cd->Width, cd->Width, "N/A");
 
 	    cd= &ColumnData[OutKB];
 	    fprintf(mailf, "%*s", cd->PrefixSpace, "");
 
-	    fprintf(mailf, cd->Format, cd->Width, cd->Precision, outsize);
+	    fprintf(mailf, cd->Format, cd->Width, cd->Precision, du(outsize));
 	    	
 	    cd= &ColumnData[Compress];
 	    fprintf(mailf, "%*s", cd->PrefixSpace, "");
@@ -1430,8 +1437,9 @@ void handle_finish()
 {
     char *s;
     int ch;
+    float a_time;
 
-    if(curprog == P_DRIVER || curprog == P_AMFLUSH) {
+    if(curprog == P_DRIVER || curprog == P_AMFLUSH || curprog == P_PLANNER) {
 	s = curstr;
 	ch = *s++;
 
@@ -1455,6 +1463,8 @@ void handle_finish()
 	skip_whitespace(s, ch);
 #define sc "time"
 	if(ch == '\0' || strncmp(s - 1, sc, sizeof(sc)-1) != 0) {
+	    /* older planner doesn't write time */
+	    if(curprog == P_PLANNER) return;
 	    bogus_line();
 	    return;
 	}
@@ -1467,12 +1477,17 @@ void handle_finish()
 	    bogus_line();
 	    return;
 	}
-	if(sscanf(s - 1, "%f", &total_time) != 1) {
+	if(sscanf(s - 1, "%f", &a_time) != 1) {
 	    bogus_line();
 	    return;
 	}
-
-	got_finish = 1;
+	if(curprog == P_PLANNER) {
+	    planner_time = a_time;
+	}
+	else {
+	    total_time = a_time;
+	    got_finish = 1;
+	}
     }
 }
 
@@ -1504,6 +1519,7 @@ void handle_stats()
 	    bogus_line();
 	    return;
 	}
+	planner_time = startup_time;
     }
 }
 
@@ -1813,16 +1829,10 @@ repdata_t *handle_success()
 void handle_strange()
 {
     char *str = NULL;
+    char *strangestr = NULL;
     repdata_t *repdata;
 
     repdata = handle_success();
-
-    str = vstralloc("  ", prefix(repdata->disk->host->hostname, 
-				 repdata->disk->name, repdata->level),
-		    " ", "STRANGE",
-		    NULL);
-    addline(&errsum, str);
-    amfree(str);
 
     addline(&errdet,"");
     str = vstralloc("/-- ", prefix(repdata->disk->host->hostname, 
@@ -1834,9 +1844,21 @@ void handle_strange()
 
     while(contline_next()) {
 	get_logline(logfile);
+#define sc "sendbackup: warning "
+	if(strncmp(curstr, sc, sizeof(sc)-1) == 0) {
+	    strangestr = newstralloc(strangestr, curstr+sizeof(sc)-1);
+	}
 	addline(&errdet, curstr);
     }
     addline(&errdet,"\\--------");
+
+    str = vstralloc("  ", prefix(repdata->disk->host->hostname, 
+				 repdata->disk->name, repdata->level),
+		    " ", "STRANGE", " ", strangestr,
+		    NULL);
+    addline(&errsum, str);
+    amfree(str);
+    amfree(strangestr);
 }
 
 void handle_failed()

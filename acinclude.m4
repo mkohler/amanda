@@ -439,7 +439,33 @@ if test $cf_cv_arg_union_wait = yes; then
 	AC_DEFINE(WAIT_USES_UNION,1,[Defined if wait() puts the status in a union wait instead of int. ])
 fi
 ])dnl
+AC_DEFUN([CF_WAIT_INT],
+[
+AC_REQUIRE([AC_TYPE_PID_T])
+AC_HAVE_HEADERS(sys/wait.h wait.h)
+AC_CACHE_CHECK([whether wait uses int], [cf_cv_arg_int],
+        [AC_TRY_COMPILE([
+#include <sys/types.h>
 
+#if HAVE_SYS_WAIT_H
+# include <sys/wait.h>
+#else
+# if HAVE_WAIT_H
+#  include <wait.h>
+# endif
+#endif
+
+#ifdef __STDC__
+pid_t wait(int *);
+#endif
+], [
+  int x; int i;
+  wait(&x); i = WIFEXITED(x)
+], [cf_cv_arg_int=yes], [cf_cv_arg_int=no])])
+if test $cf_cv_arg_int = yes; then
+        AC_DEFINE(WAIT_USES_INT,1,[Defined if wait() puts the status in a int instead of a union wait. ])
+fi
+])dnl
 
 dnl @synopsis AX_CREATE_STDINT_H [( HEADER-TO-GENERATE [, HEDERS-TO-CHECK])]
 dnl
@@ -473,7 +499,7 @@ dnl Remember, if the system already had a valid <stdint.h>, the generated
 dnl file will include it directly. No need for fuzzy HAVE_STDINT_H things...
 dnl
 dnl @, (status: used on new platforms) (see http://ac-archive.sf.net/gstdint/)
-dnl @version $Id: acinclude.m4i,v 1.1.2.5.6.2 2004/04/29 20:47:40 martinea Exp $
+dnl @version $Id: acinclude.m4i,v 1.1.2.5.8.3 2004/04/29 20:47:22 martinea Exp $
 dnl @author  Guido Draheim <guidod@gmx.de> 
 
 AC_DEFUN([AX_CREATE_STDINT_H],
