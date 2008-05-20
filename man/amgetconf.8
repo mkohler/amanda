@@ -18,87 +18,107 @@
 .IP "\\$1" \\$2
 ..
 .TH "AMGETCONF" 8 "" "" ""
-.SH NAME
-amgetconf \- look up amanda.conf variables
+.SH "NAME"
+amgetconf - look up amanda.conf variables
 .SH "SYNOPSIS"
-.ad l
-.hy 0
 .HP 10
 \fBamgetconf\fR [\fIconfig\fR] \fIparameter\fR
-.ad
-.hy
-
 .SH "DESCRIPTION"
-
 .PP
-\fBAmgetconf\fR looks up parameters in \fBamanda\&.conf\fR, the \fBAmanda\fR configuration file, or from the build and runtime environment, and returns their corresponding value\&.
-
+\fBAmgetconf\fR
+looks up parameters in
+\fBamanda.conf\fR, the
+\fBAmanda\fR
+configuration file, or from the build and runtime environment, and returns their corresponding value.
 .PP
-If \fBconfig\fR is not specified, \fBamgetconf\fR assumes it is being run from the configuration directory and that \fBamanda\&.conf\fR is present\&.
-
+If
+\fBconfig\fR
+is not specified,
+\fBamgetconf\fR
+assumes it is being run from the configuration directory and that
+\fBamanda.conf\fR
+is present.
 .PP
-If \fBparameter\fR begins with \fBbuild\&.\fR, the (case insensitive) string following the period is a build environment variable\&. Variables without a value (e\&.g\&. \fBXFSDUMP\fR on a system that does not support that type of file system) will not report an error and will return an empty string as the value\&. Flag variables (e\&.g\&. \fBUSE_AMANDAHOSTS\fR) will return 1 if the flag is set or an empty string if it is not\&.
-
+If
+\fBparameter\fR
+begins with
+\fBbuild.\fR, the (case insensitive) string following the period is a build environment variable. Variables without a value (e.g.
+\fBXFSDUMP\fR
+on a system that does not support that type of file system) will not report an error and will return an empty string as the value. Flag variables (e.g.
+\fBUSE_AMANDAHOSTS\fR) will return
+1
+if the flag is set or an empty string if it is not.
 .PP
-If \fBparameter\fR begins with \fBdbopen\&.\fR, the string following the period is a program name and an \fBAmanda\fR debug file will be created for the caller\&. The name of the file is returned\&.
-
+If
+\fBparameter\fR
+begins with
+\fBdbopen.\fR, the string following the period is a program name and an
+\fBAmanda\fR
+debug file will be created for the caller. The name of the file is returned.
 .PP
-If \fBparameter\fR begins with \fBdbclose\&.\fR, the string following the period is a program name previously used with \fBdbopen\&.\fR, followed by a colon (:) and the previously opened file name\&.
-
+If
+\fBparameter\fR
+begins with
+\fBdbclose.\fR, the string following the period is a program name previously used with
+\fBdbopen.\fR, followed by a colon (:) and the previously opened file name.
 .PP
-See the \fBamanda\fR(8) man page for more details about \fBAmanda\fR\&.
-
+See the
+\fBamanda\fR(8)
+man page for more details about
+\fBAmanda\fR.
 .SH "EXAMPLE"
-
 .PP
 Find out the path to the log file directory:
-
+.sp
 .nf
 
 % amgetconf daily logdir
 /usr/local/etc/amanda//daily
 
 .fi
-
+.sp
 .PP
 Find out the current tape type:
-
+.sp
 .nf
 
 % amgetconf daily tapetype
-DLT4000\-IV
+DLT4000-IV
 
 .fi
-
+.sp
 .PP
 Find out the default configuration directory:
-
+.sp
 .nf
 
-% amgetconf daily build\&.CONFIG_DIR
+% amgetconf daily build.CONFIG_DIR
 /usr/local/etc/amanda/
 
 .fi
-
+.sp
 .PP
 Create, use and close a debug file in a script:
-
+.sp
 .nf
 
-% set debug_file = `amgetconf daily dbopen\&.myscript`
+% set debug_file = `amgetconf daily dbopen.myscript`
 % echo debug information >> $debug_file
-% amgetconf daily dbclose\&.myscript:$debug_file
+% amgetconf daily dbclose.myscript:$debug_file
 
 .fi
-
+.sp
 .SH "MESSAGES"
-
 .TP
 amgetconf: no such parameter \fBparam\fR
-Parameter \fBparam\fR is not a known keyword (e\&.g\&. not a valid \fBamanda\&.conf\fR keyword)\&. In this case, \fBamgetconf\fR will write "\fBBUGGY\fR" to stdout as the value\&.
-
+Parameter
+\fBparam\fR
+is not a known keyword (e.g. not a valid
+\fBamanda.conf\fR
+keyword). In this case,
+\fBamgetconf\fR
+will write "\fBBUGGY\fR" to stdout as the value.
 .SH "SEE ALSO"
-
 .PP
 \fBamanda\fR(8)
 

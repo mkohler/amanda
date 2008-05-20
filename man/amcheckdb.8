@@ -18,53 +18,54 @@
 .IP "\\$1" \\$2
 ..
 .TH "AMCHECKDB" 8 "" "" ""
-.SH NAME
-amcheckdb \- check Amanda database for tape consistency
+.SH "NAME"
+amcheckdb - check Amanda database for tape consistency
 .SH "SYNOPSIS"
-.ad l
-.hy 0
 .HP 10
 \fBamcheckdb\fR \fIconfig\fR
-.ad
-.hy
-
 .SH "DESCRIPTION"
-
 .PP
-\fBAmcheckdb\fR verifies that every tape mentioned in the \fBAmanda\fR database is still valid in the \fBtapelist\fR file\&.
-
+\fBAmcheckdb\fR
+verifies that every tape mentioned in the
+\fBAmanda\fR
+database is still valid in the
+\fBtapelist\fR
+file.
 .PP
-See the \fBamanda\fR(8) man page for more details about \fBAmanda\fR\&.
-
+See the
+\fBamanda\fR(8)
+man page for more details about
+\fBAmanda\fR.
 .SH "EXAMPLE"
-
 .PP
 This shows a normal response:
 .nf
 
 # amcheckdb daily
-Ready\&.
+Ready.
 .fi
-
 .PP
-This shows tape \fBDMP014\fR is still listed in the database but is no longer listed in the \fBtapelist\fR file:
+This shows tape
+\fBDMP014\fR
+is still listed in the database but is no longer listed in the
+\fBtapelist\fR
+file:
 .nf
 
 # amcheckdb daily
 Tape DMP014 missing in /usr/local/etc/amanda//daily/tapelist
-Ready\&.
+Ready.
 .fi
-
 .SH "AUTHOR"
-
 .PP
-Adrian T\&. Filipi\-Martin <atf3r@cs\&.virginia\&.edu>: Original text
-
+Adrian T. Filipi-Martin <atf3r@cs.virginia.edu>: Original text
 .PP
-Stefan G\&. Weichinger, <sgw@amanda\&.org>, maintainer of the \fBAmanda\fR\-documentation: XML\-conversion
-
+Stefan G. Weichinger,
+<sgw@amanda.org>, maintainer of the
+\fBAmanda\fR-documentation: XML-conversion
 .SH "SEE ALSO"
-
 .PP
-\fBamadmin\fR(8), \fBamrmtape\fR(8), \fBamanda\fR(8)
+\fBamadmin\fR(8),
+\fBamrmtape\fR(8),
+\fBamanda\fR(8)
 

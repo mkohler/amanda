@@ -18,156 +18,159 @@
 .IP "\\$1" \\$2
 ..
 .TH "AMFETCHDUMP" 8 "" "" ""
-.SH NAME
-amfetchdump \- extract backup images from multiple Amanda tapes.
+.SH "NAME"
+amfetchdump - extract backup images from multiple Amanda tapes.
 .SH "SYNOPSIS"
-.ad l
-.hy 0
 .HP 12
-\fBamfetchdump\fR [\-pcClawns] [\-d\ \fIdevice\fR] [\-o\ \fIdirectory\fR] [\-i\ \fIlogfile\fR] [\-b\ \fIblocksize\fR] \fIconfig\fR \fIhostname\fR [\fIdisk\fR\ [\fIdate\fR\ [\fIlevel\fR\ [\fIhostname\fR\ [\&.\&.\&.]]]]]
-.ad
-.hy
-
+\fBamfetchdump\fR [-pcClawns] [-d \fIdevice\fR] [-o \fIdirectory\fR] [-i \fIlogfile\fR] [-b \fIblocksize\fR] \fIconfig\fR \fIhostname\fR [\fIdisk\fR [ \fIdate\fR [ \fIlevel\fR [ \fIhostname\fR [...] ] ] ]]
 .SH "DESCRIPTION"
-
 .PP
-\fBAmfetchdump\fR pulls one or more matching dumps from tape or from the holding disk, handling the reassembly of multi\-tape split dump files as well as any tape autochanger operations\&.
-
+\fBAmfetchdump\fR
+pulls one or more matching dumps from tape or from the holding disk, handling the reassembly of multi-tape split dump files as well as any tape autochanger operations.
 .PP
-It will automatically use the logs created by \fBamdump\fR(8) to locate available dumps on tape, in the same way that the \fBfind\fR feature of \fBamadmin\fR(8) lists available dumps\&. If these logs are unavailable, it can search tape\-by\-tape to find what it needs, and can generate new logs to serve as an emergency tape inventory\&.
-
+It will automatically use the logs created by
+\fBamdump\fR(8)
+to locate available dumps on tape, in the same way that the
+\fBfind\fR
+feature of
+\fBamadmin\fR(8)
+lists available dumps. If these logs are unavailable, it can search tape-by-tape to find what it needs, and can generate new logs to serve as an emergency tape inventory.
 .PP
-The \fBhostname\fR, \fBdiskname\fR, \fBdatestamp\fR, and \fBlevel\fR dump pattern\-matching works as in \fBamrestore\fR(8), with the added requirement that at minimum a \fBhostname\fR must be specified when not in inventory mode\&.
-
+The
+\fBhostname\fR,
+\fBdiskname\fR,
+\fBdatestamp\fR, and
+\fBlevel\fR
+dump pattern-matching works as in
+\fBamrestore\fR(8), with the added requirement that at minimum a
+\fBhostname\fR
+must be specified when not in inventory mode.
 .PP
-Unless \fB\-p\fR is used, backup images are extracted to files in the current directory named:
-
+Unless
+\fB-p\fR
+is used, backup images are extracted to files in the current directory named:
 .PP
-\fBhostname\&.diskname\&.datestamp\&.dumplevel\fR
-
+\fBhostname.diskname.datestamp.dumplevel\fR
 .SH "OPTIONS"
-
 .TP
-\fB\-p\fR
-Pipe exactly one complete dump file to \fBstdout\fR, instead of writing the file to disk\&. This will restore only the first matching dumpfile (where "first" is determined by the dump log search facility)\&.
-
+\fB-p\fR
+Pipe exactly one complete dump file to
+\fBstdout\fR, instead of writing the file to disk. This will restore only the first matching dumpfile (where "first" is determined by the dump log search facility).
 .TP
-\fB\-d\fR \fIdevice\fR
-Restore from this tape device instead of the default\&.
-
+\fB-d\fR \fIdevice\fR
+Restore from this tape device instead of the default.
 .TP
-\fB\-o\fR \fIdirectory\fR
-Output restored files to this directory, instead of to the current working directory\&.
-
+\fB-o\fR \fIdirectory\fR
+Output restored files to this directory, instead of to the current working directory.
 .TP
-\fB\-c\fR
-Compress output, fastest method available\&.
-
+\fB-c\fR
+Compress output, fastest method available.
 .TP
-\fB\-C\fR
-Compress output, smallest file size method available\&.
-
+\fB-C\fR
+Compress output, smallest file size method available.
 .TP
-\fB\-l\fR
-Leave dumps in the compressed/uncompressed state in which they were found on tape\&. By default, \fBamfetchdump\fR will automatically uncompress when restoring\&.
-
+\fB-l\fR
+Leave dumps in the compressed/uncompressed state in which they were found on tape. By default,
+\fBamfetchdump\fR
+will automatically uncompress when restoring.
 .TP
-\fB\-a\fR
-Assume that all tapes are already available, via tape changer or otherwise, instead of prompting the operator to ensure that all tapes are loaded\&.
-
+\fB-a\fR
+Assume that all tapes are already available, via tape changer or otherwise, instead of prompting the operator to ensure that all tapes are loaded.
 .TP
-\fB\-i\fR \fIfilename\fR
-Generate an inventory of all dumps "seen" on the tapes we search, for later use as a log\&.
-
+\fB-i\fR \fIfilename\fR
+Generate an inventory of all dumps "seen" on the tapes we search, for later use as a log.
 .TP
-\fB\-w\fR
-Wait to put split dumps together until all chunks have been restored\&. Normally, \fBamfetchdump\fR will attempt to read pieces of a split file from tape in order, so that it can assemble them simply by appending each file to the first\&. This option disables the appending behavior, and instead restores each piece as an individual file and reassembles them only after all have been restored\&.
-
-
-.RS
-.Sh "Note"
+\fB-w\fR
+Wait to put split dumps together until all chunks have been restored. Normally,
+\fBamfetchdump\fR
+will attempt to read pieces of a split file from tape in order, so that it can assemble them simply by appending each file to the first. This option disables the appending behavior, and instead restores each piece as an individual file and reassembles them only after all have been restored.
+.sp
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+\fBNote\fR
 This requires at least double the size of your dump in free
-disk space, in order to build the final assembled dumpfile\&.
-.RE
-This behavior is implicitly invoked in circumstances where knowing the location of all dumps on tape in advance is not possible, such as when you are restoring without log files\&.
-
+disk space, in order to build the final assembled dumpfile.This behavior is implicitly invoked in circumstances where knowing the location of all dumps on tape in advance is not possible, such as when you are restoring without log files.
 .TP
-\fB\-n\fR
-Do not reassemble split dump files at all, just restore each piece as an individual file\&.
-
+\fB-n\fR
+Do not reassemble split dump files at all, just restore each piece as an individual file.
 .TP
-\fB\-s\fR
-Do not fast\-forward straight to needed files on tape\&. This will slow down most restores substantially\&. Only use this option if your tape drive does not properly support the fast\-forward operation\&.
-
+\fB-s\fR
+Do not fast-forward straight to needed files on tape. This will slow down most restores substantially. Only use this option if your tape drive does not properly support the fast-forward operation.
 .TP
-\fB\-b\fR \fIblocksize\fR
-Force a particular block size when reading from tapes\&. This value will usually be autodetected, and should not normally need to be set\&.
-
+\fB-b\fR \fIblocksize\fR
+Force a particular block size when reading from tapes. This value will usually be autodetected, and should not normally need to be set.
 .SH "EXAMPLES"
-
 .PP
-All the examples here assume your configuration is called \fISetA\fR\&.
-
+All the examples here assume your configuration is called
+\fISetA\fR.
 .PP
-Here's a simple case, restoring all known dumps of the host vanya to the current working directory\&.
-
+Here's a simple case, restoring all known dumps of the host vanya to the current working directory.
+.sp
 .nf
 
 $ amfetchdump SetA vanya
 
 .fi
-
+.sp
 .PP
-A more likely scenario involves restoring a particular dump from a particular date\&. We'll pipe this one to \fBGNU\-tar\fR as well, to automatically extract the dump\&.
-
+A more likely scenario involves restoring a particular dump from a particular date. We'll pipe this one to
+\fBGNU-tar\fR
+as well, to automatically extract the dump.
+.sp
 .nf
 
-$ amfetchdump \-p SetA vanya /home 20051020 | gtar \-xvpf \-
+$ amfetchdump -p SetA vanya /home 20051020 | gtar -xvpf -
 
 .fi
-
+.sp
 .PP
-In a situation where all of our dump logs have been wiped out, we could also use amfetchdump to inventory our tapes and recreate an imitation of those logs, which we'll send to \fBstdout\fR for casual perusal\&.   
-
+In a situation where all of our dump logs have been wiped out, we could also use amfetchdump to inventory our tapes and recreate an imitation of those logs, which we'll send to
+\fBstdout\fR
+for casual perusal.
+.sp
 .nf
 
-$ amfetchdump \-i \- SetA
+$ amfetchdump -i - SetA
 
 .fi
-  
+.sp
 
 .PP
-Note that you can specify a restore while in inventory mode, and \fBamfetchdump\fR will continue searching for more dumps from this host even after successfully restoring a dump, inventorying all the while\&. If your backup searcher has been trashed, this is a handy way to recover what you have\&.   
-
+Note that you can specify a restore while in inventory mode, and
+\fBamfetchdump\fR
+will continue searching for more dumps from this host even after successfully restoring a dump, inventorying all the while. If your backup searcher has been trashed, this is a handy way to recover what you have.
+.sp
 .nf
 
-$ amfetchdump \-i /var/amanda/log SetA backupserver
+$ amfetchdump -i /var/amanda/log SetA backupserver
 
 .fi
-  
+.sp
 
 .SH "CAVEATS"
 \fBAmfetchdump\fR is dependent on accessing your server's config,
-tape changer, and (normally) dump logs\&. As such, it's not necessarily
+tape changer, and (normally) dump logs. As such, it's not necessarily
 the most useful tool when those have all been wiped out and you
-desperately need to pull things from your tape\&. Pains have been taken
+desperately need to pull things from your tape. Pains have been taken
 to make it as capable as possible, but for seriously minimialist
 restores, look to
 \fBamrestore\fR(8)
 or
 \fBdd\fR(8)
-instead\&.
-
+instead.
 .SH "AUTHOR"
-
 .PP
-John Stange, <building@nap\&.edu>, National Academies Press
-
+John Stange,
+<building@nap.edu>, National Academies Press
 .PP
-Ian Turner, <ian@zmanda\&.com>: XML\-conversion
-
+Ian Turner,
+<ian@zmanda.com>: XML-conversion
 .SH "SEE ALSO"
-
 .PP
-\fBamanda\fR(8), \fBamadmin\fR(8), \fBamrestore\fR(8), \fBtar\fR(1)  \fBrestore\fR(8)
+\fBamanda\fR(8),
+\fBamadmin\fR(8),
+\fBamrestore\fR(8),
+\fBtar\fR(1)\fBrestore\fR(8)
 

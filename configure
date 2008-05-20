@@ -1962,7 +1962,7 @@ fi
 
 # Define the identity of the package.
  PACKAGE=amanda
- VERSION=2.5.0
+ VERSION=2.5.0p2
 
 
 cat >>confdefs.h <<_ACEOF

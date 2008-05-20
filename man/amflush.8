@@ -18,83 +18,114 @@
 .IP "\\$1" \\$2
 ..
 .TH "AMFLUSH" 8 "" "" ""
-.SH NAME
-amflush \- flush Amanda backup files from holding disk to tape
+.SH "NAME"
+amflush - flush Amanda backup files from holding disk to tape
 .SH "SYNOPSIS"
-.ad l
-.hy 0
 .HP 8
-\fBamflush\fR [\-b] [\-f] [\-s] [\-D\ \fIdatestamp\fR...] \fIconfig\fR [\fIhost\fR\ [\fIdisk\fR...]...]
-.ad
-.hy
-
+\fBamflush\fR [-b] [-f] [-s] [-D \fIdatestamp\fR...] \fIconfig\fR [\fIhost\fR [\fIdisk\fR...]...]
 .SH "DESCRIPTION"
-
 .PP
-\fBAmflush\fR writes \fBAmanda\fR backups from the holding disks to tape, and updates the \fBAmanda\fR info database and tapelist accordingly\&. Backups may stay in a holding disk when something is wrong with the tape at the time \fBamdump\fR is run\&. When this happens, the problem must be corrected and \fBamflush\fR run by hand\&.
-
+\fBAmflush\fR
+writes
+\fBAmanda\fR
+backups from the holding disks to tape, and updates the
+\fBAmanda\fR
+info database and tapelist accordingly. Backups may stay in a holding disk when something is wrong with the tape at the time
+\fBamdump\fR
+is run. When this happens, the problem must be corrected and
+\fBamflush\fR
+run by hand.
 .SH "OPTIONS"
-
 .TP
-\fB\-b\fR
-Run \fBamflush\fR in batch mode\&. All datestamps are selected unless specified\&. The flush is started without confirmation\&.
-
+\fB-b\fR
+Run
+\fBamflush\fR
+in batch mode. All datestamps are selected unless specified. The flush is started without confirmation.
 .TP
-\fB\-f\fR
-Run \fBamflush\fR in foreground\&. \fBAmflush\fR normally detaches itself from the tty and runs as a background process\&. With the \fB\-f\fR option, \fBamflush\fR stays in the foreground\&. This is useful if \fBamflush\fR is run as part of another script that, for example, advances the tape after the flush is completed\&.
-
+\fB-f\fR
+Run
+\fBamflush\fR
+in foreground.
+\fBAmflush\fR
+normally detaches itself from the tty and runs as a background process. With the
+\fB-f\fR
+option,
+\fBamflush\fR
+stays in the foreground. This is useful if
+\fBamflush\fR
+is run as part of another script that, for example, advances the tape after the flush is completed.
 .TP
-\fB\-s\fR
-Write log to stdout/stderr instead of the amflush log file\&. Requires the \fB\-f\fR option\&.
-
+\fB-s\fR
+Write log to stdout/stderr instead of the amflush log file. Requires the
+\fB-f\fR
+option.
 .TP
-\fB\-D datestamp\fR
-specify a datestamp expression you want to flush, see the "DATESTAMP EXPRESSION" section of \fBamanda\fR(8) for a description\&. \fB\-D 20001225\-7\fR will flush all dumps from 25 december 2000 to 27 december 2000\&.
-
+\fB-D datestamp\fR
+specify a datestamp expression you want to flush, see the "DATESTAMP EXPRESSION" section of
+\fBamanda\fR(8)
+for a description.
+\fB-D 20001225-7\fR
+will flush all dumps from 25 december 2000 to 27 december 2000.
 .PP
-You can specify many host/disk expressions, only disks that match an expression will be flushed\&. All disks are flushed if no expressions are given\&. see the "HOST & DISK EXPRESSION" section of \fBamanda\fR(8) for a description\&.
-
+You can specify many host/disk expressions, only disks that match an expression will be flushed. All disks are flushed if no expressions are given. see the "HOST & DISK EXPRESSION" section of
+\fBamanda\fR(8)
+for a description.
 .PP
-\fBAmflush\fR will look in the holding disks specified by the \fBamanda\&.conf\fR file in /usr/local/etc/amanda/\fBconfig\fR for any non\-empty \fBAmanda\fR work directories\&. It then prompts you to select a directory or to process all of the directories\&. The work directories in the holding disks are named by the date at the time \fBamdump\fR was run, e\&.g\&. 19910215\&.
-
+\fBAmflush\fR
+will look in the holding disks specified by the
+\fBamanda.conf\fR
+file in /usr/local/etc/amanda/\fBconfig\fR
+for any non-empty
+\fBAmanda\fR
+work directories. It then prompts you to select a directory or to process all of the directories. The work directories in the holding disks are named by the date at the time
+\fBamdump\fR
+was run, e.g.
+19910215.
 .PP
-See the \fBamanda\fR(8) man page for more details about \fBAmanda\fR\&.
-
+See the
+\fBamanda\fR(8)
+man page for more details about
+\fBAmanda\fR.
 .SH "EXAMPLE"
-
 .PP
-\fBAmflush\fR will search for holding areas associated with the \fBdaily\fR configuration\&. After you select which holding area to flush, \fBamflush\fR writes the data to tape, updates the databases and sends a mail report similar to \fBamdump\fR(8)\&.
+\fBAmflush\fR
+will search for holding areas associated with the
+\fBdaily\fR
+configuration. After you select which holding area to flush,
+\fBamflush\fR
+writes the data to tape, updates the databases and sends a mail report similar to
+\fBamdump\fR(8).
 .nf
 
 % amflush daily
-Scanning /amanda\-hold\&.\&.\&.
-  20001113: found \fBAmanda\fR directory\&.
-  20001114: found \fBAmanda\fR directory\&.
+Scanning /amanda-hold...
+  20001113: found \fBAmanda\fR directory.
+  20001114: found \fBAmanda\fR directory.
 
 Multiple \fBAmanda\fR directories, please pick one by letter:
-  A\&. 20001113
-  B\&. 20001114
-Select directories to flush [A\&.\&.B]: [ALL] all
+  A. 20001113
+  B. 20001114
+Select directories to flush [A..B]: [ALL] all
 
 Flushing dumps in 20001113, 20001114,
 today: 20001117
-to tape drive /dev/rmt/0mn\&.
-Expecting tape DMP014 or a new tape\&.  (The last dumps were to tape DMP013)
+to tape drive /dev/rmt/0mn.
+Expecting tape DMP014 or a new tape.  (The last dumps were to tape DMP013)
 Are you sure you want to do this? yes
-Running in background, you can log off now\&.
-You'll get mail when amflush is finished\&.
+Running in background, you can log off now.
+You'll get mail when amflush is finished.
 .fi
-
 .SH "AUTHOR"
-
 .PP
-James da Silva, <jds@amanda\&.org> : Original text
-
+James da Silva,
+<jds@amanda.org>
+: Original text
 .PP
-Stefan G\&. Weichinger, <sgw@amanda\&.org>, maintainer of the \fBAmanda\fR\-documentation: XML\-conversion
-
+Stefan G. Weichinger,
+<sgw@amanda.org>, maintainer of the
+\fBAmanda\fR-documentation: XML-conversion
 .SH "SEE ALSO"
-
 .PP
-\fBamanda\fR(8), \fBamdump\fR(8)
+\fBamanda\fR(8),
+\fBamdump\fR(8)
 
