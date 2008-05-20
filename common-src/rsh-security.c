@@ -25,7 +25,7 @@
  */
 
 /*
- * $Id: rsh-security.c,v 1.31.2.1 2006/10/25 19:13:11 martinea Exp $
+ * $Id: rsh-security.c,v 1.31 2006/08/21 20:17:10 martinea Exp $
  *
  * rsh-security.c - security and transport over rsh or a rsh-like command.
  *
@@ -44,14 +44,6 @@
 #include "version.h"
 
 #ifdef RSH_SECURITY
-
-/*#define	RSH_DEBUG*/
-
-#ifdef RSH_DEBUG
-#define	rshprintf(x)	dbprintf(x)
-#else
-#define	rshprintf(x)
-#endif
 
 /*
  * Path to the rsh binary.  This should be configurable.
@@ -103,6 +95,8 @@ const security_driver_t rsh_security_driver = {
     tcpm_stream_read_sync,
     tcpm_stream_read_cancel,
     tcpm_close_connection,
+    NULL,
+    NULL
 };
 
 static int newhandle = 1;
@@ -126,14 +120,13 @@ rsh_connect(
     void *		datap)
 {
     struct sec_handle *rh;
-    struct hostent *he;
     char *amandad_path=NULL, *client_username=NULL;
 
     assert(fn != NULL);
     assert(hostname != NULL);
 
-    rshprintf(("%s: rsh: rsh_connect: %s\n", debug_prefix_time(NULL),
-	       hostname));
+    auth_debug(1, ("%s: rsh: rsh_connect: %s\n", debug_prefix_time(NULL),
+		   hostname));
 
     rh = alloc(SIZEOF(*rh));
     security_handleinit(&rh->sech, &rsh_security_driver);
@@ -142,14 +135,13 @@ rsh_connect(
     rh->ev_timeout = NULL;
     rh->rc = NULL;
 
-
-    if ((he = gethostbyname(hostname)) == NULL) {
+    rh->hostname = NULL;
+    if (try_resolving_hostname(hostname, &rh->hostname)) {
 	security_seterror(&rh->sech,
 	    "%s: could not resolve hostname", hostname);
 	(*fn)(arg, &rh->sech, S_ERROR);
 	return;
     }
-    rh->hostname = stralloc(he->h_name);	/* will be replaced */
     rh->rs = tcpma_stream_client(rh, newhandle++);
 
     if (rh->rs == NULL)

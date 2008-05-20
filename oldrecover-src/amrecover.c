@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amrecover.c,v 1.7.2.2 2006/12/12 14:56:38 martinea Exp $
+ * $Id: amrecover.c,v 1.7 2006/07/25 18:27:57 martinea Exp $
  *
  * an interactive program for recovering backed-up files
  */
@@ -37,6 +37,7 @@
 #include "getfsent.h"
 #include "dgram.h"
 #include "util.h"
+#include "conffile.h"
 
 extern int process_line(char *line);
 int guess_disk(char *cwd, size_t cwd_len, char **dn_guess, char **mpt_guess);
@@ -294,7 +295,7 @@ guess_disk (
 	/*NOTREACHED*/
     }
     cwd_length = strlen(cwd);
-    dbprintf(("guess_disk: %zu: \"%s\"\n", cwd_length, cwd));
+    dbprintf(("guess_disk: " SSIZE_T_FMT ": \"%s\"\n", cwd_length, cwd));
 
     if (open_fstab() == 0) {
 	return -1;
@@ -304,7 +305,7 @@ guess_disk (
     while (get_fstab_nextentry(&fsent))
     {
 	current_length = fsent.mntdir ? strlen(fsent.mntdir) : (size_t)0;
-	dbprintf(("guess_disk: %zu: %zu: \"%s\": \"%s\"\n",
+	dbprintf(("guess_disk: " SSIZE_T_FMT ": " SSIZE_T_FMT": \"%s\": \"%s\"\n",
 		  longest_match,
 		  current_length,
 		  fsent.mntdir ? fsent.mntdir : "(mntdir null)",
@@ -408,6 +409,7 @@ main(
     char *service_name;
     char *line = NULL;
     struct tm *tm;
+    char *conffile;
 
     safe_fd(-1, 0);
 
@@ -446,6 +448,13 @@ main(
     tape_server_name = getenv("AMANDA_TAPESERVER");
     if(!tape_server_name) tape_server_name = DEFAULT_TAPE_SERVER;
     tape_server_name = stralloc(tape_server_name);
+
+    conffile = vstralloc(CONFIG_DIR, "/", "amanda-client.conf", NULL);
+    if (read_clientconf(conffile) > 0) {
+	error("error reading conffile: %s", conffile);
+	/*NOTREACHED*/
+    }
+    amfree(conffile);
 
     if (argc > 1 && argv[1][0] != '-')
     {

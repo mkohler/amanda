@@ -1,11 +1,11 @@
 .\"     Title: amanda-client.conf
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 02/07/2007
+.\"      Date: 06/06/2007
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMANDA\-CLIENT.CONF" "5" "02/07/2007" "" ""
+.TH "AMANDA\-CLIENT.CONF" "5" "06/06/2007" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -184,6 +184,102 @@ Default from configure
 .RS 4
 Default:
 \fI/etc/amandates\fR. The file where amanda keep the last date of each dumplevel.
+.RE
+.PP
+\fBconnect_tries\fR int
+.RS 4
+Default:
+\fI3\fR. How many times the server will try a connection.
+.RE
+.PP
+\fBrep_tries\fR int
+.RS 4
+Default:
+\fI5\fR. How many times amandad will resend a REP packet if it doesn't get the ACK packet.
+.RE
+.PP
+\fBdebug_amandad\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the amandad process
+.RE
+.PP
+\fBdebug_amidxtaped\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the amidxtaped process
+.RE
+.PP
+\fBdebug_amindexd\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the amindexd process
+.RE
+.PP
+\fBdebug_amrecover\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the amrecover process
+.RE
+.PP
+\fBdebug_auth\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the auth module
+.RE
+.PP
+\fBdebug_event\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the event module
+.RE
+.PP
+\fBdebug_holding\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the holdingdisk module
+.RE
+.PP
+\fBdebug_protocol\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the protocol module
+.RE
+.PP
+\fBdebug_selfcheck\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the selfcheck process
+.RE
+.PP
+\fBdebug_sendsize\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the sendsize process
+.RE
+.PP
+\fBdebug_sendbackup\fR int
+.RS 4
+Default:
+\fI0\fR. Debug level of the sendbackup process
+.RE
+.PP
+\fBreserved\-udp\-port\fR int,int
+.RS 4
+Default: \-\-with\-udpportrange or
+\fI512,1023\fR. Reserved udp port that will be used (amrecover with bsd or bsdudp)
+.RE
+.PP
+\fBreserved\-tcp\-port\fR int,int
+.RS 4
+Default: \-\-with\-low\-tcpportrange or
+\fI512,1023\fR. Reserved tcp port that will be used (amrecover with bsdtcp)
+.RE
+.PP
+\fBunreserved\-tcp\-port\fR int,int
+.RS 4
+Default: \-\-with\-tcpportrange or
+\fI1025,65536\fR. Unreserved tcp port that will be used (bsd, bsdudp)
 .RE
 .SH "AUTHOR"
 .PP

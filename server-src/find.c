@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: find.c,v 1.33.2.1 2006/09/19 19:34:27 martinea Exp $
+ * $Id: find.c,v 1.33 2006/07/06 13:13:15 martinea Exp $
  *
  * controlling process for the Amanda backup system
  */
@@ -106,7 +106,7 @@ find_dump(
 	    logs += search_logfile(&output_find, tp->label, tp->datestamp, logfile);
 	}
 	if(logs == 0 && strcmp(tp->datestamp,"0") != 0)
-	    printf("Warning: no log files found for tape %s written %s\n",
+	    fprintf(stderr, "Warning: no log files found for tape %s written %s\n",
 		   tp->label, find_nicedate(tp->datestamp));
     }
     amfree(logfile);
@@ -189,7 +189,7 @@ find_log(void)
 	    }
 	}
 	if(logs == 0 && strcmp(tp->datestamp,"0") != 0)
-	    printf("Warning: no log files found for tape %s written %s\n",
+	    fprintf(stderr, "Warning: no log files found for tape %s written %s\n",
 		   tp->label, find_nicedate(tp->datestamp));
     }
     amfree(logfile);
@@ -272,105 +272,53 @@ void
 search_holding_disk(
     find_result_t **output_find)
 {
-    holdingdisk_t *hdisk;
-    sl_t  *holding_list;
-    sle_t *dir;
-    char *sdirname = NULL;
-    char *destname = NULL;
-    char *hostname = NULL;
-    char *diskname = NULL;
-    DIR *workdir;
-    struct dirent *entry;
-    int level = 0;
+    sl_t  *holding_file_list;
+    sle_t *e;
+    char *holding_file;
     disk_t *dp;
-    int fd;
-    ssize_t result;
-    char buf[DISK_BLOCK_BYTES];
     dumpfile_t file;
 
-    holding_list = pick_all_datestamp(1);
+    holding_file_list = holding_get_files(NULL, NULL, 1);
 
-    for(hdisk = getconf_holdingdisks(); hdisk != NULL; hdisk = hdisk->next) {
-	for(dir = holding_list->first; dir != NULL; dir = dir->next) {
-	    sdirname = newvstralloc(sdirname,
-				    holdingdisk_get_diskdir(hdisk), "/", dir->name,
-				    NULL);
-	    if((workdir = opendir(sdirname)) == NULL) {
-	        continue;
-	    }
+    for(e = holding_file_list->first; e != NULL; e = e->next) {
+	holding_file = e->name;
 
-	    while((entry = readdir(workdir)) != NULL) {
-		if(is_dot_or_dotdot(entry->d_name)) {
-		    continue;
-		}
-		destname = newvstralloc(destname,
-					sdirname, "/", entry->d_name,
-					NULL);
-		if(is_emptyfile(destname)) {
-		    continue;
-		}
-		amfree(hostname);
-		amfree(diskname);
-		if(get_amanda_names(destname, &hostname, &diskname, &level) != F_DUMPFILE) {
-		    continue;
-		}
-		if(level < 0 || level > 9)
-		    continue;
-		if ((fd = open(destname, O_RDONLY)) == -1) {
-		    continue;
-		}
-		if((result = read(fd, &buf, DISK_BLOCK_BYTES)) <= 0) {
-		    continue;
-		}
-		close(fd);
+	if (!holding_file_get_dumpfile(holding_file, &file))
+	    continue;
 
-		parse_file_header(buf, &file, (size_t)result);
-		if (strcmp(file.name, hostname) != 0 ||
-		    strcmp(file.disk, diskname) != 0 ||
-		    file.dumplevel != level ||
-		    !match_datestamp(file.datestamp, dir->name)) {
-		    continue;
-		}
+	if (file.dumplevel < 0 || file.dumplevel > 9)
+	    continue;
 
-		dp = NULL;
-		for(;;) {
-		    char *s;
-		    if((dp = lookup_disk(hostname, diskname)))
-	                break;
-	            if((s = strrchr(hostname,'.')) == NULL)
-           		break;
-	            *s = '\0';
-		}
-		if ( dp == NULL ) {
-		    continue;
-		}
+	dp = NULL;
+	for(;;) {
+	    char *s;
+	    if((dp = lookup_disk(file.name, file.disk)))
+		break;
+	    if((s = strrchr(file.name,'.')) == NULL)
+		break;
+	    *s = '\0';
+	}
+	if ( dp == NULL ) {
+	    continue;
+	}
 
-		if(find_match(hostname,diskname)) {
-		    find_result_t *new_output_find =
-			alloc(SIZEOF(find_result_t));
-		    new_output_find->next=*output_find;
-		    new_output_find->timestamp=stralloc(file.datestamp);
-		    new_output_find->hostname=hostname;
-		    hostname = NULL;
-		    new_output_find->diskname=diskname;
-		    diskname = NULL;
-		    new_output_find->level=level;
-		    new_output_find->label=stralloc(destname);
-		    new_output_find->partnum=stralloc("--");
-		    new_output_find->filenum=0;
-		    new_output_find->status=stralloc("OK");
-		    *output_find=new_output_find;
-		}
-	    }
-	    closedir(workdir);
-	}	
+	if(find_match(file.name,file.disk)) {
+	    find_result_t *new_output_find =
+		alloc(SIZEOF(find_result_t));
+	    new_output_find->next=*output_find;
+	    new_output_find->timestamp = stralloc(file.datestamp);
+	    new_output_find->hostname = stralloc(file.name);
+	    new_output_find->diskname = stralloc(file.disk);
+	    new_output_find->level=file.dumplevel;
+	    new_output_find->label=stralloc(holding_file);
+	    new_output_find->partnum=stralloc("--");
+	    new_output_find->filenum=0;
+	    new_output_find->status=stralloc("OK");
+	    *output_find=new_output_find;
+	}
     }
-    free_sl(holding_list);
-    holding_list = NULL;
-    amfree(destname);
-    amfree(sdirname);
-    amfree(hostname);
-    amfree(diskname);
+
+    free_sl(holding_file_list);
 }
 
 static int
@@ -650,13 +598,9 @@ parse_taper_datestamp_log(
     if(ch == '\0') {
 	return 0;
     }
-#define sc "datestamp"
-    if(strncmp(s - 1, sc, SIZEOF(sc)-1) != 0) {
+    if(strncmp_const_skip(s - 1, "datestamp", s, ch) != 0) {
 	return 0;
     }
-    s += SIZEOF(sc)-1;
-    ch = s[-1];
-#undef sc
 
     skip_whitespace(s, ch);
     if(ch == '\0') {
@@ -670,13 +614,9 @@ parse_taper_datestamp_log(
     if(ch == '\0') {
 	return 0;
     }
-#define sc "label"
-    if(strncmp(s - 1, sc, SIZEOF(sc)-1) != 0) {
+    if(strncmp_const_skip(s - 1, "label", s, ch) != 0) {
 	return 0;
     }
-    s += SIZEOF(sc)-1;
-    ch = s[-1];
-#undef sc
 
     skip_whitespace(s, ch);
     if(ch == '\0') {

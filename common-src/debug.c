@@ -54,6 +54,8 @@ static pid_t debug_prefix_pid = 0;
 static char *get_debug_name(time_t t, int n);
 static void debug_setup_1(char *config, char *subdir);
 static void debug_setup_2(char *s, int fd, char *notation);
+static times_t debug_start_time;
+static int debug_clock_is_running = 0;
 
 /*
  * Format and write a debug message to the process debug file.
@@ -161,7 +163,7 @@ debug_setup_1(char *config, char *subdir)
 	dbgdir = stralloc2(AMANDA_DBGDIR, "/");
     if(mkpdir(dbgdir, 02700, client_uid, client_gid) == -1) {
         error("create debug directory \"%s\": %s",
-	      AMANDA_DBGDIR, strerror(errno));
+	      dbgdir, strerror(errno));
         /*NOTREACHED*/
     }
     amfree(sane_config);
@@ -172,9 +174,9 @@ debug_setup_1(char *config, char *subdir)
      * We assume no system has 17 digit PID-s :-) and that there will
      * not be a conflict between an old and new name.
      */
-    if((d = opendir(AMANDA_DBGDIR)) == NULL) {
+    if((d = opendir(dbgdir)) == NULL) {
         error("open debug directory \"%s\": %s",
-	      AMANDA_DBGDIR, strerror(errno));
+	      dbgdir, strerror(errno));
         /*NOTREACHED*/
     }
     time(&curtime);
@@ -290,6 +292,10 @@ debug_open(char *subdir)
     int i;
     char *s = NULL;
     mode_t mask;
+    amanda_timezone dontcare;
+
+    amanda_gettimeofday(&debug_start_time.r, &dontcare);
+    debug_clock_is_running = 1;
 
     /*
      * Do initial setup.
@@ -519,11 +525,16 @@ debug_prefix_time(
     static char *s = NULL;
     char *t1;
     char *t2;
+    times_t diff;
+    times_t debug_end_time;
+    amanda_timezone dontcare;
 
     save_errno = errno;
-    if (clock_is_running()) {
+    if (debug_clock_is_running == 1) {
+	amanda_gettimeofday(&debug_end_time.r, &dontcare);
+	diff = timessub(debug_end_time,debug_start_time);
 	t1 = ": time ";
-	t2 = walltime_str(curclock());
+	t2 = walltime_str(diff);
     } else {
 	t1 = t2 = NULL;
     }

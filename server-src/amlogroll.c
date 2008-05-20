@@ -69,7 +69,7 @@ int main(int argc, char **argv)
 	/*NOTREACHED*/
     }
 
-    parse_server_conf(argc, argv, &new_argc, &new_argv);
+    parse_conf(argc, argv, &new_argc, &new_argv);
     my_argc = new_argc;
     my_argv = new_argv;
 
@@ -156,13 +156,10 @@ void handle_start(void)
 	ch = *s++;
 
 	skip_whitespace(s, ch);
-#define sc "date"
-	if(ch == '\0' || strncmp(s - 1, sc, SIZEOF(sc)-1) != 0) {
+	if(ch == '\0' || strncmp_const_skip(s - 1, "date", s, ch) != 0) {
 	    return;				/* ignore bogus line */
 	}
-	s += SIZEOF(sc) - 1;
-	ch = s[-1];
-#undef sc
+
 	skip_whitespace(s, ch);
 	if(ch == '\0') {
 	    return;

@@ -1,8 +1,39 @@
+Changes in release 2.5.2p1
+
+   * Many bugs fixed
+         o Many IPv6 bugs
+               + missing sockaddr_storage
+               + missing AI_V4MAPPED and AI_ALL
+               + compare of IPv4 and IPv6 v4mapped address.
+               + (bsd/bsdudp): server use two sockets,
+                  one for IPv4 and one for IPv6
+         o amflush/autoflush
+         o chown/chmod
+         o amstatus
+         o compilation on some platform
+         o others small bug
+
+Changes in release 2.5.2
+
+   * Many bugs fixed and code cleanup
+   * krb5 auth is working
+   * Works with IPv6 address
+   * Amanda configuration file changes
+         o amanda.conf changes
+               + debugging is enabled in the config file
+                 see all debug_* config option
+               + tapetype 'readblocksize', if maxtapeblocksize is set too
+                 larger for your hardware
+   * Amanda command changes
+         o amadmin: new 'holding list' and 'holding delete' subcommand.
+
 Changes in release 2.5.1p3
+
    * Many bugs fixed
    * amrecover improve handling of not ascii filename in index.
    * Works with tar-1.16 and exit status of 1.
    * Can define a LASTSLOT in a chg-disk config file.
+
 
 Changes in release 2.5.1p2
 

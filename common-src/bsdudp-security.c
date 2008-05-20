@@ -42,14 +42,6 @@
 
 #ifdef BSDUDP_SECURITY
 
-/*#define       BSDUDP_DEBUG*/
-
-#ifdef BSDUDP_DEBUG
-#define bsdudpprintf(x)    dbprintf(x)
-#else
-#define bsdudpprintf(x)
-#endif
-
 #ifndef SO_RCVBUF
 #undef DUMPER_SOCKET_BUFFERING
 #endif
@@ -59,12 +51,6 @@
  * of the security steps, e.g. into /tmp/amanda/amandad*debug.
  */
 #undef SHOW_SECURITY_DETAIL
-
-#if defined(TEST)						/* { */
-#define SHOW_SECURITY_DETAIL
-#undef bsdudpprintf
-#define bsdudpprintf(p)	printf p
-#endif								/* } */
 
 /*
  * Interface functions
@@ -97,14 +83,18 @@ const security_driver_t bsdudp_security_driver = {
     tcpm_stream_read_sync,
     tcpm_stream_read_cancel,
     sec_close_connection_none,
+    NULL,
+    NULL
 };
 
 /*
  * This is data local to the datagram socket.  We have one datagram
  * per process, so it is global.
  */
-static udp_handle_t netfd;
-static int not_init = 1;
+static udp_handle_t netfd4;
+static udp_handle_t netfd6;
+static int not_init4 = 1;
+static int not_init6 = 1;
 
 /* generate new handles from here */
 static unsigned int newhandle = 0;
@@ -122,12 +112,14 @@ bsdudp_connect(
 {
     struct sec_handle *bh;
     struct servent *se;
-    struct hostent *he;
     in_port_t port;
     struct timeval sequence_time;
     amanda_timezone dontcare;
     int sequence;
     char *handle;
+    int result;
+    struct addrinfo hints;
+    struct addrinfo *res = NULL;
 
     (void)conf_fn;	/* Quiet unused parameter warning */
     (void)datap;	/* Quiet unused parameter warning */
@@ -135,25 +127,61 @@ bsdudp_connect(
 
     bh = alloc(sizeof(*bh));
     bh->proto_handle=NULL;
-    bh->udp = &netfd;
     bh->rc = NULL;
     security_handleinit(&bh->sech, &bsdudp_security_driver);
+
+#ifdef WORKING_IPV6
+    hints.ai_flags = AI_CANONNAME | AI_V4MAPPED | AI_ALL;
+    hints.ai_family = AF_INET6;
+#else
+    hints.ai_flags = AI_CANONNAME;
+    hints.ai_family = AF_INET;
+#endif
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_protocol = IPPROTO_UDP;
+    hints.ai_addrlen = 0;
+    hints.ai_addr = NULL;
+    hints.ai_canonname = NULL;
+    hints.ai_next = NULL;
+    result = getaddrinfo(hostname, NULL, &hints, &res);
+#ifdef WORKING_IPV6
+    if (result != 0) {
+       hints.ai_flags = AI_CANONNAME;
+       hints.ai_family = AF_UNSPEC;
+       result = getaddrinfo(hostname, NULL, &hints, &res);
+    }
+#endif
+    if(result != 0) {
+        dbprintf(("getaddrinfo: %s\n", gai_strerror(result)));
+	security_seterror(&bh->sech, "getaddrinfo(%s): %s\n", hostname,
+			  gai_strerror(result));
+	(*fn)(arg, &bh->sech, S_ERROR);
+        return;
+    }
+    if (res->ai_canonname == NULL) {
+	dbprintf(("getaddrinfo(%s) did not return a canonical name\n", hostname));
+	security_seterror(&bh->sech,
+ 	        _("getaddrinfo(%s) did not return a canonical name\n"), hostname);
+	(*fn)(arg, &bh->sech, S_ERROR);
+       return;
+    }
 
     /*
      * Only init the socket once
      */
-    if (not_init == 1) {
+#ifdef WORKING_IPV6
+    if (res->ai_addr->sa_family == AF_INET6 && not_init6 == 1) {
 	uid_t euid;
-	dgram_zero(&netfd.dgram);
+	dgram_zero(&netfd6.dgram);
 	
 	euid = geteuid();
 	seteuid(0);
-	dgram_bind(&netfd.dgram, &port);
+	dgram_bind(&netfd6.dgram, res->ai_addr->sa_family, &port);
 	seteuid(euid);
-	netfd.handle = NULL;
-	netfd.pkt.body = NULL;
-	netfd.recv_security_ok = &bsd_recv_security_ok;
-	netfd.prefix_packet = &bsd_prefix_packet;
+	netfd6.handle = NULL;
+	netfd6.pkt.body = NULL;
+	netfd6.recv_security_ok = &bsd_recv_security_ok;
+	netfd6.prefix_packet = &bsd_prefix_packet;
 	/*
 	 * We must have a reserved port.  Bomb if we didn't get one.
 	 */
@@ -164,24 +192,56 @@ bsdudp_connect(
 	    (*fn)(arg, &bh->sech, S_ERROR);
 	    return;
 	}
-	not_init = 0;
+	not_init6 = 0;
+	bh->udp = &netfd6;
+    }
+#endif
+
+    if (res->ai_addr->sa_family == AF_INET && not_init4 == 1) {
+	uid_t euid;
+	dgram_zero(&netfd4.dgram);
+
+	euid = geteuid();
+	seteuid((uid_t)0);
+	dgram_bind(&netfd4.dgram, res->ai_addr->sa_family, &port);
+	seteuid(euid);
+	netfd4.handle = NULL;
+	netfd4.pkt.body = NULL;
+	netfd4.recv_security_ok = &bsd_recv_security_ok;
+	netfd4.prefix_packet = &bsd_prefix_packet;
+	/*
+	 * We must have a reserved port.  Bomb if we didn't get one.
+	 */
+	if (port >= IPPORT_RESERVED) {
+	    security_seterror(&bh->sech,
+		"unable to bind to a reserved port (got port %u)",
+		(unsigned int)port);
+	    (*fn)(arg, &bh->sech, S_ERROR);
+	    return;
+	}
+	not_init4 = 0;
+	bh->udp = &netfd4;
     }
 
-    if ((he = gethostbyname(hostname)) == NULL) {
-	security_seterror(&bh->sech,
-	    "%s: could not resolve hostname", hostname);
-	(*fn)(arg, &bh->sech, S_ERROR);
-	return;
-    }
-    if ((se = getservbyname(AMANDA_SERVICE_NAME, "udp")) == NULL)
-	port = (in_port_t)htons(AMANDA_SERVICE_DEFAULT);
+#ifdef WORKING_IPV6
+    if (res->ai_addr->sa_family == AF_INET6)
+	bh->udp = &netfd6;
     else
-	port = (in_port_t)se->s_port;
+#endif
+	bh->udp = &netfd4;
+
+    auth_debug(1, ("Resolved hostname=%s\n", res->ai_canonname));
+    if ((se = getservbyname(AMANDA_SERVICE_NAME, "udp")) == NULL)
+	port = AMANDA_SERVICE_DEFAULT;
+    else
+	port = (in_port_t)ntohs(se->s_port);
     amanda_gettimeofday(&sequence_time, &dontcare);
     sequence = (int)sequence_time.tv_sec ^ (int)sequence_time.tv_usec;
     handle=alloc(15);
     snprintf(handle,14,"000-%08x", newhandle++);
-    if (udp_inithandle(&netfd, bh, he, port, handle, sequence) < 0) {
+    if (udp_inithandle(bh->udp, bh, res->ai_canonname,
+		       (struct sockaddr_storage *)res->ai_addr, port,
+		       handle, sequence) < 0) {
 	(*fn)(arg, &bh->sech, S_ERROR);
 	amfree(bh->hostname);
 	amfree(bh);
@@ -189,6 +249,8 @@ bsdudp_connect(
 	(*fn)(arg, &bh->sech, S_OK);
     }
     amfree(handle);
+
+    freeaddrinfo(res);
 }
 
 /*
@@ -211,20 +273,21 @@ bsdudp_accept(
      * We assume in and out point to the same socket, and just use
      * in.
      */
-    dgram_socket(&netfd.dgram, in);
+    dgram_socket(&netfd4.dgram, in);
+    dgram_socket(&netfd6.dgram, in);
 
     /*
      * Assign the function and return.  When they call recvpkt later,
      * the recvpkt callback will call this function when it discovers
      * new incoming connections
      */
-    netfd.accept_fn = fn;
-    netfd.recv_security_ok = &bsd_recv_security_ok;
-    netfd.prefix_packet = &bsd_prefix_packet;
-    netfd.driver = &bsdudp_security_driver;
+    netfd4.accept_fn = fn;
+    netfd4.recv_security_ok = &bsd_recv_security_ok;
+    netfd4.prefix_packet = &bsd_prefix_packet;
+    netfd4.driver = &bsdudp_security_driver;
 
 
-    udp_addref(&netfd, &udp_netfd_read_callback);
+    udp_addref(&netfd4, &udp_netfd_read_callback);
 }
 
 /*
@@ -240,21 +303,27 @@ bsdudp_close(
 	return;
     }
 
-    bsdudpprintf(("%s: bsdudp: close handle '%s'\n",
-	       debug_prefix_time(NULL), bh->proto_handle));
+    auth_debug(1, ("%s: bsdudp: close handle '%s'\n",
+		   debug_prefix_time(NULL), bh->proto_handle));
 
     udp_recvpkt_cancel(bh);
     if(bh->next) {
 	bh->next->prev = bh->prev;
     }
     else {
-	netfd.bh_last = bh->prev;
+	if (!not_init6 && netfd6.bh_last == bh)
+	    netfd6.bh_last = bh->prev;
+	else
+	    netfd4.bh_last = bh->prev;
     }
     if(bh->prev) {
 	bh->prev->next = bh->next;
     }
     else {
-	netfd.bh_first = bh->next;
+	if (!not_init6 && netfd6.bh_first == bh)
+	    netfd6.bh_first = bh->next;
+	else
+	    netfd4.bh_first = bh->next;
     }
 
     amfree(bh->proto_handle);

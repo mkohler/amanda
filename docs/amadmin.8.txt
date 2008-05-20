@@ -23,8 +23,11 @@ COMMANDS
 Commands that take a hostname [ disks ] parameter pair operate on all disks in
 the disklist for that hostname if no disks are specified. Where hostname is
 also marked as being optional, the command operates on all hosts and disks in
-the disklist. Both hostname and disks are special expressions, see the "HOST &
+the disklist. Both hostname and disks are special expressions; see the "HOST &
 DISK EXPRESSION" section of amanda(8) for a description.
+Commands that take one or more dumpspec parameters operate on the set of dumps
+specified by all of the expressions. See the "DUMP SPECIFICATIONS" section of
+amanda(8) for a description.
 
 
   version
@@ -77,6 +80,15 @@ DISK EXPRESSION" section of amanda(8) for a description.
       An uppercase letter reverses the sort order for that key. The default
       sort order is hkdlpb.
 
+  holding delete hostname [ disk [ datestamp [ .. ] ] ]
+      Delete holding files matching the given specification. At least a
+      hostname must be provided.
+
+  holding list [-l] [ hostname [ disk [ datestamp [ .. ] ] ] ]
+      List holding files matching the given specification, or all holding files
+      if no specification is provided. With '-l', additional information (size
+      and level) is provided.
+
   delete [ hostname [ disks ]* ]+
       Delete the specified disks on hostname from the Amanda database.
 
@@ -113,7 +125,7 @@ DISK EXPRESSION" section of amanda(8) for a description.
       hosts). Mostly used for debugging.
 
   -o configoption
-      See the "CONFIGURATION OVERWRITE" section in amanda(8).
+      See the "CONFIGURATION OVERRIDE" section in amanda(8).
 
 
 EXAMPLES

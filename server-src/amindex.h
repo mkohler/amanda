@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: amindex.h,v 1.8.2.1 2006/11/24 18:05:06 martinea Exp $
+ * $Id: amindex.h,v 1.8 2006/05/25 01:47:19 johnfranks Exp $
  *
  * headers for index control
  */

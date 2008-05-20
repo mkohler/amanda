@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amflush.c,v 1.95.2.3 2007/02/01 19:25:15 martinea Exp $
+ * $Id: amflush.c,v 1.95 2006/07/25 21:41:24 martinea Exp $
  *
  * write files from work directory onto tape
  */
@@ -94,6 +94,7 @@ main(
     struct tm *tm;
     char *tapedev;
     char *tpchanger;
+    char *qdisk, *qhname;
 
     safe_fd(-1, 0);
     safe_cd();
@@ -112,7 +113,7 @@ main(
 
     /* process arguments */
 
-    parse_server_conf(main_argc, main_argv, &new_argc, &new_argv);
+    parse_conf(main_argc, main_argv, &new_argc, &new_argv);
     my_argc = new_argc;
     my_argv = new_argv;
 
@@ -267,7 +268,7 @@ main(
 	exit(1);
     }
 
-    holding_list = get_flush(datestamp_list, NULL, 1, 0);
+    holding_list = holding_get_files_for_flush(datestamp_list, 1);
     if(holding_list->first == NULL) {
 	printf("Could not find any valid dump image, check directory.\n");
 	exit(1);
@@ -276,8 +277,12 @@ main(
     if(!batch) confirm();
 
     for(dp = diskq.head; dp != NULL; dp = dp->next) {
-	if(dp->todo)
-	    log_add(L_DISK, "%s %s", dp->host->hostname, dp->name);
+	if(dp->todo) {
+	    char *qname;
+	    qname = quote_string(dp->name);
+	    log_add(L_DISK, "%s %s", dp->host->hostname, qname);
+	    amfree(qname);
+	}
     }
 
     if(!foreground) { /* write it before redirecting stdout */
@@ -331,7 +336,14 @@ main(
     fprintf(driver_stream, "DATE %s\n", amflush_timestamp);
     for(holding_file=holding_list->first; holding_file != NULL;
 				   holding_file = holding_file->next) {
-	get_dumpfile(holding_file->name, &file);
+	holding_file_get_dumpfile(holding_file->name, &file);
+
+	if (holding_file_size(holding_file->name, 1) <= 0) {
+	    log_add(L_INFO, "%s: removing file with no data.",
+		    holding_file->name);
+	    holding_file_unlink(holding_file->name);
+	    continue;
+	}
 
 	dp = lookup_disk(file.name, file.disk);
 	if (!dp) {
@@ -340,20 +352,24 @@ main(
 	}
 	if (dp->todo == 0) continue;
 
+	qdisk = quote_string(file.disk);
+	qhname = quote_string(holding_file->name);
 	fprintf(stderr,
 		"FLUSH %s %s %s %d %s\n",
 		file.name,
-		file.disk,
+		qdisk,
 		file.datestamp,
 		file.dumplevel,
-		holding_file->name);
+		qhname);
 	fprintf(driver_stream,
 		"FLUSH %s %s %s %d %s\n",
 		file.name,
-		file.disk,
+		qdisk,
 		file.datestamp,
 		file.dumplevel,
-		holding_file->name);
+		qhname);
+	amfree(qdisk);
+	amfree(qhname);
     }
     fprintf(stderr, "ENDFLUSH\n"); fflush(stderr);
     fprintf(driver_stream, "ENDFLUSH\n"); fflush(driver_stream);

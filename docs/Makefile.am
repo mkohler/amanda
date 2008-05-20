@@ -41,7 +41,6 @@ pkgdata_DATA = \
 	howto-auth.txt \
 	howto-cygwin.txt \
 	howto-filedriver.txt \
-	howto-gpg.txt \
 	howto-wrapper.txt \
 	howtos.txt \
 	index.txt \

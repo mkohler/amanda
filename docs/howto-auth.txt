@@ -37,11 +37,6 @@ Table of Contents
         For_amrecover:
 
 
-
-Note
-
-Refer to http://www.amanda.org/docs/howto-auth.html for the current version of
-this document.
 This document covers the use of the auth in Amanda 2.5.1 and higher.
 
 Introduction
@@ -188,6 +183,11 @@ For security reason, you must prefix all lines with the following:
 
 That will limit every client key to connect from the client and only be able to
 execute amandad.
+
+Note
+
+Refer to http://www.amanda.org/docs/howto-auth.html for the current version of
+this document.
 -------------------------------------------------------------------------------
 
 Prev                                      Up                           Next

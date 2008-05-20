@@ -23,7 +23,7 @@
  * Author: AMANDA core development group.
  */
 /*
- * $Id: file.c,v 1.40.2.1 2006/11/24 18:05:05 martinea Exp $
+ * $Id: file.c,v 1.40 2006/07/19 17:41:15 martinea Exp $
  *
  * file and directory bashing routines
  */
@@ -31,7 +31,6 @@
 #include "amanda.h"
 #include "util.h"
 
-void amanda_setup(int argc, char **argv, int setup_flags);
 static int mk1dir(const char *, mode_t, uid_t, gid_t);
 static void areads_getbuf(const char *s, int l, int fd);
 
@@ -54,8 +53,8 @@ mk1dir(
     int rc;	/* return code */
 
     if((rc = mkdir(dir, mode)) == 0) {
-	if ((rc = chmod(dir, mode)) == 0) { /* mkdir() affected by the umask */
-	    rc = chown(dir, uid, gid);
+	if ((rc = chown(dir, uid, gid)) == 0) { /* mkdir() affected by the umask */
+	    rc = chmod(dir, mode);
 	}
     } else {			/* maybe someone beat us to it */
 	int serrno;
@@ -155,28 +154,6 @@ rmpdir(
     return rc;
 }
 
-
-/*
- *=====================================================================
- * Do Amanda setup for all programs.
- *
- * void amanda_setup (int argc, char **argv, int setup_flags)
- *
- * entry:	setup_flags (see AMANDA_SETUP_FLAG_xxx)
- * exit:	none
- *=====================================================================
- */
-
-void
-amanda_setup (
-    int		argc,
-    char **	argv,
-    int		setup_flags)
-{
-    (void)argc;		/* Quiet unused parameter warning */
-    (void)argv;		/* Quiet unused parameter warning */
-    (void)setup_flags;	/* Quiet unused parameter warning */
-}
 
 /*
  *=====================================================================

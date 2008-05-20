@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amrestore.c,v 1.63.2.1 2006/11/08 17:11:40 martinea Exp $
+ * $Id: amrestore.c,v 1.63 2006/07/25 18:58:10 martinea Exp $
  *
  * retrieves files from an amanda tape
  */

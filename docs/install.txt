@@ -33,11 +33,6 @@ Table of Contents
         Set_up_the_Backup_Client_Hosts
 
 
-
-Note
-
-Refer to http://www.amanda.org/docs/install.html for the current version of
-this document.
 This document covers the compilation, installation, and runtime setup of Amanda
 2.4.2 and higher.
 
@@ -445,6 +440,11 @@ Before writing questions, you may prefer to take a look at the Amanda_FAQ and
 at the Amanda home page, at http://www.amanda.org. Browsable archives of Amanda
 mailing-lists are available at http://marc.theaimsgroup.com/?l=amanda-users and
 http://marc.theaimsgroup.com/?l=amanda-hackers.
+
+Note
+
+Refer to http://www.amanda.org/docs/install.html for the current version of
+this document.
 -------------------------------------------------------------------------------
 
 Prev                                       Up                   Next

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: changer.c,v 1.36.2.2 2007/01/25 19:47:37 martinea Exp $
+ * $Id: changer.c,v 1.36 2006/08/24 01:57:16 paddy_s Exp $
  *
  * interface routines for tape changers
  */

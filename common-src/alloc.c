@@ -34,6 +34,7 @@
 #include "arglist.h"
 #include "queue.h"
 
+#define MIN_ALLOC 64
 static char *internal_vstralloc(const char *, va_list);
 
 /*
@@ -384,6 +385,43 @@ arglist_function1(
 
 
 /*
+ * vstrallocf - copies printf formatted string into newly allocated memory.
+ */
+char *
+debug_vstrallocf(
+    const char *fmt,
+    ...)
+{
+    char *      result;
+    size_t      size;
+    va_list     argp;
+
+    debug_alloc_pop();
+    malloc_enter(debug_caller_loc(saved_file, saved_line));
+
+    result = debug_alloc(saved_file, saved_line, MIN_ALLOC);
+    if (result != NULL) {
+
+	arglist_start(argp, fmt);
+	size = vsnprintf(result, MIN_ALLOC, fmt, argp);
+	arglist_end(argp);
+
+	if (size >= (size_t)MIN_ALLOC) {
+	    amfree(result);
+	    result = debug_alloc(saved_file, saved_line, size + 1);
+
+	    arglist_start(argp, fmt);
+	    (void)vsnprintf(result, size + 1, fmt, argp);
+	    arglist_end(argp);
+	}
+    }
+
+    malloc_leave(debug_caller_loc(saved_file, saved_line));
+    return result;
+}
+
+extern char **environ;
+/*
  * safe_env - build a "safe" environment list.
  */
 char **
@@ -415,6 +453,27 @@ safe_env(void)
     char *s;
     char *v;
     size_t l1, l2;
+    char **env;
+    int    env_cnt;
+
+    if (getuid() == geteuid() && getgid() == getegid()) {
+	env_cnt = 1;
+	for (env = environ; *env != NULL; env++)
+	    env_cnt++;
+	if ((q = (char **)malloc(env_cnt*SIZEOF(char *))) != NULL) {
+	    envp = q;
+	    p = envp;
+	    for (env = environ; *env != NULL; env++) {
+		if (strncmp("LANG=", *env, 5) != 0 &&
+		    strncmp("LC_", *env, 3) != 0) {
+		    *p = stralloc(*env);
+		    p++;
+		}
+	    }
+	    *p = NULL;
+	}
+	return envp;
+    }
 
     if ((q = (char **)malloc(SIZEOF(safe_env_list))) != NULL) {
 	envp = q;

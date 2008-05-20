@@ -43,6 +43,41 @@ DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 	ChangeLog INSTALL NEWS
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
+	$(top_srcdir)/config/gnulib/absolute-header.m4 \
+	$(top_srcdir)/config/gnulib/alloca.m4 \
+	$(top_srcdir)/config/gnulib/arpa_inet_h.m4 \
+	$(top_srcdir)/config/gnulib/eoverflow.m4 \
+	$(top_srcdir)/config/gnulib/extensions.m4 \
+	$(top_srcdir)/config/gnulib/getaddrinfo.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-cache.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-common.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-comp.m4 \
+	$(top_srcdir)/config/gnulib/gnulib-tool.m4 \
+	$(top_srcdir)/config/gnulib/inet_ntop.m4 \
+	$(top_srcdir)/config/gnulib/intmax_t.m4 \
+	$(top_srcdir)/config/gnulib/inttypes_h.m4 \
+	$(top_srcdir)/config/gnulib/lib-ld.m4 \
+	$(top_srcdir)/config/gnulib/lib-link.m4 \
+	$(top_srcdir)/config/gnulib/lib-prefix.m4 \
+	$(top_srcdir)/config/gnulib/lock.m4 \
+	$(top_srcdir)/config/gnulib/longdouble.m4 \
+	$(top_srcdir)/config/gnulib/longlong.m4 \
+	$(top_srcdir)/config/gnulib/netinet_in_h.m4 \
+	$(top_srcdir)/config/gnulib/onceonly_2_57.m4 \
+	$(top_srcdir)/config/gnulib/size_max.m4 \
+	$(top_srcdir)/config/gnulib/snprintf.m4 \
+	$(top_srcdir)/config/gnulib/socklen.m4 \
+	$(top_srcdir)/config/gnulib/sockpfaf.m4 \
+	$(top_srcdir)/config/gnulib/stdbool.m4 \
+	$(top_srcdir)/config/gnulib/stdint_h.m4 \
+	$(top_srcdir)/config/gnulib/strdup.m4 \
+	$(top_srcdir)/config/gnulib/string_h.m4 \
+	$(top_srcdir)/config/gnulib/sys_socket_h.m4 \
+	$(top_srcdir)/config/gnulib/vasnprintf.m4 \
+	$(top_srcdir)/config/gnulib/visibility.m4 \
+	$(top_srcdir)/config/gnulib/wchar_t.m4 \
+	$(top_srcdir)/config/gnulib/wint_t.m4 \
+	$(top_srcdir)/config/gnulib/xsize.m4 \
 	$(top_srcdir)/configure.in
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
@@ -70,9 +105,9 @@ pkgdataDATA_INSTALL = $(INSTALL_DATA)
 DATA = $(pkgdata_DATA)
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = config common-src amandad-src tape-src client-src \
-	dumper-src server-src changer-src restore-src recover-src \
-	oldrecover-src amplot man docs example
+DIST_SUBDIRS = gnulib config common-src amandad-src tape-src \
+	client-src dumper-src server-src changer-src restore-src \
+	recover-src oldrecover-src amplot man docs example
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -84,8 +119,10 @@ DIST_ARCHIVES = $(distdir).tar.gz
 GZIP_ENV = --best
 distuninstallcheck_listfiles = find . -type f -print
 distcleancheck_listfiles = find . -type f -print
+ABSOLUTE_STRING_H = @ABSOLUTE_STRING_H@
 ACLOCAL = @ACLOCAL@
 ALLOCA = @ALLOCA@
+ALLOCA_H = @ALLOCA_H@
 AMANDA_DBGDIR = @AMANDA_DBGDIR@
 AMANDA_DEBUG_DAYS = @AMANDA_DEBUG_DAYS@
 AMANDA_TMPDIR = @AMANDA_TMPDIR@
@@ -100,18 +137,17 @@ AMPLOT_COMPRESS = @AMPLOT_COMPRESS@
 AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
 AR = @AR@
+ARPA_INET_H = @ARPA_INET_H@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
-AWK_VAR_ASSIGNMENT_OPT = @AWK_VAR_ASSIGNMENT_OPT@
 BINARY_OWNER = @BINARY_OWNER@
-BUILD_MAN_PAGES_FALSE = @BUILD_MAN_PAGES_FALSE@
-BUILD_MAN_PAGES_TRUE = @BUILD_MAN_PAGES_TRUE@
 CAT = @CAT@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CFLAG_VISIBILITY = @CFLAG_VISIBILITY@
 CHIO = @CHIO@
 CHS = @CHS@
 CLIENT_LOGIN = @CLIENT_LOGIN@
@@ -144,18 +180,40 @@ ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
+ENABLE_MANPAGE_BUILD_FALSE = @ENABLE_MANPAGE_BUILD_FALSE@
+ENABLE_MANPAGE_BUILD_TRUE = @ENABLE_MANPAGE_BUILD_TRUE@
+EOVERFLOW = @EOVERFLOW@
+EXAMPLE_TAPEDEV = @EXAMPLE_TAPEDEV@
 EXEEXT = @EXEEXT@
 F77 = @F77@
 FFLAGS = @FFLAGS@
+GCC_COMPILER_FALSE = @GCC_COMPILER_FALSE@
+GCC_COMPILER_TRUE = @GCC_COMPILER_TRUE@
 GETCONF = @GETCONF@
+GL_COND_LIBTOOL_FALSE = @GL_COND_LIBTOOL_FALSE@
+GL_COND_LIBTOOL_TRUE = @GL_COND_LIBTOOL_TRUE@
 GNUPLOT = @GNUPLOT@
 GNUTAR = @GNUTAR@
 GNUTAR_LISTED_INCREMENTAL_DIR = @GNUTAR_LISTED_INCREMENTAL_DIR@
 GNUTAR_LISTED_INCREMENTAL_DIRX = @GNUTAR_LISTED_INCREMENTAL_DIRX@
 GREP = @GREP@
 GZIP = @GZIP@
-HAVE_XSLTPROC_FALSE = @HAVE_XSLTPROC_FALSE@
-HAVE_XSLTPROC_TRUE = @HAVE_XSLTPROC_TRUE@
+HAVE_DECL_MEMMEM = @HAVE_DECL_MEMMEM@
+HAVE_DECL_MEMRCHR = @HAVE_DECL_MEMRCHR@
+HAVE_DECL_STRDUP = @HAVE_DECL_STRDUP@
+HAVE_DECL_STRNCASECMP = @HAVE_DECL_STRNCASECMP@
+HAVE_DECL_STRNDUP = @HAVE_DECL_STRNDUP@
+HAVE_DECL_STRNLEN = @HAVE_DECL_STRNLEN@
+HAVE_DECL_STRTOK_R = @HAVE_DECL_STRTOK_R@
+HAVE_MEMPCPY = @HAVE_MEMPCPY@
+HAVE_STPCPY = @HAVE_STPCPY@
+HAVE_STPNCPY = @HAVE_STPNCPY@
+HAVE_STRCHRNUL = @HAVE_STRCHRNUL@
+HAVE_STRNDUP = @HAVE_STRNDUP@
+HAVE_STRPBRK = @HAVE_STRPBRK@
+HAVE_STRSEP = @HAVE_STRSEP@
+HAVE_VISIBILITY = @HAVE_VISIBILITY@
+HAVE__BOOL = @HAVE__BOOL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
@@ -164,22 +222,31 @@ LDFLAGS = @LDFLAGS@
 LEX = @LEX@
 LEXLIB = @LEXLIB@
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
+LIBMULTITHREAD = @LIBMULTITHREAD@
 LIBOBJS = @LIBOBJS@
+LIBPTH = @LIBPTH@
+LIBPTH_PREFIX = @LIBPTH_PREFIX@
 LIBS = @LIBS@
+LIBTHREAD = @LIBTHREAD@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
 LL_FMT = @LL_FMT@
 LL_RFMT = @LL_RFMT@
 LN_S = @LN_S@
 LTALLOCA = @LTALLOCA@
+LTLIBMULTITHREAD = @LTLIBMULTITHREAD@
 LTLIBOBJS = @LTLIBOBJS@
+LTLIBPTH = @LTLIBPTH@
+LTLIBTHREAD = @LTLIBTHREAD@
 MAILER = @MAILER@
 MAKEINFO = @MAKEINFO@
 MAXTAPEBLOCKSIZE = @MAXTAPEBLOCKSIZE@
 MCUTIL = @MCUTIL@
+MKDIR_P = @MKDIR_P@
 MT = @MT@
 MTX = @MTX@
 MT_FILE_FLAG = @MT_FILE_FLAG@
+NETINET_IN_H = @NETINET_IN_H@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
@@ -193,6 +260,9 @@ PERL = @PERL@
 PRINT = @PRINT@
 RANLIB = @RANLIB@
 READLINE_LIBS = @READLINE_LIBS@
+REPLACE_STRCASECMP = @REPLACE_STRCASECMP@
+REPLACE_STRCASESTR = @REPLACE_STRCASESTR@
+REPLACE_STRSTR = @REPLACE_STRSTR@
 RESTORE = @RESTORE@
 SAMBA_CLIENT = @SAMBA_CLIENT@
 SERVICE_SUFFIX = @SERVICE_SUFFIX@
@@ -201,7 +271,10 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SNAPSHOT_STAMP = @SNAPSHOT_STAMP@
 SORT = @SORT@
+SSH = @SSH@
+STDBOOL_H = @STDBOOL_H@
 STRIP = @STRIP@
+SYS_SOCKET_H = @SYS_SOCKET_H@
 USE_VERSION_SUFFIXES = @USE_VERSION_SUFFIXES@
 VDUMP = @VDUMP@
 VERSION = @VERSION@
@@ -240,6 +313,7 @@ WANT_TAPE_TRUE = @WANT_TAPE_TRUE@
 XFSDUMP = @XFSDUMP@
 XFSRESTORE = @XFSRESTORE@
 XSLTPROC = @XSLTPROC@
+XSLTPROC_FLAGS = @XSLTPROC_FLAGS@
 YACC = @YACC@
 ac_c = @ac_c@
 ac_ct_AR = @ac_ct_AR@
@@ -266,6 +340,8 @@ build_os = @build_os@
 build_vendor = @build_vendor@
 datadir = @datadir@
 exec_prefix = @exec_prefix@
+gl_LIBOBJS = @gl_LIBOBJS@
+gl_LTLIBOBJS = @gl_LTLIBOBJS@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -294,7 +370,8 @@ AUTOMAKE_OPTIONS = 1.4 foreign
 ACINCLUDE_M4 = $(srcdir)/acinclude.m4
 ACINCLUDE_M4I = $(srcdir)/config/acinclude.m4i
 LIBTOOL_M4I = $(srcdir)/config/libtool.m4i
-ACINCLUDE_M4_DEPS = $(ACINCLUDE_M4I) $(LIBTOOL_M4I)
+GNULIB_M4I = $(srcdir)/config/gnulib.m4i
+ACINCLUDE_M4_DEPS = $(GNULIB_M4I) $(ACINCLUDE_M4I) $(LIBTOOL_M4I)
 @WANT_CLIENT_TRUE@CLIENT_SUBDIRS = client-src dumper-src
 @WANT_TAPE_TRUE@TAPE_SUBDIRS = tape-src
 @WANT_SERVER_TRUE@SERVER_SUBDIRS = server-src changer-src
@@ -303,6 +380,7 @@ ACINCLUDE_M4_DEPS = $(ACINCLUDE_M4I) $(LIBTOOL_M4I)
 @WANT_AMPLOT_TRUE@PLOT_SUBDIRS = amplot
 # order is significant, don't change it arbitrarily
 SUBDIRS = \
+	gnulib \
 	config \
 	common-src \
 	amandad-src \
@@ -316,9 +394,7 @@ SUBDIRS = \
 
 pkgdata_DATA = \
 	ReleaseNotes			\
-	COPYRIGHT			\
-	COPYRIGHT-APACHE		\
-	COPYRIGHT-REGEX
+	COPYRIGHT
 
 EXTRA_DIST = $(SNAPSHOT_STAMP) \
 	$(pkgdata_DATA)			\
@@ -341,30 +417,7 @@ EXTRA_DIST = $(SNAPSHOT_STAMP) \
 	contrib/gsc/ucfggsc.c		\
 	patches/regex-3.6alpha.patch	\
 	patches/samba-largefs.patch	\
-	patches/tar-1.12.patch		\
-	regex-src/COPYRIGHT		\
-	regex-src/Makefile 		\
-	regex-src/README		\
-	regex-src/WHATSNEW 		\
-	regex-src/cclass.h		\
-	regex-src/cname.h		\
-	regex-src/debug.c		\
-	regex-src/engine.c		\
-	regex-src/main.c		\
-	regex-src/mkh			\
-	regex-src/regcomp.c		\
-	regex-src/regerror.c		\
-	regex-src/regex.3		\
-	regex-src/regex.7		\
-	regex-src/regex2.h		\
-	regex-src/regexec.c		\
-	regex-src/regfree.c		\
-	regex-src/split.c		\
-	regex-src/tests			\
-	regex-src/utils.h		\
-	regex-src/fake/limits.h		\
-	regex-src/fake/memmove.c	\
-	regex-src/fake/stdlib.h
+	patches/tar-1.12.patch
 
 CONFIG_STATUS = config.status
 all: all-recursive
@@ -566,7 +619,7 @@ distclean-tags:
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/amplot $(distdir)/changer-src $(distdir)/client-src $(distdir)/common-src $(distdir)/contrib $(distdir)/contrib/gsc $(distdir)/dumper-src $(distdir)/example $(distdir)/patches $(distdir)/regex-src $(distdir)/regex-src/fake $(distdir)/server-src
+	$(mkdir_p) $(distdir)/amplot $(distdir)/changer-src $(distdir)/client-src $(distdir)/common-src $(distdir)/config/gnulib $(distdir)/contrib $(distdir)/contrib/gsc $(distdir)/dumper-src $(distdir)/example $(distdir)/patches $(distdir)/server-src
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
@@ -826,7 +879,6 @@ lint:
 	(cd common-src; make lint)
 	(cd oldrecover-src; make lint)
 	(cd recover-src; make lint)
-	(cd regex-src; make lint)
 	(cd restore-src; make lint)
 	(cd server-src; make lint)
 	(cd tape-src; make lint)

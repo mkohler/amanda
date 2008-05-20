@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: logfile.c,v 1.31.2.1 2006/09/22 11:02:13 martinea Exp $
+ * $Id: logfile.c,v 1.31 2006/06/01 14:54:39 martinea Exp $
  *
  * common log file writing routine
  */

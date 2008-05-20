@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amanda.h,v 1.131.2.5 2006/12/12 14:56:38 martinea Exp $
+ * $Id: amanda.h,v 1.131 2006/07/25 18:27:56 martinea Exp $
  *
  * the central header file included by all amanda sources
  */
@@ -266,6 +266,94 @@ struct iovec {
 
 #ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
+#endif
+
+#ifndef HAVE_SOCKADDR_STORAGE
+#  define sockaddr_storage sockaddr_in
+#  define ss_family sin_family
+#endif
+
+#ifndef INET_ADDRSTRLEN
+#define INET_ADDRSTRLEN 16
+#endif
+
+/* Calculate the length of the data in a struct sockaddr_storage.
+ * THIS IS A HACK.
+ *
+ * To be truly portable, the length of an address should be passed
+ * in a companion variable.  When such lengths are available
+ * everywhere they are needed, this macro should be removed.
+ */
+#ifdef WORKING_IPV6
+# define SS_LEN(ss) (((struct sockaddr *)(ss))->sa_family==AF_INET6?sizeof(struct sockaddr_in6):sizeof(struct sockaddr_in))
+#else
+# define SS_LEN(ss) (sizeof(struct sockaddr_in))
+#endif
+
+
+/* AF_NATIVE is the "best" address family we support, backward compatible
+ * through to AF_INET.
+ */
+#ifdef WORKING_IPV6
+#define AF_NATIVE AF_INET6
+#else
+#define AF_NATIVE AF_INET
+#endif
+
+/* SS_INIT(ss, family) initializes ss to all zeroes (as directed by RFC),
+ * and sets its ss_family as specified
+ */
+#define SS_INIT(ss, family) do { \
+    memset((ss), 0, sizeof(*(ss))); \
+    (ss)->ss_family = (family); \
+} while (0);
+
+/* SS_SET_INADDR_ANY(ss) sets ss to the family-appropriate equivalent of
+ * INADDR_ANY, a wildcard address and port.
+ */
+#ifdef WORKING_IPV6
+#define SS_SET_INADDR_ANY(ss) do { \
+    switch ((ss)->ss_family) { \
+        case AF_INET6: \
+            ((struct sockaddr_in6 *)(ss))->sin6_flowinfo = 0; \
+            ((struct sockaddr_in6 *)(ss))->sin6_addr = in6addr_any; \
+            break; \
+        case AF_INET: \
+            ((struct sockaddr_in *)(ss))->sin_addr.s_addr = INADDR_ANY; \
+            break; \
+    } \
+} while (0);
+#else
+#define SS_SET_INADDR_ANY(ss) do { \
+    ((struct sockaddr_in *)(ss))->sin_addr.s_addr = INADDR_ANY; \
+} while (0);
+#endif
+
+/* Set/get the port in a sockaddr_storage that already has an family */
+#ifdef WORKING_IPV6
+#define SS_SET_PORT(ss, port) \
+switch ((ss)->ss_family) { \
+    case AF_INET: \
+        ((struct sockaddr_in *)(ss))->sin_port = (in_port_t)htons((port)); \
+        break; \
+    case AF_INET6: \
+        ((struct sockaddr_in6 *)(ss))->sin6_port = (in_port_t)htons((port)); \
+        break; \
+    default: assert(0); \
+}
+#else
+#define SS_SET_PORT(ss, port) \
+        ((struct sockaddr_in *)(ss))->sin_port = (in_port_t)htons((port));
+#endif
+
+#ifdef WORKING_IPV6
+#define SS_GET_PORT(ss) (ntohs( \
+       (ss)->ss_family == AF_INET6? \
+        ((struct sockaddr_in6 *)(ss))->sin6_port \
+       :((struct sockaddr_in *)(ss))->sin_port))
+#else
+#define SS_GET_PORT(ss) (ntohs( \
+        ((struct sockaddr_in *)(ss))->sin_port))
 #endif
 
 /*
@@ -539,9 +627,12 @@ extern void debug_alloc_pop (void);
 
 #define vstralloc debug_alloc_push(__FILE__,__LINE__)?0:debug_vstralloc
 #define newvstralloc debug_alloc_push(__FILE__,__LINE__)?0:debug_newvstralloc
+#define vstrallocf debug_alloc_push(__FILE__,__LINE__)?0:debug_vstrallocf
 
 extern char  *debug_vstralloc(const char *str, ...);
 extern char  *debug_newvstralloc(char *oldstr, const char *newstr, ...);
+extern char  *debug_vstrallocf(const char *fmt, ...)
+			       __attribute__ ((format (printf, 1, 2)));
 
 #define	stralloc2(s1,s2)      vstralloc((s1),(s2),NULL)
 #define	newstralloc2(p,s1,s2) newvstralloc((p),(s1),(s2),NULL)
@@ -730,6 +821,12 @@ void	areads_relbuf(int fd);
  *    -- skip an integer field
  *  skip_line (ptr, var)
  *    -- skip just past the next newline
+ *  strncmp_const (str, const_str)
+ *    -- compare str to const_str, a string constant
+ *  strncmp_const_skip (str, const_var, ptr, var)
+ *    -- like strncmp_const, but skip the string if a match is
+ *       found; this macro only tests for equality, discarding
+ *       ordering information.
  *
  * where:
  *
@@ -844,6 +941,15 @@ void	areads_relbuf(int fd);
      && ((s)[1] == '\0'							\
 	 || ((s)[1] == '.' && (s)[2] == '\0')))
 
+#define strncmp_const(str, cnst)					\
+	strncmp((str), (cnst), sizeof((cnst))-1)
+
+/* (have to roll this up in an expression, so it can be used in if()) */
+#define strncmp_const_skip(str, cnst, ptr, var)				\
+	((strncmp((str), (cnst), sizeof((cnst))-1) == 0)?		\
+		 ((ptr)+=sizeof((cnst))-1, (var)=(ptr)[-1], 0)		\
+		:1)
+
 /* from amflock.c */
 extern int    amflock(int fd, char *resource);
 extern int    amroflock(int fd, char *resource);
@@ -857,7 +963,7 @@ extern char  *old_sanitise_filename(char *inp);
 
 /* from old bsd-security.c */
 extern int debug;
-extern int check_security(struct sockaddr_in *, char *, unsigned long, char **);
+extern int check_security(struct sockaddr_storage *, char *, unsigned long, char **);
 
 /*
  * Handle functions which are not always declared on all systems.  This
@@ -1244,6 +1350,12 @@ extern int vfprintf(FILE *stream, const char *format, va_list ap);
 extern int vprintf(const char *format, va_list ap);
 #endif
 
+/* GNULIB include */
+#ifndef CONFIGURE_TEST
+#include "getaddrinfo.h"
+#include "inet_ntop.h"
+#endif
+
 #if !defined(S_ISCHR) && defined(_S_IFCHR) && defined(_S_IFMT)
 #define S_ISCHR(mode) (((mode) & _S_IFMT) == _S_IFCHR)
 #endif
@@ -1465,5 +1577,21 @@ void	add_history(const char *line);
 #define DBG_SUBDIR_SERVER  "server"
 #define DBG_SUBDIR_CLIENT  "client"
 #define DBG_SUBDIR_AMANDAD "amandad"
+
+#define MAX_DUMPERS 63
+
+#ifndef NI_MAXHOST
+#define NI_MAXHOST 1025
+#endif
+
+#define _(x) x
+
+#ifndef AI_V4MAPPED
+#define AI_V4MAPPED 0
+#endif
+
+#ifndef AI_ALL
+#define AI_ALL 0
+#endif
 
 #endif	/* !AMANDA_H */

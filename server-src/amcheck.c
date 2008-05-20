@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amcheck.c,v 1.149.2.10 2007/02/05 18:54:13 martinea Exp $
+ * $Id: amcheck.c,v 1.149 2006/08/24 01:57:16 paddy_s Exp $
  *
  * checks for common problems in server and clients
  */
@@ -141,7 +141,7 @@ main(
     server_probs = client_probs = 0;
     tempfd = mainfd = -1;
 
-    parse_server_conf(argc, argv, &new_argc, &new_argv);
+    parse_conf(argc, argv, &new_argc, &new_argv);
     my_argc = new_argc;
     my_argv = new_argv;
 
@@ -244,7 +244,7 @@ main(
       }
     }
 
-    conf_ctimeout = getconf_int(CNF_CTIMEOUT);
+    conf_ctimeout = (time_t)getconf_int(CNF_CTIMEOUT);
 
     conf_diskfile = getconf_str(CNF_DISKFILE);
     if (*conf_diskfile == '/') {
@@ -481,7 +481,7 @@ main(
 		    error("mailfd write: %s", strerror(errno));
 		    /*NOTREACHED*/
 		} else {
-		    error("mailfd write: wrote %zd instead of %zd", w, r);
+		    error("mailfd write: wrote " SSIZE_T_FMT " instead of " SIZE_T_FMT, w, r);
 		    /*NOTREACHED*/
 		}
 	    }
@@ -601,6 +601,9 @@ start_server_check(
     int testtape = do_tapechk;
     tapetype_t *tp = NULL;
     char *quoted;
+    int res;
+    struct addrinfo *gaires;
+    struct addrinfo hints;
 
     switch(pid = fork()) {
     case -1:
@@ -668,10 +671,32 @@ start_server_check(
 #endif
 	}
 
-	/* check that localhost is resolvable */
-	if ((gethostbyname("localhost")) == NULL) {
-	    fprintf(outf, "ERROR: Cannot resolve `localhost'.\n");
+	/* Double-check that 'localhost' resolves properly */
+#ifdef WORKING_IPV6
+	hints.ai_flags = AI_CANONNAME | AI_V4MAPPED | AI_ALL;
+	hints.ai_family = AF_UNSPEC;
+#else
+	hints.ai_flags = AI_CANONNAME;
+	hints.ai_family = AF_INET;
+#endif
+	hints.ai_socktype = 0;
+	hints.ai_protocol = 0;
+	hints.ai_addrlen = 0;
+	hints.ai_addr = NULL;
+	hints.ai_canonname = NULL;
+	hints.ai_next = NULL;
+	res = getaddrinfo("localhost", NULL, &hints, &gaires);
+#ifdef WORKING_IPV6
+	if (res != 0) {
+	    hints.ai_flags = AI_CANONNAME;
+	    hints.ai_family = AF_UNSPEC;
+	    res = getaddrinfo("localhost", NULL, &hints, &gaires);
 	}
+#endif
+	if (res != 0) {
+	    fprintf(outf, _("ERROR: Cannot resolve `localhost': %s\n"), gai_strerror(res));
+	}
+	if (gaires) freeaddrinfo(gaires);
     }
 
     /*
@@ -809,7 +834,7 @@ start_server_check(
 		testtape = 0;
 		do_tapechk = 0;
 	    }
-	} else if (strncmp(tapename, "null:", 5) == 0) {
+	} else if (strncmp_const(tapename, "null:") == 0) {
 	    fprintf(outf,
 		    "WARNING: tapedev is %s, dumps will be thrown away\n",
 		    tapename);
@@ -926,7 +951,7 @@ start_server_check(
 
 	if(access(logfile, F_OK) == 0) {
 	    testtape = 0;
-	    logbad = 1;
+	    logbad = 2;
 	    if(access(logfile, W_OK) != 0) {
 		quoted = quote_string(logfile);
 		fprintf(outf, "ERROR: log file %s: not writable\n", quoted);
@@ -940,14 +965,17 @@ start_server_check(
 	    if(!(S_ISDIR(stat_old.st_mode))) {
 		fprintf(outf, "ERROR: oldlog directory %s is not a directory\n",
 			quoted);
+		logbad = 1;
 	    }
 	    if(access(olddir, W_OK) == -1) {
 		fprintf(outf, "ERROR: oldlog dir %s: not writable\n", quoted);
+		logbad = 1;
 	    }
 	}
 	else if(lstat(olddir,&stat_old) == 0) {
 	    fprintf(outf, "ERROR: oldlog directory %s is not a directory\n",
 		    quoted);
+	    logbad = 1;
 	}
 	amfree(quoted);
 
@@ -955,7 +983,7 @@ start_server_check(
 	    logfile = newvstralloc(logfile, conf_logdir, "/amdump", NULL);
 	    if (access(logfile, F_OK) == 0) {
 		testtape = 0;
-		logbad = 1;
+		logbad = 2;
 	    }
 	}
 
@@ -983,14 +1011,17 @@ start_server_check(
 	    if (tape_access(tapename,F_OK) == -1) {
 		fprintf(outf, "ERROR: Can't access device %s: %s\n", tapename,
 			strerror(errno));
+		tapebad = 1;
 	    }
 	    if (tape_access(tapename,R_OK) == -1) {
 		fprintf(outf, "ERROR: Can't read device %s: %s\n", tapename,
 			strerror(errno));
+		tapebad = 1;
 	    }
 	    if (tape_access(tapename,W_OK) == -1) {
 		fprintf(outf, "ERROR: Can't write to device %s: %s\n", tapename,
 			strerror(errno));
+		tapebad = 1;
 	    }
 	}
         if (tape_status < 0) {
@@ -1036,6 +1067,9 @@ start_server_check(
 	amfree(tapename);
     } else if (do_tapechk) {
 	fprintf(outf, "WARNING: skipping tape test because amdump or amflush seem to be running\n");
+	fprintf(outf, "WARNING: if they are not, you must run amcleanup\n");
+    } else if (logbad == 2) {
+	fprintf(outf, "WARNING: amdump or amflush seem to be running\n");
 	fprintf(outf, "WARNING: if they are not, you must run amcleanup\n");
     } else {
 	fprintf(outf, "NOTE: skipping tape checks\n");
@@ -1094,6 +1128,7 @@ start_server_check(
 	    } else {
 		fprintf(outf, "ERROR: conf info dir %s (%s)\n",
 			quoted, strerror(errno));
+		infobad = 1;
 	    }	
 	    amfree(conf_infofile);
 	} else if (!S_ISDIR(statbuf.st_mode)) {
@@ -1108,6 +1143,7 @@ start_server_check(
 	    char *errmsg = NULL;
 	    if (check_infofile(conf_infofile, &origq, &errmsg) == -1) {
 		fprintf(outf, "ERROR: Can't copy infofile: %s\n", errmsg);
+		infobad = 1;
 		amfree(errmsg);
 	    }
 	    strappend(conf_infofile, "/");
@@ -1131,6 +1167,7 @@ start_server_check(
 		    } else {
 			fprintf(outf, "ERROR: host info dir %s (%s)\n",
 				quoted, strerror(errno));
+			infobad = 1;
 		    }	
 		    amfree(hostinfodir);
 		} else if (!S_ISDIR(statbuf.st_mode)) {
@@ -1167,6 +1204,7 @@ start_server_check(
 			} else {
 			    fprintf(outf, "ERROR: info dir %s (%s)\n",
 				    quoted, strerror(errno));
+			    infobad = 1;
 			}	
 		    } else if (!S_ISDIR(statbuf.st_mode)) {
 			fprintf(outf, "ERROR: info dir %s: not a directory\n",
@@ -1183,7 +1221,8 @@ start_server_check(
 			    fprintf(outf, "NOTE: it will be created on the next run.\n");
 			} else {
 			    fprintf(outf, "ERROR: info dir %s (%s)\n",
-				quoted, strerror(errno));
+				    quoted, strerror(errno));
+			    infobad = 1;
 			}	
 		    } else if (!S_ISREG(statbuf.st_mode)) {
 			fprintf(outf, "ERROR: info file %s: not a file\n",
@@ -1205,11 +1244,12 @@ start_server_check(
 			if(stat(conf_indexdir, &statbuf) == -1) {
 			    if (errno == ENOENT) {
 				fprintf(outf, "NOTE: index dir %s does not exist\n",
-				    quoted);
+				        quoted);
 				fprintf(outf, "NOTE: it will be created on the next run.\n");
 			    } else {
 				fprintf(outf, "ERROR: index dir %s (%s)\n",
 					quoted, strerror(errno));
+				indexbad = 1;
 			    }	
 			    amfree(conf_indexdir);
 			} else if (!S_ISDIR(statbuf.st_mode)) {
@@ -1235,11 +1275,12 @@ start_server_check(
 			    if(stat(hostindexdir, &statbuf) == -1) {
 				if (errno == ENOENT) {
 				    fprintf(outf, "NOTE: index dir %s does not exist\n",
-				        quoted);
+				            quoted);
 				    fprintf(outf, "NOTE: it will be created on the next run.\n");
 			        } else {
 				    fprintf(outf, "ERROR: index dir %s (%s)\n",
 					    quoted, strerror(errno));
+				    indexbad = 1;
 				}
 			        amfree(hostindexdir);
 			    } else if (!S_ISDIR(statbuf.st_mode)) {
@@ -1264,11 +1305,12 @@ start_server_check(
 			    if(stat(diskdir, &statbuf) == -1) {
 				if (errno == ENOENT) {
 				    fprintf(outf, "NOTE: index dir %s does not exist\n",
-					quoted);
+					    quoted);
 				    fprintf(outf, "NOTE: it will be created on the next run.\n");
 				} else {
 				    fprintf(outf, "ERROR: index dir %s (%s)\n",
 					quoted, strerror(errno));
+				    indexbad = 1;
 				}	
 			    } else if (!S_ISDIR(statbuf.st_mode)) {
 				fprintf(outf, "ERROR: index dir %s: not a directory\n",
@@ -1295,7 +1337,7 @@ start_server_check(
 		    pgmbad = 1;
 		  }
 		}
-		if ( dp->compress == COMP_SERV_CUST ) {
+		if ( dp->compress == COMP_SERVER_CUST ) {
 		  if ( dp->srvcompprog[0] == '\0' ) {
 		    fprintf(outf, "ERROR: server custom compression program not specified\n");
 		    pgmbad = 1;
@@ -1381,7 +1423,7 @@ start_host(
 	return;
     }
 
-    if (strncmp (hostp->hostname,"localhost",9) == 0) {
+    if (strcmp(hostp->hostname,"localhost") == 0) {
 	fprintf(outf,
                     "WARNING: Usage of fully qualified hostname recommended for Client %s.\n",
                     hostp->hostname);
@@ -1505,8 +1547,8 @@ start_host(
 		     hostp->hostname, qname, dp->device);
 		}
 	    }
-	    if(strncmp(dp->program,"DUMP",4) == 0 || 
-	       strncmp(dp->program,"GNUTAR",6) == 0) {
+	    if(strcmp(dp->program,"DUMP") == 0 || 
+	       strcmp(dp->program,"GNUTAR") == 0) {
 		if(strcmp(dp->program, "DUMP") == 0 &&
 		   !am_has_feature(hostp->features, fe_program_dump)) {
 		    fprintf(outf, "ERROR: %s:%s does not support DUMP.\n",
@@ -1541,9 +1583,9 @@ start_host(
 			    "ERROR: Client %s does not support data encryption.\n",
 			    hostp->hostname);
 		    remote_errors++;
-		  } else if ( dp->compress == COMP_SERV_FAST || 
-			      dp->compress == COMP_SERV_BEST ||
-			      dp->compress == COMP_SERV_CUST ) {
+		  } else if ( dp->compress == COMP_SERVER_FAST || 
+			      dp->compress == COMP_SERVER_BEST ||
+			      dp->compress == COMP_SERVER_CUST ) {
 		    fprintf(outf,
 			    "ERROR: %s: Client encryption with server compression is not supported. See amanda.conf(5) for detail.\n", hostp->hostname);
 		    remote_errors++;
@@ -1553,7 +1595,7 @@ start_host(
 		    l = vstralloc(calcsize,
 				  dp->program, " ",
 				  qname, " ",
-				  dp->device,
+				  qdevice,
 				  " 0 OPTIONS |",
 				  o,
 				  "\n",
@@ -1569,20 +1611,31 @@ start_host(
 				  NULL);
 		}
 	    } else {
-		if(!am_has_feature(hostp->features, fe_program_dumper_api)) {
-		    fprintf(outf, "ERROR: %s:%s does not support DUMPER-API.\n",
+		if(!am_has_feature(hostp->features, fe_program_backup_api)) {
+		    fprintf(outf, "ERROR: %s:%s does not support BACKUP-API.\n",
 			    hostp->hostname, qname);
 		}
-		l = vstralloc("DUMPER ",
-			      dp->program, 
-			      " ",
-			      qname,
-			      " ",
-			      dp->device,
-			      " 0 OPTIONS |",
-			      o,
-			      "\n",
-			      NULL);
+		if(dp->device) {
+		    l = vstralloc("BACKUP ",
+			          dp->program, 
+			          " ",
+			          qname,
+			          " ",
+			          qdevice,
+			          " 0 OPTIONS |",
+			          o,
+			          "\n",
+			          NULL);
+		} else {
+		    l = vstralloc("BACKUP ",
+			          dp->program, 
+			          " ",
+			          qname,
+			          " 0 OPTIONS |",
+			          o,
+			          "\n",
+			          NULL);
+		}
 	    }
 	    amfree(qname);
 	    amfree(qdevice);
@@ -1744,15 +1797,11 @@ handle_result(
 	    s[-2] = '\0';
 	}
 
-#define sc "OPTIONS "
-	if(strncmp(line, sc, SIZEOF(sc)-1) == 0) {
-#undef sc
+	if(strncmp_const(line, "OPTIONS ") == 0) {
 
-#define sc "features="
-	    t = strstr(line, sc);
+	    t = strstr(line, "features=");
 	    if(t != NULL && (isspace((int)t[-1]) || t[-1] == ';')) {
-		t += SIZEOF(sc)-1;
-#undef sc
+		t += SIZEOF("features=")-1;
 		am_release_feature_set(hostp->features);
 		if((hostp->features = am_string_to_feature(t)) == NULL) {
 		    fprintf(outf, "ERROR: %s: bad features value: %s\n",
@@ -1763,18 +1812,12 @@ handle_result(
 	    continue;
 	}
 
-#define sc "OK "
-	if(strncmp(line, sc, SIZEOF(sc)-1) == 0) {
+	if(strncmp_const(line, "OK ") == 0) {
 	    continue;
-#undef sc
 	}
 
-#define sc "ERROR "
-	if(strncmp(line, sc, SIZEOF(sc)-1) == 0) {
-	    t = line + SIZEOF(sc) - 1;
-	    tch = t[-1];
-#undef sc
-
+	t = line;
+	if(strncmp_const_skip(line, "ERROR ", t, tch) == 0) {
 	    skip_whitespace(t, tch);
 	    /*
 	     * If the "error" is that the "noop" service is unknown, it

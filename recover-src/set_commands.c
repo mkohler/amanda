@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: set_commands.c,v 1.26.2.1 2006/12/22 15:10:27 martinea Exp $
+ * $Id: set_commands.c,v 1.26 2006/07/05 13:14:58 martinea Exp $
  *
  * implements the "set" commands in amrecover
  */
@@ -82,9 +82,10 @@ set_host(
     const char *host)
 {
     char *cmd = NULL;
-    struct hostent *hp;
+    struct hostent *hp = NULL;
     char **hostp;
     int found_host = 0;
+    char *uqhost = unquote_string(host);
 
     if (is_extract_list_nonempty())
     {
@@ -92,48 +93,89 @@ set_host(
 	return;
     }
 
-    cmd = stralloc2("HOST ", host);
+    /*
+     * The idea here is to try as many permutations of the hostname
+     * as we can imagine.  The server will reject anything it doesn't
+     * recognize.
+     */
+
+    cmd = stralloc2("HOST ", uqhost);
     if (converse(cmd) == -1)
 	exit(1);
     if (server_happy())
-    {
 	found_host = 1;
-    }
-    else
-    {
-	/*
-	 * Try converting the given host to a fully qualified name
-	 * and then try each of the aliases.
-	 */
-	if ((hp = gethostbyname(host)) != NULL) {
+
+    /*
+     * Try converting the given host to a fully qualified, canonical
+     * name.
+     */
+    if (!found_host) {
+	if ((hp = gethostbyname(uqhost)) != NULL) {
 	    host = hp->h_name;
 	    printf("Trying host %s ...\n", host);
 	    cmd = newstralloc2(cmd, "HOST ", host);
 	    if (converse(cmd) == -1)
 		exit(1);
 	    if(server_happy())
-	    {
 		found_host = 1;
-	    }
-	    else
+	}
+    }
+
+    /*
+     * Since we have them, try any CNAMEs that were traversed from uqhost
+     * to the canonical name (this assumes gethostbyname was called above)
+     */
+    if (!found_host) {
+	if (hp) {
+	    for (hostp = hp->h_aliases; (host = *hostp) != NULL; hostp++)
 	    {
-	        for (hostp = hp->h_aliases; (host = *hostp) != NULL; hostp++)
-	        {
-		    printf("Trying host %s ...\n", host);
-		    cmd = newstralloc2(cmd, "HOST ", host);
-		    if (converse(cmd) == -1)
-		        exit(1);
-		    if(server_happy())
-		    {
-		        found_host = 1;
-		        break;
-		    }
+		printf(_("Trying host %s ...\n"), host);
+		cmd = newstralloc2(cmd, "HOST ", host);
+		if (converse(cmd) == -1)
+		    exit(1);
+		if(server_happy())
+		{
+		    found_host = 1;
+		    break;
 		}
 	    }
 	}
     }
-    if(found_host)
-    {
+
+    /*
+     * gethostbyname() will not return a canonical name for a host with no
+     * IPv4 addresses, so use getaddrinfo() (if supported)
+     */
+#ifdef WORKING_IPV6
+    if (!found_host) {
+	struct addrinfo hints;
+	struct addrinfo *gaires = NULL;
+	int res;
+
+	hints.ai_flags = AI_CANONNAME;
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = 0;
+	hints.ai_protocol = 0;
+	hints.ai_addrlen = 0;
+	hints.ai_addr = NULL;
+	hints.ai_canonname = NULL;
+	hints.ai_next = NULL;
+	if ((res = getaddrinfo(uqhost, NULL, &hints, &gaires)) == 0) {
+	    if (gaires && (host = gaires->ai_canonname)) {
+		printf(_("Trying host %s ...\n"), host);
+		cmd = newstralloc2(cmd, "HOST ", host);
+		if (converse(cmd) == -1)
+		    exit(1);
+		if(server_happy())
+		    found_host = 1;
+	    }
+	}
+
+	if (gaires) freeaddrinfo(gaires);
+    }
+#endif
+
+    if(found_host) {
 	dump_hostname = newstralloc(dump_hostname, host);
 	amfree(disk_name);
 	amfree(mount_point);
@@ -141,6 +183,7 @@ set_host(
 	clear_dir_list();
     }
     amfree(cmd);
+    amfree(uqhost);
 }
 
 void
@@ -161,6 +204,8 @@ set_disk(
 {
     char *cmd = NULL;
     char *qdsk;
+    char *uqdsk;
+    char *uqmtpt = NULL;
 
     if (is_extract_list_nonempty())
     {
@@ -169,14 +214,18 @@ set_disk(
     }
 
     /* if mount point specified, check it is valid */
-    if ((mtpt != NULL) && (*mtpt != '/'))
-    {
-	printf("Mount point \"%s\" invalid - must start with /\n", mtpt);
-	return;
+    if (mtpt != NULL) {
+	uqmtpt = unquote_string(mtpt);
+	if (*mtpt != '/') {
+	    printf("Mount point \"%s\" invalid - must start with /\n", uqmtpt);
+	    amfree(uqmtpt);
+	    return;
+	}
     }
 
     clear_dir_list();
-    qdsk = quote_string(dsk);
+    uqdsk = unquote_string(dsk);
+    qdsk = quote_string(uqdsk);
     cmd = stralloc2("DISK ", qdsk);
     amfree(qdsk);
     if (converse(cmd) == -1)
@@ -186,14 +235,14 @@ set_disk(
     if (!server_happy())
 	return;
 
-    disk_name = newstralloc(disk_name, dsk);
+    disk_name = newstralloc(disk_name, uqdsk);
     if (mtpt == NULL)
     {
 	/* mount point not specified */
-	if (*dsk == '/')
+	if (*uqdsk == '/')
 	{
 	    /* disk specified by mount point, hence use it */
-	    mount_point = newstralloc(mount_point, dsk);
+	    mount_point = newstralloc(mount_point, uqdsk);
 	}
 	else
 	{
@@ -204,7 +253,7 @@ set_disk(
     else
     {
 	/* mount point specified */
-	mount_point = newstralloc(mount_point, mtpt);
+	mount_point = newstralloc(mount_point, uqmtpt);
     }
 
     /* set the working directory to the mount point */
@@ -226,6 +275,8 @@ set_disk(
 	disk_path = newstralloc(disk_path, "/");	/* fake it */
 	clear_dir_list();
     }
+    amfree(uqmtpt);
+    amfree(uqdsk);
 }
 
 void
@@ -233,11 +284,13 @@ list_disk(
     char *	amdevice)
 {
     char *cmd = NULL;
-    char *qamdevice;
+    char *qamdevice, *uqamdevice;
 
     if(amdevice) {
-	qamdevice = quote_string(amdevice);
+	uqamdevice = unquote_string(amdevice);
+	qamdevice = quote_string(uqamdevice);
 	cmd = stralloc2("LISTDISK ", qamdevice);
+	amfree(uqamdevice);
 	amfree(qamdevice);
 	if (converse(cmd) == -1)
 	    exit(1);
@@ -252,12 +305,24 @@ list_disk(
 }
 
 void
+local_cd(
+    char *dir)
+{
+    char *uqdir = unquote_string(dir);
+    if (chdir(uqdir) == -1) {
+	perror(uqdir);
+    }
+    amfree(uqdir);
+}
+
+void
 cd_glob(
     char *	glob)
 {
     char *regex;
     char *regex_path;
     char *s;
+    char *uqglob;
 
     char *path_on_disk = NULL;
 
@@ -266,8 +331,9 @@ cd_glob(
 	return;
     }
 
-    regex = glob_to_regex(glob);
-    dbprintf(("cd_glob (%s) -> %s\n", glob, regex));
+    uqglob = unquote_string(glob);
+    regex = glob_to_regex(uqglob);
+    dbprintf(("cd_glob (%s) -> %s\n", uqglob, regex));
     if ((s = validate_regexp(regex)) != NULL) {
         printf("\"%s\" is not a valid shell wildcard pattern: ", glob);
         puts(s);
@@ -296,10 +362,11 @@ cd_glob(
         amfree(clean_disk_path);
     }
 
-    cd_dir(path_on_disk, glob);
+    cd_dir(path_on_disk, uqglob);
 
     amfree(regex_path);
     amfree(path_on_disk);
+    amfree(uqglob);
 }
 
 void
@@ -307,6 +374,7 @@ cd_regex(
     char *	regex)
 {
     char *s;
+    char *uqregex;
 
     char *path_on_disk = NULL;
 
@@ -315,8 +383,10 @@ cd_regex(
 	return;
     }
 
-    if ((s = validate_regexp(regex)) != NULL) {
-	printf("\"%s\" is not a valid regular expression: ", regex);
+    uqregex = unquote_string(regex);
+    if ((s = validate_regexp(uqregex)) != NULL) {
+	printf("\"%s\" is not a valid regular expression: ", uqregex);
+	amfree(uqregex);
 	puts(s);
 	return;
     }
@@ -330,9 +400,10 @@ cd_regex(
         amfree(clean_disk_path);
     }
 
-    cd_dir(path_on_disk, regex);
+    cd_dir(path_on_disk, uqregex);
 
     amfree(path_on_disk);
+    amfree(uqregex);
 }
 
 void
@@ -342,6 +413,7 @@ cd_dir(
 {
     char *path_on_disk_slash = NULL;
     char *dir = NULL;
+    char *s;
 
     int nb_found;
     size_t i;
@@ -349,14 +421,21 @@ cd_dir(
     DIR_ITEM *ditem;
 
     path_on_disk_slash = stralloc2(path_on_disk, "/");
+    if ((s = validate_regexp(path_on_disk_slash)) != NULL) {
+	amfree(path_on_disk_slash);
+    }
+
+    if ((s = validate_regexp(path_on_disk)) != NULL) {
+	path_on_disk = NULL;
+    }
 
     nb_found = 0;
 
     for (ditem=get_dir_list(); ditem!=NULL && nb_found <= 1; 
 			       ditem=get_next_dir_item(ditem))
     {
-	if (match(path_on_disk, ditem->path)
-	    || match(path_on_disk_slash, ditem->path))
+	if ((path_on_disk && match(path_on_disk, ditem->path))
+	    || (path_on_disk_slash && match(path_on_disk_slash, ditem->path)))
 	{
 	    i = strlen(ditem->path);
 	    if((i > 0 && ditem->path[i-1] == '/')
@@ -542,21 +621,22 @@ void
 set_tape(
     char *	tape)
 {
-    char *tapedev = strchr(tape, ':');
+    char *uqtape = unquote_string(tape);
+    char *tapedev = strchr(uqtape, ':');
 
     if (tapedev)
     {
-	if (tapedev != tape) {
+	if (tapedev != uqtape) {
 	    if((strchr(tapedev+1, ':') == NULL) &&
-	       (strncmp(tape, "null:", 5) == 0 ||
-		strncmp(tape, "rait:", 5) == 0 ||
-		strncmp(tape, "file:", 5) == 0 ||
-		strncmp(tape, "tape:", 5) == 0)) {
-		tapedev = tape;
+	       (strncmp(uqtape, "null:", 5) == 0 ||
+		strncmp(uqtape, "rait:", 5) == 0 ||
+		strncmp(uqtape, "file:", 5) == 0 ||
+		strncmp(uqtape, "tape:", 5) == 0)) {
+		tapedev = uqtape;
 	    }
 	    else {
 		*tapedev = '\0';
-		tape_server_name = newstralloc(tape_server_name, tape);
+		tape_server_name = newstralloc(tape_server_name, uqtape);
 		++tapedev;
 	    }
 	} else { /* reset server_name if start with : */
@@ -564,7 +644,7 @@ set_tape(
 	    ++tapedev;
 	}
     } else
-	tapedev = tape;
+	tapedev = uqtape;
     
     if (tapedev[0])
     {

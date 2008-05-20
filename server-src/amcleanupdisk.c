@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amcleanupdisk.c,v 1.22.2.1 2006/10/03 18:57:25 martinea Exp $
+ * $Id: amcleanupdisk.c,v 1.22 2006/07/25 18:27:57 martinea Exp $
  */
 #include "amanda.h"
 
@@ -182,7 +182,7 @@ check_holdingdisk(
 
 	amfree(hostname);
 	amfree(diskname);
-	filetype = get_amanda_names(tmpname, &hostname, &diskname, &level);
+	filetype = holding_file_read_header(tmpname, &hostname, &diskname, &level, NULL);
 	amfree(tmpname);
 	if(filetype != F_DUMPFILE) {
 	    continue;

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amrecover.c,v 1.73.2.2 2007/01/24 18:33:30 martinea Exp $
+ * $Id: amrecover.c,v 1.73 2006/07/25 18:27:57 martinea Exp $
  *
  * an interactive program for recovering backed-up files
  */
@@ -37,10 +37,16 @@
 #include "getfsent.h"
 #include "dgram.h"
 #include "util.h"
-#include "clientconf.h"
+#include "conffile.h"
 #include "protocol.h"
 #include "event.h"
 #include "security.h"
+
+#define amrecover_debug(i,x) do {	\
+	if ((i) <= debug_amrecover) {	\
+	    dbprintf(x);		\
+	}				\
+} while (0)
 
 extern int process_line(char *line);
 int get_line(void);
@@ -101,13 +107,21 @@ get_line(void)
 	mesg_buffer = stralloc("");
  
     while (!strstr(mesg_buffer,"\r\n")) {
+	buf = NULL;
 	size = security_stream_read_sync(streams[MESGFD].fd, &buf);
 	if(size < 0) {
+	    amrecover_debug(1, ("%s: amrecover: get_line size < 0 (%zd)\n", debug_prefix_time(NULL), size));
 	    return -1;
 	}
 	else if(size == 0) {
+	    amrecover_debug(1, ("%s: amrecover: get_line size == 0 (%zd)\n", debug_prefix_time(NULL), size));
 	    return -1;
 	}
+	else if (buf == NULL) {
+	    amrecover_debug(1, ("%s: amrecover: get_line buf == NULL\n", debug_prefix_time(NULL)));
+	    return -1;
+	}
+        amrecover_debug(1, ("%s: amrecover: get_line size = %zd\n", debug_prefix_time(NULL), size));
 	newbuf = alloc(strlen(mesg_buffer)+size+1);
 	strncpy(newbuf, mesg_buffer, (size_t)(strlen(mesg_buffer) + size));
 	memcpy(newbuf+strlen(mesg_buffer), buf, (size_t)size);
@@ -331,7 +345,7 @@ main(
     }
     localhost[MAX_HOSTNAME_LENGTH] = '\0';
 
-    parse_client_conf(argc, argv, &new_argc, &new_argv);
+    parse_conf(argc, argv, &new_argc, &new_argv);
 
     if (new_argc > 1 && new_argv[1][0] != '-') {
 	/*
@@ -355,19 +369,19 @@ main(
     while ((i = getopt(new_argc, new_argv, "C:s:t:d:U")) != EOF) {
 	switch (i) {
 	    case 'C':
-		add_client_conf(CLN_CONF, optarg);
+		add_client_conf(CNF_CONF, optarg);
 		break;
 
 	    case 's':
-		add_client_conf(CLN_INDEX_SERVER, optarg);
+		add_client_conf(CNF_INDEX_SERVER, optarg);
 		break;
 
 	    case 't':
-		add_client_conf(CLN_TAPE_SERVER, optarg);
+		add_client_conf(CNF_TAPE_SERVER, optarg);
 		break;
 
 	    case 'd':
-		add_client_conf(CLN_TAPEDEV, optarg);
+		add_client_conf(CNF_TAPEDEV, optarg);
 		break;
 
 	    case 'U':
@@ -391,7 +405,7 @@ main(
     }
     amfree(conffile);
 
-    config = stralloc(client_getconf_str(CLN_CONF));
+    config = stralloc(getconf_str(CNF_CONF));
 
     conffile = vstralloc(CONFIG_DIR, "/", config, "/", "amanda-client.conf",
 			 NULL);
@@ -403,11 +417,11 @@ main(
 
     dbrename(config, DBG_SUBDIR_CLIENT);
 
-    report_bad_client_arg();
+    report_bad_conf_arg();
 
     server_name = NULL;
-    if (client_getconf_seen(CLN_INDEX_SERVER) == -2) { /* command line argument */
-	server_name = client_getconf_str(CLN_INDEX_SERVER);
+    if (getconf_seen(CNF_INDEX_SERVER) == -2) { /* command line argument */
+	server_name = getconf_str(CNF_INDEX_SERVER);
     }
     if (!server_name) {
 	server_name = getenv("AMANDA_SERVER");
@@ -416,7 +430,7 @@ main(
 	}
     }
     if (!server_name) {
-	server_name = client_getconf_str(CLN_INDEX_SERVER);
+	server_name = getconf_str(CNF_INDEX_SERVER);
     }
     if (!server_name) {
 	error("No index server set");
@@ -425,8 +439,8 @@ main(
     server_name = stralloc(server_name);
 
     tape_server_name = NULL;
-    if (client_getconf_seen(CLN_TAPE_SERVER) == -2) { /* command line argument */
-	tape_server_name = client_getconf_str(CLN_TAPE_SERVER);
+    if (getconf_seen(CNF_TAPE_SERVER) == -2) { /* command line argument */
+	tape_server_name = getconf_str(CNF_TAPE_SERVER);
     }
     if (!tape_server_name) {
 	tape_server_name = getenv("AMANDA_TAPE_SERVER");
@@ -440,7 +454,7 @@ main(
 	}
     }
     if (!tape_server_name) {
-	tape_server_name = client_getconf_str(CLN_TAPE_SERVER);
+	tape_server_name = getconf_str(CNF_TAPE_SERVER);
     }
     if (!tape_server_name) {
 	error("No tape server set");
@@ -449,11 +463,11 @@ main(
     tape_server_name = stralloc(tape_server_name);
 
     amfree(tape_device_name);
-    tape_device_name = client_getconf_str(CLN_TAPEDEV);
+    tape_device_name = getconf_str(CNF_TAPEDEV);
     if (tape_device_name)
 	tape_device_name = stralloc(tape_device_name);
 
-    authopt = stralloc(client_getconf_str(CLN_AUTH));
+    authopt = stralloc(getconf_str(CNF_AUTH));
 
 
     amfree(disk_name);
@@ -490,7 +504,7 @@ main(
 	/*NOTREACHED*/
     }
 
-    protocol_sendreq(server_name, secdrv, amindexd_client_get_security_conf,
+    protocol_sendreq(server_name, secdrv, generic_client_get_security_conf,
 		     req, STARTUP_TIMEOUT, amindexd_response, &response_error);
 
     amfree(req);
@@ -718,10 +732,8 @@ bad_nak:
 	    tok_end = tok + strlen(tok);
 	    while((p = strchr(tok, ';')) != NULL) {
 		*p++ = '\0';
-#define sc "features="
-		if(strncmp(tok, sc, sizeof(sc)-1) == 0) {
-		    tok += sizeof(sc) - 1;
-#undef sc
+		if(strncmp_const(tok, "features=") == 0) {
+		    tok += SIZEOF("features=") - 1;
 		    am_release_feature_set(their_features);
 		    if((their_features = am_string_to_feature(tok)) == NULL) {
 			errstr = newvstralloc(errstr,
@@ -831,10 +843,10 @@ amindexd_client_get_security_conf(
 	return(NULL);
 
     if(strcmp(string, "auth")==0) {
-	return(client_getconf_str(CLN_AUTH));
+	return(getconf_str(CNF_AUTH));
     }
     else if(strcmp(string, "ssh_keys")==0) {
-	return(client_getconf_str(CLN_SSH_KEYS));
+	return(getconf_str(CNF_SSH_KEYS));
     }
     return(NULL);
 }

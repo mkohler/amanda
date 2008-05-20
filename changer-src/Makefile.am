@@ -3,7 +3,8 @@
 INCLUDES =	-I$(top_builddir)/common-src \
 		-I$(top_srcdir)/common-src   \
 		-I$(top_srcdir)/server-src   \
-		-I$(top_srcdir)/tape-src
+		-I$(top_srcdir)/tape-src     \
+		-I$(top_srcdir)/gnulib
 
 LINT=@AMLINT@
 LINTFLAGS=@AMLINTFLAGS@
@@ -25,7 +26,7 @@ libexec_SCRIPTS =	chg-manual	chg-multi	chg-mtx		\
 			chg-rth		chg-chs		chg-chio	\
 			chg-zd-mtx	chg-juke	chg-rait	\
 			chg-null	chg-mcutil	chg-disk	\
-			chg-iomega
+			chg-iomega  chg-lib.sh
 
 CLEANFILES = $(libexec_SCRIPTS)
 
@@ -40,6 +41,7 @@ LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../server-src/libamserver.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION)   \
+	../gnulib/libgnu.$(LIB_EXTENSION) \
 	$(READLINE_LIBS)
 
 SUFFIXES =		.pl .sh

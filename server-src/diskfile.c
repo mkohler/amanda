@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: diskfile.c,v 1.95.2.12 2007/01/26 14:33:24 martinea Exp $
+ * $Id: diskfile.c,v 1.95 2006/07/26 15:17:37 martinea Exp $
  *
  * read disklist file
  */
@@ -190,6 +190,7 @@ add_disk(
     disk->tape_splitsize = (off_t)0;
     disk->split_diskbuffer = NULL;
     disk->fallback_splitsize = (off_t)0;
+    disk->hostname = stralloc(hostname);
     disk->name = stralloc(diskname);
     disk->device = stralloc(diskname);
     disk->spindle = -1;
@@ -494,6 +495,7 @@ parse_diskline(
 	disk = alloc(SIZEOF(disk_t));
 	malloc_mark(disk);
 	disk->line = line_num;
+	disk->hostname = stralloc(hostname);
 	disk->name = diskname;
 	disk->device = diskdevice;
 	malloc_mark(disk->name);
@@ -543,8 +545,6 @@ parse_diskline(
 	    }
 	    return (-1);
 	}
-	amfree(line);
-
 	dtype = read_dumptype(vstralloc("custom(", hostname,
 					":", disk->name, ")", NULL),
 			      diskf, (char*)filename, line_num_p);
@@ -562,6 +562,7 @@ parse_diskline(
 	    }
 	    return (-1);
 	}
+	amfree(line);
 
 	*line_p = line = agets(diskf);
 	line_num = *line_num_p; /* no incr, read_dumptype did it already */
@@ -618,7 +619,7 @@ parse_diskline(
     disk->bumpsize	     = dumptype_get_bumpsize(dtype);
     disk->bumpdays	     = dumptype_get_bumpdays(dtype);
     disk->bumpmult	     = dumptype_get_bumpmult(dtype);
-    disk->starttime	     = dumptype_get_starttime(dtype);
+    disk->starttime          = dumptype_get_starttime(dtype);
     disk->start_t = 0;
     if (disk->starttime > 0) {
 	st = time(NULL);
@@ -631,6 +632,7 @@ parse_diskline(
 	    disk->start_t += 86400;
     }
     disk->strategy	     = dumptype_get_strategy(dtype);
+    disk->ignore	     = dumptype_get_ignore(dtype);
     disk->estimate	     = dumptype_get_estimate(dtype);
     disk->compress	     = dumptype_get_compress(dtype);
     disk->srvcompprog	     = dumptype_get_srvcompprog(dtype);
@@ -708,10 +710,7 @@ parse_diskline(
     }
 
     if(dumptype_get_ignore(dtype) || dumptype_get_strategy(dtype) == DS_SKIP) {
-	amfree(hostname);
-	amfree(disk->name);
-	amfree(disk);
-	return (0);
+	disk->todo = 0;
     }
 
     /* success, add disk to lists */
@@ -897,17 +896,17 @@ optionstr(
 		    dp->host->hostname, qdpname);
 	}
 	break;
-    case COMP_SERV_FAST:
+    case COMP_SERVER_FAST:
 	if(am_has_feature(their_features, fe_options_srvcomp_fast)) {
 	    compress_opt = "srvcomp-fast;";
 	}
 	break;
-    case COMP_SERV_BEST:
+    case COMP_SERVER_BEST:
 	if(am_has_feature(their_features, fe_options_srvcomp_best)) {
             compress_opt = "srvcomp-best;";
 	}
 	break;
-    case COMP_SERV_CUST:
+    case COMP_SERVER_CUST:
         if(am_has_feature(their_features, fe_options_srvcomp_cust)) {
 	  compress_opt = vstralloc("srvcomp-cust=", dp->srvcompprog, ";", NULL);
 	  if (BSTRNCMP(compress_opt, "srvcomp-cust=;") == 0){
@@ -940,9 +939,9 @@ optionstr(
 	    }
 	    err++;
 	  }
-	 if ( dp->compress == COMP_SERV_FAST || 
-	      dp->compress == COMP_SERV_BEST ||
-	      dp->compress == COMP_SERV_CUST ) {
+	 if ( dp->compress == COMP_SERVER_FAST || 
+	      dp->compress == COMP_SERVER_BEST ||
+	      dp->compress == COMP_SERVER_CUST ) {
 	   if(fdout) {
 	      fprintf(fdout,
 		      "ERROR: %s:Client encryption with server compression is not supported. See amanda.conf(5) for detail.\n", dp->host->hostname);

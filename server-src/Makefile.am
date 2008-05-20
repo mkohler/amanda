@@ -4,7 +4,8 @@ INCLUDES =	-I$(top_builddir)/common-src \
 		-I$(top_srcdir)/common-src   \
 		-I$(top_srcdir)/restore-src  \
 		-I$(top_srcdir)/tape-src     \
-		-I$(top_srcdir)/amandad-src
+		-I$(top_srcdir)/amandad-src  \
+		-I$(top_srcdir)/gnulib
 
 LINT=@AMLINT@
 LINTFLAGS=@AMLINTFLAGS@
@@ -28,7 +29,7 @@ sbin_SCRIPTS =		amcheckdb	amcleanup	amdump		\
 			amcrypt-ossl-asym
 
 libamserver_la_SOURCES=	amindex.c	changer.c			\
-			conffile.c	diskfile.c	driverio.c	\
+			diskfile.c	driverio.c	cmdline.c  \
 			holding.c	infofile.c	logfile.c	\
 			tapefile.c	find.c		server_util.c   \
                         taperscan.c
@@ -42,12 +43,13 @@ libamserver_la_LDFLAGS= -release $(VERSION)
 # routines, and second to pick up any references in the other libraries.
 ###
 
-LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamserver.$(LIB_EXTENSION)             \
-	../tape-src/libamtape.$(LIB_EXTENSION)   \
-	../common-src/libamanda.$(LIB_EXTENSION) \
-	../tape-src/libamtape.$(LIB_EXTENSION)   \
-	../common-src/libamanda.$(LIB_EXTENSION) \
+LDADD = ../common-src/libamanda.$(LIB_EXTENSION)   \
+	libamserver.$(LIB_EXTENSION)               \
+	../tape-src/libamtape.$(LIB_EXTENSION)     \
+	../common-src/libamanda.$(LIB_EXTENSION)   \
+	../tape-src/libamtape.$(LIB_EXTENSION)     \
+	../common-src/libamanda.$(LIB_EXTENSION)   \
+	../gnulib/libgnu.$(LIB_EXTENSION)          \
         $(READLINE_LIBS)
 
 amindexd_LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
@@ -56,21 +58,22 @@ amindexd_LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION) \
 	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION)
+	../common-src/libamanda.$(LIB_EXTENSION) \
+	../gnulib/libgnu.$(LIB_EXTENSION)
 
 SUFFIXES =		.sh .pl
 
 .pl:
 			cat $< > $@
 			chmod a+x $@
-			-test -z "$(PERL)" || $(PERL) -c $@
+			-test -z "$(PERL)" || $(PERL) -c -w -W -t -T $@
 
 .sh:
 			cat $< > $@
 			chmod a+x $@
 
 # there are used for testing only:
-TEST_PROGS = diskfile conffile infofile
+TEST_PROGS = diskfile infofile
 
 EXTRA_PROGRAMS =	$(TEST_PROGS)
 
@@ -84,10 +87,10 @@ amreport_SOURCES =	reporter.c
 amgetconf_SOURCES =	getconf.c
 
 noinst_HEADERS = 	amindex.h	changer.h			\
-			conffile.h	diskfile.h	driverio.h	\
+			diskfile.h	driverio.h	\
 			holding.h	infofile.h	logfile.h	\
 			tapefile.h	find.h		server_util.h	\
-			taperscan.h
+			taperscan.h cmdline.h
 
 install-exec-hook:
 	@list="$(sbin_PROGRAMS) $(sbin_SCRIPTS)"; \
@@ -166,7 +169,6 @@ listlibsrc:
 
 
 diskfile_SOURCES = diskfile.test.c
-conffile_SOURCES = conffile.test.c
 infofile_SOURCES = infofile.test.c
 
 %.test.c: $(srcdir)/%.c
