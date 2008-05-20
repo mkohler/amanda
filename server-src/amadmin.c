@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: amadmin.c,v 1.49.2.13.2.3.2.15.2.9 2005/03/29 16:35:11 martinea Exp $
+ * $Id: amadmin.c,v 1.49.2.13.2.3.2.15.2.12 2005/09/20 21:31:52 jrjackson Exp $
  *
  * controlling process for the Amanda backup system
  */
@@ -63,7 +63,7 @@ void find P((int argc, char **argv));
 void delete P((int argc, char **argv));
 void delete_one P((disk_t *dp));
 void balance P((int argc, char **argv));
-void tape P((void));
+void tape P((int argc, char **argv));
 void bumpsize P((void));
 void diskloop P((int argc, char **argv, char *cmdname,
 		 void (*func) P((disk_t *dp))));
@@ -84,23 +84,13 @@ int main(argc, argv)
 int argc;
 char **argv;
 {
-    int fd;
     unsigned long malloc_hist_1, malloc_size_1;
     unsigned long malloc_hist_2, malloc_size_2;
     char *conf_diskfile;
     char *conf_infofile;
     char *conffile;
 
-    for(fd = 3; fd < FD_SETSIZE; fd++) {
-	/*
-	 * Make sure nobody spoofs us with a lot of extra open files
-	 * that would cause an open we do to get a very high file
-	 * descriptor, which in turn might be used as an index into
-	 * an array (e.g. an fd_set).
-	 */
-	close(fd);
-    }
-
+    safe_fd(-1, 0);
     safe_cd();
 
     set_pname("amadmin");
@@ -170,7 +160,7 @@ char **argv;
     else if(strcmp(argv[2],"find") == 0) find(argc, argv);
     else if(strcmp(argv[2],"delete") == 0) delete(argc, argv);
     else if(strcmp(argv[2],"balance") == 0) balance(argc, argv);
-    else if(strcmp(argv[2],"tape") == 0) tape();
+    else if(strcmp(argv[2],"tape") == 0) tape(argc, argv);
     else if(strcmp(argv[2],"bumpsize") == 0) bumpsize();
     else if(strcmp(argv[2],"import") == 0) import_db(argc, argv);
     else if(strcmp(argv[2],"export") == 0) export_db(argc, argv);
@@ -225,7 +215,7 @@ void usage P((void))
     fprintf(stderr,
 	    "\tbalance [-days <num>]\t\t# Show nightly dump size balance.\n");
     fprintf(stderr,
-	    "\ttape\t\t\t\t# Show which tape is due next.\n");
+	    "\ttape [-days <num>]\t\t# Show which tape is due next.\n");
     fprintf(stderr,
 	    "\tbumpsize\t\t\t# Show current bump thresholds.\n");
     fprintf(stderr,
@@ -750,22 +740,36 @@ char **argv;
 
 /* ----------------------------------------------- */
 
-void tape()
+void tape(argc, argv)
+int argc;
+char **argv;
 {
     tape_t *tp, *lasttp;
-    int runtapes, i;
+    int runtapes, i, j;
+    int nb_days = 1;
 
+    if(argc > 4 && strcmp(argv[3],"--days") == 0) {
+	nb_days = atoi(argv[4]);
+	if(nb_days < 1) {
+	    printf("days must be an integer bigger than 0\n");
+	    return;
+	}
+    }
     runtapes = getconf_int(CNF_RUNTAPES);
     tp = lookup_last_reusable_tape(0);
 
-    for ( i=0 ; i < runtapes ; i++ ) {
-	printf("The next Amanda run should go onto ");
-
-	if(tp != NULL)
-	    printf("tape %s or ", tp->label);
-	printf("a new tape.\n");
+    for ( j=0 ; j < nb_days ; j++ ) {
+	for ( i=0 ; i < runtapes ; i++ ) {
+	    if(i==0)
+		printf("The next Amanda run should go onto ");
+	    else
+		printf("                                   ");
+	    if(tp != NULL)
+		printf("tape %s or ", tp->label);
+	    printf("a new tape.\n");
 	
-	tp = lookup_last_reusable_tape(i + 1);
+	    tp = lookup_last_reusable_tape((j*runtapes) + i + 1);
+	}
     }
     lasttp = lookup_tapepos(lookup_nb_tape());
     i = runtapes;
@@ -1474,7 +1478,7 @@ int import_one P((void))
 	info.inf[level] = onestat;
     }
     nb_history = 0;
-    for(i=0;i<=NB_HISTORY+1;i++) {
+    for(i=0;i<=NB_HISTORY;i++) {
 	info.history[i].level = -2;
     }
     while(1) {

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: runtar.c,v 1.11.4.2.6.1 2002/10/27 14:31:18 martinea Exp $
+ * $Id: runtar.c,v 1.11.4.2.6.1.2.3 2005/09/30 19:08:04 martinea Exp $
  *
  * runs GNUTAR program as root
  */
@@ -39,20 +39,11 @@ char **argv;
 {
 #ifdef GNUTAR
     int i;
-#endif
-    int fd;
     char *e;
+    char *dbf;
+#endif
 
-    for(fd = 3; fd < FD_SETSIZE; fd++) {
-	/*
-	 * Make sure nobody spoofs us with a lot of extra open files
-	 * that would cause an open we do to get a very high file
-	 * descriptor, which in turn might be used as an index into
-	 * an array (e.g. an fd_set).
-	 */
-	close(fd);
-    }
-
+    safe_fd(-1, 0);
     safe_cd();
 
     set_pname("runtar");
@@ -91,10 +82,17 @@ char **argv;
     for (i=0; argv[i]; i++)
 	dbprintf(("%s ", argv[i]));
     dbprintf(("\n"));
+    dbf = dbfn();
+    if (dbf) {
+	dbf = stralloc(dbf);
+    }
+    dbclose();
 
     execve(GNUTAR, argv, safe_env());
 
     e = strerror(errno);
+    dbreopen(dbf, "more");
+    amfree(dbf);
     dbprintf(("execve of %s failed (%s)\n", GNUTAR, e));
     dbclose();
 

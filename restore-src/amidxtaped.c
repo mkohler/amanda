@@ -23,7 +23,7 @@
  * Authors: the Amanda Development Team.  Its members are listed in a
  * file named AUTHORS, in the root directory of this distribution.
  */
-/* $Id: amidxtaped.c,v 1.25.2.3.4.1.2.11 2004/01/29 19:26:51 martinea Exp $
+/* $Id: amidxtaped.c,v 1.25.2.3.4.1.2.11.2.2 2005/10/02 13:48:42 martinea Exp $
  *
  * This daemon extracts a dump image off a tape for amrecover and
  * returns it over the network. It basically, reads a number of
@@ -192,12 +192,12 @@ char **argv;
     char **amrestore_args;
     char *buf = NULL;
     int i;
+    socklen_t socklen;
     char *amrestore_path;
     pid_t pid;
     int isafile;
     struct stat stat_tape;
     char *tapename = NULL;
-    int fd;
     char *s, *fp;
     int ch;
     char *errstr = NULL;
@@ -214,16 +214,7 @@ char **argv;
     char *re_datestamp = NULL;
     char *re_config = NULL;
 
-    for(fd = 3; fd < FD_SETSIZE; fd++) {
-	/*
-	 * Make sure nobody spoofs us with a lot of extra open files
-	 * that would cause an open we do to get a very high file
-	 * descriptor, which in turn might be used as an index into
-	 * an array (e.g. an fd_set).
-	 */
-	close(fd);
-    }
-
+    safe_fd(-1, 0);
     safe_cd();
 
     /*
@@ -292,8 +283,8 @@ char **argv;
 		  debug_prefix_time(NULL)));
     }
 
-    i = sizeof (addr);
-    if (getpeername(0, (struct sockaddr *)&addr, &i) == -1)
+    socklen = sizeof (addr);
+    if (getpeername(0, (struct sockaddr *)&addr, &socklen) == -1)
 	error("getpeername: %s", strerror(errno));
     if (addr.sin_family != AF_INET || ntohs(addr.sin_port) == 20) {
 	error("connection rejected from %s family %d port %d",

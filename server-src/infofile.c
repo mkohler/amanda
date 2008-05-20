@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: infofile.c,v 1.44.4.4.8.2 2005/03/16 18:15:28 martinea Exp $
+ * $Id: infofile.c,v 1.44.4.4.8.5 2005/09/30 19:13:36 martinea Exp $
  *
  * manage current info file
  */
@@ -274,7 +274,7 @@ info_t *info;
     rc = 0;
 
     nb_history = 0;
-    for(i=0;i<=NB_HISTORY+1;i++) {
+    for(i=0;i<=NB_HISTORY;i++) {
 	info->history[i].level = -2;
     }
     for(rc = -2; (line = agets(infof)) != NULL; free(line)) {
@@ -854,19 +854,10 @@ int argc;
 char *argv[];
 {
   int i;
-  int fd;
   unsigned long malloc_hist_1, malloc_size_1;
   unsigned long malloc_hist_2, malloc_size_2;
 
-  for(fd = 3; fd < FD_SETSIZE; fd++) {
-    /*
-     * Make sure nobody spoofs us with a lot of extra open files
-     * that would cause an open we do to get a very high file
-     * descriptor, which in turn might be used as an index into
-     * an array (e.g. an fd_set).
-     */
-    close(fd);
-  }
+  safe_fd(-1, 0);
 
   set_pname("infofile");
 

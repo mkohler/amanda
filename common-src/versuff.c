@@ -34,7 +34,7 @@
 const int   VERSION_MAJOR   = 2;
 const int   VERSION_MINOR   = 4;
 const int   VERSION_PATCH   = 5;
-const char *const VERSION_COMMENT = "";
+const char *const VERSION_COMMENT = "p1";
 
 char *
 versionsuffix()

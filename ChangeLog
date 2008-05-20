@@ -1,3 +1,235 @@
+2005-10-24  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* Amanda 2.4.5p1 released.
+	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.4.5p1).
+	* NEWS: Update for 2.4.5p1.
+
+2005-10-11  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* client-src/client_util.c, server-src/amcheck.c,
+	  server-src/reporter.c: Add missing type for arguments.
+
+2005-10-11  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/taper.c (tape_writer_side): detach_buffers on normal exit.
+
+2005-10-07  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/taper.c: Change message: on new tape due to
+
+2005-10-06  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Patch by John R. Franks
+
+	* common-src/amflock.c (main): Don't call safe_fd, it's not needed
+	  during configure.
+	* configure.in: '#include <sys/types.h>' in the check
+	  'for Linux like scsi support (sg)'
+
+2005-10-02  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* common-src/stream.c: len is a socklen_t.
+	* server-src/amindexd.c: Add socklen as a socklen_t.
+	* restore-src/amidxtaped.c: Add socklen as a socklen_t.
+	* tape-src/tapetype.c: Change printf format.
+	* server-src/amlabel.c: Add a variable isa_zftape. init fd to -1.
+
+2005-10-01  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/reporter.c: Don't trunk hostname/diskname in
+	  'FAILURE AND STRANGE DUMP SUMMARY' section.
+
+2005-09-30  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/conffile.c, server-src/diskfile.c, server-src/infofile.c,
+	  client-src/getfsent.c, common-src/statfs.c, common-src/token.c
+	  (main): Remove fd declaration.
+
+2005-09-30  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* client-src/runtar.c: 'e' and 'bdf' are only needed if GNUTAR.
+
+2005-09-30  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* common-src/sl.c (insert_sort_sl). Typo.
+
+2005-09-30  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* config/config.guess: Update from automake 1.9.5.
+	* config/config.sub: Update from automake 1.9.5.
+	* config/depcomp: Update from automake 1.9.5.
+	* config/install-sh: Update from automake 1.9.5.
+	* config/missing: Update from automake 1.9.5.
+	* config/mkinstalldirs: Update from automake 1.9.5.
+	* config/ltmain.sh: Update from libtool-1.5.16.
+	* config/libtool.m4i: Update from libtool-1.5.16.
+
+2005-09-22  John R. Jackson <jrj@purdue.edu>
+
+	* configure.in: If --without-server is specified, either on the
+	  command line or via config.site, make sure --without-restore
+	  is also in effect.  Avoids compilation errors if mismatched.
+	* example/config.site: Document above.
+
+2005-09-21  John R. Jackson <jrj@purdue.edu>
+
+	* server-src/getconf.c: Allow CLIENT_LOGIN to be retrieved via
+	  "amgetconf build.CLIENT_LOGIN".
+
+2005-09-21  John R. Jackson <jrj@purdue.edu>
+
+	* server-src/amlabel.c: 'int fd' is only needed if HAVE_LINUX_ZFTAPE_H
+	  is defined.
+
+2005-09-21  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amlabel.c: 'int fd' is needed.
+
+2005-09-20  John R. Jackson <jrj@purdue.edu>
+
+	* server-src/reporter.c: Fix minor typo noticed by Scott R. Burns
+	  <Scott.Burns@Netcontech.Com>.
+
+2005-09-20  John R. Jackson <jrj@purdue.edu>
+
+	* common-src/file.c: Create safe_fd() to do common file descriptor
+	  safety operations at the start of every program.  In addition
+	  to closing everything from three on up that used to be done
+	  with explicit code, make sure stdin, stdout and stderr are
+	  open per a potential (but unlikely) security report from Ben
+	  Schwarz <bschwarz@EECS.berkeley.EDU>.
+	* common-src/amanda.h: Ditto.
+	* client-src/amandad.c: Ditto.
+	* client-src/calcsize.c: Ditto.
+	* client-src/getfsent.c: Ditto.
+	* client-src/killpgrp.c: Ditto.
+	* client-src/rundump.c: Ditto.
+	* client-src/runtar.c: Ditto.
+	* client-src/selfcheck.c: Ditto.
+	* client-src/sendbackup.c: Ditto.
+	* client-src/sendsize.c: Ditto.
+	* client-src/versionsuffix.c: Ditto.
+	* common-src/amflock.c: Ditto.
+	* common-src/genversion.c: Ditto.
+	* common-src/statfs.c: Ditto.
+	* common-src/token.c: Ditto.
+	* recover-src/amrecover.c: Ditto.
+	* restore-src/amidxtaped.c: Ditto.
+	* restore-src/amrestore.c: Ditto.
+	* server-src/amadmin.c: Ditto.
+	* server-src/amcheck.c: Ditto.
+	* server-src/amcleanupdisk.c: Ditto.
+	* server-src/amflush.c: Ditto.
+	* server-src/amindexd.c: Ditto.
+	* server-src/amlabel.c: Ditto.
+	* server-src/amlogroll.c: Ditto.
+	* server-src/amtape.c: Ditto.
+	* server-src/amtrmidx.c: Ditto.
+	* server-src/amtrmlog.c: Ditto.
+	* server-src/conffile.c: Ditto.
+	* server-src/diskfile.c: Ditto.
+	* server-src/driver.c: Ditto.
+	* server-src/dumper.c: Ditto.
+	* server-src/getconf.c: Ditto.
+	* server-src/infofile.c: Ditto.
+	* server-src/planner.c: Ditto.
+	* server-src/reporter.c: Ditto.
+	* server-src/taper.c: Ditto.
+
+2005-09-20  John R. Jackson <jrj@purdue.edu>
+
+	* client-src/calcsize.c: Fix format string.
+	* server-src/diskfile.c: Fix compiler warnings.
+	* server-src/planner.c: Fix compiler warnings.
+
+2005-09-20  John R. Jackson <jrj@purdue.edu>
+
+	* common-src/amanda.h: Add dbreopen() so debug file can be closed
+	  and then reopened if needed.
+	* common-src/debug.c: Ditto.
+	* client-src/runtar.c: Close the debug file (fd 10) around the
+	  exec of GNU tar.  Newer versions complain about stray file
+	  descriptors.
+	* server-src/getconf.c: Use dbreopen() to create the debug file.
+	  Do not try to open config file unless needed (allows clients to
+	  use build.XXX/dbopen.XXX/dbclose.XXX).
+
+2005-09-20  John R. Jackson <jrj@purdue.edu>
+
+	* client-src/sendbackup-dump.c: Ignore a new message from Solaris
+	  vxdump.
+
+2005-09-15  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amverify.sh.in: Don't check for EOI, it's buggy.
+
+2005-09-12  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/driverio.c: Don't save history with size < 0.
+
+2005-09-12  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Patch by Geert Uytterhoeven <geert@linux-m68k.org>
+
+	* server-src/planner.c: Don't use history with size < 0.
+
+2005-09-07  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+        Patch Paul Bijnens <paul.bijnens@xplanation.com>
+
+        * server-src/planner.c(delay_dumps): Delay incremental dump also
+ 	 larger than tape.
+
+2005-09-07  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Patch by Orion Poplawski <orion@cora.nwra.com>
+
+	* server-src/amoverview.pl.in: Add options -last, -num0 and -togo0.
+	* man/amoverview.8: Document -last, -num0 and -togo0.
+
+2005-09-07  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Patch by Orion Poplawski <orion@cora.nwra.com>
+
+	* server-src/driver.c: Make tape_length and tape_left unsigned long.
+
+2005-07-11  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Bug found by John E Hein <jhein@timing.com>.
+
+	* server-src/amadmin.c: Fix of by one with NB_HISTORY.
+	* server-src/infofile.c: Fix of by one with NB_HISTORY.
+
+2005-06-23  Stefan G. Weichinger <monitor@oops.co.at>
+
+	* client-src/sendbackup-gnutar.c: Added RE for new Samba-releases.
+
+2005-06-08  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+	Patch by Jay Fenlason <fenlason@redhat.com>
+
+	* client-src/sendsize.c: Fix dbprintf call.
+
+2005-06-03  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amverifyrun.sh.in: Remove buggy space.
+
+2005-05-28  Stefan G. Weichinger <monitor@oops.co.at>
+
+	* example/amanda.conf.in: edited the default-value for the
+				  holdingdisk-usage to "use -100 Mb".
+				  The old value "use 290 Mb" didn't make much
+				  sense anymore.
+
+2005-05-17  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* server-src/amadmin.c: Add [--days <num>] argument to tape subcommand.
+
+2005-05-13  Jean-Louis Martineau <martineau@iro.umontreal.ca>
+
+	* man/Makefile.am (COMMON_MAN_PAGES, EXTRA_DIST): Add amadmin.8.
+	* man/*: Update from latest xml-doc.
+	* docs/Makefile.am (pkgdata_DATA): Add Appendix.txt, amanda.conf.5.txt
+	  and howto-wrapper.txt.
+	* docs/* Update from latest xml-docs.
+
+2005-05-05  Stefan G. Weichinger <monitor@oops.co.at>
+
+	* example/amanda.conf.in: added description for parameter estimate.
+
 2005-04-20  Jean-Louis Martineau <martineau@iro.umontreal.ca>
 
 	* Amanda 2.4.5 released.
@@ -1324,7 +1556,7 @@
 	* client-src/sendsize.c: New re_size for NetApp.
 
 2003-02-04  Jean-Louis Martineau <martineau@iro.umontreal.ca>
-	Fix by Colin Henein <cmh@orange-carb.org>
+	Fix by Colin Henein <cmh@>
 
 	* common-src/amanda.h: Fix for the where S_ISDIR is not defined.
 

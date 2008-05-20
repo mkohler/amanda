@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: getconf.c,v 1.8.4.2.2.2.2.4 2003/12/16 22:36:45 martinea Exp $
+ * $Id: getconf.c,v 1.8.4.2.2.2.2.4.2.3 2005/09/21 19:04:22 jrjackson Exp $
  *
  * a little wrapper to extract config variables for shell scripts
  */
@@ -57,6 +57,7 @@ static struct build_info {
     { "DEFAULT_CONFIG",			DEFAULT_CONFIG },
     { "DEFAULT_TAPE_SERVER",		DEFAULT_TAPE_SERVER },
     { "DEFAULT_TAPE_DEVICE",		DEFAULT_TAPE_SERVER },
+    { "CLIENT_LOGIN",			CLIENT_LOGIN },
 
     { "BUILT_DATE",
 #if defined(BUILT_DATE)
@@ -310,7 +311,6 @@ int argc;
 char **argv;
 {
     char *result;
-    int fd;
     unsigned long malloc_hist_1, malloc_size_1;
     unsigned long malloc_hist_2, malloc_size_2;
     char *pgm;
@@ -319,15 +319,7 @@ char **argv;
     int i;
     char number[NUM_STR_SIZE];
 
-    for(fd = 3; fd < FD_SETSIZE; fd++) {
-	/*
-	 * Make sure nobody spoofs us with a lot of extra open files
-	 * that would cause an open we do to get a very high file
-	 * descriptor, which in turn might be used as an index into
-	 * an array (e.g. an fd_set).
-	 */
-	close(fd);
-    }
+    safe_fd(-1, 0);
 
     malloc_size_1 = malloc_inuse(&malloc_hist_1);
 
@@ -361,12 +353,6 @@ char **argv;
     }
 
     safe_cd();
-
-    conffile = stralloc2(config_dir, CONFFILE_NAME);
-    if(read_conffile(conffile)) {
-	error("errors processing config file \"%s\"", conffile);
-    }
-    amfree(conffile);
 
     /*
      * Fill in the build values that need runtime help.
@@ -426,6 +412,10 @@ char **argv;
 	} else {
 	    result = stralloc(dbname);
 	}
+	/*
+	 * Note that we deliberately do *not* call dbclose to prevent
+	 * the end line from being added to the file.
+	 */
 
 #undef p
 #define	p	"dbclose."
@@ -434,8 +424,6 @@ char **argv;
 	char *t;
 	char *pname;
 	char *dbname;
-	int old_fd2;
-	int new_fd2;
 
 	t = stralloc(parmname + sizeof(p) - 1);
 	if((dbname = strchr(t, ':')) == NULL) {
@@ -448,38 +436,18 @@ char **argv;
 	    pname++;
 	}
 	fflush(stderr);
-	if((old_fd2 = dup(2)) < 0) {
-	    error("cannot dup2 fd2");
-	}
-	close(2);
-	if((new_fd2 = open(dbname, O_RDWR|O_APPEND, 0600)) != 2) {
-	    int save_errno = errno;
-	    FILE *f;
-
-	    if((f = fdopen(old_fd2, "a")) == NULL) {
-		/* give up */
-		return 3;
-	    }
-	    fprintf(f, "%s: cannot open %s: ", get_pname(), dbname);
-	    if(new_fd2 < 0) {
-		fputs(strerror(save_errno), f);
-	    } else {
-		fprintf(f, "got %d instead of 2", new_fd2);
-	    }
-	    fputc('\n', f);
-	    fclose(f);
-	}
-	/*
-	 * Because we have not called dbopen(), dbclose() will write the
-	 * end line to stderr, which we just redirected to the file on
-	 * the command line.
-	 */
 	set_pname(pname);
+	dbreopen(dbname, NULL);
 	dbclose();
 	result = stralloc(dbname);
 	amfree(t);
 
     } else {
+	conffile = stralloc2(config_dir, CONFFILE_NAME);
+	if(read_conffile(conffile)) {
+	    error("errors processing config file \"%s\"", conffile);
+	}
+	amfree(conffile);
 	result = getconf_byname(parmname);
     }
     if(result == NULL) {

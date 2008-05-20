@@ -14,7 +14,7 @@ AC_DEFINE_UNQUOTED(CONFIGURE_COMMAND,"$CONFIGURE_COMMAND",
 	  [Saves the original ./configure command line arguments])
 AC_SUBST(CONFIGURE_COMMAND)
 
-AM_INIT_AUTOMAKE(amanda, 2.4.5)
+AM_INIT_AUTOMAKE(amanda, 2.4.5p1)
 AM_CONFIG_HEADER(config/config.h)
 
 AC_PREREQ(2.59)		dnl Minimum Autoconf version required.
@@ -242,6 +242,9 @@ AC_ARG_WITH(server,
 	esac
     ]
 )
+if test "x${NO_SERVER_MODE+set}" != xset ; then
+   NO_SERVER_MODE=false
+fi
 
 AC_ARG_WITH(restore,
     [  --without-restore      do not build amrestore nor amidxtaped],
@@ -255,6 +258,20 @@ AC_ARG_WITH(restore,
 	esac
     ]
 )
+if test "x${NO_RESTORE_MODE+set}" != xset ; then
+   NO_RESTORE_MODE=${NO_SERVER_MODE-false}
+fi
+
+if ${NO_SERVER_MODE-false}; then
+   if ${NO_RESTORE_MODE-false}; then
+      dnl
+      dnl --without-server and --without-restore is OK
+      dnl
+      true
+   else
+      AC_MSG_ERROR([*** --without-server requires --without-restore])
+   fi
+fi
 
 AC_ARG_WITH(amrecover,
     [  --without-amrecover    do not build amrecover],
@@ -1783,6 +1800,7 @@ if test x"$ac_cv_header_sys_mtio_h" = x"yes" &&
 	AC_CACHE_CHECK([for Linux like scsi support (sg)],
 	amanda_cv_linux_sg_scsi,
 	[AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <sys/types.h>
 #include <scsi/sg.h>
 #include <sys/mtio.h>
 ]], [[

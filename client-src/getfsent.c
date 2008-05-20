@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: getfsent.c,v 1.20.4.1.2.2.2.6 2003/03/17 18:50:11 martinea Exp $
+ * $Id: getfsent.c,v 1.20.4.1.2.2.2.6.2.2 2005/09/30 19:13:36 martinea Exp $
  *
  * generic version of code to read fstab
  */
@@ -611,21 +611,12 @@ int main(argc, argv)
     char **argv;
 {
     generic_fsent_t fsent;
-    int fd;
     char *s;
     char *name = NULL;
     unsigned long malloc_hist_1, malloc_size_1;
     unsigned long malloc_hist_2, malloc_size_2;
 
-    for(fd = 3; fd < FD_SETSIZE; fd++) {
-	/*
-	 * Make sure nobody spoofs us with a lot of extra open files
-	 * that would cause an open we do to get a very high file
-	 * descriptor, which in turn might be used as an index into
-	 * an array (e.g. an fd_set).
-	 */
-	close(fd);
-    }
+    safe_fd(-1, 0);
 
     set_pname("getfsent");
 

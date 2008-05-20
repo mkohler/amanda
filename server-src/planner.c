@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: planner.c,v 1.76.2.15.2.13.2.32.2.16 2005/03/16 18:09:50 martinea Exp $
+ * $Id: planner.c,v 1.76.2.15.2.13.2.32.2.20 2005/09/20 21:31:52 jrjackson Exp $
  *
  * backup schedule planner for the Amanda backup system.
  */
@@ -165,22 +165,13 @@ char **argv;
     unsigned long malloc_hist_1, malloc_size_1;
     unsigned long malloc_hist_2, malloc_size_2;
     long initial_size;
-    int fd;
     char *conffile;
     char *conf_diskfile;
     char *conf_tapelist;
     char *conf_infofile;
     times_t section_start;
 
-    for(fd = 3; fd < FD_SETSIZE; fd++) {
-	/*
-	 * Make sure nobody spoofs us with a lot of extra open files
-	 * that would cause an open we do to get a very high file
-	 * descriptor, which in turn might be used as an index into
-	 * an array (e.g. an fd_set).
-	 */
-	close(fd);
-    }
+    safe_fd(-1, 0);
 
     setvbuf(stderr, (char *)NULL, _IOLBF, 0);
 
@@ -1164,13 +1155,13 @@ static void get_estimates P((void))
 	if(est(dp)->level[0] != -1 && est(dp)->est_size[0] < 0) {
 	    if(est(dp)->est_size[0] == -1) {
 		log_add(L_WARNING,
-			"disk %s:%s, estimate of level %d failed: %d.",
+			"disk %s:%s, estimate of level %d failed: %lu.",
 			dp->host->hostname, dp->name,
 			est(dp)->level[0], est(dp)->est_size[0]);
 	    }
 	    else {
 		log_add(L_WARNING,
-			"disk %s:%s, estimate of level %d timed out: %d.",
+			"disk %s:%s, estimate of level %d timed out: %lu.",
 			dp->host->hostname, dp->name,
 			est(dp)->level[0], est(dp)->est_size[0]);
 	    }
@@ -1180,13 +1171,13 @@ static void get_estimates P((void))
 	if(est(dp)->level[1] != -1 && est(dp)->est_size[1] < 0) {
 	    if(est(dp)->est_size[1] == -1) {
 		log_add(L_WARNING,
-			"disk %s:%s, estimate of level %d failed: %d.",
+			"disk %s:%s, estimate of level %d failed: %lu.",
 			dp->host->hostname, dp->name,
 			est(dp)->level[1], est(dp)->est_size[1]);
 	    }
 	    else {
 		log_add(L_WARNING,
-			"disk %s:%s, estimate of level %d timed out: %d.",
+			"disk %s:%s, estimate of level %d timed out: %lu.",
 			dp->host->hostname, dp->name,
 			est(dp)->level[1], est(dp)->est_size[1]);
 	    }
@@ -1196,13 +1187,13 @@ static void get_estimates P((void))
 	if(est(dp)->level[2] != -1 && est(dp)->est_size[2] < 0) {
 	    if(est(dp)->est_size[2] == -1) {
 		log_add(L_WARNING,
-			"disk %s:%s, estimate of level %d failed: %d.",
+			"disk %s:%s, estimate of level %d failed: %lu.",
 			dp->host->hostname, dp->name,
 			est(dp)->level[2], est(dp)->est_size[2]);
 	    }
 	    else {
 		log_add(L_WARNING,
-			"disk %s:%s, estimate of level %d timed out: %d.",
+			"disk %s:%s, estimate of level %d timed out: %lu.",
 			dp->host->hostname, dp->name,
 			est(dp)->level[2], est(dp)->est_size[2]);
 	    }
@@ -1393,6 +1384,7 @@ am_host_t *hostp;
 
 			for(j=NB_HISTORY-2;j>=0;j--) {
 			    if(info.history[j].level == 0) {
+				if(info.history[j].size < 0) continue;
 				est_size = info.history[j].size;
 				nb_est++;
 			    }
@@ -1421,6 +1413,7 @@ am_host_t *hostp;
 
 			for(j=NB_HISTORY-2;j>=0;j--) {
 			    if(info.history[j].level <= 0) continue;
+			    if(info.history[j].size < 0) continue;
 			    if(info.history[j].level == info.history[j+1].level) {
 				if(nb_day <NB_DAY-1) nb_day++;
 				est_size_day[nb_day] += info.history[j].size;
@@ -1453,6 +1446,7 @@ am_host_t *hostp;
 
 			for(j=NB_HISTORY-2;j>=0;j--) {
 			    if(info.history[j].level <= 0) continue;
+			    if(info.history[j].size < 0) continue;
 			    if(info.history[j].level == info.history[j+1].level + 1 ) {
 				est_size += info.history[j].size;
 				nb_est++;
@@ -1760,21 +1754,21 @@ pkt_t *pkt;
 
 		    if(est(dp)->level[2] != -1 && est(dp)->est_size[2] < 0) {
 			log_add(L_WARNING,
-				"disk %s:%s, estimate of level %d failed: %d.",
+				"disk %s:%s, estimate of level %d failed: %lu.",
 				dp->host->hostname, dp->name,
 				est(dp)->level[2], est(dp)->est_size[2]);
 			est(dp)->level[2] = -1;
 		    }
 		    if(est(dp)->level[1] != -1 && est(dp)->est_size[1] < 0) {
 			log_add(L_WARNING,
-				"disk %s:%s, estimate of level %d failed: %d.",
+				"disk %s:%s, estimate of level %d failed: %lu.",
 				dp->host->hostname, dp->name,
 				est(dp)->level[1], est(dp)->est_size[1]);
 			est(dp)->level[1] = -1;
 		    }
 		    if(est(dp)->level[0] != -1 && est(dp)->est_size[0] < 0) {
 			log_add(L_WARNING,
-				"disk %s:%s, estimate of level %d failed: %d.",
+				"disk %s:%s, estimate of level %d failed: %lu.",
 				dp->host->hostname, dp->name,
 				est(dp)->level[0], est(dp)->est_size[0]);
 			est(dp)->level[0] = -1;
@@ -2139,7 +2133,7 @@ static void delay_dumps P((void))
     for(dp = schedq.head; dp != NULL; dp = ndp) {
 	ndp = dp->next; /* remove_disk zaps this */
 
-	if (est(dp)->dump_size <= tape->length) {
+	if (est(dp)->dump_size == -1 || est(dp)->dump_size <= tape->length) {
 	    continue;
 	}
 
@@ -2158,6 +2152,10 @@ static void delay_dumps P((void))
 	    else if(est(dp)->degr_level < 0) {
 		delete = 1;
 		message = "but no incremental estimate";
+	    }
+	    else if (est(dp)->degr_size > tape->length) {
+		delete = 1;
+		message = "incremental dump also larger than tape";
 	    }
 	    else {
 		delete = 0;
