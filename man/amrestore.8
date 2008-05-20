@@ -1,0 +1,321 @@
+.\"
+.de EX
+.if t .ft C
+.nf
+..
+.de EE
+.fi
+.if t .ft
+..
+.TH AMRESTORE 8
+.SH NAME
+amrestore \- extract backup images from an Amanda tape
+.SH SYNOPSIS
+.B amrestore
+[
+.B \-r
+|
+.B \-c
+|
+.B \-C
+]
+[
+.B \-b
+.I blocksize
+]
+[
+.B \-f
+.I fileno
+]
+[
+.B \-l
+.I label
+]
+[
+.B \-p
+]
+[
+.B \-h
+]
+.I tapedevice
+|
+.I holdingfile
+[
+.I hostname
+[
+.I diskname
+[
+.I datestamp
+[
+.I hostname
+[
+.I diskname
+[
+.I datestamp
+\&...
+]]]]]]
+.SH DESCRIPTION
+.B Amrestore
+extracts backup images from the tape mounted on
+.I tapedevice
+or from the holding disk file
+.I holdingfile
+that match
+.IR hostname ,
+.I diskname
+and
+.I datestamp
+patterns given on the command line.
+The tape or holding file must be in a format written by the
+.B amdump
+or
+.B amflush
+program.
+.LP
+If
+.I diskname
+is not specified, all backups on the tape for the previous
+.I hostname
+are candidates.
+If
+.I datestamp
+is not specified, all backups on the tape for the previous
+.I hostname
+and
+.I diskname
+are candidates.
+If no
+.IR hostname ,
+.I diskname
+or
+.I datestamp
+are specified, every backup on the tape is a candidate.
+.LP
+.I Hostname
+and
+.I diskname
+are special expression descibe in the "HOST & DISK EXPRESSION" section
+of
+.IR amanda (8).
+.I Datestamp
+are special expression describe in the "DATESTAMP EXPRESSION" section
+of
+.IR amanda (8).
+For example, if
+.I diskname
+is "rz[23]a", it would match disks
+.B rz2a
+and
+.BR rz3a .
+.LP
+.I Datestamp
+is useful if
+.B amflush
+writes multiple backup runs to a single tape.
+.PP
+Unless
+.B \-p
+is used,
+candidate backup images are extracted to files
+in the current directory named:
+.LP
+.RS
+.I hostname.diskname.datestamp.dumplevel
+.RE
+.PP
+Amrestore doesn't use a changer, it restore from the tape already loaded
+in the
+.I tapedevice.
+.SH OPTIONS
+.TP
+.B \-b
+Set the blocksize used to read the tape or holding file.
+All holding files must be read with a blocksize of 32 KBytes.
+.B Amrestore
+should normally be able to determine the blocksize for tapes
+on its own and not need this parameter.
+.IP
+The default is 32 KBytes.
+.TP
+.B \-f
+Do a rewind followed by a fsf <fileno> before trying to restore an image.
+.TP
+.B \-l
+Check if we restoring from the tape with the right
+.I label
+.TP
+.B \-p
+Pipe output.
+The first matching backup image is sent to standard output,
+which is normally a pipe to
+.B restore
+or
+.BR tar ,
+then
+.B amrestore
+quits.
+It may be run again to continue selecting backups to process.
+Make sure you specify the no-rewind
+.I tapedevice
+when doing this.
+.IP
+Note:
+.B restore
+may report "short read" errors when reading from a pipe.
+Most versions of
+.B restore
+support a blocking factor option to let you set the read block size,
+and you should set it to 2.
+See the example below.
+.TP
+.B \-c
+Compress output using the fastest method the compression program provides.
+.B Amrestore
+normally writes output files in a format understood by
+.B restore
+or
+.BR tar ,
+even if the backups on the tape are compressed.
+With the
+.B \-c
+or
+.B \-C
+option,
+.B amrestore
+writes all files in compressed format,
+even if the backups on the tape are not compressed.
+Output file names will have a
+.I .Z
+or
+.I .gz
+extension depending on whether
+.B compress
+or
+.B gzip
+is the preferred compression program.
+This option is useful when the current directory disk is small.
+.TP
+.B \-C
+Compress output using the best method the compression program provides
+(may be very CPU intensive).
+See the notes above about the
+.B \-c
+option.
+.TP
+.B \-r
+Raw output.
+Backup images are output exactly as they are on the tape,
+including the
+.B amdump
+headers.
+Output file names will have a
+.I .RAW
+extension.
+This option is only useful for debugging and other strange circumstances.
+.TP
+.B \-h
+Header output.
+The tape header block is output at the beginning of each file.
+This is like
+.B \-r
+except
+.B \-c
+or
+.B \-C
+may also be used to compress the result.
+.B Amrecover
+uses the header to determine the restore program to use.
+.LP
+If a header is written (\-r or \-h),
+only 32 KBytes are output regardless of the tape blocksize.
+This makes the resulting image usable as a holding file.
+.SH EXAMPLES
+The following does an interactive restore of disk
+.I rz3g
+from host
+.IR seine ,
+to restore particular files.
+Note the use of the
+.B b
+option to
+.BR restore ,
+which causes it to read in units of two 512-byte blocks (1 Kbyte)
+at a time.
+This helps keep it from complaining about short reads.
+.LP
+.RS
+.EX
+% amrestore \-p /dev/nrmt9 seine rz3g | restore \-ivbf 2 \-
+.EE
+.RE
+.LP
+The next example extracts all backup images for host
+.IR seine .
+This is the usual way to extract all data for a host after a disk crash.
+.LP
+.RS
+.EX
+% amrestore /dev/nrmt9 seine
+.EE
+.RE
+.LP
+If the backup datestamp in the above example is
+.I 19910125
+and
+.I seine
+has level 0 backups of disks
+.I rz1a
+and
+.I rz1g
+on the tape,
+these files will be created in the current directory:
+.LP
+.RS
+.EX
+seine.rz1a.19910125.0
+seine.rz1g.19910125.0
+.EE
+.RE
+.LP
+You may also use
+.B amrestore
+to extract a backup image from a holding disk
+file that has not yet been flushed to tape:
+.LP
+.RS
+.EX
+% amrestore \-p /amanda/20001119/seine.rz1a.2 | restore \-ivbf 2 \-
+.EE
+.RE
+.LP
+.B Amrestore
+may be used to generate a listing of images on a tape:
+.LP
+.RS
+.EX
+% mt -f /dev/nrmt9 rewind
+% amrestore \-p /dev/nrmt9 no-such-host > /dev/null
+.EE
+.RE
+.LP
+This asks
+.B amrestore
+to find images for host
+.BR no-such-host .
+It will not find any entries that match, but along the way will report
+each image it skips.
+.SH CAVEATS
+.LP
+GNU tar must be used to restore files from backup images created with
+the GNUTAR dumptype.
+Vendor tar programs sometimes fail to read GNU tar images.
+.SH AUTHOR
+James da Silva <jds@cs.umd.edu>
+.br
+University of Maryland, College Park
+.SH "SEE ALSO"
+amanda(8),
+amdump(8),
+amflush(8),
+tar(1)
+restore(8)

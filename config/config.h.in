@@ -1,0 +1,1267 @@
+/* config/config.h.in.  Generated from configure.in by autoheader.  */
+
+/* Define on AIX. */
+#undef AIX_BACKUP
+
+/* Define on AIX. */
+#undef AIX_TAPEIO
+
+/* Location of Amanda directories and files. */
+#undef AMANDA_DBGDIR
+
+/* Number of days to keep debugging files. */
+#undef AMANDA_DEBUG_DAYS
+
+/* The name for the Amanda service. */
+#undef AMANDA_SERVICE_NAME
+
+/* The directory in which Amanda should create temporary files. */
+#undef AMANDA_TMPDIR
+
+/* Define if you want assertion checking. */
+#undef ASSERTIONS
+
+/* Define as the user who owns installed binaries. */
+#undef BINARY_OWNER
+
+/* Define to use BSD .rhosts/.amandahosts security. */
+#undef BSD_SECURITY
+
+/* The Kerberos client host instance. */
+#undef CLIENT_HOST_INSTANCE
+
+/* The Kerberos client host key file. */
+#undef CLIENT_HOST_KEY_FILE
+
+/* The Kerberos client host principle. */
+#undef CLIENT_HOST_PRINCIPLE
+
+/* Define as a the user to force to on client machines. */
+#undef CLIENT_LOGIN
+
+/* Define to 1 if the `closedir' function returns void instead of `int'. */
+#undef CLOSEDIR_VOID
+
+/* Define as the command line option for best compression. */
+#undef COMPRESS_BEST_OPT
+
+/* Define as the command line option for fast compression. */
+#undef COMPRESS_FAST_OPT
+
+/* Define to the exact path to the gzip or the compress program. */
+#undef COMPRESS_PATH
+
+/* Define to the suffix for the COMPRESS_PATH compression program. */
+#undef COMPRESS_SUFFIX
+
+/* Saves the original ./configure command line arguments */
+#undef CONFIGURE_COMMAND
+
+/* The directory in which configuration directories should be created. */
+#undef CONFIG_DIR
+
+/* Define to one of `_getb67', `GETB67', `getb67' for Cray-2 and Cray-YMP
+   systems. This function is required for `alloca.c' support on those systems.
+   */
+#undef CRAY_STACKSEG_END
+
+/* Define to 1 if using `alloca.c'. */
+#undef C_ALLOCA
+
+/* Define if you want debugging. */
+#undef DEBUG_CODE
+
+/* This is the default changer device. */
+#undef DEFAULT_CHANGER_DEVICE
+
+/* This is the default Amanda configuration. */
+#undef DEFAULT_CONFIG
+
+/* For Linux systems with floppy tapes: * QIC volume table support via raw
+   tape device. */
+#undef DEFAULT_RAW_TAPE_DEVICE
+
+/* This is the default Amanda index server. */
+#undef DEFAULT_SERVER
+
+/* This is the default no-rewinding tape device. */
+#undef DEFAULT_TAPE_DEVICE
+
+/* This is the default restoring Amanda tape server. */
+#undef DEFAULT_TAPE_SERVER
+
+/* Define as the prefix for disk devices, commonly /dev/ or /dev/dsk/ */
+#undef DEV_PREFIX
+
+/* Define on Cygwin. */
+#undef DONT_SUID_ROOT
+
+/* Define the location of the ufsdump, backup, or dump program. */
+#undef DUMP
+
+/* Define if dumper should buffer the sockets for faster throughput. */
+#undef DUMPER_SOCKET_BUFFERING
+
+/* Define this if this system's dump exits with 1 as a success code. */
+#undef DUMP_RETURNS_1
+
+/* Define to force to another user on client machines. */
+#undef FORCE_USERID
+
+/* Define to 1 if the `getpgrp' function requires zero arguments. */
+#undef GETPGRP_VOID
+
+/* Define to the location of Gnu tar. */
+#undef GNUTAR
+
+/* The directory in which GNU tar should store directory lists for
+   incrementals. */
+#undef GNUTAR_LISTED_INCREMENTAL_DIR
+
+/* Define the location of the grep program. */
+#undef GREP
+
+/* Define to 1 if you have the `accept' function. */
+#undef HAVE_ACCEPT
+
+/* Define if accept is declared. */
+#undef HAVE_ACCEPT_DECL
+
+/* Define to enable AIX tape-changer support */
+#undef HAVE_AIX_LIKE_SCSI
+
+/* Define to 1 if you have `alloca', as a function or macro. */
+#undef HAVE_ALLOCA
+
+/* Define to 1 if you have <alloca.h> and it should be used (not on Ultrix).
+   */
+#undef HAVE_ALLOCA_H
+
+/* Define to 1 if you have the <arpa/inet.h> header file. */
+#undef HAVE_ARPA_INET_H
+
+/* Define to 1 if you have the `atexit' function. */
+#undef HAVE_ATEXIT
+
+/* Define to 1 if you have the `atof' function. */
+#undef HAVE_ATOF
+
+/* Define if atof is declared. */
+#undef HAVE_ATOF_DECL
+
+/* Define to 1 if you have the `basename' function. */
+#undef HAVE_BASENAME
+
+/* Define to 1 if you have the `bcopy' function. */
+#undef HAVE_BCOPY
+
+/* Define if bcopy is declared. */
+#undef HAVE_BCOPY_DECL
+
+/* Define to 1 if you have the `bind' function. */
+#undef HAVE_BIND
+
+/* Define if bind is declared. */
+#undef HAVE_BIND_DECL
+
+/* Define this if issuing a fsf on a tape fails when you are not at a tape *
+   mark, for instance, if amrecover gives I/O errors when skipping. */
+#undef HAVE_BROKEN_FSF
+
+/* Define to enable BSD tape-changer support */
+#undef HAVE_BSD_LIKE_SCSI
+
+/* Define to 1 if you have the `bzero' function. */
+#undef HAVE_BZERO
+
+/* Define if bzero is declared. */
+#undef HAVE_BZERO_DECL
+
+/* Define to 1 if you have the <camlib.h> header file. */
+#undef HAVE_CAMLIB_H
+
+/* Define to 1 if you have the <cam/cam.h> header file. */
+#undef HAVE_CAM_CAM_H
+
+/* Define to enable CAM tape-changer support */
+#undef HAVE_CAM_LIKE_SCSI
+
+/* Define to 1 if you have the <cam/scsi/scsi_message.h> header file. */
+#undef HAVE_CAM_SCSI_SCSI_MESSAGE_H
+
+/* Define if limits.h defines CHAR_BIT. */
+#undef HAVE_CHAR_BIT
+
+/* Define if limits.h defines CHAR_MAX. */
+#undef HAVE_CHAR_MAX
+
+/* Define if limits.h defines CHAR_MIN. */
+#undef HAVE_CHAR_MIN
+
+/* Define to 1 if you have the <chio.h> header file. */
+#undef HAVE_CHIO_H
+
+/* Define to 1 if you have the `closelog' function. */
+#undef HAVE_CLOSELOG
+
+/* Define if closelog is declared. */
+#undef HAVE_CLOSELOG_DECL
+
+/* Define to 1 if you have the `connect' function. */
+#undef HAVE_CONNECT
+
+/* Define if connect is declared. */
+#undef HAVE_CONNECT_DECL
+
+/* Define to 1 if you have the <dbm.h> header file. */
+#undef HAVE_DBM_H
+
+/* Define to 1 if you have the `dbm_open' function. */
+#undef HAVE_DBM_OPEN
+
+/* Define if dbm_open is declared. */
+#undef HAVE_DBM_OPEN_DECL
+
+/* Define to 1 if you have the <db.h> header file. */
+#undef HAVE_DB_H
+
+/* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
+   */
+#undef HAVE_DIRENT_H
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
+
+/* Define to 1 if you don't have `vprintf' but do have `_doprnt.' */
+#undef HAVE_DOPRNT
+
+/* Define to the string that enables dump estimates. */
+#undef HAVE_DUMP_ESTIMATE
+
+/* Define to 1 if you have the `endmntent' function. */
+#undef HAVE_ENDMNTENT
+
+/* Define to 1 if you have the `fclose' function. */
+#undef HAVE_FCLOSE
+
+/* Define if fclose is declared. */
+#undef HAVE_FCLOSE_DECL
+
+/* Define to 1 if you have the <fcntl.h> header file. */
+#undef HAVE_FCNTL_H
+
+/* Define to 1 if you have the `fflush' function. */
+#undef HAVE_FFLUSH
+
+/* Define if fflush is declared. */
+#undef HAVE_FFLUSH_DECL
+
+/* Define to 1 if you have the `flock' function. */
+#undef HAVE_FLOCK
+
+/* Define if flock is declared. */
+#undef HAVE_FLOCK_DECL
+
+/* Define to 1 if you have the `fnmatch' function. */
+#undef HAVE_FNMATCH
+
+/* Define to 1 if you have the <fnmatch.h> header file. */
+#undef HAVE_FNMATCH_H
+
+/* Define to 1 if you have the `fprintf' function. */
+#undef HAVE_FPRINTF
+
+/* Define if fprintf is declared. */
+#undef HAVE_FPRINTF_DECL
+
+/* Define to 1 if you have the `fputc' function. */
+#undef HAVE_FPUTC
+
+/* Define if fputc is declared. */
+#undef HAVE_FPUTC_DECL
+
+/* Define to 1 if you have the `fputs' function. */
+#undef HAVE_FPUTS
+
+/* Define if fputs is declared. */
+#undef HAVE_FPUTS_DECL
+
+/* Define to 1 if you have the `fread' function. */
+#undef HAVE_FREAD
+
+/* Define if fread is declared. */
+#undef HAVE_FREAD_DECL
+
+/* Define to 1 if you have the `fseek' function. */
+#undef HAVE_FSEEK
+
+/* Define if fseek is declared. */
+#undef HAVE_FSEEK_DECL
+
+/* Define to 1 if you have the <fstab.h> header file. */
+#undef HAVE_FSTAB_H
+
+/* Define to 1 if you have the `fwrite' function. */
+#undef HAVE_FWRITE
+
+/* Define if fwrite is declared. */
+#undef HAVE_FWRITE_DECL
+
+/* Define to 1 if you have the `getcwd' function. */
+#undef HAVE_GETCWD
+
+/* Define to 1 if you have the `getfsent' function. */
+#undef HAVE_GETFSENT
+
+/* Define to 1 if you have the `gethostname' function. */
+#undef HAVE_GETHOSTNAME
+
+/* Define if gethostname is declared. */
+#undef HAVE_GETHOSTNAME_DECL
+
+/* Define to 1 if you have the `getmntent' function. */
+#undef HAVE_GETMNTENT
+
+/* Define to 1 if you have the `getopt' function. */
+#undef HAVE_GETOPT
+
+/* Define if getopt is declared. */
+#undef HAVE_GETOPT_DECL
+
+/* Define to 1 if you have the `getpagesize' function. */
+#undef HAVE_GETPAGESIZE
+
+/* Define to 1 if you have the `getpeername' function. */
+#undef HAVE_GETPEERNAME
+
+/* Define if getpeername is declared. */
+#undef HAVE_GETPEERNAME_DECL
+
+/* Define to 1 if you have the `getpgrp' function. */
+#undef HAVE_GETPGRP
+
+/* Define to 1 if you have the `getsockname' function. */
+#undef HAVE_GETSOCKNAME
+
+/* Define if getsockname is declared. */
+#undef HAVE_GETSOCKNAME_DECL
+
+/* Define to 1 if you have the `getsockopt' function. */
+#undef HAVE_GETSOCKOPT
+
+/* Define if getsockopt is declared. */
+#undef HAVE_GETSOCKOPT_DECL
+
+/* Define to 1 if you have the `gettimeofday' function. */
+#undef HAVE_GETTIMEOFDAY
+
+/* Define if gettimeofday is declared. */
+#undef HAVE_GETTIMEOFDAY_DECL
+
+/* Define to 1 if you have the `getvfsent' function. */
+#undef HAVE_GETVFSENT
+
+/* Define to 1 if you have the <grp.h> header file. */
+#undef HAVE_GRP_H
+
+/* Define if Amanda is using the gzip program. */
+#undef HAVE_GZIP
+
+/* Define to 1 if you have the <history.h> header file. */
+#undef HAVE_HISTORY_H
+
+/* Define this if dump accepts -h for honoring nodump. */
+#undef HAVE_HONOR_NODUMP
+
+/* Define to enable HPUX tape-changer support. */
+#undef HAVE_HPUX_LIKE_SCSI
+
+/* Define to enable HPUX chio based changer support. */
+#undef HAVE_HPUX_SCSI_CHIO
+
+/* Define to 1 if you have the `initgroups' function. */
+#undef HAVE_INITGROUPS
+
+/* Define if initgroups is declared. */
+#undef HAVE_INITGROUPS_DECL
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* Define to 1 if you have the `ioctl' function. */
+#undef HAVE_IOCTL
+
+/* Define if ioctl is declared. */
+#undef HAVE_IOCTL_DECL
+
+/* Define to enable IRIX tape-changer support */
+#undef HAVE_IRIX_LIKE_SCSI
+
+/* Define to 1 if you have the `isascii' function. */
+#undef HAVE_ISASCII
+
+/* Define to 1 if you have the `c' library (-lc). */
+#undef HAVE_LIBC
+
+/* Define to 1 if you have the `cam' library (-lcam). */
+#undef HAVE_LIBCAM
+
+/* Define to 1 if you have the `curses' library (-lcurses). */
+#undef HAVE_LIBCURSES
+
+/* Define to 1 if you have the `cur_colr' library (-lcur_colr). */
+#undef HAVE_LIBCUR_COLR
+
+/* Define to 1 if you have the <libc.h> header file. */
+#undef HAVE_LIBC_H
+
+/* Define to 1 if you have the `db' library (-ldb). */
+#undef HAVE_LIBDB
+
+/* Define to 1 if you have the `dbm' library (-ldbm). */
+#undef HAVE_LIBDBM
+
+/* Define to 1 if you have the `gdbm' library (-lgdbm). */
+#undef HAVE_LIBGDBM
+
+/* Define to 1 if you have the `intl' library (-lintl). */
+#undef HAVE_LIBINTL
+
+/* Define to 1 if you have the `m' library (-lm). */
+#undef HAVE_LIBM
+
+/* Define to 1 if you have the `ncurses' library (-lncurses). */
+#undef HAVE_LIBNCURSES
+
+/* Define to 1 if you have the `ndbm' library (-lndbm). */
+#undef HAVE_LIBNDBM
+
+/* Define to 1 if you have the `nsl' library (-lnsl). */
+#undef HAVE_LIBNSL
+
+/* Define to 1 if you have the `readline' library (-lreadline). */
+#undef HAVE_LIBREADLINE
+
+/* Define to 1 if you have the `socket' library (-lsocket). */
+#undef HAVE_LIBSOCKET
+
+/* Define to 1 if you have the `sun' library (-lsun). */
+#undef HAVE_LIBSUN
+
+/* Define to 1 if you have the `termcap' library (-ltermcap). */
+#undef HAVE_LIBTERMCAP
+
+/* Define to 1 if you have the `vtblc' library (-lvtblc). */
+#undef HAVE_LIBVTBLC
+
+/* Define to 1 if you have the <limits.h> header file. */
+#undef HAVE_LIMITS_H
+
+/* Define to enable Linux tape-changer support. */
+#undef HAVE_LINUX_LIKE_SCSI
+
+/* Define to 1 if you have the <linux/zftape.h> header file. */
+#undef HAVE_LINUX_ZFTAPE_H
+
+/* Define to 1 if you have the `listen' function. */
+#undef HAVE_LISTEN
+
+/* Define if listen is declared. */
+#undef HAVE_LISTEN_DECL
+
+/* Define to 1 if you have the `lstat' function. */
+#undef HAVE_LSTAT
+
+/* Define if lstat is declared. */
+#undef HAVE_LSTAT_DECL
+
+/* Define to 1 if you have the `malloc' function. */
+#undef HAVE_MALLOC
+
+/* Define if malloc is declared. */
+#undef HAVE_MALLOC_DECL
+
+/* Define to 1 if you have the `memmove' function. */
+#undef HAVE_MEMMOVE
+
+/* Define if memmove is declared. */
+#undef HAVE_MEMMOVE_DECL
+
+/* Define to 1 if you have the <memory.h> header file. */
+#undef HAVE_MEMORY_H
+
+/* Define to 1 if you have the `memset' function. */
+#undef HAVE_MEMSET
+
+/* Define if memset is declared. */
+#undef HAVE_MEMSET_DECL
+
+/* Define to 1 if you have the `mkdir' function. */
+#undef HAVE_MKDIR
+
+/* Define to 1 if you have the `mktemp' function. */
+#undef HAVE_MKTEMP
+
+/* Define if mktemp is declared. */
+#undef HAVE_MKTEMP_DECL
+
+/* Define to 1 if you have the `mktime' function. */
+#undef HAVE_MKTIME
+
+/* Define if mktime is declared. */
+#undef HAVE_MKTIME_DECL
+
+/* Define to 1 if you have a working `mmap' system call. */
+#undef HAVE_MMAP
+
+/* Define to 1 if you have the <mntent.h> header file. */
+#undef HAVE_MNTENT_H
+
+/* Define to 1 if you have the <mnttab.h> header file. */
+#undef HAVE_MNTTAB_H
+
+/* Define if the mtget structure has an mt_blkno field */
+#undef HAVE_MT_BLKNO
+
+/* Define if the mtget structure has an mt_dsreg field */
+#undef HAVE_MT_DSREG
+
+/* Define if the mtget structure has an mt_erreg field */
+#undef HAVE_MT_ERREG
+
+/* Define if the mtget structure has an mt_fileno field */
+#undef HAVE_MT_FILENO
+
+/* Define if the mtget structure has an mt_flags field */
+#undef HAVE_MT_FLAGS
+
+/* Define to 1 if you have the <ndbm.h> header file. */
+#undef HAVE_NDBM_H
+
+/* Define to 1 if you have the <ndir.h> header file, and it defines `DIR'. */
+#undef HAVE_NDIR_H
+
+/* Define to 1 if you have the <netdb.h> header file. */
+#undef HAVE_NETDB_H
+
+/* Define to 1 if you have the <netinet/in_systm.h> header file. */
+#undef HAVE_NETINET_IN_SYSTM_H
+
+/* Define to 1 if you have the <netinet/ip.h> header file. */
+#undef HAVE_NETINET_IP_H
+
+/* Define to 1 if you have the `on_exit' function. */
+#undef HAVE_ON_EXIT
+
+/* Define to 1 if you have the `openlog' function. */
+#undef HAVE_OPENLOG
+
+/* Define if openlog is declared. */
+#undef HAVE_OPENLOG_DECL
+
+/* Define to 1 if you have the `pclose' function. */
+#undef HAVE_PCLOSE
+
+/* Define if pclose is declared. */
+#undef HAVE_PCLOSE_DECL
+
+/* Define to 1 if you have the `perror' function. */
+#undef HAVE_PERROR
+
+/* Define if perror is declared. */
+#undef HAVE_PERROR_DECL
+
+/* Define to 1 if you have the `printf' function. */
+#undef HAVE_PRINTF
+
+/* Define if printf is declared. */
+#undef HAVE_PRINTF_DECL
+
+/* Define to 1 if you have the `putenv' function. */
+#undef HAVE_PUTENV
+
+/* Define to 1 if you have the `puts' function. */
+#undef HAVE_PUTS
+
+/* Define if puts is declared. */
+#undef HAVE_PUTS_DECL
+
+/* Define to 1 if you have the <readline.h> header file. */
+#undef HAVE_READLINE_H
+
+/* Define to 1 if you have the <readline/history.h> header file. */
+#undef HAVE_READLINE_HISTORY_H
+
+/* Define to 1 if you have the <readline/readline.h> header file. */
+#undef HAVE_READLINE_READLINE_H
+
+/* Define to 1 if you have the `realloc' function. */
+#undef HAVE_REALLOC
+
+/* Define if realloc is declared. */
+#undef HAVE_REALLOC_DECL
+
+/* Define to 1 if you have the `recvfrom' function. */
+#undef HAVE_RECVFROM
+
+/* Define if recvfrom is declared. */
+#undef HAVE_RECVFROM_DECL
+
+/* Define to 1 if you have the `remove' function. */
+#undef HAVE_REMOVE
+
+/* Define if remove is declared. */
+#undef HAVE_REMOVE_DECL
+
+/* Define to 1 if you have the `rename' function. */
+#undef HAVE_RENAME
+
+/* Define if rename is declared. */
+#undef HAVE_RENAME_DECL
+
+/* Define to 1 if you have the `rewind' function. */
+#undef HAVE_REWIND
+
+/* Define if rewind is declared. */
+#undef HAVE_REWIND_DECL
+
+/* Define to 1 if you have the `rmdir' function. */
+#undef HAVE_RMDIR
+
+/* Define to 1 if you have the `ruserok' function. */
+#undef HAVE_RUSEROK
+
+/* Define if ruserok is declared. */
+#undef HAVE_RUSEROK_DECL
+
+/* Define to 1 if you have the <scsi/scsi_ioctl.h> header file. */
+#undef HAVE_SCSI_SCSI_IOCTL_H
+
+/* Define to 1 if you have the <scsi/sg.h> header file. */
+#undef HAVE_SCSI_SG_H
+
+/* Define to 1 if you have the `select' function. */
+#undef HAVE_SELECT
+
+/* Define if select is declared. */
+#undef HAVE_SELECT_DECL
+
+/* Define to 1 if you have the `sendto' function. */
+#undef HAVE_SENDTO
+
+/* Define if sendto is declared. */
+#undef HAVE_SENDTO_DECL
+
+/* Define to 1 if you have the `setegid' function. */
+#undef HAVE_SETEGID
+
+/* Define if setegid is declared. */
+#undef HAVE_SETEGID_DECL
+
+/* Define to 1 if you have the `seteuid' function. */
+#undef HAVE_SETEUID
+
+/* Define if seteuid is declared. */
+#undef HAVE_SETEUID_DECL
+
+/* Define to 1 if you have the `setmntent' function. */
+#undef HAVE_SETMNTENT
+
+/* Define to 1 if you have the `setpgid' function. */
+#undef HAVE_SETPGID
+
+/* Define if setpgid is declared. */
+#undef HAVE_SETPGID_DECL
+
+/* Define to 1 if you have the `setpgrp' function. */
+#undef HAVE_SETPGRP
+
+/* Define if setpgrp is declared. */
+#undef HAVE_SETPGRP_DECL
+
+/* Define to 1 if you have the `setresgid' function. */
+#undef HAVE_SETRESGID
+
+/* Define if setresgid is declared. */
+#undef HAVE_SETRESGID_DECL
+
+/* Define to 1 if you have the `setresuid' function. */
+#undef HAVE_SETRESUID
+
+/* Define if setresuid is declared. */
+#undef HAVE_SETRESUID_DECL
+
+/* Define to 1 if you have the `setsockopt' function. */
+#undef HAVE_SETSOCKOPT
+
+/* Define if setsockopt is declared. */
+#undef HAVE_SETSOCKOPT_DECL
+
+/* Define to 1 if you have the `shmat' function. */
+#undef HAVE_SHMAT
+
+/* Define if shmat is declared. */
+#undef HAVE_SHMAT_DECL
+
+/* Define to 1 if you have the `shmctl' function. */
+#undef HAVE_SHMCTL
+
+/* Define if shmctl is declared. */
+#undef HAVE_SHMCTL_DECL
+
+/* Define to 1 if you have the `shmdt' function. */
+#undef HAVE_SHMDT
+
+/* Define if shmdt is declared. */
+#undef HAVE_SHMDT_DECL
+
+/* Define to 1 if you have the `shmget' function. */
+#undef HAVE_SHMGET
+
+/* Define if shmget is declared. */
+#undef HAVE_SHMGET_DECL
+
+/* Define to 1 if you have the `shquote' function. */
+#undef HAVE_SHQUOTE
+
+/* Define if shquote is declared. */
+#undef HAVE_SHQUOTE_DECL
+
+/* Define to 1 if you have the `sigaction' function. */
+#undef HAVE_SIGACTION
+
+/* Define to 1 if you have the `sigemptyset' function. */
+#undef HAVE_SIGEMPTYSET
+
+/* Define to 1 if you have the `sigvec' function. */
+#undef HAVE_SIGVEC
+
+/* Define to 1 if you have the `snprintf' function. */
+#undef HAVE_SNPRINTF
+
+/* Define if snprintf is declared. */
+#undef HAVE_SNPRINTF_DECL
+
+/* Define to 1 if you have the `socket' function. */
+#undef HAVE_SOCKET
+
+/* Define to 1 if you have the `socketpair' function. */
+#undef HAVE_SOCKETPAIR
+
+/* Define if socketpair is declared. */
+#undef HAVE_SOCKETPAIR_DECL
+
+/* Define if socket is declared. */
+#undef HAVE_SOCKET_DECL
+
+/* Define to enable Solaris tape-changer support */
+#undef HAVE_SOLARIS_LIKE_SCSI
+
+/* Define to 1 if you have the `sscanf' function. */
+#undef HAVE_SSCANF
+
+/* Define if sscanf is declared. */
+#undef HAVE_SSCANF_DECL
+
+/* Define to 1 if you have the `statfs' function. */
+#undef HAVE_STATFS
+
+/* Define to 1 if you have the `statvfs' function. */
+#undef HAVE_STATVFS
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
+
+/* Define to 1 if you have the `strcasecmp' function. */
+#undef HAVE_STRCASECMP
+
+/* Define if strcasecmp is declared. */
+#undef HAVE_STRCASECMP_DECL
+
+/* Define to 1 if you have the `strerror' function. */
+#undef HAVE_STRERROR
+
+/* Define if strerror is declared. */
+#undef HAVE_STRERROR_DECL
+
+/* Define to 1 if you have the `strftime' function. */
+#undef HAVE_STRFTIME
+
+/* Define if strftime is declared. */
+#undef HAVE_STRFTIME_DECL
+
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if you have the `strncasecmp' function. */
+#undef HAVE_STRNCASECMP
+
+/* Define if strncasecmp is declared. */
+#undef HAVE_STRNCASECMP_DECL
+
+/* Define to 1 if you have the `strstr' function. */
+#undef HAVE_STRSTR
+
+/* Define if the database header declares struct datum. */
+#undef HAVE_STRUCT_DATUM
+
+/* Define to 1 if you have the `syslog' function. */
+#undef HAVE_SYSLOG
+
+/* Define if syslog is declared. */
+#undef HAVE_SYSLOG_DECL
+
+/* Define to 1 if you have the <syslog.h> header file. */
+#undef HAVE_SYSLOG_H
+
+/* Define to 1 if you have the `system' function. */
+#undef HAVE_SYSTEM
+
+/* Define if system is declared. */
+#undef HAVE_SYSTEM_DECL
+
+/* Define if SysV shared-memory functions are available. */
+#undef HAVE_SYSVSHM
+
+/* Define to 1 if you have the <sys/chio.h> header file. */
+#undef HAVE_SYS_CHIO_H
+
+/* Define to 1 if you have the <sys/dir.h> header file, and it defines `DIR'.
+   */
+#undef HAVE_SYS_DIR_H
+
+/* Define to 1 if you have the <sys/dsreq.h> header file. */
+#undef HAVE_SYS_DSREQ_H
+
+/* Define to 1 if you have the <sys/fcntl.h> header file. */
+#undef HAVE_SYS_FCNTL_H
+
+/* Define to 1 if you have the <sys/file.h> header file. */
+#undef HAVE_SYS_FILE_H
+
+/* Define to 1 if you have the <sys/gscdds.h> header file. */
+#undef HAVE_SYS_GSCDDS_H
+
+/* Define to 1 if you have the <sys/ioctl.h> header file. */
+#undef HAVE_SYS_IOCTL_H
+
+/* Define to 1 if you have the <sys/ipc.h> header file. */
+#undef HAVE_SYS_IPC_H
+
+/* Define to 1 if you have the <sys/mman.h> header file. */
+#undef HAVE_SYS_MMAN_H
+
+/* Define to 1 if you have the <sys/mntent.h> header file. */
+#undef HAVE_SYS_MNTENT_H
+
+/* Define to 1 if you have the <sys/mount.h> header file. */
+#undef HAVE_SYS_MOUNT_H
+
+/* Define to 1 if you have the <sys/mtio.h> header file. */
+#undef HAVE_SYS_MTIO_H
+
+/* Define to 1 if you have the <sys/ndir.h> header file, and it defines `DIR'.
+   */
+#undef HAVE_SYS_NDIR_H
+
+/* Define to 1 if you have the <sys/param.h> header file. */
+#undef HAVE_SYS_PARAM_H
+
+/* Define to 1 if you have the <sys/scarray.h> header file. */
+#undef HAVE_SYS_SCARRAY_H
+
+/* Define to 1 if you have the <sys/scsiio.h> header file. */
+#undef HAVE_SYS_SCSIIO_H
+
+/* Define to 1 if you have the <sys/scsi.h> header file. */
+#undef HAVE_SYS_SCSI_H
+
+/* Define to 1 if you have the <sys/scsi/impl/uscsi.h> header file. */
+#undef HAVE_SYS_SCSI_IMPL_USCSI_H
+
+/* Define to 1 if you have the <sys/scsi/scsi/ioctl.h> header file. */
+#undef HAVE_SYS_SCSI_SCSI_IOCTL_H
+
+/* Define to 1 if you have the <sys/select.h> header file. */
+#undef HAVE_SYS_SELECT_H
+
+/* Define to 1 if you have the <sys/shm.h> header file. */
+#undef HAVE_SYS_SHM_H
+
+/* Define to 1 if you have the <sys/statfs.h> header file. */
+#undef HAVE_SYS_STATFS_H
+
+/* Define to 1 if you have the <sys/statvfs.h> header file. */
+#undef HAVE_SYS_STATVFS_H
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/tape.h> header file. */
+#undef HAVE_SYS_TAPE_H
+
+/* Define to 1 if you have the <sys/time.h> header file. */
+#undef HAVE_SYS_TIME_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <sys/vfstab.h> header file. */
+#undef HAVE_SYS_VFSTAB_H
+
+/* Define to 1 if you have the <sys/vfs.h> header file. */
+#undef HAVE_SYS_VFS_H
+
+/* Define to 1 if you have the <sys/wait.h> header file. */
+#undef HAVE_SYS_WAIT_H
+
+/* Define to 1 if you have the `time' function. */
+#undef HAVE_TIME
+
+/* Define if time is declared. */
+#undef HAVE_TIME_DECL
+
+/* Define to 1 if you have the `tolower' function. */
+#undef HAVE_TOLOWER
+
+/* Define if tolower is declared. */
+#undef HAVE_TOLOWER_DECL
+
+/* Define to 1 if you have the `toupper' function. */
+#undef HAVE_TOUPPER
+
+/* Define if toupper is declared. */
+#undef HAVE_TOUPPER_DECL
+
+/* Define if gettimeofday takes two arguments. */
+#undef HAVE_TWO_ARG_GETTIMEOFDAY
+
+/* Define to 1 if you have the `ungetc' function. */
+#undef HAVE_UNGETC
+
+/* Define if ungetc is declared. */
+#undef HAVE_UNGETC_DECL
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* Define if the compiler support unsigned long constants. */
+#undef HAVE_UNSIGNED_LONG_CONSTANTS
+
+/* Define to 1 if the system has the type `unsigned long long'. */
+#undef HAVE_UNSIGNED_LONG_LONG
+
+/* Define to 1 if you have the `vfprintf' function. */
+#undef HAVE_VFPRINTF
+
+/* Define if vfprintf is declared. */
+#undef HAVE_VFPRINTF_DECL
+
+/* Define to 1 if you have the `vprintf' function. */
+#undef HAVE_VPRINTF
+
+/* Define if vprintf is declared. */
+#undef HAVE_VPRINTF_DECL
+
+/* Define to 1 if you have the `vsnprintf' function. */
+#undef HAVE_VSNPRINTF
+
+/* Define if vsnprintf is declared. */
+#undef HAVE_VSNPRINTF_DECL
+
+/* Define to 1 if you have the `vsprintf' function. */
+#undef HAVE_VSPRINTF
+
+/* Define if vsprintf is declared. */
+#undef HAVE_VSPRINTF_DECL
+
+/* Define to 1 if you have the <vtblc.h> header file. */
+#undef HAVE_VTBLC_H
+
+/* Define to 1 if you have the `waitpid' function. */
+#undef HAVE_WAITPID
+
+/* Define to 1 if you have the <wait.h> header file. */
+#undef HAVE_WAIT_H
+
+/* Define if limits.h defines _POSIX2_RE_DUP_MAX. */
+#undef HAVE__POSIX2_RE_DUP_MAX
+
+/* Define on Cygwin. */
+#undef IGNORE_FSTAB
+
+/* Define on Cygwin. */
+#undef IGNORE_TAR_ERRORS
+
+/* Define on Cygwin. */
+#undef IGNORE_UID_CHECK
+
+/* The name for the Kerberized Amanda service. */
+#undef KAMANDA_SERVICE_NAME
+
+/* Enable Kerberos security. */
+#undef KRB4_SECURITY
+
+/* Command for starting printing jobs. */
+#undef LPRCMD
+
+/* LPRCMD switch for specifying a printer name. */
+#undef LPRFLAG
+
+/* Define to a program that understands -s "subject" user < message_file */
+#undef MAILER
+
+/* Maximum size of a tape block in KBytes. */
+#undef MAX_TAPE_BLOCK_KB
+
+/* Defined to the switch to be used when invoking mt to specify the * tape
+   device. */
+#undef MT_FILE_FLAG
+
+/* Define on Cygwin. */
+#undef NEED_PATH_ENV
+
+/* Define if we have to reset tape offsets when reacing 2GB. */
+#undef NEED_RESETOFS
+
+/* Name of package */
+#undef PACKAGE
+
+/* Define to the address where bug reports for this package should be sent. */
+#undef PACKAGE_BUGREPORT
+
+/* Define to the full name of this package. */
+#undef PACKAGE_NAME
+
+/* Define to the full name and version of this package. */
+#undef PACKAGE_STRING
+
+/* Define to the one symbol short name of this package. */
+#undef PACKAGE_TARNAME
+
+/* Define to the version of this package. */
+#undef PACKAGE_VERSION
+
+/* Define as the prefix for raw disk devices, commonly /dev/r or /dev/rdsk/ */
+#undef RDEV_PREFIX
+
+/* Define the location of the ufsrestore or restore program. */
+#undef RESTORE
+
+/* Define as the return type of signal handlers (`int' or `void'). */
+#undef RETSIGTYPE
+
+/* Define the location of smbclient for backing up Samba PC clients. */
+#undef SAMBA_CLIENT
+
+/* Not the actual samba version, just a number that should be increased
+   whenever we start to rely on a new samba feature. */
+#undef SAMBA_VERSION
+
+/* Define to type of select arguments. */
+#undef SELECT_ARG_TYPE
+
+/* The Kerberos server instance. */
+#undef SERVER_HOST_INSTANCE
+
+/* The Kerberos server key file. */
+#undef SERVER_HOST_KEY_FILE
+
+/* The Kerberos server principle. */
+#undef SERVER_HOST_PRINCIPLE
+
+/* A suffix that will be appended to service names. * Useful for testing in
+   parallel with a working version. */
+#undef SERVICE_SUFFIX
+
+/* Define to 1 if the `setpgrp' function takes no argument. */
+#undef SETPGRP_VOID
+
+/* Define to type of shmget() function argument. */
+#undef SHM_ARG_TYPE
+
+/* The size of a `char', as computed by sizeof. */
+#undef SIZEOF_CHAR
+
+/* The size of a `int', as computed by sizeof. */
+#undef SIZEOF_INT
+
+/* The size of a `long', as computed by sizeof. */
+#undef SIZEOF_LONG
+
+/* The size of a `short', as computed by sizeof. */
+#undef SIZEOF_SHORT
+
+/* The size of a `void*', as computed by sizeof. */
+#undef SIZEOF_VOIDP
+
+/* If using the C implementation of alloca, define if you know the
+   direction of stack growth for your system; otherwise it will be
+   automatically deduced at run-time.
+	STACK_DIRECTION > 0 => grows toward higher addresses
+	STACK_DIRECTION < 0 => grows toward lower addresses
+	STACK_DIRECTION = 0 => direction of growth unknown */
+#undef STACK_DIRECTION
+
+/* Define on OSF1. */
+#undef STATFS_OSF1
+
+/* Define on SCO OS5. */
+#undef STATFS_SCO_OS5
+
+/* Define on Ultrix. */
+#undef STATFS_ULTRIX
+
+/* Define to 1 if you have the ANSI C header files. */
+#undef STDC_HEADERS
+
+/* A comma-separated list of two integers, determining the minimum and maximum
+   unreserved TCP port numbers sockets should be bound to. */
+#undef TCPPORTRANGE
+
+/* Define to enable the text-based database format. */
+#undef TEXTDB
+
+/* The Kerberos ticket lifetime. */
+#undef TICKET_LIFETIME
+
+/* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
+#undef TIME_WITH_SYS_TIME
+
+/* Define to 1 if your <sys/time.h> declares `struct tm'. */
+#undef TM_IN_SYS_TIME
+
+/* A comma-separated list of two integers, determining the minimum and maximum
+   reserved UDP port numbers sockets should be bound to. */
+#undef UDPPORTRANGE
+
+/* Define as any optional arguments to get UNCOMPRESS_PATH to uncompress. */
+#undef UNCOMPRESS_OPT
+
+/* Define as the exact path to the gzip or compress command. */
+#undef UNCOMPRESS_PATH
+
+/* Define if you want to use the .amandahosts for BSD security. */
+#undef USE_AMANDAHOSTS
+
+/* Define to enable dbm databases. */
+#undef USE_DBM_H
+
+/* Define to enable db databases. */
+#undef USE_DB_H
+
+/* Define to use flock for file locking. */
+#undef USE_FLOCK
+
+/* Define for backups being done on a multiple networks and FQDNs are used. */
+#undef USE_FQDN
+
+/* Define to enable gdbm databases. */
+#undef USE_GDBM_H
+
+/* Define to use a hard-link based approach for file locking. */
+#undef USE_LNLOCK
+
+/* Define to use lockf for file locking. */
+#undef USE_LOCKF
+
+/* Define to enable ndbm databases. */
+#undef USE_NDBM_H
+
+/* Define to use Posix fcntl for file locking. */
+#undef USE_POSIX_FCNTL
+
+/* Define if you want to use amqde instead of gnutar for estimates */
+#undef USE_QUICK_AND_DIRTY_ESTIMATES
+
+/* Define to invoke rundump (setuid-root) instead of DUMP program directly. */
+#undef USE_RUNDUMP
+
+/* Define to have programs use version suffixes when calling other programs.
+   */
+#undef USE_VERSION_SUFFIXES
+
+/* Define on UnixWare. */
+#undef UWARE_TAPEIO
+
+/* Define the location of the vdump program. */
+#undef VDUMP
+
+/* Version number of package */
+#undef VERSION
+
+/* Define the location of the vrestore program. */
+#undef VRESTORE
+
+/* Define the location of the vxdump program on HPUX and SINIX hosts or on *
+   other hosts where the Veritas filesystem (vxfs) has been installed. */
+#undef VXDUMP
+
+/* Define the location of the vxrestore program on HPUX and SINIX hosts or on
+   * other hosts where the Veritas filesystem (vxfs) has been installed. */
+#undef VXRESTORE
+
+/* Defined if wait() puts the status in a union wait instead of int. */
+#undef WAIT_USES_UNION
+
+/* Define to 1 if your processor stores words with the most significant byte
+   first (like Motorola and SPARC, unlike Intel and VAX). */
+#undef WORDS_BIGENDIAN
+
+/* Define on XENIX/ISC. */
+#undef XENIX_TAPEIO
+
+/* Define the location of the xfsdump program on Irix hosts. */
+#undef XFSDUMP
+
+/* Define the location of the xfsrestore program on Irix hosts. */
+#undef XFSRESTORE
+
+/* Define to 1 if `lex' declares `yytext' as a `char *' by default, not a
+   `char[]'. */
+#undef YYTEXT_POINTER
+
+/* Directory in which user binaries should be installed. */
+#undef bindir
+
+/* Define to empty if `const' does not conform to ANSI C. */
+#undef const
+
+/* Define to `int' if <sys/types.h> doesn't define. */
+#undef gid_t
+
+/* Directory in which internal binaries should be installed. */
+#undef libexecdir
+
+/* Directory in which man-pages should be installed */
+#undef mandir
+
+/* Define to `long' if <sys/types.h> does not define. */
+#undef off_t
+
+/* Define to `int' if <sys/types.h> does not define. */
+#undef pid_t
+
+/* Directory in which administrator binaries should be installed. */
+#undef sbindir
+
+/* Define to `unsigned' if <sys/types.h> does not define. */
+#undef size_t
+
+/* Define if socklen_t is not a standard system type */
+#undef socklen_t
+
+/* Define to `int' if <sys/types.h> does not define. */
+#undef ssize_t
+
+/* Define to `int' if <sys/types.h> doesn't define. */
+#undef uid_t
+
+/* Define to empty if the compiler does not support volatile. */
+#undef volatile

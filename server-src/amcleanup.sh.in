@@ -1,0 +1,138 @@
+#!/bin/sh
+#
+# Amanda, The Advanced Maryland Automatic Network Disk Archiver
+# Copyright (c) 1991-1998 University of Maryland at College Park
+# All Rights Reserved.
+#
+# Permission to use, copy, modify, distribute, and sell this software and its
+# documentation for any purpose is hereby granted without fee, provided that
+# the above copyright notice appear in all copies and that both that
+# copyright notice and this permission notice appear in supporting
+# documentation, and that the name of U.M. not be used in advertising or
+# publicity pertaining to distribution of the software without specific,
+# written prior permission.  U.M. makes no representations about the
+# suitability of this software for any purpose.  It is provided "as is"
+# without express or implied warranty.
+#
+# U.M. DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO EVENT SHALL U.M.
+# BE LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+# OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+# CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+#
+# Author: James da Silva, Systems Design and Analysis Group
+#			   Computer Science Department
+#			   University of Maryland at College Park
+#
+
+#
+# amcleanup.sh - clean up and generate a report after a crash.
+
+# try to hit all the possibilities here
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libexecdir=@libexecdir@
+sbindir=@sbindir@
+
+confdir=@CONFIG_DIR@
+
+PATH=$sbindir:$libexecdir:/usr/bin:/bin:/usr/sbin:/sbin:/usr/ucb
+export PATH
+
+USE_VERSION_SUFFIXES="@USE_VERSION_SUFFIXES@"
+if test "$USE_VERSION_SUFFIXES" = yes; then
+	SUF=-@VERSION@
+else
+	SUF=
+fi
+
+if [ $# -ne 1 ]
+then
+        echo "Usage: amcleanup conf"
+        exit 1
+fi
+
+conf=$1
+if [ ! -d $confdir/$conf ]; then
+        echo "amcleanup: could not cd into $confdir/$conf"
+        exit 1
+fi
+
+cd $confdir/$conf
+
+logdir=`amgetconf$SUF logdir`
+[ $? -ne 0 ]  && exit 1
+logfile=$logdir/log
+errfile=$logdir/amdump
+erramflush=$logdir/amflush
+tapecycle=`amgetconf$SUF tapecycle`
+
+if [ -f $logfile ]; then
+	lognotfound=0
+
+	echo "amcleanup: processing outstanding log file."
+	exec </dev/null >/dev/null 2>&1
+	amreport$SUF $conf
+
+	# Roll the log file to its datestamped name.
+	amlogroll$SUF $conf
+
+	# Trim the index file to those for dumps that still exist.
+	amtrmidx$SUF $conf
+
+else
+	echo "amcleanup: no unprocessed logfile to clean up."
+
+	lognotfound=1
+fi
+
+if [ -f $errfile ]; then
+    # if log was found, this will have been directed to /dev/null,
+    # which is fine.
+    echo "amcleanup: $errfile exists, renaming it."
+
+    # Keep debug log through the tapecycle plus a couple days
+    maxdays=`expr $tapecycle + 2`
+
+    days=1
+    # First, find out the last existing errfile,
+    # to avoid ``infinite'' loops if tapecycle is infinite
+    while [ $days -lt $maxdays ] && [ -f $errfile.$days ]; do
+	days=`expr $days + 1`
+    done
+    # Now, renumber the existing log files
+    while [ $days -ge 2 ]; do
+	ndays=`expr $days - 1`
+	mv $errfile.$ndays $errfile.$days
+	days=$ndays
+    done
+    mv $errfile $errfile.1
+fi
+
+if [ -f $erramflush ]; then
+    # if log was found, this will have been directed to /dev/null,
+    # which is fine.
+    echo "amcleanup: $erramflush exists, renaming it."
+
+    # Keep debug log through the tapecycle plus a couple days
+    maxdays=`expr $tapecycle + 2`
+
+    days=1
+    # First, find out the last existing erramflush,
+    # to avoid ``infinite'' loops if tapecycle is infinite
+    while [ $days -lt $maxdays ] && [ -f $erramflush.$days ]; do
+	days=`expr $days + 1`
+    done
+    # Now, renumber the existing log files
+    while [ $days -ge 2 ]; do
+	ndays=`expr $days - 1`
+	mv $erramflush.$ndays $erramflush.$days
+	days=$ndays
+    done
+    mv $erramflush $erramflush.1
+fi
+
+$libexecdir/amcleanupdisk $conf
+
+exit $lognotfound
