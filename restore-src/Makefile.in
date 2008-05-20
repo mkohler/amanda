@@ -16,7 +16,9 @@
 
 # Makefile for Amanda restore programs.
 
-SOURCES = $(amidxtaped_SOURCES) amrestore.c
+
+
+SOURCES = $(librestore_la_SOURCES) $(amfetchdump_SOURCES) $(amidxtaped_SOURCES) amrestore.c
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -41,10 +43,11 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
-sbin_PROGRAMS = amrestore$(EXEEXT)
+sbin_PROGRAMS = amrestore$(EXEEXT) amfetchdump$(EXEEXT)
 libexec_PROGRAMS = amidxtaped$(EXEEXT)
 subdir = restore-src
-DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
+DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
+	$(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
 	$(top_srcdir)/configure.in
@@ -53,21 +56,38 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 mkinstalldirs = $(SHELL) $(top_srcdir)/config/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config/config.h
 CONFIG_CLEAN_FILES =
-am__installdirs = "$(DESTDIR)$(libexecdir)" "$(DESTDIR)$(sbindir)"
+am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
+am__vpath_adj = case $$p in \
+    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
+    *) f=$$p;; \
+  esac;
+am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
+am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(libexecdir)" \
+	"$(DESTDIR)$(sbindir)"
+libLTLIBRARIES_INSTALL = $(INSTALL)
+LTLIBRARIES = $(lib_LTLIBRARIES)
+librestore_la_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
+	../tape-src/libamtape.$(LIB_EXTENSION) \
+	../server-src/libamserver.$(LIB_EXTENSION)
+am_librestore_la_OBJECTS = restore.lo
+librestore_la_OBJECTS = $(am_librestore_la_OBJECTS)
 libexecPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 sbinPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(libexec_PROGRAMS) $(sbin_PROGRAMS)
+am_amfetchdump_OBJECTS = amfetchdump.$(OBJEXT)
+amfetchdump_OBJECTS = $(am_amfetchdump_OBJECTS)
+amfetchdump_LDADD = $(LDADD)
+amfetchdump_DEPENDENCIES = librestore.$(LIB_EXTENSION) \
+	../common-src/libamanda.$(LIB_EXTENSION)
 am_amidxtaped_OBJECTS = amidxtaped.$(OBJEXT)
 amidxtaped_OBJECTS = $(am_amidxtaped_OBJECTS)
-amidxtaped_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
-	../server-src/libamserver.$(LIB_EXTENSION) \
-	../tape-src/libamtape.$(LIB_EXTENSION) \
+amidxtaped_LDADD = $(LDADD)
+amidxtaped_DEPENDENCIES = librestore.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION)
 amrestore_SOURCES = amrestore.c
 amrestore_OBJECTS = amrestore.$(OBJEXT)
 amrestore_LDADD = $(LDADD)
-amrestore_DEPENDENCIES = ../common-src/libamanda.$(LIB_EXTENSION) \
-	../tape-src/libamtape.$(LIB_EXTENSION) \
+amrestore_DEPENDENCIES = librestore.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)/config
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
@@ -80,8 +100,11 @@ LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(amidxtaped_SOURCES) amrestore.c
-DIST_SOURCES = $(amidxtaped_SOURCES) amrestore.c
+SOURCES = $(librestore_la_SOURCES) $(amfetchdump_SOURCES) \
+	$(amidxtaped_SOURCES) amrestore.c
+DIST_SOURCES = $(librestore_la_SOURCES) $(amfetchdump_SOURCES) \
+	$(amidxtaped_SOURCES) amrestore.c
+HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -132,7 +155,9 @@ DEFAULT_TAPE_DEVICE = @DEFAULT_TAPE_DEVICE@
 DEFAULT_TAPE_SERVER = @DEFAULT_TAPE_SERVER@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DOC_BUILD_DATE = @DOC_BUILD_DATE@
 DUMP = @DUMP@
+DUMPER_DIR = @DUMPER_DIR@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -144,9 +169,12 @@ FFLAGS = @FFLAGS@
 GETCONF = @GETCONF@
 GNUPLOT = @GNUPLOT@
 GNUTAR = @GNUTAR@
+GNUTAR_LISTED_INCREMENTAL_DIR = @GNUTAR_LISTED_INCREMENTAL_DIR@
 GNUTAR_LISTED_INCREMENTAL_DIRX = @GNUTAR_LISTED_INCREMENTAL_DIRX@
 GREP = @GREP@
 GZIP = @GZIP@
+HAVE_XSLTPROC_FALSE = @HAVE_XSLTPROC_FALSE@
+HAVE_XSLTPROC_TRUE = @HAVE_XSLTPROC_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
@@ -159,6 +187,7 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
+LL_FMT = @LL_FMT@
 LN_S = @LN_S@
 LTALLOCA = @LTALLOCA@
 LTLIBOBJS = @LTLIBOBJS@
@@ -221,10 +250,13 @@ WANT_SERVER_FALSE = @WANT_SERVER_FALSE@
 WANT_SERVER_TRUE = @WANT_SERVER_TRUE@
 WANT_SETUID_CLIENT_FALSE = @WANT_SETUID_CLIENT_FALSE@
 WANT_SETUID_CLIENT_TRUE = @WANT_SETUID_CLIENT_TRUE@
+WANT_SSH_SECURITY_FALSE = @WANT_SSH_SECURITY_FALSE@
+WANT_SSH_SECURITY_TRUE = @WANT_SSH_SECURITY_TRUE@
 WANT_TAPE_FALSE = @WANT_TAPE_FALSE@
 WANT_TAPE_TRUE = @WANT_TAPE_TRUE@
 XFSDUMP = @XFSDUMP@
 XFSRESTORE = @XFSRESTORE@
+XSLTPROC = @XSLTPROC@
 YACC = @YACC@
 ac_c = @ac_c@
 ac_ct_AR = @ac_ct_AR@
@@ -275,7 +307,12 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-INCLUDES = -I$(top_srcdir)/common-src -I$(top_srcdir)/tape-src -I$(top_srcdir)/server-src
+INCLUDES = -I$(top_builddir)/common-src \
+		-I$(top_srcdir)/common-src   \
+		-I$(top_srcdir)/tape-src     \
+		-I$(top_srcdir)/server-src
+
+lib_LTLIBRARIES = librestore.la
 LIB_EXTENSION = la
 
 ###
@@ -284,16 +321,18 @@ LIB_EXTENSION = la
 # need to list libamanda twice here, first to override the system library
 # routines, and second to pick up any references in the other libraries.
 ###
-LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
-	../tape-src/libamtape.$(LIB_EXTENSION) \
+LDADD = librestore.$(LIB_EXTENSION) \
 	../common-src/libamanda.$(LIB_EXTENSION)
 
 amidxtaped_SOURCES = amidxtaped.c
-amidxtaped_LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
-                   ../server-src/libamserver.$(LIB_EXTENSION) \
+amfetchdump_SOURCES = amfetchdump.c
+librestore_la_SOURCES = restore.c
+librestore_la_LDFLAGS = -release $(VERSION)
+librestore_la_LIBADD = ../common-src/libamanda.$(LIB_EXTENSION) \
                    ../tape-src/libamtape.$(LIB_EXTENSION) \
-                   ../common-src/libamanda.$(LIB_EXTENSION)
+                  ../server-src/libamserver.$(LIB_EXTENSION)
 
+noinst_HEADERS = restore.h
 all: all-am
 
 .SUFFIXES:
@@ -327,6 +366,35 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
+install-libLTLIBRARIES: $(lib_LTLIBRARIES)
+	@$(NORMAL_INSTALL)
+	test -z "$(libdir)" || $(mkdir_p) "$(DESTDIR)$(libdir)"
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  if test -f $$p; then \
+	    f=$(am__strip_dir) \
+	    echo " $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) '$$p' '$(DESTDIR)$(libdir)/$$f'"; \
+	    $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) "$$p" "$(DESTDIR)$(libdir)/$$f"; \
+	  else :; fi; \
+	done
+
+uninstall-libLTLIBRARIES:
+	@$(NORMAL_UNINSTALL)
+	@set -x; list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  p=$(am__strip_dir) \
+	  echo " $(LIBTOOL) --mode=uninstall rm -f '$(DESTDIR)$(libdir)/$$p'"; \
+	  $(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(libdir)/$$p"; \
+	done
+
+clean-libLTLIBRARIES:
+	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
+	  test "$$dir" != "$$p" || dir=.; \
+	  echo "rm -f \"$${dir}/so_locations\""; \
+	  rm -f "$${dir}/so_locations"; \
+	done
+librestore.la: $(librestore_la_OBJECTS) $(librestore_la_DEPENDENCIES) 
+	$(LINK) -rpath $(libdir) $(librestore_la_LDFLAGS) $(librestore_la_OBJECTS) $(librestore_la_LIBADD) $(LIBS)
 install-libexecPROGRAMS: $(libexec_PROGRAMS)
 	@$(NORMAL_INSTALL)
 	test -z "$(libexecdir)" || $(mkdir_p) "$(DESTDIR)$(libexecdir)"
@@ -383,6 +451,9 @@ clean-sbinPROGRAMS:
 	  echo " rm -f $$p $$f"; \
 	  rm -f $$p $$f ; \
 	done
+amfetchdump$(EXEEXT): $(amfetchdump_OBJECTS) $(amfetchdump_DEPENDENCIES) 
+	@rm -f amfetchdump$(EXEEXT)
+	$(LINK) $(amfetchdump_LDFLAGS) $(amfetchdump_OBJECTS) $(amfetchdump_LDADD) $(LIBS)
 amidxtaped$(EXEEXT): $(amidxtaped_OBJECTS) $(amidxtaped_DEPENDENCIES) 
 	@rm -f amidxtaped$(EXEEXT)
 	$(LINK) $(amidxtaped_LDFLAGS) $(amidxtaped_OBJECTS) $(amidxtaped_LDADD) $(LIBS)
@@ -396,8 +467,10 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amfetchdump.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amidxtaped.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amrestore.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/restore.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -507,9 +580,9 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(PROGRAMS)
+all-am: Makefile $(LTLIBRARIES) $(PROGRAMS) $(HEADERS)
 installdirs:
-	for dir in "$(DESTDIR)$(libexecdir)" "$(DESTDIR)$(sbindir)"; do \
+	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(libexecdir)" "$(DESTDIR)$(sbindir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
 	done
 install: install-am
@@ -538,8 +611,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libexecPROGRAMS clean-libtool \
-	clean-sbinPROGRAMS mostlyclean-am
+clean-am: clean-generic clean-libLTLIBRARIES clean-libexecPROGRAMS \
+	clean-libtool clean-sbinPROGRAMS mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -559,7 +632,8 @@ info-am:
 
 install-data-am:
 
-install-exec-am: install-libexecPROGRAMS install-sbinPROGRAMS
+install-exec-am: install-libLTLIBRARIES install-libexecPROGRAMS \
+	install-sbinPROGRAMS
 	@$(NORMAL_INSTALL)
 	$(MAKE) $(AM_MAKEFLAGS) install-exec-hook
 
@@ -587,22 +661,24 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-info-am uninstall-libexecPROGRAMS \
-	uninstall-sbinPROGRAMS
+uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES \
+	uninstall-libexecPROGRAMS uninstall-sbinPROGRAMS
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
-	clean-libexecPROGRAMS clean-libtool clean-sbinPROGRAMS ctags \
-	distclean distclean-compile distclean-generic \
-	distclean-libtool distclean-tags distdir dvi dvi-am html \
-	html-am info info-am install install-am install-data \
-	install-data-am install-exec install-exec-am install-exec-hook \
-	install-info install-info-am install-libexecPROGRAMS \
-	install-man install-sbinPROGRAMS install-strip installcheck \
+	clean-libLTLIBRARIES clean-libexecPROGRAMS clean-libtool \
+	clean-sbinPROGRAMS ctags distclean distclean-compile \
+	distclean-generic distclean-libtool distclean-tags distdir dvi \
+	dvi-am html html-am info info-am install install-am \
+	install-data install-data-am install-exec install-exec-am \
+	install-exec-hook install-info install-info-am \
+	install-libLTLIBRARIES install-libexecPROGRAMS install-man \
+	install-sbinPROGRAMS install-strip installcheck \
 	installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
 	tags uninstall uninstall-am uninstall-info-am \
-	uninstall-libexecPROGRAMS uninstall-sbinPROGRAMS
+	uninstall-libLTLIBRARIES uninstall-libexecPROGRAMS \
+	uninstall-sbinPROGRAMS
 
 
 install-exec-hook:

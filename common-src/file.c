@@ -23,13 +23,15 @@
  * Author: AMANDA core development group.
  */
 /*
- * $Id: file.c,v 1.14.4.6.4.2.2.5.2.1 2005/09/20 21:31:52 jrjackson Exp $
+ * $Id: file.c,v 1.35 2006/03/09 16:51:41 martinea Exp $
  *
  * file and directory bashing routines
  */
 
 #include "amanda.h"
 #include "util.h"
+
+static int mk1dir P((const char *, int, uid_t, gid_t));
 
 uid_t client_uid = (uid_t) -1;
 gid_t client_gid = (gid_t) -1;
@@ -40,8 +42,8 @@ gid_t client_gid = (gid_t) -1;
 **       it will do nothing - only root is permitted to change the owner
 **       of a file.
 */
-int mk1dir(dir, mode, uid, gid)
-char *dir;	/* directory to create */
+static int mk1dir(dir, mode, uid, gid)
+const char *dir; /* directory to create */
 int mode;	/* mode for new directory */
 uid_t uid;	/* uid for new directory */
 gid_t gid;	/* gid for new directory */
@@ -270,19 +272,21 @@ safe_fd(fd_start, fd_count)
     for(fd = 0; fd < FD_SETSIZE; fd++) {
 	if (fd < 3) {
 	    /*
-	     * Open three file descriptors.  If stdin, stdout and stderr
-	     * are normal, i.e. open, we will open descriptor numbers
-	     * 3 or higher which the rest of this loop will turn right
-	     * around and close.  If one of the standard descriptors
-	     * is not open it will end up pointing to /dev/null and the
-	     * rest of the loop will leave it alone.
+	     * Open three file descriptors.  If one of the standard
+	     * descriptors is not open it will be pointed to /dev/null...
 	     *
 	     * This avoids, for instance, someone running us with stderr
 	     * closed so that when we open some other file, messages
 	     * sent to stderr do not accidentally get written to the
 	     * wrong file.
 	     */
-	    (void) open("/dev/null", O_RDWR);
+	    if (fcntl(fd, F_GETFD) == -1) {
+		if (open("/dev/null", O_RDWR) == -1) {
+		   fprintf(stderr, "/dev/null is inaccessable: %s\n",
+		           strerror(errno));
+		   exit(1);
+		}
+	    }
 	} else {
 	    /*
 	     * Make sure nobody spoofs us with a lot of extra open files
@@ -378,6 +382,7 @@ char *inp;
     while((ch = *s++) != '\0') {
 	if(ch == '_') {
 	    if(d >= buf + buf_size) {
+		amfree(buf);
 		return NULL;			/* cannot happen */
 	    }
 	    *d++ = '_';				/* convert _ to __ to try */
@@ -386,11 +391,13 @@ char *inp;
 	    ch = '_';	/* convert "bad" to "_" */
 	}
 	if(d >= buf + buf_size) {
+	    amfree(buf);
 	    return NULL;			/* cannot happen */
 	}
 	*d++ = ch;
     }
     if(d >= buf + buf_size) {
+	amfree(buf);
 	return NULL;				/* cannot happen */
     }
     *d = '\0';
@@ -415,7 +422,7 @@ char *inp;
 
 char *
 debug_agets(s, l, file)
-    char *s;
+    const char *s;
     int l;
     FILE *file;
 {
@@ -479,7 +486,7 @@ debug_agets(s, l, file)
  * Find/create a buffer for a particular file descriptor for use with
  * areads().
  *
- * void areads_getbuf (char *file, int line, int fd)
+ * void areads_getbuf (const char *file, int line, int fd)
  *
  * entry:	file, line = caller source location
  *		fd = file descriptor to look up
@@ -497,7 +504,7 @@ static ssize_t areads_bufsize = BUFSIZ;		/* for the test program */
 
 static void
 areads_getbuf(s, l, fd)
-    char *s;
+    const char *s;
     int l;
     int fd;
 {
@@ -588,7 +595,7 @@ areads_relbuf(fd)
 
 char *
 debug_areads (s, l, fd)
-    char *s;
+    const char *s;
     int l;
     int fd;
 {
@@ -669,6 +676,9 @@ int main(argc, argv)
 	safe_fd(-1, 0);
 
 	set_pname("file test");
+
+	/* Don't die when child closes pipe */
+	signal(SIGPIPE, SIG_IGN);
 
 	name = "/tmp/a/b/c/d/e";
 	if (argc > 2 && argv[1][0] != '\0') {

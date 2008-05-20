@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: rundump.c,v 1.23.2.3.6.1.2.1 2005/09/20 21:31:52 jrjackson Exp $
+ * $Id: rundump.c,v 1.28 2006/01/14 04:37:18 paddy_s Exp $
  *
  * runs DUMP program as root
  */
@@ -34,6 +34,7 @@
 int main P((int argc, char **argv));
 
 #if defined(VDUMP) || defined(XFSDUMP)
+#  undef USE_RUNDUMP
 #  define USE_RUNDUMP
 #endif
 
@@ -62,6 +63,9 @@ char **argv;
 
     set_pname("rundump");
 
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
+
     dbopen();
     dbprintf(("%s: version %s\n", argv[0], version()));
 
@@ -79,13 +83,11 @@ char **argv;
     }
 
 #ifdef FORCE_USERID
-    if (getuid() != client_uid) {
+    if (getuid() != client_uid)
 	error("error [must be invoked by %s]\n", CLIENT_LOGIN);
-    }
 
-    if (geteuid() != 0) {
+    if (geteuid() != 0)
 	error("error [must be setuid root]\n");
-    }
 #endif	/* FORCE_USERID */
 
 #if !defined (DONT_SUID_ROOT)
@@ -138,7 +140,7 @@ char **argv;
     execve(dump_program, argv, safe_env());
 
     e = strerror(errno);
-    dbprintf(("execve of %s failed (%s)\n", dump_program, e));
+    dbprintf(("failed (%s)\n", e));
     dbclose();
 
     fprintf(stderr, "rundump: could not exec %s: %s\n", dump_program, e);

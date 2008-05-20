@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: util.c,v 1.2.2.2.4.3.2.1 2002/03/31 21:01:33 jrjackson Exp $
+ * $Id: util.c,v 1.17 2006/01/14 04:37:19 paddy_s Exp $
  */
 
 #include "amanda.h"
@@ -47,10 +47,15 @@ fullread(fd, vbuf, buflen)
 
     while (buflen > 0) {
 	nread = read(fd, buf, buflen);
-	if (nread < 0)
-	    return (nread);
+	if (nread < 0) {
+	    if ((errno == EINTR) || (errno == EAGAIN))
+		continue;
+	    return ((tot > 0) ? tot : -1);
+	}
+
 	if (nread == 0)
 	    break;
+
 	tot += nread;
 	buf += nread;
 	buflen -= nread;
@@ -75,8 +80,11 @@ fullwrite(fd, vbuf, buflen)
 
     while (buflen > 0) {
 	nwritten = write(fd, buf, buflen);
-	if (nwritten < 0)
-	    return (nwritten);
+	if (nwritten < 0) {
+	    if ((errno == EINTR) || (errno == EAGAIN))
+		continue;
+	    return ((tot > 0) ? tot : -1);
+	}
 	tot += nwritten;
 	buf += nwritten;
 	buflen -= nwritten;
@@ -91,14 +99,16 @@ fullwrite(fd, vbuf, buflen)
  * on success.
  */
 int
-bind_portrange(s, addrp, first_port, last_port)
+bind_portrange(s, addrp, first_port, last_port, proto)
     int s;
     struct sockaddr_in *addrp;
     int first_port, last_port;
+    char *proto;
 {
     int port, cnt;
     const int num_ports = last_port - first_port + 1;
     int save_errno;
+    struct servent *servPort;
 
     assert(first_port > 0 && first_port <= last_port && last_port < 65536);
 
@@ -107,20 +117,25 @@ bind_portrange(s, addrp, first_port, last_port)
      * time to avoid always picking the same reserved port twice.
      */
     port = ((getpid() + time(0)) % num_ports) + first_port;
-
     /*
-     * Scan through the range, trying all available ports.  Wrap around
+     * Scan through the range, trying all available ports that are either 
+     * not taken in /etc/services or registered for *amanda*.  Wrap around
      * if we don't happen to start at the beginning.
      */
     for (cnt = 0; cnt < num_ports; cnt++) {
-	addrp->sin_port = htons(port);
-	if (bind(s, (struct sockaddr *)addrp, sizeof(*addrp)) >= 0)
-	    return 0;
-	/*
-	 * If the error was something other then port in use, stop.
-	 */
-	if (errno != EADDRINUSE)
-	    break;
+	servPort = getservbyport(htons(port), proto);
+	if((servPort == NULL) || strstr(servPort->s_name, "amanda")){
+	    dbprintf(("%s: bind_portrange2: trying port=%d\n",
+		      debug_prefix_time(NULL), port));
+	    addrp->sin_port = htons(port);
+	    if (bind(s, (struct sockaddr *)addrp, sizeof(*addrp)) >= 0)
+		return 0;
+	    /*
+	     * If the error was something other then port in use, stop.
+	     */
+	    if (errno != EADDRINUSE)
+		break;
+	}
 	if (++port > last_port)
 	    port = first_port;
     }
@@ -165,8 +180,8 @@ construct_datestamp(t)
 	when = *t;
     }
     tm = localtime(&when);
-    ap_snprintf(datestamp, sizeof(datestamp),
-                "%04d%02d%02d", tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday);
+    snprintf(datestamp, sizeof(datestamp),
+             "%04d%02d%02d", tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday);
     return stralloc(datestamp);
 }
 
@@ -187,9 +202,9 @@ construct_timestamp(t)
 	when = *t;
     }
     tm = localtime(&when);
-    ap_snprintf(timestamp, sizeof(timestamp),
-                "%04d%02d%02d%02d%02d%02d",
-		tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday,
-		tm->tm_hour, tm->tm_min, tm->tm_sec);
+    snprintf(timestamp, sizeof(timestamp),
+	     "%04d%02d%02d%02d%02d%02d",
+	     tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday,
+	     tm->tm_hour, tm->tm_min, tm->tm_sec);
     return stralloc(timestamp);
 }

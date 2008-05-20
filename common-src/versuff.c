@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 1991-1998 University of Maryland at College Park
+ * Copyright (c) 1991-1999 University of Maryland at College Park
  * All Rights Reserved.
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: versuff.c.in,v 1.6.4.1.4.1 2001/07/20 19:37:20 jrjackson Exp $
+ * $Id: versuff.c.in,v 1.11 2003/05/20 17:33:53 martinea Exp $
  *
  * provide amanda version number and suffix appended to program names
  */
@@ -32,43 +32,22 @@
 #include "version.h"
 
 const int   VERSION_MAJOR   = 2;
-const int   VERSION_MINOR   = 4;
-const int   VERSION_PATCH   = 5;
-const char *const VERSION_COMMENT = "p1";
+const int   VERSION_MINOR   = 5;
+const int   VERSION_PATCH   = 0;
+const char *const VERSION_COMMENT = "";
 
-char *
+const char *
 versionsuffix()
 {
 #ifdef USE_VERSION_SUFFIXES
-	static char *vsuff = NULL;
-
-	if(vsuff) return vsuff;			/* been here once already */
-
-	vsuff = stralloc2("-", version());
-	malloc_mark(vsuff);
-	return vsuff;
+    return "-2.5.0";
 #else
-	return "";
+    return "";
 #endif
 }
 
-char *
+const char *
 version()
 {
-	static char *vsuff = NULL;
-	char major_str[NUM_STR_SIZE];
-	char minor_str[NUM_STR_SIZE];
-	char patch_str[NUM_STR_SIZE];
-
-	if(vsuff) return vsuff;			/* been here once already */
-
-	ap_snprintf(major_str, sizeof(major_str), "%d", VERSION_MAJOR);
-	ap_snprintf(minor_str, sizeof(minor_str), "%d", VERSION_MINOR);
-	ap_snprintf(patch_str, sizeof(patch_str), "%d", VERSION_PATCH);
-
-	vsuff = vstralloc(major_str, ".", minor_str, ".", patch_str,
-			  VERSION_COMMENT,
-			  NULL);
-	malloc_mark(vsuff);
-	return vsuff;
+    return "2.5.0";
 }

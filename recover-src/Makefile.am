@@ -1,7 +1,9 @@
 # Makefile for Amanda file recovery programs.
 
-INCLUDES =		-I$(top_srcdir)/common-src -I$(top_srcdir)/client-src \
-			-I$(top_srcdir)/tape-src
+INCLUDES =	-I$(top_builddir)/common-src \
+		-I$(top_srcdir)/common-src   \
+		-I$(top_srcdir)/client-src   \
+		-I$(top_srcdir)/tape-src
 
 LIB_EXTENSION = la
 
@@ -20,8 +22,11 @@ endif
 
 LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
 	@LEXLIB@ \
-	../client-src/libamclient.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) \
+	../client-src/libamclient.$(LIB_EXTENSION)
+if WANT_SERVER
+LDADD += ../tape-src/libamtape.$(LIB_EXTENSION)
+endif
+LDADD += ../common-src/libamanda.$(LIB_EXTENSION) \
 	$(READLINE_LIBS)
 
 amrecover_SOURCES =	amrecover.c					\
@@ -47,4 +52,4 @@ install-exec-hook:
 
 # so that uscan.c is never generated before uparse.h
 # otherwise we might have makedepend problems
-$(srcdir)/uscan.c: $(srcdir)/uparse.h
+uscan.c: uparse.h

@@ -19,7 +19,7 @@
 ..
 .TH "AMFLUSH" 8 "" "" ""
 .SH NAME
-amflush \- flush AMANDA backup files from holding disk to tape
+amflush \- flush Amanda backup files from holding disk to tape
 .SH "SYNOPSIS"
 .ad l
 .hy 0
@@ -31,7 +31,7 @@ amflush \- flush AMANDA backup files from holding disk to tape
 .SH "DESCRIPTION"
 
 .PP
-\fBAmflush\fR writes \fBAMANDA\fR backups from the holding disks to tape, and updates the \fBAMANDA\fR info database and tapelist accordingly\&. Backups may stay in a holding disk when something is wrong with the tape at the time \fBamdump\fR is run\&. When this happens, the problem must be corrected and \fBamflush\fR run by hand\&.
+\fBAmflush\fR writes \fBAmanda\fR backups from the holding disks to tape, and updates the \fBAmanda\fR info database and tapelist accordingly\&. Backups may stay in a holding disk when something is wrong with the tape at the time \fBamdump\fR is run\&. When this happens, the problem must be corrected and \fBamflush\fR run by hand\&.
 
 .SH "OPTIONS"
 
@@ -55,10 +55,10 @@ specify a datestamp expression you want to flush, see the "DATESTAMP EXPRESSION"
 You can specify many host/disk expressions, only disks that match an expression will be flushed\&. All disks are flushed if no expressions are given\&. see the "HOST & DISK EXPRESSION" section of \fBamanda\fR(8) for a description\&.
 
 .PP
-\fBAmflush\fR will look in the holding disks specified by the \fBamanda\&.conf\fR file in /usr/local/etc/amanda/\fBconfig\fR for any non\-empty \fBAMANDA\fR work directories\&. It then prompts you to select a directory or to process all of the directories\&. The work directories in the holding disks are named by the date at the time \fBamdump\fR was run, e\&.g\&. 19910215\&.
+\fBAmflush\fR will look in the holding disks specified by the \fBamanda\&.conf\fR file in /usr/local/etc/amanda/\fBconfig\fR for any non\-empty \fBAmanda\fR work directories\&. It then prompts you to select a directory or to process all of the directories\&. The work directories in the holding disks are named by the date at the time \fBamdump\fR was run, e\&.g\&. 19910215\&.
 
 .PP
-See the \fBamanda\fR(8) man page for more details about \fBAMANDA\fR\&.
+See the \fBamanda\fR(8) man page for more details about \fBAmanda\fR\&.
 
 .SH "EXAMPLE"
 
@@ -68,10 +68,10 @@ See the \fBamanda\fR(8) man page for more details about \fBAMANDA\fR\&.
 
 % amflush daily
 Scanning /amanda\-hold\&.\&.\&.
-  20001113: found \fBAMANDA\fR directory\&.
-  20001114: found \fBAMANDA\fR directory\&.
+  20001113: found \fBAmanda\fR directory\&.
+  20001114: found \fBAmanda\fR directory\&.
 
-Multiple \fBAMANDA\fR directories, please pick one by letter:
+Multiple \fBAmanda\fR directories, please pick one by letter:
   A\&. 20001113
   B\&. 20001114
 Select directories to flush [A\&.\&.B]: [ALL] all
@@ -91,7 +91,7 @@ You'll get mail when amflush is finished\&.
 James da Silva, <jds@amanda\&.org> : Original text
 
 .PP
-Stefan G\&. Weichinger, <sgw@amanda\&.org>, maintainer of the \fBAMANDA\fR\-documentation: XML\-conversion
+Stefan G\&. Weichinger, <sgw@amanda\&.org>, maintainer of the \fBAmanda\fR\-documentation: XML\-conversion
 
 .SH "SEE ALSO"
 

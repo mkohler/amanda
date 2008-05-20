@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: logfile.h,v 1.6.8.1.2.1 2002/02/10 03:31:53 jrjackson Exp $
+ * $Id: logfile.h,v 1.12 2005/11/29 22:19:08 martinea Exp $
  *
  * interface to logfile module
  */
@@ -46,14 +46,16 @@ typedef enum logtype_e {
     L_ERROR, L_WARNING,	L_INFO, L_SUMMARY,	 /* information messages */
     L_START, L_FINISH,				     /* start/end of run */
     L_DISK,							 /* disk */
-    L_SUCCESS, L_FAIL, L_STRANGE,		    /* the end of a dump */
+    L_SUCCESS, L_PARTIAL, L_FAIL, L_STRANGE,	    /* the end of a dump */
+    L_CHUNK, L_CHUNKSUCCESS,                            /* ... continued */
     L_STATS,						   /* statistics */
     L_MARKER,					  /* marker for reporter */
     L_CONT			 /* continuation line, used when reading */
 } logtype_t;
 
 typedef enum program_e {
-    P_UNKNOWN, P_PLANNER, P_DRIVER, P_REPORTER, P_DUMPER, P_TAPER, P_AMFLUSH
+    P_UNKNOWN, P_PLANNER, P_DRIVER, P_REPORTER, P_DUMPER, P_CHUNKER,
+    P_TAPER, P_AMFLUSH
 } program_t;
 #define P_LAST P_AMFLUSH
 
@@ -68,6 +70,8 @@ extern char *program_str[];
 void logerror P((char *));
 void log_add P((logtype_t typ, char * format, ...))
     __attribute__ ((format (printf, 2, 3)));
+char* log_genstring P((logtype_t typ, char *pname, char * format, ...));
+/*    __attribute__ ((format (printf, 3, 4))); */
 void log_start_multiline P((void));
 void log_end_multiline P((void));
 void log_rename P((char *datestamp));

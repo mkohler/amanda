@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amtrmidx.c,v 1.21.4.1.4.2.2.5.2.2 2005/09/20 21:31:52 jrjackson Exp $
+ * $Id: amtrmidx.c,v 1.34 2006/01/14 04:37:19 paddy_s Exp $
  *
  * trims number of index files to only those still in system.  Well
  * actually, it keeps a few extra, plus goes back to the last level 0
@@ -43,8 +43,8 @@
 #include "version.h"
 
 static int sort_by_name_reversed(a, b)
-const void *a;
-const void *b;
+    const void *a;
+    const void *b;
 {
     char **ap = (char **) a;
     char **bp = (char **) b;
@@ -52,12 +52,14 @@ const void *b;
     return -1 * strcmp(*ap, *bp);
 }
 
+int main P((int, char **));
+
 int main(argc, argv)
 int argc;
 char **argv;
 {
     disk_t *diskp;
-    disklist_t *diskl;
+    disklist_t diskl;
     int i;
     char *conffile;
     char *conf_diskfile;
@@ -71,6 +73,9 @@ char **argv;
     safe_cd();
 
     set_pname("amtrmidx");
+
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
 
     dbopen();
     dbprintf(("%s: version %s\n", argv[0], version()));
@@ -90,32 +95,31 @@ char **argv;
 
     config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
     conffile = stralloc2(config_dir, CONFFILE_NAME);
-    if(read_conffile(conffile)) {
+    if (read_conffile(conffile))
 	error("errors processing config file \"%s\"", conffile);
-    }
     amfree(conffile);
+
     conf_diskfile = getconf_str(CNF_DISKFILE);
     if(*conf_diskfile == '/') {
 	conf_diskfile = stralloc(conf_diskfile);
     } else {
 	conf_diskfile = stralloc2(config_dir, conf_diskfile);
     }
-    if((diskl = read_diskfile(conf_diskfile)) == NULL) {
-	error("could not load disklist \"%s\".", conf_diskfile);
-    }
+    if (read_diskfile(conf_diskfile, &diskl) < 0)
+	error("could not load disklist \"%s\"", conf_diskfile);
     amfree(conf_diskfile);
+
     conf_tapelist = getconf_str(CNF_TAPELIST);
     if(*conf_tapelist == '/') {
 	conf_tapelist = stralloc(conf_tapelist);
     } else {
 	conf_tapelist = stralloc2(config_dir, conf_tapelist);
     }
-    if(read_tapelist(conf_tapelist)) {
+    if(read_tapelist(conf_tapelist))
 	error("could not load tapelist \"%s\"", conf_tapelist);
-    }
     amfree(conf_tapelist);
 
-    output_find = find_dump(1, diskl);
+    output_find = find_dump(1, &diskl);
 
     conf_indexdir = getconf_str(CNF_INDEXDIR);
     if(*conf_indexdir == '/') {
@@ -127,8 +131,10 @@ char **argv;
     /* now go through the list of disks and find which have indexes */
     time(&tmp_time);
     tmp_time -= 7*24*60*60;			/* back one week */
-    for (diskp = diskl->head; diskp != NULL; diskp = diskp->next) {
-	if (diskp->index) {
+    for (diskp = diskl.head; diskp != NULL; diskp = diskp->next)
+    {
+	if (diskp->index)
+	{
 	    char *indexdir;
 	    DIR *d;
 	    struct dirent *f;
@@ -143,13 +149,13 @@ char **argv;
 	    /* get listing of indices, newest first */
 	    host = sanitise_filename(diskp->host->hostname);
 	    disk = sanitise_filename(diskp->name);
-	    indexdir = vstralloc (conf_indexdir, "/",
-				  host, "/",
-				  disk, "/",
-				  NULL);
+	    indexdir = vstralloc(conf_indexdir, "/",
+				 host, "/",
+				 disk, "/",
+				 NULL);
 	    amfree(host);
 	    amfree(disk);
-	    if((d = opendir(indexdir)) == NULL) {
+	    if ((d = opendir(indexdir)) == NULL) {
 		dbprintf(("could not open index directory \"%s\"\n", indexdir));
 		amfree(indexdir);
 		continue;

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: help.c,v 1.4.4.2.4.1.2.1 2002/03/06 19:23:32 martinea Exp $
+ * $Id: help.c,v 1.8 2002/03/06 19:23:20 martinea Exp $
  *
  * implements the "help" command in amrecover
  */

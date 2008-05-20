@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amrecover.h,v 1.8.4.2.4.1.2.3 2002/10/27 21:13:25 martinea Exp $
+ * $Id: amrecover.h,v 1.17 2005/12/31 00:02:10 paddy_s Exp $
  *
  * data structures and declarations for amrecover
  */
@@ -34,10 +34,10 @@
 
 typedef struct DIR_ITEM
 {
-    char date[11];
+    char *date;
     int  level;
-    char tape[256];
-    char path[1024];
+    char *tape;
+    char *path;
     int  fileno;
 
     struct DIR_ITEM *next;
@@ -56,8 +56,11 @@ extern int quit_prog;			/* set when time to exit parser */
 extern char *tape_server_name;
 extern char *tape_device_name;
 extern am_feature_t *our_features;
-extern am_feature_t *their_features;
+extern am_feature_t *indexsrv_features;
+extern am_feature_t *tapesrv_features;
 extern pid_t extract_restore_child_pid;
+
+extern void free_dir_item P((DIR_ITEM *item));
 
 extern int converse P((char *cmd));
 extern int exchange P((char *cmd));
@@ -106,3 +109,5 @@ extern void extract_files P((void));
 #define SAMBA_SMBCLIENT 0
 #define SAMBA_TAR       1
 #endif
+
+extern char *get_security P((void));

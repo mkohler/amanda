@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: server_util.h,v 1.1.2.1.4.2.2.2 2002/04/13 19:24:17 jrjackson Exp $
+ * $Id: server_util.h,v 1.8 2005/10/11 01:17:01 vectro Exp $
  *
  */
 #ifndef SERVER_UTIL_H
@@ -35,12 +35,13 @@
 #define MAX_ARGS 32
 
 typedef enum {
-    BOGUS, QUIT, QUITTING, DONE,
+    BOGUS, QUIT, QUITTING, DONE, PARTIAL,
     FILE_DUMP, PORT_DUMP, CONTINUE, ABORT,		/* dumper cmds */
     FAILED, TRYAGAIN, NO_ROOM, RQ_MORE_DISK,		/* dumper results */
-    ABORT_FINISHED, FATAL_TRYAGAIN, BAD_COMMAND,	/* dumper results */
+    ABORT_FINISHED, BAD_COMMAND,			/* dumper results */
     START_TAPER, FILE_WRITE, PORT_WRITE,		/* taper cmds */
-    PORT, TAPE_ERROR, TAPER_OK,				/* taper results */
+    PORT, TAPE_ERROR, TAPER_OK,	SPLIT_NEEDNEXT,         /* taper results */
+    SPLIT_CONTINUE,
     LAST_TOK
 } cmd_t;
 extern const char *cmdstr[];

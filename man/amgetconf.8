@@ -31,7 +31,7 @@ amgetconf \- look up amanda.conf variables
 .SH "DESCRIPTION"
 
 .PP
-\fBAmgetconf\fR looks up parameters in \fBamanda\&.conf\fR, the \fBAMANDA\fR configuration file, or from the build and runtime environment, and returns their corresponding value\&.
+\fBAmgetconf\fR looks up parameters in \fBamanda\&.conf\fR, the \fBAmanda\fR configuration file, or from the build and runtime environment, and returns their corresponding value\&.
 
 .PP
 If \fBconfig\fR is not specified, \fBamgetconf\fR assumes it is being run from the configuration directory and that \fBamanda\&.conf\fR is present\&.
@@ -40,13 +40,13 @@ If \fBconfig\fR is not specified, \fBamgetconf\fR assumes it is being run from t
 If \fBparameter\fR begins with \fBbuild\&.\fR, the (case insensitive) string following the period is a build environment variable\&. Variables without a value (e\&.g\&. \fBXFSDUMP\fR on a system that does not support that type of file system) will not report an error and will return an empty string as the value\&. Flag variables (e\&.g\&. \fBUSE_AMANDAHOSTS\fR) will return 1 if the flag is set or an empty string if it is not\&.
 
 .PP
-If \fBparameter\fR begins with \fBdbopen\&.\fR, the string following the period is a program name and an \fBAMANDA\fR debug file will be created for the caller\&. The name of the file is returned\&.
+If \fBparameter\fR begins with \fBdbopen\&.\fR, the string following the period is a program name and an \fBAmanda\fR debug file will be created for the caller\&. The name of the file is returned\&.
 
 .PP
 If \fBparameter\fR begins with \fBdbclose\&.\fR, the string following the period is a program name previously used with \fBdbopen\&.\fR, followed by a colon (:) and the previously opened file name\&.
 
 .PP
-See the \fBamanda\fR(8) man page for more details about \fBAMANDA\fR\&.
+See the \fBamanda\fR(8) man page for more details about \fBAmanda\fR\&.
 
 .SH "EXAMPLE"
 

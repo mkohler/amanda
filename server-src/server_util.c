@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: server_util.c,v 1.1.2.1.4.2.2.3 2002/04/13 19:24:17 jrjackson Exp $
+ * $Id: server_util.c,v 1.13 2005/10/20 23:18:15 martinea Exp $
  *
  */
 
@@ -34,14 +34,16 @@
 #include "token.h"
 
 const char *cmdstr[] = {
-    "BOGUS", "QUIT", "QUITTING", "DONE",
+    "BOGUS", "QUIT", "QUITTING", "DONE", "PARTIAL", 
     "FILE-DUMP", "PORT-DUMP", "CONTINUE", "ABORT",	/* dumper cmds */
     "FAILED", "TRY-AGAIN", "NO-ROOM", "RQ-MORE-DISK",	/* dumper results */
-    "ABORT-FINISHED", "FATAL-TRYAGAIN", "BAD-COMMAND",	/* dumper results */
+    "ABORT-FINISHED", "BAD-COMMAND",			/* dumper results */
     "START-TAPER", "FILE-WRITE", "PORT-WRITE",		/* taper cmds */
-    "PORT", "TAPE-ERROR", "TAPER-OK",			/* taper results */
+    "PORT", "TAPE-ERROR", "TAPER-OK", "SPLIT-NEEDNEXT", /* taper results */
+    "SPLIT-CONTINUE",
     NULL
 };
+
 
 cmd_t getcmd(cmdargs)
 struct cmdargs *cmdargs;
@@ -67,9 +69,9 @@ struct cmdargs *cmdargs;
 #if DEBUG
     {
 	int i;
-	printf("argc = %d\n", cmdargs->argc);
-	for (i = 0; i < cmdargs->argc; i++)
-	    printf("argv[%d] = \"%s\"\n", i, cmdargs->argv[i]);
+	fprintf(stderr,"argc = %d\n", cmdargs->argc);
+	for (i = 0; i < cmdargs->argc+1; i++)
+	    fprintf(stderr,"argv[%d] = \"%s\"\n", i, cmdargs->argv[i]);
     }
 #endif
 
@@ -93,4 +95,3 @@ printf_arglist_function1(void putresult, cmd_t, result, const char *, format)
     fflush(stdout);
     arglist_end(argp);
 }
-

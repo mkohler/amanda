@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amtrmlog.c,v 1.1.2.3.4.1.2.2.2.1 2005/09/20 21:31:52 jrjackson Exp $
+ * $Id: amtrmlog.c,v 1.10 2006/01/14 04:37:19 paddy_s Exp $
  *
  * trims number of index files to only those still in system.  Well
  * actually, it keeps a few extra, plus goes back to the last level 0
@@ -42,11 +42,13 @@
 #include "find.h"
 #include "version.h"
 
+int main P((int, char **));
+
 int main(argc, argv)
 int argc;
 char **argv;
 {
-    disklist_t *diskl;
+    disklist_t diskl;
     int no_keep;			/* files per system to keep */
     char **output_find_log;
     DIR *dir;
@@ -70,13 +72,16 @@ char **argv;
 
     set_pname("amtrmlog");
 
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
+
     if (argc > 1 && strcmp(argv[1], "-t") == 0) {
 	amtrmidx_debug = 1;
 	argc--;
 	argv++;
     }
 
-    if (argc != 2) {
+    if (argc < 2) {
 	fprintf(stderr, "Usage: %s [-t] <config>\n", argv[0]);
 	return 1;
     }
@@ -88,35 +93,34 @@ char **argv;
 
     config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
     conffile = stralloc2(config_dir, CONFFILE_NAME);
-    if(read_conffile(conffile)) {
-	error("errors processing config file \"%s\"", conffile);
-    }
+    if (read_conffile(conffile))
+	error("errors processing amanda config file \"%s\"", conffile);
     amfree(conffile);
+
     conf_diskfile = getconf_str(CNF_DISKFILE);
     if (*conf_diskfile == '/') {
 	conf_diskfile = stralloc(conf_diskfile);
     } else {
 	conf_diskfile = stralloc2(config_dir, conf_diskfile);
     }
-    if((diskl = read_diskfile(conf_diskfile)) == NULL) {
-	error("could not load disklist %s", conf_diskfile);
-    }
+    if (read_diskfile(conf_diskfile, &diskl) < 0)
+	error("could not load disklist \"%s\"", conf_diskfile);
     amfree(conf_diskfile);
+
     conf_tapelist = getconf_str(CNF_TAPELIST);
     if (*conf_tapelist == '/') {
 	conf_tapelist = stralloc(conf_tapelist);
     } else {
 	conf_tapelist = stralloc2(config_dir, conf_tapelist);
     }
-    if (read_tapelist(conf_tapelist)) {
+    if (read_tapelist(conf_tapelist))
 	error("could not load tapelist \"%s\"", conf_tapelist);
-    }
     amfree(conf_tapelist);
 
     today = time((time_t *)NULL);
     date_keep = today - (getconf_int(CNF_DUMPCYCLE)*86400);
 
-    output_find_log = find_log(NULL,0,NULL);
+    output_find_log = find_log();
 
     /* determine how many log to keep */
     no_keep = getconf_int(CNF_TAPECYCLE) * 2;
@@ -129,12 +133,10 @@ char **argv;
 	conf_logdir = stralloc2(config_dir, conf_logdir);
     }
     olddir = vstralloc(conf_logdir, "/oldlog", NULL);
-    if (mkpdir(olddir, 02700, (uid_t)-1, (gid_t)-1) != 0) {
+    if (mkpdir(olddir, 02700, (uid_t)-1, (gid_t)-1) != 0)
 	error("could not create parents of %s: %s", olddir, strerror(errno));
-    }
-    if (mkdir(olddir, 02700) != 0 && errno != EEXIST) {
+    if (mkdir(olddir, 02700) != 0 && errno != EEXIST)
 	error("could not create %s: %s", olddir, strerror(errno));
-    }
 
     if (stat(olddir,&stat_old) == -1) {
 	error("can't stat oldlog directory \"%s\": %s", olddir, strerror(errno));
@@ -143,33 +145,32 @@ char **argv;
     if (!S_ISDIR(stat_old.st_mode)) {
 	error("Oldlog directory \"%s\" is not a directory", olddir);
     }
-    if ((dir = opendir(conf_logdir)) == NULL) {
-	error("could not open log directory \"%s\": %s", conf_logdir, strerror(errno));
-    }
-    while ((adir = readdir(dir)) != NULL) {
+
+    if ((dir = opendir(conf_logdir)) == NULL)
+	error("could not open log directory \"%s\": %s", conf_logdir,strerror(errno));
+    while ((adir=readdir(dir)) != NULL) {
 	if(strncmp(adir->d_name,"log.",4)==0) {
-	    useful = 0;
-	    for (name = output_find_log; *name != NULL; name++) {
-		if(strncmp(adir->d_name, *name, 12) == 0) {
-		    useful = 1;
+	    useful=0;
+	    for (name=output_find_log;*name !=NULL; name++) {
+		if(strncmp(adir->d_name,*name,12)==0) {
+		    useful=1;
 		}
 	    }
-	    logname = newvstralloc(logname,
-				   conf_logdir, "/", adir->d_name, NULL);
-	    if(stat(logname, &stat_log) == 0) {
+	    logname=newvstralloc(logname,
+				 conf_logdir, "/" ,adir->d_name, NULL);
+	    if(stat(logname,&stat_log)==0) {
 		if(stat_log.st_mtime > date_keep) {
 		    useful = 1;
 		}
 	    }
-	    if(! useful) {
+	    if(useful == 0) {
 		oldfile = newvstralloc(oldfile,
 				       conf_logdir, "/", adir->d_name, NULL);
 		newfile = newvstralloc(newfile,
 				       olddir, "/", adir->d_name, NULL);
-		if(rename(oldfile, newfile) != 0) {
+		if (rename(oldfile,newfile) != 0)
 		    error("could not rename \"%s\" to \"%s\": %s",
 			  oldfile, newfile, strerror(errno));
-		}
 	    }
 	}
     }

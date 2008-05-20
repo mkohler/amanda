@@ -25,14 +25,13 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: stream.c,v 1.10.2.6.4.4.2.4.2.1 2005/10/02 13:48:42 martinea Exp $
+ * $Id: stream.c,v 1.31 2006/01/14 04:37:19 paddy_s Exp $
  *
  * functions for managing stream sockets
  */
 #include "amanda.h"
 #include "dgram.h"
 #include "stream.h"
-#include "clock.h"
 #include "util.h"
 
 /* local functions */
@@ -83,17 +82,19 @@ int sendsize, recvsize;
      * If a port range was specified, we try to get a port in that
      * range first.  Next, we try to get a reserved port.  If that
      * fails, we just go for any port.
+     * 
+     * In all cases, not to use port that's assigned to other services. 
      *
      * It is up to the caller to make sure we have the proper permissions
      * to get the desired port, and to make sure we return a port that
      * is within the range it requires.
      */
 #ifdef TCPPORTRANGE
-    if (bind_portrange(server_socket, &server, TCPPORTRANGE) == 0)
+    if (bind_portrange(server_socket, &server, TCPPORTRANGE, "tcp") == 0)
 	goto out;
 #endif
 
-    if (bind_portrange(server_socket, &server, 512, IPPORT_RESERVED - 1) == 0)
+    if (bind_portrange(server_socket, &server, 512, IPPORT_RESERVED - 1, "tcp") == 0)
 	goto out;
 
     server.sin_port = INADDR_ANY;
@@ -146,9 +147,15 @@ out:
 }
 
 static int
-stream_client_internal(hostname, port, sendsize, recvsize, localport, priv)
-    char *hostname;
-    int port, sendsize, recvsize, *localport, priv;
+stream_client_internal(hostname,
+		       port,
+		       sendsize,
+		       recvsize,
+		       localport,
+		       nonblock,
+		       priv)
+    const char *hostname;
+    int port, sendsize, recvsize, *localport, nonblock, priv;
 {
     int client_socket;
     socklen_t len;
@@ -195,7 +202,7 @@ stream_client_internal(hostname, port, sendsize, recvsize, localport, priv)
 
 #ifdef SO_KEEPALIVE
     r = setsockopt(client_socket, SOL_SOCKET, SO_KEEPALIVE,
-		   (void *)&on, sizeof(on));
+	(void *)&on, sizeof(on));
     if(r == -1) {
 	save_errno = errno;
 	dbprintf(("%s: %s: setsockopt() failed: %s\n",
@@ -225,7 +232,7 @@ stream_client_internal(hostname, port, sendsize, recvsize, localport, priv)
     if (priv) {
 	int b;
 
-	b = bind_portrange(client_socket, &claddr, 512, IPPORT_RESERVED - 1);
+	b = bind_portrange(client_socket, &claddr, 512, IPPORT_RESERVED - 1, "tcp");
 	if (b == 0) {
 	    goto out;				/* got what we wanted */
 	}
@@ -240,7 +247,7 @@ stream_client_internal(hostname, port, sendsize, recvsize, localport, priv)
     }
 
 #ifdef TCPPORTRANGE
-    if (bind_portrange(client_socket, &claddr, TCPPORTRANGE) == 0)
+    if (bind_portrange(client_socket, &claddr, TCPPORTRANGE, "tcp") == 0)
 	goto out;
 #endif
 
@@ -272,8 +279,12 @@ out:
 	return -1;
     }
 
+    if (nonblock)
+	fcntl(client_socket, F_SETFL,
+	    fcntl(client_socket, F_GETFL, 0)|O_NONBLOCK);
+
     if(connect(client_socket, (struct sockaddr *)&svaddr, sizeof(svaddr))
-       == -1) {
+       == -1 && !nonblock) {
 	save_errno = errno;
 	dbprintf(("%s: %s: connect to %s.%d failed: %s\n",
 		  debug_prefix_time(NULL),
@@ -309,28 +320,35 @@ out:
 }
 
 int
-stream_client_privileged(hostname, port, sendsize, recvsize, localport)
-    char *hostname;
-    int port, sendsize, recvsize, *localport;
+stream_client_privileged(hostname,
+			 port,
+			 sendsize,
+			 recvsize,
+			 localport,
+			 nonblock)
+    const char *hostname;
+    int port, sendsize, recvsize, *localport, nonblock;
 {
     return stream_client_internal(hostname,
 				  port,
 				  sendsize,
 				  recvsize,
 				  localport,
+				  nonblock,
 				  1);
 }
 
 int
-stream_client(hostname, port, sendsize, recvsize, localport)
-    char *hostname;
-    int port, sendsize, recvsize, *localport;
+stream_client(hostname, port, sendsize, recvsize, localport, nonblock)
+    const char *hostname;
+    int port, sendsize, recvsize, *localport, nonblock;
 {
     return stream_client_internal(hostname,
 				  port,
 				  sendsize,
 				  recvsize,
 				  localport,
+				  nonblock,
 				  0);
 }
 
@@ -352,11 +370,7 @@ int server_socket, timeout, sendsize, recvsize;
     tv.tv_usec = 0;
     FD_ZERO(&readset);
     FD_SET(server_socket, &readset);
-    nfound = select(server_socket+1,
-		    (SELECT_ARG_TYPE *)&readset,
-		    NULL,
-		    NULL,
-		    &tv);
+    nfound = select(server_socket+1, (SELECT_ARG_TYPE *)&readset, NULL, NULL, &tv);
     if(nfound <= 0 || !FD_ISSET(server_socket, &readset)) {
 	save_errno = errno;
 	if(nfound < 0) {

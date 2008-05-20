@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 1991-1998 University of Maryland at College Park
+ * Copyright (c) 1991-1999 University of Maryland at College Park
  * All Rights Reserved.
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amanda.h,v 1.66.2.7.4.5.2.12.2.6 2005/09/20 21:31:52 jrjackson Exp $
+ * $Id: amanda.h,v 1.123 2006/03/03 15:05:15 vectro Exp $
  *
  * the central header file included by all amanda sources
  */
@@ -144,6 +144,10 @@
 #  include <sys/ioctl.h>
 #endif
 
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
+
 #ifdef HAVE_SYS_PARAM_H
 #  include <sys/param.h>
 #endif
@@ -163,6 +167,15 @@
 
 #ifdef HAVE_SYS_STAT_H
 #  include <sys/stat.h>
+#endif
+
+#ifdef HAVE_SYS_UIO_H
+#  include <sys/uio.h>
+#else
+struct iovec {
+    void *iov_base;
+    int iov_len;
+};
 #endif
 
 #ifdef HAVE_WAIT_H
@@ -210,24 +223,12 @@
 # endif
 #endif
 
-#ifdef HAVE_UNISTD_H
-#  include <unistd.h>
+#ifndef WIFSIGNALED
+# define WIFSIGNALED(stat_val)	(WTERMSIG(stat_val) != 0)
 #endif
 
-/*
- * At present, the kerberos routines require atexit(), or equivilent.  If 
- * you're not using kerberos, you don't need it at all.  If you just null
- * out the definition, you'll end up with ticket files hanging around in
- * /tmp.
- */
-#if defined(KRB4_SECURITY)
-#   if !defined(HAVE_ATEXIT) 
-#      if defined(HAVE_ON_EXIT)
-#          define atexit(func) on_exit(func, 0)
-#      else
-#	   define atexit(func) (you must to resolve lack of atexit in amanda.h)
-#      endif
-#   endif
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
 #endif
 
 #include <ctype.h>
@@ -246,11 +247,6 @@
 
 #ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
-#endif
-
-#ifdef KRB4_SECURITY
-#  include <des.h>
-#  include <krb.h>
 #endif
 
 /*
@@ -318,6 +314,10 @@ extern int errno;
 #  define FD_ZERO(p)      memset((p), 0, sizeof(*(p)))
 #endif
 
+#ifndef FD_COPY
+#  define FD_COPY(p, q)   memcpy((q), (p), sizeof(fd_set))
+#endif
+
 
 /*
  * Define MAX_HOSTNAME_LENGTH as the size of arrays to hold hostname's.
@@ -333,15 +333,21 @@ extern int errno;
 #endif
 
 /*
- * define prototype macro so that prototypes can be declared in both ANSI
- * and classic C environments.
+ * Macros to allow code to adapt to both ANSI and class C environments.
+ *
+ * P(): prototype argument macro - removes arguments from prototypes in
+ *      class C environments
+ * stringize(): turn a bare word or words into a quoted string
+ * stringconcat(): turn two quoted strings into one
  */
 #if STDC_HEADERS
 #  define P(parms)	parms
 #  define stringize(x) #x
+#  define stringconcat(x, y) x ## y
 #else
 #  define P(parms)	()
 #  define stringize(x) "x"
+#  define stringconcat(x, y) x/**/y
 #endif
 
 /*
@@ -362,8 +368,13 @@ extern int errno;
 
 #else	/* ASSERTIONS */
 
-#define assert(exp) {if(!(exp)) error("assert: %s false, file %s, line %d", \
-				   stringize(exp), __FILE__, __LINE__);}
+#define assert(exp)	do {						\
+    if (!(exp)) {							\
+	onerror(abort);							\
+	error("assert: %s false, file %s, line %d",			\
+	   stringize(exp), __FILE__, __LINE__);				\
+    }									\
+} while (0)
 
 #endif	/* ASSERTIONS */
 
@@ -383,7 +394,7 @@ extern int errno;
 extern void debug_open P((void));
 extern void debug_reopen P((char *file, char *notation));
 extern void debug_close P((void));
-extern void debug_printf P((char *format, ...))
+extern void debug_printf P((const char *format, ...))
     __attribute__ ((format (printf, 1, 2)));
 extern int  debug_fd P((void));
 extern FILE *  debug_fp P((void));
@@ -429,7 +440,7 @@ extern char *debug_prefix_time P((char *));
 #define am_round(v,u)	((((v) + (u) - 1) / (u)) * (u))
 #define am_floor(v,u)	(((v) / (u)) * (u))
 
-/* Holding disk block size.  Do not even think about changing this!  :-) */
+/* Holding disk block size.  Do not even think about changint this!  :-) */
 #define DISK_BLOCK_KB		32
 #define DISK_BLOCK_BYTES	(DISK_BLOCK_KB * 1024)
 
@@ -438,39 +449,33 @@ extern char *debug_prefix_time P((char *));
 /* by configure --with-maxtapeblocksize     */
 #define MAX_TAPE_BLOCK_BYTES (MAX_TAPE_BLOCK_KB*1024)
 
+/* Maximum length of tape label, plus one for null-terminator. */
+#define MAX_TAPE_LABEL_LEN (10240)
+#define MAX_TAPE_LABEL_BUF (MAX_TAPE_LABEL_LEN+1)
+
 /* Define miscellaneous amanda functions.  */
 #define ERR_INTERACTIVE	1
 #define ERR_SYSLOG	2
 #define ERR_AMANDALOG	4
 
-/* For static buffer manager [alloc.c:sbuf_man()] */
-#define SBUF_MAGIC 42
-#define SBUF_DEF(name, len) static SBUF2_DEF(len) name = {SBUF_MAGIC, len, -1}
-#define SBUF2_DEF(len) 		\
-    struct {			\
-	int magic;		\
-	int max, cur;		\
-	void *bufp[len];	\
-    }
-
 extern void   set_logerror P((void (*f)(char *)));
 extern void   set_pname P((char *pname));
 extern char  *get_pname P((void));
 extern int    erroutput_type;
-extern void   error     P((char *format, ...))
-    __attribute__ ((format (printf, 1, 2)));
-extern void   errordump P((char *format, ...))
-    __attribute__ ((format (printf, 1, 2)));
+extern void   error     P((const char *format, ...))
+    __attribute__ ((format (printf, 1, 2), noreturn));
+extern void   errordump P((const char *format, ...))
+    __attribute__ ((format (printf, 1, 2), noreturn));
 extern int    onerror         P((void (*errf)(void)));
 
-extern void  *debug_alloc           P((char *c, int l, size_t size));
-extern void  *debug_newalloc        P((char *c, int l, void *old, size_t size));
-extern char  *debug_stralloc        P((char *c, int l, const char *str));
-extern char  *debug_newstralloc     P((char *c, int l, char *oldstr, const char *newstr));
-extern char  *debug_caller_loc      P((char *file, int line));
-
-extern int   debug_alloc_push	    P((char *file, int line));
-extern void  debug_alloc_pop	    P((void));
+extern void *debug_alloc P((const char *c, int l, size_t size));
+extern void *debug_newalloc P((const char *c, int l, void *old, size_t size));
+extern char *debug_stralloc P((const char *c, int l, const char *str));
+extern char *debug_newstralloc P((const char *c, int l, char *oldstr,
+    const char *newstr));
+extern const char *debug_caller_loc P((const char *file, int line));
+extern int debug_alloc_push P((char *file, int line));
+extern void debug_alloc_pop P((void));
 
 #define	alloc(s)		debug_alloc(__FILE__, __LINE__, (s))
 #define	newalloc(p,s)		debug_newalloc(__FILE__, __LINE__, (p), (s))
@@ -516,12 +521,16 @@ extern char  *debug_newvstralloc    P((char *oldstr, const char *newstr, ...));
 #define	stralloc2(s1,s2)      vstralloc((s1),(s2),NULL)
 #define	newstralloc2(p,s1,s2) newvstralloc((p),(s1),(s2),NULL)
 
-extern char  *debug_agets     P((char *c, int l, FILE *file));
-extern char  *debug_areads    P((char *c, int l, int fd));
+/* Usage: vstrextend(foo, "bar, "baz", NULL). Extends the existing 
+ * string, or allocates a brand new one. */
+extern char *vstrextend P((char **oldstr, ...));
+
+extern char  *debug_agets   P((const char *c, int l, FILE *file));
+extern char  *debug_areads  P((const char *c, int l, int fd));
 #define agets(f)	      debug_agets(__FILE__,__LINE__,(f))
 #define areads(f)	      debug_areads(__FILE__,__LINE__,(f))
 
-extern int debug_amtable_alloc P((char *file,
+extern int debug_amtable_alloc P((const char *file,
 				  int line,
 				  void **table,
 				  int *current,
@@ -529,22 +538,22 @@ extern int debug_amtable_alloc P((char *file,
 				  int count,
 				  int bump,
 				  void (*init_func)(void *)));
-#define amtable_alloc(t,c,s,n,b,f) debug_amtable_alloc(__FILE__,	\
-						       __LINE__,	\
-						       (t),		\
-						       (c),		\
-						       (s),		\
-						       (n),		\
-						       (b),		\
-						       (f))
+#define amtable_alloc(t,c,s,n,b,f) debug_amtable_alloc(__FILE__,      \
+						     __LINE__,        \
+						     (t),             \
+						     (c),             \
+						     (s),             \
+						     (n),             \
+						     (b),             \
+						     (f))
+
 extern void amtable_free      P((void **table, int *current));
 
-extern void  *sbuf_man        P((void *bufs, void *ptr));
 extern uid_t  client_uid;
 extern gid_t  client_gid;
-extern void   safe_cd	      P((void));
-extern void   safe_fd	      P((int fd_start, int fd_count));
-extern void   save_core	      P((void));
+extern void   safe_fd         P((int fd_start, int fd_count));
+extern void   safe_cd         P((void));
+extern void   save_core       P((void));
 extern char **safe_env        P((void));
 extern char  *validate_regexp P((char *regex));
 extern char  *validate_glob   P((char *glob));
@@ -557,6 +566,7 @@ extern char  *tar_to_regex    P((char *glob));
 extern int    match_host      P((char *glob, char *host));
 extern int    match_disk      P((char *glob, char *disk));
 extern int    match_datestamp P((char *dateexp, char *datestamp));
+extern int    match_level     P((char *levelexp, char *level));
 extern time_t unctime         P((char *timestr));
 extern ssize_t  areads_dataready  P((int fd));
 extern void     areads_relbuf     P((int fd));
@@ -629,7 +639,7 @@ extern void     areads_relbuf     P((int fd));
 /*
  * Return the number of elements in an array.
  */
-#define am_countof(a)        (sizeof(a) / sizeof((a)[0]))
+#define am_countof(a)	(sizeof(a) / sizeof((a)[0]))
 
 /*
  * min/max.  Don't do something like
@@ -640,8 +650,15 @@ extern void     areads_relbuf     P((int fd));
  */
 #undef min
 #undef max
-#define min(a, b)       ((a) < (b) ? (a) : (b))
-#define max(a, b)       ((a) > (b) ? (a) : (b))
+#define	min(a, b)	((a) < (b) ? (a) : (b))
+#define	max(a, b)	((a) > (b) ? (a) : (b))
+
+/*
+ * Utility bitmask manipulation macros.
+ */
+#define	SET(t, f)	((t) |= (f))
+#define	CLR(t, f)	((t) &= ~((unsigned)(f)))
+#define	ISSET(t, f)	((t) & (f))
 
 /*
  * Utility string macros.  All assume a variable holds the current
@@ -707,7 +724,7 @@ extern void     areads_relbuf     P((int fd));
  *	      if NULL on exit, the field was too small for the input
  */
 
-#define	STR_SIZE	1024		/* a generic string buffer size */
+#define	STR_SIZE	4096		/* a generic string buffer size */
 #define	NUM_STR_SIZE	32		/* a generic number buffer size */
 
 #define	skip_whitespace(ptr,c) do {					\
@@ -779,13 +796,18 @@ extern int    mkpdir    P((char *file, int mode, uid_t uid, gid_t gid));
 extern int    rmpdir    P((char *file, char *topdir));
 extern char  *sanitise_filename P((char *inp));
 
-extern int debug;
-extern char *version_info[];
+/* from bsd-security.c */
+extern char  *check_user_ruserok     P((const char *host,
+					struct passwd *pwd,
+					const char *user));
+extern char  *check_user_amandahosts P((const char *host,
+					struct passwd *pwd,
+					const char *user));
 
-/* from security.c */
-extern int security_ok P((struct sockaddr_in *addr,
-			  char *str, uint32_t cksum, char **errstr));
-extern char *get_bsd_security P((void));
+extern int debug;
+extern int check_security P((struct sockaddr_in *, char *, unsigned long,
+                             char **));
+
 
 /*
  * Handle functions which are not always declared on all systems.  This
@@ -925,19 +947,7 @@ extern int gettimeofday P((struct timeval *tp));
 # define initgroups(name,basegid) 0
 #else
 # ifndef HAVE_INITGROUPS_DECL
-/* modification by BIS@BBN 5/20/2003:
- * In some Unix systems, basegid is defined as a gid_t; in others
- * it is defined as an int.  On Mac OS X, there is a "pre-compiled"
- * unistd.h which causes the gcc -E command in the ICE_CHECK_DECL
- * autoconf macro to not succeed.  Thus, on Mac OS X, configure thinks
- * we don't have this declaration when we actually do.  Since Mac OS X
- * defines basegid as an int, this declaration causes a compilation
- * failure.  The path of least resistance for fixing this problem
- * is to just change the basegid declaration from gid_t to int, since
- * other (but not all) UNIX flavors also defined basegid as an int.
 extern int initgroups P((const char *name, gid_t basegid));
- */
-extern int initgroups P((const char *name, int basegid));
 # endif
 #endif
 
@@ -971,6 +981,10 @@ extern void *memset P((void *s, int c, size_t n));
 
 #ifndef HAVE_MKTEMP_DECL
 extern char *mktemp P((char *template));
+#endif
+
+#ifndef HAVE_MKSTEMP_DECL
+extern int mkstemp P((char *template));
 #endif
 
 #ifndef HAVE_MKTIME_DECL
@@ -1100,18 +1114,14 @@ extern int shmget P((key_t key, size_t size, int shmflg));
 #endif
 #endif
 
-#if defined(HAVE_SNPRINTF) && defined(HAVE_VSNPRINTF)
-#define ap_snprintf	snprintf
-#define ap_vsnprintf	vsnprintf
-#endif
 #ifndef HAVE_SNPRINTF_DECL
 #include "arglist.h"
-int ap_snprintf  P((char *buf, size_t len, const char *format,...))
+int snprintf  P((char *buf, size_t len, const char *format,...))
 		    __attribute__((format(printf,3,4)));
 #endif
 #ifndef HAVE_VSNPRINTF_DECL
 #include "arglist.h"
-int ap_vsnprintf P((char *buf, size_t len, const char *format, va_list ap));
+int vsnprintf P((char *buf, size_t len, const char *format, va_list ap));
 #endif
 
 #ifndef HAVE_SOCKET_DECL
@@ -1194,6 +1204,10 @@ extern pid_t waitpid P((pid_t pid, amwait_t *stat_loc, int options));
 #endif
 #endif
 
+#ifndef HAVE_WRITEV_DECL
+extern ssize_t writev P((int fd, const struct iovec *iov, int iovcnt));
+#endif
+
 #ifndef STDIN_FILENO
 #define STDIN_FILENO 0
 #endif
@@ -1212,6 +1226,85 @@ extern pid_t waitpid P((pid_t pid, amwait_t *stat_loc, int options));
 #define S_ISDIR(mode)   (((mode) & (_S_IFMT)) == (_S_IFDIR))
 #else
 error: Don t know how to define S_ISDIR
+#endif
+#endif
+
+#if SIZEOF_OFF_T > SIZEOF_LONG
+#  define        OFF_T_FMT       LL_FMT
+#else
+#  define        OFF_T_FMT       "%ld"
+#endif
+
+#if SIZEOF_LONG == 8
+   typedef long am64_t;
+#  ifdef LONG_MAX
+#    define AM64_MAX LONG_MAX
+#  else
+#    define AM64_MAX 9223372036854775807L
+#  endif
+#  ifdef LONG_MIN
+#    define AM64_MIN LONG_MIN
+#  else
+#    define AM64_MIN -9223372036854775807L -1L
+#  endif
+#  define AM64_FMT "%ld"
+#else
+#if SIZEOF_LONG_LONG == 8
+   typedef long long am64_t;
+#  ifdef LONG_LONG_MAX
+#    define AM64_MAX LONG_LONG_MAX
+#  else
+#    define AM64_MAX 9223372036854775807LL
+#  endif
+#  ifdef LONG_LONG_MIN
+#    define AM64_MIN LONG_LONG_MIN
+#  else
+#    define AM64_MIN -9223372036854775807LL -1LL
+#  endif
+#  define AM64_FMT LL_FMT
+#else
+#if SIZEOF_INTMAX_T == 8
+   typedef intmax_t am64_t;
+#  ifdef INTMAX_MAX
+#    define AM64_MAX INTMAX_MAX
+#  else
+#    define AM64_MAX 9223372036854775807LL
+#  endif
+#  ifdef INTMAX_MIN
+#    define AM64_MIN INTMAX_MIN
+#  else
+#    define AM64_MIN -9223372036854775807LL -1LL
+#  endif
+#  define AM64_FMT LL_FMT
+#else
+#if SIZEOF_OFF_T == 8
+   typedef off_t am64_t;
+#  ifdef OFF_MAX
+#    define AM64_MAX OFF_MAX
+#  else
+#    define AM64_MAX 9223372036854775807LL
+#  endif
+#  ifdef OFF_MIN
+#    define AM64_MIN OFF_MIN
+#  else
+#    define AM64_MIN -9223372036854775807LL -1LL
+#  endif
+#  define AM64_FMT OFF_T_FMT
+#else  /* no 64 bits tyupe found, use long. */
+   typedef long am64_t;
+#  ifdef LONG_MAX
+#    define AM64_MAX LONG_MAX
+#  else
+#    define AM64_MAX 2147483647
+#  endif
+#  ifdef LONG_MIN
+#    define AM64_MIN LONG_MIN
+#  else
+#    define AM64_MIN -2147483647 -1
+#  endif
+#  define AM64_FMT "%ld"
+#endif
+#endif
 #endif
 #endif
 

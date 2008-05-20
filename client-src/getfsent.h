@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: getfsent.h,v 1.4.8.1.2.2 2002/10/27 22:58:47 martinea Exp $
+ * $Id: getfsent.h,v 1.7 2002/10/27 22:58:33 martinea Exp $
  *
  * interfaces for obtaining filesystem information
  */

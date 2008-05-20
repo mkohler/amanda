@@ -19,7 +19,7 @@
 ..
 .TH "AMOVERVIEW" 8 "" "" ""
 .SH NAME
-amoverview \- display file systems processed by AMANDA over time
+amoverview \- display file systems processed by Amanda over time
 .SH "SYNOPSIS"
 .ad l
 .hy 0
@@ -31,10 +31,10 @@ amoverview \- display file systems processed by AMANDA over time
 .SH "DESCRIPTION"
 
 .PP
-\fBAmoverview\fR displays a chart showing hosts and file systems processed by \fBAMANDA\fR along with the backup level performed each day\&.
+\fBAmoverview\fR displays a chart showing hosts and file systems processed by \fBAmanda\fR along with the backup level performed each day\&.
 
 .PP
-See the \fBamanda\fR(8) man page for more details about \fBAMANDA\fR\&.
+See the \fBamanda\fR(8) man page for more details about \fBAmanda\fR\&.
 
 .SH "OPTIONS"
 
@@ -52,11 +52,11 @@ Set \fBdisk\fR field column width to \fBwidth\fR characters instead of 20\&.
 
 .TP
 \fB\-skipmissed\fR
-Compacts the output by only printing stats for the days \fBAMANDA\fR actually ran\&.
+Compacts the output by only printing stats for the days \fBAmanda\fR actually ran\&.
 
 .TP
 \fB\-last\fR
-Outputs the last status of each disk at the start.  Useful for long tapecycles and/or sparse reports\&.
+Outputs the last status of each disk at the start\&. Useful for long tapecycles and/or sparse reports\&.
 
 .TP
 \fB\-num0\fR
@@ -82,7 +82,7 @@ A number indicates the level of backup and it succeeded\&. An "E" indicates an e
 You can have an "E" followed by a number if a filesystem ran into end\-of\-tape once (gives an "E", and later that day, you flush it to a second tape (a number: the level, indicating success)\&. If the flush failed too, you get a double "EE" for that day\&.
 
 .PP
-You can also have a double code if you have two tapes in the changer and \fBAMANDA\fR failed to write to tape the first time because it hit end of tape (resulting in "E0", for a full, "E1" for an incremental etc\&.) or twice with error ("EE"), and may a successful flush afterwards giving maybe "EE0"\&. (Only the latest 2 characters are printed)\&.
+You can also have a double code if you have two tapes in the changer and \fBAmanda\fR failed to write to tape the first time because it hit end of tape (resulting in "E0", for a full, "E1" for an incremental etc\&.) or twice with error ("EE"), and may a successful flush afterwards giving maybe "EE0"\&. (Only the latest 2 characters are printed)\&.
 
 .SH "EXAMPLE"
 

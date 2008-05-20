@@ -25,11 +25,12 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: driverio.c,v 1.35.2.14.4.2.2.5.2.5 2005/09/12 13:39:55 martinea Exp $
+ * $Id: driverio.c,v 1.81 2006/03/11 21:57:18 martinea Exp $
  *
  * I/O-related functions for driver program
  */
 #include "amanda.h"
+#include "util.h"
 #include "clock.h"
 #include "conffile.h"
 #include "diskfile.h"
@@ -41,6 +42,10 @@
 #define GLOBAL		/* the global variables defined here */
 #include "driverio.h"
 
+int nb_chunker = 0;
+
+static const char *childstr P((int));
+
 void init_driverio()
 {
     dumper_t *dumper;
@@ -48,41 +53,29 @@ void init_driverio()
     taper = -1;
 
     for(dumper = dmptable; dumper < dmptable + MAX_DUMPERS; dumper++) {
-	dumper->outfd = -1;
+	dumper->fd = -1;
     }
 }
 
 
-void addfd(fd, readset, maxfd)
-int    fd;
-fd_set *readset;
-int    *maxfd;
+static const char *
+childstr(fd)
+    int fd;
 {
-    if(fd < 0 || fd >= FD_SETSIZE) {
-	error("addfd: descriptor %d out of range (0 .. %d)\n",
-	      fd, FD_SETSIZE-1);
-    }
-    if(readset != NULL)
-	FD_SET(fd, readset);
-    if(maxfd != NULL)
-	if(fd > *maxfd) *maxfd = fd;
-}
-
-char *childstr(fd)
-int fd;
-{
-    static char *str = NULL;
-    char fd_str[NUM_STR_SIZE];
+    static char buf[NUM_STR_SIZE + 32];
     dumper_t *dumper;
 
-    if(fd == taper) return "taper";
+    if (fd == taper)
+	return ("taper");
 
-    for(dumper = dmptable; dumper < dmptable + MAX_DUMPERS; dumper++)
-	if(dumper->outfd == fd) return dumper->name;
-
-    ap_snprintf(fd_str, sizeof(fd_str), "%d", fd);
-    str = newvstralloc(str, "unknown child (fd ", fd_str, ")", NULL);
-    return str;
+    for (dumper = dmptable; dumper < dmptable + MAX_DUMPERS; dumper++) {
+	if (dumper->fd == fd)
+	    return (dumper->name);
+	if (dumper->chunker->fd == fd)
+	    return (dumper->chunker->name);
+    }
+    snprintf(buf, sizeof(buf), "unknown child (fd %d)", fd);
+    return (buf);
 }
 
 
@@ -114,7 +107,7 @@ char *taper_program;
     default:	/* parent process */
 	aclose(fd[1]);
 	taper = fd[0];
-	addfd(taper, &readset, &maxfd);
+	taper_ev_read = NULL;
     }
 }
 
@@ -143,8 +136,8 @@ char *dumper_program;
 	      dumper->name, strerror(errno));
     default:	/* parent process */
 	aclose(fd[1]);
-	dumper->infd = dumper->outfd = fd[0];
-	addfd(dumper->outfd, &readset, &maxfd);
+	dumper->fd = fd[0];
+	dumper->ev_read = NULL;
 	dumper->busy = dumper->down = 0;
 	dumper->dp = NULL;
 	fprintf(stderr,"driver: started %s pid %d\n",
@@ -162,10 +155,48 @@ int inparallel;
     char number[NUM_STR_SIZE];
 
     for(dumper = dmptable, i = 0; i < inparallel; dumper++, i++) {
-	ap_snprintf(number, sizeof(number), "%d", i);
+	snprintf(number, sizeof(number), "%d", i);
 	dumper->name = stralloc2("dumper", number);
+	dumper->chunker = &chktable[i];
+	chktable[i].name = stralloc2("chunker", number);
+	chktable[i].dumper = dumper;
+	chktable[i].fd = -1;
 
 	startup_dump_process(dumper, dumper_program);
+    }
+}
+
+void startup_chunk_process(chunker, chunker_program)
+chunker_t *chunker;
+char *chunker_program;
+{
+    int fd[2];
+
+    if(socketpair(AF_UNIX, SOCK_STREAM, 0, fd) == -1)
+	error("%s pipe: %s", chunker->name, strerror(errno));
+
+    switch(chunker->pid = fork()) {
+    case -1:
+	error("fork %s: %s", chunker->name, strerror(errno));
+    case 0:		/* child process */
+	aclose(fd[0]);
+	if(dup2(fd[1], 0) == -1 || dup2(fd[1], 1) == -1)
+	    error("%s dup2: %s", chunker->name, strerror(errno));
+	execle(chunker_program,
+	       chunker->name ? chunker->name : "chunker",
+	       config_name,
+	       (char *)0,
+	       safe_env());
+	error("exec %s (%s): %s", chunker_program,
+	      chunker->name, strerror(errno));
+    default:	/* parent process */
+	aclose(fd[1]);
+	chunker->down = 0;
+	chunker->fd = fd[0];
+	chunker->ev_read = NULL;
+	fprintf(stderr,"driver: started %s pid %d\n",
+		chunker->name, chunker->pid);
+	fflush(stderr);
     }
 }
 
@@ -188,17 +219,22 @@ int max_arg;
     } else {
 	*result_argc = split(line, result_argv, max_arg, " ");
     }
-    amfree(line);
 
     if(show) {
 	printf("driver: result time %s from %s:",
 	       walltime_str(curclock()),
 	       childstr(fd));
-	for(arg = 1; arg <= *result_argc; arg++)
-	    printf(" %s", result_argv[arg]);
-	printf("\n");
+	if(line) {
+	    for(arg = 1; arg <= *result_argc; arg++) {
+		printf(" %s", result_argv[arg]);
+	    }
+	    putchar('\n');
+	} else {
+	    printf(" (eof)\n");
+	}
 	fflush(stdout);
     }
+    amfree(line);
 
 #ifdef DEBUG
     printf("argc = %d\n", *result_argc);
@@ -224,8 +260,10 @@ char *datestamp;
 {
     char *cmdline = NULL;
     char number[NUM_STR_SIZE];
+    char splitsize[NUM_STR_SIZE];
+    char fallback_splitsize[NUM_STR_SIZE];
+    char *diskbuffer = NULL;
     disk_t *dp;
-    int l, n, s;
     char *features;
 
     switch(cmd) {
@@ -234,7 +272,8 @@ char *datestamp;
 	break;
     case FILE_WRITE:
 	dp = (disk_t *) ptr;
-	ap_snprintf(number, sizeof(number), "%d", level);
+	snprintf(number, sizeof(number), "%d", level);
+	snprintf(splitsize, sizeof(splitsize), "%ld", dp->tape_splitsize);
 	features = am_feature_to_string(dp->host->features);
 	cmdline = vstralloc(cmdstr[cmd],
 			    " ", disk2serial(dp),
@@ -244,12 +283,27 @@ char *datestamp;
 			    " ", dp->name,
 			    " ", number,
 			    " ", datestamp,
+			    " ", splitsize,
 			    "\n", NULL);
 	amfree(features);
 	break;
     case PORT_WRITE:
 	dp = (disk_t *) ptr;
-	ap_snprintf(number, sizeof(number), "%d", level);
+	snprintf(number, sizeof(number), "%d", level);
+
+	/*
+          If we haven't been given a place to buffer split dumps to disk,
+          make the argument something besides and empty string so's taper
+          won't get confused
+	*/
+	if(!dp->split_diskbuffer || dp->split_diskbuffer[0] == '\0'){
+	    diskbuffer = "NULL";
+	} else {
+	    diskbuffer = dp->split_diskbuffer;
+	}
+	snprintf(splitsize, sizeof(splitsize), "%ld", dp->tape_splitsize);
+	snprintf(fallback_splitsize, sizeof(fallback_splitsize),
+		    "%ld", dp->fallback_splitsize);
 	features = am_feature_to_string(dp->host->features);
 	cmdline = vstralloc(cmdstr[cmd],
 			    " ", disk2serial(dp),
@@ -258,6 +312,9 @@ char *datestamp;
 			    " ", dp->name,
 			    " ", number,
 			    " ", datestamp,
+			    " ", splitsize,
+			    " ", diskbuffer,
+			    " ", fallback_splitsize,
 			    "\n", NULL);
 	amfree(features);
 	break;
@@ -273,13 +330,11 @@ char *datestamp;
     printf("driver: send-cmd time %s to taper: %s",
 	   walltime_str(curclock()), cmdline);
     fflush(stdout);
-    for(l = 0, n = strlen(cmdline); l < n; l += s) {
-	if((s = write(taper, cmdline + l, n - l)) < 0) {
-	    printf("writing taper command: %s\n", strerror(errno));
-	    fflush(stdout);
-	    amfree(cmdline);
-	    return 0;
-	}
+    if (fullwrite(taper, cmdline, strlen(cmdline)) < 0) {
+	printf("writing taper command: %s\n", strerror(errno));
+	fflush(stdout);
+	amfree(cmdline);
+	return 0;
     }
     amfree(cmdline);
     return 1;
@@ -292,9 +347,7 @@ disk_t *dp;
 {
     char *cmdline = NULL;
     char number[NUM_STR_SIZE];
-    char chunksize[NUM_STR_SIZE];
-    char use[NUM_STR_SIZE];
-    int l, n, s;
+    char numberport[NUM_STR_SIZE];
     char *o;
     int activehd=0;
     assignedhd_t **h=NULL;
@@ -314,37 +367,15 @@ disk_t *dp;
     }
 
     switch(cmd) {
-    case FILE_DUMP:
-	holdalloc(h[activehd]->disk)->allocated_dumpers++;
-	ap_snprintf(number, sizeof(number), "%d", sched(dp)->level);
-	ap_snprintf(chunksize, sizeof(chunksize), "%ld", h[0]->disk->chunksize);
-	ap_snprintf(use, sizeof(use), "%ld", h[0]->reserved );
-	features = am_feature_to_string(dp->host->features);
-	o = optionstr(dp, dp->host->features, NULL);
-	cmdline = vstralloc(cmdstr[cmd],
-			    " ", disk2serial(dp),
-			    " ", sched(dp)->destname,
-			    " ", dp->host->hostname,
-			    " ", features,
-			    " ", dp->name,
-			    " ", device,
-			    " ", number,
-			    " ", sched(dp)->dumpdate,
-			    " ", chunksize,
-			    " ", dp->program,
-			    " ", use,
-			    " |", o,
-			    "\n", NULL);
-	amfree(features);
-	amfree(o);
-	break;
     case PORT_DUMP:
-	ap_snprintf(number, sizeof(number), "%d", sched(dp)->level);
-	features = am_feature_to_string(dp->host->features);
-	o = optionstr(dp, dp->host->features, NULL);
-	cmdline = vstralloc(cmdstr[cmd],
+	if (dp != NULL) {
+	    snprintf(number, sizeof(number), "%d", sched(dp)->level);
+	    snprintf(numberport, sizeof(numberport), "%d", dumper->output_port);
+	    features = am_feature_to_string(dp->host->features);
+	    o = optionstr(dp, dp->host->features, NULL);
+	    cmdline = vstralloc(cmdstr[cmd],
 			    " ", disk2serial(dp),
-			    " ", sched(dp)->destname,
+			    " ", numberport,
 			    " ", dp->host->hostname,
 			    " ", features,
 			    " ", dp->name,
@@ -354,31 +385,18 @@ disk_t *dp;
 			    " ", dp->program,
 			    " |", o,
 			    "\n", NULL);
-	amfree(features);
-	amfree(o);
+	    amfree(features);
+	    amfree(o);
+	} else {
+		error("PORT-DUMP without disk pointer\n");
+		/*NOTREACHED*/
+	}
 	break;
     case QUIT:
     case ABORT:
 	if( dp ) {
 	    cmdline = vstralloc(cmdstr[cmd],
 				" ", sched(dp)->destname,
-				"\n", NULL );
-	} else {
-	    cmdline = stralloc2(cmdstr[cmd], "\n");
-	}
-	break;
-    case CONTINUE:
-	if( dp ) {
-	    holdalloc(h[activehd]->disk)->allocated_dumpers++;
-	    ap_snprintf(chunksize, sizeof(chunksize), "%ld", 
-			h[activehd]->disk->chunksize );
-	    ap_snprintf(use, sizeof(use), "%ld", 
-			h[activehd]->reserved - h[activehd]->used );
-	    cmdline = vstralloc(cmdstr[cmd],
-			        " ", disk2serial(dp),
-				" ", h[activehd]->destname,
-				" ", chunksize,
-				" ", use,
 				"\n", NULL );
 	} else {
 	    cmdline = stralloc2(cmdstr[cmd], "\n");
@@ -397,15 +415,110 @@ disk_t *dp;
 	printf("driver: send-cmd time %s to %s: %s",
 	       walltime_str(curclock()), dumper->name, cmdline);
 	fflush(stdout);
-	for(l = 0, n = strlen(cmdline); l < n; l += s) {
-	    if((s = write(dumper->infd, cmdline + l, n - l)) < 0) {
-		printf("writing %s command: %s\n", dumper->name, 
-		       strerror(errno));
-		fflush(stdout);
-		amfree(cmdline);
-		return 0;
-	    }
+	if (fullwrite(dumper->fd, cmdline, strlen(cmdline)) < 0) {
+	    printf("writing %s command: %s\n", dumper->name, strerror(errno));
+	    fflush(stdout);
+	    amfree(cmdline);
+	    return 0;
 	}
+    }
+    amfree(cmdline);
+    return 1;
+}
+
+int chunker_cmd(chunker, cmd, dp)
+chunker_t *chunker;
+cmd_t cmd;
+disk_t *dp;
+{
+    char *cmdline = NULL;
+    char number[NUM_STR_SIZE];
+    char chunksize[NUM_STR_SIZE];
+    char use[NUM_STR_SIZE];
+    char *o;
+    int activehd=0;
+    assignedhd_t **h=NULL;
+    char *features;
+
+    if(dp && sched(dp) && sched(dp)->holdp) {
+	h = sched(dp)->holdp;
+	activehd = sched(dp)->activehd;
+    }
+
+    switch(cmd) {
+    case PORT_WRITE:
+	if (dp && h) {
+	    holdalloc(h[activehd]->disk)->allocated_dumpers++;
+	    snprintf(number, sizeof(number), "%d", sched(dp)->level);
+	    snprintf(chunksize, sizeof(chunksize), "%ld", h[0]->disk->chunksize);
+	    snprintf(use, sizeof(use), "%ld", h[0]->reserved );
+	    features = am_feature_to_string(dp->host->features);
+	    o = optionstr(dp, dp->host->features, NULL);
+	    cmdline = vstralloc(cmdstr[cmd],
+			    " ", disk2serial(dp),
+			    " ", sched(dp)->destname,
+			    " ", dp->host->hostname,
+			    " ", features,
+			    " ", dp->name,
+			    " ", number,
+			    " ", sched(dp)->dumpdate,
+			    " ", chunksize,
+			    " ", dp->program,
+			    " ", use,
+			    " |", o,
+			    "\n", NULL);
+	    amfree(features);
+	    amfree(o);
+	} else {
+		error("Write command without disk and holding disk.\n",
+		      cmdstr[cmd]);
+		/*NOTREACHED*/
+	}
+	break;
+    case CONTINUE:
+	if( dp && h) {
+	    holdalloc(h[activehd]->disk)->allocated_dumpers++;
+	    snprintf(chunksize, sizeof(chunksize), "%ld", 
+		     h[activehd]->disk->chunksize );
+	    snprintf(use, sizeof(use), "%ld", 
+		     h[activehd]->reserved - h[activehd]->used );
+	    cmdline = vstralloc(cmdstr[cmd],
+				" ", disk2serial(dp),
+				" ", h[activehd]->destname,
+				" ", chunksize,
+				" ", use,
+				"\n", NULL );
+	} else {
+	    cmdline = stralloc2(cmdstr[cmd], "\n");
+	}
+	break;
+    case QUIT:
+	cmdline = stralloc2(cmdstr[cmd], "\n");
+	break;
+    case DONE:
+    case FAILED:
+	if( dp) {
+	    cmdline = vstralloc(cmdstr[cmd],
+				" ", disk2serial(dp),
+				"\n",  NULL);
+	} else {
+	    cmdline = vstralloc(cmdstr[cmd], "\n");
+	}
+	break;
+    default:
+	error("Don't know how to send %s command to chunker", cmdstr[cmd]);
+    }
+    /*
+     * Note: cmdline already has a '\n'.
+     */
+    printf("driver: send-cmd time %s to %s: %s",
+	   walltime_str(curclock()), chunker->name, cmdline);
+    fflush(stdout);
+    if (fullwrite(chunker->fd, cmdline, strlen(cmdline)) < 0) {
+	printf("writing %s command: %s\n", chunker->name, strerror(errno));
+	fflush(stdout);
+	amfree(cmdline);
+	return 0;
     }
     amfree(cmdline);
     return 1;
@@ -433,8 +546,8 @@ char *str;
 	error("error [serial out of range 0..%d: %d]", MAX_SERIAL, s);
     }
     if(gen != stable[s].gen)
-	printf("driver: error time %s serial gen mismatch\n",
-	       walltime_str(curclock()));
+	printf("driver: error time %s serial gen mismatch %s\n",
+	       walltime_str(curclock()), str);
     return stable[s].dp;
 }
 
@@ -461,6 +574,37 @@ char *str;
 }
 
 
+void free_serial_dp(dp)
+disk_t *dp;
+{
+    int s;
+
+    for(s = 0; s < MAX_SERIAL; s++) {
+	if(stable[s].dp == dp) {
+	    stable[s].gen = 0;
+	    stable[s].dp = NULL;
+	    return;
+	}
+    }
+
+    printf("driver: error time %s serial not found\n",
+	   walltime_str(curclock()));
+}
+
+
+void check_unfree_serial()
+{
+    int s;
+
+    /* find used serial number */
+    for(s = 0; s < MAX_SERIAL; s++) {
+	if(stable[s].gen != 0 || stable[s].dp != NULL) {
+	    printf("driver: error time %s bug: serial in use: %02d-%05ld\n",
+		   walltime_str(curclock()), s, stable[s].gen);
+	}
+    }
+}
+
 char *disk2serial(dp)
 disk_t *dp;
 {
@@ -469,7 +613,7 @@ disk_t *dp;
 
     for(s = 0; s < MAX_SERIAL; s++) {
 	if(stable[s].dp == dp) {
-	    ap_snprintf(str, sizeof(str), "%02d-%05ld", s, stable[s].gen);
+	    snprintf(str, sizeof(str), "%02d-%05ld", s, stable[s].gen);
 	    return str;
 	}
     }
@@ -487,7 +631,7 @@ disk_t *dp;
     stable[s].gen = generation++;
     stable[s].dp = dp;
 
-    ap_snprintf(str, sizeof(str), "%02d-%05ld", s, stable[s].gen);
+    snprintf(str, sizeof(str), "%02d-%05ld", s, stable[s].gen);
     return str;
 }
 

@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: amadmin.c,v 1.49.2.13.2.3.2.15.2.12 2005/09/20 21:31:52 jrjackson Exp $
+ * $Id: amadmin.c,v 1.105 2006/02/03 17:29:28 vectro Exp $
  *
  * controlling process for the Amanda backup system
  */
@@ -39,7 +39,7 @@
 #include "holding.h"
 #include "find.h"
 
-disklist_t *diskqp;
+disklist_t diskq;
 
 int main P((int argc, char **argv));
 void usage P((void));
@@ -64,7 +64,7 @@ void delete P((int argc, char **argv));
 void delete_one P((disk_t *dp));
 void balance P((int argc, char **argv));
 void tape P((int argc, char **argv));
-void bumpsize P((void));
+void bumpsize P((int argc, char **argv));
 void diskloop P((int argc, char **argv, char *cmdname,
 		 void (*func) P((disk_t *dp))));
 char *seqdatestr P((int seq));
@@ -74,26 +74,75 @@ void export_db P((int argc, char **argv));
 void import_db P((int argc, char **argv));
 void disklist P((int argc, char **argv));
 void disklist_one P((disk_t *dp));
+void show_version P((int argc, char **argv));
 static void check_dumpuser P((void));
 
 static char *conf_tapelist = NULL;
 static char *displayunit;
 static long int unitdivisor;
 
+static const struct {
+    const char *name;
+    void (*fn) P((int, char **));
+    const char *usage;
+} cmdtab[] = {
+    { "version", show_version,
+	"\t\t\t\t# Show version info." },
+    { "force", force,
+	" [<hostname> [<disks>]* ]+\t# Force level 0 at next run." },
+    { "unforce", unforce,
+	" [<hostname> [<disks>]* ]+\t# Clear force command." },
+    { "force-bump", force_bump,
+	" [<hostname> [<disks>]* ]+\t# Force bump at next run." },
+    { "force-no-bump", force_no_bump,
+	" [<hostname> [<disks>]* ]+\t# Force no-bump at next run." },
+    { "unforce-bump", unforce_bump,
+	" [<hostname> [<disks>]* ]+\t# Clear bump command." },
+    { "reuse", reuse,
+	" <tapelabel> ...\t\t# re-use this tape." },
+    { "no-reuse", noreuse,
+	" <tapelabel> ...\t# never re-use this tape." },
+    { "find", find,
+	" [<hostname> [<disks>]* ]*\t# Show which tapes these dumps are on." },
+    { "delete", delete,
+	" [<hostname> [<disks>]* ]+\t# Delete from database." },
+    { "info", info,
+	" [<hostname> [<disks>]* ]*\t# Show current info records." },
+    { "due", due,
+	" [<hostname> [<disks>]* ]*\t# Show due date." },
+    { "balance", balance,
+	" [-days <num>]\t\t# Show nightly dump size balance." },
+    { "tape", tape,
+	" [-days <num>]\t\t\t# Show which tape is due next." },
+    { "bumpsize", bumpsize,
+	"\t\t\t# Show current bump thresholds." },
+    { "export", export_db,
+	" [<hostname> [<disks>]* ]*\t# Export curinfo database to stdout." },
+    { "import", import_db,
+	"\t\t\t\t# Import curinfo database from stdin." },
+    { "disklist", disklist,
+	" [<hostname> [<disks>]* ]*\t# Debug disklist entries." },
+};
+#define	NCMDS	(sizeof(cmdtab) / sizeof(cmdtab[0]))
+
 int main(argc, argv)
-int argc;
-char **argv;
+     int argc;
+     char **argv;
 {
-    unsigned long malloc_hist_1, malloc_size_1;
-    unsigned long malloc_hist_2, malloc_size_2;
+    int i;
     char *conf_diskfile;
     char *conf_infofile;
     char *conffile;
+    unsigned long malloc_hist_1, malloc_size_1;
+    unsigned long malloc_hist_2, malloc_size_2;
 
     safe_fd(-1, 0);
     safe_cd();
 
     set_pname("amadmin");
+
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
 
     malloc_size_1 = malloc_inuse(&malloc_hist_1);
 
@@ -102,15 +151,16 @@ char **argv;
     if(argc < 3) usage();
 
     if(strcmp(argv[2],"version") == 0) {
-	for(argc=0; version_info[argc]; printf("%s",version_info[argc++]));
-	return 0;
+	show_version(argc, argv);
+	goto done;
     }
+
     config_name = argv[1];
     config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
     conffile = stralloc2(config_dir, CONFFILE_NAME);
-    if(read_conffile(conffile)) {
+
+    if(read_conffile(conffile))
 	error("errors processing config file \"%s\"", conffile);
-    }
     amfree(conffile);
 
     check_dumpuser();
@@ -121,58 +171,48 @@ char **argv;
     } else {
 	conf_diskfile = stralloc2(config_dir, conf_diskfile);
     }
-    if((diskqp = read_diskfile(conf_diskfile)) == NULL) {
+    if (read_diskfile(conf_diskfile, &diskq) < 0)
 	error("could not load disklist \"%s\"", conf_diskfile);
-    }
     amfree(conf_diskfile);
+
     conf_tapelist = getconf_str(CNF_TAPELIST);
     if (*conf_tapelist == '/') {
 	conf_tapelist = stralloc(conf_tapelist);
     } else {
 	conf_tapelist = stralloc2(config_dir, conf_tapelist);
     }
-    if(read_tapelist(conf_tapelist)) {
+    if(read_tapelist(conf_tapelist))
 	error("could not load tapelist \"%s\"", conf_tapelist);
-    }
+
     conf_infofile = getconf_str(CNF_INFOFILE);
     if (*conf_infofile == '/') {
 	conf_infofile = stralloc(conf_infofile);
     } else {
 	conf_infofile = stralloc2(config_dir, conf_infofile);
     }
-    if(open_infofile(conf_infofile)) {
+    if(open_infofile(conf_infofile))
 	error("could not open info db \"%s\"", conf_infofile);
-    }
     amfree(conf_infofile);
 
     displayunit = getconf_str(CNF_DISPLAYUNIT);
     unitdivisor = getconf_unit_divisor();
 
-    if(strcmp(argv[2],"force-bump") == 0) force_bump(argc, argv);
-    else if(strcmp(argv[2],"force-no-bump") == 0) force_no_bump(argc, argv);
-    else if(strcmp(argv[2],"unforce-bump") == 0) unforce_bump(argc, argv);
-    else if(strcmp(argv[2],"force") == 0) force(argc, argv);
-    else if(strcmp(argv[2],"unforce") == 0) unforce(argc, argv);
-    else if(strcmp(argv[2],"reuse") == 0) reuse(argc, argv);
-    else if(strcmp(argv[2],"no-reuse") == 0) noreuse(argc, argv);
-    else if(strcmp(argv[2],"info") == 0) info(argc, argv);
-    else if(strcmp(argv[2],"due") == 0) due(argc, argv);
-    else if(strcmp(argv[2],"find") == 0) find(argc, argv);
-    else if(strcmp(argv[2],"delete") == 0) delete(argc, argv);
-    else if(strcmp(argv[2],"balance") == 0) balance(argc, argv);
-    else if(strcmp(argv[2],"tape") == 0) tape(argc, argv);
-    else if(strcmp(argv[2],"bumpsize") == 0) bumpsize();
-    else if(strcmp(argv[2],"import") == 0) import_db(argc, argv);
-    else if(strcmp(argv[2],"export") == 0) export_db(argc, argv);
-    else if(strcmp(argv[2],"disklist") == 0) disklist(argc, argv);
-    else {
+    for (i = 0; i < NCMDS; i++)
+	if (strcmp(argv[2], cmdtab[i].name) == 0) {
+	    (*cmdtab[i].fn)(argc, argv);
+	    break;
+	}
+    if (i == NCMDS) {
 	fprintf(stderr, "%s: unknown command \"%s\"\n", argv[0], argv[2]);
 	usage();
     }
+
     close_infofile();
     clear_tapelist();
     amfree(conf_tapelist);
     amfree(config_dir);
+
+done:
 
     malloc_size_2 = malloc_inuse(&malloc_hist_2);
 
@@ -186,45 +226,13 @@ char **argv;
 
 void usage P((void))
 {
+    int i;
+
     fprintf(stderr, "\nUsage: %s%s <conf> <command> {<args>} ...\n",
 	    get_pname(), versionsuffix());
     fprintf(stderr, "    Valid <command>s are:\n");
-    fprintf(stderr,"\tversion\t\t\t\t# Show version info.\n");
-    fprintf(stderr,
-	    "\tforce [<hostname> [<disks>]* ]+\t# Force level 0 at next run.\n");
-    fprintf(stderr,
-	    "\tunforce [<hostname> [<disks>]* ]+\t# Clear force command.\n");
-    fprintf(stderr,
-	    "\tforce-bump [<hostname> [<disks>]* ]+\t# Force bump at next run.\n");
-    fprintf(stderr,
-	    "\tforce-no-bump [<hostname> [<disks>]* ]+\t# Force no-bump at next run.\n");
-    fprintf(stderr,
-	    "\tunforce-bump [<hostname> [<disks>]* ]+\t# Clear bump command.\n");
-    fprintf(stderr,
-	    "\treuse <tapelabel> ...\t\t# re-use this tape.\n");
-    fprintf(stderr,
-	    "\tno-reuse <tapelabel> ...\t# never re-use this tape.\n");
-    fprintf(stderr,
-	    "\tfind [<hostname> [<disks>]* ]*\t# Show which tapes these dumps are on.\n");
-    fprintf(stderr,
-	    "\tdelete [<hostname> [<disks>]* ]*\t# Delete from database.\n");
-    fprintf(stderr,
-	    "\tinfo [<hostname> [<disks>]* ]*\t# Show current info records.\n");
-    fprintf(stderr,
-	    "\tdue [<hostname> [<disks>]* ]*\t# Show due date.\n");
-    fprintf(stderr,
-	    "\tbalance [-days <num>]\t\t# Show nightly dump size balance.\n");
-    fprintf(stderr,
-	    "\ttape [-days <num>]\t\t# Show which tape is due next.\n");
-    fprintf(stderr,
-	    "\tbumpsize\t\t\t# Show current bump thresholds.\n");
-    fprintf(stderr,
-	    "\texport [<hostname> [<disks>]* ]*\t# Export curinfo database to stdout.\n");
-    fprintf(stderr,
-	    "\timport\t\t\t\t# Import curinfo database from stdin.\n");
-    fprintf(stderr,
-  	    "\tdisklist [<hostname> [<disks>]* ]*\t# Show disklist entries.\n");
-
+    for (i = 0; i < NCMDS; i++)
+	fprintf(stderr, "\t%s%s\n", cmdtab[i].name, cmdtab[i].usage);
     exit(1);
 }
 
@@ -244,7 +252,7 @@ int seq;
 
     tm = localtime(&t);
 
-    ap_snprintf(str, sizeof(str),
+    snprintf(str, sizeof(str),
 		"%2d/%02d %3s", tm->tm_mon+1, tm->tm_mday, dow[tm->tm_wday]);
     return str;
 }
@@ -314,9 +322,9 @@ void (*func) P((disk_t *dp));
 	usage();
     }
 
-    match_disklist(diskqp, argc-3, argv+3);
+    match_disklist(&diskq, argc-3, argv+3);
 
-    for(dp = diskqp->head; dp != NULL; dp = dp->next) {
+    for(dp = diskq.head; dp != NULL; dp = dp->next) {
 	if(dp->todo) {
 	    count++;
 	    func(dp);
@@ -341,9 +349,9 @@ disk_t *dp;
     check_dumpuser();
 #endif
     get_info(hostname, diskname, &info);
-    info.command |= FORCE_FULL;
-    if(info.command & FORCE_BUMP) {
-	info.command ^= FORCE_BUMP;
+    SET(info.command, FORCE_FULL);
+    if (ISSET(info.command, FORCE_BUMP)) {
+	CLR(info.command, FORCE_BUMP);
 	printf("%s: WARNING: %s:%s FORCE_BUMP command was cleared.\n",
 	       get_pname(), hostname, diskname);
     }
@@ -376,11 +384,11 @@ disk_t *dp;
     info_t info;
 
     get_info(hostname, diskname, &info);
-    if(info.command & FORCE_FULL) {
+    if (ISSET(info.command, FORCE_FULL)) {
 #if TEXTDB
 	check_dumpuser();
 #endif
-	info.command ^= FORCE_FULL;
+	CLR(info.command, FORCE_FULL);
 	if(put_info(hostname, diskname, &info) == 0){
 	    printf("%s: force command for %s:%s cleared.\n",
 		   get_pname(), hostname, diskname);
@@ -418,14 +426,14 @@ disk_t *dp;
     check_dumpuser();
 #endif
     get_info(hostname, diskname, &info);
-    info.command |= FORCE_BUMP;
-    if(info.command & FORCE_NO_BUMP) {
-	info.command ^= FORCE_NO_BUMP;
+    SET(info.command, FORCE_BUMP);
+    if (ISSET(info.command, FORCE_NO_BUMP)) {
+	CLR(info.command, FORCE_NO_BUMP);
 	printf("%s: WARNING: %s:%s FORCE_NO_BUMP command was cleared.\n",
 	       get_pname(), hostname, diskname);
     }
-    if (info.command & FORCE_FULL) {
-	info.command ^= FORCE_FULL;
+    if (ISSET(info.command, FORCE_FULL)) {
+	CLR(info.command, FORCE_FULL);
 	printf("%s: WARNING: %s:%s FORCE_FULL command was cleared.\n",
 	       get_pname(), hostname, diskname);
     }
@@ -461,9 +469,9 @@ disk_t *dp;
     check_dumpuser();
 #endif
     get_info(hostname, diskname, &info);
-    info.command |= FORCE_NO_BUMP;
-    if(info.command & FORCE_BUMP) {
-	info.command ^= FORCE_BUMP;
+    SET(info.command, FORCE_NO_BUMP);
+    if (ISSET(info.command, FORCE_BUMP)) {
+	CLR(info.command, FORCE_BUMP);
 	printf("%s: WARNING: %s:%s FORCE_BUMP command was cleared.\n",
 	       get_pname(), hostname, diskname);
     }
@@ -496,14 +504,11 @@ disk_t *dp;
     info_t info;
 
     get_info(hostname, diskname, &info);
-    if(info.command & (FORCE_BUMP | FORCE_NO_BUMP)) {
+    if (ISSET(info.command, FORCE_BUMP|FORCE_NO_BUMP)) {
 #if TEXTDB
 	check_dumpuser();
 #endif
-	if(info.command & FORCE_BUMP)
-	    info.command ^= FORCE_BUMP;
-	if(info.command & FORCE_NO_BUMP)
-	    info.command ^= FORCE_NO_BUMP;
+	CLR(info.command, FORCE_BUMP|FORCE_NO_BUMP);
 	if(put_info(hostname, diskname, &info) == 0) {
 	    printf("%s: bump command for %s:%s cleared.\n",
 		   get_pname(), hostname, diskname);
@@ -654,11 +659,11 @@ disk_t *dp;
     get_info(dp->host->hostname, dp->name, &info);
 
     printf("\nCurrent info for %s %s:\n", dp->host->hostname, dp->name);
-    if(info.command & FORCE_FULL) 
+    if (ISSET(info.command, FORCE_FULL))
 	printf("  (Forcing to level 0 dump at next run)\n");
-    if(info.command & FORCE_BUMP) 
+    if (ISSET(info.command, FORCE_BUMP))
 	printf("  (Forcing bump at next run)\n");
-    if(info.command & FORCE_NO_BUMP) 
+    if (ISSET(info.command, FORCE_NO_BUMP))
 	printf("  (Forcing no-bump at next run)\n");
     printf("  Stats: dump rates (kps), Full:  %5.1f, %5.1f, %5.1f\n",
 	   info.full.rate[0], info.full.rate[1], info.full.rate[2]);
@@ -689,7 +694,7 @@ char **argv;
     if(argc >= 4)
 	diskloop(argc, argv, "info", info_one);
     else
-	for(dp = diskqp->head; dp != NULL; dp = dp->next)
+	for(dp = diskq.head; dp != NULL; dp = dp->next)
 	    info_one(dp);
 }
 
@@ -734,7 +739,7 @@ char **argv;
     if(argc >= 4)
 	diskloop(argc, argv, "due", due_one);
     else
-	for(dp = diskqp->head; dp != NULL; dp = dp->next)
+	for(dp = diskq.head; dp != NULL; dp = dp->next)
 	    due_one(dp);
 }
 
@@ -755,6 +760,7 @@ char **argv;
 	    return;
 	}
     }
+
     runtapes = getconf_int(CNF_RUNTAPES);
     tp = lookup_last_reusable_tape(0);
 
@@ -768,7 +774,7 @@ char **argv;
 		printf("tape %s or ", tp->label);
 	    printf("a new tape.\n");
 	
-	    tp = lookup_last_reusable_tape((j*runtapes) + i + 1);
+	    tp = lookup_last_reusable_tape(i + 1);
 	}
     }
     lasttp = lookup_tapepos(lookup_nb_tape());
@@ -854,7 +860,7 @@ char **argv;
     for(seq=0; seq <= distinct; seq++)
 	sp[seq].disks = sp[seq].origsize = sp[seq].outsize = 0;
 
-    for(dp = diskqp->head; dp != NULL; dp = dp->next) {
+    for(dp = diskq.head; dp != NULL; dp = dp->next) {
 	if(get_info(dp->host->hostname, dp->name, &info)) {
 	    printf("new disk %s:%s ignored.\n", dp->host->hostname, dp->name);
 	    continue;
@@ -995,7 +1001,7 @@ char **argv;
 
     if(argc < 3) {
 	fprintf(stderr,
-		"%s: expecting \"find [--sort <hkdlb>] [hostname [<disk>]]*\"\n",
+		"%s: expecting \"find [--sort <hkdlpb>] [hostname [<disk>]]*\"\n",
 		get_pname());
 	usage();
     }
@@ -1031,12 +1037,11 @@ char **argv;
     } else {
 	start_argc=4;
     }
-    match_disklist(diskqp, argc-(start_argc-1), argv+(start_argc-1));
-    output_find = find_dump(1, diskqp);
-
+    match_disklist(&diskq, argc-(start_argc-1), argv+(start_argc-1));
+    output_find = find_dump(1, &diskq);
     if(argc-(start_argc-1) > 0) {
 	free_find_result(&output_find);
-	match_disklist(diskqp, argc-(start_argc-1), argv+(start_argc-1));
+	match_disklist(&diskq, argc-(start_argc-1), argv+(start_argc-1));
 	output_find = find_dump(0, NULL);
     }
 
@@ -1063,14 +1068,15 @@ int level;
     return bump;
 }
 
-void bumpsize()
+void bumpsize(argc, argv)
+int argc;
+char **argv;
 {
     int l;
     int conf_bumppercent = getconf_int(CNF_BUMPPERCENT);
     double conf_bumpmult = getconf_real(CNF_BUMPMULT);
 
     printf("Current bump parameters:\n");
-
     if(conf_bumppercent == 0) {
 	printf("  bumpsize %5d KB\t- minimum savings (threshold) to bump level 1 -> 2\n",
 	       getconf_int(CNF_BUMPSIZE));
@@ -1080,9 +1086,8 @@ void bumpsize()
 	       conf_bumpmult);
 
 	printf("      Bump -> To  Threshold\n");
-	for(l = 1; l < 9; l++) {
+	for(l = 1; l < 9; l++)
 	    printf("\t%d  ->  %d  %9d KB\n", l, l+1, bump_thresh(l));
-	}
 	putchar('\n');
     }
     else {
@@ -1094,7 +1099,6 @@ void bumpsize()
 	       getconf_int(CNF_BUMPDAYS));
 	printf("  bumpmult %5.5g\t- threshold = disk_size * bumppercent * bumpmult**(level-1)\n\n",
 	       conf_bumpmult);
-
 	printf("      Bump -> To  Threshold\n");
 	for(l = 1; l < 9; l++) {
 	    printf("\t%d  ->  %d  %7.2f %%\n", l, l+1, bumppercent);
@@ -1121,26 +1125,23 @@ char **argv;
     printf("CURINFO Version %s CONF %s\n", version(), getconf_str(CNF_ORG));
 
     curtime = time(0);
-    if(gethostname(hostname, sizeof(hostname)-1) == -1) {
-	error("could not determine host name: %s", strerror(errno));
-    }
+    if(gethostname(hostname, sizeof(hostname)-1) == -1)
+	error("could not determine host name: %s\n", strerror(errno));
     hostname[sizeof(hostname)-1] = '\0';
     printf("# Generated by:\n#    host: %s\n#    date: %s",
 	   hostname, ctime(&curtime));
 
     printf("#    command:");
-    for(i = 0; i < argc; i++) {
+    for(i = 0; i < argc; i++)
 	printf(" %s", argv[i]);
-    }
 
     printf("\n# This file can be merged back in with \"amadmin import\".\n");
     printf("# Edit only with care.\n");
 
-    if(argc >= 4) {
+    if(argc >= 4)
 	diskloop(argc, argv, "export", export_one);
-    } else for(dp = diskqp->head; dp != NULL; dp = dp->next) {
+    else for(dp = diskq.head; dp != NULL; dp = dp->next)
 	export_one(dp);
-    }
 }
 
 void export_one(dp)
@@ -1592,6 +1593,8 @@ disk_t *dp;
     am_host_t *hp;
     interface_t *ip;
     sle_t *excl;
+    time_t st;
+    struct tm *stm;
 
     hp = dp->host;
     ip = hp->netif;
@@ -1707,20 +1710,40 @@ disk_t *dp;
 	       dp->comprate[0], dp->comprate[1]);
     }
 
-    printf("        auth ");
-    switch(dp->auth) {
-    case AUTH_BSD:
-	printf("BSD\n");
+    printf("        encrypt ");
+    switch(dp->encrypt) {
+    case ENCRYPT_NONE:
+	printf("NONE\n");
 	break;
-    case AUTH_KRB4:
-	printf("KRB4\n");
+    case ENCRYPT_CUST:
+	printf("CLIENT\n");
+	break;
+    case ENCRYPT_SERV_CUST:
+	printf("SERVER\n");
 	break;
     }
-    printf("        kencrypt %s\n", (dp->kencrypt? "YES" : "NO"));
 
+    printf("        auth %s\n", dp->security_driver);
+    printf("        kencrypt %s\n", (dp->kencrypt? "YES" : "NO"));
     printf("        holdingdisk %s\n", (!dp->no_hold? "YES" : "NO"));
     printf("        record %s\n", (dp->record? "YES" : "NO"));
     printf("        index %s\n", (dp->index? "YES" : "NO"));
+    st = dp->start_t;
+        if(st) {
+            stm = localtime(&st);
+            printf("        starttime %d:%02d:%02d\n",
+              stm->tm_hour, stm->tm_min, stm->tm_sec);
+        }
+   
+    if(dp->tape_splitsize > 0) {
+	printf("        tape_splitsize %ld\n", dp->tape_splitsize);
+    }
+    if(dp->split_diskbuffer) {
+	printf("        split_diskbuffer %s\n", dp->split_diskbuffer);
+    }
+    if(dp->fallback_splitsize > 0) {
+	printf("        fallback_splitsize %ldMb\n", (dp->fallback_splitsize / 1024));
+    }
     printf("        skip-incr %s\n", (dp->skip_incr? "YES" : "NO"));
     printf("        skip-full %s\n", (dp->skip_full? "YES" : "NO"));
 
@@ -1736,6 +1759,16 @@ char **argv;
     if(argc >= 4)
 	diskloop(argc, argv, "disklist", disklist_one);
     else
-	for(dp = diskqp->head; dp != NULL; dp = dp->next)
+	for(dp = diskq.head; dp != NULL; dp = dp->next)
 	    disklist_one(dp);
+}
+
+void show_version(argc, argv)
+int argc;
+char **argv;
+{
+    int i;
+
+    for(i = 0; version_info[i] != NULL; i++)
+	printf("%s", version_info[i]);
 }

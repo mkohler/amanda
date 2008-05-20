@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: amlogroll.c,v 1.1.2.1.4.1.2.3.2.1 2005/09/20 21:31:52 jrjackson Exp $
+ * $Id: amlogroll.c,v 1.7 2005/09/20 21:32:26 jrjackson Exp $
  *
  * rename a live log file to the datestamped name.
  */

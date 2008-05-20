@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /* 
- * $Id: client_util.c,v 1.1.2.27.2.1 2005/10/11 14:50:00 martinea Exp $
+ * $Id: client_util.c,v 1.32 2006/03/09 16:51:41 martinea Exp $
  *
  */
 
@@ -64,7 +64,7 @@ int n;
     if(n == 0)
 	number[0] = '\0';
     else
-	ap_snprintf(number, sizeof(number), "%03d", n - 1);
+	snprintf(number, sizeof(number), "%03d", n - 1);
 	
     filename = vstralloc(get_pname(), ".", diskname, ".", ts, number, ".",
 			 exin, NULL);
@@ -212,6 +212,7 @@ int verbose;
 		      debug_prefix(NULL), device));
 		if(verbose)
 		    printf("ERROR [Can't open disk '%s']\n", device);
+		amfree(regex);
 		return 0;
 	    }
 	    else {
@@ -226,6 +227,7 @@ int verbose;
 		}
 		closedir(d);
 	    }
+	    amfree(regex);
 	}
     }
     return nb_exp;
@@ -274,8 +276,7 @@ int verbose;
 		    else {
 			dbprintf(("%s: Can't open exclude file '%s': %s\n",
 				  debug_prefix(NULL),
-				  exclname,
-				  strerror(errno)));
+				  exclname, strerror(errno)));
 			if(verbose && (options->exclude_optional == 0 ||
 				       errno != ENOENT))
 			    printf("ERROR [Can't open exclude file '%s': %s]\n",
@@ -289,8 +290,7 @@ int verbose;
 	else {
 	    dbprintf(("%s: Can't create exclude file '%s': %s\n",
 		      debug_prefix(NULL),
-		      filename,
-		      strerror(errno)));
+		      filename, strerror(errno)));
 	    if(verbose)
 		printf("ERROR [Can't create exclude file '%s': %s]\n", filename,
 			strerror(errno));
@@ -347,10 +347,9 @@ int verbose;
 		    else {
 			dbprintf(("%s: Can't open include file '%s': %s\n",
 				  debug_prefix(NULL),
-				  inclname,
-				  strerror(errno)));
+				  inclname, strerror(errno)));
 			if(verbose && (options->include_optional == 0 ||
-                                       errno != ENOENT))
+				       errno != ENOENT))
 			    printf("ERROR [Can't open include file '%s': %s]\n",
 				   inclname, strerror(errno));
 		   }
@@ -362,8 +361,7 @@ int verbose;
 	else {
 	    dbprintf(("%s: Can't create include file '%s': %s\n",
 		      debug_prefix(NULL),
-		      filename,
-		      strerror(errno)));
+		      filename, strerror(errno)));
 	    if(verbose)
 		printf("ERROR [Can't create include file '%s': %s]\n", filename,
 			strerror(errno));
@@ -385,13 +383,16 @@ option_t *options;
 {
     options->str = NULL;
     options->compress = NO_COMPR;
+    options->srvcompprog = NULL;
+    options->clntcompprog = NULL;
+    options->encrypt = ENCRYPT_NONE;
+    options->srv_encrypt = NULL;
+    options->clnt_encrypt = NULL;
+    options->srv_decrypt_opt = NULL;
+    options->clnt_decrypt_opt = NULL;
     options->no_record = 0;
-    options->bsd_auth = 0;
     options->createindex = 0;
-#ifdef KRB4_SECURITY
-    options->krb4_auth = 0;
-    options->kencrypt = 0;
-#endif
+    options->auth = NULL;
     options->exclude_file = NULL;
     options->exclude_list = NULL;
     options->include_file = NULL;
@@ -420,65 +421,79 @@ int verbose;
 
     while (tok != NULL) {
 	if(am_has_feature(fs, fe_options_auth)
-	   && strncmp(tok, "auth=", 5) == 0) {
-	    if(options->bsd_auth
-#ifdef KRB4_SECURITY
-	       + options->krb4_auth
-#endif
-	       > 0) {
-		dbprintf(("%s: multiple auth option\n", 
-			  debug_prefix(NULL)));
+	   && BSTRNCMP(tok,"auth=") == 0) {
+	    if(options->auth != NULL) {
+		dbprintf(("%s: multiple auth option \"%s\"\n",
+			  debug_prefix(NULL), tok+5));
 		if(verbose) {
-		    printf("ERROR [multiple auth option]\n");
+		    printf("ERROR [multiple auth option \"%s\"\n", tok+5);
 		}
 	    }
-	    if(strcasecmp(tok + 5, "bsd") == 0) {
-		options->bsd_auth = 1;
-	    }
-#ifdef KRB4_SECURITY
-	    else if(strcasecmp(tok + 5, "krb4") == 0) {
-		options->krb4_auth = 1;
-	    }
-#endif
-	    else {
-		dbprintf(("%s: unknown auth= value \"%s\"\n",
-			  debug_prefix(NULL), tok + 5));
-		if(verbose) {
-		    printf("ERROR [unknown auth= value \"%s\"]\n", tok + 5);
-		}
-	    }
+	    options->auth = stralloc(&tok[5]);
 	}
-	else if(strcmp(tok, "compress-fast") == 0) {
-	    if(options->compress != NO_COMPR) {
-		dbprintf(("%s: multiple compress option\n", 
+	else if(am_has_feature(fs, fe_options_bsd_auth)
+	   && BSTRNCMP(tok, "bsd-auth") == 0) {
+	    if(options->auth != NULL) {
+		dbprintf(("%s: multiple auth option \n",
 			  debug_prefix(NULL)));
 		if(verbose) {
-		    printf("ERROR [multiple compress option]\n");
+		    printf("ERROR [multiple auth option \n");
+		}
+	    }
+	    options->auth = stralloc("bsd");
+	}
+	else if(am_has_feature(fs, fe_options_krb4_auth)
+	   && BSTRNCMP(tok, "krb4-auth") == 0) {
+	    if(options->auth != NULL) {
+		dbprintf(("%s: multiple auth option \n",
+			  debug_prefix(NULL)));
+		if(verbose) {
+		    printf("ERROR [multiple auth option \n");
+		}
+	    }
+	    options->auth = stralloc("krb4");
+	}
+	else if(BSTRNCMP(tok, "compress-fast") == 0) {
+	    if(options->compress != NO_COMPR) {
+		dbprintf(("%s: multiple compress option \n",
+			  debug_prefix(NULL)));
+		if(verbose) {
+		    printf("ERROR [multiple compress option \n");
 		}
 	    }
 	    options->compress = COMPR_FAST;
 	}
-	else if(strcmp(tok, "compress-best") == 0) {
+	else if(BSTRNCMP(tok, "compress-best") == 0) {
 	    if(options->compress != NO_COMPR) {
-		dbprintf(("%s: multiple compress option\n", 
+		dbprintf(("%s: multiple compress option \n",
 			  debug_prefix(NULL)));
 		if(verbose) {
-		    printf("ERROR [multiple compress option]\n");
+		    printf("ERROR [multiple compress option \n");
 		}
 	    }
 	    options->compress = COMPR_BEST;
 	}
-	else if(strcmp(tok, "srvcomp-fast") == 0) {
+	else if(BSTRNCMP(tok, "srvcomp-fast") == 0) {
 	    if(options->compress != NO_COMPR) {
-		dbprintf(("%s: multiple compress option\n", 
+		dbprintf(("%s: multiple compress option \n",
 			  debug_prefix(NULL)));
 		if(verbose) {
-		    printf("ERROR [multiple compress option]\n");
+		    printf("ERROR [multiple compress option \n");
 		}
 	    }
 	    options->compress = COMPR_SERVER_FAST;
 	}
-	else if(strcmp(tok, "srvcomp-best") == 0) {
+	else if(BSTRNCMP(tok, "srvcomp-best") == 0) {
+	    if(options->compress != NO_COMPR) {
+		dbprintf(("%s: multiple compress option \n",
+			  debug_prefix(NULL)));
+		if(verbose) {
+		    printf("ERROR [multiple compress option \n");
+		}
+	    }
+	    options->compress = COMPR_SERVER_BEST;
+	}
+	else if(BSTRNCMP(tok, "srvcomp-cust=") == 0) {
 	    if(options->compress != NO_COMPR) {
 		dbprintf(("%s: multiple compress option\n", 
 			  debug_prefix(NULL)));
@@ -486,105 +501,109 @@ int verbose;
 		    printf("ERROR [multiple compress option]\n");
 		}
 	    }
-	    options->compress = COMPR_SERVER_BEST;
+	    options->srvcompprog = stralloc(tok + sizeof("srvcomp-cust=") -1);
+	    options->compress = COMPR_SERVER_CUST;
 	}
-	else if(strcmp(tok, "no-record") == 0) {
-	    if(options->no_record != 0) {
-		dbprintf(("%s: multiple no-record option\n", 
+	else if(BSTRNCMP(tok, "comp-cust=") == 0) {
+	    if(options->compress != NO_COMPR) {
+		dbprintf(("%s: multiple compress option\n", 
 			  debug_prefix(NULL)));
 		if(verbose) {
-		    printf("ERROR [multiple no-record option]\n");
+		    printf("ERROR [multiple compress option]\n");
+		}
+	    }
+	    options->clntcompprog = stralloc(tok + sizeof("comp-cust=") -1);
+	    options->compress = COMPR_CUST;
+	    /* parse encryption options */
+	} 
+	else if(BSTRNCMP(tok, "encrypt-serv-cust=") == 0) {
+	    if(options->encrypt != ENCRYPT_NONE) {
+		dbprintf(("%s: multiple encrypt option\n", 
+			  debug_prefix(NULL)));
+		if(verbose) {
+		    printf("ERROR [multiple encrypt option]\n");
+		}
+	    }
+	    options->srv_encrypt = stralloc(tok + sizeof("encrypt-serv-cust=") -1);
+	    options->encrypt = ENCRYPT_SERV_CUST;
+	} 
+	else if(BSTRNCMP(tok, "encrypt-cust=") == 0) {
+	    if(options->encrypt != ENCRYPT_NONE) {
+		dbprintf(("%s: multiple encrypt option\n", 
+			  debug_prefix(NULL)));
+		if(verbose) {
+		    printf("ERROR [multiple encrypt option]\n");
+		}
+	    }
+	    options->clnt_encrypt= stralloc(tok + sizeof("encrypt-cust=") -1);
+	    options->encrypt = ENCRYPT_CUST;
+	} 
+	else if(BSTRNCMP(tok, "server-decrypt-option=") == 0) {
+	  options->srv_decrypt_opt = stralloc(tok + sizeof("server-decrypt-option=") -1);
+	}
+	else if(BSTRNCMP(tok, "client-decrypt-option=") == 0) {
+	  options->clnt_decrypt_opt = stralloc(tok + sizeof("client-decrypt-option=") -1);
+	}
+	else if(BSTRNCMP(tok, "no-record") == 0) {
+	    if(options->no_record != 0) {
+		dbprintf(("%s: multiple no-record option \n",
+			  debug_prefix(NULL)));
+		if(verbose) {
+		    printf("ERROR [multiple no-record option \n");
 		}
 	    }
 	    options->no_record = 1;
 	}
-	else if(strcmp(tok, "bsd-auth") == 0) {
-	    if(options->bsd_auth
-#ifdef KRB4_SECURITY
-	       + options->krb4_auth
-#endif
-	       > 0) {
-		dbprintf(("%s: multiple auth option\n", 
-			  debug_prefix(NULL)));
-		if(verbose) {
-		    printf("ERROR [multiple auth option]\n");
-		}
-	    }
-	    options->bsd_auth = 1;
-	}
-	else if(strcmp(tok, "index") == 0) {
+	else if(BSTRNCMP(tok, "index") == 0) {
 	    if(options->createindex != 0) {
-		dbprintf(("%s: multiple index option\n", 
+		dbprintf(("%s: multiple index option \n",
 			  debug_prefix(NULL)));
 		if(verbose) {
-		    printf("ERROR [multiple index option]\n");
+		    printf("ERROR [multiple index option \n");
 		}
 	    }
 	    options->createindex = 1;
 	}
-#ifdef KRB4_SECURITY
-	else if(strcmp(tok, "krb4-auth") == 0) {
-	    if(options->bsd_auth + options->krb4_auth > 0) {
-		dbprintf(("%s: multiple auth option\n", 
-			  debug_prefix(NULL)));
-		if(verbose) {
-		    printf("ERROR [multiple auth option]\n");
-		}
-	    }
-	    options->krb4_auth = 1;
-	}
-	else if(strcmp(tok, "kencrypt") == 0) {
-	    if(options->kencrypt != 0) {
-		dbprintf(("%s: multiple kencrypt option\n", 
-			  debug_prefix(NULL)));
-		if(verbose) {
-		    printf("ERROR [multiple kencrypt option]\n");
-		}
-	    }
-	    options->kencrypt = 1;
-	}
-#endif
-	else if(strcmp(tok, "exclude-optional") == 0) {
+	else if(BSTRNCMP(tok, "exclude-optional") == 0) {
 	    if(options->exclude_optional != 0) {
-		dbprintf(("%s: multiple exclude-optional option\n", 
+		dbprintf(("%s: multiple exclude-optional option \n",
 			  debug_prefix(NULL)));
 		if(verbose) {
-		    printf("ERROR [multiple exclude-optional option]\n");
+		    printf("ERROR [multiple exclude-optional option \n");
 		}
 	    }
 	    options->exclude_optional = 1;
 	}
 	else if(strcmp(tok, "include-optional") == 0) {
 	    if(options->include_optional != 0) {
-		dbprintf(("%s: multiple include-optional option\n", 
+		dbprintf(("%s: multiple include-optional option \n",
 			  debug_prefix(NULL)));
 		if(verbose) {
-		    printf("ERROR [multiple include-optional option]\n");
+		    printf("ERROR [multiple include-optional option \n");
 		}
 	    }
 	    options->include_optional = 1;
 	}
-	else if(strncmp(tok,"exclude-file=", 13) == 0) {
+	else if(BSTRNCMP(tok,"exclude-file=") == 0) {
 	    exc = &tok[13];
 	    options->exclude_file = append_sl(options->exclude_file,exc);
 	}
-	else if(strncmp(tok,"exclude-list=", 13) == 0) {
+	else if(BSTRNCMP(tok,"exclude-list=") == 0) {
 	    exc = &tok[13];
 	    options->exclude_list = append_sl(options->exclude_list, exc);
 	}
-	else if(strncmp(tok,"include-file=", 13) == 0) {
+	else if(BSTRNCMP(tok,"include-file=") == 0) {
 	    exc = &tok[13];
 	    options->include_file = append_sl(options->include_file,exc);
 	}
-	else if(strncmp(tok,"include-list=", 13) == 0) {
+	else if(BSTRNCMP(tok,"include-list=") == 0) {
 	    exc = &tok[13];
 	    options->include_list = append_sl(options->include_list, exc);
 	}
 	else if(strcmp(tok,"|") == 0) {
 	}
 	else {
-	    dbprintf(("%s: unknown option \"%s\"\n",
-                                  debug_prefix(NULL), tok));
+	    dbprintf(("%s: unknown option \"%s\"\n", debug_prefix(NULL), tok));
 	    if(verbose) {
 		printf("ERROR [unknown option \"%s\"]\n", tok);
 	    }

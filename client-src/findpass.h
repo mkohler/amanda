@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: findpass.h,v 1.5.8.1 2001/08/01 22:36:24 jrjackson Exp $
+ * $Id: findpass.h,v 1.6 2001/08/01 22:37:32 jrjackson Exp $
  *
  * interface to findpass module
  */

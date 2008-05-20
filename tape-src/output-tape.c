@@ -26,7 +26,7 @@
  */
 
 /*
- * $Id: output-tape.c,v 1.1.2.6.2.7 2003/03/06 21:44:21 martinea Exp $
+ * $Id: output-tape.c,v 1.14 2006/03/09 20:06:12 johnfranks Exp $
  *
  * tapeio.c virtual tape interface for normal tape drives.
  */
@@ -475,14 +475,14 @@ int tape_tape_open(filename, flags, mask)
 #ifdef HAVE_LINUX_ZFTAPE_H
     /*
      * switch the block size for the zftape driver (3.04d)
-     * (its default is 10kb and not TAPE_BLOCK_BYTES=32kb)
+     * (its default is 10kb and not 32kb)
      *        A. Gebhardt <albrecht.gebhardt@uni-klu.ac.at>
      */
     if (ret >= 0 && is_zftape(filename) == 1) {
 	struct mtop mt;
 
 	mt.mt_op = MTSETBLK;
-	mt.mt_count = 32 * 1024;	/* wrong?  tape blocksize??? */
+	mt.mt_count = 32 * 1024;		/* should be blocksize ??? */
 	ioctl(ret, MTIOCTOP, &mt);
     }
 #endif /* HAVE_LINUX_ZFTAPE_H */
@@ -615,11 +615,10 @@ tape_tapefd_status(fd, stat)
      * If we did not find any valid information, do a stat on the device
      * and if that returns successfully, assume it is at least online.
      */
-    if(!anything_valid && res == 0) {
+    if(!anything_valid) {
 	struct stat sbuf;
 
 	res = fstat(fd, &sbuf);
-	anything_valid = 1;
 	stat->online_valid = 1;
 	stat->online = (res == 0);
     }

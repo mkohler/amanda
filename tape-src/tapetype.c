@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: tapetype.c,v 1.3.2.3.4.3.2.9.2.3 2005/10/02 13:48:42 martinea Exp $
+ * $Id: tapetype.c,v 1.24 2006/03/10 11:56:06 martinea Exp $
  *
  * tests a tape in a given tape unit and prints a tapetype entry for
  * it.  */
@@ -45,6 +45,7 @@ static int blockkb = 32;
 static int blocksize;
 
 static char *randombytes = (char *) NULL;
+static char *prandombytes = (char *) NULL;
 
 #if USE_RAND
 /* If the C library does not define random(), try to use rand() by
@@ -74,6 +75,7 @@ static void allocrandombytes() {
     } else {
       randombytes = p;				/* alloc already on boundary */
     }
+    prandombytes = p;
   }
 }
 
@@ -321,6 +323,9 @@ int main(argc, argv)
   } else {
     sProgName++;
   }
+
+  /* Don't die when child closes pipe */
+  signal(SIGPIPE, SIG_IGN);
 
   estsize = 1024 * 1024;			/* assume 1 GByte for now */
   tapedev = getenv("TAPE");
@@ -599,14 +604,17 @@ int main(argc, argv)
   if (tapefd_rewind(fd) == -1) {
     fprintf(stderr, "%s: could not rewind %s: %s\n",
 	    sProgName, tapedev, strerror(errno));
+    free(randombytes);
     return 1;
   }
 
   if (tapefd_close(fd) == -1) {
     fprintf(stderr, "%s: could not close %s: %s\n",
 	    sProgName, tapedev, strerror(errno));
+    free(randombytes);
     return 1;
   }
 
+  free(randombytes);
   return 0;
 }

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: statfs.c,v 1.10.4.1.8.2 2005/09/30 19:13:36 martinea Exp $
+ * $Id: statfs.c,v 1.13 2005/09/30 19:13:27 martinea Exp $
  *
  * a generic statfs-like routine
  */

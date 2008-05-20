@@ -19,7 +19,7 @@
 ..
 .TH "AMDUMP" 8 "" "" ""
 .SH NAME
-amdump \- back up all disks in an AMANDA configuration
+amdump \- back up all disks in an Amanda configuration
 .SH "SYNOPSIS"
 .ad l
 .hy 0
@@ -31,7 +31,7 @@ amdump \- back up all disks in an AMANDA configuration
 .SH "DESCRIPTION"
 
 .PP
-\fBAmdump\fR switches to the appropriate \fBAMANDA\fR configuration directory, e\&.g\&. /usr/local/etc/amanda/\fBconfig\fR, then attempts to back up every disk specified by the \fBamanda\&.conf\fR file\&. \fBAmdump\fR is normally run by \fBcron\fR\&.
+\fBAmdump\fR switches to the appropriate \fBAmanda\fR configuration directory, e\&.g\&. /usr/local/etc/amanda/\fBconfig\fR, then attempts to back up every disk specified by the \fBamanda\&.conf\fR file\&. \fBAmdump\fR is normally run by \fBcron\fR\&.
 
 .PP
 You can specify many host/disk expressions, only disks that match an expression will be dumped\&. All disks are dumped if no expressions are given\&.
@@ -40,7 +40,7 @@ You can specify many host/disk expressions, only disks that match an expression 
 If the file /usr/local/etc/amanda/\fBconfig\fR/hold exists, \fBamdump\fR will wait until it is removed before starting the backups\&. This allows scheduled backups to be delayed when circumstances warrant, for example, if the tape device is being used for some other purpose\&. While waiting, \fBamdump\fR checks for the hold file every minute\&.
 
 .PP
-See the \fBamanda\fR(8) man page for more details about \fBAMANDA\fR\&.
+See the \fBamanda\fR(8) man page for more details about \fBAmanda\fR\&.
 
 .SH "EXAMPLE"
 
@@ -70,7 +70,7 @@ Amdump detected another \fBamdump\fR or \fBamflush\fR running, or the remains of
 James da Silva, <jds@amanda\&.org> : Original text
 
 .PP
-Stefan G\&. Weichinger, <sgw@amanda\&.org>, maintainer of the \fBAMANDA\fR\-documentation: XML\-conversion
+Stefan G\&. Weichinger, <sgw@amanda\&.org>, maintainer of the \fBAmanda\fR\-documentation: XML\-conversion
 
 .SH "SEE ALSO"
 

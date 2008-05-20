@@ -1,6 +1,6 @@
 #!/usr/local/bin/perl
 # ========================================================================
-# @(#) $Id: set_prod_link.pl,v 1.1.2.1 1999/11/02 21:29:56 oliva Exp $
+# @(#) $Id: set_prod_link.pl,v 1.2 1999/11/02 21:30:10 oliva Exp $
 # ------------------------------------------------------------------------
 # $Source: /cvsroot/amanda/amanda/contrib/set_prod_link.pl,v $
 # ------------------------------------------------------------------------
@@ -23,7 +23,7 @@
 # History:
 #
 # $Log: set_prod_link.pl,v $
-# Revision 1.1.2.1  1999/11/02 21:29:56  oliva
+# Revision 1.2  1999/11/02 21:30:10  oliva
 # * contrib/set_prod_link.pl: Create the links for a configuration
 # with --with-suffix.
 #

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- *	$Id: scsi-hpux.c,v 1.4.4.9.6.1 2002/08/22 17:41:10 martinea Exp $
+ * $Id: scsi-hpux.c,v 1.14 2001/02/08 19:19:08 ant Exp $
  *
  *	scsi-chio.c -- library routines to handle the changer
  *			support for chio based systems

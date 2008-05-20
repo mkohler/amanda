@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 1991-1998 University of Maryland at College Park
+ * Copyright (c) 1991-1999 University of Maryland at College Park
  * All Rights Reserved.
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: fileheader.h,v 1.6.4.1.4.1.2.2 2002/02/11 01:30:42 jrjackson Exp $
+ * $Id: fileheader.h,v 1.15 2005/12/09 03:22:52 paddy_s Exp $
  *
  */
 
@@ -32,13 +32,14 @@
 #define FILEHEADER_H
 
 #include "amanda.h"
+#include "util.h"		/* for bstrncmp() */
 
 #define STRMAX		256
 
 typedef char string_t[STRMAX];
 typedef enum {
     F_UNKNOWN, F_WEIRD, F_TAPESTART, F_TAPEEND, 
-    F_DUMPFILE, F_CONT_DUMPFILE
+    F_DUMPFILE, F_CONT_DUMPFILE, F_SPLIT_DUMPFILE
 } filetype_t;
 
 typedef struct file_s {
@@ -46,25 +47,37 @@ typedef struct file_s {
     string_t datestamp;
     int dumplevel;
     int compressed;
+    int encrypted;
     string_t comp_suffix;
+    string_t encrypt_suffix;
     string_t name;	/* hostname or label */
     string_t disk;
     string_t program;
+    string_t srvcompprog;
+    string_t clntcompprog;
+    string_t srv_encrypt;
+    string_t clnt_encrypt;
     string_t recover_cmd;
     string_t uncompress_cmd;
+    string_t encrypt_cmd;
+    string_t decrypt_cmd;
+    string_t srv_decrypt_opt;
+    string_t clnt_decrypt_opt;
     string_t cont_filename;
     int is_partial;
+    int partnum;
+    int totalparts; /* -1 == UNKNOWN */
     long blocksize;
 } dumpfile_t;
 
 /* local functions */
 
 void  fh_init             P((dumpfile_t *file));
-void  parse_file_header   P((char *buffer, dumpfile_t *file, size_t buflen));
+void  parse_file_header   P((const char *buffer, dumpfile_t *file, size_t buflen));
 void  build_header        P((char *buffer,
-			     dumpfile_t *file,
+			     const dumpfile_t *file,
 			     size_t buflen));
-void  print_header        P((FILE *outf, dumpfile_t *file));
-int   known_compress_type P((dumpfile_t *file));
+void  print_header        P((FILE *outf, const dumpfile_t *file));
+int   known_compress_type P((const dumpfile_t *file));
 
 #endif /* !FILEHEADER_H */

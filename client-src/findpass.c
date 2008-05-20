@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: findpass.c,v 1.10.4.1.4.1 2001/08/01 22:36:24 jrjackson Exp $
+ * $Id: findpass.c,v 1.12 2001/08/01 22:37:32 jrjackson Exp $
  *
  * Support routines for Amanda SAMBA support
  */

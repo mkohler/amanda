@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amlabel.c,v 1.18.2.15.4.3.2.4.2.4 2005/10/02 13:48:42 martinea Exp $
+ * $Id: amlabel.c,v 1.43 2006/01/14 04:37:19 paddy_s Exp $
  *
  * write an Amanda label on a tape
  */
@@ -40,6 +40,7 @@
 
 /* local functions */
 
+int main P((int, char **));
 void usage P((char *argv0));
 
 void usage(argv0)
@@ -89,7 +90,9 @@ int main(argc, argv)
     safe_cd();
 
     set_pname("amlabel");
-    dbopen();
+
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
 
     malloc_size_1 = malloc_inuse(&malloc_hist_1);
 
@@ -120,6 +123,7 @@ int main(argc, argv)
     if (read_conffile(conffile)) {
 	error("errors processing config file \"%s\"", conffile);
     }
+
     conf_tapelist = getconf_str(CNF_TAPELIST);
     if (*conf_tapelist == '/') {
 	conf_tapelist = stralloc(conf_tapelist);
@@ -410,8 +414,8 @@ int main(argc, argv)
 	} /* write tape list */
 
         if(have_changer) {
-	    /* Now we try to inform the changer, about the new label */
-	    changer_label(outslot,label); 
+	    /*	Now we try to inform the changer, about the new label */
+	    /* changer_label(outslot,label); */
 	}
 	printf(", done.\n");
     } else {
@@ -431,6 +435,5 @@ int main(argc, argv)
 	malloc_list(fileno(stderr), malloc_hist_1, malloc_hist_2);
     }
 
-    dbclose();
     return 0;
 }

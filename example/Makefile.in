@@ -41,10 +41,7 @@ host_triplet = @host@
 target_triplet = @target@
 subdir = example
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
-	$(srcdir)/amanda.conf.chg-scsi.in $(srcdir)/amanda.conf.in \
-	$(srcdir)/chg-mcutil.conf.in $(srcdir)/chg-scsi-hpux.conf.in \
-	$(srcdir)/chg-scsi-linux.conf.in \
-	$(srcdir)/chg-scsi-solaris.conf.in
+	$(srcdir)/amanda.conf.in $(srcdir)/chg-mcutil.conf.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
 	$(top_srcdir)/configure.in
@@ -52,9 +49,7 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/config/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config/config.h
-CONFIG_CLEAN_FILES = amanda.conf amanda.conf.chg-scsi \
-	chg-scsi-linux.conf chg-scsi-solaris.conf chg-scsi-hpux.conf \
-	chg-mcutil.conf
+CONFIG_CLEAN_FILES = amanda.conf chg-mcutil.conf
 SOURCES =
 DIST_SOURCES =
 DATA = $(noinst_DATA)
@@ -106,7 +101,9 @@ DEFAULT_TAPE_DEVICE = @DEFAULT_TAPE_DEVICE@
 DEFAULT_TAPE_SERVER = @DEFAULT_TAPE_SERVER@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DOC_BUILD_DATE = @DOC_BUILD_DATE@
 DUMP = @DUMP@
+DUMPER_DIR = @DUMPER_DIR@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -118,9 +115,12 @@ FFLAGS = @FFLAGS@
 GETCONF = @GETCONF@
 GNUPLOT = @GNUPLOT@
 GNUTAR = @GNUTAR@
+GNUTAR_LISTED_INCREMENTAL_DIR = @GNUTAR_LISTED_INCREMENTAL_DIR@
 GNUTAR_LISTED_INCREMENTAL_DIRX = @GNUTAR_LISTED_INCREMENTAL_DIRX@
 GREP = @GREP@
 GZIP = @GZIP@
+HAVE_XSLTPROC_FALSE = @HAVE_XSLTPROC_FALSE@
+HAVE_XSLTPROC_TRUE = @HAVE_XSLTPROC_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
@@ -133,6 +133,7 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
+LL_FMT = @LL_FMT@
 LN_S = @LN_S@
 LTALLOCA = @LTALLOCA@
 LTLIBOBJS = @LTLIBOBJS@
@@ -195,10 +196,13 @@ WANT_SERVER_FALSE = @WANT_SERVER_FALSE@
 WANT_SERVER_TRUE = @WANT_SERVER_TRUE@
 WANT_SETUID_CLIENT_FALSE = @WANT_SETUID_CLIENT_FALSE@
 WANT_SETUID_CLIENT_TRUE = @WANT_SETUID_CLIENT_TRUE@
+WANT_SSH_SECURITY_FALSE = @WANT_SSH_SECURITY_FALSE@
+WANT_SSH_SECURITY_TRUE = @WANT_SSH_SECURITY_TRUE@
 WANT_TAPE_FALSE = @WANT_TAPE_FALSE@
 WANT_TAPE_TRUE = @WANT_TAPE_TRUE@
 XFSDUMP = @XFSDUMP@
 XFSRESTORE = @XFSRESTORE@
+XSLTPROC = @XSLTPROC@
 YACC = @YACC@
 ac_c = @ac_c@
 ac_ct_AR = @ac_ct_AR@
@@ -249,7 +253,7 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-noinst_DATA = amanda.conf amanda.conf.chg-scsi
+noinst_DATA = amanda.conf
 EXTRA_DIST = chg-multi.conf chg-scsi.conf config.site disklist \
 		DLT.ps EXB-8500.ps HP-DAT.ps 8.5x11.ps 3hole.ps DIN-A4.ps \
 		chg-mcutil.conf
@@ -287,14 +291,6 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 amanda.conf: $(top_builddir)/config.status $(srcdir)/amanda.conf.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-amanda.conf.chg-scsi: $(top_builddir)/config.status $(srcdir)/amanda.conf.chg-scsi.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-chg-scsi-linux.conf: $(top_builddir)/config.status $(srcdir)/chg-scsi-linux.conf.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-chg-scsi-solaris.conf: $(top_builddir)/config.status $(srcdir)/chg-scsi-solaris.conf.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
-chg-scsi-hpux.conf: $(top_builddir)/config.status $(srcdir)/chg-scsi-hpux.conf.in
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 chg-mcutil.conf: $(top_builddir)/config.status $(srcdir)/chg-mcutil.conf.in
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@

@@ -24,11 +24,12 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: changer.c,v 1.14.4.6.4.1.2.3 2003/02/28 19:23:25 martinea Exp $
+ * $Id: changer.c,v 1.29 2006/01/14 04:37:19 paddy_s Exp $
  *
  * interface routines for tape changers
  */
 #include "amanda.h"
+#include "util.h"
 #include "conffile.h"
 #include "version.h"
 
@@ -146,8 +147,8 @@ char *inslotstr, **outslotstr, **devicename;
     int rc;
 
     rc = run_changer_command("-slot", inslotstr, outslotstr, &rest);
-    if(rc) return rc;
 
+    if(rc) return rc;
     if(*rest == '\0') return report_bad_resultstr();
 
     *devicename = newstralloc(*devicename, rest);
@@ -203,49 +204,25 @@ char **curslotstr;
 
 /* ---------------------------- */
 
-void changer_scan(user_init, user_slot)
-int (*user_init) P((int rc, int nslots, int backwards));
-int (*user_slot) P((int rc, char *slotstr, char *device));
-{
-    char *slotstr, *device = NULL, *curslotstr = NULL;
-    int nslots, checked, backwards, rc, done;
-
-    rc = changer_info(&nslots, &curslotstr, &backwards);
-    done = user_init(rc, nslots, backwards);
-    amfree(curslotstr);
-
-    slotstr = "current";
-    checked = 0;
-
-    while(!done && checked < nslots) {
-	rc = changer_loadslot(slotstr, &curslotstr, &device);
-	if(rc > 0)
-	    done = user_slot(rc, curslotstr, device);
-	else if(!done)
-	    done = user_slot(0,  curslotstr, device);
-	amfree(curslotstr);
-	amfree(device);
-
-	checked += 1;
-	slotstr = "next";
-    }
-}
-
 /* This function first uses searchlabel and changer_search, if
    the library is able to find a tape itself. If it is not, or if 
-   the tape could not be found, then the normal scan is done like 
-   in changer_scan.
+   the tape could not be found, then the normal scan is done.
+ 
+   See interface documentation in changer.h.
 */
-void changer_find(user_init, user_slot, searchlabel)
-int (*user_init) P((int rc, int nslots, int backwards));
-int (*user_slot) P((int rc, char *slotstr, char *device));
-char *searchlabel;
+void changer_find(user_data, user_init, user_slot, searchlabel)
+     void *user_data;
+     int (*user_init) P((void *user_data, int rc, int nslots, int backwards,
+                         int searchable));
+     int (*user_slot) P((void *user_data, int rc, char *slotstr,
+                         char *device));
+     char *searchlabel;
 {
     char *slotstr, *device = NULL, *curslotstr = NULL;
     int nslots, checked, backwards, rc, done, searchable;
 
     rc = changer_query(&nslots, &curslotstr, &backwards, &searchable);
-    done = user_init(rc, nslots, backwards);
+    done = user_init(user_data, rc, nslots, backwards, searchable);
     amfree(curslotstr);
    
     if (searchlabel != NULL)
@@ -260,7 +237,7 @@ char *searchlabel;
     if ((searchlabel!=NULL) && searchable && !done){
       rc=changer_search(searchlabel,&curslotstr,&device);
       if(rc == 0)
-        done = user_slot(rc,curslotstr,device);
+        done = user_slot(user_data, rc,curslotstr,device);
     }
  
     slotstr = "current";
@@ -269,9 +246,9 @@ char *searchlabel;
     while(!done && checked < nslots) {
 	rc = changer_loadslot(slotstr, &curslotstr, &device);
 	if(rc > 0)
-	    done = user_slot(rc, curslotstr, device);
+	    done = user_slot(user_data, rc, curslotstr, device);
 	else if(!done)
-	    done = user_slot(0,  curslotstr, device);
+	    done = user_slot(user_data, 0,  curslotstr, device);
 	amfree(curslotstr);
 	amfree(device);
 
@@ -282,22 +259,23 @@ char *searchlabel;
 
 /* ---------------------------- */
 
-void changer_current(user_init, user_slot)
-int (*user_init) P((int rc, int nslots, int backwards));
-int (*user_slot) P((int rc, char *slotstr, char *device));
+void changer_current(user_data, user_init, user_slot)
+     void *user_data;
+int (*user_init) P((void *ud, int rc, int nslots, int backwards, int searchable));
+int (*user_slot) P((void *ud, int rc, char *slotstr, char *device));
 {
     char *device = NULL, *curslotstr = NULL;
-    int nslots, backwards, rc, done;
+    int nslots, backwards, rc, done, searchable;
 
-    rc = changer_info(&nslots, &curslotstr, &backwards);
-    done = user_init(rc, nslots, backwards);
+    rc = changer_query(&nslots, &curslotstr, &backwards, &searchable);
+    done = user_init(user_data, rc, nslots, backwards, searchable);
     amfree(curslotstr);
 
     rc = changer_loadslot("current", &curslotstr, &device);
     if(rc > 0) {
-	done = user_slot(rc, curslotstr, device);
+	done = user_slot(user_data, rc, curslotstr, device);
     } else if(!done) {
-	done = user_slot(0,  curslotstr, device);
+	done = user_slot(user_data, 0,  curslotstr, device);
     }
     amfree(curslotstr);
     amfree(device);
@@ -315,7 +293,7 @@ static int changer_command(cmd, arg)
     char num1[NUM_STR_SIZE];
     char num2[NUM_STR_SIZE];
     char *cmdstr;
-    pid_t pid, changer_pid;
+    pid_t pid, changer_pid = 0;
 
     if (*tapechanger != '/') {
 	tapechanger = vstralloc(libexecdir, "/", tapechanger, versionsuffix(),
@@ -345,8 +323,8 @@ static int changer_command(cmd, arg)
 	goto failed;
     }
     if(fd[0] < 0 || fd[0] >= FD_SETSIZE) {
-	ap_snprintf(num1, sizeof(num1), "%d", fd[0]);
-	ap_snprintf(num2, sizeof(num2), "%d", FD_SETSIZE-1);
+	snprintf(num1, sizeof(num1), "%d", fd[0]);
+	snprintf(num2, sizeof(num2), "%d", FD_SETSIZE-1);
 	changer_resultstr = vstralloc ("<error> ",
 				       "could not create pipe for \"",
 				       cmdstr,
@@ -361,8 +339,8 @@ static int changer_command(cmd, arg)
 	goto done;
     }
     if(fd[1] < 0 || fd[1] >= FD_SETSIZE) {
-	ap_snprintf(num1, sizeof(num1), "%d", fd[1]);
-	ap_snprintf(num2, sizeof(num2), "%d", FD_SETSIZE-1);
+	snprintf(num1, sizeof(num1), "%d", fd[1]);
+	snprintf(num2, sizeof(num2), "%d", FD_SETSIZE-1);
 	changer_resultstr = vstralloc ("<error> ",
 				       "could not create pipe for \"",
 				       cmdstr,
@@ -395,7 +373,7 @@ static int changer_command(cmd, arg)
 				           "\": ",
 				           strerror(errno),
 				           NULL);
-	    (void)write(fd[1], changer_resultstr, strlen(changer_resultstr));
+	    (void)fullwrite(fd[1], changer_resultstr, strlen(changer_resultstr));
 	    exit(1);
 	}
 	aclose(fd[0]);
@@ -407,7 +385,7 @@ static int changer_command(cmd, arg)
 				           "\": ",
 				           strerror(errno),
 				           NULL);
-	    (void)write(2, changer_resultstr, strlen(changer_resultstr));
+	    (void)fullwrite(2, changer_resultstr, strlen(changer_resultstr));
 	    exit(1);
 	}
 	if(arg) {
@@ -421,7 +399,7 @@ static int changer_command(cmd, arg)
 				       "\": ",
 				       strerror(errno),
 				       NULL);
-	(void)write(2, changer_resultstr, strlen(changer_resultstr));
+	(void)fullwrite(2, changer_resultstr, strlen(changer_resultstr));
 	exit(1);
     default:
 	aclose(fd[1]);
@@ -451,7 +429,7 @@ static int changer_command(cmd, arg)
 		goto done;
 	    }
 	} else if (pid != changer_pid) {
-	    ap_snprintf(num1, sizeof(num1), "%ld", (long)pid);
+	    snprintf(num1, sizeof(num1), "%ld", (long)pid);
 	    changer_resultstr = vstralloc ("<error> ",
 					   "wait for \"",
 					   tapechanger,
@@ -467,7 +445,7 @@ static int changer_command(cmd, arg)
 
     /* mark out-of-control changers as fatal error */
     if(WIFSIGNALED(wait_exitcode)) {
-	ap_snprintf(num1, sizeof(num1), "%d", WTERMSIG(wait_exitcode));
+	snprintf(num1, sizeof(num1), "%d", WTERMSIG(wait_exitcode));
 	changer_resultstr = newvstralloc (changer_resultstr,
 					  "<error> ",
 					  changer_resultstr,

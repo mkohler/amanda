@@ -1,5 +1,5 @@
 #ifndef lint
-static char rcsid[] = "$Id: chg-scsi.c,v 1.6.2.22.2.7.2.9 2003/07/05 16:59:01 ant Exp $";
+static char rcsid[] = "$Id: chg-scsi.c,v 1.44 2006/03/09 20:06:10 johnfranks Exp $";
 #endif
 /*
  * 
@@ -666,6 +666,7 @@ int MapBarCode(char *labelfile, MBC_T *result)
               strcpy(plabelv2->barcode, result->data.barcode);
               fwrite(plabelv2, 1, sizeof(LabelV2_T), fp);
               fclose(fp);
+	      free(plabelv2);
               return(1);
             }
           break;
@@ -678,6 +679,7 @@ int MapBarCode(char *labelfile, MBC_T *result)
             {
               DebugPrint(DEBUG_INFO,SECTION_MAP_BARCODE,"MapBarCode FIND_SLOT : \n");
               memcpy(&(result->data), plabelv2, sizeof(LabelV2_T));
+	      free(plabelv2);
               return(1);
            }
           break;
@@ -699,6 +701,7 @@ int MapBarCode(char *labelfile, MBC_T *result)
               plabelv2->LoadCount = plabelv2->LoadCount + result->data.LoadCount;
               fwrite(plabelv2, 1, sizeof(LabelV2_T), fp);
               fclose(fp);
+	      free(plabelv2);
               return(1);
             }
           break;
@@ -718,6 +721,7 @@ int MapBarCode(char *labelfile, MBC_T *result)
               fclose(fp);
               
               memcpy(&(result->data), plabelv2, sizeof(LabelV2_T));
+	      free(plabelv2);
               return(1);
             }
           break;
@@ -732,6 +736,7 @@ int MapBarCode(char *labelfile, MBC_T *result)
               fclose(fp);
               
               memcpy(&(result->data), plabelv2, sizeof(LabelV2_T));
+	      free(plabelv2);
               return(1);
             }
           break;
@@ -777,14 +782,16 @@ int MapBarCode(char *labelfile, MBC_T *result)
       plabelv2->slot = result->data.slot;
       fwrite(plabelv2, 1, sizeof(LabelV2_T), fp);
       fclose(fp);
+      free(plabelv2);
       return(1);
-    }                                                                           
+    }
 
   /*
    * If we hit this point nothing was 
    * found, so return an 0
    */
   fclose(fp);
+  free(plabelv2);
   return(0);
 }
 
@@ -1043,7 +1050,6 @@ int main(int argc, char *argv[])
   char *clean_file=NULL;
   char *time_file=NULL;
 
-  char *ptr;         /* a public pointer .... */
   /*
    * For the emubarcode stuff
    */
@@ -1072,11 +1078,14 @@ int main(int argc, char *argv[])
   chg.device = NULL;
   chg.labelfile = NULL;
   chg.conf = NULL;
-  chg.debuglevel = NULL;
 #ifdef CHG_SCSI_STANDALONE
   printf("Ups standalone\n");
 #else
   set_pname("chg-scsi");
+
+  /* Don't die when child closes pipe */
+  signal(SIGPIPE, SIG_IGN);
+
   dbopen();
 
   dbprintf(("chg-scsi: %s\n",rcsid));
@@ -1092,11 +1101,6 @@ int main(int argc, char *argv[])
   pDev = (OpenFiles_T *)malloc(sizeof(OpenFiles_T) * CHG_MAXDEV);
   memset(pDev, 0, sizeof(OpenFiles_T) * CHG_MAXDEV );
 
-
-  if ((ptr=getenv("CHG_DEBUG")) != NULL)
-    {
-      chg.debuglevel = strdup(ptr);
-    }
 
   switch(com.command_code) 
     {
@@ -1601,7 +1605,7 @@ int main(int argc, char *argv[])
       
     printf("%d %d 1", loaded, use_slots);
 
-    if (BarCode(fd) == 1 || emubarcode == 1 || chg.havebarcode == 1)
+    if (BarCode(fd) == 1 || emubarcode == 1)
       {
         printf(" 1\n");
       } else {

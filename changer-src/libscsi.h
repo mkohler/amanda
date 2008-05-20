@@ -1,5 +1,5 @@
 /*
- *	$Id: libscsi.h,v 1.4.4.4.4.1 2001/07/10 22:03:14 jrjackson Exp $
+ *	$Id: libscsi.h,v 1.9 2000/06/25 18:48:11 ant Exp $
  *
  *	libscsi.h -- library header for routines to handle the changer
  *			support for chio based systems

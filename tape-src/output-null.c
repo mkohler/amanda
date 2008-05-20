@@ -26,7 +26,7 @@
  */
 
 /*
- * $Id: output-null.c,v 1.1.2.3.2.3 2003/03/06 21:44:20 martinea Exp $
+ * $Id: output-null.c,v 1.7 2003/03/06 21:43:57 martinea Exp $
  *
  * tapeio.c virtual tape interface for a null device.
  */

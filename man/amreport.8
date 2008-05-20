@@ -19,7 +19,7 @@
 ..
 .TH "AMREPORT" 8 "" "" ""
 .SH NAME
-amreport \- generate a formatted output of statistics for an AMANDA run
+amreport \- generate a formatted output of statistics for an Amanda run
 .SH "SYNOPSIS"
 .ad l
 .hy 0
@@ -34,7 +34,7 @@ amreport \- generate a formatted output of statistics for an AMANDA run
 \fBAmreport\fR generates a summary report of an \fBamanda\fR(8) backup run\&. If no configuration name is specified, amanda\&.conf is read from the current directory\&.
 
 .PP
-See the \fBamanda\fR(8) man page for more details about \fBAMANDA\fR\&.
+See the \fBamanda\fR(8) man page for more details about \fBAmanda\fR\&.
 
 .SH "OPTIONS"
 
@@ -63,7 +63,7 @@ Send the postscript output to the file \fBpostscriptfile\fR instead of to the \f
 .SH "LABEL PRINTING"
 
 .PP
-\fBAMANDA\fR can print postscript labels describing the contents of tape(s) written in a run\&. The labels are designed to be folded and inserted into the tape case along with the tape or hole punched and put in a 3\-ring binder\&. Various label templates are provided to format data for different tape sizes\&.
+\fBAmanda\fR can print postscript labels describing the contents of tape(s) written in a run\&. The labels are designed to be folded and inserted into the tape case along with the tape or hole punched and put in a 3\-ring binder\&. Various label templates are provided to format data for different tape sizes\&.
 
 .PP
 The information printed varies slightly between label templates due to size constraints\&. Labels contain one line for each host/file\-system pair and may also contain the file number on the tape, the level of the dump, the original size of the dump and the size of the (possibly compressed) tape file\&.
@@ -77,7 +77,7 @@ You may use the \fBremap='I'>printer\fR keyword in amanda\&.conf to print to oth
 .SH "TEMPLATES"
 
 .PP
-\fBAMANDA\fR provides label templates for the following tape types\&. These are pretty generic labels and should be easy to customize for other tape types or particular site needs\&.
+\fBAmanda\fR provides label templates for the following tape types\&. These are pretty generic labels and should be easy to customize for other tape types or particular site needs\&.
 
 .nf
 

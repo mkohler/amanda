@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: infofile.h,v 1.7.4.4.8.2 2005/03/16 18:15:28 martinea Exp $
+ * $Id: infofile.h,v 1.13 2005/03/16 18:15:05 martinea Exp $
  *
  * interface for current info file reading code
  */

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: getfsent.c,v 1.20.4.1.2.2.2.6.2.2 2005/09/30 19:13:36 martinea Exp $
+ * $Id: getfsent.c,v 1.34 2006/01/14 04:37:18 paddy_s Exp $
  *
  * generic version of code to read fstab
  */
@@ -39,6 +39,9 @@
 #endif
 
 #include "getfsent.h"
+
+static char *dev2rdev P((char *));
+static int samefile P((struct stat[3], struct stat *));
 
 /*
  * You are in a twisty maze of passages, all alike.
@@ -395,7 +398,7 @@ generic_fsent_t *fsent;
  * Convert either a block or character device name to a character (raw)
  * device name.
  *
- * char *dev2rdev(char *name);
+ * static char *dev2rdev(const char *name);
  *
  * entry:	name - device name to convert
  * exit:	matching character device name if found,
@@ -619,6 +622,9 @@ int main(argc, argv)
     safe_fd(-1, 0);
 
     set_pname("getfsent");
+
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
 
     malloc_size_1 = malloc_inuse(&malloc_hist_1);
 

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /* 
- * $Id: calcsize.c,v 1.24.2.3.6.1.2.5 2005/09/20 21:31:52 jrjackson Exp $
+ * $Id: calcsize.c,v 1.36 2006/03/09 16:51:41 martinea Exp $
  *
  * traverse directory tree to get backup size estimates
  */
@@ -112,6 +112,9 @@ char **argv;
     safe_fd(-1, 0);
 
     set_pname("calcsize");
+
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
 
     if (argc < 2) {
 	fprintf(stderr,"Usage: %s file[s]\n",argv[0]);
@@ -295,8 +298,10 @@ char **argv;
  * =========================================================================
  */
 
-#ifndef HAVE_BASENAME
-char *basename(file)
+#if !defined(HAVE_BASENAME) && defined(BUILTIN_EXCLUDE_SUPPORT)
+static char *basename P((char *));
+
+static char *basename(file)
 char *file;
 {
     char *cp;
@@ -325,9 +330,11 @@ char *include;
     int parent_len;
     int has_exclude = !is_empty_sl(exclude_sl) && use_gtar_excl;
 
+    if(parent_dir == NULL || include == NULL) return;
+
     char *aparent = vstralloc(parent_dir, "/", include, NULL);
 
-    if(parent_dir && stat(parent_dir, &finfo) != -1)
+    if(stat(parent_dir, &finfo) != -1)
 	parent_dev = finfo.st_dev;
 
     parent_len = strlen(parent_dir);
@@ -365,9 +372,8 @@ char *include;
 		continue;
 	    }
 
-	    if(finfo.st_dev != parent_dev) {
+	    if(finfo.st_dev != parent_dev)
 		continue;
-	    }
 
 #ifdef S_IFLNK
 	    is_symlink = ((finfo.st_mode & S_IFMT) == S_IFLNK);

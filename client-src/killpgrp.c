@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: killpgrp.c,v 1.8.4.2.4.1.2.1 2005/09/20 21:31:52 jrjackson Exp $
+ * $Id: killpgrp.c,v 1.12 2005/09/20 21:32:25 jrjackson Exp $
  *
  * if it is the process group leader, it kills all processes in its
  * process group when it is killed itself.
@@ -66,13 +66,11 @@ char **argv;
     }
 
 #ifdef FORCE_USERID
-    if (getuid() != client_uid) {
+    if (getuid() != client_uid)
 	error("error [must be invoked by %s]", CLIENT_LOGIN);
-    }
 
-    if (geteuid() != 0) {
+    if (geteuid() != 0)
 	error("error [must be setuid root]");
-    }
 #endif	/* FORCE_USERID */
 
 #if !defined (DONT_SUID_ROOT)

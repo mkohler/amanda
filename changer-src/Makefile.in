@@ -152,7 +152,9 @@ DEFAULT_TAPE_DEVICE = @DEFAULT_TAPE_DEVICE@
 DEFAULT_TAPE_SERVER = @DEFAULT_TAPE_SERVER@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DOC_BUILD_DATE = @DOC_BUILD_DATE@
 DUMP = @DUMP@
+DUMPER_DIR = @DUMPER_DIR@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -164,9 +166,12 @@ FFLAGS = @FFLAGS@
 GETCONF = @GETCONF@
 GNUPLOT = @GNUPLOT@
 GNUTAR = @GNUTAR@
+GNUTAR_LISTED_INCREMENTAL_DIR = @GNUTAR_LISTED_INCREMENTAL_DIR@
 GNUTAR_LISTED_INCREMENTAL_DIRX = @GNUTAR_LISTED_INCREMENTAL_DIRX@
 GREP = @GREP@
 GZIP = @GZIP@
+HAVE_XSLTPROC_FALSE = @HAVE_XSLTPROC_FALSE@
+HAVE_XSLTPROC_TRUE = @HAVE_XSLTPROC_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
@@ -179,6 +184,7 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
+LL_FMT = @LL_FMT@
 LN_S = @LN_S@
 LTALLOCA = @LTALLOCA@
 LTLIBOBJS = @LTLIBOBJS@
@@ -241,10 +247,13 @@ WANT_SERVER_FALSE = @WANT_SERVER_FALSE@
 WANT_SERVER_TRUE = @WANT_SERVER_TRUE@
 WANT_SETUID_CLIENT_FALSE = @WANT_SETUID_CLIENT_FALSE@
 WANT_SETUID_CLIENT_TRUE = @WANT_SETUID_CLIENT_TRUE@
+WANT_SSH_SECURITY_FALSE = @WANT_SSH_SECURITY_FALSE@
+WANT_SSH_SECURITY_TRUE = @WANT_SSH_SECURITY_TRUE@
 WANT_TAPE_FALSE = @WANT_TAPE_FALSE@
 WANT_TAPE_TRUE = @WANT_TAPE_TRUE@
 XFSDUMP = @XFSDUMP@
 XFSRESTORE = @XFSRESTORE@
+XSLTPROC = @XSLTPROC@
 YACC = @YACC@
 ac_c = @ac_c@
 ac_ct_AR = @ac_ct_AR@
@@ -295,7 +304,11 @@ target_alias = @target_alias@
 target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
-INCLUDES = -I$(top_srcdir)/common-src -I$(top_srcdir)/server-src -I$(top_srcdir)/tape-src
+INCLUDES = -I$(top_builddir)/common-src \
+		-I$(top_srcdir)/common-src   \
+		-I$(top_srcdir)/server-src   \
+		-I$(top_srcdir)/tape-src
+
 LIB_EXTENSION = la
 @WANT_CHIO_SCSI_TRUE@CHIO_SCSI = chg-scsi-chio
 @WANT_CHG_SCSI_TRUE@CHG_SCSI = chg-scsi
@@ -305,6 +318,7 @@ libexec_SCRIPTS = chg-manual	chg-multi	chg-mtx		\
 			chg-null	chg-mcutil	chg-disk	\
 			chg-iomega
 
+CLEANFILES = $(libexec_SCRIPTS)
 
 ###
 # Because libamanda includes routines (e.g. regex) provided by some system
@@ -587,6 +601,7 @@ install-strip:
 mostlyclean-generic:
 
 clean-generic:
+	-test -z "$(CLEANFILES)" || rm -f $(CLEANFILES)
 
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amcleanupdisk.c,v 1.1.2.6.4.3.2.2.2.1 2005/09/20 21:31:52 jrjackson Exp $
+ * $Id: amcleanupdisk.c,v 1.16 2006/01/14 04:37:19 paddy_s Exp $
  */
 #include "amanda.h"
 
@@ -50,7 +50,7 @@ char **main_argv;
 {
     struct passwd *pw;
     char *dumpuser;
-    disklist_t *diskqp;
+    disklist_t diskq;
     char *conffile;
     char *conf_diskfile;
     char *conf_infofile;
@@ -60,48 +60,48 @@ char **main_argv;
 
     set_pname("amcleanupdisk");
 
-    if(main_argc != 2) {
+    /* Don't die when child closes pipe */
+    signal(SIGPIPE, SIG_IGN);
+
+    if(main_argc != 2)
 	error("Usage: amcleanupdisk%s <confdir>", versionsuffix());
-    }
 
     config_name = main_argv[1];
 
     config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
+
     conffile = stralloc2(config_dir, CONFFILE_NAME);
-    if(read_conffile(conffile)) {
+    if(read_conffile(conffile))
 	error("errors processing config file \"%s\"", conffile);
-    }
     amfree(conffile);
+
     conf_diskfile = getconf_str(CNF_DISKFILE);
     if (*conf_diskfile == '/') {
 	conf_diskfile = stralloc(conf_diskfile);
     } else {
 	conf_diskfile = stralloc2(config_dir, conf_diskfile);
     }
-    if((diskqp = read_diskfile(conf_diskfile)) == NULL) {
+    if (read_diskfile(conf_diskfile, &diskq) < 0)
 	error("could not load disklist %s", conf_diskfile);
-    }
     amfree(conf_diskfile);
+
     conf_infofile = getconf_str(CNF_INFOFILE);
     if (*conf_infofile == '/') {
 	conf_infofile = stralloc(conf_infofile);
     } else {
 	conf_infofile = stralloc2(config_dir, conf_infofile);
     }
-    if(open_infofile(conf_infofile)) {
+    if (open_infofile(conf_infofile) < 0)
 	error("could not open info db \"%s\"", conf_infofile);
-    }
     amfree(conf_infofile);
 
     datestamp = construct_datestamp(NULL);
 
     dumpuser = getconf_str(CNF_DUMPUSER);
-    if((pw = getpwnam(dumpuser)) == NULL) {
+    if((pw = getpwnam(dumpuser)) == NULL)
 	error("dumpuser %s not found in password file", dumpuser);
-    }
-    if(pw->pw_uid != getuid()) {
+    if(pw->pw_uid != getuid())
 	error("must run amcleanupdisk as user %s", dumpuser);
-    }
 
     holding_list = pick_all_datestamp(1);
 

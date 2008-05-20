@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 1991-1998 University of Maryland at College Park
+ * Copyright (c) 1991-1999 University of Maryland at College Park
  * All Rights Reserved.
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: alloc.c,v 1.17.2.1.4.3.2.3.2.1 2004/08/31 12:46:06 martinea Exp $
+ * $Id: alloc.c,v 1.35 2005/12/21 19:07:49 paddy_s Exp $
  *
  * Memory allocators with error handling.  If the allocation fails,
  * errordump() is called, relieving the caller from checking the return
@@ -32,12 +32,15 @@
  */
 #include "amanda.h"
 #include "arglist.h"
+#include "queue.h"
+
+static char *internal_vstralloc P((const char *, va_list));
 
 /*
  *=====================================================================
  * debug_caller_loc -- keep track of all allocation callers
  *
- * char *debug_caller_loc(char *file, int line)
+ * const char *debug_caller_loc(const char *file, int line)
  *
  * entry:	file = source file
  *		line = source line
@@ -59,90 +62,54 @@
  *=====================================================================
  */
 
-char *
+const char *
 debug_caller_loc(file, line)
-    char *file;
+    const char *file;
     int line;
 {
     struct loc_str {
 	char *str;
-	struct loc_str *next;
-    };
-    static struct loc_str *root = NULL;
-    struct loc_str *ls, *ls_last;
-    int len;
-    int size;
-    char *p;
-    static char *loc = NULL;
-    static int loc_size = 0;
+	LIST_ENTRY(loc_str) le;
+    } *ls;
+    static LIST_HEAD(, loc_str) root = LIST_HEAD_INITIALIZER(root);
+    static char loc[256];	/* big enough for filename@lineno */
+    const char *p;
 
-    if ((p = strrchr(file, '/')) == NULL) {
-	p = file;				/* keep the whole name */
-    } else {
-	p++;					/* just the last path element */
-    }
+    if ((p = strrchr(file, '/')) != NULL)
+	file = p + 1;				/* just the last path element */
 
-    len = strlen (p);
-    size = len + 1 + NUM_STR_SIZE + 1;
-    if (size > loc_size) {
-	size = ((size + 64 - 1) / 64) * 64;	/* might as well get a bunch */
-	/*
-	 * We should free the previous loc area, but we have marked it
-	 * as a non-leak and the library considers it an error to free
-	 * such an area, so we just ignore it.  We probably grabbed
-	 * enough the first time that this will not even happen.
-	 */
-	loc = malloc (size);
-	if (loc == NULL) {
-	    return "??";			/* not much better than abort */
-	}
-	malloc_mark (loc);
-	loc_size = size;
-    }
+    snprintf(loc, sizeof(loc), "%s@%d", file, line);
 
-    strcpy (loc, p);
-    ap_snprintf(loc + len, 1 + NUM_STR_SIZE, "@%d", line);
-
-    for (ls_last = NULL, ls = root; ls != NULL; ls_last = ls, ls = ls->next) {
-	if (strcmp (loc, ls->str) == 0) {
-	    break;
+    for (ls = LIST_FIRST(&root); ls != NULL; ls = LIST_NEXT(ls, le)) {
+	if (strcmp(loc, ls->str) == 0) {
+	    if (ls != LIST_FIRST(&root)) {
+		/*
+		 * This is a repeat and was not at the head of the list.
+		 * Unlink it and move it to the front.
+		 */
+		LIST_REMOVE(ls, le);
+		LIST_INSERT_HEAD(&root, ls, le);
+	    }
+	    return (ls->str);
 	}
     }
 
-    if (ls == NULL) {
-	/*
-	 * This is a new entry.  Put it at the head of the list.
-	 */
-	ls = malloc (sizeof (*ls));
-	if (ls == NULL) {
-	    return "??";			/* not much better than abort */
-	}
-	malloc_mark (ls);
-	size = strlen (loc) + 1;
-	ls->str = malloc (size);
-	if (ls->str == NULL) {
-	    free (ls);
-	    return "??";			/* not much better than abort */
-	}
-	malloc_mark (ls->str);
-	strcpy (ls->str, loc);
-	ls->next = root;
-	root = ls;
-    } else if (ls_last != NULL) {
-	/*
-	 * This is a repeat and was not at the head of the list.
-	 * Unlink it and move it to the front.
-	 */
-	ls_last->next = ls->next;
-	ls->next = root;
-	root = ls;
-    } else {
-	/*
-	 * This is a repeat but was already at the head of the list,
-	 * so nothing else needs to be done.
-	 */
+    /*
+     * This is a new entry.  Put it at the head of the list.
+     */
+    ls = malloc(sizeof(*ls));
+    if (ls == NULL)
+	return ("??");			/* not much better than abort */
+    ls->str = malloc(strlen(loc) + 1);
+    if (ls->str == NULL) {
+	free(ls);
+	return ("??");			/* not much better than abort */
     }
-    return ls->str;
+    strcpy(ls->str, loc);
+    malloc_mark(ls);
+    malloc_mark(ls->str);
+    LIST_INSERT_HEAD(&root, ls, le);
+    return (ls->str);
 }
 
 /*
@@ -208,7 +175,7 @@ debug_alloc_pop ()
  */
 void *
 debug_alloc(s, l, size)
-    char *s;
+    const char *s;
     int l;
     size_t size;
 {
@@ -216,7 +183,7 @@ debug_alloc(s, l, size)
 
     malloc_enter(debug_caller_loc(s, l));
     addr = (void *)malloc(max(size, 1));
-    if(addr == NULL) {
+    if (addr == NULL) {
 	errordump("%s@%d: memory allocation failed (%u bytes requested)",
 		  s ? s : "(unknown)",
 		  s ? l : -1,
@@ -232,7 +199,7 @@ debug_alloc(s, l, size)
  */
 void *
 debug_newalloc(s, l, old, size)
-    char *s;
+    const char *s;
     int l;
     void *old;
     size_t size;
@@ -253,7 +220,7 @@ debug_newalloc(s, l, old, size)
  */
 char *
 debug_stralloc(s, l, str)
-    char *s;
+    const char *s;
     int l;
     const char *str;
 {
@@ -263,9 +230,28 @@ debug_stralloc(s, l, str)
     addr = debug_alloc(s, l, strlen(str) + 1);
     strcpy(addr, str);
     malloc_leave(debug_caller_loc(s, l));
-    return addr;
+    return (addr);
 }
 
+/* vstrextend -- Extends the existing string by appending the other 
+ * arguments. */
+arglist_function(char *vstrextend,
+		  char **,
+                 oldstr)
+{
+	char *keep = *oldstr;
+	va_list ap;
+
+	arglist_start(ap, oldstr);
+
+	if (*oldstr == NULL)
+		*oldstr = "";
+	*oldstr = internal_vstralloc(*oldstr, ap);
+        amfree(keep);
+
+	arglist_end(ap);
+        return *oldstr;
+}
 
 /*
  * internal_vstralloc - copies up to MAX_STR_ARGS strings into newly
@@ -354,7 +340,7 @@ arglist_function(char *debug_vstralloc, const char *, str)
  */
 char *
 debug_newstralloc(s, l, oldstr, newstr)
-    char *s;
+    const char *s;
     int l;
     char *oldstr;
     const char *newstr;
@@ -365,7 +351,7 @@ debug_newstralloc(s, l, oldstr, newstr)
     addr = debug_stralloc(s, l, newstr);
     amfree(oldstr);
     malloc_leave(debug_caller_loc(s, l));
-    return addr;
+    return (addr);
 }
 
 
@@ -393,45 +379,6 @@ arglist_function1(char *debug_newvstralloc,
 
 
 /*
- * sbuf_man - static buffer manager.
- *
- * Manage a bunch of static buffer pointers.
- */
-void *sbuf_man(e_bufs, ptr)
-    void *e_bufs; /* XXX - I dont think this is right */
-    void *ptr;
-{
-	SBUF2_DEF(1) *bufs;
-	int slot;
-
-	bufs = e_bufs;
-
-	/* try and trap bugs */
-	assert(bufs->magic == SBUF_MAGIC);
-	assert(bufs->max > 0);
-
-	/* initialise first time through */
-	if(bufs->cur == -1)
-		for(slot=0; slot < bufs->max; slot++) {
-			bufs->bufp[slot] = (void *)0;
-		} 
-
-	/* calculate the next slot */
-	slot = bufs->cur + 1;
-	if (slot >= bufs->max) slot = 0;
-
-	/* free the previous inhabitant */
-	if(bufs->bufp[slot] != (void *)0) free(bufs->bufp[slot]);
-
-	/* store the new one */
-	bufs->bufp[slot] = ptr;
-	bufs->cur = slot;
-
-	return ptr;
-}
-
-
-/*
  * safe_env - build a "safe" environment list.
  */
 char **
@@ -445,6 +392,7 @@ safe_env()
 #ifdef NEED_PATH_ENV
 	"PATH",
 #endif
+	"DISPLAY",
 	NULL
     };
 
@@ -500,7 +448,7 @@ safe_env()
 
 int
 debug_amtable_alloc(s, l, table, current, elsize, count, bump, init_func)
-    char *s;
+    const char *s;
     int l;
     void **table;
     int *current;

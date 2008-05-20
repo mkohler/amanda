@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: arglist.h,v 1.4.10.2 2002/12/03 21:36:47 martinea Exp $
+ * $Id: arglist.h,v 1.7 2002/12/03 21:36:39 martinea Exp $
  *
  * support macros for variable argument list declaration and definition
  */
@@ -75,6 +75,11 @@
 	      arg2_type arg2_name, \
 	      hook_type hook_name, ...)
 
+#define arglist_function3(fdecl, arg1_type, arg1_name, arg2_type, arg2_name, \
+			  arg3_type, arg3_name, hook_type, hook_name) \
+	fdecl(arg1_type arg1_name, arg2_type arg2_name, \
+	      arg3_type arg3_name, hook_type hook_name, ...)
+
 #define arglist_start(arg,hook_name)	va_start(arg,hook_name)
 
 #else
@@ -115,6 +120,15 @@
 	arg1_type arg1_name;					\
 	arg2_type arg2_name;					\
 	hook_type hook_name;					\
+	va_dcl
+
+#define arglist_function3(fdecl, arg1_type, arg1_name, arg2_type, arg2_name, \
+			  arg3_type, arg3_name, hook_type, hook_name) \
+	fdecl(arg1_name, arg2_name, arg3_name, hook_name, va_alist)	\
+	arg1_type arg1_name;						\
+	arg2_type arg2_name;						\
+	arg3_type arg3_name;						\
+	hook_type hook_name;						\
 	va_dcl
 
 #define arglist_start(arg,hook_name)	va_start(arg)

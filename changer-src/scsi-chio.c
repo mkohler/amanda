@@ -1,5 +1,5 @@
 /*
- *	$Id: scsi-chio.c,v 1.5.4.8 1999/06/17 18:33:19 th Exp $
+ *	$Id: scsi-chio.c,v 1.13 2000/06/25 18:48:11 ant Exp $
  *
  *	scsi-chio.c -- library routines to handle the changer
  *			support for chio based systems

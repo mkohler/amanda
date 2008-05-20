@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: holding.c,v 1.17.2.12.4.3.2.10.2.2 2004/10/21 13:12:29 martinea Exp $
+ * $Id: holding.c,v 1.52 2006/03/09 22:01:21 martinea Exp $
  *
  * Functions to access holding disk
  */
@@ -33,7 +33,6 @@
 #include "util.h"
 #include "holding.h"
 #include "fileheader.h"
-#include "util.h"
 #include "logfile.h"
 
 static sl_t *scan_holdingdisk P((sl_t *holding_list, char *diskdir, int verbose));
@@ -126,7 +125,7 @@ char *fname;
 }
 
 
-sl_t *scan_holdingdisk(holding_list, diskdir, verbose)
+static sl_t *scan_holdingdisk(holding_list, diskdir, verbose)
 sl_t *holding_list;
 char *diskdir;
 int verbose;
@@ -147,8 +146,7 @@ int verbose;
     if(verbose)
 	printf("Scanning %s...\n", diskdir);
     while((workdir = readdir(topdir)) != NULL) {
-	if(is_dot_or_dotdot(workdir->d_name)
-	   || strcmp(workdir->d_name, "lost+found") == 0) {
+	if(is_dot_or_dotdot(workdir->d_name)) {
 	    continue;
 	}
 	entryname = newvstralloc(entryname,
@@ -157,15 +155,18 @@ int verbose;
 	    printf("  %s: ", workdir->d_name);
 	}
 	if(!is_dir(entryname)) {
-	    if(verbose)
+	    if(verbose) {
 	        puts("skipping cruft file, perhaps you should delete it.");
+	    }
 	} else if(!is_datestr(workdir->d_name)) {
-	    if(verbose)
+	    if(verbose && (strcmp(workdir->d_name, "lost+found")!=0) ) {
 	        puts("skipping cruft directory, perhaps you should delete it.");
+	    }
 	} else {
 	    holding_list = insert_sort_sl(holding_list, workdir->d_name);
-	    if(verbose)
+	    if(verbose) {
 		puts("found Amanda directory.");
+	    }
 	}
     }
     closedir(topdir);
@@ -233,6 +234,7 @@ char *datestamp;
     amfree(destname);
     return holding_list;
 }
+
 
 
 sl_t *get_flush(dateargs, datestamp, amflush, verbose)
@@ -431,8 +433,9 @@ dumpfile_t *file;
 }
 
 
-long size_holding_files(holding_file)
+long size_holding_files(holding_file, strip_headers)
 char *holding_file;
+int strip_headers;
 {
     int fd;
     int buflen;
@@ -449,15 +452,22 @@ char *holding_file;
 	    amfree(filename);
 	    return -1;
 	}
-	buflen = fullread(fd, buffer, sizeof(buffer));
-	parse_file_header(buffer, &file, buflen);
+	if ((buflen = fullread(fd, buffer, sizeof(buffer))) > 0) {
+		parse_file_header(buffer, &file, buflen);
+	}
 	close(fd);
 	if(stat(filename, &finfo) == -1) {
 	    printf("stat %s: %s\n", filename, strerror(errno));
 	    finfo.st_size = 0;
 	}
 	size += (finfo.st_size+1023)/1024;
-	filename = newstralloc(filename, file.cont_filename);
+	if(strip_headers) size -= DISK_BLOCK_BYTES/1024;
+	if(buflen > 0) {
+	    filename = newstralloc(filename, file.cont_filename);
+	}
+	else {
+	    amfree(filename);
+	}
     }
     amfree(filename);
     return size;
@@ -480,11 +490,17 @@ char *holding_file;
 	    amfree(filename);
 	    return 0;
 	}
-	buflen = fullread(fd, buffer, sizeof(buffer));
-	parse_file_header(buffer, &file, buflen);
+	if ((buflen = fullread(fd, buffer, sizeof(buffer))) > 0) {
+	    parse_file_header(buffer, &file, buflen);
+	}
 	close(fd);
 	unlink(filename);
-	filename = newstralloc(filename,file.cont_filename);
+	if(buflen > 0) {
+	    filename = newstralloc(filename, file.cont_filename);
+	}
+	else {
+	    amfree(filename);
+	}
     }
     amfree(filename);
     return 1;
@@ -520,7 +536,7 @@ int complete;
 		    filename_tmp, filename, strerror(errno));
 	}
 
-	if (buflen == 0) {
+	if (buflen <= 0) {
 	    fprintf(stderr,"rename_tmp_holding: %s: empty file?\n", filename);
 	    amfree(filename);
 	    amfree(filename_tmp);
@@ -569,10 +585,11 @@ int verbose;
 	printf("Scanning %s...\n", diskdir);
     chdir(diskdir);
     while((workdir = readdir(topdir)) != NULL) {
-	if(is_dot_or_dotdot(workdir->d_name)
-	   || strcmp(workdir->d_name, "lost+found") == 0) {
+	if(strcmp(workdir->d_name, ".") == 0
+	   || strcmp(workdir->d_name, "..") == 0
+	   || strcmp(workdir->d_name, "lost+found") == 0)
 	    continue;
-	}
+
 	if(verbose)
 	    printf("  %s: ", workdir->d_name);
 	if(!is_dir(workdir->d_name)) {
@@ -580,7 +597,7 @@ int verbose;
 	        puts("skipping cruft file, perhaps you should delete it.");
 	}
 	else if(!is_datestr(workdir->d_name)) {
-	    if(verbose)
+	    if(verbose && (strcmp(workdir->d_name, "lost+found")!=0) )
 	        puts("skipping cruft directory, perhaps you should delete it.");
 	}
 	else if(rmdir(workdir->d_name) == 0) {

@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: stream.h,v 1.4.2.1.4.3 2001/08/14 22:20:57 jrjackson Exp $
+ * $Id: stream.h,v 1.10 2001/08/14 22:38:26 jrjackson Exp $
  *
  * interface to stream module
  */
@@ -34,24 +34,22 @@
 
 #include "amanda.h"
 
-/* Note: This must be kept in sync with the DATABUF_SIZE defined in
- * client-src/sendbackup-krb4.c, or kerberos encryption won't work...
- *	- Chris Ross (cross@uu.net)  4-Jun-1998
- */
 #define NETWORK_BLOCK_BYTES	DISK_BLOCK_BYTES
 #define STREAM_BUFSIZE		(NETWORK_BLOCK_BYTES * 2)
 
 int stream_server P((int *port, int sendsize, int recvsize));
 int stream_accept P((int sock, int timeout, int sendsize, int recvsize));
-int stream_client_privileged P((char *hostname,
+int stream_client_privileged P((const char *hostname,
 				int port,
 				int sendsize,
 				int recvsize,
-				int *localport));
-int stream_client P((char *hostname,
+				int *localport,
+				int nonblock));
+int stream_client P((const char *hostname,
 		     int port,
 		     int sendsize,
 		     int recvsize,
-		     int *localport));
+		     int *localport,
+		     int nonblock));
 
 #endif
