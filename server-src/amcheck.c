@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amcheck.c,v 1.149 2006/08/24 01:57:16 paddy_s Exp $
+ * $Id: amcheck.c,v 1.149.2.2 2006/09/21 11:16:57 martinea Exp $
  *
  * checks for common problems in server and clients
  */
@@ -764,7 +764,7 @@ start_server_check(
 	}
 	else if(stat(tapefile, &statbuf) == -1) {
 	    quoted = quote_string(tape_dir);
-	    fprintf(outf, "ERROR: tapefile %s (%s), "
+	    fprintf(outf, "ERROR: tapelist %s (%s), "
 		    "you must create an empty file.\n",
 		    quoted, strerror(errno));
 	    tapebad = 1;
@@ -772,24 +772,24 @@ start_server_check(
 	}
 	else if(!S_ISREG(statbuf.st_mode)) {
 	    quoted = quote_string(tapefile);
-	    fprintf(outf, "ERROR: tapefile %s: should be a regular file.\n",
+	    fprintf(outf, "ERROR: tapelist %s: should be a regular file.\n",
 		    quoted);
 	    tapebad = 1;
 	    amfree(quoted);
 	}
 	else if(access(tapefile, F_OK) != 0) {
 	    quoted = quote_string(tapefile);
-	    fprintf(outf, "ERROR: can't access tape list %s\n", quoted);
+	    fprintf(outf, "ERROR: can't access tapelist %s\n", quoted);
 	    tapebad = 1;
 	    amfree(quoted);
 	} else if(access(tapefile, F_OK) == 0 && access(tapefile, W_OK) != 0) {
 	    quoted = quote_string(tapefile);
-	    fprintf(outf, "ERROR: tape list %s: not writable\n", quoted);
+	    fprintf(outf, "ERROR: tapelist %s: not writable\n", quoted);
 	    tapebad = 1;
 	    amfree(quoted);
 	} else if(read_tapelist(tapefile)) {
 	    quoted = quote_string(tapefile);
-	    fprintf(outf, "ERROR: tape list %s: parse error\n", quoted);
+	    fprintf(outf, "ERROR: tapelist %s: parse error\n", quoted);
 	    tapebad = 1;
 	    amfree(quoted);
 	}
@@ -840,6 +840,11 @@ start_server_check(
 			quoted, (OFF_T_FMT_TYPE)holdingdisk_get_disksize(hdp));
 		disklow = 1;
 	    }
+	    else if(holdingdisk_get_disksize(hdp) == (off_t)0) {
+		fprintf(outf, "WARNING: holding disk %s: "
+			"use nothing because 'use' is set to 0\n",
+			quoted);
+	    }
 	    else if(holdingdisk_get_disksize(hdp) > (off_t)0) {
 		if(fs.avail < holdingdisk_get_disksize(hdp)) {
 		    fprintf(outf,
@@ -855,14 +860,17 @@ start_server_check(
 		else {
 		    fprintf(outf,
 			    "Holding disk %s: " OFF_T_FMT
-			    " %sB disk space available, that's plenty\n",
-			    quoted, (OFF_T_FMT_TYPE)(fs.avail/(off_t)unitdivisor),
+			    " %sB disk space available,"
+			    " using " OFF_T_FMT " %sB as requested\n",
+			    quoted,
+			    (OFF_T_FMT_TYPE)(fs.avail/(off_t)unitdivisor),
+			    displayunit,
+			    (OFF_T_FMT_TYPE)(holdingdisk_get_disksize(hdp)/(off_t)unitdivisor),
 			    displayunit);
 		}
 	    }
 	    else {
-		assert(holdingdisk_get_disksize(hdp) < (off_t)0);
-		if((fs.avail + holdingdisk_get_disksize(hdp)) <= (off_t)0) {
+		if((fs.avail + holdingdisk_get_disksize(hdp)) < (off_t)0) {
 		    fprintf(outf,
 			    "WARNING: holding disk %s: "
 			    "only " OFF_T_FMT " %sB free, using nothing\n",

@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: restore.c,v 1.52 2006/08/23 11:41:54 martinea Exp $
+ * $Id: restore.c,v 1.52.2.2 2006/09/27 14:04:27 martinea Exp $
  *
  * retrieves files from an amanda tape
  */
@@ -98,7 +98,7 @@ char *label_of_current_slot(char *cur_tapedev, FILE *prompt_out,
 int load_next_tape(char **cur_tapedev, FILE *prompt_out, int backwards,
 		   rst_flags_t *flags, am_feature_t *their_features,
 		   tapelist_t *desired_tape);
-int load_manual_tape(char **cur_tapedev, FILE *prompt_out,
+int load_manual_tape(char **cur_tapedev, FILE *prompt_out, FILE *prompt_in,
 		     rst_flags_t *flags, am_feature_t *their_features,
 		     tapelist_t *desired_tape);
 void search_a_tape(char *cur_tapedev, FILE *prompt_out, rst_flags_t *flags,
@@ -1349,6 +1349,7 @@ int
 load_manual_tape(
     char         **cur_tapedev,
     FILE          *prompt_out,
+    FILE          *prompt_in,
     rst_flags_t   *flags,
     am_feature_t  *their_features,
     tapelist_t    *desired_tape)
@@ -1363,7 +1364,7 @@ load_manual_tape(
 	    fprintf(prompt_out, "FEEDME %s\r\n",
 		    desired_tape->label);
 	    fflush(prompt_out);
-	    input = agets(stdin);/* Strips \n but not \r */
+	    input = agets(prompt_in);/* Strips \n but not \r */
 	    if(!input) {
 		error("Connection lost with amrecover");
 		/*NOTREACHED*/
@@ -1672,6 +1673,7 @@ search_a_tape(
 void
 search_tapes(
     FILE *		prompt_out,
+    FILE               *prompt_in,
     int			use_changer,
     tapelist_t *	tapelist,
     match_list_t *	match_list,
@@ -1690,10 +1692,11 @@ search_tapes(
     seentapes_t *seentapes = NULL;
     int ret;
 
-    dbprintf(("search_tapes(prompt=%p, use_changer=%d, tapelist=%p, "
+    dbprintf(("search_tapes(prompt_out=%d, prompt_in=%d,  use_changer=%d, "
+	      "tapelist=%p, "
 	      "match_list=%p, flags=%p, features=%p)\n",
-	      prompt_out, use_changer, tapelist, match_list,
-	      flags, their_features));
+	      fileno(prompt_out), fileno(prompt_in), use_changer, tapelist,
+	      match_list, flags, their_features));
 
     if(!prompt_out) prompt_out = stderr;
 
@@ -1759,7 +1762,7 @@ search_tapes(
 	char *input = NULL;
         fprintf(prompt_out,"Press enter when ready\n");
 	fflush(prompt_out);
-        input = agets(stdin);
+        input = agets(prompt_in);
  	amfree(input);
 	fprintf(prompt_out, "\n");
 	fflush(prompt_out);
@@ -1841,7 +1844,7 @@ search_tapes(
 	    }
 
 	    if (label == NULL) {
-		ret = load_manual_tape(&cur_tapedev, prompt_out,
+		ret = load_manual_tape(&cur_tapedev, prompt_out, prompt_in,
 				       flags,
 				       their_features, desired_tape);
 		if (ret == 0) {

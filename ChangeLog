@@ -1,3 +1,88 @@
+2006-09-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* Amanda 2.5.1p1 released.
+	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.5.1p1).
+	* NEWS: Update for 2.5.1p1
+
+2006-09-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* restore-src/restore.c: Improve debugging.
+	* server-src/changer.c: Make sure to dup the fd out of the 0..2 range.
+
+2006-09-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* restore-src/amfetchdump.c: Pass new prompt_in parameter to
+				     search_tapes.
+	* restore-src/restore.c (search_tapes, load_manual_tape): New prompt_in
+								  parameter.
+	* restore-src/restore.h (search_tapes): New prompt_in parameter.
+	* restore-src/amidxtaped.c: Set new 'FILE *' instead of reusing stdin
+				    and stdout.
+	* server-src/amindexd.c: Set new 'FILE *' instead of reusing stdin
+				 and stdout.
+
+2006-09-27  Jean-Louis Martineau <martineau@zmanda.com>
+	Patch by Orion Poplawski <orion@cora.nwra.com>
+	* server-src/planner.c: Add a skip_quoted_line() on error.
+
+2006-09-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amstatus.pl.in: Fix parsing of 'taper: wrote label' line.
+	* server-src/amtoc.pl.in: Fix parsing of 'START taper' line.
+
+2006-09-22  Jean-Louis Martineau <martineau@zmanda.com>
+	Patch by William Jojo
+	* client-src/sendsize.c: Fix #endif for AIX.
+
+2006-09-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/packet.c: Fix use of arglist_start/arglist_end.
+	* server-src/amindexd.c: Fix use of vsnprintf (for IRIX).
+	* server-src/logfile.c: Fix use of arglist_start/arglist_end.
+
+2006-09-21  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amcheck.c: Don't assert if holding use is set to 0.
+
+2006-09-21  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/util.c: Declare keytable.
+	* common-src/util.h: Declare keytable as extern.
+
+2006-09-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* contrib/sst: Removed
+	* Makefile.am (EXTRA_DIST): Remove sst files.
+
+2006-09-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/find.c (search_logfile): Count 'PARTIAL taper line'.
+
+2006-09-19  Jean-Louis Martineau <martineau@zmanda.com>
+	Patch by Paul Bijens
+	* server-src/amcheck.c: Print "tapelist" instead of "tapefile".
+
+2006-09-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/dgram.c (dgram_bind): Remove unused variables.
+
+2006-09-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/dgram.c (dgram_bind): Don't set SO_REUSEADDR on socket.
+
+2006-09-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/util.c (connect_port): Make EHOSTUNREACH and ENETUNREACH
+					    fatal error.
+
+2006-09-18  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/util.c(dump_sockaddr): Convert from network to machine
+					    bytes order before printing.
+	* common-src/dgram.c (dgram_recv): Print the fromaddr.
+
+2006-09-15  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c: Correct order of close/dup.
+
+2006-09-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/bsdtcp-security.c: Use AMANDA_SERVICE_NAME.
+
+2006-09-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amstatus.pl.in: Check that $dumpers_active is defined.
+
+2006-09-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/util.c (conftoken_getc): Return an int.
+
+2006-09-11  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendbackup-dump.c: Works if rundump is not used.
+
 2006-09-05  Jean-Louis Martineau <martineau@zmanda.com>
 	* Amanda 2.5.1 released.
 	* configure.in: AM_INIT_AUTOMAKE(amanda, 2.5.1).
