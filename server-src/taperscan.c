@@ -20,24 +20,32 @@
  */
 
 /*
- * $Id: taperscan.c,v 1.9 2006/03/10 14:29:22 martinea Exp $
+ * $Id: taperscan.c,v 1.17 2006/07/12 12:28:19 martinea Exp $
  *
  * This contains the implementation of the taper-scan algorithm, as it is
  * used by taper, amcheck, and amtape. See the header file taperscan.h for
  * interface information. */
 
-#include <amanda.h>
-#include <tapeio.h>
-#include <conffile.h>
+#include "amanda.h"
+#include "tapeio.h"
+#include "conffile.h"
 #include "changer.h"
 #include "tapefile.h"
 
-int scan_read_label P((char *dev, char *wantlabel,
+int scan_read_label (char *dev, char *wantlabel,
                        char** label, char** timestamp,
-                       char**error_message));
-int changer_taper_scan P((char *wantlabel, char** gotlabel, char**timestamp,
-                          char**error_message, char **tapedev));
-char *find_brand_new_tape_label();
+                       char**error_message);
+int changer_taper_scan (char *wantlabel, char** gotlabel, char** timestamp,
+                        char **tapedev, void (*)(void *data, char *msg),
+			void *data);
+int scan_slot (void *data, int rc, char *slotstr, char *device);
+int taper_scan (char* wantlabel, char** gotlabel, char** timestamp,
+		char** tapedev,
+		void taperscan_output_callback(void *data, char *msg),
+		void *data);
+char *find_brand_new_tape_label (void);
+void FILE_taperscan_output_callback (void *data, char *msg);
+void CHAR_taperscan_output_callback (void *data, char *msg);
 
 /* NO GLOBALS PLEASE! */
 
@@ -57,10 +65,14 @@ char *find_brand_new_tape_label();
  * the same interface as taper_scan. 
  * Return value is the same as taper_scan.
  */
-int scan_read_label(char *dev, char *desired_label,
-                    char** label, char** timestamp, char** error_message) {
+int scan_read_label(
+    char *dev,
+    char *desired_label,
+    char** label,
+    char** timestamp,
+    char** error_message)
+{
     char *result = NULL;
-    char *errstr = NULL;
 
     *label = *timestamp = NULL;
     result = tape_rdlabel(dev, timestamp, label);
@@ -106,7 +118,7 @@ int scan_read_label(char *dev, char *desired_label,
         char *labelstr;
         labelstr = getconf_str(CNF_LABELSTR);
 	if(!match(labelstr, *label)) {
-            vstrextend(&errstr, "label ", *label,
+            vstrextend(error_message, "label ", *label,
                        " doesn\'t match labelstr \"",
                        labelstr, "\"\n", NULL);
             return -1;
@@ -120,12 +132,12 @@ int scan_read_label(char *dev, char *desired_label,
             tp = lookup_tapelabel(*label);
          
             if(tp == NULL) {
-                vstrextend(&errstr, "label ", *label,
+                vstrextend(error_message, "label ", *label,
                      " match labelstr but it not listed in the tapelist file.\n",
                            NULL);
                 return -1;
             } else if(tp != NULL && !reusable_tape(tp)) {
-                vstrextend(&errstr, "cannot overwrite active tape ", *label,
+                vstrextend(error_message, "cannot overwrite active tape ", *label,
                            "\n", NULL);
                 return -1;
             }
@@ -147,64 +159,111 @@ typedef struct {
     char *first_labelstr_slot;
     int backwards;
     int tape_status;
+    void (*taperscan_output_callback)(void *data, char *msg);
+    void *data;
 } changertrack_t;
 
-int scan_slot(void *data, int rc, char *slotstr, char *device) {
+int
+scan_slot(
+     void *data,
+     int rc,
+     char *slotstr,
+     char *device)
+{
     int label_result;
     changertrack_t *ct = ((changertrack_t*)data);
+    int result;
 
     switch (rc) {
     default:
-        newvstralloc(*(ct->error_message), *(ct->error_message),
-                     "fatal changer error ", slotstr, ": ",
-                     changer_resultstr, NULL);
-        return 1;
+	vstrextend(ct->error_message,
+		   "fatal changer error: slot ", slotstr, ": ",
+		   changer_resultstr, "\n", NULL);
+        result = 1;
+	break;
+
     case 1:
-        newvstralloc(*(ct->error_message), *(ct->error_message),
-                     "changer error ", slotstr, ": ", changer_resultstr, NULL);
-        return 0;
+	vstrextend(ct->error_message,
+		   "changer error: slot ", slotstr, ": ", changer_resultstr,
+		   "\n", NULL);
+        result = 0;
+	break;
+
     case 0:
-	vstrextend(ct->error_message, "slot ", slotstr, ": ", NULL);
+	*(ct->error_message) = newvstralloc(*(ct->error_message), "slot ",
+					    slotstr, ": ", NULL);
+	amfree(*ct->gotlabel);
+	amfree(*ct->timestamp);
         label_result = scan_read_label(device, ct->wantlabel, ct->gotlabel,
                                        ct->timestamp, ct->error_message);
         if (label_result == 1 || label_result == 3 ||
             (label_result == 2 && !ct->backwards)) {
             *(ct->tapedev) = stralloc(device);
             ct->tape_status = label_result;
-            return 1;
-        } else if (label_result == 2) {
-            if (ct->first_labelstr_slot == NULL)
-                ct->first_labelstr_slot = stralloc(slotstr);
-            return 0;
+            result = 1;
         } else {
-            return 0;
-        }
+	    if ((label_result == 2) && (ct->first_labelstr_slot == NULL))
+		ct->first_labelstr_slot = stralloc(slotstr);
+	    result = 0;
+	}
+	break;
     }
-    /* NOTREACHED */
-    return 1;
+    ct->taperscan_output_callback(ct->data, *(ct->error_message));
+    amfree(*(ct->error_message));
+    return result;
 }
 
 static int 
-scan_init(void *data, int rc, int nslots, int backwards, int searchable) {
+scan_init(
+    void *data,
+    int rc,
+    int nslots,
+    int backwards,
+    int searchable)
+{
     changertrack_t *ct = ((changertrack_t*)data);
     
+    (void)nslots;	/* Quiet unused parameter warning */
+    (void)searchable;	/* Quiet unused parameter warning */
+
     if (rc) {
-        newvstralloc(*(ct->error_message), *(ct->error_message),
-                     "could not get changer info: ", changer_resultstr, NULL);
+	vstrextend(ct->error_message,
+		   "could not get changer info: ", changer_resultstr, "\n",
+		   NULL);
+	ct->taperscan_output_callback(ct->data, *(ct->error_message));
+	amfree(*(ct->error_message));
     }
 
     ct->backwards = backwards;
     return 0;
 }
 
-int changer_taper_scan(char* wantlabel,
-                       char** gotlabel, char** timestamp,
-                       char** error_message, char **tapedev) {
-    changertrack_t local_data = {wantlabel, gotlabel, timestamp,
-                                 error_message, tapedev, NULL, 0, 0};
+int
+changer_taper_scan(
+    char *wantlabel,
+    char **gotlabel,
+    char **timestamp,
+    char **tapedev,
+    void (*taperscan_output_callback)(void *data, char *msg),
+    void *data)
+{
+    char *error_message = NULL;
+    changertrack_t local_data;
+    char *outslotstr = NULL;
+    int result;
 
     *gotlabel = *timestamp = *tapedev = NULL;
-    
+    local_data.wantlabel = wantlabel;
+    local_data.gotlabel  = gotlabel;
+    local_data.timestamp = timestamp;
+    local_data.error_message = &error_message;
+    local_data.tapedev = tapedev;
+    local_data.first_labelstr_slot = NULL;
+    local_data.backwards = 0;
+    local_data.tape_status = 0;
+    local_data.taperscan_output_callback  = taperscan_output_callback;
+    local_data.data = data;
+
     changer_find(&local_data, scan_init, scan_slot, wantlabel);
     
     if (*(local_data.tapedev)) {
@@ -212,24 +271,33 @@ int changer_taper_scan(char* wantlabel,
         return local_data.tape_status;
     } else if (local_data.first_labelstr_slot) {
         /* Use plan B. */
-        if (changer_loadslot(local_data.first_labelstr_slot,
-                             NULL, tapedev) == 0) {
-            return scan_read_label(*tapedev, NULL, gotlabel, timestamp,
-                                   error_message);
+	result = changer_loadslot(local_data.first_labelstr_slot,
+				  &outslotstr, tapedev);
+	amfree(outslotstr);
+        if (result == 0) {
+            result = scan_read_label(*tapedev, NULL, gotlabel, timestamp,
+				     &error_message);
+	    taperscan_output_callback(data, error_message);
+	    amfree(error_message);
+	    return result;
         }
     }
 
     /* Didn't find a tape. :-( */
     assert(local_data.tape_status <= 0);
+    taperscan_output_callback(data, "changer problem: ");
+    taperscan_output_callback(data, changer_resultstr);
     return -1;
 }
 
 int taper_scan(char* wantlabel,
-               char** gotlabel, char** timestamp, char** error_message,
-               char** tapedev) {
+               char** gotlabel, char** timestamp, char** tapedev,
+	       void (*taperscan_output_callback)(void *data, char *msg),
+	       void *data) {
 
-    *gotlabel = *timestamp = *error_message = NULL;
-    *tapedev = getconf_str(CNF_TAPEDEV);
+    char *error_message = NULL;
+    int result;
+    *gotlabel = *timestamp = NULL;
 
     if (wantlabel == NULL) {
         tape_t *tmp;
@@ -240,29 +308,38 @@ int taper_scan(char* wantlabel,
     }
 
     if (changer_init()) {
-        return changer_taper_scan(wantlabel, gotlabel, timestamp,
-                                    error_message, tapedev);
+        result =  changer_taper_scan(wantlabel, gotlabel, timestamp,
+	                             tapedev,
+				     taperscan_output_callback, data);
+    }
+    else {
+	*tapedev = stralloc(getconf_str(CNF_TAPEDEV));
+	result =  scan_read_label(*tapedev, wantlabel,
+				  gotlabel, timestamp, &error_message);
+	taperscan_output_callback(data, error_message);
+	amfree(error_message);
     }
 
-    return scan_read_label(*tapedev, wantlabel,
-                           gotlabel, timestamp, error_message);
+    return result;
 }
 
 #define AUTO_LABEL_MAX_LEN 1024
-char* find_brand_new_tape_label() {
+char *
+find_brand_new_tape_label(void)
+{
     char *format;
     char newlabel[AUTO_LABEL_MAX_LEN];
-    char tmpnum[12];
+    char tmpnum[30]; /* 64-bit integers can be 21 digists... */
     char tmpfmt[16];
     char *auto_pos = NULL;
-    int i, format_len, label_len, auto_len;
+    int i;
+    ssize_t label_len, auto_len;
     tape_t *tp;
 
     if (!getconf_seen(CNF_LABEL_NEW_TAPES)) {
         return NULL;
     }
     format = getconf_str(CNF_LABEL_NEW_TAPES);
-    format_len = strlen(format);
 
     memset(newlabel, 0, AUTO_LABEL_MAX_LEN);
     label_len = 0;
@@ -302,16 +379,17 @@ char* find_brand_new_tape_label() {
         return NULL;
     }
 
-    sprintf(tmpfmt, "%%0%dd", auto_len);
+    snprintf(tmpfmt, SIZEOF(tmpfmt), "%%0" SIZE_T_FMT "d",
+	     (SIZE_T_FMT_TYPE)auto_len);
 
     for (i = 1; i < INT_MAX; i ++) {
-        sprintf(tmpnum, tmpfmt, i);
-        if (strlen(tmpnum) != auto_len) {
+        snprintf(tmpnum, SIZEOF(tmpnum), tmpfmt, i);
+        if (strlen(tmpnum) != (size_t)auto_len) {
             fprintf(stderr, "All possible auto-labels used.\n");
             return NULL;
         }
 
-        strncpy(auto_pos, tmpnum, auto_len);
+        strncpy(auto_pos, tmpnum, (size_t)auto_len);
 
         tp = lookup_tapelabel(newlabel);
         if (tp == NULL) {
@@ -325,7 +403,37 @@ char* find_brand_new_tape_label() {
         }
     }
 
-    /* NOTREACHED. Unless you have over two billion tapes. */
+    /* Should not get here unless you have over two billion tapes. */
     fprintf(stderr, "Taper internal error in find_brand_new_tape_label.");
     return 0;
+}
+
+void
+FILE_taperscan_output_callback(
+    void *data,
+    char *msg)
+{
+    if(!msg) return;
+    if(strlen(msg) == 0) return;
+
+    if(data)
+	fprintf((FILE *)data, "%s", msg);
+    else
+	printf("%s", msg);
+}
+
+void
+CHAR_taperscan_output_callback(
+    /*@keep@*/	void *data,
+    		char *msg)
+{
+    char **s = (char **)data;
+
+    if(!msg) return;
+    if(strlen(msg) == 0) return;
+
+    if(*s)
+	strappend(*s, msg);
+    else
+	*s = stralloc(msg);
 }

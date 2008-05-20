@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: diskfile.c,v 1.73 2006/03/10 13:51:06 martinea Exp $
+ * $Id: diskfile.c,v 1.95 2006/07/26 15:17:37 martinea Exp $
  *
  * read disklist file
  */
@@ -38,38 +38,39 @@
 static am_host_t *hostlist;
 
 /* local functions */
-static char *upcase P((char *st));
-static int parse_diskline P((disklist_t *, const char *, FILE *, int *, char **));
-static void parserror P((const char *, int, const char *, ...))
+static char *upcase(char *st);
+static int parse_diskline(disklist_t *, const char *, FILE *, int *, char **);
+static void disk_parserror(const char *, int, const char *, ...)
     __attribute__ ((format (printf, 3, 4)));
 
 
 int
-read_diskfile(filename, lst)
-    const char *filename;
-    disklist_t *lst;
+read_diskfile(
+    const char *filename,
+    disklist_t *lst)
 {
     FILE *diskf;
     int line_num;
     char *line;
 
     /* initialize */
-
     hostlist = NULL;
     lst->head = lst->tail = NULL;
     line_num = 0;
 
     if ((diskf = fopen(filename, "r")) == NULL) {
-	error("could not open disklist file \"%s\": %s",
-	      filename, strerror(errno));
+	return -1;
+        /*NOTREACHED*/
     }
 
     while ((line = agets(diskf)) != NULL) {
 	line_num++;
-	if (parse_diskline(lst, filename, diskf, &line_num, &line) < 0) {
-	    amfree(line);
-	    afclose(diskf);
-	    return (-1);
+	if (line[0] != '\0') {
+	    if (parse_diskline(lst, filename, diskf, &line_num, &line) < 0) {
+		amfree(line);
+		afclose(diskf);
+		return (-1);
+	    }
 	}
 	amfree(line);
     }
@@ -79,8 +80,8 @@ read_diskfile(filename, lst)
 }
 
 am_host_t *
-lookup_host(hostname)
-    const char *hostname;
+lookup_host(
+    const char *hostname)
 {
     am_host_t *p;
 
@@ -91,8 +92,9 @@ lookup_host(hostname)
 }
 
 disk_t *
-lookup_disk(hostname, diskname)
-    const char *hostname, *diskname;
+lookup_disk(
+    const char *hostname,
+    const char *diskname)
 {
     am_host_t *host;
     disk_t *disk;
@@ -108,9 +110,15 @@ lookup_disk(hostname, diskname)
     return (NULL);
 }
 
-void enqueue_disk(list, disk)	/* put disk on end of queue */
-disklist_t *list;
-disk_t *disk;
+
+/*
+ * put disk on end of queue
+ */
+
+void
+enqueue_disk(
+    disklist_t *list,
+    disk_t *	disk)
 {
     if(list->tail == NULL) list->head = disk;
     else list->tail->next = disk;
@@ -120,9 +128,15 @@ disk_t *disk;
     disk->next = NULL;
 }
 
-void headqueue_disk(list, disk)	/* put disk on head of queue */
-disklist_t *list;
-disk_t *disk;
+
+/*
+ * put disk on head of queue
+ */
+
+void
+headqueue_disk(
+    disklist_t *list,
+    disk_t *	disk)
 {
     if(list->head == NULL) list->tail = disk;
     else list->head->prev = disk;
@@ -132,10 +146,16 @@ disk_t *disk;
     disk->prev = NULL;
 }
 
-void insert_disk(list, disk, cmp)	/* insert in sorted order */
-disklist_t *list;
-disk_t *disk;
-int (*cmp) P((disk_t *a, disk_t *b));
+
+/*
+ * insert in sorted order
+ */
+
+void
+insert_disk(
+    disklist_t *list,
+    disk_t *	disk,
+    int		(*cmp)(disk_t *a, disk_t *b))
 {
     disk_t *prev, *ptr;
 
@@ -156,19 +176,20 @@ int (*cmp) P((disk_t *a, disk_t *b));
     else ptr->prev = disk;
 }
 
-disk_t *add_disk(list, hostname, diskname)
-disklist_t *list;
-char *hostname;
-char *diskname;
+disk_t *
+add_disk(
+    disklist_t *list,
+    char *	hostname,
+    char *	diskname)
 {
     disk_t *disk;
     am_host_t *host;
 
-    disk = alloc(sizeof(disk_t));
+    disk = alloc(SIZEOF(disk_t));
     disk->line = 0;
-    disk->tape_splitsize = 0;
+    disk->tape_splitsize = (off_t)0;
     disk->split_diskbuffer = NULL;
-    disk->fallback_splitsize = 0;
+    disk->fallback_splitsize = (off_t)0;
     disk->name = stralloc(diskname);
     disk->device = stralloc(diskname);
     disk->spindle = -1;
@@ -177,10 +198,15 @@ char *diskname;
     disk->encrypt  = ENCRYPT_NONE;
     disk->start_t = 0;
     disk->todo = 1;
+    disk->index = 1;
+    disk->exclude_list = NULL;
+    disk->exclude_file = NULL;
+    disk->include_list = NULL;
+    disk->include_file = NULL;
 
     host = lookup_host(hostname);
     if(host == NULL) {
-	host = alloc(sizeof(am_host_t));
+	host = alloc(SIZEOF(am_host_t));
 	host->next = hostlist;
 	hostlist = host;
 
@@ -202,22 +228,35 @@ char *diskname;
     return disk;
 }
 
-int find_disk(list, disk)
-disklist_t *list;
-disk_t *disk;
-/* check if disk is present in list. Return true if so, false otherwise. */
+
+/*
+ * check if disk is present in list. Return true if so, false otherwise.
+ */
+
+int
+find_disk(
+    disklist_t *list,
+    disk_t *	disk)
 {
-disk_t *t;
+    disk_t *t;
 
-    for( t = list->head; t && t != disk; t = t->next );
-
-    return t == disk;
+    t = list->head;
+    while ((t != NULL) && (t != disk)) {
+        t = t->next;
+    }
+    return (t == disk);
 }
 
-void sort_disk(in, out, cmp)	/* sort a whole queue */
-disklist_t *in;
-disklist_t *out;
-int (*cmp) P((disk_t *a, disk_t *b));
+
+/*
+ * sort a whole queue
+ */
+
+void
+sort_disk(
+    disklist_t *in,
+    disklist_t *out,
+    int		(*cmp)(disk_t *a, disk_t *b))
 {
     disklist_t *tmp;
     disk_t *disk;
@@ -231,8 +270,14 @@ int (*cmp) P((disk_t *a, disk_t *b));
 	insert_disk(out, disk, cmp);
 }
 
-disk_t *dequeue_disk(list)	/* remove disk from front of queue */
-disklist_t *list;
+
+/*
+ * remove disk from front of queue
+ */
+
+disk_t *
+dequeue_disk(
+    disklist_t *list)
 {
     disk_t *disk;
 
@@ -248,9 +293,10 @@ disklist_t *list;
     return disk;
 }
 
-void remove_disk(list, disk)
-disklist_t *list;
-disk_t *disk;
+void
+remove_disk(
+    disklist_t *list,
+    disk_t *	disk)
 {
     if(disk->prev == NULL) list->head = disk->next;
     else disk->prev->next = disk->next;
@@ -261,32 +307,56 @@ disk_t *disk;
     disk->prev = disk->next = NULL;
 }
 
-void free_disklist(disklist_t* dl) {
-  while (dl->head != NULL) {
-    free(dequeue_disk(dl));
-  }
+void
+free_disklist(
+    disklist_t* dl)
+{
+    disk_t    *dp;
+    am_host_t *host, *hostnext;
+
+    while (dl->head != NULL) {
+	dp = dequeue_disk(dl);
+	amfree(dp->name);
+	free_sl(dp->exclude_file);
+	free_sl(dp->exclude_list);
+	free_sl(dp->include_file);
+	free_sl(dp->include_list);
+	free(dp);
+    }
+
+    for(host=hostlist; host != NULL; host = hostnext) {
+	amfree(host->hostname);
+	am_release_feature_set(host->features);
+	host->features = NULL;
+	hostnext = host->next;
+	amfree(host);
+    }
+    hostlist=NULL;
 }
 
-static char *upcase(st)
-char *st;
+static char *
+upcase(
+    char *st)
 {
     char *s = st;
 
     while(*s) {
-	if(islower((int)*s)) *s = toupper((int)*s);
+	if(islower((int)*s)) *s = (char)toupper((int)*s);
 	s++;
     }
     return st;
 }
 
 
+/* return  0 on success */
+/* return -1 on error   */
 static int
-parse_diskline(lst, filename, diskf, line_num_p, line_p)
-    disklist_t *lst;
-    const char *filename;
-    FILE *diskf;
-    int *line_num_p;
-    char **line_p;
+parse_diskline(
+    disklist_t *lst,
+    const char *filename,
+    FILE *	diskf,
+    int *	line_num_p,
+    /*@keep@*/ char **	line_p)
 {
     am_host_t *host;
     disk_t *disk;
@@ -294,6 +364,7 @@ parse_diskline(lst, filename, diskf, line_num_p, line_p)
     interface_t *netif = 0;
     char *hostname = NULL;
     char *diskname, *diskdevice;
+    char *dumptype;
     char *s, *fp;
     int ch, dup = 0;
     char *line = *line_p;
@@ -322,52 +393,60 @@ parse_diskline(lst, filename, diskf, line_num_p, line_p)
 
     skip_whitespace(s, ch);
     if(ch == '\0' || ch == '#') {
-	parserror(filename, line_num, "disk device name expected");
-	if (host == NULL) amfree(hostname);
+	disk_parserror(filename, line_num, "disk device name expected");
+	amfree(hostname);
 	return (-1);
     }
+
     fp = s - 1;
-    skip_non_whitespace(s, ch);
+    skip_quoted_string(s, ch);
     s[-1] = '\0';
-    diskname = stralloc(fp);
+    diskname = unquote_string(fp);
 
     skip_whitespace(s, ch);
     if(ch == '\0' || ch == '#') {
-	parserror(filename, line_num, "disk dumptype expected");
-	if(host == NULL) amfree(hostname);
+	disk_parserror(filename, line_num, "disk dumptype expected");
+	amfree(hostname);
 	amfree(diskname);
-	return 1;
+	return (-1);
     }
     fp = s - 1;
-    skip_non_whitespace(s, ch);
+    skip_quoted_string(s, ch);
     s[-1] = '\0';
 
     /* diskdevice */
-    diskdevice = stralloc(fp);
-    if(fp[0] != '{' && (dtype = lookup_dumptype(upcase(fp))) == NULL) {
-	skip_whitespace(s, ch);
-	if(ch == '\0' || ch == '#') {
-	    parserror(filename, line_num, "disk dumptype expected");
-	    if(host == NULL) amfree(hostname);
-	    amfree(diskdevice);
-	    amfree(diskname);
-	    return 1;
+    dumptype = NULL;
+    diskdevice = NULL;
+    dumptype = unquote_string(fp);
+    if(fp[0] != '{') {
+	if ((dtype = lookup_dumptype(dumptype)) == NULL) {
+	    diskdevice = dumptype;
+	    skip_whitespace(s, ch);
+	    if(ch == '\0' || ch == '#') {
+		disk_parserror(filename, line_num,
+			"disk dumptype '%s' not found", dumptype);
+		amfree(hostname);
+		amfree(diskdevice);
+		amfree(diskname);
+		return (-1);
+	    }
+
+	    fp = s - 1;
+	    skip_quoted_string(s, ch);
+	    s[-1] = '\0';
+	    dumptype = unquote_string(fp);
 	}
-	fp = s - 1;
-	skip_non_whitespace(s, ch);
-	s[-1] = '\0';
     }
-    else {
-	amfree(diskdevice);
-    }
+    else
+	amfree(dumptype);
 
     /* check for duplicate disk */
     if(host && (disk = lookup_disk(hostname, diskname)) != NULL) {
-	parserror(filename, line_num,
+	disk_parserror(filename, line_num,
 	    "duplicate disk record, previous on line %d", disk->line);
 	dup = 1;
     } else {
-	disk = alloc(sizeof(disk_t));
+	disk = alloc(SIZEOF(disk_t));
 	malloc_mark(disk);
 	disk->line = line_num;
 	disk->name = diskname;
@@ -379,18 +458,19 @@ parse_diskline(lst, filename, diskf, line_num_p, line_p)
     }
 
     if (fp[0] == '{') {
-	s[-1] = ch;
+	s[-1] = (char)ch;
 	s = fp+2;
 	skip_whitespace(s, ch);
 	if (ch != '\0' && ch != '#') {
-	    parserror(filename, line_num,
+	    disk_parserror(filename, line_num,
 		      "expected line break after `{\', ignoring rest of line");
 	}
 
 	if (strchr(s-1, '}') &&
 	    (strchr(s-1, '#') == NULL ||
 	     strchr(s-1, '}') < strchr(s-1, '#'))) {
-	    if(host == NULL) amfree(hostname);
+	    disk_parserror(filename, line_num,"'}' on same line than '{'");
+	    amfree(hostname);
 	    if(!dup) {
 		amfree(disk->device);
 		amfree(disk->name);
@@ -406,12 +486,10 @@ parse_diskline(lst, filename, diskf, line_num_p, line_p)
 	dtype = read_dumptype(vstralloc("custom(", hostname,
 					":", disk->name, ")", 0),
 			      diskf, (char*)filename, line_num_p);
-
-	*line_p = line = agets(diskf);
-	line_num = *line_num_p; /* no incr, read_dumptype did it already */
-
 	if (dtype == NULL || dup) {
-	    if(host == NULL) amfree(hostname);
+	    disk_parserror(filename, line_num,
+			   "read of custom dumptype failed");
+	    amfree(hostname);
 	    if(!dup) {
 		amfree(disk->device);
 	        amfree(disk->name);
@@ -423,78 +501,109 @@ parse_diskline(lst, filename, diskf, line_num_p, line_p)
 	    return (-1);
 	}
 
+	*line_p = line = agets(diskf);
+	line_num = *line_num_p; /* no incr, read_dumptype did it already */
+
 	if (line == NULL)
 	    *line_p = line = stralloc("");
 	s = line;
 	ch = *s++;
-    } else if((dtype = lookup_dumptype(upcase(fp))) == NULL) {
-	parserror(filename, line_num, "undefined dumptype `%s'", fp);
-	if(host == NULL) amfree(hostname);
-	if (!dup) {
-	    amfree(disk->device);
-	    amfree(disk->name);
-	    amfree(disk);
-	} else {
-	    amfree(diskdevice);
-	    amfree(diskname);
+    } else {
+	if((dtype = lookup_dumptype(dumptype)) == NULL) {
+	    char *qdt = quote_string(dumptype);
+
+	    disk_parserror(filename, line_num, "undefined dumptype `%s'", qdt);
+	    amfree(qdt);
+	    amfree(dumptype);
+	    amfree(hostname);
+	    if (!dup) {
+		amfree(disk->device);
+		amfree(disk->name);
+		amfree(disk);
+	    } else {
+		amfree(diskdevice);
+		amfree(diskname);
+	    }
+	    return (-1);
 	}
-	return (-1);
     }
 
     if (dup) {
-	if (host == NULL) amfree(hostname);
+	amfree(hostname);
 	amfree(diskdevice);
 	amfree(diskname);
 	return (-1);
     }
 
-    disk->dtype_name	= dtype->name;
-    disk->program	= dtype->program;
-    disk->exclude_file	= duplicate_sl(dtype->exclude_file);
-    disk->exclude_list	= duplicate_sl(dtype->exclude_list);
-    disk->include_file	= duplicate_sl(dtype->include_file);
-    disk->include_list	= duplicate_sl(dtype->include_list);
-    disk->exclude_optional = dtype->exclude_optional;
-    disk->include_optional = dtype->include_optional;
-    disk->priority	= dtype->priority;
-    disk->dumpcycle	= dtype->dumpcycle;
-    disk->frequency	= dtype->frequency;
-    disk->security_driver = dtype->security_driver;
-    disk->maxdumps	= dtype->maxdumps;
-    disk->tape_splitsize	= dtype->tape_splitsize;
-    disk->split_diskbuffer	= dtype->split_diskbuffer;
-    disk->fallback_splitsize	= dtype->fallback_splitsize;
-    disk->maxpromoteday	= dtype->maxpromoteday;
-    disk->bumppercent	= dtype->bumppercent;
-    disk->bumpsize	= dtype->bumpsize;
-    disk->bumpdays	= dtype->bumpdays;
-    disk->bumpmult	= dtype->bumpmult;
-    disk->start_t	= dtype->start_t;
-    disk->strategy	= dtype->strategy;
-    disk->estimate	= dtype->estimate;
-    disk->compress	= dtype->compress;
-    disk->srvcompprog	= dtype->srvcompprog;
-    disk->clntcompprog	= dtype->clntcompprog;
-    disk->encrypt       = dtype->encrypt;
-    disk->srv_decrypt_opt   = dtype->srv_decrypt_opt;
-    disk->clnt_decrypt_opt  = dtype->clnt_decrypt_opt;
-    disk->srv_encrypt   = dtype->srv_encrypt;
-    disk->clnt_encrypt  = dtype->clnt_encrypt;
-    disk->comprate[0]	= dtype->comprate[0];
-    disk->comprate[1]	= dtype->comprate[1];
-    disk->record	= dtype->record;
-    disk->skip_incr	= dtype->skip_incr;
-    disk->skip_full	= dtype->skip_full;
-    disk->no_hold	= dtype->no_hold;
-    disk->kencrypt	= dtype->kencrypt;
-    disk->index		= dtype->index;
-    disk->todo		= 1;
+    disk->dtype_name	     = dtype->name;
+    disk->program	     = dumptype_get_program(dtype);
+    if(dumptype_get_exclude(dtype).type == 0) {
+	disk->exclude_list   = duplicate_sl(dumptype_get_exclude(dtype).sl);
+	disk->exclude_file   = NULL;
+    }
+    else {
+	disk->exclude_file   = duplicate_sl(dumptype_get_exclude(dtype).sl);
+	disk->exclude_list   = NULL;
+    }
+    disk->exclude_optional   = dumptype_get_exclude(dtype).optional;
+    if(dumptype_get_include(dtype).type == 0) {
+	disk->include_list   = duplicate_sl(dumptype_get_include(dtype).sl);
+	disk->include_file   = NULL;
+    }
+    else {
+	disk->include_file   = duplicate_sl(dumptype_get_include(dtype).sl);
+	disk->include_list   = NULL;
+    }
+    disk->include_optional   = dumptype_get_include(dtype).optional;
+    disk->priority	     = dumptype_get_priority(dtype);
+    disk->dumpcycle	     = dumptype_get_dumpcycle(dtype);
+/*    disk->frequency	     = dumptype_get_frequency(dtype);*/
+    disk->security_driver    = dumptype_get_security_driver(dtype);
+    disk->maxdumps	     = dumptype_get_maxdumps(dtype);
+    disk->tape_splitsize     = dumptype_get_tape_splitsize(dtype);
+    disk->split_diskbuffer   = dumptype_get_split_diskbuffer(dtype);
+    disk->fallback_splitsize = dumptype_get_fallback_splitsize(dtype);
+    disk->maxpromoteday	     = dumptype_get_maxpromoteday(dtype);
+    disk->bumppercent	     = dumptype_get_bumppercent(dtype);
+    disk->bumpsize	     = dumptype_get_bumpsize(dtype);
+    disk->bumpdays	     = dumptype_get_bumpdays(dtype);
+    disk->bumpmult	     = dumptype_get_bumpmult(dtype);
+    disk->start_t	     = dumptype_get_start_t(dtype);
+    disk->strategy	     = dumptype_get_strategy(dtype);
+    disk->estimate	     = dumptype_get_estimate(dtype);
+    disk->compress	     = dumptype_get_compress(dtype);
+    disk->srvcompprog	     = dumptype_get_srvcompprog(dtype);
+    disk->clntcompprog	     = dumptype_get_clntcompprog(dtype);
+    disk->encrypt            = dumptype_get_encrypt(dtype);
+    disk->srv_decrypt_opt    = dumptype_get_srv_decrypt_opt(dtype);
+    disk->clnt_decrypt_opt   = dumptype_get_clnt_decrypt_opt(dtype);
+    disk->srv_encrypt        = dumptype_get_srv_encrypt(dtype);
+    disk->clnt_encrypt       = dumptype_get_clnt_encrypt(dtype);
+    disk->amandad_path       = dumptype_get_amandad_path(dtype);
+    disk->client_username    = dumptype_get_client_username(dtype);
+    disk->ssh_keys           = dumptype_get_ssh_keys(dtype);
+    disk->comprate[0]	     = dumptype_get_comprate(dtype)[0];
+    disk->comprate[1]	     = dumptype_get_comprate(dtype)[1];
+
+    /*
+     * Boolean parameters with no value (Appears here as value 2) defaults
+     * to TRUE for backward compatibility and for logical consistency.
+     */
+    disk->record	     = dumptype_get_record(dtype) != 0;
+    disk->skip_incr	     = dumptype_get_skip_incr(dtype) != 0;
+    disk->skip_full	     = dumptype_get_skip_full(dtype) != 0;
+    disk->to_holdingdisk     = dumptype_get_to_holdingdisk(dtype);
+    disk->kencrypt	     = dumptype_get_kencrypt(dtype) != 0;
+    disk->index		     = dumptype_get_index(dtype) != 0; 
+
+    disk->todo		     = 1;
 
     skip_whitespace(s, ch);
     fp = s - 1;
     if(ch && ch != '#') {		/* get optional spindle number */
 	char *fp1;
 	int is_digit=1;
+
 	skip_non_whitespace(s, ch);
 	s[-1] = '\0';
 	fp1=fp;
@@ -505,11 +614,11 @@ parse_diskline(lst, filename, diskf, line_num_p, line_p)
 	    }
 	}
 	if(is_digit == 0) {
-	    parserror(filename, line_num, "non-integer spindle `%s'", fp);
-	    if(host == NULL) amfree(hostname);
+	    disk_parserror(filename, line_num, "non-integer spindle `%s'", fp);
+	    amfree(hostname);
 	    amfree(disk->name);
 	    amfree(disk);
-	    return 1;
+	    return (-1);
 	}
 	disk->spindle = atoi(fp);
 	skip_integer(s, ch);
@@ -521,33 +630,33 @@ parse_diskline(lst, filename, diskf, line_num_p, line_p)
 	skip_non_whitespace(s, ch);
 	s[-1] = '\0';
 	if((netif = lookup_interface(upcase(fp))) == NULL) {
-	    parserror(filename, line_num,
+	    disk_parserror(filename, line_num,
 		"undefined network interface `%s'", fp);
-	    if(host == NULL) amfree(hostname);
+	    amfree(hostname);
 	    amfree(disk->name);
 	    amfree(disk);
 	    return (-1);
 	}
     } else {
-	netif = lookup_interface("");
+	netif = lookup_interface("default");
     }
 
     skip_whitespace(s, ch);
     if(ch && ch != '#') {		/* now we have garbage, ignore it */
-	parserror(filename, line_num, "end of line expected");
+	disk_parserror(filename, line_num, "end of line expected");
     }
 
-    if(dtype->ignore || dtype->strategy == DS_SKIP) {
-	if(host == NULL) amfree(hostname);
+    if(dumptype_get_ignore(dtype) || dumptype_get_strategy(dtype) == DS_SKIP) {
+	amfree(hostname);
 	amfree(disk->name);
 	amfree(disk);
-	return (1);
+	return (0);
     }
 
     /* success, add disk to lists */
 
     if(host == NULL) {			/* new host */
-	host = alloc(sizeof(am_host_t));
+	host = alloc(SIZEOF(am_host_t));
 	malloc_mark(host);
 	host->next = hostlist;
 	hostlist = host;
@@ -576,7 +685,7 @@ parse_diskline(lst, filename, diskf, line_num_p, line_p)
 }
 
 
-printf_arglist_function2(static void parserror, const char *, filename,
+printf_arglist_function2(void disk_parserror, const char *, filename,
     int, line_num, const char *, format)
 {
     va_list argp;
@@ -591,14 +700,16 @@ printf_arglist_function2(static void parserror, const char *, filename,
 }
 
 
-void dump_queue(st, q, npr, f)
-char *st;
-disklist_t q;
-int npr;	/* we print first npr disks on queue, plus last two */
-FILE *f;
+void
+dump_queue(
+    char *	st,
+    disklist_t	q,
+    int		npr,	/* we print first npr disks on queue, plus last two */
+    FILE *	f)
 {
     disk_t *d,*p;
     int pos;
+    char *qname;
 
     if(empty(q)) {
 	fprintf(f, "%s QUEUE: empty\n", st);
@@ -606,8 +717,10 @@ FILE *f;
     }
     fprintf(f, "%s QUEUE:\n", st);
     for(pos = 0, d = q.head, p = NULL; d != NULL; p = d, d = d->next, pos++) {
+	qname = quote_string(d->name);
 	if(pos < npr) fprintf(f, "%3d: %-10s %-4s\n",
-			      pos, d->host->hostname, d->name);
+			      pos, d->host->hostname, qname);
+	amfree(qname);
     }
     if(pos > npr) {
 	if(pos > npr+2) fprintf(f, "  ...\n");
@@ -620,16 +733,17 @@ FILE *f;
     }
 }
 
-char *optionstr(dp, their_features, fdout)
-disk_t *dp;
-am_feature_t * their_features;
-FILE *fdout;
+char *
+optionstr(
+    disk_t *		dp,
+    am_feature_t *	their_features,
+    FILE *		fdout)
 {
     char *auth_opt = NULL;
     char *kencrypt_opt = "";
     char *compress_opt = "";
-    char *encrypt_opt = "";
-    char *decrypt_opt ="";
+    char *encrypt_opt = stralloc("");
+    char *decrypt_opt = stralloc("");
     char *record_opt = "";
     char *index_opt = "";
     char *exclude_file = NULL;
@@ -643,9 +757,15 @@ FILE *fdout;
     sle_t *excl;
     int nb_exclude_file;
     int nb_include_file;
+    char *qdpname;
+    char *qname;
+    int err=0;
 
-    if(dp->host
-       && am_has_feature(dp->host->features, fe_options_auth)) {
+    assert(dp != NULL);
+    assert(dp->host != NULL);
+
+    qdpname = quote_string(dp->name);
+    if(am_has_feature(dp->host->features, fe_options_auth)) {
 	auth_opt = vstralloc("auth=", dp->security_driver, ";", NULL);
     } else if(strcasecmp(dp->security_driver, "bsd") == 0) {
 	if(am_has_feature(dp->host->features, fe_options_bsd_auth))
@@ -653,7 +773,7 @@ FILE *fdout;
 	else if(fdout) {
 	    fprintf(fdout,
 		    "WARNING: %s:%s does not support auth or bsd-auth\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	}
     } else if(strcasecmp(dp->security_driver, "krb4") == 0) {
 	if(am_has_feature(dp->host->features, fe_options_krb4_auth))
@@ -661,7 +781,7 @@ FILE *fdout;
 	else if(fdout) {
 	    fprintf(fdout,
 		    "WARNING: %s:%s does not support auth or krb4-auth\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	}
 	if(dp->kencrypt) {
 	    if(am_has_feature(dp->host->features, fe_options_kencrypt)) {
@@ -670,7 +790,7 @@ FILE *fdout;
 	    else if(fdout) {
 	    fprintf(fdout,
 		    "WARNING: %s:%s does not support kencrypt\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	    }
 	}
     }
@@ -683,7 +803,7 @@ FILE *fdout;
 	else if(fdout) {
 	    fprintf(fdout,
 		    "WARNING: %s:%s does not support fast compression\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	}
 	break;
     case COMP_BEST:
@@ -693,7 +813,7 @@ FILE *fdout;
 	else if(fdout) {
 	    fprintf(fdout,
 		    "WARNING: %s:%s does not support best compression\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	}
 	break;
     case COMP_CUST:
@@ -702,15 +822,16 @@ FILE *fdout;
 	  if (BSTRNCMP(compress_opt, "comp-cust=;") == 0){
 	    if(fdout) {
 	      fprintf(fdout,
-		      "WARNING: %s:%s client custom compression with no compression program specified\n",
-		      dp->host->hostname, dp->name);
+		      "ERROR: %s:%s client custom compression with no compression program specified\n",
+		      dp->host->hostname, qdpname);
 	    }
+	    err++;
 	  }
 	}
 	else if(fdout) {
 	    fprintf(fdout,
 		    "WARNING: %s:%s does not support client custom compression\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	}
 	break;
     case COMP_SERV_FAST:
@@ -729,15 +850,16 @@ FILE *fdout;
 	  if (BSTRNCMP(compress_opt, "srvcomp-cust=;") == 0){
 	    if(fdout) {
 	      fprintf(fdout,
-		      "WARNING: %s:%s server custom compression with no compression program specified\n",
-		      dp->host->hostname, dp->name);
+		      "ERROR: %s:%s server custom compression with no compression program specified\n",
+		      dp->host->hostname, qdpname);
 	    }
+	    err++;
 	  }
 	}
 	else if(fdout) {
 	  fprintf(fdout,
 		  "WARNING: %s:%s does not support server custom compression\n",
-		  dp->host->hostname, dp->name);
+		  dp->host->hostname, qdpname);
 	}
 	break;
     }
@@ -745,56 +867,71 @@ FILE *fdout;
     switch(dp->encrypt) {
     case ENCRYPT_CUST:
       if(am_has_feature(their_features, fe_options_encrypt_cust)) {
-	 encrypt_opt = vstralloc("encrypt-cust=", dp->clnt_encrypt, ";", NULL);
+	 encrypt_opt = newvstralloc(encrypt_opt, "encrypt-cust=",
+				    dp->clnt_encrypt, ";", NULL);
 	 if (BSTRNCMP(encrypt_opt, "encrypt-cust=;") == 0) {
 	    if(fdout) {
 	      fprintf(fdout,
-		      "WARNING: %s:%s encrypt client with no encryption program specified\n",
-		      dp->host->hostname, dp->name);
+		      "ERROR: %s:%s encrypt client with no encryption program specified\n",
+		      dp->host->hostname, qdpname);
 	    }
+	    err++;
+	  }
+	 if ( dp->compress == COMP_SERV_FAST || 
+	      dp->compress == COMP_SERV_BEST ||
+	      dp->compress == COMP_SERV_CUST ) {
+	   if(fdout) {
+	      fprintf(fdout,
+		      "ERROR: %s:Client encryption with server compression is not supported. See amanda.conf(5) for detail.\n", dp->host->hostname);
+	    }
+	    err++;
 	  }
 	 if(dp->clnt_decrypt_opt) {
 	   if(am_has_feature(their_features, fe_options_client_decrypt_option)) {
-	     decrypt_opt = vstralloc("client-decrypt-option=", dp->clnt_decrypt_opt, ";", NULL);
+	     decrypt_opt = newvstralloc(decrypt_opt, "client-decrypt-option=",
+					dp->clnt_decrypt_opt, ";", NULL);
 	   }
 	   else if(fdout) {
 	    fprintf(fdout,
 		    "WARNING: %s:%s does not support client decrypt option\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	   }
 	 }
       }
       else if(fdout) {
 	    fprintf(fdout,
 		    "WARNING: %s:%s does not support client data encryption\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
      }
 	 break;
     case ENCRYPT_SERV_CUST:
       if(am_has_feature(their_features, fe_options_encrypt_serv_cust)) {
-	 encrypt_opt = vstralloc("encrypt-serv-cust=", dp->srv_encrypt, ";", NULL);
+	 encrypt_opt = newvstralloc(encrypt_opt, "encrypt-serv-cust=",
+				    dp->srv_encrypt, ";", NULL);
 	 if (BSTRNCMP(encrypt_opt, "encrypt-serv-cust=;") == 0){
 	    if(fdout) {
 	      fprintf(fdout,
-		      "WARNING: %s:%s encrypt server with no encryption program specified\n",
-		      dp->host->hostname, dp->name);
+		      "ERROR: %s:%s encrypt server with no encryption program specified\n",
+		      dp->host->hostname, qdpname);
 	    }
+	    err++;
 	  }
 	 if(dp->srv_decrypt_opt) {
 	   if(am_has_feature(their_features, fe_options_server_decrypt_option)) {
-	     decrypt_opt = vstralloc("server-decrypt-option=", dp->srv_decrypt_opt, ";", NULL);
+	     decrypt_opt = newvstralloc(decrypt_opt, "server-decrypt-option=",
+					dp->srv_decrypt_opt, ";", NULL);
 	   }
 	   else if(fdout) {
 	    fprintf(fdout,
 		    "WARNING: %s:%s does not support server decrypt option\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	   }
 	 }
       }
       else if(fdout) {
 	    fprintf(fdout,
 		    "WARNING: %s:%s does not support server data encryption\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
       }
 	 break;
     }
@@ -805,7 +942,7 @@ FILE *fdout;
 	}
 	else if(fdout) {
 	    fprintf(fdout, "WARNING: %s:%s does not support no record\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	}
     }
 
@@ -815,7 +952,7 @@ FILE *fdout;
 	}
 	else if(fdout) {
 	    fprintf(fdout, "WARNING: %s:%s does not support index\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	}
     }
 
@@ -831,23 +968,25 @@ FILE *fdout;
 	       dp->exclude_file->nb_element == 1) {
 		for(excl = dp->exclude_file->first; excl != NULL;
 						    excl = excl->next) {
-		    exc = newvstralloc( exc, "exclude-file=", excl->name,
-					";", NULL);
+		    qname = quote_string(excl->name);
+		    exc = newvstralloc( exc, "exclude-file=", qname, ";", NULL);
 		    strappend(exclude_file, exc);
+		    amfree(qname);
 		}
 	    } else {
-		exc = newvstralloc(exc, "exclude-file=",
-				   dp->exclude_file->last->name, ";", NULL);
+		qname = quote_string(dp->exclude_file->last->name);
+		exc = newvstralloc(exc, "exclude-file=", qname, ";", NULL);
 		strappend(exclude_file, exc);
 		if(fdout) {
 		    fprintf(fdout,
 		       "WARNING: %s:%s does not support multiple exclude\n",
-		       dp->host->hostname, dp->name);
+		       dp->host->hostname, qdpname);
 		}
+		amfree(qname);
 	    }
 	} else if(fdout) {
 	    fprintf(fdout, "WARNING: %s:%s does not support exclude file\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	}
     }
     exclude_list = stralloc("");
@@ -857,23 +996,25 @@ FILE *fdout;
 	       (dp->exclude_list->nb_element == 1 && nb_exclude_file == 0)) {
 		for(excl = dp->exclude_list->first; excl != NULL;
 						    excl = excl->next) {
-		    exc = newvstralloc( exc, "exclude-list=", excl->name,
-					";", NULL);
+		    qname = quote_string(excl->name);
+		    exc = newvstralloc( exc, "exclude-list=", qname, ";", NULL);
 		    strappend(exclude_list, exc);
+		    amfree(qname);
 		}
 	    } else {
-		exc = newvstralloc(exc, "exclude-list=",
-				   dp->exclude_list->last->name, ";", NULL);
+		qname = quote_string(dp->exclude_list->last->name);
+		exc = newvstralloc(exc, "exclude-list=", qname, ";", NULL);
 		strappend(exclude_list, exc);
 		if(fdout) {
 			fprintf(fdout,
 			 "WARNING: %s:%s does not support multiple exclude\n",
-			 dp->host->hostname, dp->name);
+			 dp->host->hostname, qdpname);
 		}
+		amfree(qname);
 	    }
 	} else if(fdout) {
 	    fprintf(fdout, "WARNING: %s:%s does not support exclude list\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	}
     }
 
@@ -886,23 +1027,25 @@ FILE *fdout;
 	       dp->include_file->nb_element == 1) {
 		for(excl = dp->include_file->first; excl != NULL;
 						    excl = excl->next) {
-		    exc = newvstralloc( exc, "include-file=", excl->name,
-					";", NULL);
+		    qname = quote_string(excl->name);
+		    exc = newvstralloc(exc, "include-file=", qname, ";", NULL);
 		    strappend(include_file, exc);
+		    amfree(qname);
 		}
 	    } else {
-		exc = newvstralloc(exc, "include-file=",
-				   dp->include_file->last->name, ";", NULL);
+		qname = quote_string(dp->include_file->last->name);
+		exc = newvstralloc(exc, "include-file=", qname, ";", NULL);
 		strappend(include_file, exc);
 		if(fdout) {
 		    fprintf(fdout,
 			 "WARNING: %s:%s does not support multiple include\n",
-			 dp->host->hostname, dp->name);
+			 dp->host->hostname, qdpname);
 		}
+		amfree(qname);
 	    }
 	} else if(fdout) {
 	    fprintf(fdout, "WARNING: %s:%s does not support include file\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	}
     }
     include_list = stralloc("");
@@ -912,23 +1055,25 @@ FILE *fdout;
 	       (dp->include_list->nb_element == 1 && nb_include_file == 0)) {
 		for(excl = dp->include_list->first; excl != NULL;
 						    excl = excl->next) {
-		    exc = newvstralloc( exc, "include-list=", excl->name,
-					";", NULL);
+		    qname = quote_string(excl->name);
+		    exc = newvstralloc(exc, "include-list=", qname, ";", NULL);
 		    strappend(include_list, exc);
+		    amfree(qname);
 		}
 	    } else {
-		exc = newvstralloc(exc, "include-list=",
-				   dp->include_list->last->name, ";", NULL);
+		qname = quote_string(dp->include_list->last->name);
+		exc = newvstralloc(exc, "include-list=", qname, ";", NULL);
 		strappend(include_list, exc);
 		if(fdout) {
 			fprintf(fdout,
 			 "WARNING: %s:%s does not support multiple include\n",
-			 dp->host->hostname, dp->name);
+			 dp->host->hostname, qdpname);
 		}
+		amfree(qname);
 	    }
 	} else if(fdout) {
 	    fprintf(fdout, "WARNING: %s:%s does not support include list\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	}
     }
 
@@ -939,7 +1084,7 @@ FILE *fdout;
 	else if(fdout) {
 	    fprintf(fdout,
 		    "WARNING: %s:%s does not support optional exclude\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	}
     }
     if(dp->include_optional) {
@@ -949,7 +1094,7 @@ FILE *fdout;
 	else if(fdout) {
 	    fprintf(fdout,
 		    "WARNING: %s:%s does not support optional include\n",
-		    dp->host->hostname, dp->name);
+		    dp->host->hostname, qdpname);
 	}
     }
 
@@ -968,20 +1113,34 @@ FILE *fdout;
 		       excl_opt,
 		       incl_opt,
 		       NULL);
+    amfree(qdpname);
     amfree(auth_opt);
     amfree(exclude_list);
     amfree(exclude_file);
     amfree(include_file);
     amfree(include_list);
     amfree(exc);
+    amfree(decrypt_opt);
+    amfree(encrypt_opt);
 
-    return result;
+    /* result contains at least 'auth=...' */
+    if ( err ) {
+	amfree(result);
+	return NULL;
+    } else {
+	return result;
+    }
 }
 
  
-void match_disklist(disklist_t *origqp, int sargc, char **sargv)
+char *
+match_disklist(
+    disklist_t *origqp,
+    int		sargc,
+    char **	sargv)
 {
     char *prevhost = NULL;
+    char *errstr = NULL;
     int i;
     int match_a_host;
     int match_a_disk;
@@ -989,7 +1148,7 @@ void match_disklist(disklist_t *origqp, int sargc, char **sargv)
     disk_t *dp;
 
     if(sargc <= 0)
-	return;
+	return NULL;
 
     for(dp = origqp->head; dp != NULL; dp = dp->next) {
 	if(dp->todo == 1)
@@ -1011,6 +1170,7 @@ void match_disklist(disklist_t *origqp, int sargc, char **sargv)
 		(dp->device && match_disk(sargv[i], dp->device)))) {
 		if(match_a_host) {
 		    error("Argument %s match a host and a disk",sargv[i]);
+		    /*NOTREACHED*/
 		}
 		else {
 		    if(dp->todo == -1) {
@@ -1034,8 +1194,7 @@ void match_disklist(disklist_t *origqp, int sargc, char **sargv)
 		prev_match = 1;
 	    }
 	    else {
-		prev_match = 0;
-		/*error("%s match nothing",sargv[i]);*/
+		vstrextend(&errstr, "Argument '", sargv[i], "' match neither a host nor a disk.\n", NULL);
 	    }
 	}
     }
@@ -1052,18 +1211,20 @@ void match_disklist(disklist_t *origqp, int sargc, char **sargv)
 	if(dp->todo == -1)
 	    dp->todo = 0;
     }
+
+    return errstr;
 }
 
- 
+
 #ifdef TEST
 
-static void dump_disk P((const disk_t *));
-static void dump_disklist P((const disklist_t *));
-int main P((int, char *[]));
+static void dump_disk(const disk_t *);
+static void dump_disklist(const disklist_t *);
+int main(int, char *[]);
 
 static void
-dump_disk(dp)
-    const disk_t *dp;
+dump_disk(
+    const disk_t *	dp)
 {
     printf("  DISK %s (HOST %s, LINE %d) TYPE %s NAME %s SPINDLE %d\n",
 	   dp->name, dp->host->hostname, dp->line, dp->dtype_name,
@@ -1072,8 +1233,8 @@ dump_disk(dp)
 }
 
 static void
-dump_disklist(lst)
-    const disklist_t *lst;
+dump_disklist(
+    const disklist_t *	lst)
 {
     const disk_t *dp, *prev;
     const am_host_t *hp;
@@ -1108,9 +1269,9 @@ dump_disklist(lst)
 }
 
 int
-main(argc, argv)
-     int argc;
-     char *argv[];
+main(
+    int		argc,
+    char **	argv)
 {
   char *conffile;
   char *conf_diskfile;
@@ -1122,6 +1283,8 @@ main(argc, argv)
   safe_fd(-1, 0);
 
   set_pname("diskfile");
+
+  dbopen(DBG_SUBDIR_SERVER);
 
   /* Don't die when child closes pipe */
   signal(SIGPIPE, SIG_IGN);

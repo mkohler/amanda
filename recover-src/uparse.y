@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: uparse.y,v 1.11 2003/01/01 23:28:17 martinea Exp $
+ * $Id: uparse.y,v 1.13 2006/05/25 01:47:14 johnfranks Exp $
  *
  * parser for amrecover interactive language
  */
@@ -32,21 +32,23 @@
 #include "amanda.h"
 #include "amrecover.h"
 
-void yyerror P((char *s));
-extern int yylex P((void));
+void		yyerror(char *s);
+extern int	yylex(void);
+extern char *	yytext;
+
 %}
 
 /* DECLARATIONS */
 %union {
-  int intval;
-  double floatval;
-  char *strval;
-  int subtok;
+	int	intval;
+	double	floatval;
+	char *	strval;
+	int	subtok;
 }
 
 	/* literal keyword tokens */
 
-%token LISTDISK SETHOST SETDISK SETDATE SETTAPE SETMODE
+%token LISTHOST LISTDISK SETHOST SETDISK SETDATE SETTAPE SETMODE
 %token CD CDX QUIT DHIST LS ADD ADDX EXTRACT
 %token LIST DELETE DELETEX PWD CLEAR HELP LCD LPWD MODE SMB TAR
 
@@ -70,10 +72,17 @@ ucommand:
   |     local_command
   |	help_command
   |     extract_command
+  |     {
+	    char * errstr = vstralloc("Invalid command: ", yytext, NULL);
+	    yyerror(errstr);
+	    amfree(errstr);
+	    YYERROR;
+	} /* Quiets compiler warnings about unused label */
   ;
 
 set_command:
-	LISTDISK PATH { list_disk($2); amfree($2); }
+  	LISTHOST { list_host(); }
+  |	LISTDISK PATH { list_disk($2); amfree($2); }
   |	LISTDISK { list_disk(NULL); }
   |	SETDATE DATE { set_date($2); amfree($2); }
   |     SETHOST PATH { set_host($2); amfree($2); }
@@ -166,10 +175,9 @@ extract_command:
 /* ADDITIONAL C CODE */
 %%
 
-void yyerror(s)
-char *s;
+void
+yyerror(
+    char *	s)
 {
-  printf("Invalid command - %s\n", s);
+	printf("%s\n", s);
 }
-
-

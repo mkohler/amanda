@@ -24,17 +24,21 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /* 
- * $Id: sendbackup.h,v 1.18 2005/12/09 03:22:52 paddy_s Exp $
+ * $Id: sendbackup.h,v 1.20 2006/07/25 18:10:07 martinea Exp $
  *
  * a few common decls for the sendbackup-* sources
  */
+#ifndef SENDBACKUP_H
+#define SENDBACKUP_H
+
 #include "amanda.h"
 #include "pipespawn.h"
 #include "client_util.h"
+#include "amandad.h"
 
-void info_tapeheader P((void));
-void start_index P((int createindex, int input, int mesg, 
-		    int index, char *cmd));
+void info_tapeheader(void);
+void start_index(int createindex, int input, int mesg, 
+		    int index, char *cmd);
 
 /*
  * Dump output lines are scanned for two types of regex matches.
@@ -61,24 +65,25 @@ typedef struct regex_s {
     int srcline;
     int scale;                  /* only used for size lines */
     dmpline_t typ;
-} regex_t;
+} amregex_t;
 
 #define AM_NORMAL_RE(re)	{(re), __LINE__, 0, DMP_NORMAL}
 #define AM_STRANGE_RE(re)	{(re), __LINE__, 0, DMP_STRANGE}
 #define AM_SIZE_RE(re,s)	{(re), __LINE__, (s), DMP_SIZE}
 #define AM_ERROR_RE(re)		{(re), __LINE__, 0, DMP_ERROR}
 
-extern int  comppid, dumppid, encpid, tarpid;
-extern int indexpid;
+extern pid_t  comppid, dumppid, encpid, tarpid;
+extern pid_t indexpid;
 extern option_t *options;
+extern g_option_t *g_options;
 
 typedef struct backup_program_s {
     char *name, *backup_name, *restore_name;
-    regex_t *re_table;
-    void (*start_backup) P((char *host, char *disk, char *amdevice, int level, char *dumpdate, 
-			    int dataf, int mesgf, int indexf));
-    void (*end_backup) P((int goterror));
+    amregex_t *re_table;
+    void (*start_backup)(char *host, char *disk, char *amdevice, int level, char *dumpdate, int dataf, int mesgf, int indexf);
+    void (*end_backup)(int goterror);
 } backup_program_t;
 
 extern backup_program_t *programs[], *program;
 
+#endif	/* !SENDBACKUP_H */

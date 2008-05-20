@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: holding.c,v 1.52 2006/03/09 22:01:21 martinea Exp $
+ * $Id: holding.c,v 1.56 2006/06/09 23:07:26 martinea Exp $
  *
  * Functions to access holding disk
  */
@@ -35,10 +35,12 @@
 #include "fileheader.h"
 #include "logfile.h"
 
-static sl_t *scan_holdingdisk P((sl_t *holding_list, char *diskdir, int verbose));
+static sl_t *scan_holdingdisk(sl_t *holding_list, char *diskdir, int verbose);
+static sl_t *scan_holdingdir(sl_t *holding_list, holdingdisk_t *holdp, char *datestamp);
 
-int is_dir(fname)
-char *fname;
+int
+is_dir(
+    char *fname)
 {
     struct stat statbuf;
 
@@ -47,19 +49,26 @@ char *fname;
     return (statbuf.st_mode & S_IFDIR) == S_IFDIR;
 }
 
-int is_emptyfile(fname)
-char *fname;
+int
+is_emptyfile(
+    char *fname)
 {
     struct stat statbuf;
 
     if(stat(fname, &statbuf) == -1) return 0;
 
-    return (statbuf.st_mode & S_IFDIR) != S_IFDIR && statbuf.st_size == 0;
+    return ((statbuf.st_mode & S_IFDIR) != S_IFDIR) &&
+		(statbuf.st_size == (off_t)0);
 }
 
-int is_datestr(fname)
-char *fname;
-/* sanity check on datestamp of the form YYYYMMDD or YYYYMMDDhhmmss*/
+
+/*
+ * sanity check on datestamp of the form YYYYMMDD or YYYYMMDDhhmmss
+ */
+
+int
+is_datestr(
+    char *fname)
 {
     char *cp;
     int ch, num, date, year, month, hour, minute, second;
@@ -105,8 +114,9 @@ char *fname;
 }
 
 
-int non_empty(fname)
-char *fname;
+int
+non_empty(
+    char *	fname)
 {
     DIR *dir;
     struct dirent *entry;
@@ -125,10 +135,11 @@ char *fname;
 }
 
 
-static sl_t *scan_holdingdisk(holding_list, diskdir, verbose)
-sl_t *holding_list;
-char *diskdir;
-int verbose;
+static sl_t *
+scan_holdingdisk(
+    sl_t *	holding_list,
+    char *	diskdir,
+    int		verbose)
 {
     DIR *topdir;
     struct dirent *workdir;
@@ -175,10 +186,11 @@ int verbose;
 }
 
 
-sl_t *scan_holdingdir(holding_list, holdp, datestamp)
-sl_t *holding_list;
-holdingdisk_t *holdp;
-char *datestamp;
+static sl_t *
+scan_holdingdir(
+    sl_t *		holding_list,
+    holdingdisk_t *	holdp,
+    char *		datestamp)
 {
     DIR *workdir;
     struct dirent *entry;
@@ -187,7 +199,7 @@ char *datestamp;
     disk_t *dp;
     dumpfile_t file;
 
-    dirname = vstralloc(holdp->diskdir, "/", datestamp, NULL);
+    dirname = vstralloc(holdingdisk_get_diskdir(holdp), "/", datestamp, NULL);
     if((workdir = opendir(dirname)) == NULL) {
 	if(errno != ENOENT)
 	    log_add(L_INFO, "%s: could not open dir: %s",
@@ -195,7 +207,13 @@ char *datestamp;
 	amfree(dirname);
 	return holding_list;
     }
-    chdir(dirname);
+    if ((chdir(dirname)) == -1) {
+	log_add(L_INFO, "%s: could not chdir: %s",
+		    dirname, strerror(errno));
+	amfree(dirname);
+	return holding_list;
+    }
+
     while((entry = readdir(workdir)) != NULL) {
 	if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
 	    continue;
@@ -237,21 +255,27 @@ char *datestamp;
 
 
 
-sl_t *get_flush(dateargs, datestamp, amflush, verbose)
-sl_t *dateargs;
-char *datestamp;  /* don't do this date */
-int amflush, verbose;
+sl_t *
+get_flush(
+    sl_t *dateargs,
+    char *datestamp,  /* don't do this date */
+    int amflush,
+    int verbose)
 {
     sl_t *holding_list;
     sl_t *date_list;
     sle_t *datearg;
     sle_t *date, *next_date;
     holdingdisk_t *hdisk;
-    char current_dir[1000];
-
-    getcwd(current_dir, 999);
+    char current_dir[PATH_MAX];
 
     holding_list = new_sl();
+
+    if (getcwd(current_dir, SIZEOF(current_dir)-1) == NULL) {
+	log_add(L_INFO, "get_flush: could get current working directory: %s",
+		    strerror(errno));
+	return holding_list;
+    }
 
     if(dateargs) {
 	int ok;
@@ -288,27 +312,32 @@ int amflush, verbose;
 
     free_sl(date_list);
     date_list = NULL;
-    chdir(current_dir);
+    if (chdir(current_dir) == -1) {
+	log_add(L_INFO, "%s: could not chdir: %s",
+		    current_dir, strerror(errno));
+    }
     return(holding_list);
 }
 
 
-sl_t *pick_all_datestamp(verbose)
-int verbose;
+sl_t *
+pick_all_datestamp(
+    int		verbose)
 {
     sl_t *holding_list = NULL;
     holdingdisk_t *hdisk;
 
     holding_list = new_sl();
     for(hdisk = getconf_holdingdisks(); hdisk != NULL; hdisk = hdisk->next)
-	holding_list = scan_holdingdisk(holding_list, hdisk->diskdir, verbose);
+	holding_list = scan_holdingdisk(holding_list, holdingdisk_get_diskdir(hdisk), verbose);
 
     return holding_list;
 }
 
 
-sl_t *pick_datestamp(verbose)
-int verbose;
+sl_t *
+pick_datestamp(
+    int		verbose)
 {
     sl_t *holding_list;
     sl_t *r_holding_list = NULL;
@@ -316,8 +345,8 @@ int verbose;
     char **directories = NULL;
     int i;
     char *answer = NULL;
-    char *a;
-    int ch;
+    char *a = NULL;
+    int ch = 0;
     char max_char = '\0', chupper = '\0';
 
     holding_list = pick_all_datestamp(verbose);
@@ -329,7 +358,7 @@ int verbose;
 	return holding_list;
     }
     else {
-	directories = alloc((holding_list->nb_element) * sizeof(char *));
+	directories = alloc((holding_list->nb_element) * SIZEOF(char *));
 	for(dir = holding_list->first, i=0; dir != NULL; dir = dir->next,i++) {
 	    directories[i] = dir->name;
 	}
@@ -349,16 +378,22 @@ int verbose;
 		clearerr(stdin);
 		continue;
 	    }
-	    a = answer;
-	    while ((ch = *a++) != '\0' && isspace(ch)) {}
-	    if(ch == '\0' || strncasecmp(a, "ALL", 3) == 0) {
+
+	    if (*answer == '\0' || strncasecmp(answer, "ALL", 3) == 0) {
 		break;
 	    }
+
+	    a = answer;
+	    while ((ch = *a++) != '\0') {
+		if (!isspace(ch))
+		    break;
+	    }
+
 	    do {
 		if (isspace(ch) || ch == ',') {
 		    continue;
 		}
-		chupper = toupper(ch);
+		chupper = (char)toupper(ch);
 		if (chupper < 'A' || chupper > max_char) {
 		    free_sl(r_holding_list);
 		    r_holding_list = NULL;
@@ -380,25 +415,28 @@ int verbose;
 }
 
 
-filetype_t get_amanda_names(fname, hostname, diskname, level)
-char *fname, **hostname, **diskname;
-int *level;
+filetype_t
+get_amanda_names( char *	fname,
+    char **	hostname,
+    char **	diskname,
+    int *	level)
 {
     dumpfile_t file;
     char buffer[DISK_BLOCK_BYTES];
     int fd;
     *hostname = *diskname = NULL;
 
+    memset(buffer, 0, sizeof(buffer));
     if((fd = open(fname, O_RDONLY)) == -1)
 	return F_UNKNOWN;
 
-    if(fullread(fd, buffer, sizeof(buffer)) != sizeof(buffer)) {
+    if(fullread(fd, buffer, SIZEOF(buffer)) != (ssize_t)sizeof(buffer)) {
 	aclose(fd);
 	return F_UNKNOWN;
     }
     aclose(fd);
 
-    parse_file_header(buffer,&file,sizeof(buffer));
+    parse_file_header(buffer, &file, SIZEOF(buffer));
     if(file.type != F_DUMPFILE && file.type != F_CONT_DUMPFILE) {
 	return file.type;
     }
@@ -410,58 +448,64 @@ int *level;
 }
 
 
-void get_dumpfile(fname, file)
-char *fname;
-dumpfile_t *file;
+void
+get_dumpfile(
+    char *	fname,
+    dumpfile_t *file)
 {
     char buffer[DISK_BLOCK_BYTES];
     int fd;
+
+    memset(buffer, 0, sizeof(buffer));
 
     fh_init(file);
     file->type = F_UNKNOWN;
     if((fd = open(fname, O_RDONLY)) == -1)
 	return;
 
-    if(fullread(fd, buffer, sizeof(buffer)) != sizeof(buffer)) {
+    if(fullread(fd, buffer, SIZEOF(buffer)) != (ssize_t)sizeof(buffer)) {
 	aclose(fd);
 	return;
     }
     aclose(fd);
 
-    parse_file_header(buffer,file,sizeof(buffer));
+    parse_file_header(buffer, file, SIZEOF(buffer));
     return;
 }
 
 
-long size_holding_files(holding_file, strip_headers)
-char *holding_file;
-int strip_headers;
+off_t
+size_holding_files(
+    char *	holding_file,
+    int		strip_headers)
 {
     int fd;
-    int buflen;
+    ssize_t buflen;
     char buffer[DISK_BLOCK_BYTES];
     dumpfile_t file;
     char *filename;
-    long size=0;
+    off_t size = (off_t)0;
     struct stat finfo;
 
+    memset(buffer, 0, sizeof(buffer));
     filename = stralloc(holding_file);
     while(filename != NULL && filename[0] != '\0') {
 	if((fd = open(filename,O_RDONLY)) == -1) {
 	    fprintf(stderr,"size_holding_files: open of %s failed: %s\n",filename,strerror(errno));
 	    amfree(filename);
-	    return -1;
+	    return (off_t)-1;
 	}
-	if ((buflen = fullread(fd, buffer, sizeof(buffer))) > 0) {
-		parse_file_header(buffer, &file, buflen);
+	if ((buflen = fullread(fd, buffer, SIZEOF(buffer))) > 0) {
+		parse_file_header(buffer, &file, (size_t)buflen);
 	}
 	close(fd);
 	if(stat(filename, &finfo) == -1) {
 	    printf("stat %s: %s\n", filename, strerror(errno));
-	    finfo.st_size = 0;
+	    finfo.st_size = (off_t)0;
 	}
-	size += (finfo.st_size+1023)/1024;
-	if(strip_headers) size -= DISK_BLOCK_BYTES/1024;
+	size += (finfo.st_size+(off_t)1023)/(off_t)1024;
+	if(strip_headers)
+	    size -= (off_t)(DISK_BLOCK_BYTES / 1024);
 	if(buflen > 0) {
 	    filename = newstralloc(filename, file.cont_filename);
 	}
@@ -474,15 +518,17 @@ int strip_headers;
 }
 
 
-int unlink_holding_files( holding_file )
-char *holding_file;
+int
+unlink_holding_files(
+    char *	holding_file)
 {
     int fd;
-    int buflen;
+    ssize_t buflen;
     char buffer[DISK_BLOCK_BYTES];
     dumpfile_t file;
     char *filename;
 
+    memset(buffer, 0, sizeof(buffer));
     filename = stralloc(holding_file);
     while(filename != NULL && filename[0] != '\0') {
 	if((fd = open(filename,O_RDONLY)) == -1) {
@@ -490,8 +536,8 @@ char *holding_file;
 	    amfree(filename);
 	    return 0;
 	}
-	if ((buflen = fullread(fd, buffer, sizeof(buffer))) > 0) {
-	    parse_file_header(buffer, &file, buflen);
+	if ((buflen = fullread(fd, buffer, SIZEOF(buffer))) > 0) {
+	    parse_file_header(buffer, &file, (size_t)buflen);
 	}
 	close(fd);
 	unlink(filename);
@@ -507,17 +553,19 @@ char *holding_file;
 }
 
 
-int rename_tmp_holding( holding_file, complete )
-char *holding_file;
-int complete;
+int
+rename_tmp_holding(
+    char *	holding_file,
+    int		complete)
 {
     int fd;
-    int buflen;
+    ssize_t buflen;
     char buffer[DISK_BLOCK_BYTES];
     dumpfile_t file;
     char *filename;
     char *filename_tmp = NULL;
 
+    memset(buffer, 0, sizeof(buffer));
     filename = stralloc(holding_file);
     while(filename != NULL && filename[0] != '\0') {
 	filename_tmp = newvstralloc(filename_tmp, filename, ".tmp", NULL);
@@ -527,7 +575,7 @@ int complete;
 	    amfree(filename_tmp);
 	    return 0;
 	}
-	buflen = fullread(fd, buffer, sizeof(buffer));
+	buflen = fullread(fd, buffer, SIZEOF(buffer));
 	close(fd);
 
 	if(rename(filename_tmp, filename) != 0) {
@@ -542,7 +590,7 @@ int complete;
 	    amfree(filename_tmp);
 	    return 0;
 	}
-	parse_file_header(buffer, &file, buflen);
+	parse_file_header(buffer, &file, (size_t)buflen);
 	if(complete == 0 ) {
 	    if((fd = open(filename, O_RDWR)) == -1) {
 		fprintf(stderr, "rename_tmp_holdingX: open of %s failed: %s\n",
@@ -553,8 +601,8 @@ int complete;
 
 	    }
 	    file.is_partial = 1;
-	    build_header(buffer, &file, sizeof(buffer));
-	    fullwrite(fd, buffer, sizeof(buffer));
+	    build_header(buffer, &file, SIZEOF(buffer));
+	    fullwrite(fd, buffer, SIZEOF(buffer));
 	    close(fd);
 	}
 	filename = newstralloc(filename, file.cont_filename);
@@ -565,9 +613,10 @@ int complete;
 }
 
 
-void cleanup_holdingdisk(diskdir, verbose)
-char *diskdir;
-int verbose;
+void
+cleanup_holdingdisk(
+    char *	diskdir,
+    int		verbose)
 {
     DIR *topdir;
     struct dirent *workdir;
@@ -583,7 +632,10 @@ int verbose;
 
     if(verbose)
 	printf("Scanning %s...\n", diskdir);
-    chdir(diskdir);
+    if ((chdir(diskdir)) == -1) {
+	log_add(L_INFO, "%s: could not chdir: %s",
+		    diskdir, strerror(errno));
+    }
     while((workdir = readdir(topdir)) != NULL) {
 	if(strcmp(workdir->d_name, ".") == 0
 	   || strcmp(workdir->d_name, "..") == 0
@@ -609,8 +661,9 @@ int verbose;
 }
 
 
-int mkholdingdir(diskdir)
-char *diskdir;
+int
+mkholdingdir(
+    char *	diskdir)
 {
     struct stat stat_hdp;
     int success = 1;

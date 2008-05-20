@@ -56,63 +56,65 @@
    /* Put the tokens into the symbol table, so that GDB and other debuggers
       know about them.  */
    enum yytokentype {
-     LISTDISK = 258,
-     SETHOST = 259,
-     SETDISK = 260,
-     SETDATE = 261,
-     SETTAPE = 262,
-     SETMODE = 263,
-     CD = 264,
-     CDX = 265,
-     QUIT = 266,
-     DHIST = 267,
-     LS = 268,
-     ADD = 269,
-     ADDX = 270,
-     EXTRACT = 271,
-     LIST = 272,
-     DELETE = 273,
-     DELETEX = 274,
-     PWD = 275,
-     CLEAR = 276,
-     HELP = 277,
-     LCD = 278,
-     LPWD = 279,
-     MODE = 280,
-     SMB = 281,
-     TAR = 282,
-     PATH = 283,
-     DATE = 284
+     LISTHOST = 258,
+     LISTDISK = 259,
+     SETHOST = 260,
+     SETDISK = 261,
+     SETDATE = 262,
+     SETTAPE = 263,
+     SETMODE = 264,
+     CD = 265,
+     CDX = 266,
+     QUIT = 267,
+     DHIST = 268,
+     LS = 269,
+     ADD = 270,
+     ADDX = 271,
+     EXTRACT = 272,
+     LIST = 273,
+     DELETE = 274,
+     DELETEX = 275,
+     PWD = 276,
+     CLEAR = 277,
+     HELP = 278,
+     LCD = 279,
+     LPWD = 280,
+     MODE = 281,
+     SMB = 282,
+     TAR = 283,
+     PATH = 284,
+     DATE = 285
    };
 #endif
 /* Tokens.  */
-#define LISTDISK 258
-#define SETHOST 259
-#define SETDISK 260
-#define SETDATE 261
-#define SETTAPE 262
-#define SETMODE 263
-#define CD 264
-#define CDX 265
-#define QUIT 266
-#define DHIST 267
-#define LS 268
-#define ADD 269
-#define ADDX 270
-#define EXTRACT 271
-#define LIST 272
-#define DELETE 273
-#define DELETEX 274
-#define PWD 275
-#define CLEAR 276
-#define HELP 277
-#define LCD 278
-#define LPWD 279
-#define MODE 280
-#define SMB 281
-#define TAR 282
-#define PATH 283
-#define DATE 284
+#define LISTHOST 258
+#define LISTDISK 259
+#define SETHOST 260
+#define SETDISK 261
+#define SETDATE 262
+#define SETTAPE 263
+#define SETMODE 264
+#define CD 265
+#define CDX 266
+#define QUIT 267
+#define DHIST 268
+#define LS 269
+#define ADD 270
+#define ADDX 271
+#define EXTRACT 272
+#define LIST 273
+#define DELETE 274
+#define DELETEX 275
+#define PWD 276
+#define CLEAR 277
+#define HELP 278
+#define LCD 279
+#define LPWD 280
+#define MODE 281
+#define SMB 282
+#define TAR 283
+#define PATH 284
+#define DATE 285
 
 
 
@@ -123,8 +125,10 @@
 #include "amanda.h"
 #include "amrecover.h"
 
-void yyerror P((char *s));
-extern int yylex P((void));
+void		yyerror(char *s);
+extern int	yylex(void);
+extern char *	yytext;
+
 
 
 /* Enabling traces.  */
@@ -146,15 +150,15 @@ extern int yylex P((void));
 #endif
 
 #if ! defined (YYSTYPE) && ! defined (YYSTYPE_IS_DECLARED)
-#line 40 "uparse.y"
+#line 42 "uparse.y"
 typedef union YYSTYPE {
-  int intval;
-  double floatval;
-  char *strval;
-  int subtok;
+	int	intval;
+	double	floatval;
+	char *	strval;
+	int	subtok;
 } YYSTYPE;
 /* Line 196 of yacc.c.  */
-#line 158 "uparse.c"
+#line 162 "uparse.c"
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1
 # define YYSTYPE_IS_TRIVIAL 1
@@ -166,7 +170,7 @@ typedef union YYSTYPE {
 
 
 /* Line 219 of yacc.c.  */
-#line 170 "uparse.c"
+#line 174 "uparse.c"
 
 #if ! defined (YYSIZE_T) && defined (__SIZE_TYPE__)
 # define YYSIZE_T __SIZE_TYPE__
@@ -315,22 +319,22 @@ union yyalloc
 #endif
 
 /* YYFINAL -- State number of the termination state. */
-#define YYFINAL  54
+#define YYFINAL  55
 /* YYLAST -- Last index in YYTABLE.  */
-#define YYLAST   44
+#define YYLAST   45
 
 /* YYNTOKENS -- Number of terminals. */
-#define YYNTOKENS  30
+#define YYNTOKENS  31
 /* YYNNTS -- Number of nonterminals. */
 #define YYNNTS  16
 /* YYNRULES -- Number of rules. */
-#define YYNRULES  47
+#define YYNRULES  49
 /* YYNRULES -- Number of states. */
-#define YYNSTATES  60
+#define YYNSTATES  61
 
 /* YYTRANSLATE(YYLEX) -- Bison symbol number corresponding to YYLEX.  */
 #define YYUNDEFTOK  2
-#define YYMAXUTOK   284
+#define YYMAXUTOK   285
 
 #define YYTRANSLATE(YYX)						\
   ((unsigned int) (YYX) <= YYMAXUTOK ? yytranslate[YYX] : YYUNDEFTOK)
@@ -366,7 +370,7 @@ static const unsigned char yytranslate[] =
        2,     2,     2,     2,     2,     2,     1,     2,     3,     4,
        5,     6,     7,     8,     9,    10,    11,    12,    13,    14,
       15,    16,    17,    18,    19,    20,    21,    22,    23,    24,
-      25,    26,    27,    28,    29
+      25,    26,    27,    28,    29,    30
 };
 
 #if YYDEBUG
@@ -375,37 +379,37 @@ static const unsigned char yytranslate[] =
 static const unsigned char yyprhs[] =
 {
        0,     0,     3,     5,     7,     9,    11,    13,    15,    17,
-      19,    21,    23,    26,    28,    31,    34,    38,    41,    44,
-      46,    49,    52,    55,    58,    60,    62,    65,    67,    69,
-      71,    73,    75,    78,    81,    83,    86,    89,    91,    94,
-      97,    99,   102,   105,   107,   109,   112,   114
+      19,    21,    23,    24,    26,    29,    31,    34,    37,    41,
+      44,    47,    49,    52,    55,    58,    61,    63,    65,    68,
+      70,    72,    74,    76,    78,    81,    84,    86,    89,    92,
+      94,    97,   100,   102,   105,   108,   110,   112,   115,   117
 };
 
 /* YYRHS -- A `-1'-separated list of the rules' RHS. */
 static const yysigned_char yyrhs[] =
 {
-      31,     0,    -1,    32,    -1,    33,    -1,    34,    -1,    35,
-      -1,    37,    -1,    39,    -1,    41,    -1,    43,    -1,    44,
-      -1,    45,    -1,     3,    28,    -1,     3,    -1,     6,    29,
-      -1,     4,    28,    -1,     5,    28,    28,    -1,     5,    28,
-      -1,     7,    28,    -1,     7,    -1,     9,    28,    -1,    10,
-      28,    -1,     8,    26,    -1,     8,    27,    -1,    12,    -1,
-      13,    -1,    17,    28,    -1,    17,    -1,    20,    -1,    21,
-      -1,    25,    -1,    11,    -1,    14,    36,    -1,    36,    28,
-      -1,    28,    -1,    15,    38,    -1,    38,    28,    -1,    28,
-      -1,    18,    40,    -1,    40,    28,    -1,    28,    -1,    19,
-      42,    -1,    42,    28,    -1,    28,    -1,    24,    -1,    23,
-      28,    -1,    22,    -1,    16,    -1
+      32,     0,    -1,    33,    -1,    34,    -1,    35,    -1,    36,
+      -1,    38,    -1,    40,    -1,    42,    -1,    44,    -1,    45,
+      -1,    46,    -1,    -1,     3,    -1,     4,    29,    -1,     4,
+      -1,     7,    30,    -1,     5,    29,    -1,     6,    29,    29,
+      -1,     6,    29,    -1,     8,    29,    -1,     8,    -1,    10,
+      29,    -1,    11,    29,    -1,     9,    27,    -1,     9,    28,
+      -1,    13,    -1,    14,    -1,    18,    29,    -1,    18,    -1,
+      21,    -1,    22,    -1,    26,    -1,    12,    -1,    15,    37,
+      -1,    37,    29,    -1,    29,    -1,    16,    39,    -1,    39,
+      29,    -1,    29,    -1,    19,    41,    -1,    41,    29,    -1,
+      29,    -1,    20,    43,    -1,    43,    29,    -1,    29,    -1,
+      25,    -1,    24,    29,    -1,    23,    -1,    17,    -1
 };
 
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const unsigned char yyrline[] =
 {
-       0,    63,    63,    64,    65,    66,    67,    68,    69,    70,
-      71,    72,    76,    77,    78,    79,    80,    81,    82,    83,
-      84,    85,    86,    91,    99,   100,   101,   102,   103,   104,
-     105,   109,   113,   117,   118,   122,   126,   127,   131,   135,
-     136,   140,   144,   145,   149,   150,   159,   163
+       0,    65,    65,    66,    67,    68,    69,    70,    71,    72,
+      73,    74,    75,    84,    85,    86,    87,    88,    89,    90,
+      91,    92,    93,    94,    95,   100,   108,   109,   110,   111,
+     112,   113,   114,   118,   122,   126,   127,   131,   135,   136,
+     140,   144,   145,   149,   153,   154,   158,   159,   168,   172
 };
 #endif
 
@@ -414,11 +418,11 @@ static const unsigned char yyrline[] =
    First, the terminals, then, starting at YYNTOKENS, nonterminals. */
 static const char *const yytname[] =
 {
-  "$end", "error", "$undefined", "LISTDISK", "SETHOST", "SETDISK",
-  "SETDATE", "SETTAPE", "SETMODE", "CD", "CDX", "QUIT", "DHIST", "LS",
-  "ADD", "ADDX", "EXTRACT", "LIST", "DELETE", "DELETEX", "PWD", "CLEAR",
-  "HELP", "LCD", "LPWD", "MODE", "SMB", "TAR", "PATH", "DATE", "$accept",
-  "ucommand", "set_command", "display_command", "quit_command",
+  "$end", "error", "$undefined", "LISTHOST", "LISTDISK", "SETHOST",
+  "SETDISK", "SETDATE", "SETTAPE", "SETMODE", "CD", "CDX", "QUIT", "DHIST",
+  "LS", "ADD", "ADDX", "EXTRACT", "LIST", "DELETE", "DELETEX", "PWD",
+  "CLEAR", "HELP", "LCD", "LPWD", "MODE", "SMB", "TAR", "PATH", "DATE",
+  "$accept", "ucommand", "set_command", "display_command", "quit_command",
   "add_command", "add_path", "addx_command", "addx_path", "delete_command",
   "delete_path", "deletex_command", "deletex_path", "local_command",
   "help_command", "extract_command", 0
@@ -432,28 +436,29 @@ static const unsigned short int yytoknum[] =
 {
        0,   256,   257,   258,   259,   260,   261,   262,   263,   264,
      265,   266,   267,   268,   269,   270,   271,   272,   273,   274,
-     275,   276,   277,   278,   279,   280,   281,   282,   283,   284
+     275,   276,   277,   278,   279,   280,   281,   282,   283,   284,
+     285
 };
 # endif
 
 /* YYR1[YYN] -- Symbol number of symbol that rule YYN derives.  */
 static const unsigned char yyr1[] =
 {
-       0,    30,    31,    31,    31,    31,    31,    31,    31,    31,
-      31,    31,    32,    32,    32,    32,    32,    32,    32,    32,
-      32,    32,    32,    32,    33,    33,    33,    33,    33,    33,
-      33,    34,    35,    36,    36,    37,    38,    38,    39,    40,
-      40,    41,    42,    42,    43,    43,    44,    45
+       0,    31,    32,    32,    32,    32,    32,    32,    32,    32,
+      32,    32,    32,    33,    33,    33,    33,    33,    33,    33,
+      33,    33,    33,    33,    33,    33,    34,    34,    34,    34,
+      34,    34,    34,    35,    36,    37,    37,    38,    39,    39,
+      40,    41,    41,    42,    43,    43,    44,    44,    45,    46
 };
 
 /* YYR2[YYN] -- Number of symbols composing right hand side of rule YYN.  */
 static const unsigned char yyr2[] =
 {
        0,     2,     1,     1,     1,     1,     1,     1,     1,     1,
-       1,     1,     2,     1,     2,     2,     3,     2,     2,     1,
-       2,     2,     2,     2,     1,     1,     2,     1,     1,     1,
-       1,     1,     2,     2,     1,     2,     2,     1,     2,     2,
-       1,     2,     2,     1,     1,     2,     1,     1
+       1,     1,     0,     1,     2,     1,     2,     2,     3,     2,
+       2,     1,     2,     2,     2,     2,     1,     1,     2,     1,
+       1,     1,     1,     1,     2,     2,     1,     2,     2,     1,
+       2,     2,     1,     2,     2,     1,     1,     2,     1,     1
 };
 
 /* YYDEFACT[STATE-NAME] -- Default rule to reduce with in state
@@ -461,19 +466,20 @@ static const unsigned char yyr2[] =
    means the default is an error.  */
 static const unsigned char yydefact[] =
 {
-       0,    13,     0,     0,     0,    19,     0,     0,     0,    31,
-      24,    25,     0,     0,    47,    27,     0,     0,    28,    29,
-      46,     0,    44,    30,     0,     2,     3,     4,     5,     6,
-       7,     8,     9,    10,    11,    12,    15,    17,    14,    18,
-      22,    23,    20,    21,    34,    32,    37,    35,    26,    40,
-      38,    43,    41,    45,     1,    16,    33,    36,    39,    42
+      12,    13,    15,     0,     0,     0,    21,     0,     0,     0,
+      33,    26,    27,     0,     0,    49,    29,     0,     0,    30,
+      31,    48,     0,    46,    32,     0,     2,     3,     4,     5,
+       6,     7,     8,     9,    10,    11,    14,    17,    19,    16,
+      20,    24,    25,    22,    23,    36,    34,    39,    37,    28,
+      42,    40,    45,    43,    47,     1,    18,    35,    38,    41,
+      44
 };
 
 /* YYDEFGOTO[NTERM-NUM]. */
 static const yysigned_char yydefgoto[] =
 {
-      -1,    24,    25,    26,    27,    28,    45,    29,    47,    30,
-      50,    31,    52,    32,    33,    34
+      -1,    25,    26,    27,    28,    29,    46,    30,    48,    31,
+      51,    32,    53,    33,    34,    35
 };
 
 /* YYPACT[STATE-NUM] -- Index in YYTABLE of the portion describing
@@ -481,12 +487,13 @@ static const yysigned_char yydefgoto[] =
 #define YYPACT_NINF -6
 static const yysigned_char yypact[] =
 {
-      -3,    -5,    -1,     0,     1,     3,    -2,     4,     5,    -6,
-      -6,    -6,     6,     7,    -6,     8,     9,    10,    -6,    -6,
-      -6,    11,    -6,    -6,    26,    -6,    -6,    -6,    -6,    -6,
-      -6,    -6,    -6,    -6,    -6,    -6,    -6,    12,    -6,    -6,
-      -6,    -6,    -6,    -6,    -6,    13,    -6,    14,    -6,    -6,
-      15,    -6,    16,    -6,    -6,    -6,    -6,    -6,    -6,    -6
+      -3,    -6,    -5,    -1,     0,     1,     3,    -2,     4,     5,
+      -6,    -6,    -6,     6,     7,    -6,     8,     9,    10,    -6,
+      -6,    -6,    11,    -6,    -6,    27,    -6,    -6,    -6,    -6,
+      -6,    -6,    -6,    -6,    -6,    -6,    -6,    -6,    12,    -6,
+      -6,    -6,    -6,    -6,    -6,    -6,    13,    -6,    14,    -6,
+      -6,    15,    -6,    16,    -6,    -6,    -6,    -6,    -6,    -6,
+      -6
 };
 
 /* YYPGOTO[NTERM-NUM].  */
@@ -505,18 +512,18 @@ static const unsigned char yytable[] =
 {
        1,     2,     3,     4,     5,     6,     7,     8,     9,    10,
       11,    12,    13,    14,    15,    16,    17,    18,    19,    20,
-      21,    22,    23,    35,    40,    41,    54,    36,    37,     0,
-      38,    39,    42,    43,    44,    46,    48,    49,    51,    53,
-      55,    56,    57,    58,    59
+      21,    22,    23,    24,    36,    41,    42,    55,    37,    38,
+       0,    39,    40,    43,    44,    45,    47,    49,    50,    52,
+      54,    56,    57,    58,    59,    60
 };
 
 static const yysigned_char yycheck[] =
 {
        3,     4,     5,     6,     7,     8,     9,    10,    11,    12,
       13,    14,    15,    16,    17,    18,    19,    20,    21,    22,
-      23,    24,    25,    28,    26,    27,     0,    28,    28,    -1,
-      29,    28,    28,    28,    28,    28,    28,    28,    28,    28,
-      28,    28,    28,    28,    28
+      23,    24,    25,    26,    29,    27,    28,     0,    29,    29,
+      -1,    30,    29,    29,    29,    29,    29,    29,    29,    29,
+      29,    29,    29,    29,    29,    29
 };
 
 /* YYSTOS[STATE-NUM] -- The (internal number of the) accessing
@@ -525,10 +532,11 @@ static const unsigned char yystos[] =
 {
        0,     3,     4,     5,     6,     7,     8,     9,    10,    11,
       12,    13,    14,    15,    16,    17,    18,    19,    20,    21,
-      22,    23,    24,    25,    31,    32,    33,    34,    35,    37,
-      39,    41,    43,    44,    45,    28,    28,    28,    29,    28,
-      26,    27,    28,    28,    28,    36,    28,    38,    28,    28,
-      40,    28,    42,    28,     0,    28,    28,    28,    28,    28
+      22,    23,    24,    25,    26,    32,    33,    34,    35,    36,
+      38,    40,    42,    44,    45,    46,    29,    29,    29,    30,
+      29,    27,    28,    29,    29,    29,    37,    29,    39,    29,
+      29,    41,    29,    43,    29,     0,    29,    29,    29,    29,
+      29
 };
 
 #define yyerrok		(yyerrstatus = 0)
@@ -1198,57 +1206,72 @@ yyreduce:
   switch (yyn)
     {
         case 12:
-#line 76 "uparse.y"
-    { list_disk((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
+#line 75 "uparse.y"
+    {
+	    char * errstr = vstralloc("Invalid command: ", yytext, NULL);
+	    yyerror(errstr);
+	    amfree(errstr);
+	    YYERROR;
+	}
     break;
 
   case 13:
-#line 77 "uparse.y"
-    { list_disk(NULL); }
+#line 84 "uparse.y"
+    { list_host(); }
     break;
 
   case 14:
-#line 78 "uparse.y"
-    { set_date((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
+#line 85 "uparse.y"
+    { list_disk((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
     break;
 
   case 15:
-#line 79 "uparse.y"
-    { set_host((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
+#line 86 "uparse.y"
+    { list_disk(NULL); }
     break;
 
   case 16:
-#line 80 "uparse.y"
-    { set_disk((yyvsp[-1].strval), (yyvsp[0].strval)); amfree((yyvsp[-1].strval)); amfree((yyvsp[0].strval)); }
+#line 87 "uparse.y"
+    { set_date((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
     break;
 
   case 17:
-#line 81 "uparse.y"
-    { set_disk((yyvsp[0].strval), NULL); amfree((yyvsp[0].strval)); }
+#line 88 "uparse.y"
+    { set_host((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
     break;
 
   case 18:
-#line 82 "uparse.y"
-    { set_tape((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
+#line 89 "uparse.y"
+    { set_disk((yyvsp[-1].strval), (yyvsp[0].strval)); amfree((yyvsp[-1].strval)); amfree((yyvsp[0].strval)); }
     break;
 
   case 19:
-#line 83 "uparse.y"
-    { set_tape(""); }
+#line 90 "uparse.y"
+    { set_disk((yyvsp[0].strval), NULL); amfree((yyvsp[0].strval)); }
     break;
 
   case 20:
-#line 84 "uparse.y"
-    { cd_glob((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
+#line 91 "uparse.y"
+    { set_tape((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
     break;
 
   case 21:
-#line 85 "uparse.y"
-    { cd_regex((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
+#line 92 "uparse.y"
+    { set_tape(""); }
     break;
 
   case 22:
-#line 86 "uparse.y"
+#line 93 "uparse.y"
+    { cd_glob((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
+    break;
+
+  case 23:
+#line 94 "uparse.y"
+    { cd_regex((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
+    break;
+
+  case 24:
+#line 95 "uparse.y"
     {
 #ifdef SAMBA_CLIENT
 			 set_mode(SAMBA_SMBCLIENT);
@@ -1256,8 +1279,8 @@ yyreduce:
                     }
     break;
 
-  case 23:
-#line 91 "uparse.y"
+  case 25:
+#line 100 "uparse.y"
     {
 #ifdef SAMBA_CLIENT
 			 set_mode(SAMBA_TAR);
@@ -1265,93 +1288,93 @@ yyreduce:
                     }
     break;
 
-  case 24:
-#line 99 "uparse.y"
+  case 26:
+#line 108 "uparse.y"
     { list_disk_history(); }
     break;
 
-  case 25:
-#line 100 "uparse.y"
+  case 27:
+#line 109 "uparse.y"
     { list_directory(); }
     break;
 
-  case 26:
-#line 101 "uparse.y"
+  case 28:
+#line 110 "uparse.y"
     { display_extract_list((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
     break;
 
-  case 27:
-#line 102 "uparse.y"
+  case 29:
+#line 111 "uparse.y"
     { display_extract_list(NULL); }
     break;
 
-  case 28:
-#line 103 "uparse.y"
+  case 30:
+#line 112 "uparse.y"
     { show_directory(); }
     break;
 
-  case 29:
-#line 104 "uparse.y"
+  case 31:
+#line 113 "uparse.y"
     { clear_extract_list(); }
     break;
 
-  case 30:
-#line 105 "uparse.y"
+  case 32:
+#line 114 "uparse.y"
     { show_mode (); }
     break;
 
-  case 31:
-#line 109 "uparse.y"
+  case 33:
+#line 118 "uparse.y"
     { quit(); }
     break;
 
-  case 33:
-#line 117 "uparse.y"
-    { add_glob((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
-    break;
-
-  case 34:
-#line 118 "uparse.y"
+  case 35:
+#line 126 "uparse.y"
     { add_glob((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
     break;
 
   case 36:
-#line 126 "uparse.y"
-    { add_regex((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
+#line 127 "uparse.y"
+    { add_glob((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
     break;
 
-  case 37:
-#line 127 "uparse.y"
+  case 38:
+#line 135 "uparse.y"
     { add_regex((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
     break;
 
   case 39:
-#line 135 "uparse.y"
-    { delete_glob((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
+#line 136 "uparse.y"
+    { add_regex((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
     break;
 
-  case 40:
-#line 136 "uparse.y"
+  case 41:
+#line 144 "uparse.y"
     { delete_glob((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
     break;
 
   case 42:
-#line 144 "uparse.y"
-    { delete_regex((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
-    break;
-
-  case 43:
 #line 145 "uparse.y"
-    { delete_regex((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
+    { delete_glob((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
     break;
 
   case 44:
-#line 149 "uparse.y"
-    { char buf[STR_SIZE]; puts(getcwd(buf, sizeof(buf))); }
+#line 153 "uparse.y"
+    { delete_regex((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
     break;
 
   case 45:
-#line 150 "uparse.y"
+#line 154 "uparse.y"
+    { delete_regex((yyvsp[0].strval)); amfree((yyvsp[0].strval)); }
+    break;
+
+  case 46:
+#line 158 "uparse.y"
+    { char buf[STR_SIZE]; puts(getcwd(buf, sizeof(buf))); }
+    break;
+
+  case 47:
+#line 159 "uparse.y"
     {
 		if (chdir((yyvsp[0].strval)) == -1) {
 			perror((yyvsp[0].strval));
@@ -1360,13 +1383,13 @@ yyreduce:
 	}
     break;
 
-  case 46:
-#line 159 "uparse.y"
+  case 48:
+#line 168 "uparse.y"
     { help_list(); }
     break;
 
-  case 47:
-#line 163 "uparse.y"
+  case 49:
+#line 172 "uparse.y"
     { extract_files(); }
     break;
 
@@ -1375,7 +1398,7 @@ yyreduce:
     }
 
 /* Line 1126 of yacc.c.  */
-#line 1379 "uparse.c"
+#line 1402 "uparse.c"
 
   yyvsp -= yylen;
   yyssp -= yylen;
@@ -1643,14 +1666,13 @@ yyreturn:
 }
 
 
-#line 167 "uparse.y"
+#line 176 "uparse.y"
 
 
-void yyerror(s)
-char *s;
+void
+yyerror(
+    char *	s)
 {
-  printf("Invalid command - %s\n", s);
+	printf("%s\n", s);
 }
-
-
 

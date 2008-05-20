@@ -22,7 +22,7 @@
 amtapetype - generate a tapetype definition.
 .SH "SYNOPSIS"
 .HP 11
-\fBamtapetype\fR [-h] [-c] [-o] [-b \fIblocksize\fR] [-e \fIestsize\fR] [-f \fItapedev\fR] [-t \fItypename\fR]
+\fBamtapetype\fR [-h] [-c] [-o] [-b \fIblocksize\fR] -e \fIestsize\fR [-f \fItapedev\fR] [-t \fItypename\fR]
 .SH "DESCRIPTION"
 .PP
 \fBamtapetype\fR
@@ -45,7 +45,7 @@ tape.
 record block size (default: 32k)
 .TP
 \fB-e\fR\fI estsize\fR
-estimated tape size (default: 1g == 1024m)
+estimated tape size (No default!)
 .TP
 \fB-f\fR\fI tapedev\fR
 tape device name (default: $TAPE) The device to perform the test.
@@ -58,7 +58,7 @@ Generate a tapetype definition for your tape device:
 .sp
 .nf
 
-% amtapetype -f /dev/nst0
+% amtapetype -f /dev/nst0 -e 150G
 
 .fi
 .SH "NOTES"

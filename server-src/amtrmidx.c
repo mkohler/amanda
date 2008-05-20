@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amtrmidx.c,v 1.34 2006/01/14 04:37:19 paddy_s Exp $
+ * $Id: amtrmidx.c,v 1.42 2006/07/25 18:27:57 martinea Exp $
  *
  * trims number of index files to only those still in system.  Well
  * actually, it keeps a few extra, plus goes back to the last level 0
@@ -41,10 +41,15 @@
 #include "tapefile.h"
 #include "find.h"
 #include "version.h"
+#include "util.h"
 
-static int sort_by_name_reversed(a, b)
-    const void *a;
-    const void *b;
+static int sort_by_name_reversed(const void *a, const void *b);
+
+int main(int argc, char **argv);
+
+static int sort_by_name_reversed(
+    const void *a,
+    const void *b)
 {
     char **ap = (char **) a;
     char **bp = (char **) b;
@@ -52,15 +57,12 @@ static int sort_by_name_reversed(a, b)
     return -1 * strcmp(*ap, *bp);
 }
 
-int main P((int, char **));
 
-int main(argc, argv)
-int argc;
-char **argv;
+int main(int argc, char **argv)
 {
     disk_t *diskp;
     disklist_t diskl;
-    int i;
+    size_t i;
     char *conffile;
     char *conf_diskfile;
     char *conf_tapelist;
@@ -68,6 +70,8 @@ char **argv;
     find_result_t *output_find;
     time_t tmp_time;
     int amtrmidx_debug = 0;
+    int    new_argc,   my_argc;
+    char **new_argv, **my_argv;
 
     safe_fd(-1, 0);
     safe_cd();
@@ -77,27 +81,37 @@ char **argv;
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
-    dbopen();
+    dbopen(DBG_SUBDIR_SERVER);
     dbprintf(("%s: version %s\n", argv[0], version()));
 
-    if (argc > 1 && strcmp(argv[1], "-t") == 0) {
+    parse_server_conf(argc, argv, &new_argc, &new_argv);
+    my_argc = new_argc;
+    my_argv = new_argv;
+
+    if (my_argc > 1 && strcmp(my_argv[1], "-t") == 0) {
 	amtrmidx_debug = 1;
-	argc--;
-	argv++;
+	my_argc--;
+	my_argv++;
     }
 
-    if (argc < 2) {
-	fprintf(stderr, "Usage: %s [-t] <config>\n", argv[0]);
+    if (my_argc < 2) {
+	fprintf(stderr, "Usage: %s [-t] <config> [-o configoption]*\n", my_argv[0]);
 	return 1;
     }
 
-    config_name = argv[1];
+    config_name = my_argv[1];
 
     config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
     conffile = stralloc2(config_dir, CONFFILE_NAME);
-    if (read_conffile(conffile))
+    if (read_conffile(conffile)) {
 	error("errors processing config file \"%s\"", conffile);
+	/*NOTREACHED*/
+    }
     amfree(conffile);
+
+    dbrename(config_name, DBG_SUBDIR_SERVER);
+
+    report_bad_conf_arg();
 
     conf_diskfile = getconf_str(CNF_DISKFILE);
     if(*conf_diskfile == '/') {
@@ -105,8 +119,10 @@ char **argv;
     } else {
 	conf_diskfile = stralloc2(config_dir, conf_diskfile);
     }
-    if (read_diskfile(conf_diskfile, &diskl) < 0)
+    if (read_diskfile(conf_diskfile, &diskl) < 0) {
 	error("could not load disklist \"%s\"", conf_diskfile);
+	/*NOTREACHED*/
+    }
     amfree(conf_diskfile);
 
     conf_tapelist = getconf_str(CNF_TAPELIST);
@@ -115,8 +131,10 @@ char **argv;
     } else {
 	conf_tapelist = stralloc2(config_dir, conf_tapelist);
     }
-    if(read_tapelist(conf_tapelist))
+    if(read_tapelist(conf_tapelist)) {
 	error("could not load tapelist \"%s\"", conf_tapelist);
+	/*NOTREACHED*/
+    }
     amfree(conf_tapelist);
 
     output_find = find_dump(1, &diskl);
@@ -135,114 +153,145 @@ char **argv;
     {
 	if (diskp->index)
 	{
-	    char *indexdir;
+	    char *indexdir, *qindexdir;
 	    DIR *d;
 	    struct dirent *f;
 	    char **names;
-	    int name_length;
-	    int name_count;
+	    size_t name_length;
+	    size_t name_count;
 	    char *host;
-	    char *disk;
+	    char *disk, *qdisk;
+	    size_t len_date;
 
-	    dbprintf(("%s %s\n", diskp->host->hostname, diskp->name));
 
 	    /* get listing of indices, newest first */
 	    host = sanitise_filename(diskp->host->hostname);
 	    disk = sanitise_filename(diskp->name);
+	    qdisk = quote_string(diskp->name);
 	    indexdir = vstralloc(conf_indexdir, "/",
 				 host, "/",
 				 disk, "/",
 				 NULL);
+	    qindexdir = quote_string(indexdir);
+
+	    dbprintf(("%s %s -> %s\n", diskp->host->hostname,
+			qdisk, qindexdir));
 	    amfree(host);
+	    amfree(qdisk);
 	    amfree(disk);
 	    if ((d = opendir(indexdir)) == NULL) {
-		dbprintf(("could not open index directory \"%s\"\n", indexdir));
+		dbprintf(("could not open index directory %s\n", qindexdir));
 		amfree(indexdir);
+	        amfree(qindexdir);
 		continue;
 	    }
 	    name_length = 100;
-	    names = (char **)alloc(name_length * sizeof(char *));
+	    names = (char **)alloc(name_length * SIZEOF(char *));
 	    name_count = 0;
 	    while ((f = readdir(d)) != NULL) {
-		int l;
+		size_t l;
 
 		if(is_dot_or_dotdot(f->d_name)) {
 		    continue;
 		}
-		for(i = 0; i < sizeof("YYYYMMDD")-1; i++) {
+		for(i = 0; i < SIZEOF("YYYYMMDDHHMMSS")-1; i++) {
 		    if(! isdigit((int)(f->d_name[i]))) {
 			break;
 		    }
 		}
-		if(i < sizeof("YYYYMMDD")-1
-		    || f->d_name[i] != '_'
-		    || ! isdigit((int)(f->d_name[i+1]))) {
+		len_date = i;
+		/* len_date=8  for YYYYMMDD       */
+		/* len_date=14 for YYYYMMDDHHMMSS */
+		if((len_date != 8 && len_date != 14)
+		    || f->d_name[len_date] != '_'
+		    || ! isdigit((int)(f->d_name[len_date+1]))) {
 		    continue;			/* not an index file */
 		}
 		/*
 		 * Clear out old index temp files.
 		 */
-		l = strlen(f->d_name) - (sizeof(".tmp")-1);
-		if(l > sizeof("YYYYMMDD_L")-1
-		    && strcmp (f->d_name + l, ".tmp") == 0) {
+		l = strlen(f->d_name) - (SIZEOF(".tmp")-1);
+		if ((l > (len_date + 1))
+			&& (strcmp(f->d_name + l, ".tmp")==0)) {
 		    struct stat sbuf;
-		    char *path;
+		    char *path, *qpath;
 
 		    path = stralloc2(indexdir, f->d_name);
+		    qpath = quote_string(path);
 		    if(lstat(path, &sbuf) != -1
-			&& (sbuf.st_mode & S_IFMT) == S_IFREG
-			&& sbuf.st_mtime < tmp_time) {
-			dbprintf(("rm %s\n", path));
+			&& ((sbuf.st_mode & S_IFMT) == S_IFREG)
+			&& ((time_t)sbuf.st_mtime < tmp_time)) {
+			dbprintf(("rm %s\n", qpath));
 		        if(amtrmidx_debug == 0 && unlink(path) == -1) {
-			    dbprintf(("Error removing \"%s\": %s\n",
-				      path, strerror(errno)));
+			    dbprintf(("Error removing %s: %s\n",
+				      qpath, strerror(errno)));
 		        }
 		    }
+		    amfree(qpath);
 		    amfree(path);
 		    continue;
 		}
 		if(name_count >= name_length) {
 		    char **new_names;
 
-		    new_names = alloc((name_length + 100) * sizeof(char *));
-		    memcpy(new_names, names, name_length * sizeof(char *));
-		    name_length += 100;
+		    new_names = alloc((name_length * 2) * SIZEOF(char *));
+		    memcpy(new_names, names, name_length * SIZEOF(char *));
 		    amfree(names);
 		    names = new_names;
+		    name_length *= 2;
 		}
 		names[name_count++] = stralloc(f->d_name);
 	    }
 	    closedir(d);
-	    qsort(names, name_count, sizeof(char *), sort_by_name_reversed);
+	    qsort(names, name_count, SIZEOF(char *), sort_by_name_reversed);
 
 	    /*
 	     * Search for the first full dump past the minimum number
 	     * of index files to keep.
 	     */
 	    for(i = 0; i < name_count; i++) {
-		if(!dump_exist(output_find,
-					 diskp->host->hostname,diskp->name,
-					 atoi(names[i]),
-					 names[i][sizeof("YYYYMMDD_L")-1-1] - '0')) {
-		    char *path;
+		char *datestamp;
+		int level;
+		size_t len_date;
+
+		for(len_date = 0; len_date < SIZEOF("YYYYMMDDHHMMSS")-1; len_date++) {
+                    if(! isdigit((int)(names[i][len_date]))) {
+                        break;
+                    }
+                }
+
+		datestamp = stralloc(names[i]);
+		datestamp[len_date] = '\0';
+		level = names[i][len_date+1] - '0';
+		if(!dump_exist(output_find, diskp->host->hostname,
+				diskp->name, datestamp, level)) {
+		    char *path, *qpath;
 		    path = stralloc2(indexdir, names[i]);
-		    dbprintf(("rm %s\n", path));
+		    qpath = quote_string(path);
+		    dbprintf(("rm %s\n", qpath));
 		    if(amtrmidx_debug == 0 && unlink(path) == -1) {
-			dbprintf(("Error removing \"%s\": %s\n",
-				  path, strerror(errno)));
+			dbprintf(("Error removing %s: %s\n",
+				  qpath, strerror(errno)));
 		    }
+		    amfree(qpath);
 		    amfree(path);
 		}
+		amfree(datestamp);
 		amfree(names[i]);
 	    }
 	    amfree(names);
 	    amfree(indexdir);
+	    amfree(qindexdir);
 	}
     }
 
     amfree(conf_indexdir);
     amfree(config_dir);
     free_find_result(&output_find);
+    clear_tapelist();
+    free_disklist(&diskl);
+    free_new_argv(new_argc, new_argv);
+    free_server_config();
 
     dbclose();
 

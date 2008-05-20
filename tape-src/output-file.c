@@ -26,7 +26,7 @@
  */
 
 /*
- * $Id: output-file.c,v 1.10 2006/01/14 04:37:20 paddy_s Exp $
+ * $Id: output-file.c,v 1.14 2006/07/06 15:04:18 martinea Exp $
  *
  * tapeio.c virtual tape interface for a file device.
  *
@@ -61,36 +61,43 @@ static
 struct volume_info {
     char *basename;			/* filename from open */
     struct file_info *fi;		/* file info array */
-    int fi_limit;			/* length of file info array */
+    size_t fi_limit;			/* length of file info array */
     int flags;				/* open flags */
-    int mask;				/* open mask */
-    int file_count;			/* number of files */
-    int file_current;			/* current file position */
-    int record_current;			/* current record position */
+    mode_t mask;			/* open mask */
+    off_t file_count;			/* number of files */
+    off_t file_current;			/* current file position */
+    off_t record_current;		/* current record position */
     int fd;				/* data file descriptor */
     int is_online;			/* true if "tape" is "online" */
     int at_bof;				/* true if at begining of file */
     int at_eof;				/* true if at end of file */
     int at_eom;				/* true if at end of medium */
     int last_operation_write;		/* true if last op was a write */
-    long amount_written;		/* KBytes written since open/rewind */
+    off_t amount_written;		/* KBytes written since open/rewind */
 } *volume_info = NULL;
 
 struct file_info {
     char *name;				/* file name (tapefd_getinfo_...) */
     struct record_info *ri;		/* record info array */
-    int ri_count;			/* number of record info entries */
-    int ri_limit;			/* length of record info array */
+    size_t ri_count;			/* number of record info entries */
+    size_t ri_limit;			/* length of record info array */
     int ri_altered;			/* true if record info altered */
 };
 
 struct record_info {
-    int record_size;			/* record size */
-    int start_record;			/* first record in range */ 
-    int end_record;			/* last record in range */ 
+    size_t record_size;			/* record size */
+    off_t start_record;			/* first record in range */ 
+    off_t end_record;			/* last record in range */ 
 };
 
-static int open_count = 0;
+static size_t open_count = 0;
+
+static int check_online(int fd);
+static int file_open(int fd);
+static void file_close(int fd);
+static void file_release(int fd);
+static size_t get_record_size(struct file_info *fi, off_t record);
+static void put_record_size(struct file_info *fi, off_t record, size_t size);
 
 /*
  * "Open" the tape by scanning the "data" directory.  "Tape files"
@@ -113,17 +120,19 @@ static int open_count = 0;
  */
 
 static int
-check_online(fd)
-    int fd;
+check_online(
+    int	fd)
 {
     char *token[MAX_TOKENS];
     DIR *tapedir;
     struct dirent *entry;
     struct file_info *fi;
+    struct file_info **fi_p;
     char *line;
     int f;
-    int pos;
+    off_t pos;
     int rc = 0;
+    char *qname = quote_string(volume_info[fd].basename);
 
     /*
      * If we are already online, there is nothing else to do.
@@ -142,7 +151,7 @@ check_online(fd)
 	 */
 
 	rc = (errno != ENOENT);
-	fprintf(stderr,"ERROR: %s: %s\n", volume_info[fd].basename, strerror(errno));
+	fprintf(stderr,"ERROR: %s (%s)\n", qname, strerror(errno));
 	goto common_exit;
     }
     while ((entry = readdir(tapedir)) != NULL) {
@@ -159,11 +168,13 @@ check_online(fd)
 	    /*
 	     * This is a "tape file".
 	     */
-	    pos = atoi(entry->d_name);
-	    amtable_alloc((void **)&volume_info[fd].fi,
+	    pos = OFF_T_ATOI(entry->d_name);
+	    assert((pos + 1) <= (off_t)SSIZE_MAX);
+            fi_p = &volume_info[fd].fi;
+	    amtable_alloc((void **)fi_p,
 			  &volume_info[fd].fi_limit,
-			  sizeof(*volume_info[fd].fi),
-			  pos + 1,
+			  SIZEOF(*volume_info[fd].fi),
+			  (size_t)(pos + 1),
 			  10,
 			  NULL);
 	    fi = &volume_info[fd].fi[pos];
@@ -175,8 +186,8 @@ check_online(fd)
 		fi->ri_count = 0;
 	    }
 	    fi->name = stralloc(&entry->d_name[6]);
-	    if (pos + 1 > volume_info[fd].file_count) {
-		volume_info[fd].file_count = pos + 1;
+	    if ((pos + 1) > volume_info[fd].file_count) {
+		volume_info[fd].file_count = (pos + 1);
 	    }
 	}
     }
@@ -188,10 +199,10 @@ check_online(fd)
      * opened.
      */
     for (; (line = areads(fd)) != NULL; free(line)) {
-	f = split(line, token, sizeof(token) / sizeof(token[0]), " ");
+	f = split(line, token, (int)(sizeof(token) / sizeof(token[0])), " ");
 	if (f == 2 && strcmp(token[1], "position") == 0) {
-	    volume_info[fd].file_current = atoi(token[2]);
-	    volume_info[fd].record_current = 0;
+	    volume_info[fd].file_current = OFF_T_ATOI(token[2]);
+	    volume_info[fd].record_current = (off_t)0;
 	}
     }
 
@@ -203,13 +214,14 @@ check_online(fd)
     }
     if (volume_info[fd].file_current < 0) {
 	volume_info[fd].file_current = 0;
-	volume_info[fd].record_current = 0;
+	volume_info[fd].record_current = (off_t)0;
     }
 
     volume_info[fd].is_online = 1;
 
 common_exit:
 
+    amfree(qname);
     return rc;
 }
 
@@ -221,14 +233,15 @@ common_exit:
  */
 
 static int
-file_open(fd)
-    int fd;
+file_open(
+    int fd)
 {
     struct file_info *fi;
+    struct file_info **fi_p;
     char *datafilename = NULL;
     char *recordfilename = NULL;
     char *f = NULL;
-    int pos;
+    off_t pos;
     char *host;
     char *disk;
     int level;
@@ -236,19 +249,22 @@ file_open(fd)
     int flags;
     int rfd;
     int n;
-    char *line = NULL;
+    char *line;
     struct record_info *ri;
-    int start_record;
-    int end_record;
-    int record_size;
+    struct record_info **ri_p;
+    off_t start_record;
+    off_t end_record;
+    size_t record_size = 0;
 
     if (volume_info[fd].fd < 0) {
 	flags = volume_info[fd].flags;
 	pos = volume_info[fd].file_current;
-	amtable_alloc((void **)&volume_info[fd].fi,
+	assert((pos + 1) < (off_t)SSIZE_MAX);
+	fi_p = &volume_info[fd].fi;
+	amtable_alloc((void **)fi_p,
 		      &volume_info[fd].fi_limit,
-		      sizeof(*volume_info[fd].fi),
-		      pos + 1,
+		      SIZEOF(*volume_info[fd].fi),
+		      (size_t)(pos + 1),
 		      10,
 		      NULL);
 	fi = &volume_info[fd].fi[pos];
@@ -276,7 +292,7 @@ file_open(fd)
 		host = tapefd_getinfo_host(fd);
 		disk = tapefd_getinfo_disk(fd);
 		level = tapefd_getinfo_level(fd);
-		snprintf(number, sizeof(number), "%d", level);
+		snprintf(number, SIZEOF(number), "%d", level);
 		if (host != NULL) {
 		    f = stralloc(host);
 		}
@@ -285,7 +301,7 @@ file_open(fd)
 		    if (f == NULL) {
 			f = stralloc(disk);
 		    } else {
-			f = newvstralloc(f, f, ".", disk, NULL);
+			vstrextend(&f, ".", disk, NULL);
 		    }
 		    amfree(disk);
 		}
@@ -293,7 +309,7 @@ file_open(fd)
 		    if (f == NULL) {
 			f = stralloc(number);
 		    } else {
-			f = newvstralloc(f, f, ".", number, NULL);
+			vstrextend(&f, ".", number, NULL);
 		    }
 		}
 		if (f == NULL) {
@@ -313,7 +329,8 @@ file_open(fd)
 	    }
 	}
 	if (datafilename == NULL) {
-	    snprintf(number, sizeof(number), "%05d", pos);
+	    snprintf(number, SIZEOF(number),
+		    "%05" OFF_T_RFMT, (OFF_T_FMT_TYPE)pos);
 	    datafilename = vstralloc(volume_info[fd].basename,
 				     number,
 				     DATA_INDICATOR,
@@ -335,20 +352,20 @@ file_open(fd)
 	/*
 	 * Load the record information.
 	 */
-	if (volume_info[fd].fd >= 0
-	    && fi->ri_count == 0
-	    && (rfd = open(recordfilename, O_RDONLY)) >= 0) {
+	if (volume_info[fd].fd >= 0 && fi->ri_count == 0 &&
+		(rfd = open(recordfilename, O_RDONLY)) >= 0) {
 	    for (; (line = areads(rfd)) != NULL; free(line)) {
 		n = sscanf(line,
-			   "%d %d %d",
-			   &start_record,
-			   &end_record,
-			   &record_size);
+			   OFF_T_FMT " "  OFF_T_FMT " " SIZE_T_FMT,
+			   (OFF_T_FMT_TYPE *)&start_record,
+			   (OFF_T_FMT_TYPE *)&end_record,
+			   (SIZE_T_FMT_TYPE *)&record_size);
 		if (n == 3) {
-		    amtable_alloc((void **)&fi->ri,
+                    ri_p = &fi->ri;
+		    amtable_alloc((void **)ri_p,
 				  &fi->ri_limit,
-				  sizeof(*fi->ri),
-				  fi->ri_count + 1,
+				  SIZEOF(*fi->ri),
+				  (size_t)fi->ri_count + 1,
 				  10,
 				  NULL);
 		    ri = &fi->ri[fi->ri_count];
@@ -371,27 +388,31 @@ file_open(fd)
  */
 
 static void
-file_close(fd)
-    int fd;
+file_close(
+    int fd)
 {
     struct file_info *fi;
-    int pos;
+    struct file_info **fi_p;
+    off_t pos;
     char number[NUM_STR_SIZE];
     char *filename = NULL;
-    int r;
+    size_t r;
     FILE *f;
 
     aclose(volume_info[fd].fd);
     pos = volume_info[fd].file_current;
-    amtable_alloc((void **)&volume_info[fd].fi,
+    assert((pos + 1) < (off_t)SSIZE_MAX);
+    fi_p = &volume_info[fd].fi;
+    amtable_alloc((void **)fi_p,
 		  &volume_info[fd].fi_limit,
-		  sizeof(*volume_info[fd].fi),
-		  pos + 1,
+		  SIZEOF(*volume_info[fd].fi),
+		  (size_t)(pos + 1),
 		  10,
 		  NULL);
     fi = &volume_info[fd].fi[pos];
     if (fi->ri_altered) {
-	snprintf(number, sizeof(number), "%05d", pos);
+	snprintf(number, SIZEOF(number),
+		 "%05" OFF_T_RFMT, (OFF_T_FMT_TYPE)pos);
 	filename = vstralloc(volume_info[fd].basename,
 			     number,
 			     RECORD_INDICATOR,
@@ -401,11 +422,10 @@ file_close(fd)
 	    goto common_exit;
 	}
 	for (r = 0; r < fi->ri_count; r++) {
-	    fprintf(f,
-		    "%d %d %d\n",
-		    fi->ri[r].start_record,
-		    fi->ri[r].end_record,
-		    fi->ri[r].record_size);
+	    fprintf(f, OFF_T_FMT " " OFF_T_FMT " " SIZE_T_FMT "\n",
+		    (OFF_T_FMT_TYPE)fi->ri[r].start_record,
+		    (OFF_T_FMT_TYPE)fi->ri[r].end_record,
+		    (SIZE_T_FMT_TYPE)fi->ri[r].record_size);
 	}
 	afclose(f);
 	fi->ri_altered = 0;
@@ -422,13 +442,14 @@ common_exit:
  */
 
 static void
-file_release(fd)
-    int fd;
+file_release(
+    int fd)
 {
-    int position;
+    off_t position;
     char *filename;
-    int pos;
+    off_t pos;
     char number[NUM_STR_SIZE];
+    struct file_info **fi_p;
 
     /*
      * If the current file is open, release everything beyond it.
@@ -440,14 +461,17 @@ file_release(fd)
 	position = volume_info[fd].file_current;
     }
     for (pos = position; pos < volume_info[fd].file_count; pos++) {
-	amtable_alloc((void **)&volume_info[fd].fi,
+	assert(pos < (off_t)SSIZE_MAX);
+        fi_p = &volume_info[fd].fi;
+	amtable_alloc((void **)fi_p,
 		      &volume_info[fd].fi_limit,
-		      sizeof(*volume_info[fd].fi),
-		      pos + 1,
+		      SIZEOF(*volume_info[fd].fi),
+		      (size_t)(pos + 1),
 		      10,
 		      NULL);
 	if (volume_info[fd].fi[pos].name != NULL) {
-	    snprintf(number, sizeof(number), "%05d", pos);
+	    snprintf(number, SIZEOF(number),
+		     "%05" OFF_T_RFMT, (OFF_T_FMT_TYPE)pos);
 	    filename = vstralloc(volume_info[fd].basename,
 				 number,
 				 DATA_INDICATOR,
@@ -474,12 +498,12 @@ file_release(fd)
  * sorted, does not overlap and does not have gaps.
  */
 
-static int
-get_record_size(fi, record)
-    struct file_info *fi;
-    int record;
+static size_t
+get_record_size(
+    struct file_info *	fi,
+    off_t		record)
 {
-    int r;
+    size_t r;
     struct record_info *ri;
 
     for(r = 0; r < fi->ri_count; r++) {
@@ -503,21 +527,22 @@ get_record_size(fi, record)
  */
 
 static void
-put_record_size(fi, record, size)
-    struct file_info *fi;
-    int record;
-    int size;
+put_record_size(
+    struct file_info *	fi,
+    off_t		record,
+    size_t		size)
 {
-    int r;
+    size_t r;
     struct record_info *ri;
+    struct record_info **ri_p;
 
     fi->ri_altered = 1;
-    if (record == 0) {
+    if (record == (off_t)0) {
 	fi->ri_count = 0;			/* start over */
     }
     for(r = 0; r < fi->ri_count; r++) {
 	ri = &fi->ri[r];
-	if (record - 1 <= ri->end_record) {
+	if ((record - (off_t)1) <= ri->end_record) {
 	    /*
 	     * If this record is the same size as the rest of the records
 	     * in this entry, or it would replace the entire entry,
@@ -533,7 +558,7 @@ put_record_size(fi, record, size)
 	    /*
 	     * This record needs a new entry right after the current one.
 	     */
-	    ri->end_record = record - 1;
+	    ri->end_record = record - (off_t)1;
 	    fi->ri_count = r + 1;
 	    break;
 	}
@@ -541,10 +566,11 @@ put_record_size(fi, record, size)
     /*
      * Add a new entry.
      */
-    amtable_alloc((void **)&fi->ri,
+    ri_p = &fi->ri;
+    amtable_alloc((void **)ri_p,
 		  &fi->ri_limit,
-		  sizeof(*fi->ri),
-		  fi->ri_count + 1,
+		  SIZEOF(*fi->ri),
+		  (size_t)fi->ri_count + 1,
 		  10,
 		  NULL);
     ri = &fi->ri[fi->ri_count];
@@ -559,14 +585,15 @@ put_record_size(fi, record, size)
  */
 
 int
-file_tape_open(filename, flags, mask)
-    char *filename;
-    int flags;
-    int mask;
+file_tape_open(
+    char *	filename,
+    int		flags,
+    mode_t	mask)
 {
-    int fd = -1;
+    int fd;
     int save_errno;
-    char *info_file = NULL;
+    char *info_file;
+    struct volume_info **volume_info_p =  &volume_info;
 
     /*
      * Use only O_RDONLY and O_RDWR.
@@ -597,24 +624,24 @@ file_tape_open(filename, flags, mask)
     /*
      * Create the internal info structure for this "tape".
      */
-    amtable_alloc((void **)&volume_info,
+    amtable_alloc((void **)volume_info_p,
 		  &open_count,
-		  sizeof(*volume_info),
-		  fd + 1,
+		  SIZEOF(*volume_info),
+		  (size_t)fd + 1,
 		  10,
 		  NULL);
     volume_info[fd].flags = flags;
     volume_info[fd].mask = mask;
     volume_info[fd].file_count = 0;
     volume_info[fd].file_current = 0;
-    volume_info[fd].record_current = 0;
+    volume_info[fd].record_current = (off_t)0;
     volume_info[fd].fd = -1;
     volume_info[fd].is_online = 0;		/* true when .../data found */
     volume_info[fd].at_bof = 1;			/* by definition */
     volume_info[fd].at_eof = 0;			/* do not know yet */
     volume_info[fd].at_eom = 0;			/* may get reset below */
     volume_info[fd].last_operation_write = 0;
-    volume_info[fd].amount_written = 0;
+    volume_info[fd].amount_written = (off_t)0;
 
     /*
      * Save the base directory name and see if we are "online".
@@ -641,22 +668,22 @@ common_exit:
 }
 
 ssize_t
-file_tapefd_read(fd, buffer, count)
-    int fd;
-    void *buffer;
-    size_t count;
+file_tapefd_read(
+    int		fd,
+    void *	buffer,
+    size_t	count)
 {
-    int result;
+    ssize_t result;
     int file_fd;
-    int pos;
-    int record_size;
-    int read_size;
+    off_t pos;
+    size_t record_size;
+    size_t read_size;
 
     /*
      * Make sure we are online.
      */
-    if ((result = check_online(fd)) != 0) {
-	return result;
+    if (check_online(fd) != 0) {
+	return -1;
     }
     if (! volume_info[fd].is_online) {
 	errno = EIO;
@@ -683,7 +710,7 @@ file_tapefd_read(fd, buffer, count)
      * Open the file, if needed.
      */
     if ((file_fd = file_open(fd)) < 0) {
-	return file_fd;
+	return -1;
     }
 
     /*
@@ -705,10 +732,13 @@ file_tapefd_read(fd, buffer, count)
     result = read(file_fd, buffer, read_size);
     if (result > 0) {
 	volume_info[fd].at_bof = 0;
-	if (result < record_size) {
-	    (void)lseek(file_fd, record_size - result, SEEK_CUR);
+	if ((size_t)result < record_size) {
+	    if (lseek(file_fd, (off_t)(record_size-result), SEEK_CUR) == (off_t)-1) {
+		dbprintf(("file_tapefd_read: lseek failed: <%s>\n",
+			  strerror(errno)));
+	    }
 	}
-	volume_info[fd].record_current++;
+	volume_info[fd].record_current += (off_t)1;
     } else if (result == 0) {
 	volume_info[fd].at_eof = 1;
     }
@@ -716,23 +746,23 @@ file_tapefd_read(fd, buffer, count)
 }
 
 ssize_t
-file_tapefd_write(fd, buffer, count)
-    int fd;
-    const void *buffer;
-    size_t count;
+file_tapefd_write(
+    int		fd,
+    const void *buffer,
+    size_t	count)
 {
     int file_fd;
-    int write_count = count;
-    long length;
-    long kbytes_left;
-    int result;
-    int pos;
+    ssize_t write_count = (ssize_t)count;
+    off_t length;
+    off_t kbytes_left;
+    ssize_t result;
+    off_t pos;
 
     /*
      * Make sure we are online.
      */
-    if ((result = check_online(fd)) != 0) {
-	return result;
+    if (check_online(fd) != 0) {
+	return -1;
     }
     if (! volume_info[fd].is_online) {
 	errno = EIO;
@@ -785,20 +815,20 @@ file_tapefd_write(fd, buffer, count)
     if((file_fd = volume_info[fd].fd) < 0) {
 	file_release(fd);
 	if ((file_fd = file_open(fd)) < 0) {
-	    return file_fd;
+	    return -1;
 	}
     }
 
     /*
      * Truncate the write if requested and return a simulated ENOSPC.
      */
-    if ((length = tapefd_getinfo_length(fd)) > 0) {
+    if ((length = tapefd_getinfo_length(fd)) > (off_t)0) {
 	kbytes_left = length - volume_info[fd].amount_written;
-	if (write_count / 1024 > kbytes_left) {
-	    write_count = kbytes_left * 1024;
+	if ((off_t)(write_count / 1024) > kbytes_left) {
+	    write_count = (ssize_t)kbytes_left * 1024;
 	}
     }
-    volume_info[fd].amount_written += (write_count + 1023) / 1024;
+    volume_info[fd].amount_written += (off_t)((write_count + 1023) / 1024);
     if (write_count <= 0) {
 	volume_info[fd].at_bof = 0;
 	volume_info[fd].at_eom = 1;
@@ -812,40 +842,53 @@ file_tapefd_write(fd, buffer, count)
      * once.
      */
     if (! volume_info[fd].last_operation_write) {
-	(void)ftruncate(file_fd, lseek(file_fd, 0, SEEK_CUR));
+	off_t curpos;
+
+	if ((curpos = lseek(file_fd, (off_t)0, SEEK_CUR)) < 0) {
+	    dbprintf((": Can not determine current file position <%s>",
+		strerror(errno)));
+	    return -1;
+	}
+	if (ftruncate(file_fd, curpos) != 0) {
+	    dbprintf(("ftruncate failed; Can not trim output file <%s>",
+		strerror(errno)));
+	    return -1;
+	}
 	volume_info[fd].at_bof = 0;
 	volume_info[fd].at_eom = 1;
     }
-    result = fullwrite(file_fd, buffer, write_count);
+    result = fullwrite(file_fd, buffer, (size_t)write_count);
     if (result >= 0) {
 	volume_info[fd].last_operation_write = 1;
 	pos = volume_info[fd].file_current;
 	put_record_size(&volume_info[fd].fi[pos],
 			volume_info[fd].record_current,
-			result);
-	volume_info[fd].record_current++;
+			(size_t)result);
+	volume_info[fd].record_current += (off_t)1;
     }
 
     return result;
 }
 
 int
-file_tapefd_close(fd)
-    int fd;
+file_tapefd_close(
+    int	fd)
 {
-    int pos;
+    off_t pos;
     int save_errno;
     char *line;
-    int len;
+    size_t len;
     char number[NUM_STR_SIZE];
-    int result;
+    ssize_t result;
+    struct file_info **fi_p;
+    struct record_info **ri_p;
 
     /*
      * If our last operation was a write, write a tapemark.
      */
     if (volume_info[fd].last_operation_write) {
-	if ((result = file_tapefd_weof(fd, 1)) != 0) {
-	    return result;
+	if ((result = (ssize_t)file_tapefd_weof(fd, (off_t)1)) != 0) {
+	    return (int)result;
 	}
     }
 
@@ -854,8 +897,8 @@ file_tapefd_close(fd)
      * are already at end of tape.
      */
     if (! volume_info[fd].at_bof && ! volume_info[fd].at_eom) {
-	if ((result = file_tapefd_fsf(fd, 1)) != 0) {
-	    return result;
+	if ((result = (ssize_t)file_tapefd_fsf(fd, (off_t)1)) != 0) {
+	    return (int)result;
 	}
     }
 
@@ -867,13 +910,15 @@ file_tapefd_close(fd)
     /*
      * Release the info structure areas.
      */
-    for (pos = 0; pos < volume_info[fd].fi_limit; pos++) {
+    for (pos = 0; pos < (off_t)volume_info[fd].fi_limit; pos++) {
 	amfree(volume_info[fd].fi[pos].name);
-	amtable_free((void **)&volume_info[fd].fi[pos].ri,
+        ri_p = &volume_info[fd].fi[pos].ri;
+	amtable_free((void **)ri_p,
 		     &volume_info[fd].fi[pos].ri_limit);
 	volume_info[fd].fi[pos].ri_count = 0;
     }
-    amtable_free((void **)&volume_info[fd].fi, &volume_info[fd].fi_limit);
+    fi_p = &volume_info[fd].fi;
+    amtable_free((void **)fi_p, &volume_info[fd].fi_limit);
     volume_info[fd].file_count = 0;
     amfree(volume_info[fd].basename);
 
@@ -881,25 +926,25 @@ file_tapefd_close(fd)
      * Update the status file if we were online.
      */
     if (volume_info[fd].is_online) {
-	if (lseek(fd, 0, SEEK_SET) != 0) {
+	if (lseek(fd, (off_t)0, SEEK_SET) != (off_t)0) {
 	    save_errno = errno;
 	    aclose(fd);
 	    errno = save_errno;
 	    return -1;
 	}
-	if (ftruncate(fd, 0) != 0) {
+	if (ftruncate(fd, (off_t)0) != 0) {
 	    save_errno = errno;
 	    aclose(fd);
 	    errno = save_errno;
 	    return -1;
 	}
-	snprintf(number, sizeof(number),
-		 "%d", volume_info[fd].file_current);
+	snprintf(number, SIZEOF(number), "%05" OFF_T_RFMT,
+		 (OFF_T_FMT_TYPE)volume_info[fd].file_current);
 	line = vstralloc("position ", number, "\n", NULL);
 	len = strlen(line);
 	result = write(fd, line, len);
 	amfree(line);
-	if (result != len) {
+	if (result != (ssize_t)len) {
 	    if (result >= 0) {
 		errno = ENOSPC;
 	    }
@@ -915,15 +960,16 @@ file_tapefd_close(fd)
 }
 
 void
-file_tapefd_resetofs(fd)
-    int fd;
+file_tapefd_resetofs(
+    int	fd)
 {
+    (void)fd;	/* Quiet unused parameter warning */
 }
 
 int
-file_tapefd_status(fd, stat)
-    int fd;
-    struct am_mt_status *stat;
+file_tapefd_status(
+    int			 fd,
+    struct am_mt_status *stat)
 {
     int result;
 
@@ -933,33 +979,33 @@ file_tapefd_status(fd, stat)
     if ((result = check_online(fd)) != 0) {
 	return result;
     }
-    memset((void *)stat, 0, sizeof(*stat));
+    memset((void *)stat, 0, SIZEOF(*stat));
     stat->online_valid = 1;
-    stat->online = volume_info[fd].is_online;
+    stat->online = (char)volume_info[fd].is_online;
     return 0;
 }
 
 int
-file_tape_stat(filename, buf)
-     char *filename;
-     struct stat *buf;
+file_tape_stat(
+     char *		filename,
+     struct stat *	buf)
 {
      return stat(filename, buf);
 }
 
 int
-file_tape_access(filename, mode)
-     char *filename;
-     int mode;
+file_tape_access(
+     char *	filename,
+     int	mode)
 {
      return access(filename, mode);
 }
 
 int
-file_tapefd_rewind(fd)
-    int fd;
+file_tapefd_rewind(
+    int fd)
 {
-    int result = 0;
+    int result;
 
     /*
      * Make sure we are online.
@@ -976,7 +1022,7 @@ file_tapefd_rewind(fd)
      * If our last operation was a write, write a tapemark.
      */
     if (volume_info[fd].last_operation_write) {
-	if ((result = file_tapefd_weof(fd, 1)) != 0) {
+	if ((result = file_tapefd_weof(fd, (off_t)1)) != 0) {
 	    return result;
 	}
     }
@@ -990,21 +1036,21 @@ file_tapefd_rewind(fd)
      * Adjust the position and reset the flags.
      */
     volume_info[fd].file_current = 0;
-    volume_info[fd].record_current = 0;
+    volume_info[fd].record_current = (off_t)0;
 
     volume_info[fd].at_bof = 1;
     volume_info[fd].at_eof = 0;
     volume_info[fd].at_eom
       = (volume_info[fd].file_current >= volume_info[fd].file_count);
     volume_info[fd].last_operation_write = 0;
-    volume_info[fd].amount_written = 0;
+    volume_info[fd].amount_written = (off_t)0;
 
     return result;
 }
 
 int
-file_tapefd_unload(fd)
-    int fd;
+file_tapefd_unload(
+    int	fd)
 {
     int result;
 
@@ -1019,15 +1065,16 @@ file_tapefd_unload(fd)
 	return -1;
     }
 
-    file_tapefd_rewind(fd);
+    (void)file_tapefd_rewind(fd);
     return 0;
 }
 
 int
-file_tapefd_fsf(fd, count)
-    int fd, count;
+file_tapefd_fsf(
+    int		fd,
+    off_t	count)
 {
-    int result = 0;
+    int result;
 
     /*
      * Make sure we are online.
@@ -1045,7 +1092,7 @@ file_tapefd_fsf(fd, count)
      * backward, write a tapemark.
      */
     if (volume_info[fd].last_operation_write && count < 0) {
-	if ((result = file_tapefd_weof(fd, 1)) != 0) {
+	if ((result = file_tapefd_weof(fd, (off_t)1)) != 0) {
 	    errno = EIO;
 	    return -1;
 	}
@@ -1078,7 +1125,7 @@ file_tapefd_fsf(fd, count)
 	errno = EIO;
 	result = -1;
     }
-    volume_info[fd].record_current = 0;
+    volume_info[fd].record_current = (off_t)0;
 
     /*
      * Set BOF to true so we can write.  Set to EOF to false if the
@@ -1097,18 +1144,19 @@ file_tapefd_fsf(fd, count)
       = (volume_info[fd].file_current >= volume_info[fd].file_count);
     volume_info[fd].last_operation_write = 0;
     if (volume_info[fd].file_current == 0) {
-	volume_info[fd].amount_written = 0;
+	volume_info[fd].amount_written = (off_t)0;
     }
 
     return result;
 }
 
 int
-file_tapefd_weof(fd, count)
-    int fd, count;
+file_tapefd_weof(
+    int		fd,
+    off_t	count)
 {
     int file_fd;
-    int result = 0;
+    int result;
     char *save_host;
     char *save_disk;
     int save_level;
@@ -1152,10 +1200,28 @@ file_tapefd_weof(fd, count)
      * Close out the current file if open.
      */
     if ((file_fd = volume_info[fd].fd) >= 0) {
-	(void)ftruncate(file_fd, lseek(file_fd, 0, SEEK_CUR));
+	off_t curpos;
+
+	if ((curpos = lseek(file_fd, (off_t)0, SEEK_CUR)) < 0) {
+	    save_errno = errno;
+	    dbprintf((": Can not determine current file position <%s>",
+		strerror(errno)));
+	    file_close(fd);
+	    errno = save_errno;
+	    return -1;
+	}
+	if (ftruncate(file_fd, curpos) != 0) {
+	    save_errno = errno;
+	    dbprintf(("ftruncate failed; Can not trim output file <%s>",
+		strerror(errno)));
+	    file_close(fd);
+	    errno = save_errno;
+	    return -1;
+	}
+	
 	file_close(fd);
 	volume_info[fd].file_current++;
-	volume_info[fd].record_current = 0;
+	volume_info[fd].record_current = (off_t)0;
 	volume_info[fd].at_bof = 1;
 	volume_info[fd].at_eof = 0;
 	volume_info[fd].at_eom = 1;
@@ -1189,7 +1255,7 @@ file_tapefd_weof(fd, count)
 	file_close(fd);
 	volume_info[fd].file_current++;
 	volume_info[fd].file_count = volume_info[fd].file_current;
-	volume_info[fd].record_current = 0;
+	volume_info[fd].record_current = (off_t)0;
 	volume_info[fd].at_bof = 1;
 	volume_info[fd].at_eof = 0;
 	volume_info[fd].at_eom = 1;
@@ -1219,8 +1285,9 @@ file_tapefd_weof(fd, count)
 }
 
 int
-file_tapefd_can_fork(fd)
-    int fd;
+file_tapefd_can_fork(
+    int	fd)
 {
+    (void)fd;	/* Quiet unused parameter warning */
     return 0;
 }

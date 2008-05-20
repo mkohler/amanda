@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: amlogroll.c,v 1.7 2005/09/20 21:32:26 jrjackson Exp $
+ * $Id: amlogroll.c,v 1.14 2006/07/25 18:27:57 martinea Exp $
  *
  * rename a live log file to the datestamped name.
  */
@@ -37,11 +37,10 @@
 
 char *datestamp;
 
-void handle_start P((void));
+void handle_start(void);
+int main(int argc, char **argv);
 
-int main(argc, argv)
-int argc;
-char **argv;
+int main(int argc, char **argv)
 {
     char *conffile;
     char *logfname;
@@ -50,10 +49,14 @@ char **argv;
     unsigned long malloc_hist_1, malloc_size_1;
     unsigned long malloc_hist_2, malloc_size_2;
     char my_cwd[STR_SIZE];
+    int    new_argc,   my_argc;
+    char **new_argv, **my_argv;
 
     safe_fd(-1, 0);
 
     set_pname("amlogroll");
+
+    dbopen(DBG_SUBDIR_SERVER);
 
     malloc_size_1 = malloc_inuse(&malloc_hist_1);
 
@@ -61,17 +64,22 @@ char **argv;
     
     erroutput_type = ERR_INTERACTIVE;
 
-    if (getcwd(my_cwd, sizeof(my_cwd)) == NULL) {
+    if (getcwd(my_cwd, SIZEOF(my_cwd)) == NULL) {
 	error("cannot determine current working directory");
+	/*NOTREACHED*/
     }
 
-    if (argc < 2) {
+    parse_server_conf(argc, argv, &new_argc, &new_argv);
+    my_argc = new_argc;
+    my_argv = new_argv;
+
+    if (my_argc < 2) {
 	config_dir = stralloc2(my_cwd, "/");
 	if ((config_name = strrchr(my_cwd, '/')) != NULL) {
 	    config_name = stralloc(config_name + 1);
 	}
     } else {
-	config_name = stralloc(argv[1]);
+	config_name = stralloc(my_argv[1]);
 	config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
     }
 
@@ -82,8 +90,13 @@ char **argv;
     conffile = stralloc2(config_dir, CONFFILE_NAME);
     if(read_conffile(conffile)) {
         error("errors processing config file \"%s\"", conffile);
+	/*NOTREACHED*/
     }
     amfree(conffile);
+
+    dbrename(config_name, DBG_SUBDIR_SERVER);
+
+    report_bad_conf_arg();
 
     conf_logdir = getconf_str(CNF_LOGDIR);
     if (*conf_logdir == '/') {
@@ -96,6 +109,7 @@ char **argv;
 
     if((logfile = fopen(logfname, "r")) == NULL) {
 	error("could not open log %s: %s", logfname, strerror(errno));
+	/*NOTREACHED*/
     }
     amfree(logfname);
 
@@ -117,6 +131,8 @@ char **argv;
     amfree(datestamp);
     amfree(config_dir);
     amfree(config_name);
+    free_new_argv(new_argc, new_argv);
+    free_server_config();
 
     malloc_size_2 = malloc_inuse(&malloc_hist_2);
 
@@ -124,10 +140,12 @@ char **argv;
 	malloc_list(fileno(stderr), malloc_hist_1, malloc_hist_2);
     }
 
+    dbclose();
+
     return 0;
 }
 
-void handle_start()
+void handle_start(void)
 {
     static int started = 0;
     char *s, *fp;
@@ -139,10 +157,10 @@ void handle_start()
 
 	skip_whitespace(s, ch);
 #define sc "date"
-	if(ch == '\0' || strncmp(s - 1, sc, sizeof(sc)-1) != 0) {
+	if(ch == '\0' || strncmp(s - 1, sc, SIZEOF(sc)-1) != 0) {
 	    return;				/* ignore bogus line */
 	}
-	s += sizeof(sc)-1;
+	s += SIZEOF(sc) - 1;
 	ch = s[-1];
 #undef sc
 	skip_whitespace(s, ch);
@@ -153,7 +171,7 @@ void handle_start()
 	skip_non_whitespace(s, ch);
 	s[-1] = '\0';
 	datestamp = newstralloc(datestamp, fp);
-	s[-1] = ch;
+	s[-1] = (char)ch;
 
 	started = 1;
     }

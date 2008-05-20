@@ -25,7 +25,7 @@
  */
 
 /*
- * $Id: amandad.c,v 1.62.2.2 2006/05/08 11:50:16 martinea Exp $
+ * $Id: amandad.c,v 1.18 2006/08/21 20:17:09 martinea Exp $
  *
  * handle client-host side of Amanda network communications, including
  * security checks, execution of the proper service, and acking the
@@ -45,7 +45,6 @@
 #include "security.h"
 #include "stream.h"
 #include "util.h"
-#include "client_util.h"
 
 #define	REP_TIMEOUT	(6*60*60)	/* secs for service to reply */
 #define	ACK_TIMEOUT  	10		/* XXX should be configurable */
@@ -62,7 +61,7 @@ typedef enum { A_START, A_RECVPKT, A_RECVREP, A_PENDING, A_FINISH, A_CONTINUE,
  * the function that actually implements the state.
  */
 struct active_service;
-typedef action_t (*state_t) P((struct active_service *, action_t, pkt_t *));
+typedef action_t (*state_t)(struct active_service *, action_t, pkt_t *);
 
 /*
  * This structure describes an active running service.
@@ -84,16 +83,19 @@ struct active_service {
     event_handle_t *ev_repfd;		/* read event handle for repfd */
     event_handle_t *ev_reptimeout;	/* timeout for rep data */
     pkt_t rep_pkt;			/* rep packet we're sending out */
-    char repbuf[MAX_PACKET];		/* buffer to read the rep into */
-    int repbufsize;			/* length of repbuf */
+    char *repbuf;			/* buffer to read the rep into */
+    size_t bufsize;			/* length of repbuf */
+    size_t repbufsize;			/* length of repbuf */
     int repretry;			/* times we'll retry sending the rep */
     /*
      * General user streams to the process, and their equivalent
      * network streams.
      */
     struct datafd_handle {
-	int fd;				/* pipe to child process */
-	event_handle_t *ev_handle;	/* it's read event handle */
+	int fd_read;			/* pipe to child process */
+	int fd_write;			/* pipe to child process */
+	event_handle_t *ev_read;	/* it's read event handle */
+	event_handle_t *ev_write;	/* it's write event handle */
 	security_stream_t *netfd;	/* stream to amanda server */
 	struct active_service *as;	/* pointer back to our enclosure */
     } data[DATA_FD_COUNT];
@@ -104,13 +106,18 @@ struct active_service {
 /* 
  * Here are the services that we allow.
  */
-static const char *services[] = {
-    "noop",
-    "sendsize",
-    "sendbackup",
-    "selfcheck",
+static struct services {
+    char *name;
+    int  active;
+} services[] = {
+    { "noop", 1 },
+    { "sendsize", 1 },
+    { "sendbackup", 1 },
+    { "selfcheck", 1 },
+    { "amindexd", 0 },
+    { "amidxtaped", 0 }
 };
-#define	NSERVICES	(sizeof(services) / sizeof(services[0]))
+#define	NSERVICES	(int)(sizeof(services) / sizeof(services[0]))
 
 /*
  * Queue of outstanding requests that we are running.
@@ -133,52 +140,79 @@ static struct {
 } dbmalloc_info;
 #endif
 
-int ack_timeout     = ACK_TIMEOUT;
+static int wait_30s = 1;
+static int exit_on_qlength = 1;
+static char *auth = NULL;
 
-int main P((int argc, char **argv));
+int main(int argc, char **argv);
 
-static int allocstream P((struct active_service *, int));
-static void exit_check P((void *));
-static void protocol_accept P((security_handle_t *, pkt_t *));
-static void state_machine P((struct active_service *, action_t, pkt_t *));
+static int allocstream(struct active_service *, int);
+static void exit_check(void *);
+static void protocol_accept(security_handle_t *, pkt_t *);
+static void state_machine(struct active_service *, action_t, pkt_t *);
 
-static action_t s_sendack P((struct active_service *, action_t, pkt_t *));
-static action_t s_repwait P((struct active_service *, action_t, pkt_t *));
-static action_t s_processrep P((struct active_service *, action_t, pkt_t *));
-static action_t s_sendrep P((struct active_service *, action_t, pkt_t *));
-static action_t s_ackwait P((struct active_service *, action_t, pkt_t *));
+static action_t s_sendack(struct active_service *, action_t, pkt_t *);
+static action_t s_repwait(struct active_service *, action_t, pkt_t *);
+static action_t s_processrep(struct active_service *, action_t, pkt_t *);
+static action_t s_sendrep(struct active_service *, action_t, pkt_t *);
+static action_t s_ackwait(struct active_service *, action_t, pkt_t *);
 
-static void repfd_recv P((void *));
-static void timeout_repfd P((void *));
-static void protocol_recv P((void *, pkt_t *, security_status_t));
-static void process_netfd P((void *));
-static struct active_service *service_new P((security_handle_t *,
-    const char *, const char *));
-static void service_delete P((struct active_service *));
-static int writebuf P((struct active_service *, const void *, size_t));
-static int do_sendpkt P((security_handle_t *handle, pkt_t *pkt));
+static void repfd_recv(void *);
+static void timeout_repfd(void *);
+static void protocol_recv(void *, pkt_t *, security_status_t);
+static void process_readnetfd(void *);
+static void process_writenetfd(void *, void *, ssize_t);
+static struct active_service *service_new(security_handle_t *,
+    const char *, const char *);
+static void service_delete(struct active_service *);
+static int writebuf(struct active_service *, const void *, size_t);
+static ssize_t do_sendpkt(security_handle_t *handle, pkt_t *pkt);
+
+static void child_signal(int signal);
 
 #ifdef AMANDAD_DEBUG
-static const char *state2str P((state_t));
-static const char *action2str P((action_t));
+static const char *state2str(state_t);
+static const char *action2str(action_t);
 #endif
 
-int
-main(argc, argv)
-    int argc;
-    char **argv;
+/*
+ * Harvests defunct processes...
+ */
+
+static void
+child_signal(
+    int		signal)
 {
-    int i, in, out;
+    pid_t	rp;
+
+    (void)signal;	/* Quite compiler warning */
+    /*
+     * Reap and child status and promptly ignore since we don't care...
+     */
+    do {
+    	rp = waitpid(-1, NULL, WNOHANG);
+    } while (rp > 0);
+}
+
+int
+main(
+    int		argc,
+    char **	argv)
+{
+    int i, j;
+    int have_services;
+    int in, out;
     const security_driver_t *secdrv;
     int no_exit = 0;
+    struct sigaction act, oact;
     char *pgm = "amandad";		/* in case argv[0] is not set */
+#if defined(AMANDAD_DEBUG) && defined(USE_REUSEADDR)
+    const int on = 1;
+    int r;
+#endif
 
     safe_fd(-1, 0);
     safe_cd();
-
-    if(argv == NULL) {
-	error("argv == NULL\n");
-    }
 
     /*
      * When called via inetd, it is not uncommon to forget to put the
@@ -186,18 +220,30 @@ main(argc, argv)
      * this causes argv and/or argv[0] to be NULL, so we have to be
      * careful getting our name.
      */
-    if (argc >= 1 && argv != NULL && argv[0] != NULL) {
-	if((pgm = strrchr(argv[0], '/')) != NULL) {
-	    pgm++;
-	} else {
-	    pgm = argv[0];
-	}
+    if ((argv == NULL) || (argv[0] == NULL)) {
+	    pgm = "amandad";		/* in case argv[0] is not set */
+    } else {
+	    pgm = basename(argv[0]);	/* Strip of leading path get debug name */
     }
-
     set_pname(pgm);
+    dbopen(DBG_SUBDIR_AMANDAD);
+
+    if(argv == NULL) {
+	error("argv == NULL\n");
+	/*NOTREACHED*/
+    }
 
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
+
+    /* Tell me when a child exits or dies... */
+    act.sa_handler = child_signal;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = 0;
+    if(sigaction(SIGCHLD, &act, &oact) != 0) {
+	error("error setting SIGCHLD handler: %s", strerror(errno));
+	/*NOTREACHED*/
+    }
 
 #ifdef USE_DBMALLOC
     dbmalloc_info.start.size = malloc_inuse(&dbmalloc_info.start.hist);
@@ -210,6 +256,7 @@ main(argc, argv)
     if (geteuid() == 0) {
 	if(client_uid == (uid_t) -1) {
 	    error("error [cannot find user %s in passwd file]\n", CLIENT_LOGIN);
+	    /*NOTREACHED*/
 	}
 	initgroups(CLIENT_LOGIN, client_gid);
 	setgid(client_gid);
@@ -227,9 +274,11 @@ main(argc, argv)
      *			-tcp=[port]
      *			-udp=[port]
 #endif
+     * We also add a list of services that amandad can launch
      */
     secdrv = NULL;
     in = 0; out = 1;		/* default to stdin/stdout */
+    have_services = 0;
     for (i = 1; i < argc; i++) {
 	/*
 	 * accept -krb4 as an alias for -auth=krb4 (for compatibility)
@@ -237,16 +286,20 @@ main(argc, argv)
 	if (strcmp(argv[i], "-krb4") == 0) {
 	    argv[i] = "-auth=krb4";
 	    /* FALLTHROUGH */
+	    auth = "krb4";
 	}
 
 	/*
 	 * Get a driver for a security type specified after -auth=
 	 */
-	if (strncmp(argv[i], "-auth=", strlen("-auth=")) == 0) {
+	else if (strncmp(argv[i], "-auth=", strlen("-auth=")) == 0) {
 	    argv[i] += strlen("-auth=");
 	    secdrv = security_getdriver(argv[i]);
-	    if (secdrv == NULL)
-		error("no driver for security type '%s'", argv[i]);
+	    auth = argv[i];
+	    if (secdrv == NULL) {
+		error("no driver for security type '%s'\n", argv[i]);
+                /*NOTREACHED*/
+	    }
 	    continue;
 	}
 
@@ -254,7 +307,7 @@ main(argc, argv)
 	 * If -no-exit is specified, always run even after requests have
 	 * been satisfied.
 	 */
-	if (strcmp(argv[i], "-no-exit") == 0) {
+	else if (strcmp(argv[i], "-no-exit") == 0) {
 	    no_exit = 1;
 	    continue;
 	}
@@ -264,44 +317,102 @@ main(argc, argv)
 	 * Allow us to directly bind to a udp port for debugging.
 	 * This may only apply to some security types.
 	 */
-	if (strncmp(argv[i], "-udp=", strlen("-udp=")) == 0) {
+	else if (strncmp(argv[i], "-udp=", strlen("-udp=")) == 0) {
 	    struct sockaddr_in sin;
 
 	    argv[i] += strlen("-udp=");
 	    in = out = socket(AF_INET, SOCK_DGRAM, 0);
-	    if (in < 0)
+	    if (in < 0) {
 		error("can't create dgram socket: %s\n", strerror(errno));
-	    sin.sin_family = AF_INET;
+		/*NOTREACHED*/
+	    }
+#ifdef USE_REUSEADDR
+	    r = setsockopt(in, SOL_SOCKET, SO_REUSEADDR,
+		(void *)&on, (socklen_t)sizeof(on));
+	    if (r < 0) {
+		dbprintf(("%s: amandad: setsockopt(SO_REUSEADDR) failed: %s\n",
+			  debug_prefix(NULL),
+			  strerror(errno)));
+	    }
+#endif
+
+	    sin.sin_family = (sa_family_t)AF_INET;
 	    sin.sin_addr.s_addr = INADDR_ANY;
-	    sin.sin_port = htons(atoi(argv[i]));
-	    if (bind(in, (struct sockaddr *)&sin, sizeof(sin)) < 0)
+	    sin.sin_port = (in_port_t)htons((in_port_t)atoi(argv[i]));
+	    if (bind(in, (struct sockaddr *)&sin, (socklen_t)sizeof(sin)) < 0) {
 		error("can't bind to port %d: %s\n", atoi(argv[i]),
 		    strerror(errno));
+		/*NOTREACHED*/
+	    }
 	}
 	/*
 	 * Ditto for tcp ports.
 	 */
-	if (strncmp(argv[i], "-tcp=", strlen("-tcp=")) == 0) {
+	else if (strncmp(argv[i], "-tcp=", strlen("-tcp=")) == 0) {
 	    struct sockaddr_in sin;
-	    int sock, n;
+	    int sock;
+	    socklen_t n;
 
 	    argv[i] += strlen("-tcp=");
 	    sock = socket(AF_INET, SOCK_STREAM, 0);
-	    if (sock < 0)
+	    if (sock < 0) {
 		error("can't create tcp socket: %s\n", strerror(errno));
+		/*NOTREACHED*/
+	    }
 	    n = 1;
-	    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *)&n, sizeof(n));
-	    sin.sin_family = AF_INET;
+#ifdef USE_REUSEADDR
+	    r = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+		(void *)&on, (socklen_t)sizeof(on));
+	    if (r < 0) {
+		dbprintf(("%s: amandad: setsockopt(SO_REUSEADDR) failed: %s\n",
+			  debug_prefix(NULL),
+			  strerror(errno)));
+	    }
+#endif
+	    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+		(void *)&n, (socklen_t)sizeof(n));
+	    sin.sin_family = (sa_family_t)AF_INET;
 	    sin.sin_addr.s_addr = INADDR_ANY;
-	    sin.sin_port = htons(atoi(argv[i]));
-	    if (bind(sock, (struct sockaddr *)&sin, sizeof(sin)) < 0)
+	    sin.sin_port = (in_port_t)htons((in_port_t)atoi(argv[i]));
+	    if (bind(sock, (struct sockaddr *)&sin, (socklen_t)sizeof(sin)) < 0) {
 		error("can't bind to port %d: %s\n", atoi(argv[i]),
 		    strerror(errno));
+		/*NOTREACHED*/
+	    }
 	    listen(sock, 10);
-	    n = sizeof(sin);
+	    n = (socklen_t)sizeof(sin);
 	    in = out = accept(sock, (struct sockaddr *)&sin, &n);
 	}
 #endif
+	/*
+	 * It must be a service name
+	 */
+	else {
+	    /* clear all services */
+	    if(!have_services) {
+		for (j = 0; j < (int)NSERVICES; j++)
+		    services[j].active = 0;
+	    }
+	    have_services = 1;
+
+	    if(strcmp(argv[i],"amdump") == 0) {
+		services[0].active = 1;
+		services[1].active = 1;
+		services[2].active = 1;
+		services[3].active = 1;
+	    }
+	    else {
+		for (j = 0; j < (int)NSERVICES; j++)
+		    if (strcmp(services[j].name, argv[i]) == 0)
+			break;
+		if (j == (int)NSERVICES) {
+		    dbprintf(("%s: %s: invalid service\n",
+			      debug_prefix_time(NULL), argv[i]));
+		    exit(1);
+		}
+		services[j].active = 1;
+	    }
+	}
     }
 
     /*
@@ -309,20 +420,21 @@ main(argc, argv)
      */
     if (secdrv == NULL) {
 	secdrv = security_getdriver("BSD");
-	if (secdrv == NULL)
-	    error("no driver for default security type 'BSD'");
+	auth = "bsd";
+	if (secdrv == NULL) {
+	    error("no driver for default security type 'BSD'\n");
+	    /*NOTREACHED*/
+	}
+    }
+
+    if(strcasecmp(auth, "rsh") == 0 ||
+       strcasecmp(auth, "ssh") == 0 ||
+       strcasecmp(auth, "bsdtcp") == 0) {
+	wait_30s = 0;
+	exit_on_qlength = 1;
     }
 
     /* initialize */
-
-    dbopen();
-    {
-	/* this lameness is for error() */
-	int db_fd = dbfd();
-	if(db_fd != -1) {
-	    dup2(db_fd, 2);
-	}
-    }
 
     startclock();
 
@@ -346,7 +458,8 @@ main(argc, argv)
      * Schedule an event that will try to exit every 30 seconds if there
      * are no requests outstanding.
      */
-    (void)event_register(30, EV_TIME, exit_check, &no_exit);
+    if(wait_30s)
+	(void)event_register((event_id_t)30, EV_TIME, exit_check, &no_exit);
 
     /*
      * Call event_loop() with an arg of 0, telling it to block until all
@@ -354,8 +467,10 @@ main(argc, argv)
      */
     event_loop(0);
 
-    /* NOTREACHED */
-    exit(1);	/* appease gcc/lint */
+    close(in);
+    close(out);
+    dbclose();
+    return(0);
 }
 
 /*
@@ -363,8 +478,8 @@ main(argc, argv)
  * still running.  If we don't, then we quit.
  */
 static void
-exit_check(cookie)
-    void *cookie;
+exit_check(
+    void *	cookie)
 {
     int no_exit;
 
@@ -401,14 +516,24 @@ exit_check(cookie)
  * security_accept(), which gets called when new handles are detected.
  */
 static void
-protocol_accept(handle, pkt)
-    security_handle_t *handle;
-    pkt_t *pkt;
+protocol_accept(
+    security_handle_t *	handle,
+    pkt_t *		pkt)
 {
     pkt_t pkt_out;
     struct active_service *as;
     char *pktbody, *tok, *service, *arguments;
+    char *service_path = NULL;
     int i;
+
+    pkt_out.body = NULL;
+
+    /*
+     * If handle is NULL, then the connection is closed.
+     */
+    if(handle == NULL) {
+	return;
+    }
 
     /*
      * If pkt is NULL, then there was a problem with the new connection.
@@ -418,6 +543,7 @@ protocol_accept(handle, pkt)
 	    debug_prefix_time(NULL), security_geterror(handle)));
 	pkt_init(&pkt_out, P_NAK, "ERROR %s\n", security_geterror(handle));
 	do_sendpkt(handle, &pkt_out);
+	amfree(pkt_out.body);
 	security_close(handle);
 	return;
     }
@@ -462,36 +588,35 @@ protocol_accept(handle, pkt)
     arguments = stralloc(tok);
 
     /* see if it's one we allow */
-    for (i = 0; i < NSERVICES; i++)
-	if (strcmp(services[i], service) == 0)
+    for (i = 0; i < (int)NSERVICES; i++)
+	if (services[i].active == 1 && strcmp(services[i].name, service) == 0)
 	    break;
-    if (i == NSERVICES) {
+    if (i == (int)NSERVICES) {
 	dbprintf(("%s: %s: invalid service\n",
 	    debug_prefix_time(NULL), service));
 	pkt_init(&pkt_out, P_NAK, "ERROR %s: invalid service\n", service);
 	goto send_pkt_out;
     }
 
-    service = newvstralloc(service,
-		       libexecdir, "/", service, versionsuffix(),
-		       NULL);
-    if (access(service, X_OK) < 0) {
+    service_path = vstralloc(libexecdir, "/", service, versionsuffix(), NULL);
+    if (access(service_path, X_OK) < 0) {
 	dbprintf(("%s: can't execute %s: %s\n",
-	    debug_prefix_time(NULL), service, strerror(errno)));
-	    pkt_init(&pkt_out, P_NAK, "ERROR execute access to \"%s\" denied\n",
-	    service);
+	    debug_prefix_time(NULL), service_path, strerror(errno)));
+	    pkt_init(&pkt_out, P_NAK,
+		     "ERROR execute access to \"%s\" denied\n",
+		     service_path);
 	goto send_pkt_out;
     }
 
     /* see if its already running */
     for (as = TAILQ_FIRST(&serviceq.tailq); as != NULL;
 	as = TAILQ_NEXT(as, tq)) {
-	    if (strcmp(as->cmd, service) == 0 &&
+	    if (strcmp(as->cmd, service_path) == 0 &&
 		strcmp(as->arguments, arguments) == 0) {
 		    dbprintf(("%s: %s %s: already running, acking req\n",
 			debug_prefix_time(NULL), service, arguments));
 		    pkt_init(&pkt_out, P_ACK, "");
-		    goto send_pkt_out;
+		    goto send_pkt_out_no_delete;
 	    }
     }
 
@@ -501,7 +626,7 @@ protocol_accept(handle, pkt)
      */
     dbprintf(("%s: creating new service: %s\n%s\n",
 	debug_prefix_time(NULL), service, arguments));
-    as = service_new(handle, service, arguments);
+    as = service_new(handle, service_path, arguments);
     if (writebuf(as, arguments, strlen(arguments)) < 0) {
 	const char *errmsg = strerror(errno);
 	dbprintf(("%s: error sending arguments to %s: %s\n",
@@ -514,6 +639,7 @@ protocol_accept(handle, pkt)
 
     amfree(pktbody);
     amfree(service);
+    amfree(service_path);
     amfree(arguments);
 
     /*
@@ -530,12 +656,16 @@ badreq:
 	debug_prefix_time(NULL), pkt_type2str(pkt->type), pkt->body));
 
 send_pkt_out:
+    if(as)
+	service_delete(as);
+send_pkt_out_no_delete:
     amfree(pktbody);
+    amfree(service_path);
     amfree(service);
     amfree(arguments);
-    if(as) service_delete(as);
     do_sendpkt(handle, &pkt_out);
     security_close(handle);
+    amfree(pkt_out.body);
 }
 
 /*
@@ -543,31 +673,31 @@ send_pkt_out:
  * running service.
  */
 static void
-state_machine(as, action, pkt)
-    struct active_service *as;
-    action_t action;
-    pkt_t *pkt;
+state_machine(
+    struct active_service *	as,
+    action_t			action,
+    pkt_t *			pkt)
 {
     action_t retaction;
     state_t curstate;
     pkt_t nak;
 
 #ifdef AMANDAD_DEBUG
-    dbprintf(("%s: state_machine: %X entering\n",
-	debug_prefix_time(NULL), (unsigned int)as));
+    dbprintf(("%s: state_machine: %p entering\n",
+	debug_prefix_time(NULL), as));
 #endif
     for (;;) {
 	curstate = as->state;
 #ifdef AMANDAD_DEBUG
-	dbprintf(("%s: state_machine: %X curstate=%s action=%s\n",
-	    debug_prefix_time(NULL), (unsigned int)as,
+	dbprintf(("%s: state_machine: %p curstate=%s action=%s\n",
+	    debug_prefix_time(NULL), as,
 	    state2str(curstate), action2str(action)));
 #endif
 	retaction = (*curstate)(as, action, pkt);
 #ifdef AMANDAD_DEBUG
-	dbprintf(("%s: state_machine: %X curstate=%s returned %s (nextstate=%s)\n",
+	dbprintf(("%s: state_machine: %p curstate=%s returned %s (nextstate=%s)\n",
 	    debug_prefix_time(NULL),
-	    (unsigned int)as, state2str(curstate), action2str(retaction),
+	    as, state2str(curstate), action2str(retaction),
 	    state2str(as->state)));
 #endif
 
@@ -577,8 +707,8 @@ state_machine(as, action, pkt)
 	 */
 	case A_PENDING:
 #ifdef AMANDAD_DEBUG
-	    dbprintf(("%s: state_machine: %X leaving (A_PENDING)\n",
-		debug_prefix_time(NULL), (unsigned int)as));
+	    dbprintf(("%s: state_machine: %p leaving (A_PENDING)\n",
+		debug_prefix_time(NULL), as));
 #endif
 	    return;
 
@@ -599,9 +729,10 @@ state_machine(as, action, pkt)
 	    pkt_init(&nak, P_NAK, "ERROR unexpected packet type %s\n",
 		pkt_type2str(pkt->type));
 	    do_sendpkt(as->security_handle, &nak);
+	    amfree(nak.body);
 #ifdef AMANDAD_DEBUG
-	    dbprintf(("%s: state_machine: %X leaving (A_SENDNAK)\n",
-		debug_prefix_time(NULL), (unsigned int)as));
+	    dbprintf(("%s: state_machine: %p leaving (A_SENDNAK)\n",
+		debug_prefix_time(NULL), as));
 #endif
 	    return;
 
@@ -611,8 +742,8 @@ state_machine(as, action, pkt)
 	case A_FINISH:
 	    service_delete(as);
 #ifdef AMANDAD_DEBUG
-	    dbprintf(("%s: state_machine: %X leaving (A_FINISH)\n",
-		debug_prefix_time(NULL), (unsigned int)as));
+	    dbprintf(("%s: state_machine: %p leaving (A_FINISH)\n",
+		debug_prefix_time(NULL), as));
 #endif
 	    return;
 
@@ -621,7 +752,7 @@ state_machine(as, action, pkt)
 	    break;
 	}
     }
-    /* NOTREACHED */
+    /*NOTREACHED*/
 }
 
 /*
@@ -629,19 +760,24 @@ state_machine(as, action, pkt)
  * state to wait for REP data to arrive from the subprocess.
  */
 static action_t
-s_sendack(as, action, pkt)
-    struct active_service *as;
-    action_t action;
-    pkt_t *pkt;
+s_sendack(
+    struct active_service *	as,
+    action_t			action,
+    pkt_t *			pkt)
 {
     pkt_t ack;
+
+    (void)action;	/* Quiet unused parameter warning */
+    (void)pkt;		/* Quiet unused parameter warning */
 
     pkt_init(&ack, P_ACK, "");
     if (do_sendpkt(as->security_handle, &ack) < 0) {
 	dbprintf(("%s: error sending ACK: %s\n",
 	    debug_prefix_time(NULL), security_geterror(as->security_handle)));
+	amfree(ack.body);
 	return (A_FINISH);
     }
+    amfree(ack.body);
 
     /*
      * move to the repwait state
@@ -652,7 +788,7 @@ s_sendack(as, action, pkt)
      * receive rep data.
      */
     as->state = s_repwait;
-    as->ev_repfd = event_register(as->repfd, EV_READFD, repfd_recv, as);
+    as->ev_repfd = event_register((event_id_t)as->repfd, EV_READFD, repfd_recv, as);
     as->ev_reptimeout = event_register(REP_TIMEOUT, EV_TIME,
 	timeout_repfd, as);
     security_recvpkt(as->security_handle, protocol_recv, as, -1);
@@ -665,12 +801,13 @@ s_sendack(as, action, pkt)
  * data to send in a REP.
  */
 static action_t
-s_repwait(as, action, pkt)
-    struct active_service *as;
-    action_t action;
-    pkt_t *pkt;
+s_repwait(
+    struct active_service *	as,
+    action_t			action,
+    pkt_t *			pkt)
 {
-    int n;
+    ssize_t n;
+    char *repbuf_temp;
 
     /*
      * We normally shouldn't receive any packets while waiting
@@ -685,6 +822,7 @@ s_repwait(as, action, pkt)
 	if (pkt->type == P_REQ) {
 	    dbprintf(("%s: received dup P_REQ packet, ACKing it\n",
 		debug_prefix_time(NULL)));
+	    amfree(as->rep_pkt.body);
 	    pkt_init(&as->rep_pkt, P_ACK, "");
 	    do_sendpkt(as->security_handle, &as->rep_pkt);
 	    return (A_PENDING);
@@ -694,6 +832,7 @@ s_repwait(as, action, pkt)
     }
 
     if (action == A_TIMEOUT) {
+	amfree(as->rep_pkt.body);
 	pkt_init(&as->rep_pkt, P_NAK, "ERROR timeout on reply pipe\n");
 	dbprintf(("%s: %s timed out waiting for REP data\n",
 	    debug_prefix_time(NULL), as->cmd));
@@ -702,30 +841,22 @@ s_repwait(as, action, pkt)
     }
 
     assert(action == A_RECVREP);
-
-    /*
-     * If the read fails, consider the process dead, and remove it.
-     * Always save room for nul termination.
-     */
-    if (as->repbufsize + 1 >= sizeof(as->repbuf)) {
-	dbprintf(("%s: more than %d bytes in reply\n",
-	    debug_prefix_time(NULL), sizeof(as->repbuf)));
-	dbprintf(("%s: reply so far:\n%s\n", debug_prefix(NULL), as->repbuf));
-	pkt_init(&as->rep_pkt, P_NAK, "ERROR more than %d bytes in reply\n",
-	    sizeof(as->repbuf));
-	do_sendpkt(as->security_handle, &as->rep_pkt);
-	return (A_FINISH);
+    if(as->bufsize == 0) {
+	as->bufsize = NETWORK_BLOCK_BYTES;
+	as->repbuf = alloc(as->bufsize);
     }
+
     do {
 	n = read(as->repfd, as->repbuf + as->repbufsize,
-		 sizeof(as->repbuf) - as->repbufsize - 1);
+		 as->bufsize - as->repbufsize - 1);
     } while ((n < 0) && ((errno == EINTR) || (errno == EAGAIN)));
     if (n < 0) {
 	const char *errstr = strerror(errno);
 	dbprintf(("%s: read error on reply pipe: %s\n",
-	    debug_prefix_time(NULL), errstr));
+		  debug_prefix_time(NULL), errstr));
+	amfree(as->rep_pkt.body);
 	pkt_init(&as->rep_pkt, P_NAK, "ERROR read error on reply pipe: %s\n",
-	    errstr);
+		 errstr);
 	do_sendpkt(as->security_handle, &as->rep_pkt);
 	return (A_FINISH);
     }
@@ -736,9 +867,18 @@ s_repwait(as, action, pkt)
     as->repbuf[n + as->repbufsize] = '\0';
     if (n > 0) {
 	as->repbufsize += n;
-	if(as->send_partial_reply) {
+	if(as->repbufsize >= (as->bufsize - 1)) {
+	    as->bufsize *= 2;
+	    repbuf_temp = alloc(as->bufsize);
+	    memcpy(repbuf_temp, as->repbuf, as->repbufsize + 1);
+	    amfree(as->repbuf);
+	    as->repbuf = repbuf_temp;
+	}
+	else if(as->send_partial_reply) {
+	    amfree(as->rep_pkt.body);
 	    pkt_init(&as->rep_pkt, P_PREP, "%s", as->repbuf);
 	    do_sendpkt(as->security_handle, &as->rep_pkt);
+	    amfree(as->rep_pkt.body);
 	    pkt_init(&as->rep_pkt, P_REP, "");
 	}
  
@@ -769,12 +909,15 @@ s_repwait(as, action, pkt)
  * it out as a REP packet.
  */
 static action_t
-s_processrep(as, action, pkt)
-    struct active_service *as;
-    action_t action;
-    pkt_t *pkt;
+s_processrep(
+    struct active_service *	as,
+    action_t			action,
+    pkt_t *			pkt)
 {
     char *tok, *repbuf;
+
+    (void)action;	/* Quiet unused parameter warning */
+    (void)pkt;		/* Quiet unused parameter warning */
 
     /*
      * Copy the rep lines into the outgoing packet.
@@ -790,6 +933,7 @@ s_processrep(as, action, pkt)
      * to the amanda server.  If the handle is -1, then we don't map.
      */
     repbuf = stralloc(as->repbuf);
+    amfree(as->rep_pkt.body);
     pkt_init(&as->rep_pkt, P_REP, "");
     tok = strtok(repbuf, " ");
     if (tok == NULL)
@@ -843,11 +987,13 @@ error:
  * This is the state where we send the REP we just collected from our child.
  */
 static action_t
-s_sendrep(as, action, pkt)
-    struct active_service *as;
-    action_t action;
-    pkt_t *pkt;
+s_sendrep(
+    struct active_service *	as,
+    action_t			action,
+    pkt_t *			pkt)
 {
+    (void)action;	/* Quiet unused parameter warning */
+    (void)pkt;		/* Quiet unused parameter warning */
 
     /*
      * Transmit it and move to the ack state.
@@ -863,10 +1009,10 @@ s_sendrep(as, action, pkt)
  * we just sent it.
  */
 static action_t
-s_ackwait(as, action, pkt)
-    struct active_service *as;
-    action_t action;
-    pkt_t *pkt;
+s_ackwait(
+    struct active_service *	as,
+    action_t			action,
+    pkt_t *			pkt)
 {
     struct datafd_handle *dh;
     int npipes;
@@ -889,6 +1035,14 @@ s_ackwait(as, action, pkt)
 #endif
 
     assert(action == A_RECVPKT);
+
+    if (pkt->type == P_REQ) {
+	dbprintf(("%s: received dup P_REQ packet, resending REP\n",
+		  debug_prefix_time(NULL)));
+	as->state = s_sendrep;
+	return (A_CONTINUE);
+    }
+
     if (pkt->type != P_ACK)
 	return (A_SENDNAK);
 
@@ -906,7 +1060,11 @@ s_ackwait(as, action, pkt)
 	    dh->netfd = NULL;
 	}
 	/* setup an event for reads from it */
-	dh->ev_handle = event_register(dh->fd, EV_READFD, process_netfd, dh);
+	dh->ev_read = event_register((event_id_t)dh->fd_read, EV_READFD,
+				     process_readnetfd, dh);
+
+	security_stream_read(dh->netfd, process_writenetfd, dh);
+
     }
 
     /*
@@ -918,8 +1076,10 @@ s_ackwait(as, action, pkt)
 	if (security_stream_auth(dh->netfd) < 0) {
 	    security_stream_close(dh->netfd);
 	    dh->netfd = NULL;
-	    event_release(dh->ev_handle);
-	    dh->ev_handle = NULL;
+	    event_release(dh->ev_read);
+	    event_release(dh->ev_write);
+	    dh->ev_read = NULL;
+	    dh->ev_write = NULL;
 	} else {
 	    npipes++;
 	}
@@ -946,8 +1106,8 @@ s_ackwait(as, action, pkt)
  * Called when a repfd has received data
  */
 static void
-repfd_recv(cookie)
-    void *cookie;
+repfd_recv(
+    void *	cookie)
 {
     struct active_service *as = cookie;
 
@@ -961,8 +1121,8 @@ repfd_recv(cookie)
  * Called when a repfd has timed out
  */
 static void
-timeout_repfd(cookie)
-    void *cookie;
+timeout_repfd(
+    void *	cookie)
 {
     struct active_service *as = cookie;
 
@@ -976,10 +1136,10 @@ timeout_repfd(cookie)
  * Called when a handle has received data
  */
 static void
-protocol_recv(cookie, pkt, status)
-    void *cookie;
-    pkt_t *pkt;
-    security_status_t status;
+protocol_recv(
+    void *		cookie,
+    pkt_t *		pkt,
+    security_status_t	status)
 {
     struct active_service *as = cookie;
 
@@ -1007,24 +1167,26 @@ protocol_recv(cookie, pkt, status)
  * the process's pipes and passes it up the equivalent security_stream_t
  */
 static void
-process_netfd(cookie)
-    void *cookie;
+process_readnetfd(
+    void *	cookie)
 {
     pkt_t nak;
     struct datafd_handle *dh = cookie;
     struct active_service *as = dh->as;
-    int n;
+    ssize_t n;
+
+    nak.body = NULL;
 
     do {
-	n = read(dh->fd, as->databuf, sizeof(as->databuf));
+	n = read(dh->fd_read, as->databuf, SIZEOF(as->databuf));
     } while ((n < 0) && ((errno == EINTR) || (errno == EAGAIN)));
 
     /*
      * Process has died.
      */
     if (n < 0) {
-	pkt_init(&nak, P_NAK, "ERROR data descriptor %d broken: %s\n",
-	    dh->fd, strerror(errno));
+	pkt_init(&nak, P_NAK, "A ERROR data descriptor %d broken: %s\n",
+	    dh->fd_read, strerror(errno));
 	goto sendnak;
     }
     /*
@@ -1032,10 +1194,12 @@ process_netfd(cookie)
      * If all pipes are closed, shut down this service.
      */
     if (n == 0) {
-	event_release(dh->ev_handle);
-	dh->ev_handle = NULL;
-	security_stream_close(dh->netfd);
-	dh->netfd = NULL;
+	event_release(dh->ev_read);
+	dh->ev_read = NULL;
+	if(dh->ev_write == NULL) {
+	    security_stream_close(dh->netfd);
+	    dh->netfd = NULL;
+	}
 	for (dh = &as->data[0]; dh < &as->data[DATA_FD_COUNT]; dh++) {
 	    if (dh->netfd != NULL)
 		return;
@@ -1043,7 +1207,7 @@ process_netfd(cookie)
 	service_delete(as);
 	return;
     }
-    if (security_stream_write(dh->netfd, as->databuf, n) < 0) {
+    if (security_stream_write(dh->netfd, as->databuf, (size_t)n) < 0) {
 	/* stream has croaked */
 	pkt_init(&nak, P_NAK, "ERROR write error on stream %d: %s\n",
 	    security_stream_id(dh->netfd),
@@ -1055,6 +1219,34 @@ process_netfd(cookie)
 sendnak:
     do_sendpkt(as->security_handle, &nak);
     service_delete(as);
+    amfree(nak.body);
+}
+
+/*
+ * This is a generic relay function that just read data from one of
+ * the security_stream_t and passes it up the equivalent process's pipes
+ */
+static void
+process_writenetfd(
+    void *	cookie,
+    void *	buf,
+    ssize_t	size)
+{
+    struct datafd_handle *dh;
+
+    assert(cookie != NULL);
+    dh = cookie;
+
+    if (dh->fd_write <= 0) {
+	dbprintf(("%s: process_writenetfd: dh->fd_write <= 0\n",
+	    debug_prefix_time(NULL)));
+    } else if (size > 0) {
+	fullwrite(dh->fd_write, buf, (size_t)size);
+	security_stream_read(dh->netfd, process_writenetfd, dh);
+    }
+    else {
+	aclose(dh->fd_write);
+    }
 }
 
 
@@ -1065,9 +1257,9 @@ sendnak:
  * Returns a number that should be sent to the server in the REP packet.
  */
 static int
-allocstream(as, handle)
-    struct active_service *as;
-    int handle;
+allocstream(
+    struct active_service *	as,
+    int				handle)
 {
     struct datafd_handle *dh;
 
@@ -1105,11 +1297,14 @@ allocstream(as, handle)
  * Create a new service instance
  */
 static struct active_service *
-service_new(security_handle, cmd, arguments)
-    security_handle_t *security_handle;
-    const char *cmd, *arguments;
+service_new(
+    security_handle_t *	security_handle,
+    const char *	cmd,
+    const char *	arguments)
 {
-    int data[DATA_FD_COUNT + 2][2], i;
+    int i;
+    int data_read[DATA_FD_COUNT + 1][2];
+    int data_write[DATA_FD_COUNT + 1][2];
     struct active_service *as;
     pid_t pid;
     int newfd;
@@ -1119,18 +1314,26 @@ service_new(security_handle, cmd, arguments)
     assert(arguments != NULL);
 
     /* a plethora of pipes */
-    for (i = 0; i < DATA_FD_COUNT + 2; i++)
-	if (pipe(data[i]) < 0)
-	    error("pipe: %s", strerror(errno));
+    for (i = 0; i < DATA_FD_COUNT + 1; i++) {
+	if (pipe(data_read[i]) < 0) {
+	    error("pipe: %s\n", strerror(errno));
+	    /*NOTREACHED*/
+	}
+	if (pipe(data_write[i]) < 0) {
+	    error("pipe: %s\n", strerror(errno));
+	    /*NOTREACHED*/
+	}
+    }
 
     switch(pid = fork()) {
     case -1:
-	error("could not fork service %s: %s", cmd, strerror(errno));
+	error("could not fork service %s: %s\n", cmd, strerror(errno));
+	/*NOTREACHED*/
     default:
 	/*
 	 * The parent.  Close the far ends of our pipes and return.
 	 */
-	as = alloc(sizeof(*as));
+	as = alloc(SIZEOF(*as));
 	as->cmd = stralloc(cmd);
 	as->arguments = stralloc(arguments);
 	as->security_handle = security_handle;
@@ -1149,31 +1352,37 @@ service_new(security_handle, cmd, arguments)
 	    if(am_has_feature(g_options->features, fe_partial_estimate)) {
 		as->send_partial_reply = 1;
 	    }
-	    amfree(g_options);
+	    free_g_options(g_options);
 	    amfree(option_str);
 	}
 
 	/* write to the request pipe */
-	aclose(data[0][0]);
-	as->reqfd = data[0][1];
+	aclose(data_read[0][0]);
+	as->reqfd = data_read[0][1];
 
 	/*
 	 * read from the reply pipe
 	 */
-	as->repfd = data[1][0];
-	aclose(data[1][1]);
+	as->repfd = data_write[0][0];
+	aclose(data_write[0][1]);
 	as->ev_repfd = NULL;
+	as->repbuf = NULL;
 	as->repbufsize = 0;
+	as->bufsize = 0;
 	as->repretry = 0;
+	as->rep_pkt.body = NULL;
 
 	/*
 	 * read from the rest of the general-use pipes
 	 * (netfds are opened as the client requests them)
 	 */
 	for (i = 0; i < DATA_FD_COUNT; i++) {
-	    aclose(data[i + 2][1]);
-	    as->data[i].fd = data[i + 2][0];
-	    as->data[i].ev_handle = NULL;
+	    aclose(data_read[i + 1][1]);
+	    aclose(data_write[i + 1][0]);
+	    as->data[i].fd_read = data_read[i + 1][0];
+	    as->data[i].fd_write = data_write[i + 1][1];
+	    as->data[i].ev_read = NULL;
+	    as->data[i].ev_write = NULL;
 	    as->data[i].netfd = NULL;
 	    as->data[i].as = as;
 	}
@@ -1197,58 +1406,75 @@ service_new(security_handle, cmd, arguments)
 	/*
 	 * The data stream is stdin in the new process
 	 */
-        if (dup2(data[0][0], 0) < 0) {
-	    error("dup %d to %d failed: %s\n", data[0][0], 0,
+        if (dup2(data_read[0][0], 0) < 0) {
+	    error("dup %d to %d failed: %s\n", data_read[0][0], 0,
 		strerror(errno));
+	    /*NOTREACHED*/
 	}
-	aclose(data[0][0]);
-	aclose(data[0][1]);
+	aclose(data_read[0][0]);
+	aclose(data_read[0][1]);
 
 	/*
 	 * The reply stream is stdout
 	 */
-        if (dup2(data[1][1], 1) < 0) {
-	    error("dup %d to %d failed: %s\n", data[1][1], 1,
+        if (dup2(data_write[0][1], 1) < 0) {
+	    error("dup %d to %d failed: %s\n", data_write[0][1], 1,
 		strerror(errno));
 	}
-        aclose(data[1][0]);
-        aclose(data[1][1]);
+        aclose(data_write[0][0]);
+        aclose(data_write[0][1]);
 
 	/*
-	 * The rest start at the offset defined in amandad.h, and continue
-	 * through the internal defined.
-	 */
-	for (i = 0; i < DATA_FD_COUNT; i++)
-	    aclose(data[i + 2][0]);
-
-	/*
-	 *  Make sure they are not open in the range DATA_FD_OFFSET to 
-	 *	DATA_FD_OFFSET + DATA_FD_COUNT - 1
+	 *  Make sure they are not open in the range DATA_FD_OFFSET to
+	 *      DATA_FD_OFFSET + DATA_FD_COUNT*2 - 1
 	 */
 	for (i = 0; i < DATA_FD_COUNT; i++) {
-	    while(data[i + 2][1] >= DATA_FD_OFFSET &&
-		  data[i + 2][1] <= DATA_FD_OFFSET + DATA_FD_COUNT - 1) {
-		newfd = dup(data[i + 2][1]);
+	    while(data_read[i + 1][1] >= DATA_FD_OFFSET &&
+		  data_read[i + 1][1] <= DATA_FD_OFFSET + DATA_FD_COUNT*2 - 1) {
+		newfd = dup(data_read[i + 1][1]);
 		if(newfd == -1)
 		    error("Can't dup out off DATA_FD range");
-		data[i + 2][1] = newfd;
+		data_read[i + 1][1] = newfd;
+	    }
+	    while(data_write[i + 1][0] >= DATA_FD_OFFSET &&
+		  data_write[i + 1][0] <= DATA_FD_OFFSET + DATA_FD_COUNT*2 - 1) {
+		newfd = dup(data_write[i + 1][0]);
+		if(newfd == -1)
+		    error("Can't dup out off DATA_FD range");
+		data_write[i + 1][0] = newfd;
 	    }
 	}
 	for (i = 0; i < DATA_FD_COUNT; i++)
 	    close(DATA_FD_OFFSET + i);
 
+	/*
+	 * The rest start at the offset defined in amandad.h, and continue
+	 * through the internal defined.
+	 */
 	for (i = 0; i < DATA_FD_COUNT; i++) {
-	    if (dup2(data[i + 2][1], i + DATA_FD_OFFSET) < 0) {
-		error("dup %d to %d failed: %s\n", data[i + 2][1],
+	    if (dup2(data_read[i + 1][1], i*2 + DATA_FD_OFFSET) < 0) {
+		error("dup %d to %d failed: %s\n", data_read[i + 1][1],
 		    i + DATA_FD_OFFSET, strerror(errno));
 	    }
-	    aclose(data[i + 2][1]);
+	    aclose(data_read[i + 1][0]);
+	    aclose(data_read[i + 1][1]);
+
+	    if (dup2(data_write[i + 1][0], i*2 + 1 + DATA_FD_OFFSET) < 0) {
+		error("dup %d to %d failed: %s\n", data_write[i + 1][0],
+		    i + DATA_FD_OFFSET, strerror(errno));
+	    }
+	    aclose(data_write[i + 1][0]);
+	    aclose(data_write[i + 1][1]);
 	}
 
-	execle(cmd, cmd, NULL, safe_env());
-	error("could not exec service %s: %s", cmd, strerror(errno));
+	/* close all unneeded fd */
+	safe_fd(DATA_FD_OFFSET, DATA_FD_COUNT*2);
+	close(2);
+
+	execle(cmd, cmd, "amandad", auth, (char *)NULL, safe_env());
+	error("could not exec service %s: %s\n", cmd, strerror(errno));
+	/*NOTREACHED*/
     }
-    /* NOTREACHED */
     return NULL;
 }
 
@@ -1256,8 +1482,8 @@ service_new(security_handle, cmd, arguments)
  * Unallocate a service instance
  */
 static void
-service_delete(as)
-    struct active_service *as;
+service_delete(
+    struct active_service *	as)
 {
     int i;
     struct datafd_handle *dh;
@@ -1288,13 +1514,16 @@ service_delete(as)
     for (i = 0; i < DATA_FD_COUNT; i++) {
 	dh = &as->data[i];
 
-	aclose(dh->fd);
+	aclose(dh->fd_read);
+	aclose(dh->fd_write);
 
 	if (dh->netfd != NULL)
 	    security_stream_close(dh->netfd);
 
-	if (dh->ev_handle != NULL)
-	    event_release(dh->ev_handle);
+	if (dh->ev_read != NULL)
+	    event_release(dh->ev_read);
+	if (dh->ev_write != NULL)
+	    event_release(dh->ev_write);
     }
 
     if (as->security_handle != NULL)
@@ -1308,7 +1537,16 @@ service_delete(as)
     assert(serviceq.qlength > 0);
     serviceq.qlength--;
 
+    amfree(as->cmd);
+    amfree(as->arguments);
+    amfree(as->repbuf);
+    amfree(as->rep_pkt.body);
     amfree(as);
+
+    if(exit_on_qlength == 0 && serviceq.qlength == 0) {
+	dbclose();
+	exit(0);
+    }
 }
 
 /*
@@ -1316,32 +1554,35 @@ service_delete(as)
  * do not hang.
  */
 static int
-writebuf(as, bufp, size)
-    struct active_service *as;
-    const void *bufp;
-    size_t size;
+writebuf(
+    struct active_service *	as,
+    const void *		bufp,
+    size_t			size)
 {
-    int pid;
+    pid_t pid;
+    ssize_t    writesize;
 
     switch (pid=fork()) {
     case -1:
-	return -1;
+	break;
 
     default:
 	waitpid(pid, NULL, WNOHANG);
 	return 0;			/* this is the parent */
 
-    case 0:
-	break;				/* this is the child */
+    case 0: 				/* this is the child */
+	close(as->repfd);
+	writesize = fullwrite(as->reqfd, bufp, size);
+	exit(writesize != (ssize_t)size);
+	/* NOTREACHED */
     }
-    aclose (as->repfd);			/* make sure we are not a reader */
-    exit (fullwrite(as->reqfd, bufp, size) != size);
+    return -1;
 }
 
-static int
-do_sendpkt(handle, pkt)
-    security_handle_t *handle;
-    pkt_t *pkt;
+static ssize_t
+do_sendpkt(
+    security_handle_t *	handle,
+    pkt_t *		pkt)
 {
     dbprintf(("%s: sending %s pkt:\n<<<<<\n%s>>>>>\n",
 	debug_prefix_time(NULL), pkt_type2str(pkt->type), pkt->body));
@@ -1353,8 +1594,8 @@ do_sendpkt(handle, pkt)
  * Convert a state into a string
  */
 static const char *
-state2str(state)
-    state_t state;
+state2str(
+    state_t	state)
 {
     static const struct {
 	state_t state;
@@ -1370,7 +1611,7 @@ state2str(state)
     };
     int i;
 
-    for (i = 0; i < sizeof(states) / sizeof(states[0]); i++)
+    for (i = 0; i < (int)(sizeof(states) / sizeof(states[0])); i++)
 	if (state == states[i].state)
 	    return (states[i].str);
     return ("INVALID STATE");
@@ -1380,8 +1621,8 @@ state2str(state)
  * Convert an action into a string
  */
 static const char *
-action2str(action)
-    action_t action;
+action2str(
+    action_t	action)
 {
     static const struct {
 	action_t action;
@@ -1400,7 +1641,7 @@ action2str(action)
     };
     int i;
 
-    for (i = 0; i < sizeof(actions) / sizeof(actions[0]); i++)
+    for (i = 0; i < (int)(sizeof(actions) / sizeof(actions[0])); i++)
 	if (action == actions[i].action)
 	    return (actions[i].str);
     return ("UNKNOWN ACTION");

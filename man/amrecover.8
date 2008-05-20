@@ -22,7 +22,8 @@
 amrecover - Amanda index database browser
 .SH "SYNOPSIS"
 .HP 10
-\fBamrecover\fR [[-C ] \fIconfig\fR] [-s \fIindex-server\fR] [-t \fItape-server\fR] [-d \fItape-device\fR]
+\fBamrecover\fR [[-C] \fIconfig\fR] [-s \fIindex-server\fR] [-t \fItape-server\fR] [-d \fItape-device\fR] [-o \fIclientconfigoption\fR]*
+
 .SH "DESCRIPTION"
 .PP
 \fBAmrecover\fR
@@ -35,6 +36,12 @@ In order to restore files in place, you must invoke
 from the root of the backed up filesystem, or use
 \fBlcd\fR
 to move into that directory, otherwise a directory tree that resembles the backed up filesystem will be created in the current directory. See the examples below for details.
+.PP
+Amrecover will read the
+\fBamanda-client.conf\fR
+file and the
+\fIconfig\fR\fB/amanda-client.conf\fR
+file.
 .PP
 See the
 \fBamanda\fR(8)
@@ -62,6 +69,10 @@ Host that runs the tape server daemon.
 .TP
 \fB-d tape-device\fR
 Tape device to use on the tape server host.
+.TP
+\fB-o\fR \fIclientconfigoption\fR
+See the "\fBCONFIGURATION OVERWRITE\fR" section in
+\fBamanda\fR(8).
 .SH "COMMANDS"
 .PP
 \fBAmrecover\fR
@@ -75,8 +86,8 @@ of files to be extracted from the backup system. The following commands are avai
 \fBsethost hostname\fR
 Specifies which host to look at backup files for (default: the local host).
 .TP
-\fBsetdate YYYY-MM-DD\fR
-Set the date (default: today). File listing commands only return information on backup images for this day, for the day before with the next lower dump level, and so on, until the most recent level 0 backup on or before the specified date is encountered.
+\fBsetdate YYYY-MM-DD-HH-MM[-SS] | YYYY-MM-DD\fR
+Set the restore time (default: now). File listing commands only return information on backup images for this day, for the day before with the next lower dump level, and so on, until the most recent level 0 backup on or before the specified date is encountered.
 .sp
 For example, if:
 .sp
@@ -88,7 +99,9 @@ For example, if:
 
 .fi
 .sp
-then if 1997-07-08 is the requested date, files from the following days would be used:
+then the command
+\fBsetdate 1997-07-08-00\fR
+would yield files from the following days:
 .sp
 .nf
 
@@ -123,6 +136,10 @@ or
 configuration file. The disk must be local to the host. If
 \fBmountpoint\fR
 is not specified, all pathnames will be relative to the (unknown) mount point instead of full pathnames.
+.TP
+\fBlisthost [diskdevice]\fR
+List all
+\fBhost\fR
 .TP
 \fBlistdisk [diskdevice]\fR
 List all
@@ -387,6 +404,12 @@ and
 commands will use $PAGER to display the file lists. Defaults to
 \fBmore\fR
 if PAGER is not set.
+.PP
+\fBAMANDA_SERVER\fR
+If set, $AMANDA_SERVER will be used as index-server. The value will take precedence over the compiled default, but will be overridden by the -s switch.
+.PP
+\fBAMANDA_TAPE_SERVER\fR
+If set, $AMANDA_TAPE_SERVER will be used as tape-server. The value will take precedence over the compiled default, but will be overridden by the -t switch.
 .SH "AUTHOR"
 .PP
 Alan M. McIvor
@@ -399,6 +422,7 @@ Stefan G. Weichinger,
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
+\fBamanda-client.conf\fR(5),
 \fBamrestore\fR(8),
 \fBamfetchdump\fR(8),
 \fBreadline\fR(3)

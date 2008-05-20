@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: protocol.c,v 1.39 2006/02/28 16:36:13 martinea Exp $
+ * $Id: protocol.c,v 1.45 2006/05/25 17:07:31 martinea Exp $
  *
  * implements amanda protocol
  */
@@ -40,16 +40,23 @@
  * Valid actions that can be passed to the state machine
  */
 typedef enum {
-    A_START, A_TIMEOUT, A_ERROR, A_RCVDATA, A_CONTPEND, A_PENDING,
-    A_CONTINUE, A_FINISH, A_ABORT
-} action_t;
+	PA_START,
+	PA_TIMEOUT,
+	PA_ERROR,
+	PA_RCVDATA,
+	PA_CONTPEND,
+	PA_PENDING,
+	PA_CONTINUE,
+	PA_FINISH,
+	PA_ABORT
+} p_action_t;
 
 /*
  * The current state type.  States are represented as function
  * vectors.
  */
 struct proto;
-typedef action_t (*pstate_t) P((struct proto *, action_t, pkt_t *));
+typedef p_action_t (*pstate_t)(struct proto *, p_action_t, pkt_t *);
 
 /*
  * This is a request structure that is wrapped around a packet while it
@@ -71,7 +78,7 @@ typedef struct proto {
     pkt_t req;				/* the actual wire request */
     protocol_sendreq_callback continuation; /* call when req dies/finishes */
     void *datap;			/* opaque cookie passed to above */
-    char *(*conf_fn) P((char *, void *));/* configuration function */
+    char *(*conf_fn)(char *, void *);	/* configuration function */
 } proto_t;
 
 #define	CONNECT_TRIES	3	/* num retries after connect errors */
@@ -85,7 +92,7 @@ typedef struct proto {
 #define	DROP_DEAD_TIME(t)	(CURTIME - (t) > (60 * 60))
 
 /* get the size of an array */
-#define	ASIZE(arr)	(sizeof(arr) / sizeof((arr)[0]))
+#define	ASIZE(arr)	(int)(sizeof(arr) / sizeof((arr)[0]))
 
 /*
  * Initialization time
@@ -95,19 +102,18 @@ static time_t proto_init_time;
 /* local functions */
 
 #ifdef PROTO_DEBUG
-static const char *action2str P((action_t));
-static const char *pstate2str P((pstate_t));
+static const char *action2str(p_action_t);
+static const char *pstate2str(pstate_t);
 #endif
 
-static void connect_callback P((void *, security_handle_t *,
-    security_status_t));
-static void connect_wait_callback P((void *));
-static void recvpkt_callback P((void *, pkt_t *, security_status_t));
+static void connect_callback(void *, security_handle_t *, security_status_t);
+static void connect_wait_callback(void *);
+static void recvpkt_callback(void *, pkt_t *, security_status_t);
 
-static action_t s_sendreq P((proto_t *, action_t, pkt_t *));
-static action_t s_ackwait P((proto_t *, action_t, pkt_t *));
-static action_t s_repwait P((proto_t *, action_t, pkt_t *));
-static void state_machine P((proto_t *, action_t, pkt_t *));
+static p_action_t s_sendreq(proto_t *, p_action_t, pkt_t *);
+static p_action_t s_ackwait(proto_t *, p_action_t, pkt_t *);
+static p_action_t s_repwait(proto_t *, p_action_t, pkt_t *);
+static void state_machine(proto_t *, p_action_t, pkt_t *);
 
 /*
  * -------------------
@@ -118,7 +124,7 @@ static void state_machine P((proto_t *, action_t, pkt_t *));
  * Initialize globals.
  */
 void
-protocol_init()
+protocol_init(void)
 {
 
     proto_init_time = time(NULL);
@@ -129,18 +135,18 @@ protocol_init()
  * for transmission.
  */
 void
-protocol_sendreq(hostname, security_driver, conf_fn, req, repwait, continuation, datap)
-    const char *hostname;
-    const security_driver_t *security_driver;
-    char *(*conf_fn) P((char *, void *));
-    const char *req;
-    time_t repwait;
-    protocol_sendreq_callback continuation;
-    void *datap;
+protocol_sendreq(
+    const char *		hostname,
+    const security_driver_t *	security_driver,
+    char *			(*conf_fn)(char *, void *),
+    const char *		req,
+    time_t			repwait,
+    protocol_sendreq_callback	continuation,
+    void *			datap)
 {
     proto_t *p;
 
-    p = alloc(sizeof(proto_t));
+    p = alloc(SIZEOF(proto_t));
     p->state = s_sendreq;
     p->hostname = stralloc(hostname);
     p->security_driver = security_driver;
@@ -164,11 +170,12 @@ protocol_sendreq(hostname, security_driver, conf_fn, req, repwait, continuation,
     p->datap = datap;
 
 #ifdef PROTO_DEBUG
-    dbprintf(("%s: security_connect: host %s -> p %X\n", 
-	      debug_prefix_time(": protocol"), hostname, (int)p));
+    dbprintf(("%s: security_connect: host %s -> p %p\n", 
+	      debug_prefix_time(": protocol"), hostname, p));
 #endif
 
-    security_connect(p->security_driver, p->hostname, conf_fn, connect_callback, p);
+    security_connect(p->security_driver, p->hostname, conf_fn, connect_callback,
+			 p, p->datap);
 }
 
 /*
@@ -180,10 +187,10 @@ protocol_sendreq(hostname, security_driver, conf_fn, req, repwait, continuation,
  * be had via security_geterror on the handle.
  */
 static void
-connect_callback(cookie, security_handle, status)
-    void *cookie;
-    security_handle_t *security_handle;
-    security_status_t status;
+connect_callback(
+    void *		cookie,
+    security_handle_t *	security_handle,
+    security_status_t	status)
 {
     proto_t *p = cookie;
 
@@ -191,13 +198,13 @@ connect_callback(cookie, security_handle, status)
     p->security_handle = security_handle;
 
 #ifdef PROTO_DEBUG
-    dbprintf(("%s: connect_callback: p %X\n",
-	      debug_prefix_time(": protocol"), (int)p));
+    dbprintf(("%s: connect_callback: p %p\n",
+	      debug_prefix_time(": protocol"), p));
 #endif
 
     switch (status) {
     case S_OK:
-	state_machine(p, A_START, NULL);
+	state_machine(p, PA_START, NULL);
 	break;
 
     case S_TIMEOUT:
@@ -211,11 +218,11 @@ connect_callback(cookie, security_handle, status)
 	 * an error back to the caller.
 	 */
 	if (--p->connecttries == 0) {
-	    state_machine(p, A_ABORT, NULL);
+	    state_machine(p, PA_ABORT, NULL);
 	} else {
 #ifdef PROTO_DEBUG
-    dbprintf(("%s: connect_callback: p %X: retrying %s\n",
-	      debug_prefix_time(": protocol"), (int)p, p->hostname));
+    dbprintf(("%s: connect_callback: p %p: retrying %s\n",
+	      debug_prefix_time(": protocol"), p, p->hostname));
 #endif
 	    security_close(p->security_handle);
 	    /* XXX overload p->security handle to hold the event handle */
@@ -236,14 +243,14 @@ connect_callback(cookie, security_handle, status)
  * initial connection attempts failed.
  */
 static void
-connect_wait_callback(cookie)
-    void *cookie;
+connect_wait_callback(
+    void *	cookie)
 {
     proto_t *p = cookie;
 
     event_release((event_handle_t *)p->security_handle);
     security_connect(p->security_driver, p->hostname, p->conf_fn,
-	connect_callback, p);
+	connect_callback, p, p->datap);
 }
 
 
@@ -256,7 +263,7 @@ connect_wait_callback(cookie)
  * requests if they plan on doing a lot of work.
  */
 void
-protocol_check()
+protocol_check(void)
 {
 
     /* arg == 1 means don't block */
@@ -272,7 +279,7 @@ protocol_check()
  * and are just waiting for all of the answers to come back.
  */
 void
-protocol_run()
+protocol_run(void)
 {
 
     /* arg == 0 means block forever until no more events are left */
@@ -291,29 +298,29 @@ protocol_run()
  * with timeouts and successfull replies.
  */
 static void
-state_machine(p, action, pkt)
-    proto_t *p;
-    action_t action;
-    pkt_t *pkt;
+state_machine(
+    proto_t *	p,
+    p_action_t	action,
+    pkt_t *	pkt)
 {
     pstate_t curstate;
-    action_t retaction;
+    p_action_t retaction;
 
 #ifdef PROTO_DEBUG
-	dbprintf(("%s: state_machine: initial: p %X action %s pkt %X\n",
+	dbprintf(("%s: state_machine: initial: p %p action %s pkt %p\n",
 		debug_prefix_time(": protocol"),
-		(int)p, action2str(action), NULL));
+		p, action2str(action), NULL));
 #endif
 
     assert(p != NULL);
-    assert(action == A_RCVDATA || pkt == NULL);
+    assert(action == PA_RCVDATA || pkt == NULL);
     assert(p->state != NULL);
 
     for (;;) {
 #ifdef PROTO_DEBUG
-	dbprintf(("%s: state_machine: p %X state %s action %s\n",
+	dbprintf(("%s: state_machine: p %p state %s action %s\n",
 		  debug_prefix_time(": protocol"),
-		  (int)p, pstate2str(p->state), action2str(action)));
+		  p, pstate2str(p->state), action2str(action)));
 	if (pkt != NULL) {
 	    dbprintf(("%s: pkt: %s (t %d) orig REQ (t %d cur %d)\n",
 		      debug_prefix(": protocol"),
@@ -329,17 +336,17 @@ state_machine(p, action, pkt)
 	 * is in.
 	 *
 	 * We keep track of the last state we were in so we can make
-	 * sure states which return A_CONTINUE really have transitioned
+	 * sure states which return PA_CONTINUE really have transitioned
 	 * the request to a new state.
 	 */
 	curstate = p->state;
 
-	if (action == A_ABORT)
+	if (action == PA_ABORT)
 	    /*
 	     * If the passed action indicates a terminal error, then we
 	     * need to move to abort right away.
 	     */
-	    retaction = A_ABORT;
+	    retaction = PA_ABORT;
 	else
 	    /*
 	     * Else we run the state and perform the action it
@@ -348,14 +355,14 @@ state_machine(p, action, pkt)
 	    retaction = (*curstate)(p, action, pkt);
 
 #ifdef PROTO_DEBUG
-	dbprintf(("%s: state_machine: p %X state %s returned %s\n",
+	dbprintf(("%s: state_machine: p %p state %s returned %s\n",
 		  debug_prefix_time(": protocol"),
-		  (int)p, pstate2str(p->state), action2str(retaction)));
+		  p, pstate2str(p->state), action2str(retaction)));
 #endif
 
 	/*
 	 * The state function is expected to return one of the following
-	 * action_t's.
+	 * p_action_t's.
 	 */
 	switch (retaction) {
 
@@ -364,15 +371,15 @@ state_machine(p, action, pkt)
 	 * Setup to receive another pkt, and wait for the recv event
 	 * to occur.
 	 */
-	case A_CONTPEND:
+	case PA_CONTPEND:
 	    (*p->continuation)(p->datap, pkt, p->security_handle);
 	    /* FALLTHROUGH */
 
-	case A_PENDING:
+	case PA_PENDING:
 #ifdef PROTO_DEBUG
-	    dbprintf(("%s: state_machine: p %X state %s: timeout %d\n",
+	    dbprintf(("%s: state_machine: p %p state %s: timeout %d\n",
 		      debug_prefix_time(": protocol"),
-		      (int)p, pstate2str(p->state), (int)p->timeout));
+		      p, pstate2str(p->state), (int)p->timeout));
 #endif
 	    /*
 	     * Get the security layer to register a receive event for this
@@ -380,19 +387,19 @@ state_machine(p, action, pkt)
 	     * seconds.
 	     */
 	    security_recvpkt(p->security_handle, recvpkt_callback, p,
-		p->timeout);
+		(int)p->timeout);
 
 	    return;
 
 	/*
 	 * Request has moved to another state.  Loop and run it again.
 	 */
-	case A_CONTINUE:
+	case PA_CONTINUE:
 	    assert(p->state != curstate);
 #ifdef PROTO_DEBUG
-	    dbprintf(("%s: state_machine: p %X: moved from %s to %s\n",
+	    dbprintf(("%s: state_machine: p %p: moved from %s to %s\n",
 		      debug_prefix_time(": protocol"),
-		      (unsigned int)p, pstate2str(curstate),
+		      p, pstate2str(curstate),
 		      pstate2str(p->state)));
 #endif
 	    continue;
@@ -403,10 +410,10 @@ state_machine(p, action, pkt)
 	 * pkt to NULL to indicate failure to the callback, and then
 	 * fall through to the common finish code.
 	 *
-	 * Note that remote failures finish via A_FINISH, because they did
+	 * Note that remote failures finish via PA_FINISH, because they did
 	 * complete successfully locally.
 	 */
-	case A_ABORT:
+	case PA_ABORT:
 	    pkt = NULL;
 	    /* FALLTHROUGH */
 
@@ -415,10 +422,11 @@ state_machine(p, action, pkt)
 	 * Free up resources the request has used, call the continuation
 	 * function specified by the caller and quit.
 	 */
-	case A_FINISH:
+	case PA_FINISH:
 	    (*p->continuation)(p->datap, pkt, p->security_handle);
 	    security_close(p->security_handle);
 	    amfree(p->hostname);
+	    amfree(p->req.body);
 	    amfree(p);
 	    return;
 
@@ -426,9 +434,9 @@ state_machine(p, action, pkt)
 	    assert(0);
 	    break;	/* in case asserts are turned off */
 	}
-	/* NOTREACHED */
+	/*NOTREACHED*/
     }
-    /* NOTREACHED */
+    /*NOTREACHED*/
 }
 
 /*
@@ -437,20 +445,22 @@ state_machine(p, action, pkt)
  * moves to the acknowledgement wait state.  We return from the state
  * machine at this point, and let the request be received from the network.
  */
-static action_t
-s_sendreq(p, action, pkt)
-    proto_t *p;
-    action_t action;
-    pkt_t *pkt;
+static p_action_t
+s_sendreq(
+    proto_t *	p,
+    p_action_t	action,
+    pkt_t *	pkt)
 {
 
     assert(p != NULL);
+    (void)action;	/* Quiet unused parameter warning */
+    (void)pkt;		/* Quiet unused parameter warning */
 
     if (security_sendpkt(p->security_handle, &p->req) < 0) {
 	/* XXX should retry */
 	security_seterror(p->security_handle, "error sending REQ: %s",
 	    security_geterror(p->security_handle));
-	return (A_ABORT);
+	return (PA_ABORT);
     }
 
     /*
@@ -463,27 +473,27 @@ s_sendreq(p, action, pkt)
      */
     p->state = s_ackwait;
     p->timeout = ACK_WAIT;
-    return (A_PENDING);
+    return (PA_PENDING);
 }
 
 /*
  * The acknowledge wait state.  We can enter here two ways:
  *
  *  - the caller has received a packet, located the request for
- *    that packet, and called us with an action of A_RCVDATA.
+ *    that packet, and called us with an action of PA_RCVDATA.
  *    
  *  - the caller has determined that a request has timed out,
- *    and has called us with A_TIMEOUT.
+ *    and has called us with PA_TIMEOUT.
  *
  * Here we process the acknowledgment, which usually means that
  * the client has agreed to our request and is working on it.
  * It will later send a reply when finished.
  */
-static action_t
-s_ackwait(p, action, pkt)
-    proto_t *p;
-    action_t action;
-    pkt_t *pkt;
+static p_action_t
+s_ackwait(
+    proto_t *	p,
+    p_action_t	action,
+    pkt_t *	pkt)
 {
 
     assert(p != NULL);
@@ -493,19 +503,19 @@ s_ackwait(p, action, pkt)
      * fail this request.  Otherwise, move to the send state
      * to retry the request.
      */
-    if (action == A_TIMEOUT) {
+    if (action == PA_TIMEOUT) {
 	assert(pkt == NULL);
 
 	if (--p->acktries == 0) {
 	    security_seterror(p->security_handle, "timeout waiting for ACK");
-	    return (A_ABORT);
+	    return (PA_ABORT);
 	}
 
 	p->state = s_sendreq;
-	return (A_CONTINUE);
+	return (PA_CONTINUE);
     }
 
-    assert(action == A_RCVDATA);
+    assert(action == PA_RCVDATA);
     assert(pkt != NULL);
 
     /*
@@ -522,16 +532,16 @@ s_ackwait(p, action, pkt)
     case P_ACK:
 	p->state = s_repwait;
 	p->timeout = p->repwait;
-	return (A_PENDING);
+	return (PA_PENDING);
 
     /*
      * Received a NAK.  The request failed, so free up the
      * resources associated with it and return.
      *
-     * This should NOT return A_ABORT because it is not a local failure.
+     * This should NOT return PA_ABORT because it is not a local failure.
      */
     case P_NAK:
-	return (A_FINISH);
+	return (PA_FINISH);
 
     /*
      * The client skipped the ACK, and replied right away.
@@ -540,32 +550,32 @@ s_ackwait(p, action, pkt)
     case P_REP:
     case P_PREP:
 	p->state = s_repwait;
-	return (A_CONTINUE);
+	return (PA_CONTINUE);
 
     /*
      * Unexpected packet.  Requeue this request and hope
      * we get what we want later.
      */
     default:
-	return (A_PENDING);
+	return (PA_PENDING);
     }
 }
 
 /*
  * The reply wait state.  We enter here much like we do with s_ackwait.
  */
-static action_t
-s_repwait(p, action, pkt)
-    proto_t *p;
-    action_t action;
-    pkt_t *pkt;
+static p_action_t
+s_repwait(
+    proto_t *	p,
+    p_action_t	action,
+    pkt_t *	pkt)
 {
     pkt_t ack;
 
     /*
      * Timeout waiting for a reply.
      */
-    if (action == A_TIMEOUT) {
+    if (action == PA_TIMEOUT) {
 	assert(pkt == NULL);
 
 	/*
@@ -574,7 +584,7 @@ s_repwait(p, action, pkt)
 	 */
 	if (p->reqtries == 0 || DROP_DEAD_TIME(p->origtime)) {
 	    security_seterror(p->security_handle, "timeout waiting for REP");
-	    return (A_ABORT);
+	    return (PA_ABORT);
 	}
 
 	/*
@@ -583,10 +593,10 @@ s_repwait(p, action, pkt)
 	p->reqtries--;
 	p->state = s_sendreq;
 	p->acktries = ACK_TRIES;
-	return (A_CONTINUE);
+	return (PA_CONTINUE);
     }
 
-    assert(action == A_RCVDATA);
+    assert(action == PA_RCVDATA);
 
     /*
      * We've received some data.  If we didn't get a reply,
@@ -594,35 +604,37 @@ s_repwait(p, action, pkt)
      * the reply, cleanup this packet, and return.
      */
     if (pkt->type != P_REP && pkt->type != P_PREP)
-	return (A_PENDING);
+	return (PA_PENDING);
 
     if(pkt->type == P_REP) {
 	pkt_init(&ack, P_ACK, "");
 	if (security_sendpkt(p->security_handle, &ack) < 0) {
 	    /* XXX should retry */
+	    amfree(ack.body);
 	    security_seterror(p->security_handle, "error sending ACK: %s",
 		security_geterror(p->security_handle));
-	    return (A_ABORT);
+	    return (PA_ABORT);
 	}
-	return (A_FINISH);
+	amfree(ack.body);
+	return (PA_FINISH);
     }
     else if(pkt->type == P_PREP) {
 	p->timeout = p->repwait - CURTIME + p->curtime + 1;
-	return (A_CONTPEND);
+	return (PA_CONTPEND);
     }
 
     /* should never go here, shut up compiler warning */
-    return (A_FINISH);
+    return (PA_FINISH);
 }
 
 /*
  * event callback that receives a packet
  */
 static void
-recvpkt_callback(cookie, pkt, status)
-    void *cookie;
-    pkt_t *pkt;
-    security_status_t status;
+recvpkt_callback(
+    void *		cookie,
+    pkt_t *		pkt,
+    security_status_t	status)
 {
     proto_t *p = cookie;
 
@@ -630,13 +642,13 @@ recvpkt_callback(cookie, pkt, status)
 
     switch (status) {
     case S_OK:
-	state_machine(p, A_RCVDATA, pkt);
+	state_machine(p, PA_RCVDATA, pkt);
 	break;
     case S_TIMEOUT:
-	state_machine(p, A_TIMEOUT, NULL);
+	state_machine(p, PA_TIMEOUT, NULL);
 	break;
     case S_ERROR:
-	state_machine(p, A_ABORT, NULL);
+	state_machine(p, PA_ABORT, NULL);
 	break;
     default:
 	assert(0);
@@ -654,8 +666,8 @@ recvpkt_callback(cookie, pkt, status)
  * Convert a pstate_t into a printable form.
  */
 static const char *
-pstate2str(pstate)
-    pstate_t pstate;
+pstate2str(
+    pstate_t	pstate)
 {
     static const struct {
 	pstate_t type;
@@ -676,26 +688,26 @@ pstate2str(pstate)
 }
 
 /*
- * Convert an action_t into a printable form
+ * Convert an p_action_t into a printable form
  */
 static const char *
-action2str(action)
-    action_t action;
+action2str(
+    p_action_t	action)
 {
     static const struct {
-	action_t type;
+	p_action_t type;
 	const char name[12];
     } actions[] = {
 #define	X(s)	{ s, stringize(s) }
-	X(A_START),
-	X(A_TIMEOUT),
-	X(A_ERROR),
-	X(A_RCVDATA),
-	X(A_CONTPEND),
-	X(A_PENDING),
-	X(A_CONTINUE),
-	X(A_FINISH),
-	X(A_ABORT),
+	X(PA_START),
+	X(PA_TIMEOUT),
+	X(PA_ERROR),
+	X(PA_RCVDATA),
+	X(PA_CONTPEND),
+	X(PA_PENDING),
+	X(PA_CONTINUE),
+	X(PA_FINISH),
+	X(PA_ABORT),
 #undef X
     };
     int i;

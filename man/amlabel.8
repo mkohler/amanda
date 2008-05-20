@@ -22,7 +22,8 @@
 amlabel - label an Amanda tape
 .SH "SYNOPSIS"
 .HP 8
-\fBamlabel\fR [-f] \fIconfig\fR \fIlabel\fR [\fIslot\fR \fIslot\fR]
+\fBamlabel\fR [-f] \fIconfig\fR \fIlabel\fR [slot \fIslot\fR] [-o \fIconfigoption\fR]*
+
 .SH "DESCRIPTION"
 .PP
 All
@@ -74,6 +75,11 @@ See the
 \fBamanda\fR(8)
 man page for more details about
 \fBAmanda\fR.
+.SH "OPTIONS"
+.TP
+\fB-o\fR \fIconfigoption\fR
+See the "\fBCONFIGURATION OVERWRITE\fR" section in
+\fBamanda\fR(8).
 .SH "EXAMPLE"
 .PP
 Write an

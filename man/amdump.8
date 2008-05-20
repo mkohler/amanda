@@ -22,7 +22,9 @@
 amdump - back up all disks in an Amanda configuration
 .SH "SYNOPSIS"
 .HP 7
-\fBamdump\fR \fIconfig\fR [\fIhost\fR [\fIdisk\fR...]...]
+\fBamdump\fR \fIconfig\fR [\fIhost\fR [\fIdisk\fR]*]*
+     [-o \fIconfigoption\fR]*
+
 .SH "DESCRIPTION"
 .PP
 \fBAmdump\fR
@@ -47,6 +49,14 @@ See the
 \fBamanda\fR(8)
 man page for more details about
 \fBAmanda\fR.
+.SH "OPTIONS"
+.TP
+\fIhost\fR [\fIdisk\fR]*
+Specify the host and disk on which the command will work.
+.TP
+\fB-o\fR \fIconfigoption\fR
+See the "\fBCONFIGURATION OVERWRITE\fR" section in
+\fBamanda\fR(8).
 .SH "EXAMPLE"
 .PP
 Here is a typical crontab entry. It runs

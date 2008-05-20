@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amandates.c,v 1.16 2003/10/22 17:43:20 martinea Exp $
+ * $Id: amandates.c,v 1.21 2006/07/25 18:35:21 martinea Exp $
  *
  * manage amandates file, that mimics /etc/dumpdates, but stores
  * GNUTAR dates
@@ -32,24 +32,33 @@
 
 #include "amanda.h"
 #include "getfsent.h"
+#include "util.h"
 
 #include "amandates.h"
 
 static amandates_t *amandates_list = NULL;
 static FILE *amdf = NULL;
 static int updated, readonly;
-static void import_dumpdates P((amandates_t *));
-static void enter_record P((char *, int , time_t));
-static amandates_t *lookup P((char *name, int import));
+static char *g_amandates_file = NULL;
+static void import_dumpdates(amandates_t *);
+static void enter_record(char *, int , time_t);
+static amandates_t *lookup(char *name, int import);
 
-int start_amandates(open_readwrite)
-int open_readwrite;
+int
+start_amandates(
+    char *amandates_file,
+    int	  open_readwrite)
 {
-    int rc, level;
-    long ldate;
-    char *line = NULL, *name = NULL;
+    int rc, level = 0;
+    long ldate = 0L;
+    char *line;
+    char *name;
     char *s;
     int ch;
+    char *qname;
+
+    if (amandates_file == NULL)
+	return 0;
 
     /* clean up from previous invocation */
 
@@ -57,6 +66,7 @@ int open_readwrite;
 	finish_amandates();
     if(amandates_list != NULL)
 	free_amandates();
+    amfree(g_amandates_file);
 
     /* initialize state */
 
@@ -64,37 +74,41 @@ int open_readwrite;
     readonly = !open_readwrite;
     amdf = NULL;
     amandates_list = NULL;
-
+    g_amandates_file = stralloc(amandates_file);
     /* open the file */
 
-    if (access(AMANDATES_FILE,F_OK))
+    if (access(amandates_file,F_OK))
 	/* not yet existing */
-	if ( (rc = open(AMANDATES_FILE,(O_CREAT|O_RDWR),0644)) != -1 )
+	if ( (rc = open(amandates_file,(O_CREAT|O_RDWR),0644)) != -1 )
 	    /* open/create successfull */
 	    aclose(rc);
 
     if(open_readwrite)
-	amdf = fopen(AMANDATES_FILE, "r+");
+	amdf = fopen(amandates_file, "r+");
     else
-	amdf = fopen(AMANDATES_FILE, "r");
+	amdf = fopen(amandates_file, "r");
 
     /* create it if we need to */
 
     if(amdf == NULL && (errno == EINTR || errno == ENOENT) && open_readwrite)
-	amdf = fopen(AMANDATES_FILE, "w");
+	amdf = fopen(amandates_file, "w");
 
     if(amdf == NULL)
 	return 0;
 
     if(open_readwrite)
-	rc = amflock(fileno(amdf), "amandates");
+	rc = amflock(fileno(amdf), amandates_file);
     else
-	rc = amroflock(fileno(amdf), "amandates");
+	rc = amroflock(fileno(amdf), amandates_file);
 
-    if(rc == -1)
-	error("could not lock %s: %s", AMANDATES_FILE, strerror(errno));
+    if(rc == -1) {
+	error("could not lock %s: %s", amandates_file, strerror(errno));
+	/*NOTREACHED*/
+    }
 
     for(; (line = agets(amdf)) != NULL; free(line)) {
+	if (line[0] == '\0')
+	    continue;
 	s = line;
 	ch = *s++;
 
@@ -102,59 +116,76 @@ int open_readwrite;
 	if(ch == '\0') {
 	    continue;				/* no name field */
 	}
-	name = s - 1;
-	skip_non_whitespace(s, ch);
+	qname = s - 1;
+	skip_quoted_string(s, ch);
 	s[-1] = '\0';				/* terminate the name */
+	name = unquote_string(qname);
 
 	skip_whitespace(s, ch);
 	if(ch == '\0' || sscanf(s - 1, "%d %ld", &level, &ldate) != 2) {
+	    amfree(name);
 	    continue;				/* no more fields */
 	}
 
 	if(level < 0 || level >= DUMP_LEVELS) {
+	    amfree(name);
 	    continue;
 	}
 
 	enter_record(name, level, (time_t) ldate);
+	amfree(name);
     }
 
-    if(ferror(amdf))
-	error("reading %s: %s", AMANDATES_FILE, strerror(errno));
+    if(ferror(amdf)) {
+	error("reading %s: %s", amandates_file, strerror(errno));
+	/*NOTREACHED*/
+    }
 
     updated = 0;	/* reset updated flag */
     return 1;
 }
 
-void finish_amandates()
+void
+finish_amandates(void)
 {
     amandates_t *amdp;
     int level;
+    char *qname;
 
     if(amdf == NULL)
 	return;
 
     if(updated) {
-	if(readonly)
+	if(readonly) {
 	    error("updated amandates after opening readonly");
+	    /*NOTREACHED*/
+	}
 
 	rewind(amdf);
 	for(amdp = amandates_list; amdp != NULL; amdp = amdp->next) {
 	    for(level = 0; level < DUMP_LEVELS; level++) {
 		if(amdp->dates[level] == EPOCH) continue;
+		qname = quote_string(amdp->name);
 		fprintf(amdf, "%s %d %ld\n",
-			amdp->name, level, (long) amdp->dates[level]);
+			qname, level, (long) amdp->dates[level]);
+		amfree(qname);
 	    }
 	}
     }
 
-    if(amfunlock(fileno(amdf), "amandates") == -1)
-	error("could not unlock %s: %s", AMANDATES_FILE, strerror(errno));
-    if (fclose(amdf) == EOF)
-	error("error [closing %s: %s]", AMANDATES_FILE, strerror(errno));
+    if(amfunlock(fileno(amdf), g_amandates_file) == -1) {
+	error("could not unlock %s: %s", g_amandates_file, strerror(errno));
+	/*NOTREACHED*/
+    }
+    if (fclose(amdf) == EOF) {
+	error("error [closing %s: %s]", g_amandates_file, strerror(errno));
+	/*NOTREACHED*/
+    }
     amdf = NULL;
 }
 
-void free_amandates()
+void
+free_amandates(void)
 {
     amandates_t *amdp, *nextp;
 
@@ -166,54 +197,70 @@ void free_amandates()
     amandates_list = NULL;
 }
 
-static amandates_t *lookup(name, import)
-char *name;
-int import;
+static amandates_t *
+lookup(
+    char *	name,
+    int		import)
 {
-    amandates_t *prevp, *amdp, *newp;
+    amandates_t *prevp, *amdp;
     int rc, level;
 
+    (void)import;	/* Quiet unused parameter warning */
     rc = 0;
 
-    for(prevp=NULL,amdp=amandates_list;amdp!=NULL;prevp=amdp,amdp=amdp->next)
-	if((rc = strcmp(name, amdp->name)) <= 0)
+    prevp = NULL;
+    amdp = amandates_list;
+    while (amdp != NULL) {
+	if ((rc = strcmp(name, amdp->name)) <= 0)
 	    break;
-
-    if(amdp && rc == 0)
-	return amdp;
-
-    newp = alloc(sizeof(amandates_t));
-    newp->name = stralloc(name);
-    for(level = 0; level < DUMP_LEVELS; level++)
-	newp->dates[level] = EPOCH;
-    newp->next = amdp;
-    if(prevp) prevp->next = newp;
-    else amandates_list = newp;
-
-    import_dumpdates(newp);
-
-    return newp;
+	prevp = amdp;
+	amdp = amdp->next;
+    }
+    if (!(amdp && (rc == 0))) {
+	amandates_t *newp = alloc(SIZEOF(amandates_t));
+	newp->name = stralloc(name);
+	for (level = 0; level < DUMP_LEVELS; level++)
+	    newp->dates[level] = EPOCH;
+	newp->next = amdp;
+	if (prevp != NULL) {
+#ifndef __lint	/* Remove complaint about NULL pointer assignment */
+	    prevp->next = newp;
+#else
+	    (void)prevp;
+#endif
+	} else {
+	    amandates_list = newp;
+	}
+	import_dumpdates(newp);
+	return newp;
+    }
+    return amdp;
 }
 
-amandates_t *amandates_lookup(name)
-char *name;
+amandates_t *
+amandates_lookup(
+    char *	name)
 {
     return lookup(name, 1);
 }
 
-static void enter_record(name, level, dumpdate)
-char *name;
-int level;
-time_t dumpdate;
+static void
+enter_record(
+    char *	name,
+    int		level,
+    time_t	dumpdate)
 {
     amandates_t *amdp;
+    char *qname;
 
     amdp = lookup(name, 0);
 
     if(level < 0 || level >= DUMP_LEVELS || dumpdate < amdp->dates[level]) {
+	qname = quote_string(name);
 	/* this is not allowed, but we can ignore it */
         dbprintf(("amandates botch: %s lev %d: new dumpdate %ld old %ld\n",
-		  name, level, (long) dumpdate, (long) amdp->dates[level]));
+		  qname, level, (long) dumpdate, (long) amdp->dates[level]));
+	amfree(qname);
 	return;
     }
 
@@ -221,12 +268,14 @@ time_t dumpdate;
 }
 
 
-void amandates_updateone(name, level, dumpdate)
-char *name;
-int level;
-time_t dumpdate;
+void
+amandates_updateone(
+    char *	name,
+    int		level,
+    time_t	dumpdate)
 {
     amandates_t *amdp;
+    char *qname;
 
     assert(!readonly);
 
@@ -234,8 +283,10 @@ time_t dumpdate;
 
     if(level < 0 || level >= DUMP_LEVELS || dumpdate < amdp->dates[level]) {
 	/* this is not allowed, but we can ignore it */
+	qname = quote_string(name);
 	dbprintf(("amandates updateone: %s lev %d: new dumpdate %ld old %ld",
 		  name, level, (long) dumpdate, (long) amdp->dates[level]));
+	amfree(qname);
 	return;
     }
 
@@ -246,11 +297,14 @@ time_t dumpdate;
 
 /* -------------------------- */
 
-static void import_dumpdates(amdp)
-amandates_t *amdp;
+static void
+import_dumpdates(
+    amandates_t *	amdp)
 {
-    char *devname = NULL, *line = NULL, *fname = NULL;
-    int level;
+    char *devname;
+    char *line;
+    char *fname;
+    int level = 0;
     time_t dumpdate;
     FILE *dumpdf;
     char *s;
@@ -264,6 +318,8 @@ amandates_t *amdp;
     }
 
     for(; (line = agets(dumpdf)) != NULL; free(line)) {
+	if (line[0] == '\0')
+	    continue;
 	s = line;
 	ch = *s++;
 

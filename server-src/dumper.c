@@ -23,7 +23,7 @@
  * Authors: the Amanda Development Team.  Its members are listed in a
  * file named AUTHORS, in the root directory of this distribution.
  */
-/* $Id: dumper.c,v 1.170 2006/03/22 15:10:52 martinea Exp $
+/* $Id: dumper.c,v 1.190 2006/08/30 19:53:57 martinea Exp $
  *
  * requests remote amandad processes to dump filesystems
  */
@@ -70,8 +70,8 @@ struct databuf {
 static char *handle = NULL;
 
 static char *errstr = NULL;
-static long dumpbytes;
-static long dumpsize, headersize, origsize;
+static off_t dumpbytes;
+static off_t dumpsize, headersize, origsize;
 
 static comp_t srvcompress = COMP_NONE;
 char *srvcompprog = NULL;
@@ -87,14 +87,19 @@ static FILE *errf = NULL;
 static char *hostname = NULL;
 am_feature_t *their_features = NULL;
 static char *diskname = NULL;
+static char *qdiskname = NULL;
 static char *device = NULL;
 static char *options = NULL;
 static char *progname = NULL;
+static char *amandad_path=NULL;
+static char *client_username=NULL;
+static char *ssh_keys=NULL;
 static int level;
 static char *dumpdate = NULL;
-static char *datestamp;
-static int conf_dtimeout;
+static char *dumper_timestamp = NULL;
+static time_t conf_dtimeout;
 static int indexfderror;
+static int set_datafd;
 
 static dumpfile_t file;
 
@@ -109,44 +114,46 @@ static struct {
 #define	INDEXFD	2
     { "INDEX", NULL },
 };
-#define	NSTREAMS	(sizeof(streams) / sizeof(streams[0]))
+#define	NSTREAMS	(int)(sizeof(streams) / sizeof(streams[0]))
 
 static am_feature_t *our_features = NULL;
 static char *our_feature_string = NULL;
 
 /* local functions */
-int main P((int, char **));
-static int do_dump P((struct databuf *));
-static void check_options P((char *));
-static void finish_tapeheader P((dumpfile_t *));
-static int write_tapeheader P((int, dumpfile_t *));
-static void databuf_init P((struct databuf *, int));
-static int databuf_write P((struct databuf *, const void *, int));
-static int databuf_flush P((struct databuf *));
-static void process_dumpeof P((void));
-static void process_dumpline P((const char *));
-static void add_msg_data P((const char *, size_t));
-static void parse_info_line P((char *));
-static void log_msgout P((logtype_t));
+int		main(int, char **);
+static int	do_dump(struct databuf *);
+static void	check_options(char *);
+static void	finish_tapeheader(dumpfile_t *);
+static ssize_t	write_tapeheader(int, dumpfile_t *);
+static void	databuf_init(struct databuf *, int);
+static int	databuf_write(struct databuf *, const void *, size_t);
+static int	databuf_flush(struct databuf *);
+static void	process_dumpeof(void);
+static void	process_dumpline(const char *);
+static void	add_msg_data(const char *, size_t);
+static void	parse_info_line(char *);
+static void	log_msgout(logtype_t);
+static char *	dumper_get_security_conf (char *, void *);
 
-static int runcompress P((int, pid_t *, comp_t));
-static int runencrypt P((int, pid_t *,  encrypt_t));
+static int	runcompress(int, pid_t *, comp_t);
+static int	runencrypt(int, pid_t *,  encrypt_t);
 
-static void sendbackup_response P((void *, pkt_t *, security_handle_t *));
-static int startup_dump P((const char *, const char *, const char *, int,
-			   const char *, const char *, const char *));
-static void stop_dump P((void));
+static void	sendbackup_response(void *, pkt_t *, security_handle_t *);
+static int	startup_dump(const char *, const char *, const char *, int,
+			const char *, const char *, const char *,
+			const char *, const char *, const char *);
+static void	stop_dump(void);
 
-static void read_indexfd P((void *, void *, ssize_t));
-static void read_datafd P((void *, void *, ssize_t));
-static void read_mesgfd P((void *, void *, ssize_t));
-static void timeout P((int));
-static void timeout_callback P((void *));
+static void	read_indexfd(void *, void *, ssize_t);
+static void	read_datafd(void *, void *, ssize_t);
+static void	read_mesgfd(void *, void *, ssize_t);
+static void	timeout(time_t);
+static void	timeout_callback(void *);
 
 static void
-check_options(options)
-    char *options;
-{	
+check_options(
+    char *options)
+{
   char *compmode = NULL;
   char *compend  = NULL;
   char *encryptmode = NULL;
@@ -221,24 +228,30 @@ check_options(options)
 
 
 int
-main(main_argc, main_argv)
-    int main_argc;
-    char **main_argv;
+main(
+    int		main_argc,
+    char **	main_argv)
 {
     static struct databuf db;
     struct cmdargs cmdargs;
     cmd_t cmd;
     int outfd = -1;
-    int taper_port, rc;
+    int rc;
+    in_port_t taper_port;
     unsigned long malloc_hist_1, malloc_size_1;
     unsigned long malloc_hist_2, malloc_size_2;
     char *conffile;
     char *q = NULL;
     int a;
+    uid_t ruid;
+    int    new_argc,   my_argc;
+    char **new_argv, **my_argv;
 
     safe_fd(-1, 0);
 
     set_pname("dumper");
+
+    dbopen(DBG_SUBDIR_SERVER);
 
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
@@ -248,14 +261,19 @@ main(main_argc, main_argv)
     erroutput_type = (ERR_AMANDALOG|ERR_INTERACTIVE);
     set_logerror(logerror);
 
-    if (main_argc > 1) {
-	config_name = stralloc(main_argv[1]);
+    parse_server_conf(main_argc, main_argv, &new_argc, &new_argv);
+    my_argc = new_argc;
+    my_argv = new_argv;
+
+    if (my_argc > 1) {
+	config_name = stralloc(my_argv[1]);
 	config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
     } else {
 	char my_cwd[STR_SIZE];
 
-	if (getcwd(my_cwd, sizeof(my_cwd)) == NULL) {
+	if (getcwd(my_cwd, SIZEOF(my_cwd)) == NULL) {
 	    error("cannot determine current working directory");
+	    /*NOTREACHED*/
 	}
 	config_dir = stralloc2(my_cwd, "/");
 	if ((config_name = strrchr(my_cwd, '/')) != NULL) {
@@ -271,38 +289,45 @@ main(main_argc, main_argv)
     conffile = stralloc2(config_dir, CONFFILE_NAME);
     if(read_conffile(conffile)) {
 	error("errors processing config file \"%s\"", conffile);
+	/*NOTREACHED*/
     }
     amfree(conffile);
 
+    dbrename(config_name, DBG_SUBDIR_SERVER);
+
+    report_bad_conf_arg();
     /*
-     * Make our effective uid nonprivlidged, but keep our real uid as root
+     * Make our effective uid nonprivlidged, keeping save uid as root
      * in case we need to get back (to bind privlidged ports, etc).
      */
+    ruid = getuid();
     if(geteuid() == 0) {
-	uid_t ruid = getuid();
-	setuid(0);
 	seteuid(ruid);
 	setgid(getgid());
     }
 #if defined BSD_SECURITY && !defined SSH_SECURITY
-    else error("must be run setuid root to communicate correctly");
+    else {
+    	error("must be run setuid root to communicate correctly");
+	/*NOTREACHED*/
+    }
 #endif
 
     fprintf(stderr,
 	    "%s: pid %ld executable %s version %s\n",
 	    get_pname(), (long) getpid(),
-	    main_argv[0], version());
+	    my_argv[0], version());
     fflush(stderr);
 
     /* now, make sure we are a valid user */
 
-    if (getpwuid(getuid()) == NULL)
+    if (getpwuid(getuid()) == NULL) {
 	error("can't get login name for my uid %ld", (long)getuid());
+	/*NOTREACHED*/
+    }
 
     signal(SIGPIPE, SIG_IGN);
 
-    datestamp = construct_datestamp(NULL);
-    conf_dtimeout = getconf_int(CNF_DTIMEOUT);
+    conf_dtimeout = getconf_time(CNF_DTIMEOUT);
 
     protocol_init();
 
@@ -310,6 +335,15 @@ main(main_argc, main_argv)
 	cmd = getcmd(&cmdargs);
 
 	switch(cmd) {
+	case START:
+	    if(cmdargs.argc <  2)
+		error("error [dumper START: not enough args: timestamp]");
+	    dumper_timestamp = newstralloc(dumper_timestamp, cmdargs.argv[2]);
+	    break;
+
+	case ABORT:
+	    break;
+
 	case QUIT:
 	    break;
 
@@ -325,6 +359,9 @@ main(main_argc, main_argv)
 	     *   level
 	     *   dumpdate
 	     *   progname
+	     *   amandad_path
+	     *   client_username
+	     *   ssh_keys
 	     *   options
 	     */
 	    cmdargs.argc++;			/* true count of args */
@@ -332,68 +369,113 @@ main(main_argc, main_argv)
 
 	    if(a >= cmdargs.argc) {
 		error("error [dumper PORT-DUMP: not enough args: handle]");
+		/*NOTREACHED*/
 	    }
 	    handle = newstralloc(handle, cmdargs.argv[a++]);
 
 	    if(a >= cmdargs.argc) {
-		error("error [dumper PORT-DUMP: not enough args: handle]");
+		error("error [dumper PORT-DUMP: not enough args: port]");
+		/*NOTREACHED*/
 	    }
-	    taper_port = atoi(cmdargs.argv[a++]);
+	    taper_port = (in_port_t)atoi(cmdargs.argv[a++]);
 
 	    if(a >= cmdargs.argc) {
-		error("error [dumper PORT-DUMP: not enough args: handle]");
+		error("error [dumper PORT-DUMP: not enough args: hostname]");
+		/*NOTREACHED*/
 	    }
 	    hostname = newstralloc(hostname, cmdargs.argv[a++]);
 
 	    if(a >= cmdargs.argc) {
 		error("error [dumper PORT-DUMP: not enough args: features]");
+		/*NOTREACHED*/
 	    }
 	    am_release_feature_set(their_features);
 	    their_features = am_string_to_feature(cmdargs.argv[a++]);
 
 	    if(a >= cmdargs.argc) {
-		error("error [dumper PORT-DUMP: not enough args: handle]");
+		error("error [dumper PORT-DUMP: not enough args: diskname]");
+		/*NOTREACHED*/
 	    }
-	    diskname = newstralloc(diskname, cmdargs.argv[a++]);
+	    qdiskname = newstralloc(qdiskname, cmdargs.argv[a++]);
+	    if (diskname != NULL)
+		amfree(diskname);
+	    diskname = unquote_string(qdiskname);
 
 	    if(a >= cmdargs.argc) {
-		error("error [dumper PORT-DUMP: not enough args: handle]");
+		error("error [dumper PORT-DUMP: not enough args: device]");
+		/*NOTREACHED*/
 	    }
 	    device = newstralloc(device, cmdargs.argv[a++]);
-	    if(strcmp(device,"NODEVICE") == 0) amfree(device);
+	    if(strcmp(device,"NODEVICE") == 0)
+		amfree(device);
 
 	    if(a >= cmdargs.argc) {
-		error("error [dumper PORT-DUMP: not enough args: handle]");
+		error("error [dumper PORT-DUMP: not enough args: level]");
+		/*NOTREACHED*/
 	    }
 	    level = atoi(cmdargs.argv[a++]);
 
 	    if(a >= cmdargs.argc) {
-		error("error [dumper PORT-DUMP: not enough args: handle]");
+		error("error [dumper PORT-DUMP: not enough args: dumpdate]");
+		/*NOTREACHED*/
 	    }
 	    dumpdate = newstralloc(dumpdate, cmdargs.argv[a++]);
 
 	    if(a >= cmdargs.argc) {
-		error("error [dumper PORT-DUMP: not enough args: handle]");
+		error("error [dumper PORT-DUMP: not enough args: program]");
+		/*NOTREACHED*/
 	    }
 	    progname = newstralloc(progname, cmdargs.argv[a++]);
 
 	    if(a >= cmdargs.argc) {
-		error("error [dumper PORT-DUMP: not enough args: handle]");
+		error("error [dumper PORT-DUMP: not enough args: amandad_path]");
+		/*NOTREACHED*/
+	    }
+	    amandad_path = newstralloc(amandad_path, cmdargs.argv[a++]);
+
+	    if(a >= cmdargs.argc) {
+		error("error [dumper PORT-DUMP: not enough args: client_username]");
+	    }
+	    client_username = newstralloc(client_username, cmdargs.argv[a++]);
+
+	    if(a >= cmdargs.argc) {
+		error("error [dumper PORT-DUMP: not enough args: ssh_keys]");
+	    }
+	    ssh_keys = newstralloc(ssh_keys, cmdargs.argv[a++]);
+
+	    if(a >= cmdargs.argc) {
+		error("error [dumper PORT-DUMP: not enough args: options]");
 	    }
 	    options = newstralloc(options, cmdargs.argv[a++]);
 
 	    if(a != cmdargs.argc) {
 		error("error [dumper PORT-DUMP: too many args: %d != %d]",
 		      cmdargs.argc, a);
+	        /*NOTREACHED*/
 	    }
 
-	    /* connect outf to taper port */
+	    if ((gethostbyname("localhost")) == NULL) {
+		errstr = newstralloc(errstr,
+				     "could not resolve localhost");
+		q = squotef(errstr);
+		putresult(FAILED, "%s %s\n", handle, q);
+		log_add(L_FAIL, "%s %s %s %d [%s]", hostname, qdiskname,
+			dumper_timestamp, level, errstr);
+		amfree(q);
+		break;
+	    }
+	    /* connect outf to chunker/taper port */
 
 	    outfd = stream_client("localhost", taper_port,
-				  STREAM_BUFSIZE, -1, NULL, 0);
+				  STREAM_BUFSIZE, 0, NULL, 0);
 	    if (outfd == -1) {
-		q = squotef("[taper port open: %s]", strerror(errno));
+		
+		errstr = newvstralloc(errstr, "port open: ",
+				      strerror(errno), NULL);
+		q = squotef(errstr);
 		putresult(FAILED, "%s %s\n", handle, q);
+		log_add(L_FAIL, "%s %s %s %d [%s]", hostname, qdiskname,
+			dumper_timestamp, level, errstr);
 		amfree(q);
 		break;
 	    }
@@ -407,19 +489,25 @@ main(main_argc, main_argv)
 			      level,
 			      dumpdate,
 			      progname,
+			      amandad_path,
+			      client_username,
+			      ssh_keys,
 			      options);
 	    if (rc != 0) {
 		q = squote(errstr);
 		putresult(rc == 2? FAILED : TRYAGAIN, "%s %s\n",
 		    handle, q);
 		if (rc == 2)
-		    log_add(L_FAIL, "%s %s %s %d [%s]", hostname, diskname,
-			datestamp, level, errstr);
+		    log_add(L_FAIL, "%s %s %s %d [%s]", hostname, qdiskname,
+			dumper_timestamp, level, errstr);
 		amfree(q);
 	    } else {
-		if (do_dump(&db)) {
-		}
+		do_dump(&db);
 	    }
+
+	    amfree(amandad_path);
+	    amfree(client_username);
+
 	    break;
 
 	default:
@@ -439,10 +527,21 @@ main(main_argc, main_argv)
 	    aclose(outfd);
     } while(cmd != QUIT);
 
+    /* make sure root privilege is dropped */
+    if ( geteuid() == 0 ) {
+      setuid(ruid);
+      seteuid(ruid);
+    }
+
+    free_new_argv(new_argc, new_argv);
+    free_server_config();
+    am_release_feature_set(our_features);
+    amfree(our_feature_string);
     amfree(errstr);
-    amfree(datestamp);
+    amfree(dumper_timestamp);
     amfree(handle);
     amfree(hostname);
+    amfree(qdiskname);
     amfree(diskname);
     amfree(device);
     amfree(dumpdate);
@@ -459,10 +558,12 @@ main(main_argc, main_argv)
 
     malloc_size_2 = malloc_inuse(&malloc_hist_2);
 
-    if (malloc_size_1 != malloc_size_2)
+    if (malloc_size_1 != malloc_size_2) {
 	malloc_list(fileno(stderr), malloc_hist_1, malloc_hist_2);
+    }
 
-    exit(0);
+    dbclose();
+    return (0); /* exit */
 }
 
 
@@ -470,9 +571,9 @@ main(main_argc, main_argv)
  * Initialize a databuf.  Takes a writeable file descriptor.
  */
 static void
-databuf_init(db, fd)
-    struct databuf *db;
-    int fd;
+databuf_init(
+    struct databuf *	db,
+    int			fd)
 {
 
     db->fd = fd;
@@ -489,10 +590,10 @@ databuf_init(db, fd)
  * any boundaries.
  */
 static int
-databuf_write(db, buf, size)
-    struct databuf *db;
-    const void *buf;
-    int size;
+databuf_write(
+    struct databuf *	db,
+    const void *	buf,
+    size_t		size)
 {
     db->buf = (char *)buf;
     db->datain = db->datalimit = db->buf + size;
@@ -504,10 +605,10 @@ databuf_write(db, buf, size)
  * Write out the buffer to chunker.
  */
 static int
-databuf_flush(db)
-    struct databuf *db;
+databuf_flush(
+    struct databuf *	db)
 {
-    int written;
+    ssize_t written;
 
     /*
      * If there's no data, do nothing.
@@ -519,14 +620,15 @@ databuf_flush(db)
     /*
      * Write out the buffer
      */
-    written = fullwrite(db->fd, db->dataout, db->datain - db->dataout);
+    written = fullwrite(db->fd, db->dataout,
+			(size_t)(db->datain - db->dataout));
     if (written > 0) {
 	db->dataout += written;
-        dumpbytes += written;
+        dumpbytes += (off_t)written;
     }
-    if (dumpbytes >= 1024) {
-	dumpsize += (dumpbytes / 1024);
-	dumpbytes %= 1024;
+    if (dumpbytes >= (off_t)1024) {
+	dumpsize += (dumpbytes / (off_t)1024);
+	dumpbytes %= (off_t)1024;
     }
     if (written < 0) {
 	errstr = squotef("data write: %s", strerror(errno));
@@ -545,7 +647,7 @@ static int status;
 
 
 static void
-process_dumpeof()
+process_dumpeof(void)
 {
     /* process any partial line in msgbuf? !!! */
     add_msg_data(NULL, 0);
@@ -577,26 +679,26 @@ process_dumpeof()
  * of any duplicates.
  */
 static void
-parse_info_line(str)
-    char *str;
+parse_info_line(
+    char *str)
 {
     static const struct {
 	const char *name;
 	char *value;
 	size_t len;
     } fields[] = {
-	{ "BACKUP", file.program, sizeof(file.program) },
-	{ "RECOVER_CMD", file.recover_cmd, sizeof(file.recover_cmd) },
-	{ "COMPRESS_SUFFIX", file.comp_suffix, sizeof(file.comp_suffix) },
-	{ "SERVER_CUSTOM_COMPRESS", file.srvcompprog, sizeof(file.srvcompprog) },
-	{ "CLIENT_CUSTOM_COMPRESS", file.clntcompprog, sizeof(file.clntcompprog) },
-	{ "SERVER_ENCRYPT", file.srv_encrypt, sizeof(file.srv_encrypt) },
-	{ "CLIENT_ENCRYPT", file.clnt_encrypt, sizeof(file.clnt_encrypt) },
-	{ "SERVER_DECRYPT_OPTION", file.srv_decrypt_opt, sizeof(file.srv_decrypt_opt) },
-	{ "CLIENT_DECRYPT_OPTION", file.clnt_decrypt_opt, sizeof(file.clnt_decrypt_opt) }
+	{ "BACKUP", file.program, SIZEOF(file.program) },
+	{ "RECOVER_CMD", file.recover_cmd, SIZEOF(file.recover_cmd) },
+	{ "COMPRESS_SUFFIX", file.comp_suffix, SIZEOF(file.comp_suffix) },
+	{ "SERVER_CUSTOM_COMPRESS", file.srvcompprog, SIZEOF(file.srvcompprog) },
+	{ "CLIENT_CUSTOM_COMPRESS", file.clntcompprog, SIZEOF(file.clntcompprog) },
+	{ "SERVER_ENCRYPT", file.srv_encrypt, SIZEOF(file.srv_encrypt) },
+	{ "CLIENT_ENCRYPT", file.clnt_encrypt, SIZEOF(file.clnt_encrypt) },
+	{ "SERVER_DECRYPT_OPTION", file.srv_decrypt_opt, SIZEOF(file.srv_decrypt_opt) },
+	{ "CLIENT_DECRYPT_OPTION", file.clnt_decrypt_opt, SIZEOF(file.clnt_decrypt_opt) }
     };
     char *name, *value;
-    int i;
+    size_t i;
 
     if (strcmp(str, "end") == 0) {
 	SET(status, GOT_INFO_ENDLINE);
@@ -610,7 +712,7 @@ parse_info_line(str)
     if (value == NULL)
 	return;
 
-    for (i = 0; i < sizeof(fields) / sizeof(fields[0]); i++) {
+    for (i = 0; i < SIZEOF(fields) / SIZEOF(fields[0]); i++) {
 	if (strcmp(name, fields[i].name) == 0) {
 	    strncpy(fields[i].value, value, fields[i].len - 1);
 	    fields[i].value[fields[i].len - 1] = '\0';
@@ -620,8 +722,8 @@ parse_info_line(str)
 }
 
 static void
-process_dumpline(str)
-    const char *str;
+process_dumpline(
+    const char *	str)
 {
     char *buf, *tok;
 
@@ -645,13 +747,14 @@ process_dumpline(str)
 	if (tok == NULL)
 	    goto bad_line;
 
-	if (strcmp(tok, "start") == 0)
+	if (strcmp(tok, "start") == 0) {
 	    break;
+	}
 
 	if (strcmp(tok, "size") == 0) {
 	    tok = strtok(NULL, "");
 	    if (tok != NULL) {
-		origsize = (long)atof(tok);
+		origsize = OFF_T_ATOI(tok);
 		SET(status, GOT_SIZELINE);
 	    }
 	    break;
@@ -704,16 +807,17 @@ bad_line:
 }
 
 static void
-add_msg_data(str, len)
-    const char *str;
-    size_t len;
+add_msg_data(
+    const char *	str,
+    size_t		len)
 {
     static struct {
 	char *buf;	/* buffer holding msg data */
 	size_t size;	/* size of alloced buffer */
     } msg = { NULL, 0 };
-    char *line, *nl;
+    char *line, *ch;
     size_t buflen;
+    int	in_quotes = 0;
 
     if (msg.buf != NULL)
 	buflen = strlen(msg.buf);
@@ -727,8 +831,9 @@ add_msg_data(str, len)
     if (str == NULL) {
 	if (buflen == 0)
 	    return;
-	fprintf(errf,"? %s: error [partial line in msgbuf: %ld bytes]\n",
-	    get_pname(), (long)buflen);
+	fprintf(errf,"? %s: error [partial line in msgbuf: "
+				SIZE_T_FMT " bytes]\n", get_pname(),
+				(SIZE_T_FMT_TYPE)buflen);
 	fprintf(errf,"? %s: error [partial line in msgbuf: \"%s\"]\n",
 	    get_pname(), msg.buf);
 	msg.buf[0] = '\0';
@@ -738,18 +843,18 @@ add_msg_data(str, len)
     /*
      * Expand the buffer if it can't hold the new contents.
      */
-    if (buflen + len + 1 > msg.size) {
+    if ((buflen + len + 1) > msg.size) {
 	char *newbuf;
 	size_t newsize;
 
 /* round up to next y, where y is a power of 2 */
 #define	ROUND(x, y)	(((x) + (y) - 1) & ~((y) - 1))
 
-	newsize = ROUND(buflen + len + 1, 256);
+	newsize = ROUND(buflen + (ssize_t)len + 1, 256);
 	newbuf = alloc(newsize);
 
 	if (msg.buf != NULL) {
-	    strcpy(newbuf, msg.buf);
+	    strncpy(newbuf, msg.buf, newsize);
 	    amfree(msg.buf);
 	} else
 	    newbuf[0] = '\0';
@@ -765,17 +870,21 @@ add_msg_data(str, len)
 
     /*
      * Process all lines in the buffer
+     * scanning line for unqouted newline.
      */
-    for (line = msg.buf;;) {
-	/*
-	 * If there's no newline, then we've only got a partial line.
-	 * We go back for more.
-	 */
-	if ((nl = strchr(line, '\n')) == NULL)
-	    break;
-	*nl = '\0';
-	process_dumpline(line);
-	line = nl + 1;
+    for (ch = line = msg.buf; *ch != '\0'; ch++) {
+	if (*ch == '"') {
+	    in_quotes = !in_quotes;
+	} else if ((*ch == '\\') && (*(ch + 1) == '"')) {
+	        ch++;
+	} else if (!in_quotes && (*ch == '\n')) {
+	    /*
+	     * Found an unqouted newline.  Terminate and process line.
+	     */
+	    *ch = '\0';
+	    process_dumpline(line);
+	    line = ch + 1;
+	}
     }
 
     /*
@@ -784,7 +893,7 @@ add_msg_data(str, len)
      */
     if (*line != '\0') {
 	buflen = strlen(line);
-	memmove(msg.buf, line, buflen + 1);
+	memmove(msg.buf, line, (size_t)buflen + 1);
     } else {
 	msg.buf[0] = '\0';
     }
@@ -792,15 +901,19 @@ add_msg_data(str, len)
 
 
 static void
-log_msgout(typ)
-    logtype_t typ;
+log_msgout(
+    logtype_t	typ)
 {
     char *line;
 
     fflush(errf);
-    (void) fseek(errf, 0L, SEEK_SET);
+    if (fseek(errf, 0L, SEEK_SET) < 0) {
+	dbprintf(("log_msgout: warning - seek failed: %s\n", strerror(errno)));
+    }
     while ((line = agets(errf)) != NULL) {
-	log_add(typ, "%s", line);
+	if (line[0] != '\0') {
+		log_add(typ, "%s", line);
+	}
 	amfree(line);
     }
 
@@ -813,16 +926,16 @@ log_msgout(typ)
  * Fill in the rest of the tape header
  */
 static void
-finish_tapeheader(file)
-    dumpfile_t *file;
+finish_tapeheader(
+    dumpfile_t *file)
 {
 
     assert(ISSET(status, HEADER_DONE));
 
     file->type = F_DUMPFILE;
-    strncpy(file->datestamp, datestamp, sizeof(file->datestamp) - 1);
-    strncpy(file->name, hostname, sizeof(file->name) - 1);
-    strncpy(file->disk, diskname, sizeof(file->disk) - 1);
+    strncpy(file->datestamp, dumper_timestamp, sizeof(file->datestamp) - 1);
+    strncpy(file->name, hostname, SIZEOF(file->name) - 1);
+    strncpy(file->disk, diskname, SIZEOF(file->disk) - 1);
     file->dumplevel = level;
 
     /*
@@ -835,28 +948,31 @@ finish_tapeheader(file)
 #define	UNCOMPRESS_OPT	""
 #endif
 	if (srvcompress == COMP_SERV_CUST) {
-	    snprintf(file->uncompress_cmd, sizeof(file->uncompress_cmd),
+	    snprintf(file->uncompress_cmd, SIZEOF(file->uncompress_cmd),
 		     " %s %s |", srvcompprog, "-d");
-	    strcpy(file->comp_suffix, "cust");
-	    strncpy(file->srvcompprog, srvcompprog, sizeof(file->srvcompprog));
-	    file->srvcompprog[sizeof(file->srvcompprog)-1] = '\0';
+	    strncpy(file->comp_suffix, "cust", SIZEOF(file->comp_suffix) - 1);
+	    file->comp_suffix[SIZEOF(file->comp_suffix) - 1] = '\0';
+	    strncpy(file->srvcompprog, srvcompprog, SIZEOF(file->srvcompprog) - 1);
+	    file->srvcompprog[SIZEOF(file->srvcompprog) - 1] = '\0';
 	} else if ( srvcompress == COMP_CUST ) {
-	    snprintf(file->uncompress_cmd, sizeof(file->uncompress_cmd),
+	    snprintf(file->uncompress_cmd, SIZEOF(file->uncompress_cmd),
 		     " %s %s |", clntcompprog, "-d");
-	    strcpy(file->comp_suffix, "cust");
-	    strncpy(file->clntcompprog, clntcompprog, sizeof(file->clntcompprog));
-	    file->clntcompprog[sizeof(file->clntcompprog)-1] = '\0';
+	    strncpy(file->comp_suffix, "cust", SIZEOF(file->comp_suffix) - 1);
+	    file->comp_suffix[SIZEOF(file->comp_suffix) - 1] = '\0';
+	    strncpy(file->clntcompprog, clntcompprog, SIZEOF(file->clntcompprog));
+	    file->clntcompprog[SIZEOF(file->clntcompprog) - 1] = '\0';
 	} else {
-	    snprintf(file->uncompress_cmd, sizeof(file->uncompress_cmd),
+	    snprintf(file->uncompress_cmd, SIZEOF(file->uncompress_cmd),
 		" %s %s |", UNCOMPRESS_PATH, UNCOMPRESS_OPT);
-	    strncpy(file->comp_suffix, COMPRESS_SUFFIX,sizeof(file->comp_suffix)-1);
-	    file->comp_suffix[sizeof(file->comp_suffix)-1] = '\0';
+	    strncpy(file->comp_suffix, COMPRESS_SUFFIX,SIZEOF(file->comp_suffix) - 1);
+	    file->comp_suffix[SIZEOF(file->comp_suffix) - 1] = '\0';
 	}
     } else {
 	if (file->comp_suffix[0] == '\0') {
 	    file->compressed = 0;
-	    assert(sizeof(file->comp_suffix) >= 2);
-	    strcpy(file->comp_suffix, "N");
+	    assert(SIZEOF(file->comp_suffix) >= 2);
+	    strncpy(file->comp_suffix, "N", SIZEOF(file->comp_suffix) - 1);
+	    file->comp_suffix[SIZEOF(file->comp_suffix) - 1] = '\0';
 	} else {
 	    file->compressed = 1;
 	}
@@ -865,27 +981,30 @@ finish_tapeheader(file)
     if (srvencrypt != ENCRYPT_NONE) {
       file->encrypted= 1;
       if (srvencrypt == ENCRYPT_SERV_CUST) {
-	snprintf(file->decrypt_cmd, sizeof(file->decrypt_cmd),
+	snprintf(file->decrypt_cmd, SIZEOF(file->decrypt_cmd),
 		 " %s %s |", srv_encrypt, srv_decrypt_opt); 
-	strcpy(file->encrypt_suffix, "enc");
-	strncpy(file->srv_encrypt, srv_encrypt, sizeof(file->srv_encrypt));
-	file->srv_encrypt[sizeof(file->srv_encrypt)-1] = '\0';
-	strncpy(file->srv_decrypt_opt, srv_decrypt_opt, sizeof(file->srv_decrypt_opt));
-	file->srv_decrypt_opt[sizeof(file->srv_decrypt_opt)-1] = '\0';
+	strncpy(file->encrypt_suffix, "enc", SIZEOF(file->encrypt_suffix) - 1);
+	file->encrypt_suffix[SIZEOF(file->encrypt_suffix) - 1] = '\0';
+	strncpy(file->srv_encrypt, srv_encrypt, SIZEOF(file->srv_encrypt) - 1);
+	file->srv_encrypt[SIZEOF(file->srv_encrypt) - 1] = '\0';
+	strncpy(file->srv_decrypt_opt, srv_decrypt_opt, SIZEOF(file->srv_decrypt_opt) - 1);
+	file->srv_decrypt_opt[SIZEOF(file->srv_decrypt_opt) - 1] = '\0';
       } else if ( srvencrypt == ENCRYPT_CUST ) {
-	snprintf(file->decrypt_cmd, sizeof(file->decrypt_cmd),
+	snprintf(file->decrypt_cmd, SIZEOF(file->decrypt_cmd),
 		 " %s %s |", clnt_encrypt, clnt_decrypt_opt);
-	strcpy(file->encrypt_suffix, "enc");
-	strncpy(file->clnt_encrypt, clnt_encrypt, sizeof(file->clnt_encrypt));
-	file->clnt_encrypt[sizeof(file->clnt_encrypt)-1] = '\0';
-	strncpy(file->clnt_decrypt_opt, clnt_decrypt_opt, sizeof(file->clnt_decrypt_opt));
-	file->clnt_decrypt_opt[sizeof(file->clnt_decrypt_opt)-1] = '\0';
+	strncpy(file->encrypt_suffix, "enc", SIZEOF(file->encrypt_suffix) - 1);
+	file->encrypt_suffix[SIZEOF(file->encrypt_suffix) - 1] = '\0';
+	strncpy(file->clnt_encrypt, clnt_encrypt, SIZEOF(file->clnt_encrypt) - 1);
+	file->clnt_encrypt[SIZEOF(file->clnt_encrypt) - 1] = '\0';
+	strncpy(file->clnt_decrypt_opt, clnt_decrypt_opt, SIZEOF(file->clnt_decrypt_opt));
+	file->clnt_decrypt_opt[SIZEOF(file->clnt_decrypt_opt) - 1] = '\0';
       }
     } else {
       if (file->encrypt_suffix[0] == '\0') {
 	file->encrypted = 0;
-	assert(sizeof(file->encrypt_suffix) >= 2);
-	strcpy(file->encrypt_suffix, "N");
+	assert(SIZEOF(file->encrypt_suffix) >= 2);
+	strncpy(file->encrypt_suffix, "N", SIZEOF(file->encrypt_suffix) - 1);
+	file->encrypt_suffix[SIZEOF(file->encrypt_suffix) - 1] = '\0';
       } else {
 	file->encrypted= 1;
       }
@@ -895,26 +1014,29 @@ finish_tapeheader(file)
 /*
  * Send an Amanda dump header to the output file.
  */
-static int
-write_tapeheader(outfd, file)
-    int outfd;
-    dumpfile_t *file;
+static ssize_t
+write_tapeheader(
+    int		outfd,
+    dumpfile_t *file)
 {
     char buffer[DISK_BLOCK_BYTES];
-    int written;
+    ssize_t written;
 
-    build_header(buffer, file, sizeof(buffer));
+    build_header(buffer, file, SIZEOF(buffer));
 
-    written = write(outfd, buffer, sizeof(buffer));
-    if(written == sizeof(buffer)) return 0;
-    if(written < 0) return written;
+    written = write(outfd, buffer, SIZEOF(buffer));
+    if(written == (ssize_t)sizeof(buffer))
+	return 0;
+    if(written < 0)
+	return written;
+
     errno = ENOSPC;
     return -1;
 }
 
 static int
-do_dump(db)
-    struct databuf *db;
+do_dump(
+    struct databuf *db)
 {
     char *indexfile_tmp = NULL;
     char *indexfile_real = NULL;
@@ -929,11 +1051,12 @@ do_dump(db)
 
     startclock();
 
-    dumpbytes = dumpsize = headersize = origsize = dump_result = 0;
     status = 0;
+    dump_result = 0;
+    dumpbytes = dumpsize = headersize = origsize = (off_t)0;
     fh_init(&file);
 
-    snprintf(level_str, sizeof(level_str), "%d", level);
+    snprintf(level_str, SIZEOF(level_str), "%d", level);
     fn = sanitise_filename(diskname);
     errfname = newvstralloc(errfname,
 			    AMANDA_TMPDIR,
@@ -955,7 +1078,7 @@ do_dump(db)
     amfree(errfname);
 
     if (streams[INDEXFD].fd != NULL) {
-	indexfile_real = getindexfname(hostname, diskname, datestamp, level);
+	indexfile_real = getindexfname(hostname, diskname, dumper_timestamp, level);
 	indexfile_tmp = stralloc2(indexfile_real, ".tmp");
 
 	if (mkpdir(indexfile_tmp, 02755, (uid_t)-1, (gid_t)-1) == -1) {
@@ -992,6 +1115,7 @@ do_dump(db)
      * the header, we will start processing data too.
      */
     security_stream_read(streams[MESGFD].fd, read_mesgfd, db);
+    set_datafd = 0;
 
     /*
      * Setup a read timeout
@@ -1008,30 +1132,36 @@ do_dump(db)
 	goto failed;
 
     runtime = stopclock();
-    dumptime = runtime.r.tv_sec + runtime.r.tv_usec/1000000.0;
+    dumptime = (double)(runtime.r.tv_sec) +
+	       ((double)(runtime.r.tv_usec) / 1000000.0);
 
     dumpsize -= headersize;		/* don't count the header */
-    if (dumpsize < 0) dumpsize = 0;	/* XXX - maybe this should be fatal? */
+    if (dumpsize < (off_t)0)		/* XXX - maybe this should be fatal? */
+	dumpsize = (off_t)0;
 
     amfree(errstr);
     errstr = alloc(128);
-    snprintf(errstr, 128, "sec %s kb %ld kps %3.1f orig-kb %ld",
-	walltime_str(runtime), dumpsize,
-	dumptime ? dumpsize / dumptime : 0.0, origsize);
+    snprintf(errstr, 128, "sec %s kb " OFF_T_FMT " kps %3.1lf orig-kb " OFF_T_FMT "",
+	walltime_str(runtime),
+	(OFF_T_FMT_TYPE)dumpsize,
+	(isnormal(dumptime) ? ((double)dumpsize / (double)dumptime) : 0.0),
+	(OFF_T_FMT_TYPE)origsize);
     q = squotef("[%s]", errstr);
-    putresult(DONE, "%s %ld %ld %ld %s\n", handle, origsize, dumpsize,
-	      (long)(dumptime+0.5), q);
+    putresult(DONE, "%s " OFF_T_FMT " " OFF_T_FMT " %lu %s\n", handle,
+    		(OFF_T_FMT_TYPE)origsize,
+		(OFF_T_FMT_TYPE)dumpsize,
+	        (unsigned long)((double)dumptime+0.5), q);
     amfree(q);
 
     switch(dump_result) {
     case 0:
-	log_add(L_SUCCESS, "%s %s %s %d [%s]", hostname, diskname, datestamp, level, errstr);
+	log_add(L_SUCCESS, "%s %s %s %d [%s]", hostname, qdiskname, dumper_timestamp, level, errstr);
 
 	break;
 
     case 1:
 	log_start_multiline();
-	log_add(L_STRANGE, "%s %s %d [%s]", hostname, diskname, level, errstr);
+	log_add(L_STRANGE, "%s %s %d [%s]", hostname, qdiskname, level, errstr);
 	log_msgout(L_STRANGE);
 	log_end_multiline();
 
@@ -1044,7 +1174,7 @@ do_dump(db)
     if (indexfile_tmp) {
 	amwait_t index_status;
 
-	aclose(indexout);
+	/*@i@*/ aclose(indexout);
 	waitpid(indexpid,&index_status,0);
 	if (rename(indexfile_tmp, indexfile_real) != 0) {
 	    log_add(L_WARNING, "could not rename \"%s\" to \"%s\": %s",
@@ -1109,7 +1239,7 @@ failed:
     }
 
     log_start_multiline();
-    log_add(L_FAIL, "%s %s %s %d [%s]", hostname, diskname, datestamp,
+    log_add(L_FAIL, "%s %s %s %d [%s]", hostname, qdiskname, dumper_timestamp,
 	    level, errstr);
     if (errf) {
 	log_msgout(L_FAIL);
@@ -1131,9 +1261,10 @@ failed:
  * Callback for reads on the mesgfd stream
  */
 static void
-read_mesgfd(cookie, buf, size)
-    void *cookie, *buf;
-    ssize_t size;
+read_mesgfd(
+    void *	cookie,
+    void *	buf,
+    ssize_t	size)
 {
     struct databuf *db = cookie;
 
@@ -1146,6 +1277,7 @@ read_mesgfd(cookie, buf, size)
 	dump_result = 2;
 	stop_dump();
 	return;
+
     case 0:
 	/*
 	 * EOF.  Just shut down the mesg stream.
@@ -1156,12 +1288,14 @@ read_mesgfd(cookie, buf, size)
 	/*
 	 * If the data fd and index fd has also shut down, then we're done.
 	 */
-	if (streams[DATAFD].fd == NULL && streams[INDEXFD].fd == NULL)
+	if ((set_datafd == 0 || streams[DATAFD].fd == NULL) && 
+	    streams[INDEXFD].fd == NULL)
 	    stop_dump();
 	return;
+
     default:
 	assert(buf != NULL);
-	add_msg_data(buf, size);
+	add_msg_data(buf, (size_t)size);
 	security_stream_read(streams[MESGFD].fd, read_mesgfd, cookie);
 	break;
     }
@@ -1182,8 +1316,8 @@ read_mesgfd(cookie, buf, size)
 	    stop_dump();
 	    return;
 	}
-	dumpsize += DISK_BLOCK_KB;
-	headersize += DISK_BLOCK_KB;
+	dumpsize += (off_t)DISK_BLOCK_KB;
+	headersize += (off_t)DISK_BLOCK_KB;
 
 	if (srvencrypt == ENCRYPT_SERV_CUST) {
 	    if (runencrypt(db->fd, &db->encryptpid, srvencrypt) < 0) {
@@ -1204,6 +1338,7 @@ read_mesgfd(cookie, buf, size)
 	    }
 	}
 	security_stream_read(streams[DATAFD].fd, read_datafd, db);
+	set_datafd = 1;
     }
 }
 
@@ -1211,9 +1346,10 @@ read_mesgfd(cookie, buf, size)
  * Callback for reads on the datafd stream
  */
 static void
-read_datafd(cookie, buf, size)
-    void *cookie, *buf;
-    ssize_t size;
+read_datafd(
+    void *	cookie,
+    void *	buf,
+    ssize_t	size)
 {
     struct databuf *db = cookie;
 
@@ -1243,8 +1379,8 @@ read_datafd(cookie, buf, size)
      */
     if (size == 0) {
 	databuf_flush(db);
-	if (dumpbytes) {
-	    dumpsize++;
+	if (dumpbytes != (off_t)0) {
+	    dumpsize += (off_t)1;
 	}
 	security_stream_close(streams[DATAFD].fd);
 	streams[DATAFD].fd = NULL;
@@ -1261,7 +1397,7 @@ read_datafd(cookie, buf, size)
      * more data.
      */
     assert(buf != NULL);
-    if (databuf_write(db, buf, size) < 0) {
+    if (databuf_write(db, buf, (size_t)size) < 0) {
 	errstr = newstralloc2(errstr, "data write: ", strerror(errno));
 	dump_result = 2;
 	stop_dump();
@@ -1274,9 +1410,10 @@ read_datafd(cookie, buf, size)
  * Callback for reads on the index stream
  */
 static void
-read_indexfd(cookie, buf, size)
-    void *cookie, *buf;
-    ssize_t size;
+read_indexfd(
+    void *	cookie,
+    void *	buf,
+    ssize_t	size)
 {
     int fd;
 
@@ -1300,7 +1437,8 @@ read_indexfd(cookie, buf, size)
 	/*
 	 * If the mesg fd has also shut down, then we're done.
 	 */
-	if (streams[DATAFD].fd == NULL && streams[MESGFD].fd == NULL)
+	if ((set_datafd == 0 || streams[DATAFD].fd == NULL) &&
+	     streams[MESGFD].fd == NULL)
 	    stop_dump();
 	return;
     }
@@ -1310,11 +1448,11 @@ read_indexfd(cookie, buf, size)
     /*
      * We ignore error while writing to the index file.
      */
-    if (fullwrite(fd, buf, size) < 0) {
+    if (fullwrite(fd, buf, (size_t)size) < 0) {
 	/* Ignore error, but schedule another read. */
 	if(indexfderror == 0) {
 	    indexfderror = 1;
-	    log_add(L_INFO, "Index corrupted for %s:%s", hostname, diskname);
+	    log_add(L_INFO, "Index corrupted for %s:%s", hostname, qdiskname);
 	}
     }
     security_stream_read(streams[INDEXFD].fd, read_indexfd, cookie);
@@ -1325,8 +1463,8 @@ read_indexfd(cookie, buf, size)
  * then remove the timeout.
  */
 static void
-timeout(seconds)
-    int seconds;
+timeout(
+    time_t seconds)
 {
     static event_handle_t *ev_timeout = NULL;
 
@@ -1342,7 +1480,7 @@ timeout(seconds)
      * Now, schedule a new one if 'seconds' is greater than 0
      */
     if (seconds > 0)
-	ev_timeout = event_register(seconds, EV_TIME, timeout_callback, NULL);
+	ev_timeout = event_register((event_id_t)seconds, EV_TIME, timeout_callback, NULL);
 }
 
 /*
@@ -1350,9 +1488,11 @@ timeout(seconds)
  * have a data timeout.
  */
 static void
-timeout_callback(unused)
-    void *unused;
+timeout_callback(
+    void *	unused)
 {
+    (void)unused;	/* Quiet unused parameter warning */
+
     assert(unused == NULL);
     errstr = newstralloc(errstr, "data timeout");
     dump_result = 2;
@@ -1364,7 +1504,7 @@ timeout_callback(unused)
  * will exit.
  */
 static void
-stop_dump()
+stop_dump(void)
 {
     int i;
 
@@ -1385,10 +1525,10 @@ stop_dump()
  * process.
  */
 static int
-runcompress(outfd, pid, comptype)
-    int outfd;
-    pid_t *pid;
-    comp_t comptype;
+runcompress(
+    int		outfd,
+    pid_t *	pid,
+    comp_t	comptype)
 {
     int outpipe[2], rval;
 
@@ -1415,21 +1555,27 @@ runcompress(outfd, pid, comptype)
 	aclose(outpipe[0]);
 	return (rval);
     case 0:
-	if (dup2(outpipe[0], 0) < 0)
+	if (dup2(outpipe[0], 0) < 0) {
 	    error("err dup2 in: %s", strerror(errno));
-	if (dup2(outfd, 1) == -1)
+	    /*NOTREACHED*/
+	}
+	if (dup2(outfd, 1) == -1) {
 	    error("err dup2 out: %s", strerror(errno));
+	    /*NOTREACHED*/
+	}
 	safe_fd(-1, 0);
 	if (comptype != COMP_SERV_CUST) {
 	    execlp(COMPRESS_PATH, COMPRESS_PATH, (  comptype == COMP_BEST ?
-		COMPRESS_BEST_OPT : COMPRESS_FAST_OPT), NULL);
+		COMPRESS_BEST_OPT : COMPRESS_FAST_OPT), (char *)NULL);
 	    error("error: couldn't exec %s: %s", COMPRESS_PATH, strerror(errno));
+	    /*NOTREACHED*/
 	} else if (*srvcompprog) {
 	    execlp(srvcompprog, srvcompprog, (char *)0);
 	    error("error: couldn't exec server custom filter%s.\n", srvcompprog);
+	    /*NOTREACHED*/
 	}
     }
-    /* NOTREACHED */
+    /*NOTREACHED*/
     return (-1);
 }
 
@@ -1440,10 +1586,10 @@ runcompress(outfd, pid, comptype)
  * process.
  */
 static int
-runencrypt(outfd, pid, encrypttype)
-    int outfd;
-    pid_t *pid;
-    encrypt_t encrypttype;
+runencrypt(
+    int		outfd,
+    pid_t *	pid,
+    encrypt_t	encrypttype)
 {
     int outpipe[2], rval;
 
@@ -1470,17 +1616,22 @@ runencrypt(outfd, pid, encrypttype)
 	aclose(outpipe[0]);
 	return (rval);
     case 0:
-	if (dup2(outpipe[0], 0) < 0)
+	if (dup2(outpipe[0], 0) < 0) {
 	    error("err dup2 in: %s", strerror(errno));
-	if (dup2(outfd, 1) < 0 )
+	    /*NOTREACHED*/
+	}
+	if (dup2(outfd, 1) < 0 ) {
 	    error("err dup2 out: %s", strerror(errno));
+	    /*NOTREACHED*/
+	}
 	safe_fd(-1, 0);
 	if ((encrypttype == ENCRYPT_SERV_CUST) && *srv_encrypt) {
 	    execlp(srv_encrypt, srv_encrypt, (char *)0);
 	    error("error: couldn't exec server encryption%s.\n", srv_encrypt);
+	    /*NOTREACHED*/
 	}
     }
-    /* NOTREACHED */
+    /*NOTREACHED*/
     return (-1);
 }
 
@@ -1488,19 +1639,20 @@ runencrypt(outfd, pid, encrypttype)
 /* -------------------- */
 
 static void
-sendbackup_response(datap, pkt, sech)
-    void *datap;
-    pkt_t *pkt;
-    security_handle_t *sech;
+sendbackup_response(
+    void *		datap,
+    pkt_t *		pkt,
+    security_handle_t *	sech)
 {
     int ports[NSTREAMS], *response_error = datap, i;
     char *p;
     char *tok;
-    char *tok_end;
-    char *extra = NULL;
+    char *extra;
 
     assert(response_error != NULL);
     assert(sech != NULL);
+
+    security_close_connection(sech, hostname);
 
     if (pkt == NULL) {
 	errstr = newvstralloc(errstr, "[request failed: ",
@@ -1509,6 +1661,8 @@ sendbackup_response(datap, pkt, sech)
 	return;
     }
 
+    extra = NULL;
+    memset(ports, 0, SIZEOF(ports));
     if (pkt->type == P_NAK) {
 #if defined(PACKET_DEBUG)
 	fprintf(stderr, "got nak response:\n----\n%s\n----\n\n", pkt->body);
@@ -1537,7 +1691,8 @@ bad_nak:
 	return;
     }
 
-#if defined(PACKET_DEBUG)
+#if 1
+//#if defined(PACKET_DEBUG)
     fprintf(stderr, "got response:\n----\n%s\n----\n\n", pkt->body);
 #endif
 
@@ -1605,13 +1760,12 @@ bad_nak:
 		extra = stralloc("OPTIONS token is missing");
 		goto parse_error;
 	    }
-	    tok_end = tok + strlen(tok);
 
 	    while((p = strchr(tok, ';')) != NULL) {
 		*p++ = '\0';
 #define sc "features="
-		if(strncmp(tok, sc, sizeof(sc)-1) == 0) {
-		    tok += sizeof(sc) - 1;
+		if(strncmp(tok, sc, SIZEOF(sc) - 1) == 0) {
+		    tok += SIZEOF(sc) - 1;
 #undef sc
 		    am_release_feature_set(their_features);
 		    if((their_features = am_string_to_feature(tok)) == NULL) {
@@ -1684,6 +1838,7 @@ bad_nak:
 
     /* everything worked */
     *response_error = 0;
+    security_close_connection(sech, hostname);
     return;
 
 parse_error:
@@ -1694,28 +1849,72 @@ parse_error:
 			  NULL);
     amfree(extra);
     *response_error = 2;
+    security_close_connection(sech, hostname);
     return;
 
 connect_error:
     stop_dump();
     *response_error = 1;
+    security_close_connection(sech, hostname);
+}
+
+static char *
+dumper_get_security_conf(
+    char *	string,
+    void *	arg)
+{
+        (void)arg;	/* Quiet unused parameter warning */
+
+        if(!string || !*string)
+                return(NULL);
+
+        if(strcmp(string, "krb5principal")==0) {
+                return(getconf_str(CNF_KRB5PRINCIPAL));
+        } else if(strcmp(string, "krb5keytab")==0) {
+                return(getconf_str(CNF_KRB5KEYTAB));
+        } else if(strcmp(string, "amandad_path")==0) {
+                return (amandad_path);
+        } else if(strcmp(string, "client_username")==0) {
+                return (client_username);
+        } else if(strcmp(string, "ssh_keys")==0) {
+                return (ssh_keys);
+        }
+        return(NULL);
 }
 
 static int
-startup_dump(hostname, disk, device, level, dumpdate, progname, options)
-    const char *hostname, *disk, *device, *dumpdate, *progname, *options;
-    int level;
+startup_dump(
+    const char *hostname,
+    const char *disk,
+    const char *device,
+    int		level,
+    const char *dumpdate,
+    const char *progname,
+    const char *amandad_path,
+    const char *client_username,
+    const char *ssh_keys,
+    const char *options)
 {
     char level_string[NUM_STR_SIZE];
     char *req = NULL;
-    char *authopt, *endauthopt, authoptbuf[64];
+    char *authopt, *endauthopt, authoptbuf[80];
     int response_error;
     const security_driver_t *secdrv;
     char *dumper_api;
+    int has_features;
+    int has_hostname;
+    int has_device;
+    int has_config;
 
-    int has_features = am_has_feature(their_features, fe_req_options_features);
-    int has_hostname = am_has_feature(their_features, fe_req_options_hostname);
-    int has_device   = am_has_feature(their_features, fe_sendbackup_req_device);
+    (void)disk;			/* Quiet unused parameter warning */
+    (void)amandad_path;		/* Quiet unused parameter warning */
+    (void)client_username;	/* Quiet unused parameter warning */
+    (void)ssh_keys;		/* Quiet unused parameter warning */
+
+    has_features = am_has_feature(their_features, fe_req_options_features);
+    has_hostname = am_has_feature(their_features, fe_req_options_hostname);
+    has_config   = am_has_feature(their_features, fe_req_options_config);
+    has_device   = am_has_feature(their_features, fe_sendbackup_req_device);
 
     /*
      * Default to bsd authentication if none specified.  This is gross.
@@ -1723,18 +1922,23 @@ startup_dump(hostname, disk, device, level, dumpdate, progname, options)
      * Options really need to be pre-parsed into some sort of structure
      * much earlier, and then flattened out again before transmission.
      */
-    if ((authopt = strstr(options, "auth=")) == NULL
-	|| (endauthopt = strchr(authopt, ';')) == NULL
-	|| (sizeof(authoptbuf) - 1 < endauthopt - authopt)) {
+    authopt = strstr(options, "auth=");
+    if (authopt == NULL) {
 	authopt = "BSD";
     } else {
-	authopt += strlen("auth=");
-	strncpy(authoptbuf, authopt, endauthopt - authopt);
-	authoptbuf[endauthopt - authopt] = '\0';
-	authopt = authoptbuf;
+	endauthopt = strchr(authopt, ';');
+	if ((endauthopt == NULL) ||
+	  ((sizeof(authoptbuf) - 1) < (size_t)(endauthopt - authopt))) {
+	    authopt = "BSD";
+	} else {
+	    authopt += strlen("auth=");
+	    strncpy(authoptbuf, authopt, (size_t)(endauthopt - authopt));
+	    authoptbuf[endauthopt - authopt] = '\0';
+	    authopt = authoptbuf;
+	}
     }
 
-    snprintf(level_string, sizeof(level_string), "%d", level);
+    snprintf(level_string, SIZEOF(level_string), "%d", level);
     if(strncmp(progname, "DUMP", 4) == 0
        || strncmp(progname, "GNUTAR", 6) == 0) {
 	dumper_api = "";
@@ -1749,9 +1953,12 @@ startup_dump(hostname, disk, device, level, dumpdate, progname, options)
 		    has_hostname ? "hostname=" : "",
 		    has_hostname ? hostname : "",
 		    has_hostname ? ";" : "",
+		    has_config   ? "config=" : "",
+		    has_config   ? config_name : "",
+		    has_config   ? ";" : "",
 		    "\n",
 		    dumper_api, progname,
-		    " ", disk,
+		    " ", qdiskname,
 		    " ", device && has_device ? device : "",
 		    " ", level_string,
 		    " ", dumpdate,
@@ -1761,13 +1968,15 @@ startup_dump(hostname, disk, device, level, dumpdate, progname, options)
 		    "\n",
 		    NULL);
 
+fprintf(stderr, "send request:\n----\n%s\n----\n\n", req);
     secdrv = security_getdriver(authopt);
     if (secdrv == NULL) {
 	error("no '%s' security driver available for host '%s'",
 	    authopt, hostname);
+	/*NOTREACHED*/
     }
 
-    protocol_sendreq(hostname, secdrv, generic_get_security_conf, req,
+    protocol_sendreq(hostname, secdrv, dumper_get_security_conf, req,
 	STARTUP_TIMEOUT, sendbackup_response, &response_error);
 
     amfree(req);

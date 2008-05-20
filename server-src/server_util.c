@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: server_util.c,v 1.13.2.1 2006/04/23 18:52:04 martinea Exp $
+ * $Id: server_util.c,v 1.17 2006/05/25 01:47:20 johnfranks Exp $
  *
  */
 
@@ -32,10 +32,14 @@
 #include "server_util.h"
 #include "arglist.h"
 #include "token.h"
+#include "logfile.h"
+#include "util.h"
+#include "conffile.h"
+#include "diskfile.h"
 
 const char *cmdstr[] = {
     "BOGUS", "QUIT", "QUITTING", "DONE", "PARTIAL", 
-    "START", "FILE-DUMP", "PORT-DUMP", "CONTINUE", "ABORT",	/* dumper cmds */
+    "START", "FILE-DUMP", "PORT-DUMP", "CONTINUE", "ABORT",/* dumper cmds */
     "FAILED", "TRY-AGAIN", "NO-ROOM", "RQ-MORE-DISK",	/* dumper results */
     "ABORT-FINISHED", "BAD-COMMAND",			/* dumper results */
     "START-TAPER", "FILE-WRITE", "PORT-WRITE",		/* taper cmds */
@@ -45,8 +49,9 @@ const char *cmdstr[] = {
 };
 
 
-cmd_t getcmd(cmdargs)
-struct cmdargs *cmdargs;
+cmd_t
+getcmd(
+    struct cmdargs *	cmdargs)
 {
     char *line;
     cmd_t cmd_i;
@@ -56,14 +61,16 @@ struct cmdargs *cmdargs;
     if (isatty(0)) {
 	printf("%s> ", get_pname());
 	fflush(stdout);
+        line = readline(NULL);
+    } else {
+        line = agets(stdin);
     }
-
-    if ((line = agets(stdin)) == NULL) {
+    if (line == NULL) {
 	line = stralloc("QUIT");
     }
 
     cmdargs->argc = split(line, cmdargs->argv,
-	sizeof(cmdargs->argv) / sizeof(cmdargs->argv[0]), " ");
+	(int)(sizeof(cmdargs->argv) / sizeof(cmdargs->argv[0])), " ");
     amfree(line);
 
 #if DEBUG
@@ -94,4 +101,29 @@ printf_arglist_function1(void putresult, cmd_t, result, const char *, format)
     vprintf(format, argp);
     fflush(stdout);
     arglist_end(argp);
+}
+
+char *
+amhost_get_security_conf(
+    char *	string,
+    void *	arg)
+{
+    if(!string || !*string)
+	return(NULL);
+
+    if(strcmp(string, "krb5principal")==0)
+	return(getconf_str(CNF_KRB5PRINCIPAL));
+    else if(strcmp(string, "krb5keytab")==0)
+	return(getconf_str(CNF_KRB5KEYTAB));
+
+    if(!arg || !((am_host_t *)arg)->disks) return(NULL);
+
+    if(strcmp(string, "amandad_path")==0)
+	return ((am_host_t *)arg)->disks->amandad_path;
+    else if(strcmp(string, "client_username")==0)
+	return ((am_host_t *)arg)->disks->client_username;
+    else if(strcmp(string, "ssh_keys")==0)
+	return ((am_host_t *)arg)->disks->ssh_keys;
+
+    return(NULL);
 }

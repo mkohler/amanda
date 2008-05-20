@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /* 
- * $Id: sendbackup-gnutar.c,v 1.92 2005/12/09 03:22:52 paddy_s Exp $
+ * $Id: sendbackup-gnutar.c,v 1.98 2006/07/25 18:35:21 martinea Exp $
  *
  * send backup data using GNU tar
  */
@@ -36,12 +36,13 @@
 #include "util.h"
 #include "getfsent.h"			/* for amname_to_dirname lookup */
 #include "version.h"
+#include "clientconf.h"
 
 #ifdef SAMBA_CLIENT
 #include "findpass.h"
 #endif
 
-static regex_t re_table[] = {
+static amregex_t re_table[] = {
   /* tar prints the size in bytes */
   AM_SIZE_RE("^ *Total bytes written: [0-9][0-9]*", 1),
   AM_NORMAL_RE("^Elapsed time:"),
@@ -123,17 +124,22 @@ int cur_level;
 char *cur_disk;
 time_t cur_dumptime;
 
-#ifdef GNUTAR_LISTED_INCREMENTAL_DIR
+static char *gnutar_list_dir = NULL;
 static char *incrname = NULL;
-#endif
+static char *amandates_file;
 /*
  *  doing similar to $ gtar | compression | encryption 
  */
-static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, indexf)
-    char *host;
-    char *disk, *amdevice;
-    int level, dataf, mesgf, indexf;
-    char *dumpdate;
+static void
+start_backup(
+    char *	host,
+    char *	disk,
+    char *	amdevice,
+    int		level,
+    char *	dumpdate,
+    int		dataf,
+    int		mesgf,
+    int		indexf)
 {
     int dumpin, dumpout, compout;
     char *cmd = NULL;
@@ -147,18 +153,29 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
     char *error_pn = NULL;
     char *compopt  = NULL;
     char *encryptopt = skip_argument;
+    char *quoted;
+    char *qdisk;
+    int infd, outfd;
+    ssize_t nb;
+    char buf[32768];
+
+    (void)dumpdate;	/* Quiet unused parameter warning */
 
     error_pn = stralloc2(get_pname(), "-smbclient");
 
+    qdisk = quote_string(disk);
+    dbprintf(("%s: start: %s:%s lev %d\n",
+	      get_pname(), host, qdisk, level));
 
     fprintf(stderr, "%s: start [%s:%s level %d]\n",
-	    get_pname(), host, disk, level);
+	    get_pname(), host, qdisk, level);
+
      /*  apply client-side encryption here */
      if ( options->encrypt == ENCRYPT_CUST ) {
-      encpid = pipespawn(options->clnt_encrypt, STDIN_PIPE,
+         encpid = pipespawn(options->clnt_encrypt, STDIN_PIPE,
 			&compout, &dataf, &mesgf, 
 			options->clnt_encrypt, encryptopt, NULL);
-      dbprintf(("%s: pid %ld: %s\n",
+         dbprintf(("%s: pid %ld: %s\n",
 		  debug_prefix_time("-gnutar"), (long)encpid, options->clnt_encrypt));
     } else {
        compout = dataf;
@@ -199,24 +216,24 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	comppid = -1;
     }
 
-#ifdef GNUTAR_LISTED_INCREMENTAL_DIR					/* { */
+    gnutar_list_dir = client_getconf_str(CLN_GNUTAR_LIST_DIR);
+    if (strlen(gnutar_list_dir) == 0)
+	gnutar_list_dir = NULL;
+
 #ifdef SAMBA_CLIENT							/* { */
     if (amdevice[0] == '/' && amdevice[1]=='/')
 	amfree(incrname);
     else
 #endif									/* } */
-    {
+    if (gnutar_list_dir) {
 	char *basename = NULL;
 	char number[NUM_STR_SIZE];
 	char *s;
 	int ch;
 	char *inputname = NULL;
-	FILE *in = NULL;
-	FILE *out;
 	int baselevel;
-	char *line = NULL;
 
-	basename = vstralloc(GNUTAR_LISTED_INCREMENTAL_DIR,
+	basename = vstralloc(gnutar_list_dir,
 			     "/",
 			     host,
 			     disk,
@@ -225,83 +242,98 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	 * The loop starts at the first character of the host name,
 	 * not the '/'.
 	 */
-	s = basename + sizeof(GNUTAR_LISTED_INCREMENTAL_DIR);
+	s = basename + strlen(gnutar_list_dir) + 1;
 	while((ch = *s++) != '\0') {
-	    if(ch == '/' || isspace(ch)) s[-1] = '_';
+	    if(ch == '/')
+		s[-1] = '_';
 	}
 
-	snprintf(number, sizeof(number), "%d", level);
+	snprintf(number, SIZEOF(number), "%d", level);
 	incrname = vstralloc(basename, "_", number, ".new", NULL);
 	unlink(incrname);
 
 	/*
-	 * Open the listed incremental file for the previous level.  Search
+	 * Open the listed incremental file from the previous level.  Search
 	 * backward until one is found.  If none are found (which will also
 	 * be true for a level 0), arrange to read from /dev/null.
 	 */
 	baselevel = level;
-	while (in == NULL) {
+	infd = -1;
+	while (infd == -1) {
 	    if (--baselevel >= 0) {
-		snprintf(number, sizeof(number), "%d", baselevel);
+		snprintf(number, SIZEOF(number), "%d", baselevel);
 		inputname = newvstralloc(inputname,
 					 basename, "_", number, NULL);
 	    } else {
 		inputname = newstralloc(inputname, "/dev/null");
 	    }
-	    if ((in = fopen(inputname, "r")) == NULL) {
+	    if ((infd = open(inputname, O_RDONLY)) == -1) {
 		int save_errno = errno;
+		char *qname = quote_string(inputname);
 
-		dbprintf(("%s: error opening %s: %s\n",
+		dbprintf(("%s: error opening '%s': %s\n",
 			  debug_prefix_time("-gnutar"),
-			  inputname,
+			  qname,
 			  strerror(save_errno)));
 		if (baselevel < 0) {
-		    error("error [opening %s: %s]", inputname, strerror(save_errno));
+		    error("error [opening '%s': %s]", qname, strerror(save_errno));
+		    /*NOTREACHED*/
 		}
+		amfree(qname);
 	    }
 	}
 
 	/*
 	 * Copy the previous listed incremental file to the new one.
 	 */
-	if ((out = fopen(incrname, "w")) == NULL) {
-	    error("error [opening %s: %s]", incrname, strerror(errno));
+	if ((outfd = open(incrname, O_WRONLY|O_CREAT, 0600)) == -1) {
+	    error("error [opening '%s': %s]", incrname, strerror(errno));
+	    /*NOTREACHED*/
 	}
 
-	for (; (line = agets(in)) != NULL; free(line)) {
-	    if(fputs(line, out) == EOF || putc('\n', out) == EOF) {
-		error("error [writing to %s: %s]", incrname, strerror(errno));
+	while ((nb = read(infd, &buf, SIZEOF(buf))) > 0) {
+	    if (fullwrite(outfd, &buf, (size_t)nb) < nb) {
+		error("error [writing to '%s': %s]", incrname,
+		       strerror(errno));
+		/*NOTREACHED*/
 	    }
 	}
-	amfree(line);
 
-	if (ferror(in)) {
-	    error("error [reading from %s: %s]", inputname, strerror(errno));
+	if (nb < 0) {
+	    error("error [reading from '%s': %s]", inputname, strerror(errno));
+	    /*NOTREACHED*/
 	}
-	if (fclose(in) == EOF) {
-	    error("error [closing %s: %s]", inputname, strerror(errno));
+
+	if (close(infd) != 0) {
+	    error("error [closing '%s': %s]", inputname, strerror(errno));
+	    /*NOTREACHED*/
 	}
-	in = NULL;
-	if (fclose(out) == EOF) {
-	    error("error [closing %s: %s]", incrname, strerror(errno));
+	if (close(outfd) != 0) {
+	    error("error [closing '%s': %s]", incrname, strerror(errno));
+	    /*NOTREACHED*/
 	}
-	out = NULL;
 
 	dbprintf(("%s: doing level %d dump as listed-incremental",
 		  debug_prefix_time("-gnutar"), level));
 	if(baselevel >= 0) {
-	    dbprintf((" from %s", inputname));
+	    quoted = quote_string(inputname);
+	    dbprintf((" from '%s'", quoted));
+	    amfree(quoted);
 	}
-	dbprintf((" to %s\n", incrname));
+	quoted = quote_string(incrname);
+	dbprintf((" to '%s'\n", quoted));
+	amfree(quoted);
 	amfree(inputname);
 	amfree(basename);
     }
-#endif									/* } */
 
     /* find previous dump time */
 
-    if(!start_amandates(0))
-	error("error [opening %s: %s]", AMANDATES_FILE, strerror(errno));
+    amandates_file = client_getconf_str(CLN_AMANDATES);
+    if(!start_amandates(amandates_file, 0)) {
+	error("error [opening %s: %s]", amandates_file, strerror(errno));
+	/*NOTREACHED*/
+    }
 
     amdates = amandates_lookup(disk);
 
@@ -315,7 +347,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
     free_amandates();
 
     gmtm = gmtime(&prev_dumptime);
-    snprintf(dumptimestr, sizeof(dumptimestr),
+    snprintf(dumptimestr, SIZEOF(dumptimestr),
 		"%04d-%02d-%02d %2d:%02d:%02d GMT",
 		gmtm->tm_year + 1900, gmtm->tm_mon+1, gmtm->tm_mday,
 		gmtm->tm_hour, gmtm->tm_min, gmtm->tm_sec);
@@ -345,11 +377,11 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
     if (amdevice[0] == '/' && amdevice[1]=='/') {
 	char *sharename = NULL, *user_and_password = NULL, *domain = NULL;
 	char *share = NULL, *subdir = NULL;
-	char *pwtext;
+	char *pwtext = NULL;
 	char *taropt;
-	int passwdf;
-	int lpass;
-	int pwtext_len;
+	int passwdf = -1;
+	size_t lpass;
+	size_t pwtext_len;
 	char *pw_fd_env;
 
 	parsesharename(amdevice, &share, &subdir);
@@ -358,14 +390,16 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	    amfree(subdir);
 	    set_pname(error_pn);
 	    amfree(error_pn);
-	    error("cannot parse disk entry '%s' for share/subdir", disk);
+	    error("cannot parse disk entry %s for share/subdir", qdisk);
+	    /*NOTREACHED*/
 	}
 	if ((subdir) && (SAMBA_VERSION < 2)) {
 	    amfree(share);
 	    amfree(subdir);
 	    set_pname(error_pn);
 	    amfree(error_pn);
-	    error("subdirectory specified for share '%s' but samba not v2 or better", disk);
+	    error("subdirectory specified for share %s but samba not v2 or better", qdisk);
+	    /*NOTREACHED*/
 	}
 	if ((user_and_password = findpass(share, &domain)) == NULL) {
 	    if(domain) {
@@ -375,6 +409,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	    set_pname(error_pn);
 	    amfree(error_pn);
 	    error("error [invalid samba host or password not found?]");
+	    /*NOTREACHED*/
 	}
 	lpass = strlen(user_and_password);
 	if ((pwtext = strchr(user_and_password, '%')) == NULL) {
@@ -386,7 +421,8 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	    }
 	    set_pname(error_pn);
 	    amfree(error_pn);
-	    error("password field not \'user%%pass\' for %s", disk);
+	    error("password field not \'user%%pass\' for %s", qdisk);
+	    /*NOTREACHED*/
 	}
 	*pwtext++ = '\0';
 	pwtext_len = strlen(pwtext);
@@ -400,6 +436,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	    set_pname(error_pn);
 	    amfree(error_pn);
 	    error("error [can't make share name of %s]", share);
+	    /*NOTREACHED*/
 	}
 
 	taropt = stralloc("-T");
@@ -465,6 +502,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	    set_pname(error_pn);
 	    amfree(error_pn);
 	    error("error [password write failed: %s]", strerror(save_errno));
+	    /*NOTREACHED*/
 	}
 	memset(user_and_password, '\0', lpass);
 	amfree(user_and_password);
@@ -493,13 +531,18 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	if(nb_exclude > 0) file_exclude = build_exclude(disk, amdevice, options, 0);
 	if(nb_include > 0) file_include = build_include(disk, amdevice, options, 0);
 
-	my_argv = alloc(sizeof(char *) * (17 + (nb_exclude*2)+(nb_include*2)));
+	my_argv = alloc(SIZEOF(char *) * (22 + (nb_exclude*2)+(nb_include*2)));
 
 	cmd = vstralloc(libexecdir, "/", "runtar", versionsuffix(), NULL);
 	info_tapeheader();
 
 	start_index(options->createindex, dumpout, mesgf, indexf, indexcmd);
 
+        my_argv[i++] = "runtar";
+	if (g_options->config)
+	    my_argv[i++] = g_options->config;
+	else
+	    my_argv[i++] = "NOCONFIG";
 	my_argv[i++] = "gtar";
 	my_argv[i++] = "--create";
 	my_argv[i++] = "--file";
@@ -507,14 +550,14 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	my_argv[i++] = "--directory";
 	my_argv[i++] = dirname;
 	my_argv[i++] = "--one-file-system";
-#ifdef GNUTAR_LISTED_INCREMENTAL_DIR
-	my_argv[i++] = "--listed-incremental";
-	my_argv[i++] = incrname;
-#else
-	my_argv[i++] = "--incremental";
-	my_argv[i++] = "--newer";
-	my_argv[i++] = dumptimestr;
-#endif
+	if (gnutar_list_dir && incrname) {
+	    my_argv[i++] = "--listed-incremental";
+	    my_argv[i++] = incrname;
+	} else {
+	    my_argv[i++] = "--incremental";
+	    my_argv[i++] = "--newer";
+	    my_argv[i++] = dumptimestr;
+	}
 #ifdef ENABLE_GNUTAR_ATIME_PRESERVE
 	/* --atime-preserve causes gnutar to call
 	 * utime() after reading files in order to
@@ -552,6 +595,7 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	      cmd,
 	      (long)dumppid));
 
+    amfree(qdisk);
     amfree(dirname);
     amfree(cmd);
     amfree(indexcmd);
@@ -568,11 +612,11 @@ static void start_backup(host, disk, amdevice, level, dumpdate, dataf, mesgf, in
 	aclose(indexf);
 }
 
-static void end_backup(goterror)
-int goterror;
+static void
+end_backup(
+    int		goterror)
 {
     if(!options->no_record && !goterror) {
-#ifdef GNUTAR_LISTED_INCREMENTAL_DIR
 	if (incrname != NULL && strlen(incrname) > 4) {
 	    char *nodotnew;
 	
@@ -585,11 +629,10 @@ int goterror;
 	    amfree(nodotnew);
 	    amfree(incrname);
 	}
-#endif
 
-        if(!start_amandates(1)) {
+        if(!start_amandates(amandates_file, 1)) {
 	    fprintf(stderr, "%s: warning [opening %s: %s]", get_pname(),
-		    AMANDATES_FILE, strerror(errno));
+		    amandates_file, strerror(errno));
 	}
 	else {
 	    amandates_updateone(cur_disk, cur_level, cur_dumptime);

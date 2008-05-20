@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: versuff.c.in,v 1.11 2003/05/20 17:33:53 martinea Exp $
+ * $Id: versuff.c.in,v 1.12 2006/05/25 01:47:12 johnfranks Exp $
  *
  * provide amanda version number and suffix appended to program names
  */
@@ -33,21 +33,21 @@
 
 const int   VERSION_MAJOR   = 2;
 const int   VERSION_MINOR   = 5;
-const int   VERSION_PATCH   = 0;
-const char *const VERSION_COMMENT = "p2";
+const int   VERSION_PATCH   = 1;
+const char *const VERSION_COMMENT = "";
 
 const char *
-versionsuffix()
+versionsuffix(void)
 {
 #ifdef USE_VERSION_SUFFIXES
-    return "-2.5.0p2";
+    return "-2.5.1";
 #else
     return "";
 #endif
 }
 
 const char *
-version()
+version(void)
 {
-    return "2.5.0p2";
+    return "2.5.1";
 }

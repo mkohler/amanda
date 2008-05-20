@@ -1,5 +1,5 @@
 /*
- * Amanda, The Advanced Maryland Automatic Network Disk Archiver
+ * amanda, the advanced maryland automatic network disk archiver
  * Copyright (c) 1991-2000 University of Maryland at College Park
  * All Rights Reserved.
  *
@@ -24,25 +24,39 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: uscan.l,v 1.22 2004/02/11 13:03:29 martinea Exp $
+ * $Id: uscan.l,v 1.27 2006/07/05 11:15:56 martinea Exp $
  *
  * lexer for amrecover interactive language
  */
 %{
 #include "amanda.h"
-#undef ECHO
 #include "uparse.h"
+
+/*
+ * We redefine this here to prevent compiler warning about ignoring fwrite
+ * return value...
+ */
+#undef ECHO
+#define ECHO do {						\
+	if (fwrite(yytext, (size_t)yyleng, 1, yyout) <= 0) {	\
+	    yyerror("ECHO failure");				\
+	}							\
+} while (0)
 
 #define YY_NO_UNPUT
 
-#define	DATE_ALLOC_SIZE		sizeof("YYYY-MM-DD")	/* includes null */
+#define	DATE_ALLOC_SIZE		sizeof("YYYY-MM-DD-HH-MM-SS")	/* includes null */
 
-extern void yyerror P((char *s));
-extern int  yyparse P((void));
-static int  ll_parse_date P((int type, char *text));
+#define YY_DECL	int yylex(void)
+extern int	yylex(void);
+
+extern void	yyerror(char *s);
+extern int	yyparse(void);
+static int	ll_parse_date(int type, char *text);
+int		process_line(char *line);
 %}
 
-%x quotedstring
+%x quotedpath
 
 %{
 static char *string_buf = NULL;
@@ -54,33 +68,34 @@ static char *string_buf = NULL;
     /* literal keyword tokens */
 %}
 
+listhost	{ return LISTHOST; }
 listdisk	{ return LISTDISK; }
-sethost	{ return SETHOST; }
-setdisk	{ return SETDISK; }
-setdate { return SETDATE; }
-setmode	{ return SETMODE; }
-settape { return SETTAPE; }
-cd	{ return CD; }
-cdx	{ return CDX; }
-quit    { return QUIT; }
-exit    { return QUIT; }
-history { return DHIST; }
-ls      { return LS; }
-add     { return ADD; }
-addx    { return ADDX; }
-list    { return LIST; }
-delete  { return DELETE; }
-deletex { return DELETEX; }
-pwd     { return PWD; }
-clear   { return CLEAR; }
-help    { return HELP; }
-\?      { return HELP; }
-lcd     { return LCD; }
-lpwd    { return LPWD; }
-extract { return EXTRACT; }
-smb     { return SMB; }
-tar     { return TAR; }
-mode    { return MODE; }
+sethost		{ return SETHOST; }
+setdisk		{ return SETDISK; }
+setdate		{ return SETDATE; }
+setmode		{ return SETMODE; }
+settape		{ return SETTAPE; }
+cd		{ return CD; }
+cdx		{ return CDX; }
+quit		{ return QUIT; }
+exit		{ return QUIT; }
+history		{ return DHIST; }
+ls		{ return LS; }
+add		{ return ADD; }
+addx		{ return ADDX; }
+list		{ return LIST; }
+delete		{ return DELETE; }
+deletex		{ return DELETEX; }
+pwd		{ return PWD; }
+clear		{ return CLEAR; }
+help		{ return HELP; }
+\?		{ return HELP; }
+lcd		{ return LCD; }
+lpwd		{ return LPWD; }
+extract		{ return EXTRACT; }
+smb		{ return SMB; }
+tar		{ return TAR; }
+mode		{ return MODE; }
 
 %{
     /* dates */
@@ -89,50 +104,52 @@ mode    { return MODE; }
 ---[0-9]+		{ return ll_parse_date(1, yytext); }
 --[0-9]+-[0-9]+		{ return ll_parse_date(2, yytext); }
 [0-9]+-[0-9]+-[0-9]+	{ return ll_parse_date(3, yytext); }
-
-%{
-    /* file names */
-%}
-
-[^ \t\r"]+		{
-  yylval.strval = stralloc(yytext); return PATH;
-}
+[0-9]+-[0-9]+-[0-9]+-[0-9]+-[0-9]+-[0-9]+	{ return ll_parse_date(4, yytext); }
+[0-9]+-[0-9]+-[0-9]+-[0-9]+-[0-9]+	{ return ll_parse_date(5, yytext); }
 
 %{
     /* quoted file names */
 %}
 
-\"               { if(string_buf != NULL) {printf("ERROR:string_buf != NULL: %s\n",string_buf);}; BEGIN(quotedstring); }
+\"			{
+    if(string_buf != NULL) {
+	printf("ERROR:string_buf != NULL: %s\n",string_buf);
+    }
+    BEGIN(quotedpath);
+    strappend(string_buf, yytext);
+}
 
-<quotedstring>\"        { /* saw closing quote - all done */
-  BEGIN(INITIAL);
-  if(string_buf) {
+<quotedpath>[^\\\"]+	{
+    strappend(string_buf, yytext);
+}
+
+<quotedpath>\\.	{
+    /* escaped character (including quote) */
+    strappend(string_buf, yytext);
+}
+
+<quotedpath>\"	{ /* saw closing quote - all done */
+    strappend(string_buf, yytext);
     yylval.strval = string_buf;
     string_buf = NULL;
-  } else {
-    yylval.strval = "";
-  }
-  return PATH;
+    BEGIN(INITIAL);
+    return PATH;
 }
 
-<quotedstring>\\\" {
-  /* escaped quote */
-  strappend(string_buf, "\\\"");
-}
+%{
+    /* file names */
+%}
 
-<quotedstring>\n        {
-  /* error - unterminated string constant */
-  yyerror("unterminated string");
-  amfree(string_buf);
+[^[:space:][:cntrl:]"]+		{
+    yylval.strval = stralloc(yytext);
+    return PATH;
 }
-
-<quotedstring>[^\\\n\"]+        { strappend(string_buf, yytext); }
 
 %{
     /* whitespace */
 %}
 
-[ \t\r]+	;     /* whitespace */
+[[:space:]]+	;     /* whitespace */
 
 %{
     /* anything else */
@@ -147,8 +164,9 @@ mode    { return MODE; }
 
 %%
 
-int process_line(line)
-char *line;
+int
+process_line(
+    char *	line)
 {
     YY_BUFFER_STATE b;
     int result;
@@ -159,47 +177,84 @@ char *line;
     return result;
 }
 
-static int ll_parse_date(type, text)
-int type;
-char *text;
+static int
+ll_parse_date(
+    int		type,
+    char *	text)
 {
     time_t now;
     struct tm *t;
-    int y, m, d;
+    int y=2000, m=0, d=1, h=0, mi=0, s=0;
     int ret;
 
     now = time((time_t *)NULL);
     t = localtime(&now);
-    y = 1900+t->tm_year;
-    m = t->tm_mon+1;
-    d = t->tm_mday;
-    if(type == 1) {
-	sscanf(text, "---%d", &d);
-    } else if(type == 2) {
-	sscanf(text, "--%d-%d", &m, &d);
-    } else {
-	sscanf(text, "%d-%d-%d", &y, &m, &d);
-	if(y < 70) {
-	    y += 2000;
-	} else if(y < 100) {
-	    y += 1900;
-	}
+    if (t) {
+	y = 1900+t->tm_year;
+	m = t->tm_mon+1;
+	d = t->tm_mday;
     }
+    switch(type) {
+    case 1:
+	if (sscanf(text, "---%d", &d) != 1) {
+	    yyerror("invalid date");
+        }
+        break;
+    case 2:
+	if (sscanf(text, "--%d-%d", &m, &d) != 2) {
+	    yyerror("invalid date");
+        }
+        break;
+    case 3:
+	if (sscanf(text, "%d-%d-%d", &y, &m, &d) != 3) {
+	    yyerror("invalid date");	    
+        }
+        break;
+    case 4:
+	if (sscanf(text, "%d-%d-%d-%d-%d-%d", &y, &m, &d, &h, &mi, &s) != 6) {
+	    yyerror("invalid date");
+	}
+        break;
+    case 5:
+	if (sscanf(text, "%d-%d-%d-%d-%d", &y, &m, &d, &h, &mi) != 5) {
+	    yyerror("invalid date");
+	}
+        break;
+    }
+
     ret = PATH;				/* cause a parse error */
+    if(y < 70) {
+	y += 2000;
+    } else if(y < 100) {
+	y += 1900;
+    }
     if(y < 1000 || y > 9999) {
 	yyerror("invalid year");
     } else if(m < 1 || m > 12) {
 	yyerror("invalid month");
     } else if(d < 1 || d > 31) {
 	yyerror("invalid day");
-    } else {
+    } else if(h < 0 || h > 24) {
+	yyerror("invalid hour");
+    } else if(mi < 0 || mi > 59) {
+	yyerror("invalid minute");
+    } else if(s < 0 || s > 59) {
+	yyerror("invalid second");
+    } else if(type < 4) {
 	yylval.strval = alloc(DATE_ALLOC_SIZE);
 	snprintf(yylval.strval, DATE_ALLOC_SIZE, "%04d-%02d-%02d", y, m, d);
+	ret = DATE;
+    } else {
+	yylval.strval = alloc(DATE_ALLOC_SIZE);
+	snprintf(yylval.strval, DATE_ALLOC_SIZE, "%04d-%02d-%02d-%02d-%02d-%02d", y, m, d, h, mi, s);
 	ret = DATE;
     }
     return ret;
 }
 
-int yywrap() {
+int
+yywrap(void)
+{
   return 1;
 }
+

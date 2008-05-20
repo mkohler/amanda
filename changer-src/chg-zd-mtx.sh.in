@@ -1,4 +1,4 @@
-#!/bin/sh 
+#!@SHELL@ 
 #
 # Exit Status:
 # 0 Alles Ok
@@ -162,8 +162,10 @@
 # in amanda.conf.  For example, if amanda.conf has:
 #
 #	changerfile="/etc/amanda/Dailyset1/CHANGER"
+#    or changerfile="/etc/amanda/Dailyset1/CHANGER.conf"
 #
 # the variables must be in "/etc/amanda/Dailyset1/CHANGER.conf".
+# The ".conf" is appended only if it's not there".
 #
 # If "changerfile" is a relative path, it is relative to the directory
 # that contains amanda.conf.  That also happens to be the directory Amanda
@@ -630,20 +632,20 @@ else
 	SUF=
 fi
 
-DBGFILE=`amgetconf$SUF dbopen.$argv0 2>/dev/null | grep -v BUGGY`
+DBGFILE=`amgetconf$SUF dbopen.$argv0 2>/dev/null`
 if [ -z "$DBGFILE" ]
 then
 	DBGFILE=/dev/null			# will try this again below
 fi
 
-changerfile=`amgetconf$SUF changerfile 2>/dev/null | grep -v BUGGY`
+changerfile=`amgetconf$SUF changerfile 2>/dev/null`
 if [ -z "$changerfile" ]; then
 	Exit 2 \
 	     "<none>" \
 	     "changerfile must be specified in amanda.conf"
 fi
 
-tape=`amgetconf$SUF tapedev 2>/dev/null | grep -v BUGGY`
+tape=`amgetconf$SUF tapedev 2>/dev/null`
 if [ -z "$tape" ]; then
 	Exit 2 \
 	     "<none>" \
@@ -653,7 +655,7 @@ elif [ $tape = "/dev/null" -o `expr "$tape" : 'null:'` -eq 5 ]; then
 	     "<none>" \
 	     "tapedev ($tape) may not be the null device"
 fi
-TAPE=`amgetconf$SUF changerdev 2>/dev/null | grep -v BUGGY`
+TAPE=`amgetconf$SUF changerdev 2>/dev/null`
 if [ -z "$TAPE" ]; then
 	Exit 2 \
 	     "<none>" \
@@ -667,7 +669,14 @@ export TAPE					# for mtx command
 
 #### Set up the various config files.
 
-configfile=$changerfile.conf
+conf_match=`expr "$changerfile" : .\*\.conf\$`
+if [ $conf_match -ge 6 ]; then
+	configfile=$changerfile
+	changerfile=`echo $changerfile | sed 's/.conf$//g'`
+else
+	configfile=$changerfile.conf
+fi
+
 cleanfile=$changerfile-clean
 accessfile=$changerfile-access
 slotfile=$changerfile-slot
@@ -1139,9 +1148,7 @@ info() {
 	if [ $currentslot -lt $firstslot -o $currentslot -gt $lastslot ]; then
 		currentslot=$firstslot		# what "current" will get
 	fi
-	set x $slot_list
-	shift					# get rid of the "x"
-	numslots=$#
+	numslots=`expr $lastslot - $firstslot + 1`
 	Exit 0 "$currentslot" "$numslots 1 $reader"
 	return $?				# in case we are internal
 }

@@ -25,7 +25,7 @@
  */
 
 /*
- * $Id: amfeatures.h,v 1.15 2006/03/14 13:11:58 martinea Exp $
+ * $Id: amfeatures.h,v 1.21 2006/07/19 17:46:07 martinea Exp $
  *
  * Define feature test related items.
  */
@@ -152,6 +152,24 @@ typedef enum {
     fe_amindexd_marshall_in_ORLD,
     fe_amindexd_marshall_in_DHST,
     fe_amrecover_FEEDME,
+    fe_amrecover_timestamp,
+
+    fe_interface_quoted_text,
+
+    fe_program_star,
+
+    fe_amindexd_options_hostname,
+    fe_amindexd_options_features,
+    fe_amindexd_options_auth,
+
+    fe_amidxtaped_options_hostname,
+    fe_amidxtaped_options_features,
+    fe_amidxtaped_options_auth,
+
+    fe_amrecover_message,
+    fe_amrecover_feedme_tape,
+
+    fe_req_options_config,
 
     /*
      * All new features must be inserted immediately *before* this entry.
@@ -167,14 +185,14 @@ typedef struct am_feature_s {
 /*
  * Functions.
  */
-extern am_feature_t *am_init_feature_set P((void));
-extern am_feature_t *am_set_default_feature_set P((void));
-extern am_feature_t *am_allocate_feature_set P((void));
-extern void am_release_feature_set P((am_feature_t *));
-extern int am_add_feature P((am_feature_t *f, am_feature_e n));
-extern int am_remove_feature P((am_feature_t *f, am_feature_e n));
-extern int am_has_feature P((am_feature_t *f, am_feature_e n));
-extern char *am_feature_to_string P((am_feature_t *f));
-extern am_feature_t *am_string_to_feature P((char *s));
+extern am_feature_t *am_init_feature_set(void);
+extern am_feature_t *am_set_default_feature_set(void);
+extern am_feature_t *am_allocate_feature_set(void);
+extern void am_release_feature_set(am_feature_t *);
+extern int am_add_feature(am_feature_t *f, am_feature_e n);
+extern int am_remove_feature(am_feature_t *f, am_feature_e n);
+extern int am_has_feature(am_feature_t *f, am_feature_e n);
+extern char *am_feature_to_string(am_feature_t *f);
+extern am_feature_t *am_string_to_feature(char *s);
 
 #endif	/* !AMFEATURES_H */
