@@ -13,7 +13,7 @@ AC_DEFINE_UNQUOTED(CONFIGURE_COMMAND,"$CONFIGURE_COMMAND",
 	  [Saves the original ./configure command line arguments])
 AC_SUBST(CONFIGURE_COMMAND)
 
-AM_INIT_AUTOMAKE(amanda, 2.5.1p1)
+AM_INIT_AUTOMAKE(amanda, 2.5.1p3)
 AM_CONFIG_HEADER(config/config.h)
 
 AC_PREREQ(2.57)		dnl Minimum Autoconf version required.
@@ -556,49 +556,6 @@ AC_ARG_WITH(tape-device,
 	*) DEFAULT_TAPE_DEVICE="$withval"
 	  ;;
 	esac
-    ],
-    [
-	if test -z "$DEFAULT_TAPE_DEVICE"; then
-	    AC_MSG_CHECKING(for non-rewinding tape device)
-	    dnl Check for the /dev/rmt directory and use what's in there.
-	    dnl Otherwise look for tape devices in /dev.  For the devices
-	    dnl in /dev/rmt, we want to use the Berkeley behavior of
-	    dnl reading the first record of the next tape file after 0
-	    dnl bytes are returned upon reading to the next tape mark,
-	    dnl instead of returning an error.  Look for devices that have
-	    dnl a 'b' in their name.
-	    tape_dev=
-	    nr_tape_dev=
-	    if test -d /dev/rmt; then
-
-		dnl See if we can find two devices, one being the norewind
-		dnl version of the other.  Devices in this directory are
-		dnl normally a digit followed by some characters.  We also
-		dnl want the Berkely behavior, since Amanda needs it for
-		dnl amrestore.
-
-		for num in 9 8 7 6 5 4 3 2 1 0; do
-		    td=/dev/rmt/${num}b
-		    ntd=/dev/rmt/${num}bn
-		    if test -r $td -a -r $ntd; then
-			tape_dev=$td
-			nr_tape_dev=$ntd
-		    fi
-		done
-	    else
-		dnl Look for tape devices in /dev.
-		for num in 9 8 7 6 5 4 3 2 1 0; do
-		    td=/dev/rst${num}
-		    ntd=/dev/nrst${num}
-		    if test -r $td -a -r $ntd; then
-			tape_dev=$td
-			nr_tape_dev=$ntd
-		    fi
-		done
-	    fi
-	    DEFAULT_TAPE_DEVICE=$nr_tape_dev
-	    AC_MSG_RESULT($DEFAULT_TAPE_DEVICE)
-	fi
     ]
 )
 
@@ -621,7 +578,7 @@ AC_ARG_WITH(ftape-raw-device,
     [
 	if test -z "$DEFAULT_RAW_TAPE_DEVICE"; then
 	    AC_MSG_CHECKING(for raw ftape device)
-	    dnl Look for tape devices in /dev.  
+	    dnl Look for tape devices in /dev.
 	    raw_tape_dev=/dev/null
 		dnl Look for tape devices in /dev.
 		for num in 3 2 1 0 ; do
@@ -849,6 +806,22 @@ n | no)
     ;;
 esac
 
+AC_ARG_WITH(ipv6,
+    AS_HELP_STRING([--with-ipv6],
+		   [If IPv6 must be enabled (Default)])
+AS_HELP_STRING([--without-ipv6],
+	       [If IPv6 must be disable]),
+    [
+	case "$withval" in
+	y | ye | yes) amanda_ipv6=true;;
+	n | no) amanda_ipv6=false;;
+	*)
+	    AC_MSG_ERROR([*** You must not supply an argument to --with-ipv6 option.])
+	  ;;
+	esac
+    ]
+)
+
 dnl Specify --with-krb4-security if Kerberos software is in somewhere
 dnl other than the listed KRB4_SPOTS.  We only compile kerberos support in
 dnl if the right files are there.
@@ -963,7 +936,7 @@ y |  ye | yes) AC_DEFINE(BSDTCP_SECURITY,1,[Define if BSDTCP transport should be
 esac
 
 AC_ARG_WITH(bsdudp-security,
-    [  --with-bsdudp-security use tcp as a transport],
+    [  --with-bsdudp-security use udp as a transport],
     BSDUDP_SECURITY=$withval,
     : ${BSDUDP_SECURITY=yes}
 )
@@ -1521,6 +1494,7 @@ case "$target" in
 			AC_DEFINE(DONT_SUID_ROOT,1,[Define on Cygwin. ])
 			NEED_SETUID_CLIENT=false
 			NEED_RUNTIME_PSEUDO_RELOC=true
+			BROKEN_IPV6=true
 			;;
   *)
 			cat <<END
@@ -1660,6 +1634,16 @@ AC_DEFINE_UNQUOTED(COMPRESS_FAST_OPT,"$COMPRESS_FAST_OPT",[Define as the command
 AC_DEFINE_UNQUOTED(COMPRESS_BEST_OPT,"$COMPRESS_BEST_OPT",[Define as the command line option for best compression. ])
 AC_DEFINE_UNQUOTED(UNCOMPRESS_PATH,"$UNCOMPRESS_PATH",[Define as the exact path to the gzip or compress command. ])
 AC_DEFINE_UNQUOTED(UNCOMPRESS_OPT,"$UNCOMPRESS_OPT",[Define as any optional arguments to get UNCOMPRESS_PATH to uncompress. ])
+
+AC_PATH_PROGS(SORT,sort,,$LOCSYSPATH)
+if test -z "$SORT"; then
+    if $NO_SERVER_MODE; then
+	SORT="NONE"
+    else
+	AC_MSG_ERROR([Set SORT to the path of the sort program.])
+    fi
+fi
+AC_DEFINE_UNQUOTED(SORT_PATH,"$SORT",[Define to the exact path to the sort program. ])
 
 AC_PATH_PROGS(MAILER,Mail mailx mail)
 if test -z "$MAILER"; then
@@ -1866,14 +1850,17 @@ main() {
 } 
 ],
 	[AC_MSG_RESULT(ll)
-	LL_FMT="%lld"],
+	LL_FMT="%lld"; LL_RFMT="lld"],
 	[AC_MSG_RESULT(l)
-	LL_FMT="%ld"],
+	LL_FMT="%ld"; LL_RFMT="ld"],
 	[AC_MSG_RESULT(assuming target platform uses ll)
-	LL_FMT="%lld"])
+	LL_FMT="%lld"; LL_RFMT="lld"])
 AC_DEFINE_UNQUOTED(LL_FMT,"$LL_FMT",
   [Format for a long long printf. ])
+AC_DEFINE_UNQUOTED(LL_RFMT,"$LL_RFMT",
+  [Format for a long long printf. ])
 AC_SUBST(LL_FMT)
+AC_SUBST(LL_RFMT)
 
 dnl Empty GZIP so that make dist works.
 GZIP=
@@ -2728,6 +2715,8 @@ ICE_CHECK_DECL(atof,stdlib.h)
 ICE_CHECK_DECL(atoi,stdlib.h)
 ICE_CHECK_DECL(atol,stdlib.h)
 ICE_CHECK_DECL(atoll,stdlib.h)
+ICE_CHECK_DECL(strtol,stdlib.h)
+ICE_CHECK_DECL(strtoll,stdlib.h)
 AC_CHECK_FUNCS(basename)
 ICE_CHECK_DECL(bind,sys/types.h sys/socket.h)
 ICE_CHECK_DECL(bcopy,string.h strings.h stdlib.h)

@@ -23,8 +23,9 @@
 <cmdsynopsis>
   <command>amgetconf</command>    
     <arg choice='opt'><replaceable>config</replaceable></arg>
+    <arg choice='opt'><replaceable>--list</replaceable></arg>
     <arg choice='plain'><replaceable>parameter</replaceable></arg>
-    <group><arg choice='plain'>-o</arg><arg choice='plain'><replaceable>configoption</replaceable></arg></group>*
+    <arg choice='plain' rep='repeat'><group><arg choice='plain'>-o </arg><replaceable>configoption</replaceable></group></arg>
 </cmdsynopsis>
 </refsynopsisdiv>
 
@@ -86,7 +87,64 @@ man page for more details about &A;.</para>
 <variablelist remap='TP'>
 
   <varlistentry>
-  <term><emphasis remap='B'>-o</emphasis> <replaceable>configoption</replaceable></term>
+  <term><emphasis remap='B'>--list</emphasis></term>
+  <listitem>
+<para>The parameter must be 'tapetype', 'dumptype, 'holdingdisk' or 'interface'. It will output, one by line, the list of identifier for the parameter.</para>
+<variablelist remap='TP'>
+<varlistentry>
+  <term>--list tapetype</term>
+  <listitem>
+    <para>Output the list of tapetype, one by line.</para>
+  </listitem>
+</varlistentry>
+<varlistentry>
+  <term>--list dumptype</term>
+  <listitem>
+    <para>Output the list of dumptype, one by line.</para>
+  </listitem>
+</varlistentry>
+<varlistentry>
+  <term>--list holdingdisk</term>
+  <listitem>
+    <para>Output the list of holdingdisk, one by line.</para>
+  </listitem>
+</varlistentry>
+<varlistentry>
+  <term>--list interface</term>
+  <listitem>
+    <para>Output the list of interface, one by line.</para>
+  </listitem>
+</varlistentry>
+</variablelist>
+  </listitem>
+  </varlistentry>
+
+  <varlistentry>
+  <term><emphasis remap='B'>parameter</emphasis></term>
+  <listitem>
+    <para>It could be one of the below format:</para>
+<variablelist remap='TP'>
+<varlistentry>
+    <term>runtapes</term><listitem><para></para></listitem>
+</varlistentry>
+<varlistentry>
+    <term>DUMPTYPE:no-compress:compress</term><listitem><para></para></listitem>
+</varlistentry>
+<varlistentry>
+    <term>TAPETYPE:HP-DAT:length</term><listitem><para></para></listitem>
+</varlistentry>
+<varlistentry>
+    <term>INTERFACE:local:use</term><listitem><para></para></listitem>
+</varlistentry>
+<varlistentry>
+    <term>HOLDINGDISK:hd1:use</term><listitem><para></para></listitem>
+</varlistentry>
+</variablelist>
+  </listitem>
+  </varlistentry>
+
+<varlistentry>
+<term><emphasis remap='B'>-o</emphasis> <replaceable>configoption</replaceable></term>
   <listitem>
 <para>See the "<emphasis remap='B'>CONFIGURATION OVERWRITE</emphasis>" section in <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>.</para>
   </listitem>

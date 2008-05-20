@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: util.h,v 1.17.2.1 2006/09/21 11:12:21 martinea Exp $
+ * $Id: util.h,v 1.17.2.5 2007/01/10 16:18:46 martinea Exp $
  */
 #ifndef UTIL_H
 #define	UTIL_H
@@ -40,7 +40,7 @@ typedef enum {
     CONFTYPE_REAL,
     CONFTYPE_STRING,
     CONFTYPE_IDENT,
-    CONFTYPE_TIME,
+    CONFTYPE_TIME,	/* hhmm */
     CONFTYPE_SIZE,
     CONFTYPE_SL,
     CONFTYPE_BOOL,
@@ -52,7 +52,7 @@ typedef enum {
     CONFTYPE_TAPERALGO,
     CONFTYPE_PRIORITY,
     CONFTYPE_RATE,
-    CONFTYPE_EXINCLUDE,
+    CONFTYPE_EXINCLUDE
 } conftype_t;
 
 /* Compression types */
@@ -70,7 +70,7 @@ typedef enum {
 typedef enum {
     ENCRYPT_NONE,               /* No encryption */
     ENCRYPT_CUST,               /* Custom encryption on client */
-    ENCRYPT_SERV_CUST,          /* Custom encryption on server */
+    ENCRYPT_SERV_CUST           /* Custom encryption on server */
 } encrypt_t;
 
 /* holdingdisk types */
@@ -217,8 +217,8 @@ typedef struct {
 } command_option_t;
 
 typedef struct exinclude_s {
-    int  type;  /* 0=list   1=file */
-    sl_t *sl;
+    sl_t *sl_list;
+    sl_t *sl_file;
     int  optional;
 } exinclude_t;
 
@@ -287,7 +287,8 @@ void read_real(t_conf_var *, val_t *);
 void read_time(t_conf_var *, val_t *);
 void copy_val_t(val_t *, val_t *);
 void free_val_t(val_t *);
-char *conf_print(val_t *);
+char *conf_print(val_t *, int);
+char *conf_print_exinclude(val_t *, int, int);
 void conf_init_string(val_t *, char *);
 void conf_init_ident(val_t *, char *);
 void conf_init_int(val_t *, int);
@@ -362,6 +363,7 @@ char *	sanitize_string(const char *str);
 char *	strquotedstr(void);
 ssize_t	hexdump(const char *buffer, size_t bytes);
 void	dump_sockaddr(struct sockaddr_in *	sa);
+int     copy_file(char *dst, char *src, char **errmsg);
 
 /*
  *   validate_email return 0 if the following characters are present

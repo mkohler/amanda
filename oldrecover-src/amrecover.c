@@ -24,20 +24,13 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amrecover.c,v 1.7 2006/07/25 18:27:57 martinea Exp $
+ * $Id: amrecover.c,v 1.7.2.2 2006/12/12 14:56:38 martinea Exp $
  *
  * an interactive program for recovering backed-up files
  */
 
 #include "amanda.h"
 #include "version.h"
-//#ifdef HAVE_NETINET_IN_SYSTM_H
-//#include <netinet/in_systm.h>
-//#endif
-//#include <netinet/in.h>
-//#ifdef HAVE_NETINET_IP_H
-//#include <netinet/ip.h>
-//#endif
 #include "stream.h"
 #include "amfeatures.h"
 #include "amrecover.h"
@@ -301,7 +294,7 @@ guess_disk (
 	/*NOTREACHED*/
     }
     cwd_length = strlen(cwd);
-    dbprintf(("guess_disk: %d: \"%s\"\n", cwd_length, cwd));
+    dbprintf(("guess_disk: %zu: \"%s\"\n", cwd_length, cwd));
 
     if (open_fstab() == 0) {
 	return -1;
@@ -311,7 +304,7 @@ guess_disk (
     while (get_fstab_nextentry(&fsent))
     {
 	current_length = fsent.mntdir ? strlen(fsent.mntdir) : (size_t)0;
-	dbprintf(("guess_disk: %d: %d: \"%s\": \"%s\"\n",
+	dbprintf(("guess_disk: %zu: %zu: \"%s\": \"%s\"\n",
 		  longest_match,
 		  current_length,
 		  fsent.mntdir ? fsent.mntdir : "(mntdir null)",

@@ -23,7 +23,7 @@
  * Authors: the Amanda Development Team.  Its members are listed in a
  * file named AUTHORS, in the root directory of this distribution.
  */
-/* $Id: taper.c,v 1.144 2006/08/24 11:23:32 martinea Exp $
+/* $Id: taper.c,v 1.144.2.7 2007/01/18 12:57:16 martinea Exp $
  *
  * moves files from holding disk to tape, or from a socket to tape
  */
@@ -315,7 +315,7 @@ main(
 	/*NOTREACHED*/
     }
 
-    tapedev	= stralloc(getconf_str(CNF_TAPEDEV));
+    tapedev	= getconf_str(CNF_TAPEDEV);
     tapetype    = getconf_str(CNF_TAPETYPE);
     tt		= lookup_tapetype(tapetype);
 #ifdef HAVE_LIBVTBLC
@@ -377,7 +377,7 @@ main(
 	if ((buffers = attach_buffers(size)) != NULL) {
 	    break;
 	}
-	log_add(L_INFO, "attach_buffers: (%d tapebuf%s: %d bytes) %s",
+	log_add(L_INFO, "attach_buffers: (%d tapebuf%s: %zu bytes) %s",
 			conf_tapebufs,
 			(conf_tapebufs == 1) ? "" : "s",
 			size,
@@ -605,8 +605,8 @@ create_split_buffer(
 	dbprintf(("create_split_buffer: fallback size " OFF_T_FMT "\n",
 		  (OFF_T_FMT_TYPE)splitsize));
 	log_add(L_INFO,
-	        "%s: using fallback split size of %dkb to buffer %s in-memory",
-		buff_err, splitsize, id_string);
+	        "%s: using fallback split size of " OFF_T_FMT "kb to buffer %s in-memory",
+		buff_err, (OFF_T_FMT_TYPE)splitsize, id_string);
 	amfree(buff_err);
 	if (splitsize > mem_splitsize) {
 	    amfree(mem_splitbuf);
@@ -628,8 +628,10 @@ free_split_buffer(void)
     if (mmap_splitbuffer_fd != -1) {
 #ifdef HAVE_MMAP
 #ifdef HAVE_SYS_MMAN_H
-	if (splitbuf != NULL)
-	    munmap(splitbuf, (size_t)mmap_splitsize);
+	if (mmap_splitbuf != NULL) {
+	    munmap(mmap_splitbuf, (size_t)mmap_splitsize);
+	    mmap_splitbuf = NULL;
+	}
 #endif
 #endif
 	aclose(mmap_splitbuffer_fd);
@@ -637,7 +639,7 @@ free_split_buffer(void)
 	mmap_splitsize = 0;
     }
     if (mem_splitbuf) {
-	amfree(splitbuf);
+	amfree(mem_splitbuf);
 	mem_splitsize = 0;
     }
 }
@@ -705,6 +707,17 @@ file_reader_side(
     /* pass start command on to tape writer */
 
     taper_timestamp = newstralloc(taper_timestamp, cmdargs.argv[2]);
+
+    if (tapedev == NULL) {
+	if (getconf_str(CNF_TPCHANGER) == NULL) {
+	    putresult(TAPE_ERROR, "[No tapedev or tpchanger defined]\n");
+	    log_add(L_ERROR, "No tapedev or tpchanger defined");
+	    dbprintf(("taper: No tapedev or tpchanger defined\n"));
+	    exit(1);
+	}
+    } else {
+	tapedev = stralloc(tapedev);
+    }
 
     tape_started = 0;
     if (syncpipe_put('S', 0) == -1) {
@@ -1577,7 +1590,6 @@ read_file(
  			}
   			file.blocksize = tt_blocksize;
   			build_header(bp->buffer, &file, tt_blocksize);
- 			kbytesread += (off_t)(tt_blocksize/1024); /* XXX shady */
  
  			file.type = F_CONT_DUMPFILE;
  
@@ -2108,6 +2120,9 @@ tape_writer_side(
     syncpipe_init(getp, putp);
     tape_started = 0;
     idlewait = times_zero;
+    if (tapedev != NULL) {
+	tapedev = stralloc(tapedev);
+    }
 
     while (1) {
 	startclock();
@@ -2998,8 +3013,8 @@ label_tape(void)
     }
     if ((tape_fd = tape_open(tapedev, O_WRONLY)) == -1) {
 	if (errno == EACCES) {
-	    errstr = newstralloc(errstr,
-				 "writing label: tape is write protected");
+	    errstr = newstralloc2(errstr,
+				 "writing label: tape is write protected or I don't have write permission on ", tapedev);
 	} else {
 	    errstr = newstralloc2(errstr,
 				  "writing label: ", strerror(errno));

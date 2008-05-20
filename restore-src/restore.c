@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: restore.c,v 1.52.2.2 2006/09/27 14:04:27 martinea Exp $
+ * $Id: restore.c,v 1.52.2.7 2007/01/04 20:20:48 martinea Exp $
  *
  * retrieves files from an amanda tape
  */
@@ -231,7 +231,7 @@ append_file_to_fd(
 		error("restore: write error = %s", strerror(errno));
 		/*NOTREACHED*/
 	    }
-	    error("Short write: wrote %d bytes expected %d.", s, bytes_read);
+	    error("Short write: wrote %zd bytes expected %zd.", s, bytes_read);
 	    /*NOTREACHCED*/
 	}
 	wc += (off_t)bytes_read;
@@ -819,8 +819,8 @@ restore(
 	      amfree(tmp_filename);
 	      tmp_filename = tmpstr;
 	  } 
-	  final_filename = stralloc(tmp_filename); 
-	  tmp_filename = newvstralloc(tmp_filename, ".tmp", NULL);
+	  final_filename = tmp_filename; 
+	  tmp_filename = vstralloc(final_filename, ".tmp", NULL);
   	  if((dest = open(tmp_filename, (O_CREAT | O_RDWR | O_TRUNC),
 			  CREAT_MODE)) < 0) {
   	      error("could not create output file %s: %s",
@@ -882,7 +882,7 @@ restore(
 		error("write error: %s", strerror(errno));
 		/*NOTREACHED*/
 	    } else {
-		error("write error: %d instead of %d", w, DISK_BLOCK_BYTES);
+		error("write error: %zd instead of %d", w, DISK_BLOCK_BYTES);
 		/*NOTREACHED*/
 	    }
 	}
@@ -1093,7 +1093,7 @@ restore(
 		error("restore: write error: %s", strerror(errno));
 		/* NOTREACHED */
 	    } else if (s < bytes_read) {
-		error("restore: wrote %d of %d bytes: %s",
+		error("restore: wrote %zd of %zd bytes: %s",
 		    s, bytes_read, strerror(errno));
 		/* NOTREACHED */
 	    }
@@ -1400,7 +1400,7 @@ load_manual_tape(
 		    "enter, ^D to finish reading tapes\n");
 	}
 	fflush(prompt_out);
-	if((input = agets(stdin)) == NULL)
+	if((input = agets(prompt_in)) == NULL)
 	    ret = -1;
     }
 
@@ -1692,13 +1692,13 @@ search_tapes(
     seentapes_t *seentapes = NULL;
     int ret;
 
+    if(!prompt_out) prompt_out = stderr;
+
     dbprintf(("search_tapes(prompt_out=%d, prompt_in=%d,  use_changer=%d, "
 	      "tapelist=%p, "
 	      "match_list=%p, flags=%p, features=%p)\n",
 	      fileno(prompt_out), fileno(prompt_in), use_changer, tapelist,
 	      match_list, flags, their_features));
-
-    if(!prompt_out) prompt_out = stderr;
 
     if(flags->blocksize)
 	blocksize = (size_t)flags->blocksize;
@@ -1731,8 +1731,14 @@ search_tapes(
 
     /* Suss what tape device we're using, whether there's a changer, etc. */
     if(!use_changer || (have_changer = changer_init()) == 0) {
-	if(flags->alt_tapedev) cur_tapedev = stralloc(flags->alt_tapedev);
-	else if(!cur_tapedev) cur_tapedev = getconf_str(CNF_TAPEDEV);
+	if (flags->alt_tapedev) {
+	    cur_tapedev = stralloc(flags->alt_tapedev);
+	} else if(!cur_tapedev) {
+	    cur_tapedev = getconf_str(CNF_TAPEDEV);
+	    if (cur_tapedev == NULL) {
+		error("No tapedev specified");
+	    }
+	}
 	/* XXX oughta complain if no config is loaded */
 	fprintf(stderr, "%s: Using tapedev %s\n", get_pname(), cur_tapedev);
  	have_changer = 0;

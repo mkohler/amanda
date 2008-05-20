@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: diskfile.c,v 1.95 2006/07/26 15:17:37 martinea Exp $
+ * $Id: diskfile.c,v 1.95.2.12 2007/01/26 14:33:24 martinea Exp $
  *
  * read disklist file
  */
@@ -369,6 +369,11 @@ parse_diskline(
     int ch, dup = 0;
     char *line = *line_p;
     int line_num = *line_num_p;
+    struct tm *stm;
+    time_t st;
+    char *shost, *sdisk;
+    am_host_t *p;
+    disk_t *dp;
 
     assert(filename != NULL);
     assert(line_num > 0);
@@ -385,11 +390,33 @@ parse_diskline(
     s[-1] = '\0';
     host = lookup_host(fp);
     if (host == NULL) {
-      hostname = stralloc(fp);
-      malloc_mark(hostname);
+	hostname = stralloc(fp);
+	malloc_mark(hostname);
     } else {
-      hostname = host->hostname;
+	hostname = stralloc(host->hostname);
+	if (strcmp(host->hostname, fp) != 0) {
+	    disk_parserror(filename, line_num, "Same host with different case: \"%s\" and \"%s\".", host->hostname, fp);
+	    return -1;
+	}
     }
+
+    shost = sanitise_filename(hostname);
+    for (p = hostlist; p != NULL; p = p->next) {
+	char *shostp = sanitise_filename(p->hostname);
+	if (!strcmp(hostname, p->hostname) &&
+	     strcmp(shost, shostp)) {
+	    disk_parserror(filename, line_num, "Two host are mapping to the same name: \"%s\" and \"%s\"", p->hostname, hostname);
+	    return(-1);
+	}
+	else if (strcasecmp(hostname, p->hostname) &&
+		 match_host(hostname, p->hostname) &&
+		 match_host(p->hostname, hostname)) {
+	    disk_parserror(filename, line_num, "Duplicate host name: \"%s\" and \"%s\"", p->hostname, hostname);
+	    return(-1);
+	}
+	amfree(shostp);
+    }
+    amfree(shost);
 
     skip_whitespace(s, ch);
     if(ch == '\0' || ch == '#') {
@@ -417,8 +444,8 @@ parse_diskline(
     /* diskdevice */
     dumptype = NULL;
     diskdevice = NULL;
-    dumptype = unquote_string(fp);
     if(fp[0] != '{') {
+	dumptype = unquote_string(fp);
 	if ((dtype = lookup_dumptype(dumptype)) == NULL) {
 	    diskdevice = dumptype;
 	    skip_whitespace(s, ch);
@@ -434,18 +461,36 @@ parse_diskline(
 	    fp = s - 1;
 	    skip_quoted_string(s, ch);
 	    s[-1] = '\0';
-	    dumptype = unquote_string(fp);
+	    if (fp[0] != '{') {
+		dumptype = unquote_string(fp);
+	    }
 	}
     }
-    else
-	amfree(dumptype);
 
     /* check for duplicate disk */
-    if(host && (disk = lookup_disk(hostname, diskname)) != NULL) {
-	disk_parserror(filename, line_num,
-	    "duplicate disk record, previous on line %d", disk->line);
-	dup = 1;
-    } else {
+    disk = NULL;
+    if (host) {
+	if ((disk = lookup_disk(hostname, diskname)) != NULL) {
+	    dup = 1;
+	} else {
+	    disk = host->disks;
+	    do {
+		if (match_disk(diskname, disk->name) &&
+		    match_disk(disk->name, diskname)) {
+		    dup = 1;
+		} else {
+		    disk = disk->hostnext;
+		}
+	    }
+	    while (dup == 0 && disk != NULL);
+	}
+	if (dup == 1) {
+	    disk_parserror(filename, line_num,
+			   "duplicate disk record, previous on line %d",
+			   disk->line);
+	}
+    }
+    if (!disk) {
 	disk = alloc(SIZEOF(disk_t));
 	malloc_mark(disk);
 	disk->line = line_num;
@@ -455,6 +500,23 @@ parse_diskline(
 	disk->spindle = -1;
 	disk->up = NULL;
 	disk->inprogress = 0;
+    }
+
+    if (host) {
+	sdisk = sanitise_filename(diskname);
+	for (dp = host->disks; dp != NULL; dp = dp->next) {
+	    char *sdiskp = sanitise_filename(dp->name);
+	    if (strcmp(diskname, dp->name) != 0 &&
+		 strcmp(sdisk, sdiskp) == 0) {
+		disk_parserror(filename, line_num,
+		 "Two disk are mapping to the same name: \"%s\" and \"%s\""
+		 ", you must use different diskname",
+		 dp->name, diskname);
+	    return(-1);
+	    }
+	    amfree(sdiskp);
+	}
+	amfree(sdisk);
     }
 
     if (fp[0] == '{') {
@@ -484,7 +546,7 @@ parse_diskline(
 	amfree(line);
 
 	dtype = read_dumptype(vstralloc("custom(", hostname,
-					":", disk->name, ")", 0),
+					":", disk->name, ")", NULL),
 			      diskf, (char*)filename, line_num_p);
 	if (dtype == NULL || dup) {
 	    disk_parserror(filename, line_num,
@@ -537,23 +599,11 @@ parse_diskline(
 
     disk->dtype_name	     = dtype->name;
     disk->program	     = dumptype_get_program(dtype);
-    if(dumptype_get_exclude(dtype).type == 0) {
-	disk->exclude_list   = duplicate_sl(dumptype_get_exclude(dtype).sl);
-	disk->exclude_file   = NULL;
-    }
-    else {
-	disk->exclude_file   = duplicate_sl(dumptype_get_exclude(dtype).sl);
-	disk->exclude_list   = NULL;
-    }
+    disk->exclude_list     = duplicate_sl(dumptype_get_exclude(dtype).sl_list);
+    disk->exclude_file     = duplicate_sl(dumptype_get_exclude(dtype).sl_file);
     disk->exclude_optional   = dumptype_get_exclude(dtype).optional;
-    if(dumptype_get_include(dtype).type == 0) {
-	disk->include_list   = duplicate_sl(dumptype_get_include(dtype).sl);
-	disk->include_file   = NULL;
-    }
-    else {
-	disk->include_file   = duplicate_sl(dumptype_get_include(dtype).sl);
-	disk->include_list   = NULL;
-    }
+    disk->include_list     = duplicate_sl(dumptype_get_include(dtype).sl_list);
+    disk->include_file     = duplicate_sl(dumptype_get_include(dtype).sl_file);
     disk->include_optional   = dumptype_get_include(dtype).optional;
     disk->priority	     = dumptype_get_priority(dtype);
     disk->dumpcycle	     = dumptype_get_dumpcycle(dtype);
@@ -568,7 +618,18 @@ parse_diskline(
     disk->bumpsize	     = dumptype_get_bumpsize(dtype);
     disk->bumpdays	     = dumptype_get_bumpdays(dtype);
     disk->bumpmult	     = dumptype_get_bumpmult(dtype);
-    disk->start_t	     = dumptype_get_start_t(dtype);
+    disk->starttime	     = dumptype_get_starttime(dtype);
+    disk->start_t = 0;
+    if (disk->starttime > 0) {
+	st = time(NULL);
+	disk->start_t = st;
+	stm = localtime(&st);
+	disk->start_t -= stm->tm_sec + 60 * stm->tm_min + 3600 * stm->tm_hour;
+	disk->start_t += disk->starttime / 100 * 3600 +
+			 disk->starttime % 100 * 60;
+	if ((disk->start_t - st) < -43200)
+	    disk->start_t += 86400;
+    }
     disk->strategy	     = dumptype_get_strategy(dtype);
     disk->estimate	     = dumptype_get_estimate(dtype);
     disk->compress	     = dumptype_get_compress(dtype);
@@ -670,6 +731,8 @@ parse_diskline(
 	host->start_t = 0;
 	host->up = NULL;
 	host->features = NULL;
+    } else {
+	amfree(hostname);
     }
 
     host->netif = netif;

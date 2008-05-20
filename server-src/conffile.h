@@ -25,7 +25,7 @@
  *			   University of Maryland at College Park
  */
 /*
- * $Id: conffile.h,v 1.72 2006/07/26 15:17:37 martinea Exp $
+ * $Id: conffile.h,v 1.72.2.3 2006/11/09 14:35:10 martinea Exp $
  *
  * interface for config file reading code
  */
@@ -159,7 +159,7 @@ typedef enum dumptype_e  {
     DUMPTYPE_BUMPSIZE,
     DUMPTYPE_BUMPDAYS,
     DUMPTYPE_BUMPMULT,
-    DUMPTYPE_START_T,
+    DUMPTYPE_STARTTIME,
     DUMPTYPE_STRATEGY,
     DUMPTYPE_ESTIMATE,
     DUMPTYPE_COMPRESS,
@@ -212,7 +212,7 @@ typedef struct dumptype_s {
 #define dumptype_get_bumpsize(dumptype)           get_conftype_am64     (&dumptype->value[DUMPTYPE_BUMPSIZE])
 #define dumptype_get_bumpdays(dumptype)           get_conftype_int      (&dumptype->value[DUMPTYPE_BUMPDAYS])
 #define dumptype_get_bumpmult(dumptype)           get_conftype_real     (&dumptype->value[DUMPTYPE_BUMPMULT])
-#define dumptype_get_start_t(dumptype)            get_conftype_time     (&dumptype->value[DUMPTYPE_START_T])
+#define dumptype_get_starttime(dumptype)          get_conftype_time     (&dumptype->value[DUMPTYPE_STARTTIME])
 #define dumptype_get_strategy(dumptype)           get_conftype_strategy (&dumptype->value[DUMPTYPE_STRATEGY])
 #define dumptype_get_estimate(dumptype)           get_conftype_estimate (&dumptype->value[DUMPTYPE_ESTIMATE])
 #define dumptype_get_compress(dumptype)           get_conftype_compress (&dumptype->value[DUMPTYPE_COMPRESS])
@@ -313,6 +313,7 @@ extern int num_holdingdisks;
 
 void parse_server_conf(int parse_argc, char **parse_argv, int *new_argc,
 		       char ***new_argv);
+char **get_config_options(int);
 void report_bad_conf_arg(void);
 void free_server_config(void);
 
@@ -328,9 +329,11 @@ double getconf_real(confparm_t parameter);
 char *getconf_str(confparm_t parameter);
 int getconf_taperalgo(confparm_t parameter);
 char *getconf_byname(char *confname);
+char *getconf_list(char *listname);
 dumptype_t *lookup_dumptype(char *identifier);
 dumptype_t *read_dumptype(char *name, FILE *from, char *fname, int *linenum);
 tapetype_t *lookup_tapetype(char *identifier);
+holdingdisk_t *lookup_holdingdisk(char *identifier);
 interface_t *lookup_interface(char *identifier);
 holdingdisk_t *getconf_holdingdisks(void);
 long int getconf_unit_divisor(void);

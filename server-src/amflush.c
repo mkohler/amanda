@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amflush.c,v 1.95 2006/07/25 21:41:24 martinea Exp $
+ * $Id: amflush.c,v 1.95.2.3 2007/02/01 19:25:15 martinea Exp $
  *
  * write files from work directory onto tape
  */
@@ -92,6 +92,8 @@ main(
     char **new_argv, **my_argv;
     char *errstr;
     struct tm *tm;
+    char *tapedev;
+    char *tpchanger;
 
     safe_fd(-1, 0);
     safe_cd();
@@ -228,6 +230,12 @@ main(
     logroll_program = vstralloc(libexecdir, "/", "amlogroll", versionsuffix(),
 				NULL);
 
+    tapedev = getconf_str(CNF_TAPEDEV);
+    tpchanger = getconf_str(CNF_TPCHANGER);
+    if (tapedev == NULL && tpchanger == NULL) {
+	error("No tapedev or tpchanger specified");
+    }
+
     if(datearg) {
 	sle_t *dir, *next_dir;
 	int i, ok;
@@ -291,6 +299,7 @@ main(
 	error("BAD DATE"); /* should never happen */
     fprintf(stderr, "amflush: start at %s\n", date_string);
     fprintf(stderr, "amflush: datestamp %s\n", amflush_timestamp);
+    fprintf(stderr, "amflush: starttime %s\n", construct_timestamp(NULL));
     log_add(L_START, "date %s", amflush_timestamp);
 
     /* START DRIVER */
