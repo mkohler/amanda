@@ -1,17 +1,22 @@
 # Makefile for Amanda tape changer programs.
 
+include $(top_srcdir)/config/automake/vars.am
+include $(top_srcdir)/config/automake/scripts.am
+include $(top_srcdir)/config/automake/installperms.am
+include $(top_srcdir)/config/automake/precompile.am
+
 INCLUDES =	-I$(top_builddir)/common-src \
 		-I$(top_srcdir)/common-src   \
-		-I$(top_srcdir)/server-src   \
 		-I$(top_srcdir)/tape-src     \
 		-I$(top_srcdir)/gnulib
 
-LINT=@AMLINT@
-LINTFLAGS=@AMLINTFLAGS@
+AM_CFLAGS = $(AMANDA_WARNING_CFLAGS)
+AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
 
-LIB_EXTENSION = la
+LINT=$(AMLINT)
+LINTFLAGS=$(AMLINTFLAGS)
 
-if WANT_CHIO_SCSI
+if WANT_CHG_SCSI_CHIO
 CHIO_SCSI = chg-scsi-chio
 endif
 
@@ -19,16 +24,35 @@ if WANT_CHG_SCSI
 CHG_SCSI = chg-scsi
 endif
 
-libexec_PROGRAMS =	$(CHG_SCSI)
+amlibexec_PROGRAMS =	$(CHG_SCSI)
 EXTRA_PROGRAMS =	$(CHIO_SCSI)
 
-libexec_SCRIPTS =	chg-manual	chg-multi	chg-mtx		\
-			chg-rth		chg-chs		chg-chio	\
-			chg-zd-mtx	chg-juke	chg-rait	\
-			chg-null	chg-mcutil	chg-disk	\
-			chg-iomega  chg-lib.sh
+CHECK_PERL = \
+		chg-chio \
+		chg-iomega \
+		chg-rth
 
-CLEANFILES = $(libexec_SCRIPTS)
+SCRIPTS_PERL = $(CHECK_PERL)
+
+SCRIPTS_SHELL = \
+		chg-manual \
+		chg-multi \
+		chg-mtx \
+		chg-chs \
+		chg-zd-mtx \
+		chg-juke \
+		chg-rait \
+		chg-null \
+		chg-mcutil \
+		chg-disk
+
+SCRIPTS_INCLUDE = \
+		chg-lib.sh
+
+EXTRA_DIST += chg-lib.sh.in
+
+amlibexec_SCRIPTS = $(SCRIPTS_PERL) $(SCRIPTS_SHELL)
+amlibexec_DATA = $(SCRIPTS_INCLUDE)
 
 ###
 # Because libamanda includes routines (e.g. regex) provided by some system
@@ -37,54 +61,60 @@ CLEANFILES = $(libexec_SCRIPTS)
 # routines, and second to pick up any references in the other libraries.
 ###
 
-LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
-	../server-src/libamserver.$(LIB_EXTENSION) \
-	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION)   \
-	../gnulib/libgnu.$(LIB_EXTENSION) \
+LDADD = ../common-src/libamanda.la \
+	../tape-src/libamtape.la \
+	../common-src/libamanda.la \
+	../gnulib/libgnu.la \
 	$(READLINE_LIBS)
 
-SUFFIXES =		.pl .sh
+chg_scsi_CSRC = chg-scsi.c scsi-changer-driver.c sense.c 
+if WANT_SCSI_AIX
+chg_scsi_CSRC += scsi-aix.c
+endif
+if WANT_SCSI_HPUX_NEW
+chg_scsi_CSRC += scsi-hpux_new.c
+endif
+if WANT_SCSI_IRIX
+chg_scsi_CSRC += scsi-irix.c
+endif
+if WANT_SCSI_LINUX
+chg_scsi_CSRC += scsi-linux.c
+endif
+if WANT_SCSI_SOLARIS
+chg_scsi_CSRC += scsi-solaris.c
+endif
+if WANT_SCSI_BSD
+chg_scsi_CSRC += scsi-bsd.c
+endif
+if WANT_SCSI_CAM
+chg_scsi_CSRC += scsi-cam.c
+endif
 
-chg_scsi_CSRC = chg-scsi.c scsi-aix.c scsi-changer-driver.c		\
-		scsi-hpux_new.c scsi-irix.c scsi-linux.c scsi-solaris.c	\
-		scsi-bsd.c scsi-cam.c sense.c 
 chg_scsi_SOURCES = libscsi.h scsi-defs.h $(chg_scsi_CSRC)
 
-chg_scsi_chio_CSRC = chg-scsi-chio.c scsi-hpux.c scsi-chio.c
+chg_scsi_chio_CSRC = chg-scsi-chio.c
+if WANT_SCSI_HPUX
+chg_scsi_chio_CSRC += scsi-hpux.c
+endif
+if WANT_SCSI_CHIO
+chg_scsi_chio_CSRC += scsi-chio.c
+endif
 chg_scsi_chio_SOURCES = libscsi.h $(chg_scsi_chio_CSRC)
 
-EXTRA_DIST = scsi-proto.c
+EXTRA_DIST += scsi-proto.c
 
-.pl:
-			cat $< > $@
-			chmod a+x $@
-			-test -z "$(PERL)" || $(PERL) -c $@
+INSTALLPERMS_exec = \
+	chown=amanda \
+	dest=$(sbindir) $(sbin_PROGRAMS) \
+	dest=$(amlibexecdir) $(amlibexec_PROGRAMS) 
 
-.sh:
-			cat $< > $@
-			chmod a+x $@
-
-install-exec-hook:
-	@list="$(sbin_PROGRAMS) $(sbin_SCRIPTS)"; \
-	for p in $$list; do \
-		pa=$(DESTDIR)$(sbindir)/`echo $$p|sed '$(transform)'`; \
-		echo chown $(BINARY_OWNER) $$pa; \
-		chown $(BINARY_OWNER) $$pa; \
-		echo chgrp $(SETUID_GROUP) $$pa; \
-		chgrp $(SETUID_GROUP) $$pa; \
-	done
-	@list="$(libexec_PROGRAMS) $(libexec_SCRIPTS)"; \
-	for p in $$list; do \
-		pa=$(DESTDIR)$(libexecdir)/`echo $$p|sed '$(transform)'`; \
-		echo chown $(BINARY_OWNER) $$pa; \
-		chown $(BINARY_OWNER) $$pa; \
-		echo chgrp $(SETUID_GROUP) $$pa; \
-		chgrp $(SETUID_GROUP) $$pa; \
-	done
+INSTALLPERMS_data = \
+	chown=amanda \
+	dest=$(sbindir) $(sbin_SCRIPTS) \
+	dest=$(amlibexecdir) $(amlibexec_SCRIPTS) $(amlibexec_DATA)
 
 lint:
-	@ for p in $(libexec_PROGRAMS) $(EXTRA_PROGRAMS); do			\
+	@ for p in $(amlibexec_PROGRAMS) $(EXTRA_PROGRAMS); do			\
 		f="$$p.c $(libamandad_la_SOURCES)";				\
 		(cd ../common-src; make listlibsrc);				\
 		f="$$f "`cat ../common-src/listlibsrc.output`;			\
@@ -93,7 +123,7 @@ lint:
 		(cd ../tape-src; make listlibsrc);				\
 		f="$$f "`cat ../tape-src/listlibsrc.output`;			\
 		echo $(LINT) $$f;						\
-		$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I../config	\
+		$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I$(top_builddir)/config	\
 		    $(INCLUDES) $$f;						\
 		if [ $$? -ne 0 ]; then						\
 		    exit 1;							\

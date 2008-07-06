@@ -46,27 +46,29 @@
      SETDATE = 262,
      SETTAPE = 263,
      SETMODE = 264,
-     CD = 265,
-     CDX = 266,
-     QUIT = 267,
-     DHIST = 268,
-     LS = 269,
-     ADD = 270,
-     ADDX = 271,
-     EXTRACT = 272,
-     LIST = 273,
-     DELETE = 274,
-     DELETEX = 275,
-     PWD = 276,
-     CLEAR = 277,
-     HELP = 278,
-     LCD = 279,
-     LPWD = 280,
-     MODE = 281,
-     SMB = 282,
-     TAR = 283,
-     PATH = 284,
-     DATE = 285
+     SETDEVICE = 265,
+     CD = 266,
+     CDX = 267,
+     QUIT = 268,
+     DHIST = 269,
+     LS = 270,
+     ADD = 271,
+     ADDX = 272,
+     EXTRACT = 273,
+     DASH_H = 274,
+     LIST = 275,
+     DELETE = 276,
+     DELETEX = 277,
+     PWD = 278,
+     CLEAR = 279,
+     HELP = 280,
+     LCD = 281,
+     LPWD = 282,
+     MODE = 283,
+     SMB = 284,
+     TAR = 285,
+     PATH = 286,
+     DATE = 287
    };
 #endif
 /* Tokens.  */
@@ -77,27 +79,29 @@
 #define SETDATE 262
 #define SETTAPE 263
 #define SETMODE 264
-#define CD 265
-#define CDX 266
-#define QUIT 267
-#define DHIST 268
-#define LS 269
-#define ADD 270
-#define ADDX 271
-#define EXTRACT 272
-#define LIST 273
-#define DELETE 274
-#define DELETEX 275
-#define PWD 276
-#define CLEAR 277
-#define HELP 278
-#define LCD 279
-#define LPWD 280
-#define MODE 281
-#define SMB 282
-#define TAR 283
-#define PATH 284
-#define DATE 285
+#define SETDEVICE 265
+#define CD 266
+#define CDX 267
+#define QUIT 268
+#define DHIST 269
+#define LS 270
+#define ADD 271
+#define ADDX 272
+#define EXTRACT 273
+#define DASH_H 274
+#define LIST 275
+#define DELETE 276
+#define DELETEX 277
+#define PWD 278
+#define CLEAR 279
+#define HELP 280
+#define LCD 281
+#define LPWD 282
+#define MODE 283
+#define SMB 284
+#define TAR 285
+#define PATH 286
+#define DATE 287
 
 
 
@@ -112,7 +116,7 @@ typedef union YYSTYPE
 	int	subtok;
 }
 /* Line 1489 of yacc.c.  */
-#line 116 "uparse.h"
+#line 120 "uparse.h"
 	YYSTYPE;
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1

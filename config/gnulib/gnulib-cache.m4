@@ -15,17 +15,19 @@
 
 
 # Specification in the form of a command-line invocation:
-#   gnulib-tool --import --dir=. --lib=libgnu --source-base=gnulib --m4-base=config/gnulib --doc-base=doc --aux-dir=config --libtool --macro-prefix=gl getaddrinfo lock visibility
+#   gnulib-tool --import --dir=. --lib=libgnu --source-base=gnulib --m4-base=config/gnulib --doc-base=doc --aux-dir=config --libtool --macro-prefix=gl base64 fsusage getaddrinfo lock mkdtemp physmem visibility
 
 # Specification in the form of a few gnulib-tool.m4 macro invocations:
 gl_LOCAL_DIR([])
-gl_MODULES([getaddrinfo lock visibility])
+gl_MODULES([base64 fsusage getaddrinfo lock mkdtemp physmem visibility])
 gl_AVOID([])
 gl_SOURCE_BASE([gnulib])
 gl_M4_BASE([config/gnulib])
+gl_PO_BASE([])
 gl_DOC_BASE([doc])
 gl_TESTS_BASE([tests])
 gl_LIB([libgnu])
 gl_MAKEFILE_NAME([])
 gl_LIBTOOL
 gl_MACRO_PREFIX([gl])
+gl_PO_DOMAIN([])

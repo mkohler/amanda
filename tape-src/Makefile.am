@@ -1,13 +1,18 @@
 # Makefile for Amanda tape library.
 
+include $(top_srcdir)/config/automake/precompile.am
+
 INCLUDES =	-I$(top_builddir)/common-src \
 		-I$(top_srcdir)/common-src   \
 		-I$(top_srcdir)/gnulib
 
+AM_CFLAGS = $(AMANDA_WARNING_CFLAGS)
+AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
+
 LINT=@AMLINT@
 LINTFLAGS=@AMLINTFLAGS@
 
-lib_LTLIBRARIES = 	libamtape.la
+amlib_LTLIBRARIES = 	libamtape.la
 LIB_EXTENSION = la
 
 sbin_PROGRAMS=          ammt amdd amtapetype
@@ -19,6 +24,7 @@ libamtape_la_SOURCES = 	output-file.c \
 			tapeio.c
 
 libamtape_la_LDFLAGS =  -release $(VERSION)
+libamtape_la_LIBADD = ../common-src/libamanda.$(LIB_EXTENSION)
 
 ###
 # Because libamanda includes routines (e.g. regex) provided by some system
@@ -48,23 +54,9 @@ noinst_HEADERS = 	\
 			output-tape.h \
 			tapeio.h
 
-install-exec-hook:
-	@list="$(sbin_PROGRAMS) $(sbin_SCRIPTS)"; \
-	for p in $$list; do \
-		pa=$(DESTDIR)$(sbindir)/`echo $$p|sed '$(transform)'`; \
-		echo chown $(BINARY_OWNER) $$pa; \
-		chown $(BINARY_OWNER) $$pa; \
-		echo chgrp $(SETUID_GROUP) $$pa; \
-		chgrp $(SETUID_GROUP) $$pa; \
-	done
-	@list="$(libexec_PROGRAMS) $(libexec_SCRIPTS)"; \
-	for p in $$list; do \
-		pa=$(DESTDIR)$(libexecdir)/`echo $$p|sed '$(transform)'`; \
-		echo chown $(BINARY_OWNER) $$pa; \
-		chown $(BINARY_OWNER) $$pa; \
-		echo chgrp $(SETUID_GROUP) $$pa; \
-		chgrp $(SETUID_GROUP) $$pa; \
-	done
+INSTALLPERMS_exec = \
+	dest=$(sbindir) chown=amanda $(sbin_PROGRAMS) $(sbin_SCRIPTS) \
+	dest=$(amlibexecdir) chown=amanda $(amlibexec_PROGRAMS) $(amlibexec_SCRIPTS)
 
 amtapeio_SOURCES = amtapeio.test.c
 amtapeio_LDADD =	../common-src/libamanda.$(LIB_EXTENSION) \
@@ -94,7 +86,7 @@ lint:
 		(cd ../common-src; make listlibsrc);				\
 		f="$$f "`cat ../common-src/listlibsrc.output`;			\
 		echo $(LINT) $$f;						\
-		$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I../config	\
+		$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I$(top_builddir)/config	\
 		    $(INCLUDES) $$f;						\
 		if [ $$? -ne 0 ]; then						\
 		    exit 1;							\

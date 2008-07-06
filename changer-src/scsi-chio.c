@@ -7,15 +7,12 @@
  *	Author: Eric Schnoebelen, eric@cirr.com
  *	based on work by: Larry Pyeatt,  pyeatt@cs.colostate.edu 
  *	Copyright: 1997, 1998 Eric Schnoebelen
- *		
+ *
+ *	Patch: Michael Enkelis, michaele@mxim.com)
  */
 
 #include "config.h"
 #include "amanda.h"
-#include "scsi-defs.h"
-
-#if (defined(HAVE_CHIO_H) || defined(HAVE_SYS_CHIO_H)) \
-    && !defined(HAVE_CAMLIB_H)
 
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -27,11 +24,15 @@
  * and possibly change all the ioctl() calls in this program.  
  */
 
-#if defined(HAVE_CHIO_H)
-#  include <chio.h>
-#else /* HAVE_SYS_CHIO_H must be defined */
-#  include <sys/chio.h>
-#endif
+#if defined(HAVE_LINUX_CHIO_H)
+#  include <linux/chio.h>
+#else
+# if defined(HAVE_CHIO_H)
+#   include <chio.h>
+# else /* HAVE_SYS_CHIO_H must be defined */
+#   include <sys/chio.h>
+# endif	/* HAVE_CHIO_H */
+#endif  /* HAVE_LINUX_CHIO_H */
 
 char *modname = "@(#)" __FILE__ 
 		": SCSI support library for the chio(2) interface @(#)";
@@ -41,8 +42,22 @@ char *modname = "@(#)" __FILE__
  */
 static struct changer_params changer_info;
 static int changer_info_init = 0;
+int GetCurrentSlot(int fd, int drive);
+int GetDeviceStatus (char *tapedev);
+int OpenDevice (char *tapedev);
+int CloseDevice (char *device, int DeviceFD);
+int Tape_Ready1 ( char *tapedev , int wait);
+int isempty(int fd, int slot);
+int find_empty(int fd, int start, int count);
+int get_clean_state(char *tapedev);
+int get_slot_count(int fd);
+int get_drive_count(int fd);
+int eject_tape(char *tapedev);
+int drive_loaded(int fd, int drivenum);
+int unload(int fd, int drive, int slot);
+int load(int fd, int drive, int slot);
 
-static int get_changer_info(fd)
+static int get_changer_info(int fd)
 {
 int rc = 0;
 
@@ -64,6 +79,8 @@ int GetCurrentSlot(int fd, int drive)
     int slot;
     int i, rc;
 
+    (void)drive;
+
     get_changer_info(fd);
 
     ces.ces_type = CHET_ST;
@@ -71,35 +88,40 @@ int GetCurrentSlot(int fd, int drive)
 
     rc = ioctl(fd, CHIOGSTATUS, &ces);
     if (rc) {
-	dbprintf(("%s: changer status query failed: 0x%x %s\n",
-			get_pname(), rc,strerror(errno)));
+	dbprintf(_("changer status query failed: 0x%x %s\n"), rc, strerror(errno));
 	return -1;
     }
     for (slot = 0; slot < changer_info.cp_nslots; slot++)
     {
     	i = ces.ces_data[slot] & CESTATUS_FULL;
-    	dbprintf(("\tGetCurrentSlot slot %d = %d\n", slot, i));
+    	dbprintf(_("\tGetCurrentSlot slot %d = %d\n"), slot, i);
     	if (!i)
             return(slot);
     }
-
-
+    return -1;
 }
 
-int get_clean_state(int changerfd, char *changerdev, char *dev)
+int get_clean_state(char *tapedev)
 {
-    return 0;
-
+int rc;
+#if defined(BUILTIN)
+    rc = 0;
+#else
+#define GMT_CLN(x)	((x) & 0x00008000)
+    rc = ( GMT_CLN(GetDeviceStatus(tapedev)) );
+#endif	/* BUILTIN */
+    return rc;
 }
-void eject_tape(char *tape)
+
+int eject_tape(char *tapedev)
 /* This function ejects the tape from the drive */
 {
 int mtfd;
 struct mtop mt_com;
 
-    if ((mtfd = open(tape, O_RDWR)) < 0) {
-        dbprintf(("eject_tape : failed\n"));
-        perror(tape);
+    if ( (mtfd = OpenDevice(tapedev) ) < 0) {
+        dbprintf(_("eject_tape : failed\n"));
+        perror(tapedev);
         exit(2);
     }
     mt_com.mt_op = MTOFFL;
@@ -109,11 +131,11 @@ struct mtop mt_com;
     If the drive already ejected the tape due an error, or because it
     was a cleaning tape, threre can be an error, which we should ignore 
 
-       perror(tape);
+       perror(tapedev);
        exit(2);
 */
     }
-    close(mtfd);
+    return(CloseDevice(tapedev, mtfd));
 }
 
 
@@ -133,8 +155,7 @@ int type=CHET_ST;
 
     rc = ioctl(fd, CHIOGSTATUS, &ces);
     if (rc) {
-	dbprintf(("%s: changer status query failed: 0x%x %s\n",
-			get_pname(), rc,strerror(errno)));
+	dbprintf(_("changer status query failed: 0x%x %s\n"), rc,strerror(errno));
 	return -1;
     }
 
@@ -153,6 +174,9 @@ struct changer_element_status  ces;
 int                            i,rc;
 int type=CHET_ST;
 
+    (void)start;
+    (void)count;
+
     get_changer_info(fd);
 
     ces.ces_type = type;
@@ -160,8 +184,7 @@ int type=CHET_ST;
 
     rc = ioctl(fd,CHIOGSTATUS,&ces);
     if (rc) {
-	dbprintf(("%s: changer status query failed: 0x%x %s\n",
-			get_pname(), rc, strerror(errno)));
+	dbprintf(_("changer status query failed: 0x%x %s\n"), rc, strerror(errno));
 	return -1;
     }
 
@@ -188,8 +211,7 @@ int type=CHET_DT;
 
     rc = ioctl(fd, CHIOGSTATUS, &ces);
     if (rc) {
-	dbprintf(("%s: drive status query failed: 0x%x %s\n",
-			get_pname(), rc, strerror(errno)));
+	dbprintf(_("drive status query failed: 0x%x %s\n"), rc, strerror(errno));
 	return -1;
     }
 
@@ -208,7 +230,7 @@ int unload(int fd, int drive, int slot)
 struct changer_move  move;
 int rc;
 
-    dbprintf(("unload : fd = %d, drive = %d, slot =%d\n",fd, drive, slot));
+    dbprintf(_("unload : fd = %d, drive = %d, slot =%d\n"),fd, drive, slot);
 
     move.cm_fromtype = CHET_DT;
     move.cm_fromunit = drive;
@@ -218,8 +240,7 @@ int rc;
 
     rc = ioctl(fd, CHIOMOVE, &move);
     if (rc){
-	dbprintf(("%s: drive unload failed (MOVE): 0x%x %s\n",
-		get_pname(), rc, strerror(errno)));
+	dbprintf(_("drive unload failed (MOVE): 0x%x %s\n"), rc, strerror(errno));
 	return(-2);
     }
     return 0;
@@ -234,7 +255,7 @@ int load(int fd, int drive, int slot)
 struct changer_move  move;
 int rc;
 
-    dbprintf(("load : fd = %d, drive = %d, slot =%d\n",fd, drive, slot));
+    dbprintf(_("load : fd = %d, drive = %d, slot =%d\n"),fd, drive, slot);
 
     move.cm_fromtype = CHET_ST;
     move.cm_fromunit = slot;
@@ -244,8 +265,7 @@ int rc;
 
     rc = ioctl(fd,CHIOMOVE,&move);
     if (rc){
-	dbprintf(("%s: drive load failed (MOVE): 0x%x %s\n",
-		get_pname(), rc, strerror(errno)));
+	dbprintf(_("drive load failed (MOVE): 0x%x %s\n"), rc, strerror(errno));
 	return(-2);
     }
     return(0);
@@ -257,8 +277,7 @@ int rc;
 
     rc = get_changer_info(fd);
     if (rc) {
-        dbprintf(("%s: slot count query failed: 0x%x %s\n", 
-			get_pname(), rc, strerror(errno)));
+        dbprintf(_("slot count query failed: 0x%x %s\n"), rc, strerror(errno));
         return -1;
     }
 
@@ -271,8 +290,7 @@ int rc;
 
     rc = get_changer_info(fd);
     if (rc) {
-        dbprintf(("%s: drive count query failed: 0x%x %s\n",
-			get_pname(), rc, strerror(errno)));
+        dbprintf(_("drive count query failed: 0x%x %s\n"), rc, strerror(errno));
         return -1;
     }
 
@@ -280,7 +298,8 @@ int rc;
 }
 
 /* This function should ask the drive if it is ready */
-int Tape_Ready ( char *tapedev , int wait)
+int Tape_Ready1 ( char *tapedev , int wait)
+#if defined(BUILTIN)
 {
   FILE *out=NULL;
   int cnt=0;
@@ -294,25 +313,60 @@ int Tape_Ready ( char *tapedev , int wait)
   return 0;
 }
 
+#else
+{
+  int cnt=0;
+
+  dbprintf(_("Tape_Ready1 : wait for BOT : max %d seconds\n"),wait);
+  /* loop on status BOT */
+  while ((cnt < wait)) {
+    if ( GMT_BOT(GetDeviceStatus(tapedev)) ) {
+     break;
+    }
+    /* dbprintf(("Tape_Ready1 : cnt %d\n",cnt)); */
+    cnt++;
+    sleep(1);
+  }
+  if (cnt >= wait) {
+   dbprintf(_("Tape_Ready1 : BOT not found : %d seconds\n"),cnt);
+   return(-1);
+  } else {
+   dbprintf(_("Tape_Ready1 : BOT : %d seconds\n"),cnt);
+  return 0;
+  }
+}
+#endif	/* BUILTIN */
+
+int GetDeviceStatus (char *tapedev)
+{
+  struct mtget status;
+  int mtfd, rc;
+
+  mtfd = OpenDevice(tapedev);
+  ioctl (mtfd, MTIOCGET, (char *)&status);
+  CloseDevice(tapedev, mtfd);
+  rc = status.mt_gstat;
+  return rc;
+}
+
 int OpenDevice (char *tapedev)
 {
   int DeviceFD;
 
   DeviceFD = open(tapedev, O_RDWR);
-  return(DeviceFD);
+  return DeviceFD;
 }
 
 int CloseDevice (char *device, int DeviceFD)
 {
-   int ret;
+   int rc;
 
-   dbprintf(("%s: CloseDevice(%s)\n", device, get_pname()));
-   ret = close(DeviceFD);
+   dbprintf(_("CloseDevice(%s)\n"), device);
+   rc = close(DeviceFD);
 
-   return ret;
+   return rc;
 }
 
-#endif
 /*
  * Local variables:
  * indent-tabs-mode: nil

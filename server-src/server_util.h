@@ -45,9 +45,10 @@ enum {
     START, FILE_DUMP, PORT_DUMP, CONTINUE, ABORT,	/* dumper cmds */
     FAILED, TRYAGAIN, NO_ROOM, RQ_MORE_DISK,		/* dumper results */
     ABORT_FINISHED, BAD_COMMAND,			/* dumper results */
-    START_TAPER, FILE_WRITE, PORT_WRITE,		/* taper cmds */
-    PORT, TAPE_ERROR, TAPER_OK,	SPLIT_NEEDNEXT,         /* taper results */
-    SPLIT_CONTINUE,
+    START_TAPER, FILE_WRITE, NEW_TAPE, NO_NEW_TAPE,     /* taper... */
+    PARTDONE, PORT_WRITE, DUMPER_STATUS,                /* ... cmds */
+    PORT, TAPE_ERROR, TAPER_OK,				/* taper results */
+    REQUEST_NEW_TAPE,
     LAST_TOK
 };
 extern const char *cmdstr[];
@@ -59,8 +60,7 @@ struct cmdargs {
 
 cmd_t getcmd(struct cmdargs *cmdargs);
 cmd_t getresult(int fd, int show, int *result_argc, char **result_argv, int max_arg);
-void putresult(cmd_t result, const char *, ...)
-     __attribute__ ((format (printf, 2, 3)));
+void putresult(cmd_t result, const char *, ...) G_GNUC_PRINTF(2, 3);
 int taper_cmd(cmd_t cmd, void *ptr, char *destname, int level, char *datestamp);
 
 struct disk_s;

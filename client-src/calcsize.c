@@ -32,7 +32,7 @@
  * argv[1] is the config name or NOCONFIG
  */
 #include "amanda.h"
-#include "statfs.h"
+#include "fsusage.h"
 #include "version.h"
 #include "sl.h"
 #include "util.h"
@@ -128,6 +128,15 @@ main(
     char *d;
     int l, w;
 
+    /*
+     * Configure program for internationalization:
+     *   1) Only set the message locale for now.
+     *   2) Set textdomain for all amanda related programs to "amanda"
+     *      We don't want to be forced to support dozens of message catalogs.
+     */  
+    setlocale(LC_MESSAGES, "C");
+    textdomain("amanda"); 
+
     safe_fd(-1, 0);
 
     set_pname("calcsize");
@@ -138,29 +147,34 @@ main(
     signal(SIGPIPE, SIG_IGN);
 
     if (argc < 2) {
-	fprintf(stderr,"Usage: %s file[s]\n",argv[0]);
+	g_fprintf(stderr,_("Usage: %s file[s]\n"),argv[0]);
 	return 1;
     }
     for(i=1; i<argc; i++) {
 	if(lstat(argv[i], &finfo) == -1) {
-	    fprintf(stderr, "%s: %s\n", argv[i], strerror(errno));
+	    g_fprintf(stderr, "%s: %s\n", argv[i], strerror(errno));
 	    continue;
 	}
-	printf("%s: st_size=%lu", argv[i],(unsigned long)finfo.st_size);
-	printf(": blocks=%llu\n", ST_BLOCKS(finfo));
+	g_printf("%s: st_size=%lu", argv[i],(unsigned long)finfo.st_size);
+	g_printf(": blocks=%llu\n", ST_BLOCKS(finfo));
 	dump_total += (ST_BLOCKS(finfo) + (off_t)1) / (off_t)2 + (off_t)1;
 	gtar_total += ROUND(4,(ST_BLOCKS(finfo) + (off_t)1));
     }
-    printf("           gtar           dump\n");
-    printf("total      %-9lu         %-9lu\n",gtar_total,dump_total);
+    g_printf("           gtar           dump\n");
+    g_printf("total      %-9lu         %-9lu\n",gtar_total,dump_total);
     return 0;
 #else
     int i;
     char *dirname=NULL;
     char *amname=NULL, *qamname=NULL;
     char *filename=NULL, *qfilename = NULL;
-    unsigned long malloc_hist_1, malloc_size_1;
-    unsigned long malloc_hist_2, malloc_size_2;
+
+    /* drop root privileges; we'll regain them for the required operations */
+#ifdef WANT_SETUID_CLIENT
+    if (!set_root_privs(0)) {
+	error(_("calcsize must be run setuid root"));
+    }
+#endif
 
     safe_fd(-1, 0);
     safe_cd();
@@ -168,9 +182,7 @@ main(
     set_pname("calcsize");
 
     dbopen(DBG_SUBDIR_CLIENT);
-    dbprintf(("%s: version %s\n", debug_prefix_time(NULL), version()));
-
-    malloc_size_1 = malloc_inuse(&malloc_hist_1);
+    dbprintf(_("version %s\n"), version());
 
 #if 0
     erroutput_type = (ERR_INTERACTIVE|ERR_SYSLOG);
@@ -181,17 +193,19 @@ main(
     /* need at least program, amname, and directory name */
 
     if(argc < 4) {
-	error("Usage: %s config [DUMP|GNUTAR] name dir [-X exclude-file] [-I include-file] [level date]*",
+	error(_("Usage: %s config [DUMP|STAR|GNUTAR] name dir [-X exclude-file] [-I include-file] [level date]*"),
 	      get_pname());
         /*NOTREACHED*/
     }
 
-    dbprintf(("config: %s\n", *argv));
+    dbprintf(_("config: %s\n"), *argv);
     if (strcmp(*argv, "NOCONFIG") != 0) {
 	dbrename(*argv, DBG_SUBDIR_CLIENT);
     }
     argc--;
     argv++;
+
+    check_running_as(RUNNING_AS_CLIENT_LOGIN);
 
     /* parse backup program name */
 
@@ -254,12 +268,12 @@ main(
 	filename = stralloc(*argv);
 	qfilename = quote_string(filename);
 	if (access(filename, R_OK) != 0) {
-	    fprintf(stderr,"Cannot open exclude file %s\n", qfilename);
+	    g_fprintf(stderr,"Cannot open exclude file %s\n", qfilename);
 	    use_gtar_excl = use_star_excl = 0;
 	} else {
 	    exclude_sl = calc_load_file(filename);
 	    if (!exclude_sl) {
-		fprintf(stderr,"Cannot open exclude file %s: %s\n", qfilename,
+		g_fprintf(stderr,"Cannot open exclude file %s: %s\n", qfilename,
 			strerror(errno));
 		use_gtar_excl = use_star_excl = 0;
 	    }
@@ -278,12 +292,12 @@ main(
 	filename = stralloc(*argv);
 	qfilename = quote_string(filename);
 	if (access(filename, R_OK) != 0) {
-	    fprintf(stderr,"Cannot open include file %s\n", qfilename);
+	    g_fprintf(stderr,"Cannot open include file %s\n", qfilename);
 	    use_gtar_excl = use_star_excl = 0;
 	} else {
 	    include_sl = calc_load_file(filename);
 	    if (!include_sl) {
-		fprintf(stderr,"Cannot open include file %s: %s\n", qfilename,
+		g_fprintf(stderr,"Cannot open include file %s: %s\n", qfilename,
 			strerror(errno));
 		use_gtar_excl = use_star_excl = 0;
 	    }
@@ -330,22 +344,17 @@ main(
 
 	amflock(1, "size");
 
-	dbprintf(("calcsize: %s %d SIZE " OFF_T_FMT "\n",
+	dbprintf("calcsize: %s %d SIZE %lld\n",
 	       qamname, dumplevel[i],
-	       (OFF_T_FMT_TYPE)final_size(i, dirname)));
-	fprintf(stderr, "%s %d SIZE " OFF_T_FMT "\n",
+	       (long long)final_size(i, dirname));
+	g_fprintf(stderr, "%s %d SIZE %lld\n",
 	       qamname, dumplevel[i],
-	       (OFF_T_FMT_TYPE)final_size(i, dirname));
+	       (long long)final_size(i, dirname));
 	fflush(stderr);
 
 	amfunlock(1, "size");
     }
-
-    malloc_size_2 = malloc_inuse(&malloc_hist_2);
-
-    if(malloc_size_1 != malloc_size_2) {
-	malloc_list(fileno(stderr), malloc_hist_1, malloc_hist_2);
-    }
+    amfree(qamname);
 
     return 0;
 #endif
@@ -395,6 +404,8 @@ traverse_dirs(
     has_exclude = !is_empty_sl(exclude_sl) && (use_gtar_excl || use_star_excl);
     aparent = vstralloc(parent_dir, "/", include, NULL);
 
+    /* We (may) need root privs for the *stat() calls here. */
+    set_root_privs(1);
     if(stat(parent_dir, &finfo) != -1)
 	parent_dev = finfo.st_dev;
 
@@ -428,7 +439,7 @@ traverse_dirs(
 
 	    newname = newstralloc2(newname, newbase, f->d_name);
 	    if(lstat(newname, &finfo) == -1) {
-		fprintf(stderr, "%s/%s: %s\n",
+		g_fprintf(stderr, "%s/%s: %s\n",
 			dirname, f->d_name, strerror(errno));
 		continue;
 	    }
@@ -479,6 +490,10 @@ traverse_dirs(
 	    perror(dirname);
 #endif
     }
+
+    /* drop root privs -- we're done with the permission-sensitive calls */
+    set_root_privs(0);
+
     amfree(newbase);
     amfree(newname);
     amfree(aparent);
@@ -555,20 +570,20 @@ final_size_dump(
     int		level,
     char *	topdir)
 {
-    generic_fs_stats_t stats;
+    struct fs_usage fsusage;
     off_t mapsize;
     char *s;
 
     /* calculate the map sizes */
 
     s = stralloc2(topdir, "/.");
-    if(get_fs_stats(s, &stats) == -1) {
+    if(get_fs_usage(s, NULL, &fsusage) == -1) {
 	error("statfs %s: %s", s, strerror(errno));
 	/*NOTREACHED*/
     }
     amfree(s);
 
-    mapsize = (stats.files + (off_t)7) / (off_t)8;    /* in bytes */
+    mapsize = (fsusage.fsu_files + (off_t)7) / (off_t)8;    /* in bytes */
     mapsize = (mapsize + (off_t)1023) / (off_t)1024;  /* in kbytes */
 
     /* the dump contains three maps plus the files */

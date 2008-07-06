@@ -45,7 +45,7 @@ num_entries(
     for(cur_tape = tapelist ; cur_tape ; cur_tape = cur_tape->next)
 	count++;
 
-    dbprintf(("num_entries(tapelist=%p)=%d\n", tapelist, count));
+    dbprintf("num_entries(tapelist=%p)=%d\n", tapelist, count);
     return(count);
 }
 
@@ -57,19 +57,20 @@ dump_tapelist(
     int count = 0;
     int file;
 
-    dbprintf(("dump_tapelist(%p):\n", tapelist));
+    dbprintf("dump_tapelist(%p):\n", tapelist);
     for(cur_tape = tapelist ; cur_tape != NULL ; cur_tape = cur_tape->next) {
-	dbprintf(("  %p->next     = %p\n", cur_tape, cur_tape->next));
-	dbprintf(("  %p->label    = %s\n", cur_tape, cur_tape->label));
-	dbprintf(("  %p->isafile  = %d\n", cur_tape, cur_tape->isafile));
-	dbprintf(("  %p->numfiles = %d\n", cur_tape, cur_tape->numfiles));
+	dbprintf("  %p->next     = %p\n", cur_tape, cur_tape->next);
+	dbprintf("  %p->label    = %s\n", cur_tape, cur_tape->label);
+	dbprintf("  %p->isafile  = %d\n", cur_tape, cur_tape->isafile);
+	dbprintf("  %p->numfiles = %d\n", cur_tape, cur_tape->numfiles);
 	for (file=0; file < cur_tape->numfiles; file++) {
-	    dbprintf(("  %p->files[%d] = " OFF_T_FMT "\n",
-		     cur_tape, file, (OFF_T_FMT_TYPE)cur_tape->files[file]));
+	    dbprintf("  %p->files[%d] = %lld, %p->partnum[%d] = %lld\n",
+		     cur_tape, file, (long long)cur_tape->files[file],
+		     cur_tape, file, (long long)cur_tape->partnum[file]);
 	}
 	count++;
     }
-    dbprintf(("  %p count     = %d\n", tapelist, count));
+    dbprintf("  %p count     = %d\n", tapelist, count);
 }
 
 /*
@@ -81,37 +82,46 @@ append_to_tapelist(
     tapelist_t *tapelist,
     char *	label,
     off_t	file,
+    int 	partnum,
     int		isafile)
 {
     tapelist_t *new_tape, *cur_tape;
     int c;
 
-    dbprintf(("append_to_tapelist(tapelist=%p, label='%s', , file="
-		OFF_T_FMT ", isafile=%d)\n",
-		tapelist, label, (OFF_T_FMT_TYPE)file, isafile));
+    dbprintf("append_to_tapelist(tapelist=%p, label='%s', file=%lld, partnum=%d,  isafile=%d)\n",
+		tapelist, label, (long long)file, partnum, isafile);
 
     /* see if we have this tape already, and if so just add to its file list */
     for(cur_tape = tapelist; cur_tape; cur_tape = cur_tape->next) {
 	if(strcmp(label, cur_tape->label) == 0) {
 	    int d_idx = 0;
 	    off_t *newfiles;
+	    int   *newpartnum;
 
 	    if(file >= (off_t)0) {
 		newfiles = alloc(SIZEOF(*newfiles) *
 				 (cur_tape->numfiles + 1));
+		newpartnum = alloc(SIZEOF(*newpartnum) *
+				 (cur_tape->numfiles + 1));
 		for(c = 0; c < cur_tape->numfiles ; c++) {
 		    if(cur_tape->files[c] > file && c == d_idx) {
 			newfiles[d_idx] = file;
+			newpartnum[d_idx] = partnum;
 			d_idx++;
 		    }
 		    newfiles[d_idx] = cur_tape->files[c];
+		    newpartnum[d_idx] = cur_tape->partnum[c];
 		    d_idx++;
 		}
-		if(c == d_idx)
+		if(c == d_idx) {
 		    newfiles[d_idx] = file;
+		    newpartnum[d_idx] = partnum;
+		}
 		cur_tape->numfiles++;
 		amfree(cur_tape->files);
+		amfree(cur_tape->partnum);
 		cur_tape->files = newfiles;
+		cur_tape->partnum = newpartnum;
 	    }
 	    return(tapelist);
 	}
@@ -123,6 +133,8 @@ append_to_tapelist(
     if(file >= (off_t)0){
 	new_tape->files = alloc(SIZEOF(*(new_tape->files)));
 	new_tape->files[0] = file;
+	new_tape->partnum = alloc(SIZEOF(*(new_tape->partnum)));
+	new_tape->partnum[0] = partnum;
 	new_tape->numfiles = 1;
 	new_tape->isafile = isafile;
     }
@@ -227,8 +239,8 @@ marshal_tapelist(
 
 	for(c = 0; c < cur_tape->numfiles ; c++){
 	    char num_str[NUM_STR_SIZE];
-	    snprintf(num_str, SIZEOF(num_str), OFF_T_FMT,
-			(OFF_T_FMT_TYPE)cur_tape->files[c]);
+	    g_snprintf(num_str, SIZEOF(num_str), "%lld",
+			(long long)cur_tape->files[c]);
 	    if (!files_str)
 		files_str = stralloc(num_str);
 	    else
@@ -282,7 +294,7 @@ unmarshal_tapelist_str(
 	}
 	if(*tapelist_str != '\0')
 	    tapelist_str++;
-	tapelist = append_to_tapelist(tapelist, temp_label, (off_t)-1, 0);
+	tapelist = append_to_tapelist(tapelist, temp_label, (off_t)-1, -1, 0);
 
 	/* now read the list of file numbers */
 	while(*tapelist_str != ';' && *tapelist_str != '\0'){
@@ -298,7 +310,7 @@ unmarshal_tapelist_str(
 	    }
 	    filenum = OFF_T_ATOI(temp_filenum);
 
-	    tapelist = append_to_tapelist(tapelist, temp_label, filenum, 0);
+	    tapelist = append_to_tapelist(tapelist, temp_label, filenum, -1, 0);
 	    if(*tapelist_str != '\0' && *tapelist_str != ';')
 		tapelist_str++;
 	}
@@ -326,6 +338,7 @@ free_tapelist(
     for(cur_tape = tapelist ; cur_tape ; cur_tape = cur_tape->next){
 	amfree(cur_tape->label);
 	amfree(cur_tape->files);
+	amfree(cur_tape->partnum);
 	amfree(prev);
 	prev = cur_tape;
     }

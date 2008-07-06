@@ -1,47 +1,93 @@
 # Makefile for Amanda library.
 
+include $(top_srcdir)/config/automake/vars.am
+include $(top_srcdir)/config/automake/scripts.am
+include $(top_srcdir)/config/automake/installperms.am
+include $(top_srcdir)/config/automake/precompile.am
+
 INCLUDES =      -I$(top_srcdir)/gnulib   
 
-lib_LTLIBRARIES =	libamanda.la
+AM_CFLAGS = $(AMANDA_WARNING_CFLAGS)
+AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
 
-LINT=@AMLINT@
-LINTFLAGS=@AMLINTFLAGS@
+amlib_LTLIBRARIES =	libamanda.la
+
+LINT=$(AMLINT)
+LINTFLAGS=$(AMLINTFLAGS)
 
 libamanda_la_SOURCES =		\
 	alloc.c			\
 	amfeatures.c		\
 	amflock.c		\
-	bsd-security.c		\
-	bsdtcp-security.c	\
-	bsdudp-security.c	\
 	clock.c			\
+	columnar.c		\
 	conffile.c		\
 	debug.c			\
 	dgram.c			\
-	error.c			\
 	event.c			\
 	file.c			\
 	fileheader.c		\
-	krb4-security.c		\
-	krb5-security.c		\
+	glib-util.c		\
 	match.c			\
 	packet.c		\
 	pipespawn.c		\
 	protocol.c		\
-	rsh-security.c		\
 	security.c		\
 	security-util.c		\
 	sl.c			\
-	ssh-security.c		\
-	statfs.c		\
+	sockaddr-util.c		\
 	stream.c		\
 	tapelist.c		\
+	timestamp.c		\
 	token.c			\
 	util.c			\
-	version.c		\
 	versuff.c
+# version.c is generated; see below
+nodist_libamanda_la_SOURCES = version.c
 
-#libamanda_la_LIBADD =	@LTLIBOBJS@
+libamanda_la_LIBADD =		\
+	../gnulib/libgnu.la
+
+if WANT_AMFLOCK_POSIX
+libamanda_la_SOURCES += amflock-posix.c
+endif
+
+if WANT_AMFLOCK_FLOCK
+libamanda_la_SOURCES += amflock-flock.c
+endif
+
+if WANT_AMFLOCK_LOCKF
+libamanda_la_SOURCES += amflock-lockf.c
+endif
+
+if WANT_AMFLOCK_LNLOCK
+libamanda_la_SOURCES += amflock-lnlock.c
+endif
+
+
+if WANT_RSH_SECURITY
+libamanda_la_SOURCES += rsh-security.c
+endif
+if WANT_SSH_SECURITY
+libamanda_la_SOURCES += ssh-security.c
+endif
+if WANT_BSD_SECURITY
+libamanda_la_SOURCES += bsd-security.c
+endif
+if WANT_BSDTCP_SECURITY
+libamanda_la_SOURCES += bsdtcp-security.c
+endif
+if WANT_BSDUDP_SECURITY
+libamanda_la_SOURCES += bsdudp-security.c
+endif
+if WANT_KRB4_SECURITY
+libamanda_la_SOURCES += krb4-security.c	
+endif
+if WANT_KRB5_SECURITY
+libamanda_la_SOURCES += krb5-security.c
+endif
+
+libamanda_la_SOURCES += local-security.c
 
 libamanda_la_LDFLAGS =  -release $(VERSION)
 
@@ -50,10 +96,15 @@ noinst_HEADERS =		\
 	amfeatures.h		\
 	arglist.h		\
 	clock.h			\
+	columnar.h		\
+	amflock.h		\
 	conffile.h		\
+	debug.h			\
 	dgram.h			\
 	event.h			\
+	file.h			\
 	fileheader.h		\
+	glib-util.h		\
 	packet.h		\
 	pipespawn.h		\
 	protocol.h		\
@@ -61,58 +112,62 @@ noinst_HEADERS =		\
 	security.h		\
 	security-util.h		\
 	sl.h			\
-	statfs.h		\
+	sockaddr-util.h		\
 	stream.h		\
 	tapelist.h		\
+	timestamp.h		\
 	token.h			\
 	util.h			\
 	version.h
 
-.sh:
-	cat $< > $@
-	chmod a+x $@
-
 EXTRA_PROGRAMS = genversion $(TEST_PROGS)
 
-genversion_SOURCES = genversion.c
-genversion_LDADD = $(libamanda_la_LIBADD) versuff.lo
+# Version-building steps:
+#
+# 1. configure builds svn-info.h, if svn info is available; this
+#    file is included in distribution tarballs
+# 2. Makefile creates genversion.h with build-time information
+# 3. Makefile builds genversion
+# 4. Makefile runs genversion to create version.c
+# 5. version.c is compiled into libamanda normally
 
-genversion.@OBJEXT@: genversion.h
+genversion_SOURCES = genversion.c genversion.h svn-info.h
+genversion_LDADD = $(libamanda_la_LIBADD)	\
+    	versuff.lo				\
+	../gnulib/libgnu.la
+
 genversion.h: $(top_builddir)/config.status
 	-rm -f $@ $@.new
 	echo '#define CC "$(CC)"' > $@.new
 	echo '#define BUILT_DATE "'`date`'"' >> $@.new
-	echo '#define BUILT_MACH "'`uname -a || echo UNKNOWN HOST`'"' >> $@.new
+	echo '#define BUILT_MACH "$(target)"' >> $@.new
 	mv $@.new $@
 
-version.c:	genversion$(EXEEXT)
+version.c: genversion$(EXEEXT)
 	-rm -f version.c
-	./genversion > version.c
+	./genversion$(EXEEXT) > version.c
+
+BUILT_SOURCES += genversion.h version.c
 
 # these are used for testing only:
-TEST_PROGS = statfs token file bsdsecurity amfeatures
+TEST_PROGS = token file bsdsecurity amfeatures
 
-CLEANFILES = *.test.c
-
-DISTCLEANFILES = version.c genversion.h genversion amanda-int.h
+CLEANFILES += *.test.c
+DISTCLEANFILES += version.c genversion genversion.h
 
 # used for testing only
 
 STANDARD_COMMON_STUFF_NOT_FILE = \
-	alloc.$(OBJEXT) \
-	clock.$(OBJEXT) \
-	debug.$(OBJEXT) \
-	error.$(OBJEXT) \
-	util.$(OBJEXT) \
-	match.$(OBJEXT) \
-	sl.$(OBJEXT)
+	alloc.lo \
+	clock.lo \
+	debug.lo \
+	util.lo \
+	match.lo \
+	sl.lo
 
 STANDARD_COMMON_STUFF = \
 	$(STANDARD_COMMON_STUFF_NOT_FILE) \
-	file.$(OBJEXT)
-
-statfs_SOURCES = statfs.test.c
-statfs_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF)
+	file.lo
 
 token_SOURCES = token.test.c
 token_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF)
@@ -122,26 +177,65 @@ file_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF_NOT_FILE)
 
 bsdsecurity_SOURCES = bsd-security.test.c
 bsdsecurity_LDADD = $(libamanda_a_LIBADD) \
-		    alloc.$(OBJEXT) \
-		    clock.$(OBJEXT) \
-		    debug.$(OBJEXT) \
-		    dgram.$(OBJEXT) \
-		    error.$(OBJEXT) \
-		    event.$(OBJEXT) \
-		    file.$(OBJEXT) \
-		    packet.$(OBJEXT) \
-		    security.$(OBJEXT) \
-		    ssh-security.$(OBJEXT) \
-		    versuff.$(OBJEXT)
+		    alloc.lo \
+		    clock.lo \
+		    debug.lo \
+		    dgram.lo \
+		    event.lo \
+		    file.lo \
+		    packet.lo \
+		    security.lo \
+		    ssh-security.lo \
+		    versuff.lo
 
 amfeatures_SOURCES = amfeatures.test.c
 amfeatures_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF)
 
+# automake-style tests
+
+TESTS = amflock-test
+noinst_PROGRAMS = $(TESTS)
+
+amflock_test_SOURCES = amflock-test.c
+amflock_test_LDADD = libamanda.la
+
+# scripts
+
+# divide scripts up both by language and by destination directory.
+sbin_SCRIPTS_PERL = \
+	    amgpgcrypt \
+	    amcryptsimple
+
+sbin_SCRIPTS_SHELL = \
+	    amcrypt \
+	    amaespipe \
+	    amcrypt-ossl \
+	    amcrypt-ossl-asym
+
+amlibexec_SCRIPTS_PERL = 
+
+SCRIPTS_INCLUDE = \
+	    amanda-sh-lib.sh
+
+EXTRA_DIST += amanda-sh-lib.sh.in
+
+CHECK_PERL = $(sbin_SCRIPTS_PERL) $(amlibexec_SCRIPTS_PERL)
+SCRIPTS_PERL = $(CHECK_PERL)
+SCRIPTS_SHELL = $(sbin_SCRIPTS_SHELL) $(amlibexec_SCRIPTS_SHELL)
+amlibexec_DATA = $(SCRIPTS_INCLUDE)
+amlibexec_SCRIPTS = $(amlibexec_SCRIPTS_PERL) $(amlibexec_SCRIPTS_SHELL)
+sbin_SCRIPTS = $(sbin_SCRIPTS_PERL) $(sbin_SCRIPTS_SHELL)
+
+# installation
+
+INSTALLPERMS_data = dest=$(sbindir) chown=amanda $(sbin_SCRIPTS) \
+		    dest=$(amlibexecdir) chown=amanda $(amlibexec_SCRIPTS) $(amlibexec_DATA)
+
 lint:
 	@echo $(LINT) $(libamanda_la_SOURCES)
-	@$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I../config $(INCLUDES) $(libamanda_la_SOURCES)
+	@$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I$(top_builddir)/config $(INCLUDES) $(libamanda_la_SOURCES)
 	@echo $(LINT) $(genversion_SOURCES)
-	@$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I../config $(INCLUDES) $(genversion_SOURCES)
+	@$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I$(top_builddir)/config $(INCLUDES) $(genversion_SOURCES)
 
 listlibsrc:
 	@ for p in $(libamanda_la_SOURCES) $(REGEXCSRC); do	\

@@ -1,33 +1,27 @@
 # Makefile for Amanda wrapper programs.
 
+include $(top_srcdir)/config/automake/vars.am
+include $(top_srcdir)/config/automake/scripts.am
+include $(top_srcdir)/config/automake/installperms.am
+include $(top_srcdir)/config/automake/precompile.am
+
 INCLUDES =	-I$(top_builddir)/common-src \
 		-I$(top_srcdir)/common-src
 
-dumper_SCRIPTS =	amgtar generic-dumper
-dumperdir =		@DUMPER_DIR@
+AM_CFLAGS = $(AMANDA_WARNING_CFLAGS)
+AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
 
-SUFFIXES =		.sh .pl
+SCRIPTS_PERL = \
+	    amgtar
 
-.pl:
-			cat $< > $@
-			chmod a+x $@
-			-test -z "$(PERL)" || $(PERL) -c -w -W -T $@ || rm $@
+SCRIPTS_INCLUDE = \
+	    generic-dumper
+EXTRA_DIST += generic-dumper.pl
 
-.sh:
-			cat $< > $@
-			chmod a+x $@
+CHECK_PERL = $(SCRIPTS_PERL) $(SCRIPTS_INCLUDE)
 
-DISTCLEANFILES = $(dumper_SCRIPTS)
+dumperdir = $(DUMPER_DIR)
+dumper_SCRIPTS = $(SCRIPTS_PERL)
+dumper_DATA = $(SCRIPTS_INCLUDE)
 
-# these are used for testing only:
-
-install-data-hook:
-	@list="$(dumper_SCRIPTS)"; \
-	for p in $$list; do \
-		pa=$(DESTDIR)$(dumperdir)/`echo $$p|sed '$(transform)'`; \
-		echo chown $(BINARY_OWNER) $$pa; \
-		chown $(BINARY_OWNER) $$pa; \
-		echo chgrp $(SETUID_GROUP) $$pa; \
-		chgrp $(SETUID_GROUP) $$pa; \
-	done
-
+INSTALLPERMS_data = dest=$(dumperdir) chown=amanda $(dumper_SCRIPTS)

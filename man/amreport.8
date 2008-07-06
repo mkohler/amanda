@@ -1,17 +1,17 @@
 .\"     Title: amreport
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 03/31/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMREPORT" "8" "06/06/2007" "" ""
+.TH "AMREPORT" "8" "03/31/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amreport \- generate a formatted output of statistics for an Amanda run
+amreport - generate a formatted output of statistics for an Amanda run
 .SH "SYNOPSIS"
 .HP 9
 \fBamreport\fR [\fIconfig\fR] [\-i] [\-M\ \fIaddress\fR] [\-l\ \fIlogfile\fR] [\-f\ \fIoutputfile\fR] [\-p\ \fIpostscriptfile\fR] [\-o\ \fIconfigoption\fR]...
@@ -20,22 +20,22 @@ amreport \- generate a formatted output of statistics for an Amanda run
 \fBAmreport\fR
 generates a summary report of an
 \fBamanda\fR(8)
-backup run. If no configuration name is specified, amanda.conf is read from the current directory.
+backup run\. If no configuration name is specified, amanda\.conf is read from the current directory\.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR.
+\fIAmanda\fR\.
 .SH "OPTIONS"
 .PP
 \fIconfig\fR
 .RS 4
-Name of the configuration to process.
+Name of the configuration to process\.
 .RE
 .PP
 \fB\-i\fR
 .RS 4
-Don't email the report.
+Don\'t email the report\.
 .RE
 .PP
 \fB\-M\fR \fIaddress\fR
@@ -45,19 +45,19 @@ Mail the report to
 instead of the
 \fBmailto\fR
 value from
-\fIamanda.conf\fR.
+\fIamanda\.conf\fR\.
 .RE
 .PP
 \fB\-l\fR \fIlogfile\fR
 .RS 4
-Name of the log file to parse to generate the report. If a log file is not specified, it defaults to the file:
+Name of the log file to parse to generate the report\. If a log file is not specified, it defaults to the file:
 .RE
 .PP
 \fIlogdir\fR/log
 .PP
 where
 \fIlogdir\fR
-is the log directory defined in amanda.conf.
+is the log directory defined in amanda\.conf\.
 .PP
 \fB\-f\fR \fIoutputfile\fR
 .RS 4
@@ -65,10 +65,10 @@ Normally,
 \fBamreport\fR
 sends the report via e\-mail to the
 \fImailto\fR
-user as defined in the amanda.conf file. If
+user as defined in the amanda\.conf file\. If
 \fIoutputfile\fR
 is specified, then the report is put in
-\fIoutputfile\fR.
+\fIoutputfile\fR\.
 .RE
 .PP
 \fB\-p\fR \fIpostscriptfile\fR
@@ -77,36 +77,36 @@ Send the postscript output to the file
 \fIpostscriptfile\fR
 instead of to the
 \fBlpr\fR(1)
-command. This option has an effect only if the
+command\. This option has an effect only if the
 \fIlbl\-templ\fR
-directive is specified in amanda.conf.
+directive is specified in amanda\.conf\.
 .RE
 .PP
 \fB\-o\fR \fIconfigoption\fR
 .RS 4
 See the "\fBCONFIGURATION OVERRIDE\fR" section in
-\fBamanda\fR(8).
+\fBamanda\fR(8)\.
 .RE
 .SH "LABEL PRINTING"
 .PP
 \fIAmanda\fR
-can print postscript labels describing the contents of tape(s) written in a run. The labels are designed to be folded and inserted into the tape case along with the tape or hole punched and put in a 3\-ring binder. Various label templates are provided to format data for different tape sizes.
+can print postscript labels describing the contents of tape(s) written in a run\. The labels are designed to be folded and inserted into the tape case along with the tape or hole punched and put in a 3\-ring binder\. Various label templates are provided to format data for different tape sizes\.
 .PP
-The information printed varies slightly between label templates due to size constraints. Labels contain one line for each host/file\-system pair and may also contain the file number on the tape, the level of the dump, the original size of the dump and the size of the (possibly compressed) tape file.
+The information printed varies slightly between label templates due to size constraints\. Labels contain one line for each host/file\-system pair and may also contain the file number on the tape, the level of the dump, the original size of the dump and the size of the (possibly compressed) tape file\.
 .PP
 Add the
 \fIlbl\-templ\fR
-parameter to the tapetype definition in amanda.conf to enable labels. If you don't add this line to your tapetype definition,
+parameter to the tapetype definition in amanda\.conf to enable labels\. If you don\'t add this line to your tapetype definition,
 \fBamreport\fR
-will not print tape labels.
+will not print tape labels\.
 .PP
 You may use the
-\fIremap='I'>printer\fR
-keyword in amanda.conf to print to other than the system default printer.
+\fIremap=\'I\'>printer\fR
+keyword in amanda\.conf to print to other than the system default printer\.
 .SH "TEMPLATES"
 .PP
 \fIAmanda\fR
-provides label templates for the following tape types. These are pretty generic labels and should be easy to customize for other tape types or particular site needs.
+provides label templates for the following tape types\. These are pretty generic labels and should be easy to customize for other tape types or particular site needs\.
 .sp
 .RS 4
 .nf
@@ -116,10 +116,10 @@ provides label templates for the following tape types. These are pretty generic 
 * 3\-ring binder
 .fi
 .RE
-.sp
 .PP
-The 3\-ring binder type is the most generic. It may be used to make a hardcopy log of the tapes.
+The 3\-ring binder type is the most generic\. It may be used to make a hardcopy log of the tapes\.
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
-\fBamflush\fR(8)
+\fBamflush\fR(8),
+\fBhttp://wiki.zmanda.com\fR()

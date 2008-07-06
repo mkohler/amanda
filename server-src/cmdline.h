@@ -2,9 +2,8 @@
  * Copyright (c) 2005 Zmanda Inc.  All Rights Reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  * 
  * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
@@ -29,28 +28,22 @@
 #ifndef CMDLINE_H
 #define CMDLINE_H
 
-#include "sl.h"
-
-/* TODO: use glib's linked lists instead; dumpspec_list_t provides basic
- * type-checking to allow that to be implemented with a simple search and
- * replace. */
+#include <glib.h>
+#include "glib-util.h"
 
 /* A dumpspec can specify a particular dump (combining host, disk, and 
  * datestamp), or can be less specific by leaving out some components.
- * In some cases (such as selecting DLEs), the datestamp is not relevant.
- * Functions for these cases leave the datestamp NULL.
+ * Missing components are NULL, except in the special case of an 
+ * "wildcard" dumpspec, as detailed below.
+ *
+ * All strings in this struct are independently malloc()ed.
  */
 typedef struct dumpspec_s {
     char *host;
     char *disk;
     char *datestamp;
-
-    struct dumpspec_s * next;
+    char *level;
 } dumpspec_t;
-
-/* temporary */
-typedef dumpspec_t dumpspec_list_t;
-#define dumpspec_list_first(dsl) ((dumpspec_t *)(dsl))
 
 /*
  * Dumpspec list management
@@ -61,13 +54,15 @@ typedef dumpspec_t dumpspec_list_t;
  * @param host: host name
  * @param disk: disk name
  * @param datestamp: datestamp
+ * @param level: level (as a string, allowing regexes)
  * @returns: dumpspec, or NULL on error
  */
 dumpspec_t *
 dumpspec_new(
     char *host, 
     char *disk, 
-    char *datestamp);
+    char *datestamp,
+    char *level);
 
 /* Free memory associated with a single dumpspec.  (Does not chase 
  * next pointers)
@@ -78,13 +73,15 @@ void
 dumpspec_free(
     dumpspec_t *dumpspec);
 
-/* Free memory associated with a list of dumpspecs.
+/* Free memory associated with a list of dumpspecs.  CAUTION: do not
+ * use glib's g_slist_free directly on a dumpspec list, as it will not
+ * free the elements themselves.
  *
- * @param dumpspec_list: the dumpspec list to free
+ * @param dumpspec_list: the GSList of dumpspecs to free
  */
 void
-dumpspec_free_list(
-    dumpspec_list_t *dumpspec_list);
+dumpspec_list_free(
+    GSList *dumpspec_list);
 
 /*
  * Parsing
@@ -95,26 +92,29 @@ dumpspec_free_list(
  *
  *  [ host [ disk [ datestamp [ host [ disk [ datestamp .. ] ] ] ] ] ]
  *
- * If no results are specified, a dumpspec with all entries set to ""
- * is returned; the caller may treat this as a wildcard or an error, as
- * appropriate.
+ * If no results are specified, the function either returns NULL (an 
+ * empty list) or, if CMDLINE_EMPTY_TO_WILDCARD is given, a list 
+ * containing a single dumpspec with all fields set to "".
  *
- * Prints a message to stderr and returns NULL if an error occurs.
+ * Calls error() with any fatal errors, e.g., invalid regexes.
  *
  * @param argc: count of command line arguments
  * @param argv: command line arguments
- * @returns: dumpspec list, or NULL on error
+ * @param flags: bitmask of the CMDLINE_* flags
+ * @returns: dumpspec list
  */
-dumpspec_list_t *
+GSList *
 cmdline_parse_dumpspecs(
     int argc,
-    char **argv);
-
-/* TODO: new name for match_disklist */
-int
-cmdline_parse_disk_list_entries(
-    int argc,
-    char **argv);
+    char **argv,
+    int flags);
+/* flags values (bitmask): */
+    /* parse datestamps after disks */
+#    define CMDLINE_PARSE_DATESTAMP (1<<0)
+    /* parse levels after datestamps or disks */
+#    define CMDLINE_PARSE_LEVEL (1<<1)
+    /* an empty argv should result in a wildcard dumpspec */
+#    define CMDLINE_EMPTY_TO_WILDCARD (1<<2)
 
 /*
  * Formatting
@@ -144,22 +144,25 @@ char *
 cmdline_format_dumpspec_components(
     char *host,
     char *disk,
-    char *datestamp);
+    char *datestamp,
+    char *level);
 
 /*
  * Searching
  */
 
-/* TODO: use glib here too */
-
-/* Find all holding files matching the dumpspec list.  
+/* Find all holding files matching the dumpspec list.  If
+ * the dumpspec list contains a dumpspec with all blank
+ * entries, all holding files are returned.
+ *
+ * Free the resulting list with g_slist_free_full()
  *
  * @param dumpspec_list: a list of dumpspecs
  * @returns: a list of holding disk filenames.
  */
-sl_t *
+GSList *
 cmdline_match_holding(
-    dumpspec_list_t *dumpspec_list);
+    GSList *dumpspec_list);
 
 #endif /* CMDLINE_H */
 

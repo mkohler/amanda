@@ -196,6 +196,8 @@ tcp connection for all data stream.</para>
 authorization.</para>
 <para><emphasis remap='B'>krb5</emphasis> to use Kerberos-V
 authorization.</para>
+<para><emphasis remap='B'>local</emphasis>, if the client is the server, it 
+doesn't require authencation setup.</para>
 <para><emphasis remap='B'>rsh</emphasis> to use rsh
 authorization.</para>
 <para><emphasis remap='B'>ssh</emphasis> to use OpenSSH
@@ -390,6 +392,7 @@ Unreserved tcp port that will be used (bsd, bsdudp)</para>
 <citerefentry><refentrytitle>amanda.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
 <citerefentry><refentrytitle>amcrypt</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
 <citerefentry><refentrytitle>aespipe</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
+<citerefentry><refentrytitle>http://wiki.zmanda.com</refentrytitle></citerefentry>
 </para>
 </refsect1>
 </refentry>

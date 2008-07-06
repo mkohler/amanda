@@ -83,6 +83,8 @@ pipespawnv_passwd(
     char **arg;
     char *e;
     char **env;
+    char *cmdline;
+    char *quoted;
     char **newenv;
     char *passwdvar = NULL;
     int  *passwdfd = NULL;
@@ -90,8 +92,6 @@ pipespawnv_passwd(
     /*
      * Log the command line and count the args.
      */
-    dbprintf(("%s: spawning %s in pipeline\n", debug_prefix_time(NULL), prog));
-    dbprintf(("%s: argument list:", debug_prefix_time(NULL)));
     if ((pipedef & PASSWD_PIPE) != 0) {
 	passwdvar = *my_argv++;
 	passwdfd  = (int *)*my_argv++;
@@ -101,42 +101,42 @@ pipespawnv_passwd(
     memset(errpipe, -1, SIZEOF(errpipe));
     memset(passwdpipe, -1, SIZEOF(passwdpipe));
     argc = 0;
-    for(arg = my_argv; *arg != NULL; arg++) {
-	char *quoted;
 
+    cmdline = stralloc(prog);
+    for(arg = my_argv; *arg != NULL; arg++) {
 	if (*arg != skip_argument) {
 	    argc++;
 	    quoted = quote_string(*arg);
-	    dbprintf((" %s", quoted));
+	    cmdline = vstrextend(&cmdline, " ", quoted, NULL);
 	    amfree(quoted);
 	}
     }
-    dbprintf(("\n"));
+    dbprintf(_("Spawning \"%s\" in pipeline\n"), cmdline);
 
     /*
      * Create the pipes
      */
     if ((pipedef & STDIN_PIPE) != 0) {
 	if(pipe(inpipe) == -1) {
-	    error("error [open pipe to %s: %s]", prog, strerror(errno));
+	    error(_("error [open pipe to %s: %s]"), prog, strerror(errno));
 	    /*NOTREACHED*/
 	}
     }
     if ((pipedef & STDOUT_PIPE) != 0) {
 	if(pipe(outpipe) == -1) {
-	    error("error [open pipe to %s: %s]", prog, strerror(errno));
+	    error(_("error [open pipe to %s: %s]"), prog, strerror(errno));
 	    /*NOTREACHED*/
 	}
     }
     if ((pipedef & STDERR_PIPE) != 0) {
 	if(pipe(errpipe) == -1) {
-	    error("error [open pipe to %s: %s]", prog, strerror(errno));
+	    error(_("error [open pipe to %s: %s]"), prog, strerror(errno));
 	    /*NOTREACHED*/
 	}
     }
     if ((pipedef & PASSWD_PIPE) != 0) {
 	if(pipe(passwdpipe) == -1) {
-	    error("error [open pipe to %s: %s]", prog, strerror(errno));
+	    error(_("error [open pipe to %s: %s]"), prog, strerror(errno));
 	    /*NOTREACHED*/
 	}
     }
@@ -147,7 +147,7 @@ pipespawnv_passwd(
     switch(pid = fork()) {
     case -1:
 	e = strerror(errno);
-	error("error [fork %s: %s]", prog, e);
+	error(_("error [fork %s: %s]"), prog, e);
 	/*NOTREACHED*/
 
     default:	/* parent process */
@@ -192,15 +192,15 @@ pipespawnv_passwd(
 	 * Shift the pipes to the standard file descriptors as requested.
 	 */
 	if(dup2(inpipe[0], 0) == -1) {
-	    error("error [spawn %s: dup2 in: %s]", prog, strerror(errno));
+	    error(_("error [spawn %s: dup2 in: %s]"), prog, strerror(errno));
 	    /*NOTREACHED*/
 	}
 	if(dup2(outpipe[1], 1) == -1) {
-	    error("error [spawn %s: dup2 out: %s]", prog, strerror(errno));
+	    error(_("error [spawn %s: dup2 out: %s]"), prog, strerror(errno));
 	    /*NOTREACHED*/
 	}
 	if(dup2(errpipe[1], 2) == -1) {
-	    error("error [spawn %s: dup2 err: %s]", prog, strerror(errno));
+	    error(_("error [spawn %s: dup2 err: %s]"), prog, strerror(errno));
 	    /*NOTREACHED*/
 	}
 
@@ -213,19 +213,23 @@ pipespawnv_passwd(
 	    for (i = 0; env[i] != NULL; i++)
 		(void)i; /* make lint happy and do nothing */	
 	    newenv = (char **)alloc((i + 1 + 1) * SIZEOF(*newenv));
-	    snprintf(number, SIZEOF(number), "%d", passwdpipe[0]);
+	    g_snprintf(number, SIZEOF(number), "%d", passwdpipe[0]);
 	    newenv[0] = vstralloc(passwdvar, "=", number, NULL);
 	    for(i = 0; env[i] != NULL; i++)
 	    	newenv[i + 1] = env[i];
 	    newenv[i + 1] = NULL;
 	    amfree(env);
 	    env = newenv;
+	    safe_fd(passwdpipe[0], 1);
+	} else {
+	    safe_fd(-1, 0);
 	}
 
 	execve(prog, my_argv, env);
 	e = strerror(errno);
-	error("error [exec %s: %s]", prog, e);
+	error(_("error [exec %s: %s]"), prog, e);
 	/*NOTREACHED*/
     }
+    amfree(cmdline);
     return pid;
 }

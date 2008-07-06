@@ -1,17 +1,17 @@
 .\"     Title: amflush
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 03/31/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMFLUSH" "8" "06/06/2007" "" ""
+.TH "AMFLUSH" "8" "03/31/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amflush \- flush Amanda backup files from holding disk to tape
+amflush - flush Amanda backup files from holding disk to tape
 .SH "SYNOPSIS"
 .HP 8
 \fBamflush\fR [\-b] [\-f] [\-s] [\-D\ \fIdatestamp\fR] \fIconfig\fR [\fIhost\fR\ [\fIdisk\fR...]...] [\-o\ \fIconfigoption\fR]...
@@ -22,122 +22,124 @@ writes
 \fIAmanda\fR
 backups from the holding disks to tape, and updates the
 \fIAmanda\fR
-info database and tapelist accordingly. Backups may stay in a holding disk when something is wrong with the tape at the time
+info database and tapelist accordingly\. Backups may stay in a holding disk when something is wrong with the tape at the time
 \fBamdump\fR
-is run. When this happens, the problem must be corrected and
+is run\. When this happens, the problem must be corrected and
 \fBamflush\fR
-run by hand.
+run by hand\.
 .SH "OPTIONS"
 .PP
 \fB\-b\fR
 .RS 4
 Run
 \fBamflush\fR
-in batch mode. All datestamps are selected unless specified. The flush is started without confirmation.
+in batch mode\. All datestamps are selected unless specified\. The flush is started without confirmation\.
 .RE
 .PP
 \fB\-f\fR
 .RS 4
 Run
 \fBamflush\fR
-in foreground.
+in foreground\.
 \fBAmflush\fR
-normally detaches itself from the tty and runs as a background process. With the
+normally detaches itself from the tty and runs as a background process\. With the
 \fB\-f\fR
 option,
 \fBamflush\fR
-stays in the foreground. This is useful if
+stays in the foreground\. This is useful if
 \fBamflush\fR
-is run as part of another script that, for example, advances the tape after the flush is completed.
+is run as part of another script that, for example, advances the tape after the flush is completed\.
 .RE
 .PP
 \fB\-s\fR
 .RS 4
-Write log to stdout/stderr instead of the amflush log file. Requires the
+Write log to stdout/stderr instead of the amflush log file\. Requires the
 \fB\-f\fR
-option.
+option\.
 .RE
 .PP
 \fB\-D datestamp\fR
 .RS 4
 specify a datestamp expression you want to flush, see the "DATESTAMP EXPRESSION" section of
 \fBamanda\fR(8)
-for a description.
+for a description\.
 \fB\-D 20001225\-7\fR
-will flush all dumps from 25 december 2000 to 27 december 2000.
+will flush all dumps from 25 december 2000 to 27 december 2000\.
 .RE
 .PP
 \fIhost\fR [\fIdisk\fR]*
 .RS 4
-Specify the host and disk on which the command will work.
+Specify the host and disk on which the command will work\.
 .RE
 .PP
 \fB\-o\fR \fIconfigoption\fR
 .RS 4
 See the "\fBCONFIGURATION OVERRIDE\fR" section in
-\fBamanda\fR(8).
+\fBamanda\fR(8)\.
 .RE
 .PP
-You can specify many host/disk expressions, only disks that match an expression will be flushed. All disks are flushed if no expressions are given. see the "HOST & DISK EXPRESSION" section of
+You can specify many host/disk expressions, only disks that match an expression will be flushed\. All disks are flushed if no expressions are given\. see the "HOST & DISK EXPRESSION" section of
 \fBamanda\fR(8)
-for a description.
+for a description\.
 .PP
 \fBAmflush\fR
 will look in the holding disks specified by the
-\fIamanda.conf\fR
+\fIamanda\.conf\fR
 file in /usr/local/etc/amanda/\fIconfig\fR
 for any non\-empty
 \fIAmanda\fR
-work directories. It then prompts you to select a directory or to process all of the directories. The work directories in the holding disks are named by the date at the time
+work directories\. It then prompts you to select a directory or to process all of the directories\. The work directories in the holding disks are named by the date at the time
 \fBamdump\fR
-was run, e.g.
-19910215.
+was run, e\.g\.
+19910215\.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR.
+\fIAmanda\fR\.
 .SH "EXAMPLE"
 .PP
 \fBAmflush\fR
 will search for holding areas associated with the
 \fIdaily\fR
-configuration. After you select which holding area to flush,
+configuration\. After you select which holding area to flush,
 \fBamflush\fR
 writes the data to tape, updates the databases and sends a mail report similar to
-\fBamdump\fR(8).
+\fBamdump\fR(8)\.
 .sp
 .RS 4
 .nf
 % amflush daily
-Scanning /amanda\-hold...
-  20001113: found \fIAmanda\fR directory.
-  20001114: found \fIAmanda\fR directory.
+Scanning /amanda\-hold\.\.\.
+  20001113: found \fIAmanda\fR directory\.
+  20001114: found \fIAmanda\fR directory\.
 
 Multiple \fIAmanda\fR directories, please pick one by letter:
-  A. 20001113
-  B. 20001114
-Select directories to flush [A..B]: [ALL] all
+  A\. 20001113
+  B\. 20001114
+Select directories to flush [A\.\.B]: [ALL] all
 
 Flushing dumps in 20001113, 20001114,
 today: 20001117
-to tape drive /dev/rmt/0mn.
-Expecting tape DMP014 or a new tape.  (The last dumps were to tape DMP013)
+to tape drive /dev/rmt/0mn\.
+Expecting tape DMP014 or a new tape\.  (The last dumps were to tape DMP013)
 Are you sure you want to do this? yes
-Running in background, you can log off now.
-You'll get mail when amflush is finished.
+Running in background, you can log off now\.
+You\'ll get mail when amflush is finished\.
 .fi
 .RE
 .SH "AUTHOR"
 .PP
 James da Silva,
-<jds@amanda.org>
+<jds@amanda\.org>
 : Original text
 .PP
-Stefan G. Weichinger,
-<sgw@amanda.org>, maintainer of the
+Stefan G\. Weichinger,
+<sgw@amanda\.org>, maintainer of the
 \fIAmanda\fR\-documentation: XML\-conversion
 .SH "SEE ALSO"
 .PP
+
 \fBamanda\fR(8),
-\fBamdump\fR(8)
+\fBamdump\fR(8),
+\fBhttp://wiki.zmanda.com\fR()

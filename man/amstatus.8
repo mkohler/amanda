@@ -1,20 +1,20 @@
 .\"     Title: amstatus
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 03/31/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMSTATUS" "8" "06/06/2007" "" ""
+.TH "AMSTATUS" "8" "03/31/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amstatus \- display the state of an Amanda run
+amstatus - display the state of an Amanda run
 .SH "SYNOPSIS"
 .HP 9
-\fBamstatus\fR [\-\-config] \fIconfig\fR [\-\-file\ \fIamdumpfile\fR] [\-\-summary] [\-\-dumping] [\-\-waitdumping] [\-\-waittaper] [\-\-dumpingtape] [\-\-writingtape] [\-\-finished] [\-\-failed] [\-\-estimate] [\-\-gestimate] [\-\-stats]
+\fBamstatus\fR [\-\-config] \fIconfig\fR [\-\-file\ \fIamdumpfile\fR] [\-\-summary] [\-\-dumping] [\-\-waitdumping] [\-\-waittaper] [\-\-dumpingtape] [\-\-writingtape] [\-\-finished] [\-\-failed] [\-\-estimate] [\-\-gestimate] [\-\-stats] [\-\-locale\-independent\-date\-format]
 .SH "DESCRIPTION"
 .PP
 \fBAmstatus\fR
@@ -22,23 +22,23 @@ gives the current state of the
 \fIAmanda\fR
 run specified by the
 \fIconfig\fR
-configuration. If there is no active
+configuration\. If there is no active
 \fIAmanda\fR
-running, it summarizes the result of the last run. It may also be used to summarize the results of a previous run.
+running, it summarizes the result of the last run\. It may also be used to summarize the results of a previous run\.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR.
+\fIAmanda\fR\.
 .SH "OPTIONS"
 .PP
-All options may be abbreviated to the shortest non\-ambiguous sub\-string. If no options are given, everything is displayed.
+All options may be abbreviated to the shortest non\-ambiguous sub\-string\. If no options are given, everything is displayed\.
 .PP
 \fB[\-\-config] config\fR
 .RS 4
 Specify the
 \fIAmanda\fR
-configuration you want to display the state for.
+configuration you want to display the state for\.
 .RE
 .PP
 \fB\-\-file amdumpfile\fR
@@ -47,62 +47,67 @@ Specify an alternate file instead of the
 \fIamdump\fR
 or
 \fIamflush\fR
-file.
+file\.
 .RE
 .PP
 \fB\-\-summary\fR
 .RS 4
-Display a summary of the state of the run.
+Display a summary of the state of the run\.
 .RE
 .PP
 \fB\-\-dumping\fR
 .RS 4
-Display all partitions that are dumping.
+Display all partitions that are dumping\.
 .RE
 .PP
 \fB\-\-waitdumping|wdumping\fR
 .RS 4
-Display all partitions that are waiting to be dumped.
+Display all partitions that are waiting to be dumped\.
 .RE
 .PP
 \fB\-\-waittaper|wtaper\fR
 .RS 4
-Display all partitions dumped that are waiting to be written to tape.
+Display all partitions dumped that are waiting to be written to tape\.
 .RE
 .PP
 \fB\-\-dumpingtape|dtape\fR
 .RS 4
-Display all partitions that are dumping directly to tape.
+Display all partitions that are dumping directly to tape\.
 .RE
 .PP
 \fB\-\-writingtape|wtape\fR
 .RS 4
-Display all partitions that are writing to tape.
+Display all partitions that are writing to tape\.
 .RE
 .PP
 \fB\-\-finished\fR
 .RS 4
-Display all partitions that are dumped and written to tape.
+Display all partitions that are dumped and written to tape\.
 .RE
 .PP
 \fB\-\-failed|error\fR
 .RS 4
-Display all partitions that failed.
+Display all partitions that failed\.
 .RE
 .PP
 \fB\-\-estimate\fR
 .RS 4
-Display all partitions whose estimate is finished. Works only during the estimate phase.
+Display all partitions whose estimate is finished\. Works only during the estimate phase\.
 .RE
 .PP
 \fB\-\-gestimate|gettingestimate\fR
 .RS 4
-Display all partitions whose estimate is not finished. Works only during the estimate phase.
+Display all partitions whose estimate is not finished\. Works only during the estimate phase\.
 .RE
 .PP
 \fB\-\-stats|statistics\fR
 .RS 4
-Display statistics about active\-time of taper and dumpers.
+Display statistics about active\-time of taper and dumpers\.
+.RE
+.PP
+\fB\-\-locale\-independent\-date\-format\fR
+.RS 4
+Output the date in a locale independent format\. The format is the same executing: date +\'%Y\-%m\-%d %H:%M:%S %Z\'
 .RE
 .SH "SEE ALSO"
 .PP
@@ -110,4 +115,5 @@ Display statistics about active\-time of taper and dumpers.
 \fBamcheck\fR(8),
 \fBamdump\fR(8),
 \fBamrestore\fR(8),
-\fBamadmin\fR(8)
+\fBamadmin\fR(8),
+\fBhttp://wiki.zmanda.com\fR()

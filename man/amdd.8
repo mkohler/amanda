@@ -1,17 +1,17 @@
 .\"     Title: amdd
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 03/31/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMDD" "8" "06/06/2007" "" ""
+.TH "AMDD" "8" "03/31/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amdd \- Amanda version of dd
+amdd - Amanda version of dd
 .SH "SYNOPSIS"
 .HP 5
 \fBamdd\fR [\-d] [\fIif=input\fR] [\fIof=output\fR] [\fIbs=blocksize\fR] [\fIskip=count\fR] [\fIcount=count\fR]
@@ -21,35 +21,35 @@ amdd \- Amanda version of dd
 provides just enough of the standard UNIX
 \fBdd\fR
 command for the needs of
-\fIAmanda\fR. This is handy when doing a full restore and the standard
+\fIAmanda\fR\. This is handy when doing a full restore and the standard
 \fBdd\fR
-program has not yet been found.
+program has not yet been found\.
 .PP
 \fBAmdd\fR
 also provides access to the
 \fIAmanda\fR
-output drivers that support various tape simulations. This may be used for debugging or to convert from one format to another.
+output drivers that support various tape simulations\. This may be used for debugging or to convert from one format to another\.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR. See the
+\fIAmanda\fR\. See the
 \fBOUTPUT DRIVERS\fR
 section of
 \fIamanda(8)\fR
 for more information on the
 \fIAmanda\fR
-output drivers.
+output drivers\.
 .SH "OPTIONS"
 .PP
 \fB\-d\fR
 .RS 4
-Turn on debugging output.
+Turn on debugging output\.
 .RE
 .PP
 \fB\-l\fR\fIlength\fR
 .RS 4
-Set the output length. If the output driver limits the output size, this controls when end of tape will be simulated.
+Set the output length\. If the output driver limits the output size, this controls when end of tape will be simulated\.
 .sp
 \fILength\fR
 may have a multiplier suffix:
@@ -61,26 +61,26 @@ b \-> 512 (Blocks)
 M \-> 1024*1024 (Megabytes)
 .fi
 .RE
-The default is no multiplier (bytes).
+The default is no multiplier (bytes)\.
 .RE
 .PP
 \fBif=\fR\fIinput\fR
 .RS 4
 Input to
-\fBdd\fR. Default is stdin.
+\fBdd\fR\. Default is stdin\.
 .RE
 .PP
 \fBof=\fR\fIoutput\fR
 .RS 4
 Where to send the output of
-\fBdd\fR. Default is stdout.
+\fBdd\fR\. Default is stdout\.
 .RE
 .PP
 \fBbs=\fR\fIblocksize\fR
 .RS 4
-Size of each record. Input records smaller than this will
+Size of each record\. Input records smaller than this will
 \fInot\fR
-be padded. Output records will be the same size as the corresponding input record. Default is 512 bytes.
+be padded\. Output records will be the same size as the corresponding input record\. Default is 512 bytes\.
 .sp
 \fIBlocksize\fR
 may have a multiplier suffix:
@@ -92,28 +92,30 @@ b \-> 512 (Blocks)
 M \-> 1024*1024 (Megabytes)
 .fi
 .RE
-The default is no multiplier (bytes).
+The default is no multiplier (bytes)\.
 .RE
 .PP
 \fBcount=\fR\fIcount\fR
 .RS 4
-Number of records to copy. Default is all records until end of file.
+Number of records to copy\. Default is all records until end of file\.
 .RE
 .PP
 \fBskip=\fR\fIcount\fR
 .RS 4
-Number of records to skip before copying input to output. Default is zero.
+Number of records to skip before copying input to output\. Default is zero\.
 .RE
 .SH "AUTHOR"
 .PP
 Marc Mengel
-<mengel@fnal.gov>, John R. Jackson
-<jrj@purdue.edu>
+<mengel@fnal\.gov>, John R\. Jackson
+<jrj@purdue\.edu>
 : Original text
 .PP
-Stefan G. Weichinger,
-<sgw@amanda.org>, maintainer of the
+Stefan G\. Weichinger,
+<sgw@amanda\.org>, maintainer of the
 \fIAmanda\fR\-documentation: XML\-conversion
 .SH "SEE ALSO"
 .PP
-\fBamanda\fR(8)
+
+\fBamanda\fR(8),
+\fBhttp://wiki.zmanda.com\fR()

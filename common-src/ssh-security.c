@@ -43,8 +43,6 @@
 #include "stream.h"
 #include "version.h"
 
-#ifdef SSH_SECURITY
-
 /*
  * Number of seconds ssh has to start up
  */
@@ -114,10 +112,7 @@ ssh_connect(
     assert(fn != NULL);
     assert(hostname != NULL);
 
-    (void)conf_fn;	/* Quiet unused parameter warning */
-
-    auth_debug(1, ("%s: ssh: ssh_connect: %s\n", debug_prefix_time(NULL),
-		   hostname));
+    auth_debug(1, "ssh_connect: %s\n", hostname);
 
     rh = alloc(SIZEOF(*rh));
     security_handleinit(&rh->sech, &ssh_security_driver);
@@ -127,13 +122,15 @@ ssh_connect(
     rh->rc = NULL;
 
     rh->hostname = NULL;
-    if (try_resolving_hostname(hostname, &rh->hostname)) {
+    if (resolve_hostname(hostname, 0, NULL, &rh->hostname) || rh->hostname == NULL) {
 	security_seterror(&rh->sech,
-	    "%s: ssh could not resolve hostname", hostname);
+	    _("%s: ssh could not resolve hostname"), hostname);
 	(*fn)(arg, &rh->sech, S_ERROR);
 	return;
     }
     rh->rs = tcpma_stream_client(rh, newhandle++);
+    rh->rc->conf_fn = conf_fn;
+    rh->rc->datap = datap;
 
     if (rh->rs == NULL)
 	goto error;
@@ -153,7 +150,7 @@ ssh_connect(
     }
     if(rh->rc->read == -1) {
 	if (runssh(rh->rs->rc, amandad_path, client_username, ssh_keys) < 0) {
-	    security_seterror(&rh->sech, "can't connect to %s: %s",
+	    security_seterror(&rh->sech, _("can't connect to %s: %s"),
 			      hostname, rh->rs->rc->errmsg);
 	    goto error;
 	}
@@ -200,13 +197,13 @@ runssh(
     memset(rpipe, -1, SIZEOF(rpipe));
     memset(wpipe, -1, SIZEOF(wpipe));
     if (pipe(rpipe) < 0 || pipe(wpipe) < 0) {
-	rc->errmsg = newvstralloc(rc->errmsg, "pipe: ", strerror(errno), NULL);
+	rc->errmsg = newvstrallocf(rc->errmsg, _("pipe: %s"), strerror(errno));
 	return (-1);
     }
 
     switch (rc->pid = fork()) {
     case -1:
-	rc->errmsg = newvstralloc(rc->errmsg, "fork: ", strerror(errno), NULL);
+	rc->errmsg = newvstrallocf(rc->errmsg, _("fork: %s"), strerror(errno));
 	aclose(rpipe[0]);
 	aclose(rpipe[1]);
 	aclose(wpipe[0]);
@@ -227,7 +224,7 @@ runssh(
     safe_fd(-1, 0);
 
     if(!xamandad_path || strlen(xamandad_path) <= 1) 
-	xamandad_path = vstralloc(libexecdir, "/", "amandad",
+	xamandad_path = vstralloc(amlibexecdir, "/", "amandad",
 				 versionsuffix(), NULL);
     if(!xclient_username || strlen(xclient_username) <= 1)
 	xclient_username = CLIENT_LOGIN;
@@ -246,5 +243,3 @@ runssh(
     /* should never go here, shut up compiler warning */
     return(-1);
 }
-
-#endif	/* SSH_SECURITY */

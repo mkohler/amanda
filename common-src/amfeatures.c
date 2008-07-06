@@ -363,11 +363,11 @@ am_feature_to_string(
     size_t			i;
 
     if (f == NULL) {
-	result = stralloc("UNKNOWNFEATURE");
+	result = stralloc(_("UNKNOWNFEATURE"));
     } else {
 	result = alloc((f->size * 2) + 1);
 	for (i = 0; i < f->size; i++) {
-	    snprintf(result + (i * 2), 2 + 1, "%02x", f->bytes[i]);
+	    g_snprintf(result + (i * 2), 2 + 1, "%02x", f->bytes[i]);
 	}
 	result[i * 2] = '\0';
     }
@@ -439,7 +439,7 @@ am_string_to_feature(
 int
 main(
     int		argc,
-    char	**argv)
+    char **	argv)
 {
     am_feature_t		*f;
     am_feature_t		*f1;
@@ -448,20 +448,29 @@ main(
     int				i;
     int				n;
 
+    /*
+     * Configure program for internationalization:
+     *   1) Only set the message locale for now.
+     *   2) Set textdomain for all amanda related programs to "amanda"
+     *      We don't want to be forced to support dozens of message catalogs.
+     */  
+    setlocale(LC_MESSAGES, "C");
+    textdomain("amanda"); 
+
     f = am_init_feature_set();
     if (f == NULL) {
-	fprintf(stderr, "cannot initialize feature set\n");
+	g_fprintf(stderr, _("cannot initialize feature set\n"));
 	return 1;
     }
 
     s = am_feature_to_string(f);
-    printf("base features=%s\n", s);
+    g_printf(_("base features=%s\n"), s);
 
     f1 = am_string_to_feature(s);
     s1 = am_feature_to_string(f1);
     if (strcmp(s, s1) != 0) {
-	fprintf(stderr, "base feature -> string -> feature set mismatch\n");
-	fprintf(stderr, "conv features=%s\n", s);
+	g_fprintf(stderr, _("base feature -> string -> feature set mismatch\n"));
+	g_fprintf(stderr, _("conv features=%s\n"), s);
     }
 
     amfree(s1);
@@ -471,29 +480,29 @@ main(
 	if (argv[i][0] == '+') {
 	    n = atoi(&argv[i][1]);
 	    if (am_add_feature(f, (am_feature_e)n)) {
-		printf("added feature number %d\n", n);
+		g_printf(_("added feature number %d\n"), n);
 	    } else {
-		printf("could not add feature number %d\n", n);
+		g_printf(_("could not add feature number %d\n"), n);
 	    }
 	} else if (argv[i][0] == '-') {
 	    n = atoi(&argv[i][1]);
 	    if (am_remove_feature(f, (am_feature_e)n)) {
-		printf("removed feature number %d\n", n);
+		g_printf(_("removed feature number %d\n"), n);
 	    } else {
-		printf("could not remove feature number %d\n", n);
+		g_printf(_("could not remove feature number %d\n"), n);
 	    }
 	} else {
 	    n = atoi(argv[i]);
 	    if (am_has_feature(f, (am_feature_e)n)) {
-		printf("feature %d is set\n", n);
+		g_printf(_("feature %d is set\n"), n);
 	    } else {
-		printf("feature %d is not set\n", n);
+		g_printf(_("feature %d is not set\n"), n);
 	    }
 	}
     }
 
     s = am_feature_to_string(f);
-    printf(" new features=%s\n", s);
+    g_printf(_(" new features=%s\n"), s);
     amfree(s);
 
     return 0;

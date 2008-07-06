@@ -1,17 +1,17 @@
 .\"     Title: amcrypt-ossl
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 03/31/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMCRYPT\-OSSL" "8" "06/06/2007" "" ""
+.TH "AMCRYPT\-OSSL" "8" "03/31/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amcrypt\-ossl \- crypt program for Amanda symmetric data encryption using OpenSSL
+amcrypt-ossl - crypt program for Amanda symmetric data encryption using OpenSSL
 .SH "SYNOPSIS"
 .HP 13
 \fBamcrypt\-ossl\fR [\-d]
@@ -21,31 +21,31 @@ amcrypt\-ossl \- crypt program for Amanda symmetric data encryption using OpenSS
 \fBamcrypt\-ossl\fR
 uses
 \fBOpenSSL\fR
-to encrypt and decrypt data. OpenSSL is available from
-\fIwww.openssl.org\fR\&[1]. OpenSSL offers a wide variety of cipher choices (
+to encrypt and decrypt data\. OpenSSL is available from
+\fIwww\.openssl\.org\fR\&[1]\. OpenSSL offers a wide variety of cipher choices (
 \fBamcrypt\-ossl\fR
-defaults to 256\-bit AES) and can use hardware cryptographic accelerators on several platforms.
+defaults to 256\-bit AES) and can use hardware cryptographic accelerators on several platforms\.
 .PP
 
 \fBamcrypt\-ossl\fR
-will search for the OpenSSL program in the following directories: /bin:/usr/bin:/usr/local/bin:/usr/ssl/bin:/usr/local/ssl/bin.
+will search for the OpenSSL program in the following directories: /bin:/usr/bin:/usr/local/bin:/usr/ssl/bin:/usr/local/ssl/bin\.
 .SH "PASSPHRASE MANAGEMENT"
 .PP
 
 \fBamcrypt\-ossl\fR
-uses the same pass phrase to encrypt and decrypt data. It is very important to store and protect the pass phrase properly. Encrypted backup data can
+uses the same pass phrase to encrypt and decrypt data\. It is very important to store and protect the pass phrase properly\. Encrypted backup data can
 \fBonly\fR
-be recovered with the correct passphrase.
+be recovered with the correct passphrase\.
 .PP
-OpenSSL's key derivation routines use a salt to guard against dictionary attacks on the pass phrase; still it is important to pick a pass phrase that is hard to guess. The Diceware method (see
-\fIwww.diceware.com\fR\&[2]) can be used to create passphrases that are difficult to guess and easy to remember.
+OpenSSL\'s key derivation routines use a salt to guard against dictionary attacks on the pass phrase; still it is important to pick a pass phrase that is hard to guess\. The Diceware method (see
+\fIwww\.diceware\.com\fR\&[2]) can be used to create passphrases that are difficult to guess and easy to remember\.
 .SH "FILES"
 .PP
-/var/lib/amanda/.am_passphrase
+/var/lib/amanda/\.am_passphrase
 .RS 4
-File containing the pass phrase. It should not be readable by any user other than the
+File containing the pass phrase\. It should not be readable by any user other than the
 \fIAmanda\fR
-user.
+user\.
 .RE
 .SH "SEE ALSO"
 .PP
@@ -53,8 +53,9 @@ user.
 \fBamanda\fR(8),
 \fBamanda.conf\fR(5),
 \fBopenssl\fR(1),
-\fBamcrypt\-ossl\-asym\fR(8)
-.SH "REFERENCES"
+\fBamcrypt-ossl-asym\fR(8),
+\fBhttp://wiki.zmanda.com\fR()
+.SH "NOTES"
 .IP " 1." 4
 www.openssl.org
 .RS 4

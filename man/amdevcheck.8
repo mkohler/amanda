@@ -1,0 +1,69 @@
+.\"     Title: amdevcheck
+.\"    Author: 
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 03/31/2008
+.\"    Manual: 
+.\"    Source: 
+.\"
+.TH "AMDEVCHECK" "8" "03/31/2008" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+amdevcheck - Validate an Amanda device and volume.
+.SH "SYNOPSIS"
+.HP 11
+\fBamdevcheck\fR \fIconfig\fR [\fIdevice\ name\fR] [\-o\ \fIconfigoption\fR]...
+.SH "DESCRIPTION"
+.PP
+
+\fBAmdevcheck\fR
+provides a way to check that a particular
+\fIAmanda\fR
+device is accessible, whether or not it contains a volume, and whether or not that volume is labeled\. Some devices can\'t distinguish between all of these cases; a missing volume and an unlabeled volume might generate the same error code, for example\. In those cases, this tool reports all possible causes of the error\.
+.PP
+See the
+\fBamanda\fR(8)
+man page for more details about
+\fIAmanda\fR\. See the
+\fBOUTPUT DRIVERS\fR
+section of
+\fIamanda(8)\fR
+for more information on the
+\fIAmanda\fR
+output drivers\.
+.SH "OPTIONS"
+.PP
+\fIconfig\fR
+.RS 4
+
+\fIAmanda\fR
+configuration to use\. Note that
+\fBamdevcheck\fR
+ignores any tape changer configuration\.
+.RE
+.PP
+\fI device\fR
+.RS 4
+
+\fIAmanda\fR
+device to use\. This option overrides any tapedev configuration specified in the configuration file\.
+.RE
+.PP
+\fB\-o\fR \fIclientconfigoption\fR
+.RS 4
+See the "\fBCONFIGURATION OVERRIDE\fR" section in
+\fBamanda\fR(8)\.
+.RE
+.SH "AUTHOR"
+.PP
+Ian Turner
+<ian@zmanda\.com>
+and others\. Authorship of this tool and its documentation was funded by Zmanda, Inc\.
+.SH "SEE ALSO"
+.PP
+
+\fBamanda\fR(8),
+\fBammt\fR(8),
+\fBhttp://wiki.zmanda.com\fR()

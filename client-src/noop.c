@@ -52,10 +52,22 @@ main(
     (void)argc;	/* Quiet unused parameter warning */
     (void)argv;	/* Quiet unused parameter warning */
 
+    /*
+     * Configure program for internationalization:
+     *   1) Only set the message locale for now.
+     *   2) Set textdomain for all amanda related programs to "amanda"
+     *      We don't want to be forced to support dozens of message catalogs.
+     */  
+    setlocale(LC_MESSAGES, "C");
+    textdomain("amanda"); 
+
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
     safe_fd(-1, 0);
+
+    check_running_as(RUNNING_AS_CLIENT_LOGIN);
+
     do {
  	/* soak up any stdin */
 	n = read(0, &ch, 1);
@@ -70,7 +82,7 @@ main(
     am_release_feature_set(our_features);
     our_features = NULL;
     if (fullwrite(1, options, strlen(options)) < 0) {
-	error("error sending noop response: %s", strerror(errno));
+	error(_("error sending noop response: %s"), strerror(errno));
 	/*NOTREACHED*/
     }
     amfree(options);

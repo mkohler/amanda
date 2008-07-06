@@ -31,7 +31,6 @@
  */
 
 #include "config.h"
-#ifdef KRB4_SECURITY
 
 #include <des.h>
 #include <krb.h>
@@ -96,7 +95,7 @@ struct krb4_stream {
     security_stream_t secstr;		/* MUST be first */
     struct krb4_handle *krb4_handle;	/* pointer into above */
     int fd;				/* io file descriptor */
-    int port;				/* local port this is bound to */
+    in_port_t port;			/* local port this is bound to */
     int socket;				/* fd for server-side accepts */
     event_handle_t *ev_read;		/* read event handle */
     char databuf[MAX_TAPE_BLOCK_BYTES];	/* read buffer */
@@ -108,7 +107,9 @@ struct krb4_stream {
 /*
  * This is the tcp stream buffer size
  */
+#ifndef STREAM_BUFSIZE
 #define	STREAM_BUFSIZE	(MAX_TAPE_BLOCK_BYTES * 2)
+#endif
 
 /*
  * Interface functions
@@ -224,7 +225,7 @@ static void (*accept_fn)(security_handle_t *, pkt_t *);
  */
 union mutual {
     char pad[8];
-    long cksum;
+    unsigned long cksum;
 };
 
 /*
@@ -243,8 +244,8 @@ static void recvpkt_timeout(void *);
 static int recv_security_ok(struct krb4_handle *, pkt_t *);
 static void stream_read_callback(void *);
 static void stream_read_sync_callback(void *);
-static int net_write(int, const void *, size_t);
-static int net_read(int, void *, size_t, int);
+static int knet_write(int, const void *, size_t);
+static int knet_read(int, void *, size_t, int);
 
 static int add_ticket(struct krb4_handle *, const pkt_t *, dgram_t *);
 static void add_mutual_auth(struct krb4_handle *, dgram_t *);
@@ -252,8 +253,8 @@ static int check_ticket(struct krb4_handle *, const pkt_t *,
     const char *, unsigned long);
 static int check_mutual_auth(struct krb4_handle *, const char *);
 
-static const char *pkthdr2str(const struct krb4_handle *, const pkt_t *);
-static int str2pkthdr(const char *, pkt_t *, char *, size_t, int *);
+static const char *kpkthdr2str(const struct krb4_handle *, const pkt_t *);
+static int str2kpkthdr(const char *, pkt_t *, char *, size_t, int *);
 
 static const char *bin2astr(const unsigned char *, int);
 static void astr2bin(const unsigned char *, unsigned char *, int *);
@@ -280,7 +281,7 @@ static void
 init(void)
 {
     char tktfile[256];
-    int port;
+    in_port_t port;
     static int beenhere = 0;
 
     if (beenhere)
@@ -291,7 +292,7 @@ init(void)
     hostname[SIZEOF(hostname) - 1] = '\0';
 
     if (atexit(killtickets) < 0)
-	error("could not setup krb4 exit handler: %s", strerror(errno));
+	error(_("could not setup krb4 exit handler: %s"), strerror(errno));
 
     /*
      * [XXX] It could be argued that if KRBTKFILE is set outside of amanda,
@@ -299,7 +300,7 @@ init(void)
      * This file also needs to be removed so that no extra tickets are
      * hanging around.
      */
-    snprintf(tktfile, SIZEOF(tktfile), "/tmp/tkt%ld-%ld.amanda",
+    g_snprintf(tktfile, SIZEOF(tktfile), "/tmp/tkt%ld-%ld.amanda",
 	(long)getuid(), (long)getpid());
     ticketfilename = stralloc(tktfile);
     unlink(ticketfilename);
@@ -329,12 +330,12 @@ get_tgt(void)
     strncpy(realm, krb_realmofhost(hostname), SIZEOF(realm) - 1);
     realm[SIZEOF(realm) - 1] = '\0';
 
-    rc = krb_get_svc_in_tkt(SERVER_HOST_PRINCIPLE, SERVER_HOST_INSTANCE,
+    rc = krb_get_svc_in_tkt(SERVER_HOST_PRINCIPAL, SERVER_HOST_INSTANCE,
 	realm, "krbtgt", realm, TICKET_LIFETIME, SERVER_HOST_KEY_FILE);
 
     if (rc != 0) {
-	error("could not get krbtgt for %s.%s@%s from %s: %s",
-	    SERVER_HOST_PRINCIPLE, SERVER_HOST_INSTANCE, realm,
+	error(_("could not get krbtgt for %s.%s@%s from %s: %s"),
+	    SERVER_HOST_PRINCIPAL, SERVER_HOST_INSTANCE, realm,
 	    SERVER_HOST_KEY_FILE, krb_err_txt[rc]);
     }
 
@@ -358,7 +359,10 @@ krb4_connect(
     char handle[32];
     struct servent *se;
     struct hostent *he;
-    int port;
+    in_port_t port;
+
+    (void)conf_fn;	/* Quiet unused parameter warning */
+    (void)datap;	/* Quiet unused parameter warning */
 
     assert(hostname != NULL);
 
@@ -372,7 +376,7 @@ krb4_connect(
 
     if ((he = gethostbyname(hostname)) == NULL) {
 	security_seterror(&kh->sech,
-	    "%s: could not resolve hostname", hostname);
+	    _("%s: could not resolve hostname"), hostname);
 	(*fn)(arg, &kh->sech, S_ERROR);
 	return;
     }
@@ -380,7 +384,7 @@ krb4_connect(
 	port = (int)KAMANDA_SERVICE_DEFAULT;
     else
 	port = ntohs(se->s_port);
-    snprintf(handle, SIZEOF(handle), "%ld", (long)time(NULL));
+    g_snprintf(handle, SIZEOF(handle), "%ld", (long)time(NULL));
     inithandle(kh, he, (int)port, handle);
     (*fn)(arg, &kh->sech, S_OK);
 }
@@ -395,6 +399,8 @@ krb4_accept(
     int		out,
     void	(*fn)(security_handle_t *, pkt_t *))
 {
+    (void)driver;	/* Quiet unused parameter warning */
+    (void)out;		/* Quiet unused parameter warning */
 
     /*
      * Make sure we're initted
@@ -497,7 +503,7 @@ krb4_sendpkt(
     /*
      * Add the header to the packet
      */
-    dgram_cat(&netfd, pkthdr2str(kh, pkt));
+    dgram_cat(&netfd, kpkthdr2str(kh, pkt));
 
     /*
      * Add the security info.  This depends on which kind of packet we're
@@ -536,7 +542,7 @@ krb4_sendpkt(
     dgram_cat(&netfd, pkt->body);
     if (dgram_send_addr(&kh->peer, &netfd) != 0) {
 	security_seterror(&kh->sech,
-	    "send %s to %s failed: %s", pkt_type2str(pkt->type),
+	    _("send %s to %s failed: %s"), pkt_type2str(pkt->type),
 	    kh->hostname, strerror(errno));
 	return (-1);
     }
@@ -635,7 +641,7 @@ krb4_stream_server(
     ks->socket = stream_server(&ks->port, STREAM_BUFSIZE, STREAM_BUFSIZE, 1);
     if (ks->socket < 0) {
 	security_seterror(&kh->sech,
-	    "can't create server stream: %s", strerror(errno));
+	    _("can't create server stream: %s"), strerror(errno));
 	amfree(ks);
 	return (NULL);
     }
@@ -664,7 +670,7 @@ krb4_stream_accept(
     ks->fd = stream_accept(ks->socket, 30, STREAM_BUFSIZE, STREAM_BUFSIZE);
     if (ks->fd < 0) {
 	security_stream_seterror(&ks->secstr,
-	    "can't accept new stream connection: %s", strerror(errno));
+	    _("can't accept new stream connection: %s"), strerror(errno));
 	return (-1);
     }
     return (0);
@@ -689,7 +695,7 @@ krb4_stream_client(
 	&ks->port, 0);
     if (ks->fd < 0) {
 	security_seterror(&kh->sech,
-	    "can't connect stream to %s port %d: %s", kh->hostname, id,
+	    _("can't connect stream to %s port %d: %s"), kh->hostname, id,
 	    strerror(errno));
 	amfree(ks);
 	return (NULL);
@@ -754,12 +760,12 @@ krb4_stream_auth(
      * and present it to the other side.
      */
     gettimeofday(&local, &tz);
-    enc.tv_sec = (long)htonl((uint32_t)local.tv_sec);
-    enc.tv_usec = (long)htonl((uint32_t)local.tv_usec);
+    enc.tv_sec = (long)htonl((guint32)local.tv_sec);
+    enc.tv_usec = (long)htonl((guint32)local.tv_usec);
     encrypt_data(&enc, SIZEOF(enc), &kh->session_key);
-    if (net_write(fd, &enc, SIZEOF(enc)) < 0) {
+    if (knet_write(fd, &enc, SIZEOF(enc)) < 0) {
 	security_stream_seterror(&ks->secstr,
-	    "krb4 stream handshake write error: %s", strerror(errno));
+	    _("krb4 stream handshake write error: %s"), strerror(errno));
 	return (-1);
     }
 
@@ -768,20 +774,20 @@ krb4_stream_auth(
      * and useconds by one.  Reencrypt, and present to the other side.
      * Timeout in 10 seconds.
      */
-    if (net_read(fd, &enc, SIZEOF(enc), 60) < 0) {
+    if (knet_read(fd, &enc, SIZEOF(enc), 60) < 0) {
 	security_stream_seterror(&ks->secstr,
-	    "krb4 stream handshake read error: %s", strerror(errno));
+	    _("krb4 stream handshake read error: %s"), strerror(errno));
 	return (-1);
     }
     decrypt_data(&enc, SIZEOF(enc), &kh->session_key);
     /* XXX do timestamp checking here */
-    enc.tv_sec = (long)htonl(ntohl((uint32_t)enc.tv_sec) + 1);
-    enc.tv_usec =(long)htonl(ntohl((uint32_t)enc.tv_usec) + 1);
+    enc.tv_sec = (long)htonl(ntohl((guint32)enc.tv_sec) + 1);
+    enc.tv_usec =(long)htonl(ntohl((guint32)enc.tv_usec) + 1);
     encrypt_data(&enc, SIZEOF(enc), &kh->session_key);
 
-    if (net_write(fd, &enc, SIZEOF(enc)) < 0) {
+    if (knet_write(fd, &enc, SIZEOF(enc)) < 0) {
 	security_stream_seterror(&ks->secstr,
-	    "krb4 stream handshake write error: %s", strerror(errno));
+	    _("krb4 stream handshake write error: %s"), strerror(errno));
 	return (-1);
     }
 
@@ -790,21 +796,21 @@ krb4_stream_auth(
      * If they incremented it properly, then succeed.
      * Timeout in 10 seconds.
      */
-    if (net_read(fd, &enc, SIZEOF(enc), 60) < 0) {
+    if (knet_read(fd, &enc, SIZEOF(enc), 60) < 0) {
 	security_stream_seterror(&ks->secstr,
-	    "krb4 stream handshake read error: %s", strerror(errno));
+	    _("krb4 stream handshake read error: %s"), strerror(errno));
 	return (-1);
     }
     decrypt_data(&enc, SIZEOF(enc), &kh->session_key);
-    if ((ntohl((uint32_t)enc.tv_sec)  == (uint32_t)(local.tv_sec + 1)) &&
-	(ntohl((uint32_t)enc.tv_usec) == (uint32_t)(local.tv_usec + 1)))
+    if ((ntohl((guint32)enc.tv_sec)  == (uint32_t)(local.tv_sec + 1)) &&
+	(ntohl((guint32)enc.tv_usec) == (uint32_t)(local.tv_usec + 1)))
 	    return (0);
 
     security_stream_seterror(&ks->secstr,
-	"krb4 handshake failed: sent %ld,%ld - recv %ld,%ld",
+	_("krb4 handshake failed: sent %ld,%ld - recv %ld,%ld"),
 	    (long)(local.tv_sec + 1), (long)(local.tv_usec + 1),
-	    (long)ntohl((uint32_t)enc.tv_sec),
-	    (long)ntohl((uint32_t)enc.tv_usec));
+	    (long)ntohl((guint32)enc.tv_sec),
+	    (long)ntohl((guint32)enc.tv_usec));
     return (-1);
 }
 
@@ -833,14 +839,12 @@ krb4_stream_write(
     size_t	size)
 {
     struct krb4_stream *ks = s;
-    struct krb4_handle *kh = ks->krb4_handle;
 
     assert(ks != NULL);
-    assert(kh != NULL);
 
-    if (net_write(ks->fd, buf, size) < 0) {
+    if (knet_write(ks->fd, buf, size) < 0) {
 	security_stream_seterror(&ks->secstr,
-	    "write error on stream %d: %s", ks->fd, strerror(errno));
+	    _("write error on stream %d: %s"), ks->fd, strerror(errno));
 	return (-1);
     }
     return (0);
@@ -982,6 +986,7 @@ recvpkt_callback(
     void (*fn)(void *, pkt_t *, security_status_t);
     void *arg;
 
+    (void)cookie;		/* Quiet unused parameter warning */
     assert(cookie == NULL);
 
     /*
@@ -992,7 +997,7 @@ recvpkt_callback(
     dgram_zero(&netfd);
     if (dgram_recv(&netfd, 0, &peer) < 0)
 	return;
-    if (str2pkthdr(netfd.cur, &pkt, handle, SIZEOF(handle), &sequence) < 0)
+    if (str2kpkthdr(netfd.cur, &pkt, handle, SIZEOF(handle), &sequence) < 0)
 	return;
 
     for (kh = handleq_first(); kh != NULL; kh = handleq_next(kh)) {
@@ -1091,17 +1096,17 @@ add_ticket(
      * Get a ticket with the user-defined service and instance,
      * and using the checksum of the body of the request packet.
      */
-    rc = krb_mk_req(&ticket, CLIENT_HOST_PRINCIPLE, inst, kh->realm,
+    rc = krb_mk_req(&ticket, CLIENT_HOST_PRINCIPAL, inst, kh->realm,
 	kh->cksum);
     if (rc == NO_TKT_FIL) {
 	/* It's been kdestroyed.  Get a new one and try again */
 	get_tgt();
-	rc = krb_mk_req(&ticket, CLIENT_HOST_PRINCIPLE, inst, kh->realm,
+	rc = krb_mk_req(&ticket, CLIENT_HOST_PRINCIPAL, inst, kh->realm,
 	    kh->cksum);
     }
     if (rc != 0) {
 	security_seterror(&kh->sech,
-	    "krb_mk_req failed: %s (%d)", error_message(rc), rc);
+	    _("krb_mk_req failed: %s (%d)"), error_message(rc), rc);
 	return (-1);
     }
     /*
@@ -1134,7 +1139,7 @@ add_mutual_auth(
     assert(kh->session_key[0] != '\0');
 
     memset(&mutual, 0, SIZEOF(mutual));
-    mutual.cksum = (unsigned long)htonl((uint32_t)kh->cksum + 1);
+    mutual.cksum = (unsigned long)htonl((guint32)kh->cksum + 1);
     encrypt_data(&mutual, SIZEOF(mutual), &kh->session_key);
 
     security = vstralloc("SECURITY MUTUAL-AUTH ",
@@ -1164,7 +1169,7 @@ recv_security_ok(
      * Set this preemptively before we mangle the body.
      */
     security_seterror(&kh->sech,
-	"bad %s SECURITY line from %s: '%s'", pkt_type2str(pkt->type),
+	_("bad %s SECURITY line from %s: '%s'"), pkt_type2str(pkt->type),
 	kh->hostname, pkt->body);
 
 
@@ -1223,7 +1228,7 @@ recv_security_ok(
 	    return (-1);
 	if (strcmp(tok, "TICKET") != 0) {
 	    security_seterror(&kh->sech,
-		"REQ SECURITY line parse error, expecting TICKET, got %s", tok);
+		_("REQ SECURITY line parse error, expecting TICKET, got %s"), tok);
 	    return (-1);
 	}
 
@@ -1297,6 +1302,8 @@ check_ticket(
     char *user;
     int rc;
 
+    (void)pkt;		/* Quiet unused parameter warning */
+
     assert(kh != NULL);
     assert(pkt != NULL);
     assert(ticket_str != NULL);
@@ -1314,11 +1321,11 @@ check_ticket(
     inst[SIZEOF(inst) - 1] = '\0';
 
     /* get the checksum out of the ticket */
-    rc = krb_rd_req(&ticket, CLIENT_HOST_PRINCIPLE, inst,
+    rc = krb_rd_req(&ticket, CLIENT_HOST_PRINCIPAL, inst,
 	kh->peer.sin6_addr.s_addr, &auth, CLIENT_HOST_KEY_FILE);
     if (rc != 0) {
 	security_seterror(&kh->sech,
-	    "krb_rd_req failed for %s: %s (%d)", kh->hostname,
+	    _("krb_rd_req failed for %s: %s (%d)"), kh->hostname,
 	    error_message(rc), rc);
 	return (-1);
     }
@@ -1326,7 +1333,7 @@ check_ticket(
     /* verify and save the checksum and session key */
     if (auth.checksum != cksum) {
 	security_seterror(&kh->sech,
-	    "krb4 checksum mismatch for %s (remote=%lu, local=%lu)",
+	    _("krb4 checksum mismatch for %s (remote=%lu, local=%lu)"),
 	    kh->hostname, (long)auth.checksum, cksum);
 	return (-1);
     }
@@ -1334,16 +1341,16 @@ check_ticket(
     memcpy(kh->session_key, auth.session, SIZEOF(kh->session_key));
 
     /*
-     * If FORCE_USERID is set, then we need to specifically
+     * If CHECK_USERID is set, then we need to specifically
      * check the userid we're forcing ourself to.  Otherwise,
      * just check the login we're currently setuid to.
      */
-#ifdef FORCE_USERID
+#ifdef CHECK_USERID
     if ((pwd = getpwnam(CLIENT_LOGIN)) == NULL)
-	error("error [getpwnam(%s) fails]", CLIENT_LOGIN);
+	error(_("error [getpwnam(%s) fails]"), CLIENT_LOGIN);
 #else
     if ((pwd = getpwuid(getuid())) == NULL)
-	error("error  [getpwuid(%d) fails]", getuid());
+	error(_("error  [getpwuid(%d) fails]"), getuid());
 #endif
 
     /* save the username in case it's overwritten */
@@ -1352,7 +1359,7 @@ check_ticket(
     /* check the klogin file */
     if (kuserok(&auth, user)) {
 	security_seterror(&kh->sech,
-	    "access as %s not allowed from %s.%s@%s", user, auth.pname,
+	    _("access as %s not allowed from %s.%s@%s"), user, auth.pname,
 	    auth.pinst, auth.prealm);
 	amfree(user);
 	return (-1);
@@ -1388,12 +1395,12 @@ check_mutual_auth(
     /* unencrypt the string using the key in the ticket file */
     host2key(kh->hostname, kh->inst, &kh->session_key);
     decrypt_data(&mutual, (size_t)len, &kh->session_key);
-    mutual.cksum = (unsigned long)ntohl((uint32_t)mutual.cksum);
+    mutual.cksum = (unsigned long)ntohl((guint32)mutual.cksum);
 
     /* the data must be the same as our request cksum + 1 */
     if (mutual.cksum != (kh->cksum + 1)) {
 	security_seterror(&kh->sech,
-	    "krb4 checksum mismatch from %s (remote=%lu, local=%lu)",
+	    _("krb4 checksum mismatch from %s (remote=%lu, local=%lu)"),
 	    kh->hostname, mutual.cksum, kh->cksum + 1);
 	return (-1);
     }
@@ -1405,7 +1412,7 @@ check_mutual_auth(
  * Convert a pkt_t into a header string for our packet
  */
 static const char *
-pkthdr2str(
+kpkthdr2str(
     const struct krb4_handle *	kh,
     const pkt_t *		pkt)
 {
@@ -1414,7 +1421,7 @@ pkthdr2str(
     assert(kh != NULL);
     assert(pkt != NULL);
 
-    snprintf(retbuf, SIZEOF(retbuf), "Amanda %d.%d %s HANDLE %s SEQ %d\n",
+    g_snprintf(retbuf, SIZEOF(retbuf), "Amanda %d.%d %s HANDLE %s SEQ %d\n",
 	VERSION_MAJOR, VERSION_MINOR, pkt_type2str(pkt->type),
 	kh->proto_handle, kh->sequence);
 
@@ -1429,7 +1436,7 @@ pkthdr2str(
  * Returns negative on parse error.
  */
 static int
-str2pkthdr(
+str2kpkthdr(
     const char *origstr,
     pkt_t *	pkt,
     char *	handle,
@@ -1490,7 +1497,7 @@ str2pkthdr(
 parse_error:
 #if 0 /* XXX we have no way of passing this back up */
     security_seterror(&kh->sech,
-	"parse error in packet header : '%s'", origstr);
+	_("parse error in packet header : '%s'"), origstr);
 #endif
     amfree(str);
     return (-1);
@@ -1510,7 +1517,7 @@ host2key(
 #if CLIENT_HOST_INSTANCE != HOSTNAME_INSTANCE
     inst = CLIENT_HOST_INSTANCE
 #endif
-    krb_get_cred(CLIENT_HOST_PRINCIPLE, (char *)inst, realm, &cred);
+    krb_get_cred(CLIENT_HOST_PRINCIPAL, (char *)inst, realm, &cred);
     memcpy(key, cred.session, SIZEOF(des_cblock));
 }
 
@@ -1664,7 +1671,7 @@ decrypt_data(
  * like write(), but always writes out the entire buffer.
  */
 static int
-net_write(
+knet_write(
     int		fd,
     const void *vbuf,
     size_t	size)
@@ -1686,7 +1693,7 @@ net_write(
  * Like read(), but waits until the entire buffer has been filled.
  */
 static int
-net_read(
+knet_read(
     int		fd,
     void *	vbuf,
     size_t	size,
@@ -1742,12 +1749,13 @@ print_hex(
 {
     int i;
 
-    dbprintf(("%s:", str));
+    dbprintf("%s:", str);
     for(i=0;i<len;i++) {
-	if(i%25 == 0) dbprintf(("\n"));
-	dbprintf((" %02X", buf[i]));
+	if(i%25 == 0)
+		dbprintf("\n");
+	dbprintf(" %02X", buf[i]);
     }
-    dbprintf(("\n"));
+    dbprintf("\n");
 }
 
 static void
@@ -1755,8 +1763,8 @@ print_ticket(
     const char *str,
     KTEXT	tktp)
 {
-    dbprintf(("%s: length %d chk %lX\n", str, tktp->length, tktp->mbz));
-    print_hex("ticket data", tktp->dat, tktp->length);
+    dbprintf(_("%s: length %d chk %lX\n"), str, tktp->length, tktp->mbz);
+    print_hex(_("ticket data"), tktp->dat, tktp->length);
     fflush(stdout);
 }
 
@@ -1764,10 +1772,10 @@ static void
 print_auth(
     AUTH_DAT *authp)
 {
-    printf("\nAuth Data:\n");
-    printf("  Principal \"%s\" Instance \"%s\" Realm \"%s\"\n",
+    g_printf("\nAuth Data:\n");
+    g_printf("  Principal \"%s\" Instance \"%s\" Realm \"%s\"\n",
 	   authp->pname, authp->pinst, authp->prealm);
-    printf("  cksum %d life %d keylen %ld\n", authp->checksum,
+    g_printf("  cksum %d life %d keylen %ld\n", authp->checksum,
 	   authp->life, SIZEOF(authp->session));
     print_hex("session key", authp->session, SIZEOF(authp->session));
     fflush(stdout);
@@ -1777,8 +1785,8 @@ static void
 print_credentials(
     CREDENTIALS *credp)
 {
-    printf("\nCredentials:\n");
-    printf("  service \"%s\" instance \"%s\" realm \"%s\" life %d kvno %d\n",
+    g_printf("\nCredentials:\n");
+    g_printf("  service \"%s\" instance \"%s\" realm \"%s\" life %d kvno %d\n",
 	   credp->service, credp->instance, credp->realm, credp->lifetime,
 	   credp->kvno);
     print_hex("session key", credp->session, SIZEOF(credp->session));
@@ -1786,14 +1794,3 @@ print_credentials(
     fflush(stdout);
 }
 #endif
-
-#else
-
-void krb4_security_dummy(void);
-
-void
-krb4_security_dummy(void)
-{
-}
-
-#endif /* KRB4_SECURITY */

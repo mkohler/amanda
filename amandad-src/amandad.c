@@ -48,9 +48,9 @@
 #define	REP_TIMEOUT	(6*60*60)	/* secs for service to reply */
 #define	ACK_TIMEOUT  	10		/* XXX should be configurable */
 
-#define amandad_debug(i,x) do {		\
+#define amandad_debug(i, ...) do {	\
 	if ((i) <= debug_amandad) {	\
-		dbprintf(x);		\
+		dbprintf(__VA_ARGS__);	\
 	}				\
 } while (0)
 
@@ -133,20 +133,10 @@ static struct {
     TAILQ_HEAD_INITIALIZER(serviceq.tailq), 0
 };
 
-/*
- * Data for dbmalloc to check for memory leaks
- */
-#ifdef USE_DBMALLOC
-static struct {
-    struct {
-	unsigned long size, hist;
-    } start, end;
-} dbmalloc_info;
-#endif
-
 static int wait_30s = 1;
 static int exit_on_qlength = 1;
 static char *auth = NULL;
+static kencrypt_type amandad_kencrypt = KENCRYPT_NONE;
 
 int main(int argc, char **argv);
 
@@ -171,30 +161,10 @@ static struct active_service *service_new(security_handle_t *,
 static void service_delete(struct active_service *);
 static int writebuf(struct active_service *, const void *, size_t);
 static ssize_t do_sendpkt(security_handle_t *handle, pkt_t *pkt);
-
-static void child_signal(int signal);
+static char *amandad_get_security_conf (char *, void *);
 
 static const char *state2str(state_t);
 static const char *action2str(action_t);
-
-/*
- * Harvests defunct processes...
- */
-
-static void
-child_signal(
-    int		signal)
-{
-    pid_t	rp;
-
-    (void)signal;	/* Quite compiler warning */
-    /*
-     * Reap and child status and promptly ignore since we don't care...
-     */
-    do {
-    	rp = waitpid(-1, NULL, WNOHANG);
-    } while (rp > 0);
-}
 
 int
 main(
@@ -206,13 +176,20 @@ main(
     int in, out;
     const security_driver_t *secdrv;
     int no_exit = 0;
-    struct sigaction act, oact;
     char *pgm = "amandad";		/* in case argv[0] is not set */
 #if defined(USE_REUSEADDR)
     const int on = 1;
     int r;
 #endif
-    char *conffile;
+
+    /*
+     * Configure program for internationalization:
+     *   1) Only set the message locale for now.
+     *   2) Set textdomain for all amanda related programs to "amanda"
+     *      We don't want to be forced to support dozens of message catalogs.
+     */  
+    setlocale(LC_MESSAGES, "C");
+    textdomain("amanda"); 
 
     safe_fd(-1, 0);
     safe_cd();
@@ -232,48 +209,18 @@ main(
     dbopen(DBG_SUBDIR_AMANDAD);
 
     if(argv == NULL) {
-	error("argv == NULL\n");
+	error(_("argv == NULL\n"));
 	/*NOTREACHED*/
     }
 
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
-    /* Tell me when a child exits or dies... */
-    act.sa_handler = child_signal;
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = 0;
-    if(sigaction(SIGCHLD, &act, &oact) != 0) {
-	error("error setting SIGCHLD handler: %s", strerror(errno));
-	/*NOTREACHED*/
-    }
+    config_init(CONFIG_INIT_CLIENT, NULL);
 
-    conffile = vstralloc(CONFIG_DIR, "/", "amanda-client.conf", NULL);
-    if (read_clientconf(conffile) > 0) {
-	error("error reading conffile: %s", conffile);
-	/*NOTREACHED*/
-    }
-    amfree(conffile);
-
-#ifdef USE_DBMALLOC
-    dbmalloc_info.start.size = malloc_inuse(&dbmalloc_info.start.hist);
-#endif
+    check_running_as(RUNNING_AS_CLIENT_LOGIN);
 
     erroutput_type = (ERR_INTERACTIVE|ERR_SYSLOG);
-
-#ifdef FORCE_USERID
-    /* we'd rather not run as root */
-    if (geteuid() == 0) {
-	if(client_uid == (uid_t) -1) {
-	    error("error [cannot find user %s in passwd file]\n", CLIENT_LOGIN);
-	    /*NOTREACHED*/
-	}
-	initgroups(CLIENT_LOGIN, client_gid);
-	setgid(client_gid);
-	setegid(client_gid);
-	seteuid(client_uid);
-    }
-#endif	/* FORCE_USERID */
 
     /*
      * ad-hoc argument parsing
@@ -305,7 +252,7 @@ main(
 	    secdrv = security_getdriver(argv[i]);
 	    auth = argv[i];
 	    if (secdrv == NULL) {
-		error("no driver for security type '%s'\n", argv[i]);
+		error(_("no driver for security type '%s'\n"), argv[i]);
                 /*NOTREACHED*/
 	    }
 	    continue;
@@ -338,16 +285,15 @@ main(
 	    in = out = socket(AF_INET, SOCK_DGRAM, 0);
 #endif
 	    if (in < 0) {
-		error("can't create dgram socket: %s\n", strerror(errno));
+		error(_("can't create dgram socket: %s\n"), strerror(errno));
 		/*NOTREACHED*/
 	    }
 #ifdef USE_REUSEADDR
 	    r = setsockopt(in, SOL_SOCKET, SO_REUSEADDR,
 		(void *)&on, (socklen_t)sizeof(on));
 	    if (r < 0) {
-		dbprintf(("%s: amandad: setsockopt(SO_REUSEADDR) failed: %s\n",
-			  debug_prefix_time(NULL),
-			  strerror(errno)));
+		dbprintf(_("amandad: setsockopt(SO_REUSEADDR) failed: %s\n"),
+			  strerror(errno));
 	    }
 #endif
 
@@ -361,7 +307,7 @@ main(
 	    sin.sin_port = (in_port_t)htons((in_port_t)atoi(argv[i]));
 #endif
 	    if (bind(in, (struct sockaddr *)&sin, (socklen_t)sizeof(sin)) < 0) {
-		error("can't bind to port %d: %s\n", atoi(argv[i]),
+		error(_("can't bind to port %d: %s\n"), atoi(argv[i]),
 		    strerror(errno));
 		/*NOTREACHED*/
 	    }
@@ -385,16 +331,15 @@ main(
 	    sock = socket(AF_INET, SOCK_STREAM, 0);
 #endif
 	    if (sock < 0) {
-		error("can't create tcp socket: %s\n", strerror(errno));
+		error(_("can't create tcp socket: %s\n"), strerror(errno));
 		/*NOTREACHED*/
 	    }
 #ifdef USE_REUSEADDR
 	    r = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
 		(void *)&on, (socklen_t)sizeof(on));
 	    if (r < 0) {
-		dbprintf(("%s: amandad: setsockopt(SO_REUSEADDR) failed: %s\n",
-			  debug_prefix_time(NULL),
-			  strerror(errno)));
+		dbprintf(_("amandad: setsockopt(SO_REUSEADDR) failed: %s\n"),
+			  strerror(errno));
 	    }
 #endif
 #ifdef WORKING_IPV6
@@ -407,7 +352,7 @@ main(
 	    sin.sin_port = (in_port_t)htons((in_port_t)atoi(argv[i]));
 #endif
 	    if (bind(sock, (struct sockaddr *)&sin, (socklen_t)sizeof(sin)) < 0) {
-		error("can't bind to port %d: %s\n", atoi(argv[i]),
+		error(_("can't bind to port %d: %s\n"), atoi(argv[i]),
 		    strerror(errno));
 		/*NOTREACHED*/
 	    }
@@ -437,8 +382,7 @@ main(
 		    if (strcmp(services[j].name, argv[i]) == 0)
 			break;
 		if (j == (int)NSERVICES) {
-		    dbprintf(("%s: %s: invalid service\n",
-			      debug_prefix_time(NULL), argv[i]));
+		    dbprintf(_("%s: invalid service\n"), argv[i]);
 		    exit(1);
 		}
 		services[j].active = 1;
@@ -453,7 +397,7 @@ main(
 	secdrv = security_getdriver("BSD");
 	auth = "bsd";
 	if (secdrv == NULL) {
-	    error("no driver for default security type 'BSD'\n");
+	    error(_("no driver for default security type 'BSD'\n"));
 	    /*NOTREACHED*/
 	}
     }
@@ -469,21 +413,20 @@ main(
 
     startclock();
 
-    dbprintf(("%s: version %s\n", get_pname(), version()));
+    dbprintf(_("version %s\n"), version());
     for (i = 0; version_info[i] != NULL; i++) {
-	dbprintf(("%s: %s", debug_prefix_time(NULL), version_info[i]));
+	dbprintf("    %s", version_info[i]);
     }
 
     if (! (argc >= 1 && argv != NULL && argv[0] != NULL)) {
-	dbprintf(("%s: WARNING: argv[0] not defined: check inetd.conf\n",
-		  debug_prefix_time(NULL)));
+	dbprintf(_("WARNING: argv[0] not defined: check inetd.conf\n"));
     }
 
     /*
      * Schedule to call protocol_accept() when new security handles
      * are created on stdin.
      */
-    security_accept(secdrv, in, out, protocol_accept);
+    security_accept(secdrv, amandad_get_security_conf, in, out, protocol_accept, NULL);
 
     /*
      * Schedule an event that will try to exit every 30 seconds if there
@@ -529,15 +472,6 @@ exit_check(
     if (no_exit)
 	return;
 
-#ifdef USE_DBMALLOC
-    dbmalloc_info.end.size = malloc_inuse(&dbmalloc_info.end.hist);
-
-    if (dbmalloc_info.start.size != dbmalloc_info.end.size) {
-	malloc_list(dbfd(), dbmalloc_info.start.hist,
-	    dbmalloc_info.end.hist);
-    }
-#endif
-
     dbclose();
     exit(0);
 }
@@ -570,8 +504,7 @@ protocol_accept(
      * If pkt is NULL, then there was a problem with the new connection.
      */
     if (pkt == NULL) {
-	dbprintf(("%s: accept error: %s\n",
-	    debug_prefix_time(NULL), security_geterror(handle)));
+	dbprintf(_("accept error: %s\n"), security_geterror(handle));
 	pkt_init(&pkt_out, P_NAK, "ERROR %s\n", security_geterror(handle));
 	do_sendpkt(handle, &pkt_out);
 	amfree(pkt_out.body);
@@ -579,15 +512,15 @@ protocol_accept(
 	return;
     }
 
-    dbprintf(("%s: accept recv %s pkt:\n<<<<<\n%s>>>>>\n",
-	debug_prefix_time(NULL), pkt_type2str(pkt->type), pkt->body));
+    dbprintf(_("accept recv %s pkt:\n<<<<<\n%s>>>>>\n"),
+	pkt_type2str(pkt->type), pkt->body);
 
     /*
      * If this is not a REQ packet, just forget about it.
      */
     if (pkt->type != P_REQ) {
-	dbprintf(("%s: received unexpected %s packet:\n<<<<<\n%s>>>>>\n\n",
-	    debug_prefix_time(NULL), pkt_type2str(pkt->type), pkt->body));
+	dbprintf(_("received unexpected %s packet:\n<<<<<\n%s>>>>>\n\n"),
+	    pkt_type2str(pkt->type), pkt->body);
 	security_close(handle);
 	return;
     }
@@ -623,18 +556,16 @@ protocol_accept(
 	if (services[i].active == 1 && strcmp(services[i].name, service) == 0)
 	    break;
     if (i == (int)NSERVICES) {
-	dbprintf(("%s: %s: invalid service\n",
-	    debug_prefix_time(NULL), service));
-	pkt_init(&pkt_out, P_NAK, "ERROR %s: invalid service, add '%s' as argument to amandad\n", service, service);
+	dbprintf(_("%s: invalid service\n"), service);
+	pkt_init(&pkt_out, P_NAK, _("ERROR %s: invalid service, add '%s' as argument to amandad\n"), service, service);
 	goto send_pkt_out;
     }
 
-    service_path = vstralloc(libexecdir, "/", service, versionsuffix(), NULL);
+    service_path = vstralloc(amlibexecdir, "/", service, versionsuffix(), NULL);
     if (access(service_path, X_OK) < 0) {
-	dbprintf(("%s: can't execute %s: %s\n",
-	    debug_prefix_time(NULL), service_path, strerror(errno)));
+	dbprintf(_("can't execute %s: %s\n"), service_path, strerror(errno));
 	    pkt_init(&pkt_out, P_NAK,
-		     "ERROR execute access to \"%s\" denied\n",
+		     _("ERROR execute access to \"%s\" denied\n"),
 		     service_path);
 	goto send_pkt_out;
     }
@@ -644,8 +575,8 @@ protocol_accept(
 	as = TAILQ_NEXT(as, tq)) {
 	    if (strcmp(as->cmd, service_path) == 0 &&
 		strcmp(as->arguments, arguments) == 0) {
-		    dbprintf(("%s: %s %s: already running, acking req\n",
-			debug_prefix_time(NULL), service, arguments));
+		    dbprintf(_("%s %s: already running, acking req\n"),
+			service, arguments);
 		    pkt_init_empty(&pkt_out, P_ACK);
 		    goto send_pkt_out_no_delete;
 	    }
@@ -655,14 +586,12 @@ protocol_accept(
      * create a new service instance, and send the arguments down
      * the request pipe.
      */
-    dbprintf(("%s: creating new service: %s\n%s\n",
-	debug_prefix_time(NULL), service, arguments));
+    dbprintf(_("creating new service: %s\n%s\n"), service, arguments);
     as = service_new(handle, service_path, arguments);
     if (writebuf(as, arguments, strlen(arguments)) < 0) {
 	const char *errmsg = strerror(errno);
-	dbprintf(("%s: error sending arguments to %s: %s\n",
-	    debug_prefix_time(NULL), service, errmsg));
-	pkt_init(&pkt_out, P_NAK, "ERROR error writing arguments to %s: %s\n",
+	dbprintf(_("error sending arguments to %s: %s\n"), service, errmsg);
+	pkt_init(&pkt_out, P_NAK, _("ERROR error writing arguments to %s: %s\n"),
 	    service, errmsg);
 	goto send_pkt_out;
     }
@@ -682,9 +611,9 @@ protocol_accept(
     return;
 
 badreq:
-    pkt_init(&pkt_out, P_NAK, "ERROR invalid REQ\n");
-    dbprintf(("%s: received invalid %s packet:\n<<<<<\n%s>>>>>\n\n",
-	debug_prefix_time(NULL), pkt_type2str(pkt->type), pkt->body));
+    pkt_init(&pkt_out, P_NAK, _("ERROR invalid REQ\n"));
+    dbprintf(_("received invalid %s packet:\n<<<<<\n%s>>>>>\n\n"),
+	pkt_type2str(pkt->type), pkt->body);
 
 send_pkt_out:
     if(as)
@@ -713,26 +642,22 @@ state_machine(
     state_t curstate;
     pkt_t nak;
 
-    amandad_debug(1, ("%s: state_machine: %p entering\n",
-		      debug_prefix_time(NULL), as));
+    amandad_debug(1, _("state_machine: %p entering\n"), as);
     for (;;) {
 	curstate = as->state;
-	amandad_debug(1, ("%s: state_machine: %p curstate=%s action=%s\n",
-			  debug_prefix_time(NULL), as,
-			  state2str(curstate), action2str(action)));
+	amandad_debug(1, _("state_machine: %p curstate=%s action=%s\n"), as,
+			  state2str(curstate), action2str(action));
 	retaction = (*curstate)(as, action, pkt);
-	amandad_debug(1, ("%s: state_machine: %p curstate=%s returned %s (nextstate=%s)\n",
-			  debug_prefix_time(NULL),
+	amandad_debug(1, _("state_machine: %p curstate=%s returned %s (nextstate=%s)\n"),
 			  as, state2str(curstate), action2str(retaction),
-			  state2str(as->state)));
+			  state2str(as->state));
 
 	switch (retaction) {
 	/*
 	 * State has queued up and is now blocking on input.
 	 */
 	case A_PENDING:
-	    amandad_debug(1, ("%s: state_machine: %p leaving (A_PENDING)\n",
-			      debug_prefix_time(NULL), as));
+	    amandad_debug(1, _("state_machine: %p leaving (A_PENDING)\n"), as);
 	    return;
 
 	/*
@@ -746,25 +671,23 @@ state_machine(
 	 * Send a nak, and return.
 	 */
 	case A_SENDNAK:
-	    dbprintf(("%s: received unexpected %s packet\n",
-		debug_prefix_time(NULL), pkt_type2str(pkt->type)));
-	    dbprintf(("<<<<<\n%s----\n\n", pkt->body));
-	    pkt_init(&nak, P_NAK, "ERROR unexpected packet type %s\n",
+	    dbprintf(_("received unexpected %s packet\n"),
+		pkt_type2str(pkt->type));
+	    dbprintf(_("<<<<<\n%s----\n\n"), pkt->body);
+	    pkt_init(&nak, P_NAK, _("ERROR unexpected packet type %s\n"),
 		pkt_type2str(pkt->type));
 	    do_sendpkt(as->security_handle, &nak);
 	    amfree(nak.body);
 	    security_recvpkt(as->security_handle, protocol_recv, as, -1);
-	    amandad_debug(1, ("%s: state_machine: %p leaving (A_SENDNAK)\n",
-			      debug_prefix_time(NULL), as));
+	    amandad_debug(1, _("state_machine: %p leaving (A_SENDNAK)\n"), as);
 	    return;
 
 	/*
 	 * Service is done.  Remove it and finish.
 	 */
 	case A_FINISH:
+	    amandad_debug(1, _("state_machine: %p leaving (A_FINISH)\n"), as);
 	    service_delete(as);
-	    amandad_debug(1, ("%s: state_machine: %p leaving (A_FINISH)\n",
-			      debug_prefix_time(NULL), as));
 	    return;
 
 	default:
@@ -792,8 +715,8 @@ s_sendack(
 
     pkt_init_empty(&ack, P_ACK);
     if (do_sendpkt(as->security_handle, &ack) < 0) {
-	dbprintf(("%s: error sending ACK: %s\n",
-	    debug_prefix_time(NULL), security_geterror(as->security_handle)));
+	dbprintf(_("error sending ACK: %s\n"),
+	    security_geterror(as->security_handle));
 	amfree(ack.body);
 	return (A_FINISH);
     }
@@ -826,8 +749,14 @@ s_repwait(
     action_t			action,
     pkt_t *			pkt)
 {
-    ssize_t n;
-    char *repbuf_temp;
+    ssize_t   n;
+    char     *repbuf_temp;
+    char     *what;
+    char     *msg;
+    int       code = 0;
+    int       t;
+    int       pid;
+    amwait_t  retstat;
 
     /*
      * We normally shouldn't receive any packets while waiting
@@ -840,8 +769,7 @@ s_repwait(
 	 * and go back and wait for more data.
 	 */
 	if (pkt->type == P_REQ) {
-	    dbprintf(("%s: received dup P_REQ packet, ACKing it\n",
-		debug_prefix_time(NULL)));
+	    dbprintf(_("received dup P_REQ packet, ACKing it\n"));
 	    amfree(as->rep_pkt.body);
 	    pkt_init_empty(&as->rep_pkt, P_ACK);
 	    do_sendpkt(as->security_handle, &as->rep_pkt);
@@ -854,9 +782,8 @@ s_repwait(
 
     if (action == A_TIMEOUT) {
 	amfree(as->rep_pkt.body);
-	pkt_init(&as->rep_pkt, P_NAK, "ERROR timeout on reply pipe\n");
-	dbprintf(("%s: %s timed out waiting for REP data\n",
-	    debug_prefix_time(NULL), as->cmd));
+	pkt_init(&as->rep_pkt, P_NAK, _("ERROR timeout on reply pipe\n"));
+	dbprintf(_("%s timed out waiting for REP data\n"), as->cmd);
 	do_sendpkt(as->security_handle, &as->rep_pkt);
 	return (A_FINISH);
     }
@@ -873,14 +800,55 @@ s_repwait(
     } while ((n < 0) && ((errno == EINTR) || (errno == EAGAIN)));
     if (n < 0) {
 	const char *errstr = strerror(errno);
-	dbprintf(("%s: read error on reply pipe: %s\n",
-		  debug_prefix_time(NULL), errstr));
+	dbprintf(_("read error on reply pipe: %s\n"), errstr);
 	amfree(as->rep_pkt.body);
-	pkt_init(&as->rep_pkt, P_NAK, "ERROR read error on reply pipe: %s\n",
+	pkt_init(&as->rep_pkt, P_NAK, _("ERROR read error on reply pipe: %s\n"),
 		 errstr);
 	do_sendpkt(as->security_handle, &as->rep_pkt);
 	return (A_FINISH);
     }
+
+    /* If end of service, wait for process status */
+    if (n == 0) {
+	t = 0;
+	pid = waitpid(as->pid, &retstat, WNOHANG);
+	while (t<5 && pid == 0) {
+	    sleep(1);
+	    t++;
+	    pid = waitpid(as->pid, &retstat, WNOHANG);
+	}
+
+	if (pid > 0) {
+	    what = NULL;
+	    if (! WIFEXITED(retstat)) {
+		what = _("signal");
+		code = WTERMSIG(retstat);
+	    } else if (WEXITSTATUS(retstat) != 0) {
+		what = _("code");
+		code = WEXITSTATUS(retstat);
+	    }
+	    if (what) {
+		dbprintf(_("service %s failed: pid %u exited with %s %d\n"),
+			 (as->cmd)?as->cmd:_("??UNKONWN??"),
+			 (unsigned)as->pid,
+			 what, code);
+		msg = vstrallocf(
+		     _("ERROR service %s failed: pid %u exited with %s %d\n"),
+		     (as->cmd)?as->cmd:_("??UNKONWN??"), (unsigned)as->pid,
+		     what, code);
+		if (as->repbufsize + strlen(msg) >= (as->bufsize - 1)) {
+			as->bufsize *= 2;
+			repbuf_temp = alloc(as->bufsize);
+			memcpy(repbuf_temp, as->repbuf, as->repbufsize + 1);
+			amfree(as->repbuf);
+			as->repbuf = repbuf_temp;
+		}
+		strcpy(as->repbuf + as->repbufsize, msg);
+		as->repbufsize += strlen(msg);
+	    }
+	}
+    }
+
     /*
      * If we got some data, go back and wait for more, or EOF.  Nul terminate
      * the buffer first.
@@ -953,7 +921,12 @@ s_processrep(
      * We need to map these to security streams and pass them back
      * to the amanda server.  If the handle is -1, then we don't map.
      */
-    repbuf = stralloc(as->repbuf);
+    if (strncmp_const(as->repbuf,"KENCRYPT\n") == 0) {
+        amandad_kencrypt = KENCRYPT_WILL_DO;
+	repbuf = stralloc(as->repbuf + 9);
+    } else {
+	repbuf = stralloc(as->repbuf);
+    }
     amfree(as->rep_pkt.body);
     pkt_init_empty(&as->rep_pkt, P_REP);
     tok = strtok(repbuf, " ");
@@ -1046,24 +1019,25 @@ s_ackwait(
 	    as->state = s_sendrep;
 	    return (A_CONTINUE);
 	}
-	dbprintf(("%s: timeout waiting for ACK for our REP\n",
-	    debug_prefix_time(NULL)));
+	dbprintf(_("timeout waiting for ACK for our REP\n"));
 	return (A_FINISH);
     }
-    amandad_debug(1, ("%s: received ACK, now opening streams\n",
-		      debug_prefix_time(NULL)));
+    amandad_debug(1, _("received ACK, now opening streams\n"));
 
     assert(action == A_RECVPKT);
 
     if (pkt->type == P_REQ) {
-	dbprintf(("%s: received dup P_REQ packet, resending REP\n",
-		  debug_prefix_time(NULL)));
+	dbprintf(_("received dup P_REQ packet, resending REP\n"));
 	as->state = s_sendrep;
 	return (A_CONTINUE);
     }
 
     if (pkt->type != P_ACK)
 	return (A_SENDNAK);
+
+    if (amandad_kencrypt == KENCRYPT_WILL_DO) {
+	amandad_kencrypt = KENCRYPT_YES;
+    }
 
     /*
      * Got the ack, now open the pipes
@@ -1072,9 +1046,8 @@ s_ackwait(
 	if (dh->netfd == NULL)
 	    continue;
 	if (security_stream_accept(dh->netfd) < 0) {
-	    dbprintf(("%s: stream %td accept failed: %s\n",
-		debug_prefix_time(NULL),
-		dh - &as->data[0], security_geterror(as->security_handle)));
+	    dbprintf(_("stream %td accept failed: %s\n"),
+		dh - &as->data[0], security_geterror(as->security_handle));
 	    security_stream_close(dh->netfd);
 	    dh->netfd = NULL;
 	    continue;
@@ -1109,8 +1082,7 @@ s_ackwait(
      * If no pipes are open, then we're done.  Otherwise, just start running.
      * The event handlers on all of the pipes will take it from here.
      */
-    amandad_debug(1, ("%s: at end of s_ackwait, npipes is %d\n",
-		      debug_prefix_time(NULL), npipes));
+    amandad_debug(1, _("at end of s_ackwait, npipes is %d\n"), npipes);
     if (npipes == 0)
 	return (A_FINISH);
     else {
@@ -1165,17 +1137,17 @@ protocol_recv(
 
     switch (status) {
     case S_OK:
-	dbprintf(("%s: received %s pkt:\n<<<<<\n%s>>>>>\n",
-	    debug_prefix_time(NULL), pkt_type2str(pkt->type), pkt->body));
+	dbprintf(_("received %s pkt:\n<<<<<\n%s>>>>>\n"),
+	    pkt_type2str(pkt->type), pkt->body);
 	state_machine(as, A_RECVPKT, pkt);
 	break;
     case S_TIMEOUT:
-	dbprintf(("%s: timeout\n", debug_prefix_time(NULL)));
+	dbprintf(_("timeout\n"));
 	state_machine(as, A_TIMEOUT, NULL);
 	break;
     case S_ERROR:
-	dbprintf(("%s: receive error: %s\n",
-	    debug_prefix_time(NULL), security_geterror(as->security_handle)));
+	dbprintf(_("receive error: %s\n"),
+	    security_geterror(as->security_handle));
 	break;
     }
 }
@@ -1203,7 +1175,7 @@ process_readnetfd(
      * Process has died.
      */
     if (n < 0) {
-	pkt_init(&nak, P_NAK, "A ERROR data descriptor %d broken: %s\n",
+	pkt_init(&nak, P_NAK, _("A ERROR data descriptor %d broken: %s\n"),
 	    dh->fd_read, strerror(errno));
 	goto sendnak;
     }
@@ -1227,7 +1199,7 @@ process_readnetfd(
     }
     if (security_stream_write(dh->netfd, as->databuf, (size_t)n) < 0) {
 	/* stream has croaked */
-	pkt_init(&nak, P_NAK, "ERROR write error on stream %d: %s\n",
+	pkt_init(&nak, P_NAK, _("ERROR write error on stream %d: %s\n"),
 	    security_stream_id(dh->netfd),
 	    security_stream_geterror(dh->netfd));
 	goto sendnak;
@@ -1256,8 +1228,7 @@ process_writenetfd(
     dh = cookie;
 
     if (dh->fd_write <= 0) {
-	dbprintf(("%s: process_writenetfd: dh->fd_write <= 0\n",
-	    debug_prefix_time(NULL)));
+	dbprintf(_("process_writenetfd: dh->fd_write <= 0\n"));
     } else if (size > 0) {
 	fullwrite(dh->fd_write, buf, (size_t)size);
 	security_stream_read(dh->netfd, process_writenetfd, dh);
@@ -1299,8 +1270,8 @@ allocstream(
     /* allocate a stream from the security layer and return */
     dh->netfd = security_stream_server(as->security_handle);
     if (dh->netfd == NULL) {
-	dbprintf(("%s: couldn't open stream to server: %s\n",
-	    debug_prefix_time(NULL), security_geterror(as->security_handle)));
+	dbprintf(_("couldn't open stream to server: %s\n"),
+	    security_geterror(as->security_handle));
 	return (-1);
     }
 
@@ -1334,18 +1305,18 @@ service_new(
     /* a plethora of pipes */
     for (i = 0; i < DATA_FD_COUNT + 1; i++) {
 	if (pipe(data_read[i]) < 0) {
-	    error("pipe: %s\n", strerror(errno));
+	    error(_("pipe: %s\n"), strerror(errno));
 	    /*NOTREACHED*/
 	}
 	if (pipe(data_write[i]) < 0) {
-	    error("pipe: %s\n", strerror(errno));
+	    error(_("pipe: %s\n"), strerror(errno));
 	    /*NOTREACHED*/
 	}
     }
 
     switch(pid = fork()) {
     case -1:
-	error("could not fork service %s: %s\n", cmd, strerror(errno));
+	error(_("could not fork service %s: %s\n"), cmd, strerror(errno));
 	/*NOTREACHED*/
     default:
 	/*
@@ -1416,16 +1387,12 @@ service_new(
 	 * The child.  Put our pipes in their advertised locations
 	 * and start up.
 	 */
-#ifdef FORCE_USERID
-	seteuid((uid_t)0);
-	setuid(client_uid);
-#endif
 
 	/*
 	 * The data stream is stdin in the new process
 	 */
         if (dup2(data_read[0][0], 0) < 0) {
-	    error("dup %d to %d failed: %s\n", data_read[0][0], 0,
+	    error(_("dup %d to %d failed: %s\n"), data_read[0][0], 0,
 		strerror(errno));
 	    /*NOTREACHED*/
 	}
@@ -1436,7 +1403,7 @@ service_new(
 	 * The reply stream is stdout
 	 */
         if (dup2(data_write[0][1], 1) < 0) {
-	    error("dup %d to %d failed: %s\n", data_write[0][1], 1,
+	    error(_("dup %d to %d failed: %s\n"), data_write[0][1], 1,
 		strerror(errno));
 	}
         aclose(data_write[0][0]);
@@ -1456,14 +1423,14 @@ service_new(
 		  data_read[i + 1][1] <= DATA_FD_OFFSET + DATA_FD_COUNT*2 - 1) {
 		newfd = dup(data_read[i + 1][1]);
 		if(newfd == -1)
-		    error("Can't dup out off DATA_FD range");
+		    error(_("Can't dup out off DATA_FD range"));
 		data_read[i + 1][1] = newfd;
 	    }
 	    while(data_write[i + 1][0] >= DATA_FD_OFFSET &&
 		  data_write[i + 1][0] <= DATA_FD_OFFSET + DATA_FD_COUNT*2 - 1) {
 		newfd = dup(data_write[i + 1][0]);
 		if(newfd == -1)
-		    error("Can't dup out off DATA_FD range");
+		    error(_("Can't dup out off DATA_FD range"));
 		data_write[i + 1][0] = newfd;
 	    }
 	}
@@ -1476,24 +1443,25 @@ service_new(
 	 */
 	for (i = 0; i < DATA_FD_COUNT; i++) {
 	    if (dup2(data_read[i + 1][1], i*2 + DATA_FD_OFFSET) < 0) {
-		error("dup %d to %d failed: %s\n", data_read[i + 1][1],
+		error(_("dup %d to %d failed: %s\n"), data_read[i + 1][1],
 		    i + DATA_FD_OFFSET, strerror(errno));
 	    }
 	    aclose(data_read[i + 1][1]);
 
 	    if (dup2(data_write[i + 1][0], i*2 + 1 + DATA_FD_OFFSET) < 0) {
-		error("dup %d to %d failed: %s\n", data_write[i + 1][0],
+		error(_("dup %d to %d failed: %s\n"), data_write[i + 1][0],
 		    i + DATA_FD_OFFSET, strerror(errno));
 	    }
 	    aclose(data_write[i + 1][0]);
 	}
 
 	/* close all unneeded fd */
+	close(STDERR_FILENO);
+	debug_dup_stderr_to_debug();
 	safe_fd(DATA_FD_OFFSET, DATA_FD_COUNT*2);
-	close(2);
 
 	execle(cmd, cmd, "amandad", auth, (char *)NULL, safe_env());
-	error("could not exec service %s: %s\n", cmd, strerror(errno));
+	error(_("could not exec service %s: %s\n"), cmd, strerror(errno));
 	/*NOTREACHED*/
     }
     return NULL;
@@ -1509,9 +1477,8 @@ service_delete(
     int i;
     struct datafd_handle *dh;
 
-    amandad_debug(1, ("%s: closing service: %s\n",
-		      debug_prefix_time(NULL),
-		      (as->cmd)?as->cmd:"??UNKONWN??"));
+    amandad_debug(1, _("closing service: %s\n"),
+		      (as->cmd)?as->cmd:_("??UNKONWN??"));
 
     assert(as != NULL);
 
@@ -1604,8 +1571,8 @@ do_sendpkt(
     security_handle_t *	handle,
     pkt_t *		pkt)
 {
-    dbprintf(("%s: sending %s pkt:\n<<<<<\n%s>>>>>\n",
-	debug_prefix_time(NULL), pkt_type2str(pkt->type), pkt->body));
+    dbprintf(_("sending %s pkt:\n<<<<<\n%s>>>>>\n"),
+	pkt_type2str(pkt->type), pkt->body);
     if (handle)
 	return security_sendpkt(handle, pkt);
     else
@@ -1636,7 +1603,7 @@ state2str(
     for (i = 0; i < (int)(sizeof(states) / sizeof(states[0])); i++)
 	if (state == states[i].state)
 	    return (states[i].str);
-    return ("INVALID STATE");
+    return (_("INVALID STATE"));
 }
 
 /*
@@ -1666,5 +1633,25 @@ action2str(
     for (i = 0; i < (int)(sizeof(actions) / sizeof(actions[0])); i++)
 	if (action == actions[i].action)
 	    return (actions[i].str);
-    return ("UNKNOWN ACTION");
+    return (_("UNKNOWN ACTION"));
 }
+
+static char *
+amandad_get_security_conf(
+    char *      string,
+    void *      arg)
+{
+    (void)arg;      /* Quiet unused parameter warning */
+
+    if (!string || !*string)
+	return(NULL);
+
+    if (strcmp(string, "kencrypt")==0) {
+	if (amandad_kencrypt == KENCRYPT_YES)
+	    return ("yes");
+	else
+	    return (NULL);
+    }
+    return(NULL);
+}
+

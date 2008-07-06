@@ -36,7 +36,6 @@
 
 static void zero_info(info_t *);
 
-#ifdef TEXTDB
   static char *infodir = (char *)0;
   static char *infofile = (char *)0;
   static char *newinfofile;
@@ -47,15 +46,6 @@ static void zero_info(info_t *);
   static int read_txinfofile(FILE *, info_t *);
   static int write_txinfofile(FILE *, info_t *);
   static int delete_txinfofile(char *, char *);
-#else
-#  define MAX_KEY 256
-/*#  define HEADER	(SIZEOF(info_t)-DUMP_LEVELS*SIZEOF(stats_t))*/
-
-  static DBM *infodb = NULL;
-  static lockfd = -1;
-#endif
-
-#ifdef TEXTDB
 
 static FILE *
 open_txinfofile(
@@ -159,7 +149,7 @@ read_txinfofile(
 	amfree(line);
     }
     if (line == NULL) return -1;
-    rc = sscanf(line, "version: %d", &version);
+    rc = sscanf(line, _("version: %d"), &version);
     amfree(line);
     if(rc != 1) return -2;
 
@@ -169,7 +159,7 @@ read_txinfofile(
 	amfree(line);
     }
     if (line == NULL) return -1;
-    rc = sscanf(line, "command: %u", &info->command);
+    rc = sscanf(line, _("command: %u"), &info->command);
     amfree(line);
     if(rc != 1) return -2;
 
@@ -229,10 +219,9 @@ read_txinfofile(
 
     for(rc = -2; (line = agets(infof)) != NULL; free(line)) {
 	stats_t onestat;	/* one stat record */
-	time_t date = 0;
-        time_t *date_p = &date;
-        time_t *secs_p;
 	int level = 0;
+	long long off_t_tmp;
+	intmax_t time_t_tmp;
 
 	if (line[0] == '\0')
 	    continue;
@@ -263,40 +252,39 @@ read_txinfofile(
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);
-	if(ch == '\0' || sscanf((s - 1), OFF_T_FMT,
-				(OFF_T_FMT_TYPE *)&onestat.size) != 1) {
+	if(ch == '\0' || sscanf((s - 1), "%lld", &off_t_tmp) != 1) {
 	    break;
 	}
+	onestat.size = (off_t)off_t_tmp;
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);
-	if(ch == '\0' || sscanf((s - 1), OFF_T_FMT,
-				(OFF_T_FMT_TYPE *)&onestat.csize) != 1) {
+	if(ch == '\0' || sscanf((s - 1), "%lld", &off_t_tmp) != 1) {
 	    break;
 	}
+	onestat.csize = (off_t)off_t_tmp;
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);
-        secs_p = &onestat.secs;
-	if(ch == '\0' || sscanf((s - 1), TIME_T_FMT,
-				(TIME_T_FMT_TYPE *)secs_p) != 1) {
+	if(ch == '\0' || sscanf((s - 1), "%jd", &time_t_tmp) != 1) {
 	    break;
 	}
+        onestat.secs = (time_t)time_t_tmp;
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);
-	if(ch == '\0' || sscanf((s - 1), TIME_T_FMT,
-				(TIME_T_FMT_TYPE *)date_p) != 1) {
+	if(ch == '\0' || sscanf((s - 1), "%jd", &time_t_tmp) != 1) {
 	    break;
 	}
+	onestat.date = (time_t)time_t_tmp;
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);
 	if(ch != '\0') {
-	    if(sscanf((s - 1), OFF_T_FMT,
-			(OFF_T_FMT_TYPE *)&onestat.filenum) != 1) {
+	    if(sscanf((s - 1), "%lld", &off_t_tmp) != 1) {
 		break;
 	    }
+	    onestat.filenum = (off_t)off_t_tmp;
 	    skip_integer(s, ch);
 
 	    skip_whitespace(s, ch);
@@ -306,8 +294,6 @@ read_txinfofile(
 	    strncpy(onestat.label, s-1, SIZEOF(onestat.label)-1);
 	    onestat.label[SIZEOF(onestat.label)-1] = '\0';
 	}
-
-	onestat.date = date;	/* time_t not guarranteed to be long */
 
 	if(level < 0 || level > DUMP_LEVELS-1)
 	    break;
@@ -331,13 +317,11 @@ read_txinfofile(
 
     for(rc = -2; (line = agets(infof)) != NULL; free(line)) {
 	history_t onehistory;	/* one history record */
-	time_t date;
-	time_t *date_p = &date;
-        time_t *secs_p;
+	long long off_t_tmp;
+	intmax_t time_t_tmp;
 
 	if (line[0] == '\0')
 	    continue;
-	date = 0L;
 	if(line[0] == '/' && line[1] == '/') {
 	    info->history[nb_history].level = -2;
 	    rc = 0;
@@ -363,40 +347,37 @@ read_txinfofile(
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);
-	if(ch == '\0' || sscanf((s - 1), OFF_T_FMT,
-				(OFF_T_FMT_TYPE *)&onehistory.size) != 1) {
+	if(ch == '\0' || sscanf((s - 1), "%lld", &off_t_tmp) != 1) {
 	    amfree(line);
 	    break;
 	}
+	onehistory.size = (off_t)off_t_tmp;
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);
-	if(ch == '\0' || sscanf((s - 1), OFF_T_FMT,
-				(OFF_T_FMT_TYPE *)&onehistory.csize) != 1) {
+	if(ch == '\0' || sscanf((s - 1), "%lld", &off_t_tmp) != 1) {
 	    amfree(line);
 	    break;
 	}
+	onehistory.csize = (off_t)off_t_tmp;
 	skip_integer(s, ch);
 
 	skip_whitespace(s, ch);
-	if(ch == '\0' || sscanf((s - 1), TIME_T_FMT,
-				(TIME_T_FMT_TYPE *)date_p) != 1) {
+	if(ch == '\0' || sscanf((s - 1), "%jd", &time_t_tmp) != 1) {
 	    amfree(line);
 	    break;
 	}
+	onehistory.date = (time_t)time_t_tmp;
 	skip_integer(s, ch);
-
-	onehistory.date = date;	/* time_t not guaranteed to be long */
 
 	onehistory.secs = (unsigned long)-1;
 	skip_whitespace(s, ch);
-        secs_p = &onehistory.secs;
 	if(ch != '\0') {
-	    if(sscanf((s - 1), TIME_T_FMT,
-	    			(TIME_T_FMT_TYPE *)secs_p) != 1) {
+	    if(sscanf((s - 1), "%jd", &time_t_tmp) != 1) {
 		amfree(line);
 		break;
 	    }
+	    onehistory.secs = (time_t)time_t_tmp;
 	    skip_integer(s, ch);
 	}
 
@@ -425,65 +406,62 @@ write_txinfofile(
     perf_t *pp;
     int level;
 
-    fprintf(infof, "version: %d\n", 0);
+    g_fprintf(infof, _("version: %d\n"), 0);
 
-    fprintf(infof, "command: %u\n", info->command);
+    g_fprintf(infof, _("command: %u\n"), info->command);
 
     pp = &info->full;
 
-    fprintf(infof, "full-rate:");
+    g_fprintf(infof, "full-rate:");
     for(i=0; i<AVG_COUNT; i++)
 	if(pp->rate[i] >= 0.0)
-	    fprintf(infof, " %lf", pp->rate[i]);
-    fprintf(infof, "\n");
+	    g_fprintf(infof, " %lf", pp->rate[i]);
+    g_fprintf(infof, "\n");
 
-    fprintf(infof, "full-comp:");
+    g_fprintf(infof, "full-comp:");
     for(i=0; i<AVG_COUNT; i++)
 	if(pp->comp[i] >= 0.0)
-	    fprintf(infof, " %lf", pp->comp[i]);
-    fprintf(infof, "\n");
+	    g_fprintf(infof, " %lf", pp->comp[i]);
+    g_fprintf(infof, "\n");
 
     pp = &info->incr;
 
-    fprintf(infof, "incr-rate:");
+    g_fprintf(infof, "incr-rate:");
     for(i=0; i<AVG_COUNT; i++)
 	if(pp->rate[i] >= 0.0)
-	    fprintf(infof, " %lf", pp->rate[i]);
-    fprintf(infof, "\n");
+	    g_fprintf(infof, " %lf", pp->rate[i]);
+    g_fprintf(infof, "\n");
 
-    fprintf(infof, "incr-comp:");
+    g_fprintf(infof, "incr-comp:");
     for(i=0; i<AVG_COUNT; i++)
 	if(pp->comp[i] >= 0.0)
-	    fprintf(infof, " %lf", pp->comp[i]);
-    fprintf(infof, "\n");
+	    g_fprintf(infof, " %lf", pp->comp[i]);
+    g_fprintf(infof, "\n");
 
     for(level=0; level<DUMP_LEVELS; level++) {
 	sp = &info->inf[level];
 
 	if(sp->date < (time_t)0 && sp->label[0] == '\0') continue;
 
-	fprintf(infof, "stats: %d " OFF_T_FMT " " OFF_T_FMT
-		" " TIME_T_FMT " " OFF_T_FMT,
-		level, (OFF_T_FMT_TYPE)sp->size, (OFF_T_FMT_TYPE)sp->csize,
-		(TIME_T_FMT_TYPE)sp->secs, (OFF_T_FMT_TYPE)sp->date);
+	g_fprintf(infof, "stats: %d %lld %lld %jd %lld",
+		level, (long long)sp->size, (long long)sp->csize,
+		(intmax_t)sp->secs, (long long)sp->date);
 	if(sp->label[0] != '\0')
-	    fprintf(infof, " " OFF_T_FMT " %s",
-		(OFF_T_FMT_TYPE)sp->filenum, sp->label);
-	fprintf(infof, "\n");
+	    g_fprintf(infof, " %lld %s", (long long)sp->filenum, sp->label);
+	g_fprintf(infof, "\n");
     }
 
-    fprintf(infof, "last_level: %d %d\n", info->last_level, info->consecutive_runs);
+    g_fprintf(infof, _("last_level: %d %d\n"), info->last_level, info->consecutive_runs);
 
     for(i=0;info->history[i].level > -1;i++) {
-	fprintf(infof, "history: %d " OFF_T_FMT " " OFF_T_FMT
-		" " TIME_T_FMT " " TIME_T_FMT "\n",
+	g_fprintf(infof, _("history: %d %lld %lld %jd %jd\n"),
 		info->history[i].level,
-		(OFF_T_FMT_TYPE)info->history[i].size,
-		(OFF_T_FMT_TYPE)info->history[i].csize,
-		(TIME_T_FMT_TYPE)info->history[i].date,
-		(TIME_T_FMT_TYPE)info->history[i].secs);
+		(long long)info->history[i].size,
+		(long long)info->history[i].csize,
+		(intmax_t)info->history[i].date,
+		(intmax_t)info->history[i].secs);
     }
-    fprintf(infof, "//\n");
+    g_fprintf(infof, "//\n");
 
     return 0;
 }
@@ -518,66 +496,24 @@ delete_txinfofile(
 
     return rc;
 }
-#endif
-
-#ifndef TEXTDB
-static char *lockname = NULL;
-#endif
 
 int
 open_infofile(
     char *	filename)
 {
-#ifdef TEXTDB
     assert(infodir == (char *)0);
 
     infodir = stralloc(filename);
 
     return 0; /* success! */
-#else
-    /* lock the dbm file */
-
-    lockname = newstralloc2(lockname, filename, ".lck");
-    if((lockfd = open(lockname, O_CREAT|O_RDWR, 0644)) == -1)
-	return 2;
-
-    if(amflock(lockfd, "info") == -1) {
-	aclose(lockfd);
-	unlink(lockname);
-	return 3;
-    }
-
-    if(!(infodb = dbm_open(filename, O_CREAT|O_RDWR, 0644))) {
-	amfunlock(lockfd, "info");
-	aclose(lockfd);
-	unlink(lockname);
-	return 1;
-    }
-
-    return (infodb == NULL);	/* return 1 on error */
-#endif
 }
 
 void
 close_infofile(void)
 {
-#ifdef TEXTDB
     assert(infodir != (char *)0);
 
     amfree(infodir);
-#else
-    dbm_close(infodb);
-
-    if(amfunlock(lockfd, "info") == -1) {
-	error("could not unlock infofile: %s", strerror(errno));
-	/*NOTREACHED*/
-    }
-
-    aclose(lockfd);
-    lockfd = -1;
-
-    unlink(lockname);
-#endif
 }
 
 /* Convert a dump level to a GMT based time stamp */
@@ -599,7 +535,7 @@ get_dumpdate(
     }
 
     t = gmtime(&last);
-    snprintf(stamp, SIZEOF(stamp), "%d:%d:%d:%d:%d:%d",
+    g_snprintf(stamp, SIZEOF(stamp), "%d:%d:%d:%d:%d:%d",
 		t->tm_year+1900, t->tm_mon+1, t->tm_mday,
 		t->tm_hour, t->tm_min, t->tm_sec);
 
@@ -674,7 +610,6 @@ get_info(
     (void) zero_info(info);
 
     {
-#ifdef TEXTDB
 	FILE *infof;
 
 	infof = open_txinfofile(hostname, diskname, "r");
@@ -687,131 +622,9 @@ get_info(
 
 	    close_txinfofile(infof);
 	}
-#else
-	datum k, d;
-
-	/* setup key */
-
-	k.dptr = vstralloc(hostname, ":", diskname, NULL);
-	k.dsize = strlen(k.dptr)+1;
-
-	/* lookup record */
-
-	d = dbm_fetch(infodb, k);
-	amfree(k.dptr);
-	if(d.dptr == NULL) {
-	    rc = -1; /* record not found */
-	}
-	else {
-	    memcpy(info, d.dptr, d.dsize);
-	    rc = 0;
-	}
-#endif
     }
 
     return rc;
-}
-
-
-int
-get_firstkey(
-    char *	hostname,
-    int		hostname_size,
-    char *	diskname,
-    int		diskname_size)
-{
-#ifdef TEXTDB
-    (void)hostname;		/* Quiet unused parameter warning */
-    (void)hostname_size;	/* Quiet unused parameter warning */
-    (void)diskname;		/* Quiet unused parameter warning */
-    (void)diskname_size;	/* Quiet unused parameter warning */
-
-    assert(0);
-    return 0;
-#else
-    datum k;
-    int rc;
-    char *s, *fp;
-    int ch;
-
-    k = dbm_firstkey(infodb);
-    if(k.dptr == NULL) return 0;
-
-    s = k.dptr;
-    ch = *s++;
-
-    skip_whitespace(s, ch);
-    if(ch == '\0') return 0;
-    fp = hostname;
-    while(ch && ch != ':') {
-	if(fp >= hostname+hostname_size-1) {
-	    fp = NULL;
-	    break;
-	}
-	*fp = ch;
-	ch = *s++;
-    }
-    if(fp == NULL) return 0;
-    *fp = '\0';
-
-    if(ch != ':') return 0;
-    ch = *s++;
-    copy_string(s, ch, diskname, diskname_size, fp);
-    if(fp == NULL) return 0;
-
-    return 1;
-#endif
-}
-
-
-int
-get_nextkey(
-    char *	hostname,
-    int		hostname_size,
-    char *	diskname,
-    int		diskname_size)
-{
-#ifdef TEXTDB
-    (void)hostname;		/* Quiet unused parameter warning */
-    (void)hostname_size;	/* Quiet unused parameter warning */
-    (void)diskname;		/* Quiet unused parameter warning */
-    (void)diskname_size;	/* Quiet unused parameter warning */
-
-    assert(0);
-    return 0;
-#else
-    datum k;
-    int rc;
-    char *s, *fp;
-    int ch;
-
-    k = dbm_nextkey(infodb);
-    if(k.dptr == NULL) return 0;
-
-    s = k.dptr;
-    ch = *s++;
-
-    skip_whitespace(s, ch);
-    if(ch == '\0') return 0;
-    fp = hostname;
-    while(ch && ch != ':') {
-	if(fp >= hostname+hostname_size-1) {
-	    fp = NULL;
-	    break;
-	}
-	*fp = ch;
-	ch = *s++;
-    }
-    if(fp == NULL) return 0;
-    *fp = '\0';
-
-    if(ch != ':') return 0;
-    ch = *s++;
-    copy_string(s, ch, diskname, diskname_size, fp);
-    if(fp == NULL) return 0;
-
-    return 1;
-#endif
 }
 
 
@@ -821,7 +634,6 @@ put_info(
      char *	diskname,
      info_t *	info)
 {
-#ifdef TEXTDB
     FILE *infof;
     int rc;
 
@@ -834,28 +646,6 @@ put_info(
     rc = rc || close_txinfofile(infof);
 
     return rc;
-#else
-    datum k, d;
-    int maxlev;
-
-    /* setup key */
-
-    k.dptr = vstralloc(hostname, ":", diskname, NULL);
-    k.dsize = strlen(k.dptr)+1;
-
-    d.dptr = (char *)info;
-    d.dsize = SIZEOF(info_t);
-
-    /* store record */
-
-    if(dbm_store(infodb, k, d, DBM_REPLACE) != 0) {
-	amfree(k.dptr);
-	return -1;
-    }
-
-    amfree(k.dptr);
-    return 0;
-#endif
 }
 
 
@@ -864,26 +654,7 @@ del_info(
     char *	hostname,
     char *	diskname)
 {
-#ifdef TEXTDB
     return delete_txinfofile(hostname, diskname);
-#else
-    char key[MAX_KEY];
-    datum k;
-
-    /* setup key */
-
-    k.dptr = vstralloc(hostname, ":", diskname, NULL);
-    k.dsize = strlen(key)+1;
-
-    /* delete key and record */
-
-    if(dbm_delete(infodb, k) != 0) {
-	amfree(k.dptr);
-	return -1;
-    }
-    amfree(k.dptr);
-    return 0;
-#endif
 }
 
 
@@ -898,29 +669,28 @@ dump_rec(
     int i;
     stats_t *sp;
 
-    printf("command word: %d\n", info->command);
-    printf("full dump rate (K/s) %5.1lf, %5.1lf, %5.1lf\n",
+    g_printf(_("command word: %d\n"), info->command);
+    g_printf(_("full dump rate (K/s) %5.1lf, %5.1lf, %5.1lf\n"),
 	   info->full.rate[0],info->full.rate[1],info->full.rate[2]);
-    printf("full comp rate %5.1lf, %5.1lf, %5.1lf\n",
+    g_printf(_("full comp rate %5.1lf, %5.1lf, %5.1lf\n"),
 	   info->full.comp[0]*100,info->full.comp[1]*100,info->full.comp[2]*100);
-    printf("incr dump rate (K/s) %5.1lf, %5.1lf, %5.1lf\n",
+    g_printf(_("incr dump rate (K/s) %5.1lf, %5.1lf, %5.1lf\n"),
 	   info->incr.rate[0],info->incr.rate[1],info->incr.rate[2]);
-    printf("incr comp rate %5.1lf, %5.1lf, %5.1lf\n",
+    g_printf(_("incr comp rate %5.1lf, %5.1lf, %5.1lf\n"),
 	   info->incr.comp[0]*100,info->incr.comp[1]*100,info->incr.comp[2]*100);
     for(i = 0; i < DUMP_LEVELS; i++) {
 	sp = &info->inf[i];
 	if( sp->size != -1) {
 
-	    printf("lev %d date %ld tape %s filenum " OFF_T_FMT " size %ld csize %ld secs %ld\n",
+	    g_printf(_("lev %d date %ld tape %s filenum %lld size %ld csize %ld secs %ld\n"),
 	           i, (long)sp->date, sp->label, sp->filenum,
 	           sp->size, sp->csize, sp->secs);
 	}
     }
     putchar('\n');
-   printf("last_level: %d %d\n", info->last_level, info->consecutive_runs);
+    g_printf(_("last_level: %d %d\n"), info->last_level, info->consecutive_runs);
 }
 
-#ifdef TEXTDB
 void dump_db( char *host, char *disk);
 
 void
@@ -934,39 +704,9 @@ dump_db(
     if((rc = get_info(host, disk, &info)) == 0) {
 	dump_rec(&info);
     } else {
-	printf("cannot fetch information for %s:%s rc=%d\n", host, disk, rc);
+	g_printf(_("cannot fetch information for %s:%s rc=%d\n"), host, disk, rc);
     }
 }
-#else
-void
-dump_db(
-    char *	str)
-{
-    datum k,d;
-    int rec,r,num;
-    info_t info;
-
-
-    printf("info database %s:\n--------\n", str);
-    rec = 0;
-    k = dbm_firstkey(infodb);
-    while(k.dptr != NULL) {
-
-	printf("%3d: KEY %s =\n", rec, k.dptr);
-
-	d = dbm_fetch(infodb, k);
-	memset(&info, '\0', SIZEOF(info));
-	memcpy(&info, d.dptr, d.dsize);
-
-	num = (d.dsize-HEADER)/SIZEOF(stats_t);
-	dump_rec(&info);
-
-	k = dbm_nextkey(infodb);
-	rec++;
-    }
-    puts("--------\n");
-}
-#endif
 
 int
 main(
@@ -974,8 +714,15 @@ main(
     char **	argv)
 {
   int i;
-  unsigned long malloc_hist_1, malloc_size_1;
-  unsigned long malloc_hist_2, malloc_size_2;
+
+  /*
+   * Configure program for internationalization:
+   *   1) Only set the message locale for now.
+   *   2) Set textdomain for all amanda related programs to "amanda"
+   *      We don't want to be forced to support dozens of message catalogs.
+   */  
+  setlocale(LC_MESSAGES, "C");
+  textdomain("amanda"); 
 
   safe_fd(-1, 0);
 
@@ -983,28 +730,15 @@ main(
 
   dbopen(DBG_SUBDIR_SERVER);
 
-  malloc_size_1 = malloc_inuse(&malloc_hist_1);
-
   for(i = 1; i < argc; ++i) {
-#ifdef TEXTDB
     if(i+1 >= argc) {
-      fprintf(stderr,"usage: %s host disk [host disk ...]\n",argv[0]);
+      g_fprintf(stderr,_("usage: %s host disk [host disk ...]\n"),argv[0]);
       return 1;
     }
     open_infofile("curinfo");
     dump_db(argv[i], argv[i+1]);
     i++;
-#else
-    open_infofile(argv[i]);
-    dump_db(argv[i]);
-#endif
     close_infofile();
-  }
-
-  malloc_size_2 = malloc_inuse(&malloc_hist_2);
-
-  if(malloc_size_1 != malloc_size_2) {
-    malloc_list(fileno(stderr), malloc_hist_1, malloc_hist_2);
   }
 
   return 0;

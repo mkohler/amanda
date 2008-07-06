@@ -1,0 +1,66 @@
+.\"     Title: amcryptsimple
+.\"    Author: 
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 03/31/2008
+.\"    Manual: 
+.\"    Source: 
+.\"
+.TH "AMCRYPTSIMPLE" "8" "03/31/2008" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+amcryptsimple - reference simple crypt program for Amanda symmetric data encryption
+.SH "SYNOPSIS"
+.HP 14
+\fBamcryptsimple\fR  to be called by \fIAmanda\fR only 
+.SH "DESCRIPTION"
+.PP
+
+\fBamcryptsimple\fR
+calls
+\fBgpg\fR
+to perform symmetric data encryption on
+\fIAmanda\fR
+backup\.
+\fBamcryptsimple\fR
+will search for the gpg program in the following directories: /usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+.PP
+
+\fBamcryptsimple\fR
+uses one passphrase to encrypt the
+\fIAmanda\fR
+data and uses the same passphrase to decrypt the
+\fIAmanda\fR
+backup data\.
+\fBamcryptsimple\fR
+uses AES256 as the symmetric cipher\.
+.SH "HOW TO CREATE PASSPHRASE"
+
+
+Store  the  passphrase  inside the home\-directory of the AMANDA\-user($amanda_user) and protect it with proper permissions:
+
+   echo my_secret_passphrase > ~$amanda_user/\.am_passphrase
+   chown $amanda_user:disk ~$amanda_user/\.am_passphrase
+   chmod 700 ~$amanda_user/\.am_passphrase
+.SH "NOTES"
+.PP
+Choose a good passphrase and protect it properly\. Backup data can only be restored with the passphrase\. There is no backdoor\.
+.PP
+If storing and securing passphrase in your environment presents challenges,
+\fIAmanda\fR
+provide public\-key data encryption through
+\fBamgpgcrypt\fR\. Public\-key encryption uses the public key to encrypt and uses the private key to decrypt\.
+.SH "AUTHOR"
+.PP
+The tool and its documentation was written by Zmanda, Inc (http://www\.zmanda\.com/)\.
+.SH "SEE ALSO"
+.PP
+\fBamanda\fR(8),
+\fBamanda.conf\fR(5),
+\fBamcrypt\fR(8),
+\fBamgpgcrypt\fR(8),
+\fBamrestore\fR(8),
+\fBgpg\fR(1),
+\fBhttp://wiki.zmanda.com\fR()

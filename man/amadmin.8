@@ -1,17 +1,17 @@
 .\"     Title: amadmin
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 03/31/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMADMIN" "8" "06/06/2007" "" ""
+.TH "AMADMIN" "8" "03/31/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amadmin \- administrative interface to control Amanda backups
+amadmin - administrative interface to control Amanda backups
 .SH "SYNOPSIS"
 .HP 8
 \fBamadmin\fR \fIconfig\fR \fIcommand\fR [\fIcommand_options\fR...] [\fB\-o\ \fR\fIconfigoption\fR]...
@@ -21,12 +21,12 @@ amadmin \- administrative interface to control Amanda backups
 performs various administrative tasks on the
 \fIconfig\fR
 \fIAmanda\fR
-configuration.
+configuration\.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR.
+\fIAmanda\fR\.
 .SH "COMMANDS"
 .PP
 Commands that take a
@@ -37,28 +37,28 @@ Commands that take a
 \fIdisklist\fR
 for that
 \fIhostname\fR
-if no disks are specified. Where
+if no disks are specified\. Where
 \fIhostname\fR
 is also marked as being optional, the command operates on all hosts and disks in the
-\fIdisklist\fR. Both
+\fIdisklist\fR\. Both
 \fIhostname\fR
 and
 \fIdisks\fR
 are special expressions; see the "HOST & DISK EXPRESSION" section of
 \fBamanda\fR(8)
-for a description.
+for a description\.
 .PP
 Commands that take one or more
 \fIdumpspec\fR
-parameters operate on the set of dumps specified by all of the expressions. See the "DUMP SPECIFICATIONS" section of
+parameters operate on the set of dumps specified by all of the expressions\. See the "DUMP SPECIFICATIONS" section of
 \fBamanda\fR(8)
-for a description.
+for a description\.
 .PP
 \fBversion\fR
 .RS 4
-Show the current version and some compile time and runtime parameters. The
+Show the current version and some compile time and runtime parameters\. The
 \fIconfig\fR
-parameter must be present but is ignored.
+parameter must be present but is ignored\.
 .RE
 .PP
 \fBforce\-bump\fR [ \fIhostname\fR [ \fIdisks\fR ]* ]+
@@ -69,7 +69,7 @@ on
 \fIhostname\fR
 to bump to a new incremental level during the next
 \fIAmanda\fR
-run.
+run\.
 .RE
 .PP
 \fBforce\-no\-bump\fR [ \fIhostname\fR [ \fIdisks\fR ]* ]+
@@ -80,7 +80,7 @@ on
 \fIhostname\fR
 to not bump to a new incremental level during the next
 \fIAmanda\fR
-run.
+run\.
 .RE
 .PP
 \fBunforce\-bump\fR [ \fIhostname\fR [ \fIdisks\fR ]* ]+
@@ -89,7 +89,7 @@ Undo a previous
 \fBforce\-bump\fR
 or
 \fBforce\-no\-bump\fR
-command.
+command\.
 .RE
 .PP
 \fBforce\fR [ \fIhostname\fR [ \fIdisks\fR ]* ]+
@@ -100,45 +100,45 @@ on
 \fIhostname\fR
 to do a full (level 0) backup during the next
 \fIAmanda\fR
-run.
+run\.
 .RE
 .PP
 \fBunforce\fR [ \fIhostname\fR [ \fIdisks\fR ]* ]+
 .RS 4
 Undo a previous
 \fBforce\fR
-command.
+command\.
 .RE
 .PP
-\fBreuse\fR \fItapelabel\fR [ ... ]
+\fBreuse\fR \fItapelabel\fR [ \.\.\. ]
 .RS 4
-The tapes listed will be available for reuse at their point in the tape cycle.
+The tapes listed will be available for reuse at their point in the tape cycle\.
 .RE
 .PP
-\fBno\-reuse\fR \fItapelabel\fR [ ... ]
+\fBno\-reuse\fR \fItapelabel\fR [ \.\.\. ]
 .RS 4
-The tapes listed will not be reused when their turn comes up again in the tape cycle. Note that if this causes the number of reusable tapes to drop below the
-\fBamanda.conf\fR
+The tapes listed will not be reused when their turn comes up again in the tape cycle\. Note that if this causes the number of reusable tapes to drop below the
+\fBamanda\.conf\fR
 \fItapecycle\fR
 value,
 \fIAmanda\fR
-will request new tapes until the count is satisfied again.
+will request new tapes until the count is satisfied again\.
 .sp
 Tape marked
 \fIno\-reuse\fR
 are available for recovery, marking them
 \fIno\-reuse\fR
-is a security to be sure amanda will not overwrite them.
+is a security to be sure amanda will not overwrite them\.
 .RE
 .PP
 \fBdue\fR [ \fIhostname\fR [ \fIdisks\fR ]* ]*
 .RS 4
-Show when the next full dump is due.
+Show when the next full dump is due\.
 .RE
 .PP
 \fBfind\fR [ \fB\-\-sort\fR \fIhkdlpb\fR ] [ \fIhostname\fR [ \fIdisks\fR ]* ]*
 .RS 4
-Display all backups currently on tape or in the holding disk. The tape label or holding disk filename, file number, and status are displayed.
+Display all backups currently on tape or in the holding disk\. The tape label or holding disk filename, file number, and status are displayed\.
 .sp
 The
 \fB\-\-sort\fR
@@ -155,18 +155,22 @@ option changes the sort order using the following flags:
 .fi
 .RE
 .sp
-An uppercase letter reverses the sort order for that key. The default sort order is
-\fBhkdlpb\fR.
+An uppercase letter reverses the sort order for that key\. The default sort order is
+\fBhkdlpb\fR\.
 .RE
 .PP
-\fBholding delete\fR \fIhostname\fR [ \fIdisk\fR [ \fIdatestamp\fR [ .. ] ] ]
+\fBholding delete\fR \fIhostname\fR [ \fIdisk\fR [ \fIdatestamp\fR [ \.\. ] ] ]
 .RS 4
-Delete holding files matching the given specification. At least a hostname must be provided.
+Delete holding files matching the given specification\. At least a hostname must be provided\.
 .RE
 .PP
-\fBholding list\fR [\-l] [ \fIhostname\fR [ \fIdisk\fR [ \fIdatestamp\fR [ .. ] ] ] ]
+\fBholding list\fR [\-l] [\-d] [ \fIhostname\fR [ \fIdisk\fR [ \fIdatestamp\fR [ \.\. ] ] ] ]
 .RS 4
-List holding files matching the given specification, or all holding files if no specification is provided. With '\-l', additional information (size and level) is provided.
+List holding files matching the given specification, or all holding files if no specification is provided\. With \'\-l\', additional information (size, level, and whether the dump is outdated) is provided\. With \'\-d\', only outdated dumps are shown\.
+.sp
+An outdated holding file is one which is not required for a restore of the
+\fImost recent\fR
+dump\. Note that outdated dumps may still be required for restores at earlier dates\. For example, assume that a DLE had a level 0 on Monday, level 1\'s Tuesday through Thursday, and a level 2 on Friday\. Then the files required for a restore of Fridays (the most recent) dump are those from Monday (level 0), Thursday (level 1), and Friday (level 2)\. Tuesday and Wednesday\'s files are outdated\.
 .RE
 .PP
 \fBdelete\fR [ \fIhostname\fR [ \fIdisks\fR ]* ]+
@@ -177,36 +181,36 @@ on
 \fIhostname\fR
 from the
 \fIAmanda\fR
-database.
+database\.
 .sp
 .it 1 an-trap
 .nr an-no-space-flag 1
 .nr an-break-flag 1
 .br
-\fBNote\fR
+Note
 If you do not also remove the disk from the
 \fIdisklist\fR
 file,
 \fIAmanda\fR
-will treat it as a new disk during the next run.
+will treat it as a new disk during the next run\.
 .RE
 .PP
 \fBtape\fR
 .RS 4
 Display the tape(s)
 \fIAmanda\fR
-expects to write to during the next run. See also
-\fBamcheck\fR(8).
+expects to write to during the next run\. See also
+\fBamcheck\fR(8)\.
 .RE
 .PP
 \fBbumpsize\fR
 .RS 4
-Display the current bump threshold parameters, calculated for all backup levels.
+Display the current bump threshold parameters, calculated for all backup levels\.
 .RE
 .PP
 \fBbalance\fR [ \fB\-\-days\fR \fI<num>\fR ]
 .RS 4
-Display the distribution of full backups throughout the dump schedule.
+Display the distribution of full backups throughout the dump schedule\.
 .RE
 .PP
 \fBexport\fR [ \fIhostname\fR [ \fIdisks\fR ]* ]*
@@ -216,7 +220,7 @@ Convert records from the
 database to a text format that may be transmitted to another
 \fIAmanda\fR
 machine and
-\fBimport\fRed.
+\fBimport\fRed\.
 .RE
 .PP
 \fBimport\fR
@@ -224,7 +228,7 @@ machine and
 Convert
 \fBexport\fRed records read from standard input to a form
 \fIAmanda\fR
-uses and insert them into the database on this machine.
+uses and insert them into the database on this machine\.
 .RE
 .PP
 \fBdisklist\fR [ \fIhostname\fR [ \fIdisks\fR ]* ]*
@@ -235,7 +239,7 @@ information for each of the
 \fIdisks\fR
 on
 \fIhostname\fR
-(or all hosts). Mostly used for debugging.
+(or all hosts)\. Mostly used for debugging\.
 .RE
 .PP
 \fBinfo\fR [ \fIhostname\fR [ \fIdisks\fR ]* ]*
@@ -244,13 +248,13 @@ Display the database record for each of the
 \fIdisks\fR
 on
 \fIhostname\fR
-(or all hosts). Mostly used for debugging.
+(or all hosts)\. Mostly used for debugging\.
 .RE
 .PP
 \fB\-o\fR \fIconfigoption\fR
 .RS 4
 See the "\fBCONFIGURATION OVERRIDE\fR" section in
-\fBamanda\fR(8).
+\fBamanda\fR(8)\.
 .RE
 .SH "EXAMPLES"
 .PP
@@ -258,14 +262,14 @@ Request three specific file systems on
 \fImachine\-a\fR
 get a full level 0 backup during the next
 \fIAmanda\fR
-run.
+run\.
 .sp
 .RS 4
 .nf
 $ amadmin daily force machine\-a / /var /usr
-amadmin: machine\-a:/ is set to a forced level 0 tonight.
-amadmin: machine\-a:/var is set to a forced level 0 tonight.
-amadmin: machine\-a:/usr is set to a forced level 0 tonight.
+amadmin: machine\-a:/ is set to a forced level 0 tonight\.
+amadmin: machine\-a:/var is set to a forced level 0 tonight\.
+amadmin: machine\-a:/usr is set to a forced level 0 tonight\.
 .fi
 .RE
 .PP
@@ -273,15 +277,15 @@ Request all file systems on
 \fImachine\-b\fR
 get a full level 0 backup during the next
 \fIAmanda\fR
-run.
+run\.
 .sp
 .RS 4
 .nf
 $ amadmin daily force machine\-b
-amadmin: machine\-b:/ is set to a forced level 0 tonight.
-amadmin: machine\-b:/var is set to a forced level 0 tonight.
-amadmin: machine\-b:/usr is set to a forced level 0 tonight.
-amadmin: machine\-b:/home is set to a forced level 0 tonight.
+amadmin: machine\-b:/ is set to a forced level 0 tonight\.
+amadmin: machine\-b:/var is set to a forced level 0 tonight\.
+amadmin: machine\-b:/usr is set to a forced level 0 tonight\.
+amadmin: machine\-b:/home is set to a forced level 0 tonight\.
 .fi
 .RE
 .PP
@@ -290,25 +294,25 @@ Undo the previous
 request for
 \fI/home\fR
 on
-\fImachine\-b\fR. The other file systems will still get a full level 0 backup.
+\fImachine\-b\fR\. The other file systems will still get a full level 0 backup\.
 .sp
 .RS 4
 .nf
 $ amadmin daily unforce machine\-b /home
-amadmin: force command for machine\-b:/home cleared.
+amadmin: force command for machine\-b:/home cleared\.
 .fi
 .RE
 .PP
 Locate backup images of
 \fI/var\fR
 from
-\fImachine\-c\fR. The
+\fImachine\-c\fR\. The
 \fItape or file\fR
-column displays either a tape label or a filename depending on whether the image is on tape or is still in the holding disk. If the image is on tape, the
+column displays either a tape label or a filename depending on whether the image is on tape or is still in the holding disk\. If the image is on tape, the
 \fIfile\fR
-column tells you which file on the tape has the image (file number zero is a tape label). This column shows zero and is not meaningful if the image is still in the holding disk. The
+column tells you which file on the tape has the image (file number zero is a tape label)\. This column shows zero and is not meaningful if the image is still in the holding disk\. The
 \fIstatus\fR
-column tells you whether the backup was successful or had some type of error.
+column tells you whether the backup was successful or had some type of error\.
 .sp
 .RS 4
 .nf
@@ -316,7 +320,7 @@ $ amadmin daily find machine\-c /var
 date        host      disk lv tape or file                 file part  status
 2000\-11\-09  machine\-c /var  0 000110                       9   \-\-  OK
 2000\-11\-08  machine\-c /var  2 000109                       2   \-\-  OK
-2000\-11\-07  machine\-c /var  2 /amanda/20001107/machine\-c._var.2  0 OK
+2000\-11\-07  machine\-c /var  2 /amanda/20001107/machine\-c\._var\.2  0 OK
 2000\-11\-06  machine\-c /var  2 000107                       2   \-\-  OK
 2000\-11\-05  machine\-c /var  2 000106                       3   \-\-  OK
 2000\-11\-04  machine\-c /var  2 000105                       2   \-\-  OK
@@ -330,86 +334,86 @@ date        host      disk lv tape or file                 file part  status
 Forget about the
 \fI/workspace\fR
 disk on
-\fImachine\-d\fR. If you do not also remove the disk from the
+\fImachine\-d\fR\. If you do not also remove the disk from the
 \fIdisklist\fR
 file,
 \fIAmanda\fR
-will treat it as a new disk during the next run.
+will treat it as a new disk during the next run\.
 .sp
 .RS 4
 .nf
 $ amadmin daily delete machine\-d /workspace
-amadmin: machine\-d:/workspace deleted from database.
-amadmin: NOTE: you'll have to remove these from the disklist yourself.
+amadmin: machine\-d:/workspace deleted from database\.
+amadmin: NOTE: you\'ll have to remove these from the disklist yourself\.
 .fi
 .RE
 .PP
 Find the next tape
 \fIAmanda\fR
 will use (in this case,
-123456).
+123456)\.
 .sp
 .RS 4
 .nf
 $ amadmin daily tape
-The next \fIAmanda\fR run should go onto tape 123456 or a new tape.
+The next \fIAmanda\fR run should go onto tape 123456 or a new tape\.
 .fi
 .RE
 .PP
-Show how well full backups are balanced across the dump cycle. The
+Show how well full backups are balanced across the dump cycle\. The
 \fIdue\-date\fR
-column is the day the backups are due for a full backup.
+column is the day the backups are due for a full backup\.
 \fI#fs\fR
 shows the number of filesystems doing full backups that night, and
 \fIorig KB\fR
 and
 \fIout KB\fR
-show the estimated total size of the backups before and after any compression, respectively.
+show the estimated total size of the backups before and after any compression, respectively\.
 .PP
 The
 \fIbalance\fR
-column shows how far off that night's backups are from the average size (shown at the bottom of the balance column).
+column shows how far off that night\'s backups are from the average size (shown at the bottom of the balance column)\.
 \fIAmanda\fR
 tries to keep the backups within +/\- 5%, but since the amount of data on each filesystem is always changing, and
 \fIAmanda\fR
-will never delay backups just to rebalance the schedule, it is common for the schedule to fluctuate by larger percentages. In particular, in the case of a tape or backup failure, a bump will occur the following night, which will not be smoothed out until the next pass through the schedule.
+will never delay backups just to rebalance the schedule, it is common for the schedule to fluctuate by larger percentages\. In particular, in the case of a tape or backup failure, a bump will occur the following night, which will not be smoothed out until the next pass through the schedule\.
 .PP
 The last line also shows an estimate of how many
 \fIAmanda\fR
-runs will be made between full backups for a file system. In the example, a file system will probably have a full backup done every eight times
+runs will be made between full backups for a file system\. In the example, a file system will probably have a full backup done every eight times
 \fIAmanda\fR
-is run (e.g. every eight days).
+is run (e\.g\. every eight days)\.
 .sp
 .RS 4
 .nf
 $ amadmin daily balance
  due\-date  #fs   orig KB    out KB  balance
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
-11/10 Mon   21    930389    768753    +5.1%
-11/11 Tue   29   1236272    733211    +0.2%
-11/12 Wed   31   1552381    735796    +0.6%
-11/13 Thu   23   1368447    684552    \-6.4%
-11/14 Fri   32   1065603    758155    +3.6%
-11/15 Sat   14   1300535    738430    +0.9%
-11/16 Sun   31   1362696    740365    +1.2%
-11/17 Mon   30   1427936    773397    +5.7%
-11/18 Tue   11   1059191    721786    \-1.3%
-11/19 Wed   19   1108737    661867    \-9.5%
+11/10 Mon   21    930389    768753    +5\.1%
+11/11 Tue   29   1236272    733211    +0\.2%
+11/12 Wed   31   1552381    735796    +0\.6%
+11/13 Thu   23   1368447    684552    \-6\.4%
+11/14 Fri   32   1065603    758155    +3\.6%
+11/15 Sat   14   1300535    738430    +0\.9%
+11/16 Sun   31   1362696    740365    +1\.2%
+11/17 Mon   30   1427936    773397    +5\.7%
+11/18 Tue   11   1059191    721786    \-1\.3%
+11/19 Wed   19   1108737    661867    \-9\.5%
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
 TOTAL      241  12412187   7316312   731631  (estimated 8 runs per dumpcycle)
 .fi
 .RE
 .SH "FILES"
 .PP
-/usr/local/etc/amanda/\fIconfig\fR/amanda.conf
+/usr/local/etc/amanda/\fIconfig\fR/amanda\.conf
 .SH "AUTHOR"
 .PP
 James da Silva,
-<jds@amanda.org>
+<jds@amanda\.org>
 : Original text
 .PP
-Stefan G. Weichinger,
-<sgw@amanda.org>, maintainer of the
+Stefan G\. Weichinger,
+<sgw@amanda\.org>, maintainer of the
 \fIAmanda\fR\-documentation: XML\-conversion
 .SH "SEE ALSO"
 .PP
@@ -417,4 +421,5 @@ Stefan G. Weichinger,
 \fBamcheck\fR(8),
 \fBamdump\fR(8),
 \fBamrestore\fR(8),
-\fBamfetchdump\fR(8)
+\fBamfetchdump\fR(8),
+\fBhttp://wiki.zmanda.com\fR()

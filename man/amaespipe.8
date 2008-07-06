@@ -1,17 +1,17 @@
 .\"     Title: amaespipe
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 03/31/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMAESPIPE" "8" "06/06/2007" "" ""
+.TH "AMAESPIPE" "8" "03/31/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amaespipe \- wrapper program for aespipe
+amaespipe - wrapper program for aespipe
 .SH "SYNOPSIS"
 .HP 10
 \fBamaespipe\fR
@@ -24,12 +24,12 @@ requires
 \fBuuencode\fR
 and
 \fBgpg\fR
-to work. Aespipe is available from
-\fI\%http://loop\-aes.sourceforge.net\fR
+to work\. Aespipe is available from
+\fI\%http://loop-aes.sourceforge.net\fR
 .PP
 
 \fBamaespipe\fR
-will search for the aespipe program in the following directories: /usr/bin:/usr/local/bin:/sbin:/usr/sbin.
+will search for the aespipe program in the following directories: /usr/bin:/usr/local/bin:/sbin:/usr/sbin\.
 .PP
 
 \fBamaespipe\fR
@@ -37,19 +37,20 @@ is called by
 \fBamcrypt\fR
 for
 \fIAmanda\fR
-data encryption.
+data encryption\.
 .PP
 
 \fBamaespipe\fR
-is based on aespipe's bzaespipe program. It calls aespipe to encrypt data using AES256 as the encryption and SHA256 as the hash function. GPG key should be stored in $AMANDA_HOME/.gnupg/am_key.gpg.
+is based on aespipe\'s bzaespipe program\. It calls aespipe to encrypt data using AES256 as the encryption and SHA256 as the hash function\. GPG key should be stored in $AMANDA_HOME/\.gnupg/am_key\.gpg\.
 \fBamaespipe\fR
-reads passphrase from file descriptor 3. During decryption,
+reads passphrase from file descriptor 3\. During decryption,
 \fBamaespipe\fR
-autodects encryption type and hash function from the encrypted image.
+autodects encryption type and hash function from the encrypted image\.
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
 \fBamanda.conf\fR(5),
 \fBaespipe\fR(1),
 \fBamcrypt\fR(8),
-\fBgpg\fR(1)
+\fBgpg\fR(1),
+\fBhttp://wiki.zmanda.com\fR()

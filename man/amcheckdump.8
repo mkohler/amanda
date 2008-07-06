@@ -1,0 +1,52 @@
+.\"     Title: amcheckdump
+.\"    Author: 
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 03/31/2008
+.\"    Manual: 
+.\"    Source: 
+.\"
+.TH "AMCHECKDUMP" "8" "03/31/2008" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+amcheckdump - check the results of an Amanda dump
+.SH "SYNOPSIS"
+.HP 12
+\fBamcheckdump\fR \fIconfig\fR [\-\-timestamp|\-t\ \fItimestamp\fR] [\-o\ \fIconfigoption\fR]...
+.SH "DESCRIPTION"
+.PP
+\fBAmcheckdump\fR
+verifies
+\fIAmanda\fR
+dump images by reading them from storage volume(s) and verifying that the images can be parsed by the appropriate application (if available)\. For example, a GNUTAR image is passed to GNU Tar for parsing, and any errors (e\.g\., corrupt or missing data) are noted\.
+.PP
+The application runs on the most recent dump or, if
+\fI\-\-timestamp\fR
+is specified, on the most recent dump with that timestamp\. Note that the verification is local to the
+\fIAmanda\fR
+server; if the dump application is not available, or is configured differently on the server than on the client, then the verification will most likely fail\.
+.PP
+If a changer is available, it is used to load the required tapes\. Otherwise, the application interactively requests the tapes\.
+.PP
+See the "\fBCONFIGURATION OVERRIDE\fR" section in
+\fBamanda\fR(8)
+for information on the
+\-o
+option\.
+.SH "EXAMPLE"
+.PP
+.RS 4
+.nf
+# check the most recent dump
+amcheckdump MYCONFIG
+
+# check a specific dump from back in \'78
+amcheckdump MYCONFIG \-\-timestamp 19780615
+.fi
+.RE
+.SH "SEE ALSO"
+.PP
+\fBamanda\fR(8),
+\fBhttp://wiki.zmanda.com\fR()

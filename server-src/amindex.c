@@ -64,7 +64,7 @@ getindexfname(
     datebuf[SIZEOF(datebuf)-1] = '\0';
     dc = datebuf;
 
-    snprintf(level_str, SIZEOF(level_str), "%d", level);
+    g_snprintf(level_str, SIZEOF(level_str), "%d", level);
   }
 
   host = sanitise_filename(host);
@@ -72,12 +72,7 @@ getindexfname(
     disk = sanitise_filename(disk);
   }
 
-  conf_indexdir = getconf_str(CNF_INDEXDIR);
-  if (*conf_indexdir == '/') {
-    conf_indexdir = stralloc(conf_indexdir);
-  } else {
-    conf_indexdir = stralloc2(config_dir, conf_indexdir);
-  }
+  conf_indexdir = config_dir_relative(getconf_str(CNF_INDEXDIR));
   /*
    * Note: vstralloc() will stop at the first NULL, which might be
    * "disk" or "dc" (datebuf) rather than the full file name.
@@ -126,7 +121,7 @@ getoldindexfname(
     datebuf[SIZEOF(datebuf)-1] = '\0';
     dc = datebuf;
 
-    snprintf(level_str, SIZEOF(level_str), "%d", level);
+    g_snprintf(level_str, SIZEOF(level_str), "%d", level);
   }
 
   host = old_sanitise_filename(host);
@@ -134,12 +129,7 @@ getoldindexfname(
     disk = old_sanitise_filename(disk);
   }
 
-  conf_indexdir = getconf_str(CNF_INDEXDIR);
-  if (*conf_indexdir == '/') {
-    conf_indexdir = stralloc(conf_indexdir);
-  } else {
-    conf_indexdir = stralloc2(config_dir, conf_indexdir);
-  }
+  conf_indexdir = config_dir_relative(getconf_str(CNF_INDEXDIR));
   /*
    * Note: vstralloc() will stop at the first NULL, which might be
    * "disk" or "dc" (datebuf) rather than the full file name.

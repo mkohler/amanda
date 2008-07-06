@@ -174,15 +174,15 @@ writeblocks(
 static void
 usage(void)
 {
-  fputs("usage: ", stderr);
+  fputs(_("usage: "), stderr);
   fputs(sProgName, stderr);
-  fputs(" [-h]", stderr);
-  fputs(" [-c]", stderr);
-  fputs(" [-o]", stderr);
-  fputs(" [-b blocksize]", stderr);
-  fputs(" -e estsize", stderr);
-  fputs(" [-f tapedev]", stderr);
-  fputs(" [-t typename]", stderr);
+  fputs(_(" [-h]"), stderr);
+  fputs(_(" [-c]"), stderr);
+  fputs(_(" [-o]"), stderr);
+  fputs(_(" [-b blocksize]"), stderr);
+  fputs(_(" -e estsize"), stderr);
+  fputs(_(" [-f tapedev]"), stderr);
+  fputs(_(" [-t typename]"), stderr);
   fputc('\n', stderr);
 }
 
@@ -190,15 +190,15 @@ static void
 help(void)
 {
   usage();
-  fputs("-h			display this message\n"
-  	"-c			run hardware compression detection test only\n"
-  	"-o			overwrite amanda tape\n"
-  	"-b blocksize		record block size (default: 32k)\n"
-  	"-e estsize		estimated tape size (No default!)\n"
-  	"-f tapedev		tape device name (default: $TAPE)\n"
-  	"-t typename		tapetype name (default: unknown-tapetype)\n"
-  	"\n"
-	"Note: disable hardware compression when running this program.\n",
+  fputs(_("-h			display this message\n"
+  	  "-c			run hardware compression detection test only\n"
+  	  "-o			overwrite amanda tape\n"
+  	  "-b blocksize		record block size (default: 32k)\n"
+  	  "-e estsize		estimated tape size (No default!)\n"
+  	  "-f tapedev		tape device name (default: $TAPE)\n"
+  	  "-t typename		tapetype name (default: unknown-tapetype)\n"
+  	  "\n"
+	  "Note: disable hardware compression when running this program.\n"),
 	stderr);
 }
 
@@ -210,10 +210,17 @@ show_progress(
     off_t *	blocks,
     off_t *	files)
 {
-  fprintf(stderr, "wrote " OFF_T_FMT " " SIZE_T_FMT "Kb block%s in " OFF_T_FMT " file%s",
-	  (OFF_T_FMT_TYPE)*blocks,
-	  (SIZE_T_FMT_TYPE)blockkb, (*blocks == (off_t)1) ? "" : "s",
-	  (OFF_T_FMT_TYPE)*files, (*files == (off_t)1) ? "" : "s");
+    g_fprintf(stderr,
+	    plural(_("wrote %lld %zu Kb block"),
+		   _("wrote %lld %zu Kb blocks"),
+		   *blocks),
+	    (long long)*blocks,
+	    blockkb);
+    g_fprintf(stderr,
+	    plural(_(" in %lld file"),
+		   _(" in %lld files"),
+		   *files),
+	    (long long)*files);
 }
 
 
@@ -229,13 +236,13 @@ do_pass(
   int save_errno;
 
   if (tapefd_rewind(fd) == -1) {
-    fprintf(stderr, "%s: could not rewind %s: %s\n",
+    g_fprintf(stderr, _("%s: could not rewind %s: %s\n"),
 	    sProgName, tapedev, strerror(errno));
     exit(1);
   }
   if (((-1 == tapefd_close(fd)) ||
        (-1 == (fd = tape_open(tapedev, O_RDWR))))) {
-    fprintf(stderr, "%s: could not re-open %s: %s\n",
+    g_fprintf(stderr, "%s: could not re-open %s: %s\n",
 	    sProgName, tapedev, strerror(errno));
     exit(1);
   }
@@ -258,8 +265,8 @@ do_pass(
   time(&end);
 
   if (*blocks == (off_t)0) {
-    fprintf(stderr, "%s: could not write any data in this pass: %s\n",
-	    sProgName, short_write ? "short write" : strerror(save_errno));
+    g_fprintf(stderr, _("%s: could not write any data in this pass: %s\n"),
+	    sProgName, short_write ? _("short write") : strerror(save_errno));
     exit(1);
   }
 
@@ -276,9 +283,12 @@ do_pass(
     putc('\r', stderr);
   }
   show_progress(blocks, files);
-  fprintf(stderr, " in " TIME_T_FMT " second%s (%s)\n",
-	  (TIME_T_FMT_TYPE)*seconds, (*seconds == 1) ? "" : "s",
-	  short_write ? "short write" : strerror(save_errno));
+  g_fprintf(stderr,
+	  plural(_(" in %jd second (%s)\n"),
+		 _(" in %jd seconds (%s)\n"),
+	  	 *seconds),
+	  (intmax_t)*seconds,
+	  short_write ? _("short write") : strerror(save_errno));
 }
 
 
@@ -293,7 +303,7 @@ do_pass0(
   int save_errno;
 
   if (dorewind  &&  tapefd_rewind(fd) == -1) {
-    fprintf(stderr, "%s: could not rewind %s: %s\n",
+    g_fprintf(stderr, _("%s: could not rewind %s: %s\n"),
 	    sProgName, tapedev, strerror(errno));
     exit(1);
   }
@@ -301,7 +311,7 @@ do_pass0(
   if (dorewind &&
       ((-1 == tapefd_close(fd)) ||
        (-1 == (fd = tape_open(tapedev, O_RDWR))))) {
-    fprintf(stderr, "%s: could not re-open %s: %s\n",
+    g_fprintf(stderr, "%s: could not re-open %s: %s\n",
 	    sProgName, tapedev, strerror(errno));
     exit(1);
   }
@@ -317,8 +327,8 @@ do_pass0(
   time(&end);
 
   if (blks <= (off_t)0) {
-    fprintf(stderr, "%s: could not write any data in this pass: %s\n",
-	    sProgName, short_write ? "short write" : strerror(save_errno));
+    g_fprintf(stderr, _("%s: could not write any data in this pass: %s\n"),
+	    sProgName, short_write ? _("short write") : strerror(save_errno));
     exit(1);
   }
 
@@ -368,6 +378,14 @@ main(
   char *datestamp = NULL;
   char *label = NULL;
 
+  /*
+   * Configure program for internationalization:
+   *   1) Only set the message locale for now.
+   *   2) Set textdomain for all amanda related programs to "amanda"
+   *      We don't want to be forced to support dozens of message catalogs.
+   */  
+  setlocale(LC_MESSAGES, "C");
+  textdomain("amanda"); 
 
   if ((sProgName = strrchr(*argv, '/')) == NULL) {
     sProgName = *argv;
@@ -392,7 +410,7 @@ main(
 	} else if (*suffix == 'g' || *suffix == 'G') {
 	  blockkb *= (1024 * 1024);
 	} else {
-	  fprintf(stderr, "%s: unknown size suffix \'%c\'\n",
+	  g_fprintf(stderr, _("%s: unknown size suffix \'%c\'\n"),
 		  sProgName, *suffix);
 	  return 1;
 	}
@@ -406,7 +424,7 @@ main(
 	} else if (*suffix == 'g' || *suffix == 'G') {
 	  estsize *= (off_t)(1024 * 1024);
 	} else {
-	  fprintf(stderr, "%s: unknown size suffix \'%c\'\n",
+	  g_fprintf(stderr, _("%s: unknown size suffix \'%c\'\n"),
 		  sProgName, *suffix);
 	  return 1;
 	}
@@ -434,7 +452,7 @@ main(
       break;
 
     default:
-      fprintf(stderr, "%s: unknown option \'%c\'\n", sProgName, ch);
+      g_fprintf(stderr, _("%s: unknown option \'%c\'\n"), sProgName, ch);
       /*FALLTHROUGH*/
 
     case '?':
@@ -445,7 +463,7 @@ main(
   blocksize = blockkb * 1024;
 
   if (tapedev == NULL) {
-    fprintf(stderr, "%s: No tapedev specified\n", sProgName);
+    g_fprintf(stderr, _("%s: No tapedev specified\n"), sProgName);
     usage();
     return 1;
   }
@@ -458,7 +476,7 @@ main(
     if (comprtstonly) {
       estsize = (off_t)(1024 * 1024);		/* assume 1 GByte for now */
     } else {
-      fprintf(stderr, "%s: please specify estimated tape capacity (e.g. '-e 4g')\n", sProgName);
+      g_fprintf(stderr, _("%s: please specify estimated tape capacity (e.g. '-e 4g')\n"), sProgName);
       usage();
       return 1;
     }
@@ -470,7 +488,7 @@ main(
 
   fd = tape_open(tapedev, O_RDONLY, 0);
   if (fd == -1) {
-    fprintf(stderr, "%s: could not open %s: %s\n",
+    g_fprintf(stderr, _("%s: could not open %s: %s\n"),
 	    sProgName, tapedev, strerror(errno));
     return 1;
   }
@@ -478,12 +496,12 @@ main(
   if((result = tapefd_rdlabel(fd, &datestamp, &label)) == NULL) {
     is_labeled = 1;
   }
-  else if (strcmp(result,"not an amanda tape") == 0) {
+  else if (strcmp(result,_("not an amanda tape")) == 0) {
     is_labeled = 2;
   }
 
   if(tapefd_rewind(fd) == -1) {
-    fprintf(stderr, "%s: could not rewind %s: %s\n",
+    g_fprintf(stderr, _("%s: could not rewind %s: %s\n"),
 	    sProgName, tapedev, strerror(errno));
     tapefd_close(fd);
     return 1;
@@ -492,19 +510,19 @@ main(
   tapefd_close(fd);
 
   if(is_labeled == 1 && overwrite_label == 0) {
-    fprintf(stderr, "%s: The tape is an amanda tape, use -o to overwrite the tape\n",
+    g_fprintf(stderr, _("%s: The tape is an amanda tape, use -o to overwrite the tape\n"),
 	    sProgName);
     return 1;
   }
   else if(is_labeled == 2 && overwrite_label == 0) {
-    fprintf(stderr, "%s: The tape is already used, use -o to overwrite the tape\n",
+    g_fprintf(stderr, _("%s: The tape is already used, use -o to overwrite the tape\n"),
 	    sProgName);
     return 1;
   }
 
   fd = tape_open(tapedev, O_RDWR, 0);
   if (fd == -1) {
-    fprintf(stderr, "%s: could not open %s: %s\n",
+    g_fprintf(stderr, _("%s: could not open %s: %s\n"),
 	    sProgName, tapedev, strerror(errno));
     return 1;
   }
@@ -521,7 +539,7 @@ main(
 
   initnotrandombytes();
 
-  fprintf(stderr, "Estimate phase 1...");
+  g_fprintf(stderr, _("Estimate phase 1..."));
   pass0size = (off_t)(8 * 1024 / blockkb);
   pass1time = 0;
   pass2time = 0;
@@ -548,16 +566,17 @@ main(
     do_pass0(pass0size, &pass2time, 1);
     do_pass0(pass0size, &pass1time, 0);
     if (pass0size >= (off_t)(10 * 1024 * 1024)) {
-      fprintf(stderr,
-	"\rTape device is too fast to detect hardware compression...\n");
+      g_fprintf(stderr, "\r");
+      g_fprintf(stderr,
+	_("Tape device is too fast to detect hardware compression...\n"));
       break;	/* avoid loops if tape is superfast or broken */
     }
   }
-  fprintf(stderr,
-	"\rWriting " OFF_T_FMT " Mbyte   compresseable data:  "
-	TIME_T_FMT " sec\n",
-	(OFF_T_FMT_TYPE)((off_t)blockkb * pass0size / (off_t)1024),
-	(TIME_T_FMT_TYPE)pass1time);
+  g_fprintf(stderr, "\r");
+  g_fprintf(stderr,
+	_("Writing %lld Mbyte   compresseable data:  %jd sec\n"),
+	(long long)((off_t)blockkb * pass0size / (off_t)1024),
+	(intmax_t)pass1time);
 
   /*
    * now generate uncompressable data and try again
@@ -566,13 +585,13 @@ main(
   srandom((unsigned)now);
   initrandombytes();
 
-  fprintf(stderr, "Estimate phase 2...");
+  g_fprintf(stderr, _("Estimate phase 2..."));
   do_pass0(pass0size, &pass2time, 1);	/* rewind and get drive streaming */
   do_pass0(pass0size, &pass2time, 0);
-  fprintf(stderr, "\rWriting " OFF_T_FMT
-	" Mbyte uncompresseable data:  " TIME_T_FMT " sec\n",
-	(OFF_T_FMT_TYPE)((off_t)blockkb * pass0size / (off_t)1024),
-	(TIME_T_FMT_TYPE)pass2time);
+  g_fprintf(stderr, "\r");
+  g_fprintf(stderr, _("Writing %lld Mbyte uncompresseable data: %jd sec\n"),
+	(long long)((off_t)blockkb * pass0size / (off_t)1024),
+	(intmax_t)pass2time);
 
   /*
    * Compute the time difference between writing the compressable and
@@ -589,22 +608,21 @@ main(
     timediff = pass2time - pass1time;
   }
   if (((100 * timediff) / pass2time) >= 20) {	/* 20% faster? */
-    fprintf(stderr, "WARNING: Tape drive has hardware compression enabled\n");
+    g_fprintf(stderr, _("WARNING: Tape drive has hardware compression enabled\n"));
     hwcompr = 1;
   }
 
   /*
    * Inform about estimated time needed to run the remaining of this program
    */
-  fprintf(stderr, "Estimated time to write 2 * %lu Mbyte: ", (unsigned long) (estsize / (off_t)1024));
+  g_fprintf(stderr, _("Estimated time to write 2 * %lu Mbyte: "), (unsigned long) (estsize / (off_t)1024));
   pass1time = (time_t)(2.0 * (double)pass2time * (double)estsize /
 		(1.0 * (double)pass0size * (double)blockkb));
 	/* avoid overflow and underflow by doing math in floating point */
-  fprintf(stderr, TIME_T_FMT " sec = ",
-	  (TIME_T_FMT_TYPE)pass1time);
-  fprintf(stderr, TIME_T_FMT " h " TIME_T_FMT " min\n",
-	  (TIME_T_FMT_TYPE)(pass1time/(time_t)3600),
-	  (TIME_T_FMT_TYPE)((pass1time%(time_t)3600) / (time_t)60));
+  g_fprintf(stderr, _("%jd sec = %jd h %jd min\n"),
+	  (intmax_t)pass1time,
+	  (intmax_t)(pass1time/(time_t)3600),
+	  (intmax_t)((pass1time%(time_t)3600) / (time_t)60));
 
   if (comprtstonly) {
 	exit(hwcompr);
@@ -680,22 +698,22 @@ main(
   /*
    * Dump the tapetype.
    */
-  printf("define tapetype %s {\n", typename);
-  printf("    comment \"just produced by tapetype prog (hardware compression %s)\"\n",
-	hwcompr ? "on" : "off");
-  printf("    length " OFF_T_FMT " %s\n", (OFF_T_FMT_TYPE)size, sizeunits);
-  printf("    filemark " SIZE_T_FMT " kbytes\n", (SIZE_T_FMT_TYPE)filemark);
-  printf("    speed %lu kps\n", speed);
-  printf("}\n");
+  g_printf("define tapetype %s {\n", typename);
+  g_printf(_("    comment \"just produced by tapetype prog (hardware compression %s)\"\n"),
+	hwcompr ? _("on") : _("off"));
+  g_printf("    length %lld %s\n", (long long)size, sizeunits);
+  g_printf("    filemark %zu kbytes\n", filemark);
+  g_printf("    speed %lu kps\n", speed);
+  g_printf("}\n");
 
   if (tapefd_rewind(fd) == -1) {
-    fprintf(stderr, "%s: could not rewind %s: %s\n",
+    g_fprintf(stderr, _("%s: could not rewind %s: %s\n"),
 	    sProgName, tapedev, strerror(errno));
     return 1;
   }
 
   if (tapefd_close(fd) == -1) {
-    fprintf(stderr, "%s: could not close %s: %s\n",
+    g_fprintf(stderr, _("%s: could not close %s: %s\n"),
 	    sProgName, tapedev, strerror(errno));
     return 1;
   }

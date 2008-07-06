@@ -2,9 +2,8 @@
  * Copyright (c) 2005 Zmanda Inc.  All Rights Reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  * 
  * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
@@ -35,7 +34,8 @@ dumpspec_t *
 dumpspec_new(
     char *host, 
     char *disk, 
-    char *datestamp)
+    char *datestamp,
+    char *level)
 {
     dumpspec_t *rv;
 
@@ -44,6 +44,7 @@ dumpspec_new(
     if (host) rv->host = stralloc(host);
     if (disk) rv->disk = stralloc(disk);
     if (datestamp) rv->datestamp = stralloc(datestamp);
+    if (level) rv->level = stralloc(level);
 
     return rv;
 }
@@ -56,81 +57,90 @@ dumpspec_free(
     if (dumpspec->host) free(dumpspec->host);
     if (dumpspec->disk) free(dumpspec->disk);
     if (dumpspec->datestamp) free(dumpspec->datestamp);
+    if (dumpspec->level) free(dumpspec->level);
     free(dumpspec);
 }
 
 void
-dumpspec_free_list(
-    dumpspec_list_t *dumpspec_list)
+dumpspec_list_free(
+    GSList *dumpspec_list)
 {
-    dumpspec_t *dumpspec = (dumpspec_t *)dumpspec_list;
-    dumpspec_t *next;
+    /* first free all of the individual dumpspecs */
+    g_slist_foreach_nodata(dumpspec_list, dumpspec_free);
 
-    while (dumpspec) {
-        next = dumpspec->next;
-        dumpspec_free(dumpspec);
-        dumpspec = next;
-    }
+    /* then free the list itself */
+    g_slist_free(dumpspec_list);
 }
 
-dumpspec_list_t *
+GSList *
 cmdline_parse_dumpspecs(
     int argc,
-    char **argv)
+    char **argv,
+    int flags)
 {
-    dumpspec_t *dumpspec = NULL, *t;
+    dumpspec_t *dumpspec = NULL;
+    GSList *list = NULL;
     char *errstr;
     char *name;
     int optind = 0;
-    enum { ARG_GET_HOST, ARG_GET_DISK, ARG_GET_DATE } arg_state = ARG_GET_HOST;
+    enum { ARG_GET_HOST, ARG_GET_DISK, ARG_GET_DATESTAMP, ARG_GET_LEVEL } arg_state = ARG_GET_HOST;
 
     while (optind < argc) {
-        name = argv[optind++];
+        name = argv[optind];
         switch (arg_state) {
             case ARG_GET_HOST:
+                arg_state = ARG_GET_DISK;
                 if (name[0] != '\0'
                     && (errstr=validate_regexp(name)) != NULL) {
-                    fprintf(stderr, _("%s: bad hostname regex \"%s\": %s\n"),
-		                    get_pname(), name, errstr);
-                    goto error;
+                    error(_("bad hostname regex \"%s\": %s\n"), name, errstr);
                 }
-                t = dumpspec_new(name, NULL, NULL);
-                t->next = (dumpspec_t *)dumpspec;
-                dumpspec = t;
-                arg_state = ARG_GET_DISK;
+                dumpspec = dumpspec_new(name, NULL, NULL, NULL);
+		list = g_slist_append(list, (gpointer)dumpspec);
                 break;
 
             case ARG_GET_DISK:
+                arg_state = ARG_GET_DATESTAMP;
                 if (name[0] != '\0'
                     && (errstr=validate_regexp(name)) != NULL) {
-                    fprintf(stderr, _("%s: bad diskname regex \"%s\": %s\n"),
-		                    get_pname(), name, errstr);
-                    goto error;
+                    error(_("bad diskname regex \"%s\": %s\n"), name, errstr);
                 }
                 dumpspec->disk = stralloc(name);
-                arg_state = ARG_GET_DATE;
                 break;
 
-            case ARG_GET_DATE:
+            case ARG_GET_DATESTAMP:
+                arg_state = ARG_GET_LEVEL;
+		if (!(flags & CMDLINE_PARSE_DATESTAMP)) continue;
                 if (name[0] != '\0'
                     && (errstr=validate_regexp(name)) != NULL) {
-                    fprintf(stderr, _("%s: bad datestamp regex \"%s\": %s\n"),
-		                    get_pname(), name, errstr);
-                    goto error;
+                    error(_("bad datestamp regex \"%s\": %s\n"), name, errstr);
                 }
                 dumpspec->datestamp = stralloc(name);
+                break;
+
+            case ARG_GET_LEVEL:
                 arg_state = ARG_GET_HOST;
+		if (!(flags & CMDLINE_PARSE_LEVEL)) continue;
+                if (name[0] != '\0'
+                    && (errstr=validate_regexp(name)) != NULL) {
+                    error(_("bad level regex \"%s\": %s\n"), name, errstr);
+                }
+                dumpspec->level = stralloc(name);
                 break;
         }
+
+	optind++;
     }
 
-    if (dumpspec == NULL) 
-        dumpspec = dumpspec_new("", "", "");
-    return (dumpspec_list_t *)dumpspec;
+    /* if nothing was processed and the caller has requested it, 
+     * then add an "empty" element */
+    if (list == NULL && (flags & CMDLINE_EMPTY_TO_WILDCARD)) {
+        dumpspec = dumpspec_new("", "", 
+		(flags & CMDLINE_PARSE_DATESTAMP)?"":NULL,
+		(flags & CMDLINE_PARSE_LEVEL)?"":NULL);
+	list = g_slist_append(list, (gpointer)dumpspec);
+    }
 
-error:
-    dumpspec_free_list((dumpspec_list_t *)dumpspec);
-    return NULL;
+    return list;
 }
 
 char *
@@ -141,7 +151,8 @@ cmdline_format_dumpspec(
     return cmdline_format_dumpspec_components(
         dumpspec->host,
         dumpspec->disk,
-        dumpspec->datestamp);
+        dumpspec->datestamp,
+	dumpspec->level);
 }
 
 /* Quote str for shell interpretation, being conservative.
@@ -157,8 +168,11 @@ quote_dumpspec_string(char *str)
     int len = 0;
     int need_single_quotes = 0;
 
+    if (!str[0])
+	return stralloc("''"); /* special-case the empty string */
+
     for (p = str; *p; p++) {
-        if (!isalnum(*p) && *p != '.' && *p != '/') need_single_quotes=1;
+        if (!isalnum((int)*p) && *p != '.' && *p != '/') need_single_quotes=1;
         if (*p == '\'' || *p == '\\') len++; /* extra byte for '\' */
         len++;
     }
@@ -180,58 +194,65 @@ char *
 cmdline_format_dumpspec_components(
     char *host,
     char *disk,
-    char *datestamp)
+    char *datestamp,
+    char *level)
 {
     char *rv = NULL;
 
     host = host? quote_dumpspec_string(host):NULL;
     disk = disk? quote_dumpspec_string(disk):NULL;
     datestamp = datestamp? quote_dumpspec_string(datestamp):NULL;
+    level = level? quote_dumpspec_string(level):NULL;
 
     if (host) {
         rv = host;
+	host = NULL;
         if (disk) {
             rv = newvstralloc(rv, rv, " ", disk, NULL);
-            amfree(disk);
             if (datestamp) {
                 rv = newvstralloc(rv, rv, " ", datestamp, NULL);
-                amfree(datestamp);
+		if (level) {
+		    rv = newvstralloc(rv, rv, " ", level, NULL);
+		}
             }
         }
     }
+
+    if (host) amfree(host);
     if (disk) amfree(disk);
     if (datestamp) amfree(datestamp);
+    if (level) amfree(level);
 
     return rv;
 }
 
-sl_t *
+GSList *
 cmdline_match_holding(
-    dumpspec_list_t *dumpspec_list)
+    GSList *dumpspec_list)
 {
-    char *host;
-    char *disk;
-    char *datestamp;
-    filetype_t filetype;
     dumpspec_t *de;
-    sl_t *holding_files;
-    sle_t *he;
-    sl_t *matching_files = new_sl();
+    GSList *li, *hi;
+    GSList *holding_files;
+    GSList *matching_files = NULL;
+    dumpfile_t file;
 
-    holding_set_verbosity(0);
-    holding_files = holding_get_files(NULL, NULL, 1);
+    holding_files = holding_get_files(NULL, 1);
 
-    for (he = holding_files->first; he != NULL; he = he->next) {
-        filetype = holding_file_read_header(he->name, &host, &disk, NULL, &datestamp);
-        if (filetype != F_DUMPFILE) continue;
-        for (de = (dumpspec_t *)dumpspec_list; de != NULL; de = de->next) {
-            if (de->host && !match_host(de->host, host)) continue;
-            if (de->disk && !match_disk(de->disk, disk)) continue;
-            if (de->datestamp && !match_datestamp(de->datestamp, datestamp)) continue;
-            matching_files = insert_sort_sl(matching_files, he->name);
+    for (hi = holding_files; hi != NULL; hi = hi->next) {
+	/* TODO add level */
+	if (!holding_file_get_dumpfile((char *)hi->data, &file)) continue;
+        if (file.type != F_DUMPFILE) continue;
+        for (li = dumpspec_list; li != NULL; li = li->next) {
+	    de = (dumpspec_t *)(li->data);
+            if (de->host && de->host[0] && !match_host(de->host, file.name)) continue;
+            if (de->disk && de->disk[0] && !match_disk(de->disk, file.disk)) continue;
+            if (de->datestamp && de->datestamp[0] && !match_datestamp(de->datestamp, file.datestamp)) continue;
+            matching_files = g_slist_append(matching_files, g_strdup((char *)hi->data));
             break;
         }
     }
+
+    g_slist_free_full(holding_files);
 
     return matching_files;
 }

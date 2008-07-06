@@ -46,7 +46,7 @@ int grab_reply(int show);
 void sigint_handler(int signum);
 int main(int argc, char **argv);
 
-#define USAGE "Usage: amoldrecover [[-C] <config>] [-s <index-server>] [-t <tape-server>] [-d <tape-device>]\n"
+#define USAGE _("Usage: amoldrecover [[-C] <config>] [-s <index-server>] [-t <tape-server>] [-d <tape-device>]\n")
 
 char *config = NULL;
 char *server_name = NULL;
@@ -86,11 +86,11 @@ get_line(void)
 		fputc('\n', stderr);
 	    }
 	    if(save_errno != 0) {
-		fprintf(stderr, "%s: Error reading line from server: %s\n",
+		g_fprintf(stderr, _("%s: Error reading line from server: %s\n"),
 				get_pname(),
 				strerror(save_errno));
 	    } else {
-		fprintf(stderr, "%s: Unexpected end of file, check amindexd*debug on server %s\n",
+		g_fprintf(stderr, _("%s: Unexpected end of file, check amindexd*debug on server %s\n"),
 			get_pname(),
 			server_name);
 	    }
@@ -295,7 +295,7 @@ guess_disk (
 	/*NOTREACHED*/
     }
     cwd_length = strlen(cwd);
-    dbprintf(("guess_disk: " SSIZE_T_FMT ": \"%s\"\n", cwd_length, cwd));
+    dbprintf(_("guess_disk: %zu: \"%s\"\n"), cwd_length, cwd);
 
     if (open_fstab() == 0) {
 	return -1;
@@ -305,11 +305,11 @@ guess_disk (
     while (get_fstab_nextentry(&fsent))
     {
 	current_length = fsent.mntdir ? strlen(fsent.mntdir) : (size_t)0;
-	dbprintf(("guess_disk: " SSIZE_T_FMT ": " SSIZE_T_FMT": \"%s\": \"%s\"\n",
+	dbprintf(_("guess_disk: %zu: %zu: \"%s\": \"%s\"\n"),
 		  longest_match,
 		  current_length,
-		  fsent.mntdir ? fsent.mntdir : "(mntdir null)",
-		  fsent.fsname ? fsent.fsname : "(fsname null)"));
+		  fsent.mntdir ? fsent.mntdir : _("(mntdir null)"),
+		  fsent.fsname ? fsent.fsname : _("(fsname null)"));
 	if ((current_length > longest_match)
 	    && (current_length <= cwd_length)
 	    && (strncmp(fsent.mntdir, cwd, current_length) == 0))
@@ -325,9 +325,9 @@ guess_disk (
 	        fsname = newstralloc(fsname,fsent.fsname+strlen(DEV_PREFIX));
 	    }
 	    local_disk = is_local_fstype(&fsent);
-	    dbprintf(("guess_disk: local_disk = %d, fsname = \"%s\"\n",
+	    dbprintf(_("guess_disk: local_disk = %d, fsname = \"%s\"\n"),
 		      local_disk,
-		      fsname));
+		      fsname);
 	}
     }
     close_fstab();
@@ -347,7 +347,7 @@ guess_disk (
     /* have mount point now */
     /* disk name may be specified by mount point (logical name) or
        device name, have to determine */
-    printf("Trying disk %s ...\n", *mpt_guess);
+    g_printf(_("Trying disk %s ...\n"), *mpt_guess);
     disk_try = stralloc2("DISK ", *mpt_guess);		/* try logical name */
     if (exchange(disk_try) == -1)
 	exit(1);
@@ -358,7 +358,7 @@ guess_disk (
 	amfree(fsname);
 	return 1;
     }
-    printf("Trying disk %s ...\n", fsname);
+    g_printf(_("Trying disk %s ...\n"), fsname);
     disk_try = stralloc2("DISK ", fsname);		/* try device name */
     if (exchange(disk_try) == -1)
 	exit(1);
@@ -409,7 +409,15 @@ main(
     char *service_name;
     char *line = NULL;
     struct tm *tm;
-    char *conffile;
+
+    /*
+     * Configure program for internationalization:
+     *   1) Only set the message locale for now.
+     *   2) Set textdomain for all amanda related programs to "amanda"
+     *      We don't want to be forced to support dozens of message catalogs.
+     */  
+    setlocale(LC_MESSAGES, "C");
+    textdomain("amanda"); 
 
     safe_fd(-1, 0);
 
@@ -420,17 +428,9 @@ main(
 
     dbopen(DBG_SUBDIR_CLIENT);
 
-#ifndef IGNORE_UID_CHECK
-    if (geteuid() != 0) {
-	erroutput_type |= ERR_SYSLOG;
-	error("amrecover must be run by root");
-	/*NOTREACHED*/
-    }
-#endif
-
     localhost = alloc(MAX_HOSTNAME_LENGTH+1);
     if (gethostname(localhost, MAX_HOSTNAME_LENGTH) != 0) {
-	error("cannot determine local host name\n");
+	error(_("cannot determine local host name\n"));
 	/*NOTREACHED*/
     }
     localhost[MAX_HOSTNAME_LENGTH] = '\0';
@@ -438,6 +438,8 @@ main(
     config = newstralloc(config, DEFAULT_CONFIG);
 
     dbrename(config, DBG_SUBDIR_CLIENT);
+
+    check_running_as(RUNNING_AS_ROOT);
 
     amfree(server_name);
     server_name = getenv("AMANDA_SERVER");
@@ -449,12 +451,7 @@ main(
     if(!tape_server_name) tape_server_name = DEFAULT_TAPE_SERVER;
     tape_server_name = stralloc(tape_server_name);
 
-    conffile = vstralloc(CONFIG_DIR, "/", "amanda-client.conf", NULL);
-    if (read_clientconf(conffile) > 0) {
-	error("error reading conffile: %s", conffile);
-	/*NOTREACHED*/
-    }
-    amfree(conffile);
+    config_init(CONFIG_INIT_CLIENT, NULL);
 
     if (argc > 1 && argv[1][0] != '-')
     {
@@ -498,13 +495,13 @@ main(
 
 	    case 'U':
 	    case '?':
-		(void)printf(USAGE);
+		(void)g_printf(USAGE);
 		return 0;
 	}
     }
     if (optind != argc)
     {
-	(void)fprintf(stderr, USAGE);
+	(void)g_fprintf(stderr, USAGE);
 	exit(1);
     }
 
@@ -521,16 +518,16 @@ main(
     sigemptyset(&act.sa_mask);
     act.sa_flags = 0;
     if (sigaction(SIGINT, &act, &oact) != 0) {
-	error("error setting signal handler: %s", strerror(errno));
+	error(_("error setting signal handler: %s"), strerror(errno));
 	/*NOTREACHED*/
     }
 
     service_name = stralloc2("amandaidx", SERVICE_SUFFIX);
 
-    printf("AMRECOVER Version %s. Contacting server on %s ...\n",
+    g_printf(_("AMRECOVER Version %s. Contacting server on %s ...\n"),
 	   version(), server_name);  
     if ((sp = getservbyname(service_name, "tcp")) == NULL) {
-	error("%s/tcp unknown protocol", service_name);
+	error(_("%s/tcp unknown protocol"), service_name);
 	/*NOTREACHED*/
     }
     amfree(service_name);
@@ -541,24 +538,14 @@ main(
 					     &my_port,
 					     0);
     if (server_socket < 0) {
-	error("cannot connect to %s: %s", server_name, strerror(errno));
+	error(_("cannot connect to %s: %s"), server_name, strerror(errno));
 	/*NOTREACHED*/
     }
     if (my_port >= IPPORT_RESERVED) {
         aclose(server_socket);
-	error("did not get a reserved port: %d", my_port);
+	error(_("did not get a reserved port: %d"), my_port);
 	/*NOTREACHED*/
     }
-
-#if 0
-    /*
-     * We may need root privilege again later for a reserved port to
-     * the tape server, so we will drop down now but might have to
-     * come back later.
-     */
-    setegid(getgid());
-    seteuid(getuid());
-#endif
 
     /* get server's banner */
     if (grab_reply(1) == -1) {
@@ -611,9 +598,9 @@ main(
     if (tm)
 	strftime(dump_date, sizeof(dump_date), "%Y-%m-%d", tm);
     else
-	error("BAD DATE");
+	error(_("BAD DATE"));
 
-    printf("Setting restore date to today (%s)\n", dump_date);
+    g_printf(_("Setting restore date to today (%s)\n"), dump_date);
     line = stralloc2("DATE ", dump_date);
     if (converse(line) == -1) {
         aclose(server_socket);
@@ -641,20 +628,20 @@ main(
 	    {
 		case 1:
 		    /* okay, got a guess. Set disk accordingly */
-		    printf("$CWD '%s' is on disk '%s' mounted at '%s'.\n",
+		    g_printf(_("$CWD '%s' is on disk '%s' mounted at '%s'.\n"),
 			   cwd, dn_guess, mpt_guess);
 		    set_disk(dn_guess, mpt_guess);
 		    set_directory(cwd);
 		    if (server_happy() && strcmp(cwd, mpt_guess) != 0)
-		        printf("WARNING: not on root of selected filesystem, check man-page!\n");
+		        g_printf(_("WARNING: not on root of selected filesystem, check man-page!\n"));
 		    amfree(dn_guess);
 		    amfree(mpt_guess);
 		    break;
 
 		case 0:
-		    printf("$CWD '%s' is on a network mounted disk\n",
+		    g_printf(_("$CWD '%s' is on a network mounted disk\n"),
 			   cwd);
-		    printf("so you must 'sethost' to the server\n");
+		    g_printf(_("so you must 'sethost' to the server\n"));
 		    /* fake an unhappy server */
 		    server_line[0] = '5';
 		    break;
@@ -662,7 +649,7 @@ main(
 		case 2:
 		case -1:
 		default:
-		    printf("Use the setdisk command to choose dump disk to recover\n");
+		    g_printf(_("Use the setdisk command to choose dump disk to recover\n"));
 		    /* fake an unhappy server */
 		    server_line[0] = '5';
 		    break;
@@ -698,7 +685,7 @@ get_security(void)
     struct passwd *pwptr;
 
     if((pwptr = getpwuid(getuid())) == NULL) {
-	error("can't get login name for my uid %ld", (long)getuid());
+	error(_("can't get login name for my uid %ld"), (long)getuid());
 	/*NOTREACHED*/
     }
     return stralloc2("SECURITY USER ", pwptr->pw_name);

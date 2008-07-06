@@ -32,15 +32,15 @@
 #include "version.h"
 
 const int   VERSION_MAJOR   = 2;
-const int   VERSION_MINOR   = 5;
-const int   VERSION_PATCH   = 2;
-const char *const VERSION_COMMENT = "p1";
+const int   VERSION_MINOR   = 6;
+const int   VERSION_PATCH   = 0;
+const char *const VERSION_COMMENT = "";
 
 const char *
 versionsuffix(void)
 {
 #ifdef USE_VERSION_SUFFIXES
-    return "-2.5.2p1";
+    return "-2.6.0";
 #else
     return "";
 #endif
@@ -49,5 +49,5 @@ versionsuffix(void)
 const char *
 version(void)
 {
-    return "2.5.2p1";
+    return "2.6.0";
 }

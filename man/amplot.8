@@ -1,17 +1,17 @@
 .\"     Title: amplot
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 03/31/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMPLOT" "8" "06/06/2007" "" ""
+.TH "AMPLOT" "8" "03/31/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amplot \- visualize the behavior of Amanda
+amplot - visualize the behavior of Amanda
 .SH "SYNOPSIS"
 .HP 7
 \fBamplot\fR [\-b] [\-c] [\-e] [\-g] [\-l] [\-p] [\-t\ \fIT\fR] \fIamdump_files\fR
@@ -24,85 +24,85 @@ reads an
 \fBamdump\fR
 output file that
 \fIAmanda\fR
-generates each run (e.g.
-\fIamdump.1\fR) and translates the information into a picture format that may be used to determine how your installation is doing and if any parameters need to be changed.
+generates each run (e\.g\.
+\fIamdump\.1\fR) and translates the information into a picture format that may be used to determine how your installation is doing and if any parameters need to be changed\.
 \fBAmplot\fR
 also prints out
 \fBamdump\fR
-lines that it either does not understand or knows to be warning or error lines and a summary of the start, end and total time for each backup image.
+lines that it either does not understand or knows to be warning or error lines and a summary of the start, end and total time for each backup image\.
 .PP
 \fBAmplot\fR
 is a shell script that executes an
 \fBawk\fR
 program
-(\fIamplot.awk\fR) to scan the
+(\fIamplot\.awk\fR) to scan the
 \fBamdump\fR
-output file. It then executes a
+output file\. It then executes a
 \fBgnuplot\fR
 program
-(\fIamplot.g\fR) to generate the graph. The
+(\fIamplot\.g\fR) to generate the graph\. The
 \fBawk\fR
 program is written in an enhanced version of awk, such as GNU awk
 (\fIgawk\fR
-version 2.15 or later) or
-\fBnawk\fR.
+version 2\.15 or later) or
+\fBnawk\fR\.
 .PP
 During execution,
 \fBamplot\fR
 generates a few temporary files that
 \fBgnuplot\fR
-uses. These files are deleted at the end of execution.
+uses\. These files are deleted at the end of execution\.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR.
+\fIAmanda\fR\.
 .SH "OPTIONS"
 .PP
 \fB\-b\fR
 .RS 4
 Generate b/w postscript file (need
-\fB\-p\fR).
+\fB\-p\fR)\.
 .RE
 .PP
 \fB\-c\fR
 .RS 4
 Compress
 \fIamdump_files\fR
-after plotting.
+after plotting\.
 .RE
 .PP
 \fB\-e\fR
 .RS 4
-Extend the X (time) axis if needed.
+Extend the X (time) axis if needed\.
 .RE
 .PP
 \fB\-g\fR
 .RS 4
 Direct
 \fIgnuplot\fR
-output directly to the X11 display (default).
+output directly to the X11 display (default)\.
 .RE
 .PP
 \fB\-p\fR
 .RS 4
 Direct postscript output to file
-\fIYYYYMMDD\fR\fI.ps\fR
+\fIYYYYMMDD\fR\fI\.ps\fR
 (opposite of
-\fB\-g\fR).
+\fB\-g\fR)\.
 .RE
 .PP
 \fB\-l\fR
 .RS 4
 Generate landscape oriented output (needs
-\fB\-p\fR).
+\fB\-p\fR)\.
 .RE
 .PP
 \fB\-t \fR\fIT\fR
 .RS 4
 Set the right edge of the plot to be
 \fIT\fR
-hours.
+hours\.
 .RE
 .PP
 The
@@ -111,43 +111,43 @@ may be in various compressed formats
 (\fIcompress\fR,
 \fBgzip\fR,
 \fBpact\fR,
-\fBcompact\fR).
+\fBcompact\fR)\.
 .SH "INTERPRETATION"
 .PP
-The figure is divided into a number of regions. There are titles on the top that show important statistical information about the configuration and from this execution of
-\fBamdump\fR. In the figure, the X axis is time, with 0 being the moment
+The figure is divided into a number of regions\. There are titles on the top that show important statistical information about the configuration and from this execution of
+\fBamdump\fR\. In the figure, the X axis is time, with 0 being the moment
 \fBamdump\fR
-was started. The Y axis is divided into 5 regions:
+was started\. The Y axis is divided into 5 regions:
 .PP
 \fIQUEUES:\fR
-How many backups have not been started, how many are waiting on space in the holding disk and how many have been transferred successfully to tape.
+How many backups have not been started, how many are waiting on space in the holding disk and how many have been transferred successfully to tape\.
 .PP
 \fI%BANDWIDTH:\fR
-Percentage of allowed network bandwidth in use.
+Percentage of allowed network bandwidth in use\.
 .PP
 \fIHOLDING DISK:\fR
-The higher line depicts space allocated on the holding disk to backups in progress and completed backups waiting to be written to tape. The lower line depicts the fraction of the holding disk containing completed backups waiting to be written to tape including the file currently being written to tape. The scale is percentage of the holding disk.
+The higher line depicts space allocated on the holding disk to backups in progress and completed backups waiting to be written to tape\. The lower line depicts the fraction of the holding disk containing completed backups waiting to be written to tape including the file currently being written to tape\. The scale is percentage of the holding disk\.
 .PP
 \fITAPE:\fR
-Tape drive usage.
+Tape drive usage\.
 .PP
 \fI%DUMPERS:\fR
-Percentage of active dumpers.
+Percentage of active dumpers\.
 .PP
 The idle period at the left of the graph is time
 \fBamdump\fR
-is asking the machines how much data they are going to dump. This process can take a while if hosts are down or it takes them a long time to generate estimates.
+is asking the machines how much data they are going to dump\. This process can take a while if hosts are down or it takes them a long time to generate estimates\.
 .SH "AUTHOR"
 .PP
 Olafur Gudmundsson
-<ogud@tis.com>, Trusted Information Systems, formerly at University of Maryland, College Park: Original text
+<ogud@tis\.com>, Trusted Information Systems, formerly at University of Maryland, College Park: Original text
 .PP
-Stefan G. Weichinger,
-<sgw@amanda.org>, maintainer of the
+Stefan G\. Weichinger,
+<sgw@amanda\.org>, maintainer of the
 \fIAmanda\fR\-documentation: XML\-conversion
 .SH "BUGS"
 .PP
-Reports lines it does not recognize, mainly error cases but some are legitimate lines the program needs to be taught about.
+Reports lines it does not recognize, mainly error cases but some are legitimate lines the program needs to be taught about\.
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
@@ -158,4 +158,5 @@ Reports lines it does not recognize, mainly error cases but some are legitimate 
 \fBgnuplot\fR(1),
 \fBsh\fR(1),
 \fBcompress\fR(1),
-\fBgzip\fR(1)
+\fBgzip\fR(1),
+\fBhttp://wiki.zmanda.com\fR()

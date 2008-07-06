@@ -1,17 +1,17 @@
 .\"     Title: amoverview
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 03/31/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMOVERVIEW" "8" "06/06/2007" "" ""
+.TH "AMOVERVIEW" "8" "03/31/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amoverview \- display file systems processed by Amanda over time
+amoverview - display file systems processed by Amanda over time
 .SH "SYNOPSIS"
 .HP 11
 \fBamoverview\fR [[\-config\ ]\ \fIconfig\fR] [\-hostwidth\ \fIwidth\fR] [\-diskwidth\ \fIwidth\fR] [\-skipmissed] [\-last] [\-num0] [\-togo0] [\-verbose]
@@ -20,19 +20,19 @@ amoverview \- display file systems processed by Amanda over time
 \fBAmoverview\fR
 displays a chart showing hosts and file systems processed by
 \fIAmanda\fR
-along with the backup level performed each day.
+along with the backup level performed each day\.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR.
+\fIAmanda\fR\.
 .SH "OPTIONS"
 .PP
 \fB\-config\fR \fIconfig\fR
 .RS 4
 Use configuration
 \fIconfig\fR
-instead of configuration daily.
+instead of configuration daily\.
 .RE
 .PP
 \fB\-hostwidth\fR \fIwidth\fR
@@ -41,7 +41,7 @@ Set
 \fBhost\fR
 field column width to
 \fIwidth\fR
-characters instead of 8.
+characters instead of 8\.
 .RE
 .PP
 \fB\-diskwidth\fR \fIwidth\fR
@@ -50,59 +50,59 @@ Set
 \fBdisk\fR
 field column width to
 \fIwidth\fR
-characters instead of 20.
+characters instead of 20\.
 .RE
 .PP
 \fB\-skipmissed\fR
 .RS 4
 Compacts the output by only printing stats for the days
 \fIAmanda\fR
-actually ran.
+actually ran\.
 .RE
 .PP
 \fB\-last\fR
 .RS 4
-Outputs the last status of each disk at the start. Useful for long tapecycles and/or sparse reports.
+Outputs the last status of each disk at the start\. Useful for long tapecycles and/or sparse reports\.
 .RE
 .PP
 \fB\-num0\fR
 .RS 4
-Outputs the number of level 0 dumps for each disk.
+Outputs the number of level 0 dumps for each disk\.
 .RE
 .PP
 \fB\-togo0\fR
 .RS 4
-Outputs the number of runs until the last level 0 dump is overwritten.
+Outputs the number of runs until the last level 0 dump is overwritten\.
 .RE
 .PP
 \fB\-verbose\fR
 .RS 4
 \fBAmoverview\fR
-can take a long while on large systems. This option reports intermediate steps while it is working.
+can take a long while on large systems\. This option reports intermediate steps while it is working\.
 .RE
 .SH "RESULTS"
 .PP
 \fBamoverview\fR
 is a summary of the output of "
 \fBamadmin <config> find\fR
-". When the last column of
+"\. When the last column of
 \fBamadmin find\fR
-contains anything other than "OK", amoverview translates this into "E" for that day.
+contains anything other than "OK", amoverview translates this into "E" for that day\.
 .PP
-A number indicates the level of backup and it succeeded. An "E" indicates an error for that day. You get an "E" for all errors, like failed to connect, datatimeout, computer crashed, etc, but also for failing to write to tape.
+A number indicates the level of backup and it succeeded\. An "E" indicates an error for that day\. You get an "E" for all errors, like failed to connect, datatimeout, computer crashed, etc, but also for failing to write to tape\.
 .PP
-You can have an "E" followed by a number if a filesystem ran into end\-of\-tape once (gives an "E", and later that day, you flush it to a second tape (a number: the level, indicating success). If the flush failed too, you get a double "EE" for that day.
+You can have an "E" followed by a number if a filesystem ran into end\-of\-tape once (gives an "E", and later that day, you flush it to a second tape (a number: the level, indicating success)\. If the flush failed too, you get a double "EE" for that day\.
 .PP
 You can also have a double code if you have two tapes in the changer and
 \fIAmanda\fR
-failed to write to tape the first time because it hit end of tape (resulting in "E0", for a full, "E1" for an incremental etc.) or twice with error ("EE"), and may a successful flush afterwards giving maybe "EE0". (Only the latest 2 characters are printed).
+failed to write to tape the first time because it hit end of tape (resulting in "E0", for a full, "E1" for an incremental etc\.) or twice with error ("EE"), and may a successful flush afterwards giving maybe "EE0"\. (Only the latest 2 characters are printed)\.
 .SH "EXAMPLE"
 .PP
 This shows the
 \fI/home\fR
 file system on
 \fIhost2\fR
-was backed up at level 3 on the 8th, 9th and 10th of December, had a full backup on the 11th, a level 1 on the 12th and a level 2 on the 13th.
+was backed up at level 3 on the 8th, 9th and 10th of December, had a full backup on the 11th, a level 1 on the 12th and a level 2 on the 13th\.
 .sp
 .RS 4
 .nf
@@ -121,4 +121,5 @@ host2    /var                  1  1  0  1  1  1
 .SH "SEE ALSO"
 .PP
 \fBamadmin\fR(8),
-\fBamanda\fR(8)
+\fBamanda\fR(8),
+\fBhttp://wiki.zmanda.com\fR()

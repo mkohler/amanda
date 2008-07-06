@@ -31,8 +31,14 @@
 #ifndef AMANDA_H
 #define AMANDA_H
 
+#include <glib.h>
+#include <glib/gprintf.h>
+
+#include "amflock.h"
+
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+/* use a relative path here to avoid conflicting with Perl's config.h. */
+#include "../config/config.h"
 #endif
 
 /*
@@ -53,6 +59,9 @@
 #ifdef HAVE_SYS_TYPES_H
 #  include <sys/types.h>
 #endif
+
+/* gnulib creates this header locally if the system doesn't provide it */
+#include <stdint.h>
 
 /*
  * I would prefer that each Amanda module include only those system headers
@@ -82,6 +91,32 @@
 #  if HAVE_NDIR_H
 #    include <ndir.h>
 #  endif
+#endif
+
+#ifdef ENABLE_NLS
+#  include <libintl.h>
+#  include <locale.h>
+#  define  plural(String1, String2, Count)				\
+		(((Count) == 1) ? (String1) : (String2))
+#else
+#  define plural(String1, String2, Count)				\
+		(((Count) == 1) ? (String1) : (String2))
+#  define setlocale(Which, Locale)
+#  define textdomain(Domain)
+#  define bindtextdomain(Package, Directory)
+#  define gettext(String)			String
+#  define dgettext(Domain, String)		String
+#  define dcgettext(Domain, String, Catagory)	String
+#  define ngettext(String1, String2, Count)				\
+		plural((String1), (String2), (Count))
+#  define dngettext(Domain, String1, String2, Count)			\
+		plural((String1), (String2), (Count))
+#  define dcngettext(Domain, String1, String2, Count, Catagory)		\
+		plural((String1), (String2), (Count))
+#endif
+#define T_(String)			String
+#ifndef SWIG /* TODO: make this go away */
+#define _(String)			dgettext("amanda", (String))
 #endif
 
 #ifdef HAVE_FCNTL_H
@@ -250,9 +285,12 @@ struct iovec {
 #  include <unistd.h>
 #endif
 
+#ifdef HAVE_NETINET_IN_H
+#  include <netinet/in.h>
+#endif
+
 #include <ctype.h>
 #include <errno.h>
-#include <netinet/in.h>
 #include <pwd.h>
 #include <signal.h>
 #include <setjmp.h>
@@ -260,136 +298,22 @@ struct iovec {
 #include <sys/resource.h>
 #include <sys/socket.h>
 
-#if !defined(CONFIGURE_TEST)
-#  include "amanda-int.h"
-#endif
-
 #ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
 
+/* Support for missing IPv6 components */
 #ifndef HAVE_SOCKADDR_STORAGE
 #  define sockaddr_storage sockaddr_in
 #  define ss_family sin_family
 #endif
 
+#ifdef WORKING_IPV6
+#define INET6
+#endif
+
 #ifndef INET_ADDRSTRLEN
 #define INET_ADDRSTRLEN 16
-#endif
-
-/* Calculate the length of the data in a struct sockaddr_storage.
- * THIS IS A HACK.
- *
- * To be truly portable, the length of an address should be passed
- * in a companion variable.  When such lengths are available
- * everywhere they are needed, this macro should be removed.
- */
-#ifdef WORKING_IPV6
-# define SS_LEN(ss) (((struct sockaddr *)(ss))->sa_family==AF_INET6?sizeof(struct sockaddr_in6):sizeof(struct sockaddr_in))
-#else
-# define SS_LEN(ss) (sizeof(struct sockaddr_in))
-#endif
-
-
-/* AF_NATIVE is the "best" address family we support, backward compatible
- * through to AF_INET.
- */
-#ifdef WORKING_IPV6
-#define AF_NATIVE AF_INET6
-#else
-#define AF_NATIVE AF_INET
-#endif
-
-/* SS_INIT(ss, family) initializes ss to all zeroes (as directed by RFC),
- * and sets its ss_family as specified
- */
-#define SS_INIT(ss, family) do { \
-    memset((ss), 0, sizeof(*(ss))); \
-    (ss)->ss_family = (family); \
-} while (0);
-
-/* SS_SET_INADDR_ANY(ss) sets ss to the family-appropriate equivalent of
- * INADDR_ANY, a wildcard address and port.
- */
-#ifdef WORKING_IPV6
-#define SS_SET_INADDR_ANY(ss) do { \
-    switch ((ss)->ss_family) { \
-        case AF_INET6: \
-            ((struct sockaddr_in6 *)(ss))->sin6_flowinfo = 0; \
-            ((struct sockaddr_in6 *)(ss))->sin6_addr = in6addr_any; \
-            break; \
-        case AF_INET: \
-            ((struct sockaddr_in *)(ss))->sin_addr.s_addr = INADDR_ANY; \
-            break; \
-    } \
-} while (0);
-#else
-#define SS_SET_INADDR_ANY(ss) do { \
-    ((struct sockaddr_in *)(ss))->sin_addr.s_addr = INADDR_ANY; \
-} while (0);
-#endif
-
-/* Set/get the port in a sockaddr_storage that already has an family */
-#ifdef WORKING_IPV6
-#define SS_SET_PORT(ss, port) \
-switch ((ss)->ss_family) { \
-    case AF_INET: \
-        ((struct sockaddr_in *)(ss))->sin_port = (in_port_t)htons((port)); \
-        break; \
-    case AF_INET6: \
-        ((struct sockaddr_in6 *)(ss))->sin6_port = (in_port_t)htons((port)); \
-        break; \
-    default: assert(0); \
-}
-#else
-#define SS_SET_PORT(ss, port) \
-        ((struct sockaddr_in *)(ss))->sin_port = (in_port_t)htons((port));
-#endif
-
-#ifdef WORKING_IPV6
-#define SS_GET_PORT(ss) (ntohs( \
-       (ss)->ss_family == AF_INET6? \
-        ((struct sockaddr_in6 *)(ss))->sin6_port \
-       :((struct sockaddr_in *)(ss))->sin_port))
-#else
-#define SS_GET_PORT(ss) (ntohs( \
-        ((struct sockaddr_in *)(ss))->sin_port))
-#endif
-
-/*
- * The dbmalloc package comes from:
- *
- *  http://www.clark.net/pub/dickey/dbmalloc/dbmalloc.tar.gz
- *
- * or
- *
- *  ftp://gatekeeper.dec.com/pub/usenet/comp.sources.misc/volume32/dbmalloc/
- *
- * The following functions are sprinkled through the code, but are
- * disabled unless USE_DBMALLOC is defined:
- *
- *  malloc_enter(char *) -- stack trace for malloc reports
- *  malloc_leave(char *) -- stack trace for malloc reports
- *  malloc_mark(void *) -- mark an area as never to be free-d
- *  malloc_chain_check(void) -- check the malloc area now
- *  malloc_dump(int fd) -- report the malloc contents to a file descriptor
- *  malloc_list(int fd, ulong a, ulong b) -- report memory activated since
- *	history stamp a that is still active as of stamp b (leak check)
- *  malloc_inuse(ulong *h) -- create history stamp h and return the amount
- *	of memory currently in use.
- */
-
-#ifdef USE_DBMALLOC
-#include "dbmalloc.h"
-#else
-#define	malloc_enter(func)		((void)0)
-#define	malloc_leave(func)		((void)0)
-#define	malloc_mark(ptr)		((void)0)
-#define	malloc_chain_check()		((void)0)
-#define	malloc_dump(fd)			((void)0)
-#define	malloc_list(a,b,c)		((void)0)
-#define	malloc_inuse(hist)		(*(hist) = 0, 0)
-#define	dbmalloc_caller_loc(x,y)	(x)
 #endif
 
 #if !defined(HAVE_SIGACTION) && defined(HAVE_SIGVEC)
@@ -457,76 +381,6 @@ extern int errno;
 #define stringize(x) #x
 #define stringconcat(x, y) x ## y
 
-/*
- * So that we can use GNUC attributes (such as to get -Wall warnings
- * for printf-like functions).  Only do this in gcc 2.7 or later ...
- * it may work on earlier stuff, but why chance it.
- */
-#if !defined(__GNUC__) || __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 7) || defined(S_SPLINT_S) || defined(LINT) || defined(__lint)
-#undef __attribute__
-#define __attribute__(__x)
-#endif
-
-/*
- * assertions, but call error() instead of abort 
- */
-#ifndef ASSERTIONS
-
-#define assert(exp) ((void)0)
-
-#else	/* ASSERTIONS */
-
-#define assert(exp)	do {						\
-    if (!(exp)) {							\
-	onerror(abort);							\
-	error("assert: %s false, file %s, line %d",			\
-	   stringize(exp), __FILE__, __LINE__);				\
-        /*NOTREACHED*/							\
-    }									\
-} while (0)
-
-#endif	/* ASSERTIONS */
-
-/*
- * print debug output, else compile to nothing.
- */
-
-#ifdef DEBUG_CODE							/* { */
-#   define dbopen(a)	debug_open(a)
-#   define dbreopen(a,b) debug_reopen(a,b)
-#   define dbrename(a,b) debug_rename(a,b)
-#   define dbclose()	debug_close()
-#   define dbprintf(p)	(debug_printf p)
-#   define dbfd()	debug_fd()
-#   define dbfp()	debug_fp()
-#   define dbfn()	debug_fn()
-
-extern void debug_open(char *subdir);
-extern void debug_reopen(char *file, char *notation);
-extern void debug_rename(char *config, char *subdir);
-extern void debug_close(void);
-extern void debug_printf(const char *format, ...)
-    __attribute__ ((format (printf, 1, 2)));
-extern int  debug_fd(void);
-extern FILE *  debug_fp(void);
-extern char *  debug_fn(void);
-extern void set_debug_prefix_pid(pid_t);
-extern char *debug_prefix(char *);
-extern char *debug_prefix_time(char *);
-#else									/* }{ */
-#   define dbopen(a)
-#   define dbreopen(a,b)
-#   define dbrename(a,b)
-#   define dbclose()
-#   define dbprintf(p)
-#   define dbfd()	(-1)
-#   define dbfp()	NULL
-#   define dbfn()	NULL
-#   define set_debug_prefix_pid(x)
-#   define debug_prefix(x) get_pname()
-#   define debug_prefix_time(x) get_pname()
-#endif									/* } */
-
 /* amanda #days calculation, with roundoff */
 
 #define SECS_PER_DAY	(24*60*60)
@@ -566,83 +420,43 @@ extern char *debug_prefix_time(char *);
 #define MAX_TAPE_LABEL_BUF (MAX_TAPE_LABEL_LEN+1)
 #define MAX_TAPE_LABEL_FMT "%10240s"
 
-/* Define miscellaneous amanda functions.  */
-#define ERR_INTERACTIVE	1
-#define ERR_SYSLOG	2
-#define ERR_AMANDALOG	4
+#include "debug.h"
+#include "file.h"
 
-extern void   set_logerror(void (*f)(char *));
-extern void   set_pname(char *pname);
-extern char  *get_pname(void);
-extern int    erroutput_type;
-extern void   error(const char *format, ...)
-    __attribute__ ((format (printf, 1, 2), noreturn));
-extern void   errordump(const char *format, ...)
-    __attribute__ ((format (printf, 1, 2), noreturn));
-extern int    onerror(void (*errf)(void));
+void *debug_alloc(const char *file, int line, size_t size);
+void *debug_newalloc(const char *file, int line, void *old, size_t size);
+char *debug_stralloc(const char *file, int line, const char *str);
+char *debug_newstralloc(const char *file, int line,
+		char *oldstr, const char *newstr);
+char *debug_vstralloc(const char *file, int line, const char *str, ...);
+char *debug_newvstralloc(const char *file, int line,
+		char *oldstr, const char *str, ...);
+char *debug_vstrallocf(const char *file, int line, const char *fmt,
+		...) G_GNUC_PRINTF(3, 4);
+char *debug_newvstrallocf(const char *file, int line, char *oldstr,
+		const char *fmt, ...) G_GNUC_PRINTF(4, 5);
 
-extern void *debug_alloc      (const char *c, int l, size_t size);
-extern void *debug_newalloc   (const char *c, int l, void *old, size_t size);
-extern char *debug_stralloc   (const char *c, int l, const char *str);
-extern char *debug_newstralloc(const char *c, int l, char *oldstr,
-			       const char *newstr);
-extern const char *debug_caller_loc (const char *file, int line);
-extern int debug_alloc_push (char *file, int line);
-extern void debug_alloc_pop (void);
+/* Usage: vstrextend(foo, "bar, "baz", NULL). Extends the existing 
+ * string, or allocates a brand new one. */
+char *debug_vstrextend(const char *file, int line, char **oldstr, ...);
 
 #define	alloc(s)		debug_alloc(__FILE__, __LINE__, (s))
 #define	newalloc(p,s)		debug_newalloc(__FILE__, __LINE__, (p), (s))
 #define	stralloc(s)		debug_stralloc(__FILE__, __LINE__, (s))
 #define	newstralloc(p,s)	debug_newstralloc(__FILE__, __LINE__, (p), (s))
+#define vstralloc(...)		debug_vstralloc(__FILE__,__LINE__,__VA_ARGS__)
+#define newvstralloc(...)	debug_newvstralloc(__FILE__,__LINE__,__VA_ARGS__)
+#define vstrallocf(...)		debug_vstrallocf(__FILE__,__LINE__,__VA_ARGS__)
+#define newvstrallocf(...)	debug_newvstrallocf(__FILE__,__LINE__,__VA_ARGS__)
+#define vstrextend(...)		debug_vstrextend(__FILE__,__LINE__,__VA_ARGS__)
 
-/*
- * Voodoo time.  We want to be able to mark these calls with the source
- * line, but CPP does not handle variable argument lists so we cannot
- * do what we did above (e.g. for alloc()).
- *
- * What we do is call a function to save the file and line number
- * and have it return "false".  That triggers the "?" operator to
- * the right side of the ":" which is a call to the debug version of
- * vstralloc/newvstralloc but without parameters.  The compiler gets
- * those from the next input tokens:
- *
- *  xx = vstralloc(a,b,NULL);
- *
- * becomes:
- *
- *  xx = debug_alloc_push(__FILE__,__LINE__)?0:debug_vstralloc(a,b,NULL);
- *
- * This works as long as vstralloc/newvstralloc are not part of anything
- * very complicated.  Assignment is fine, as is an argument to another
- * function (but you should not do that because it creates a memory leak).
- * This will not work in arithmetic or comparison, but it is unlikely
- * they are used like that.
- *
- *  xx = vstralloc(a,b,NULL);			OK
- *  return vstralloc(j,k,NULL);			OK
- *  sub(a, vstralloc(g,h,NULL), z);		OK, but a leak
- *  if(vstralloc(s,t,NULL) == NULL) { ...	NO, but unneeded
- *  xx = vstralloc(x,y,NULL) + 13;		NO, but why do it?
- */
+#define	stralloc2(s1,s2)	vstralloc((s1),(s2),NULL)
+#define	newstralloc2(p,s1,s2)	newvstralloc((p),(s1),(s2),NULL)
 
-#define vstralloc debug_alloc_push(__FILE__,__LINE__)?0:debug_vstralloc
-#define newvstralloc debug_alloc_push(__FILE__,__LINE__)?0:debug_newvstralloc
-#define vstrallocf debug_alloc_push(__FILE__,__LINE__)?0:debug_vstrallocf
+#define vstrallocf(...)         debug_vstrallocf(__FILE__,__LINE__,__VA_ARGS__)
 
-extern char  *debug_vstralloc(const char *str, ...);
-extern char  *debug_newvstralloc(char *oldstr, const char *newstr, ...);
-extern char  *debug_vstrallocf(const char *fmt, ...)
-			       __attribute__ ((format (printf, 1, 2)));
-
-#define	stralloc2(s1,s2)      vstralloc((s1),(s2),NULL)
-#define	newstralloc2(p,s1,s2) newvstralloc((p),(s1),(s2),NULL)
-
-/* Usage: vstrextend(foo, "bar, "baz", NULL). Extends the existing 
- * string, or allocates a brand new one. */
-extern char *vstrextend(char **oldstr, ...);
-
-extern /*@only@*/ /*@null@*/ char *debug_agets(const char *c, int l, FILE *file);
-extern /*@only@*/ /*@null@*/ char *debug_areads(const char *c, int l, int fd);
+/*@only@*/ /*@null@*/ char *debug_agets(const char *file, int line, FILE *f);
+/*@only@*/ /*@null@*/ char *debug_areads(const char *file, int line, int fd);
 #define agets(f)	      debug_agets(__FILE__,__LINE__,(f))
 #define areads(f)	      debug_areads(__FILE__,__LINE__,(f))
 
@@ -664,14 +478,8 @@ extern int debug_amtable_alloc(const char *file,
 						     (b),             \
 						     (f))
 
-extern void amtable_free(void **table, size_t *current);
+extern void amtable_free(void **, size_t *);
 
-extern uid_t  client_uid;
-extern gid_t  client_gid;
-
-void	safe_fd(int fd_start, int fd_count);
-void	safe_cd(void);
-void	save_core(void);
 char **	safe_env(void);
 char *	validate_regexp(const char *regex);
 char *	validate_glob(const char *glob);
@@ -686,8 +494,6 @@ int	match_disk(const char *glob, const char *disk);
 int	match_datestamp(const char *dateexp, const char *datestamp);
 int	match_level(const char *levelexp, const char *level);
 time_t	unctime(char *timestr);
-ssize_t	areads_dataready(int fd);
-void	areads_relbuf(int fd);
 
 /*
  * amfree(ptr) -- if allocated, release space and set ptr to NULL.
@@ -710,52 +516,6 @@ void	areads_relbuf(int fd);
     char *t_t_t = (s1) ? stralloc2((s1),(s2)) : stralloc((s2));		\
     amfree((s1));							\
     (s1) = t_t_t;							\
-} while(0)
-
-/*
- * "Safe" close macros.  Close the object then set it to a value that
- * will cause an error if referenced.
- *
- * aclose(fd) -- close a file descriptor and set it to -1.
- * afclose(f) -- close a stdio file and set it to NULL.
- * apclose(p) -- close a stdio pipe file and set it to NULL.
- *
- * Note: be careful not to do the following:
- *
- *  for(fd = low; fd < high; fd++) {
- *      aclose(fd);
- *  }
- *
- * Since aclose() sets the argument to -1, this will loop forever.
- * Just copy fd to a temp variable and use that with aclose().
- *
- * Aclose() interacts with areads() to inform it to release any buffer
- * it has outstanding on the file descriptor.
- */
-
-#define aclose(fd) do {							\
-    if((fd) >= 0) {							\
-	close(fd);							\
-	areads_relbuf(fd);						\
-    }									\
-    (fd) = -1;								\
-    (void)(fd);  /* Fix value never used warning at end of routines */ \
-} while(0)
-
-#define afclose(f) do {							\
-    if((f) != NULL) {							\
-	fclose(f);							\
-	(f) = NULL;							\
-	(void)(f);  /* Fix value never used warning at end of routines */ \
-    }									\
-} while(0)
-
-#define apclose(p) do {							\
-    if((p) != NULL) {							\
-	pclose(p);							\
-	(p) = NULL;							\
-	(void)(p);  /* Fix value never used warning at end of routines */ \
-    }									\
 } while(0)
 
 /*
@@ -856,15 +616,15 @@ void	areads_relbuf(int fd);
 #define	NUM_STR_SIZE	128		/* a generic number buffer size */
 
 #define	skip_whitespace(ptr,c) do {					\
-    while((c) != '\n' && isspace(c)) (c) = *(ptr)++;			\
+    while((c) != '\n' && isspace((int)c)) (c) = *(ptr)++;		\
 } while(0)
 
 #define	skip_non_whitespace(ptr,c) do {					\
-    while((c) != '\0' && !isspace(c)) (c) = *(ptr)++;			\
+    while((c) != '\0' && !isspace((int)c)) (c) = *(ptr)++;		\
 } while(0)
 
 #define	skip_non_whitespace_cs(ptr,c) do {				\
-    while((c) != '\0' && (c) != '#' && !isspace(c)) (c) = *(ptr)++;	\
+    while((c) != '\0' && (c) != '#' && !isspace((int)c)) (c) = *(ptr)++;\
 } while(0)
 
 #define	skip_non_integer(ptr,c) do {					\
@@ -878,7 +638,7 @@ void	areads_relbuf(int fd);
 
 #define skip_quoted_string(ptr, c) do {					\
     int	iq = 0;								\
-    while (((c) != '\0') && !((iq == 0) && isspace(c))) {		\
+    while (((c) != '\0') && !((iq == 0) && isspace((int)c))) {		\
 	if ((c) == '"') {						\
 	    iq = !iq;							\
 	} else if (((c) == '\\') && (*(ptr) == '"')) {			\
@@ -908,7 +668,7 @@ void	areads_relbuf(int fd);
 
 #define	copy_string(ptr,c,f,l,fp) do {					\
     (fp) = (f);								\
-    while((c) != '\0' && !isspace(c)) {					\
+    while((c) != '\0' && !isspace((int)c)) {				\
 	if((fp) >= (f) + (l) - 1) {					\
 	    *(fp) = '\0';						\
 	    (fp) = NULL;						\
@@ -924,7 +684,7 @@ void	areads_relbuf(int fd);
 
 #define	copy_string_cs(ptr,c,f,l,fp) do {				\
     (fp) = (f);								\
-    while((c) != '\0' && (c) != '#' && !isspace(c)) {			\
+    while((c) != '\0' && (c) != '#' && !isspace((int)c)) {		\
 	if((fp) >= (f) + (l) - 1) {					\
 	    *(fp) = '\0';						\
 	    (fp) = NULL;						\
@@ -949,17 +709,6 @@ void	areads_relbuf(int fd);
 	((strncmp((str), (cnst), sizeof((cnst))-1) == 0)?		\
 		 ((ptr)+=sizeof((cnst))-1, (var)=(ptr)[-1], 0)		\
 		:1)
-
-/* from amflock.c */
-extern int    amflock(int fd, char *resource);
-extern int    amroflock(int fd, char *resource);
-extern int    amfunlock(int fd, char *resource);
-
-/* from file.c */
-extern int    mkpdir(char *file, mode_t mode, uid_t uid, gid_t gid);
-extern int    rmpdir(char *file, char *topdir);
-extern char  *sanitise_filename(char *inp);
-extern char  *old_sanitise_filename(char *inp);
 
 /* from old bsd-security.c */
 extern int debug;
@@ -1005,33 +754,6 @@ extern void closelog(void);
 
 #ifndef HAVE_CONNECT_DECL
 extern int connect(int s, struct sockaddr *name, socklen_t namelen);
-#endif
-
-#if !defined(TEXTDB) && !defined(HAVE_DBM_OPEN_DECL)
-#undef   DBM_INSERT
-#define  DBM_INSERT  0
-
-#undef   DBM_REPLACE
-#define  DBM_REPLACE 1
-
-    typedef struct {
-	int dummy[10];
-    } DBM;
-
-#ifndef HAVE_STRUCT_DATUM
-    typedef struct {
-	char    *dptr;
-	int     dsize;
-    } datum;
-#endif
-
-    extern DBM   *dbm_open(char *file, int flags, int mode);
-    extern void   dbm_close(DBM *db);
-    extern datum  dbm_fetch(DBM *db, datum key);
-    extern datum  dbm_firstkey(DBM *db);
-    extern datum  dbm_nextkey(DBM *db);
-    extern int    dbm_delete(DBM *db, datum key);
-    extern int    dbm_store(DBM *db, datum key, datum content, int flg);
 #endif
 
 #ifndef HAVE_FCLOSE_DECL
@@ -1089,14 +811,6 @@ extern int getsockname(int s, struct sockaddr *name, socklen_t *namelen);
 #ifndef HAVE_GETSOCKOPT_DECL
 extern int getsockopt(int s, int level, int optname, char *optval,
 			 socklen_t *optlen);
-#endif
-
-#ifndef HAVE_GETTIMEOFDAY_DECL
-# ifdef HAVE_TWO_ARG_GETTIMEOFDAY
-extern int gettimeofday(struct timeval *tp, struct timezone *tzp);
-# else
-extern int gettimeofday(struct timeval *tp);
-# endif
 #endif
 
 #ifndef HAVE_INITGROUPS
@@ -1279,7 +993,7 @@ extern int shmget(key_t key, size_t size, int shmflg);
 #ifndef HAVE_SNPRINTF_DECL
 #include "arglist.h"
 int snprintf(char *buf, size_t len, const char *format,...)
-		    __attribute__((format(printf,3,4)));
+     G_GNUC_PRINTF(3,4);
 #endif
 #ifndef HAVE_VSNPRINTF_DECL
 #include "arglist.h"
@@ -1317,7 +1031,7 @@ extern int strncasecmp(const char *s1, const char *s2, int n);
 
 #ifndef HAVE_SYSLOG_DECL
 extern void syslog(int priority, const char *logstring, ...)
-    __attribute__ ((format (printf, 2, 3)));
+     G_GNUC_PRINTF(2,3);
 #endif
 
 #ifndef HAVE_SYSTEM_DECL
@@ -1350,11 +1064,9 @@ extern int vfprintf(FILE *stream, const char *format, va_list ap);
 extern int vprintf(const char *format, va_list ap);
 #endif
 
-/* GNULIB include */
-#ifndef CONFIGURE_TEST
+/* gnulib-only includes (hence "" instead of <>) */
 #include "getaddrinfo.h"
 #include "inet_ntop.h"
-#endif
 
 #if !defined(S_ISCHR) && defined(_S_IFCHR) && defined(_S_IFMT)
 #define S_ISCHR(mode) (((mode) & _S_IFMT) == _S_IFCHR)
@@ -1398,15 +1110,11 @@ extern ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
 #endif
 
 #if SIZEOF_SIZE_T == SIZEOF_INT
-#  define        SIZE_T_FMT	"%u"
-#  define        SIZE_T_FMT_TYPE unsigned
 #  define        SIZE_T_ATOI	(size_t)atoi
 #  ifndef SIZE_MAX
-#    define      SIZE_MAX	UINT_MAX
+#    define      SIZE_MAX	G_MAXUINT
 #  endif
 #else
-#  define        SIZE_T_FMT	"%lu"
-#  define        SIZE_T_FMT_TYPE unsigned long
 #  define        SIZE_T_ATOI	(size_t)atol
 #  ifndef SIZE_MAX
 #    define      SIZE_MAX	ULONG_MAX
@@ -1414,8 +1122,6 @@ extern ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
 #endif
 
 #if SIZEOF_SSIZE_T == SIZEOF_INT
-#  define        SSIZE_T_FMT	"%d"
-#  define        SSIZE_T_FMT_TYPE int
 #  define        SSIZE_T_ATOI	(ssize_t)atoi
 #  ifndef SSIZE_MAX
 #    define      SSIZE_MAX	INT_MAX
@@ -1424,8 +1130,6 @@ extern ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
 #    define      SSIZE_MIN	INT_MIN
 #  endif
 #else
-#  define        SSIZE_T_FMT	"%ld"
-#  define        SSIZE_T_FMT_TYPE long
 #  define        SSIZE_T_ATOI	(ssize_t)atol
 #  ifndef SSIZE_MAX
 #    define      SSIZE_MAX	LONG_MAX
@@ -1436,15 +1140,11 @@ extern ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
 #endif
 
 #if SIZEOF_TIME_T == SIZEOF_INT
-#  define        TIME_T_FMT	"%u"
-#  define        TIME_T_FMT_TYPE unsigned
 #  define        TIME_T_ATOI	(time_t)atoi
 #  ifndef TIME_MAX
-#    define      TIME_MAX	UINT_MAX
+#    define      TIME_MAX	G_MAXUINT
 #  endif
 #else
-#  define        TIME_T_FMT	"%lu"
-#  define        TIME_T_FMT_TYPE unsigned long
 #  define        TIME_T_ATOI	(time_t)atol
 #  ifndef TIME_MAX
 #    define      TIME_MAX	ULONG_MAX
@@ -1452,30 +1152,21 @@ extern ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
 #endif
 
 #if SIZEOF_OFF_T > SIZEOF_LONG
-#  define        OFF_T_FMT       LL_FMT
-#  define        OFF_T_RFMT      LL_RFMT
-#  define        OFF_T_FMT_TYPE  long long
 #  ifdef HAVE_ATOLL
-#    define      OFF_T_ATOI	 (off_t)atoll
+#    define        OFF_T_ATOI	 (off_t)atoll
 #  else
-#    define      OFF_T_ATOI      (off_t)atol
+#    define        OFF_T_ATOI	 (off_t)atol
 #  endif
 #  ifdef HAVE_STRTOLL
-#    define      OFF_T_STRTOL	 (off_t)strtoll
+#    define        OFF_T_STRTOL	 (off_t)strtoll
 #  else
-#    define      OFF_T_STRTOL      (off_t)strtol
+#    define        OFF_T_STRTOL	 (off_t)strtol
 #  endif
 #else
 #  if SIZEOF_OFF_T == SIZEOF_LONG
-#    define        OFF_T_FMT       "%ld"
-#    define        OFF_T_RFMT      "ld"
-#    define        OFF_T_FMT_TYPE  long
 #    define        OFF_T_ATOI	 (off_t)atol
 #    define        OFF_T_STRTOL	 (off_t)strtol
 #  else
-#    define        OFF_T_FMT       "%d"
-#    define        OFF_T_RFMT      "d"
-#    define        OFF_T_FMT_TYPE  int
 #    define        OFF_T_ATOI	 (off_t)atoi
 #    define        OFF_T_STRTOL	 (off_t)strtol
 #  endif
@@ -1492,7 +1183,6 @@ extern ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
 #  else
 #    define AM64_MIN (off_t)(-9223372036854775807LL -1LL)
 #  endif
-#  define AM64_FMT OFF_T_FMT
 #else
 #if SIZEOF_LONG == 8
 #  ifdef LONG_MAX
@@ -1505,7 +1195,6 @@ extern ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
 #  else
 #    define AM64_MIN (off_t)(-9223372036854775807L -1L)
 #  endif
-#  define AM64_FMT "%ld"
 #else
 #if SIZEOF_LONG_LONG == 8
 #  ifdef LONG_LONG_MAX
@@ -1518,7 +1207,6 @@ extern ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
 #  else
 #    define AM64_MIN (off_t)(-9223372036854775807LL -1LL)
 #  endif
-#  define AM64_FMT LL_FMT
 #else
 #if SIZEOF_INTMAX_T == 8
 #  ifdef INTMAX_MAX
@@ -1531,7 +1219,6 @@ extern ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
 #  else
 #    define AM64_MIN (off_t)(-9223372036854775807LL -1LL)
 #  endif
-#  define AM64_FMT LL_FMT
 #else  /* no 64 bits type found, use long. */
 #  ifdef LONG_MAX
 #    define AM64_MAX (off_t)(LONG_MAX)
@@ -1543,40 +1230,12 @@ extern ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
 #  else
 #    define AM64_MIN (off_t)(-2147483647 -1)
 #  endif
-#  define AM64_FMT "%ld"
 #endif
 #endif
 #endif
-#endif
-
-#ifdef HAVE_LIBREADLINE
-#  ifdef HAVE_READLINE_READLINE_H
-#    include <readline/readline.h>
-#    ifdef HAVE_READLINE_HISTORY_H
-#      include <readline/history.h>
-#    endif
-#  else
-#    ifdef HAVE_READLINE_H
-#      include <readline.h>
-#      ifdef HAVE_HISTORY_H
-#        include <history.h>
-#      endif
-#    else
-#      undef HAVE_LIBREADLINE
-#    endif
-#  endif
-#else
-
-char *	readline(const char *prompt);
-void	add_history(const char *line);
-
 #endif
 
 #define BIND_CYCLE_RETRIES	120		/* Total of 30 minutes */
-
-#define DBG_SUBDIR_SERVER  "server"
-#define DBG_SUBDIR_CLIENT  "client"
-#define DBG_SUBDIR_AMANDAD "amandad"
 
 #define MAX_DUMPERS 63
 
@@ -1584,14 +1243,11 @@ void	add_history(const char *line);
 #define NI_MAXHOST 1025
 #endif
 
-#define _(x) x
-
-#ifndef AI_V4MAPPED
-#define AI_V4MAPPED 0
-#endif
-
-#ifndef AI_ALL
-#define AI_ALL 0
-#endif
+typedef enum {
+    KENCRYPT_NONE,	/* krb5 encryption not enabled */
+    KENCRYPT_WILL_DO,	/* krb5 encryption will be enabled once amanda
+		           protocol stream is closed */
+    KENCRYPT_YES	/* krb5 encryption enabled on all stream */
+} kencrypt_type;
 
 #endif	/* !AMANDA_H */

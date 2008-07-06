@@ -29,15 +29,14 @@
 
 #include "amanda.h"
 #include "util.h"
+#include <regex.h>
 #include "arglist.h"
 #include "clock.h"
+#include "sockaddr-util.h"
+#include "conffile.h"
 
-/*#define NET_READ_DEBUG*/
-
-#ifdef NET_READ_DEBUG
-#define netprintf(x)    dbprintf(x)
-#else
-#define netprintf(x)
+#ifdef HAVE_LIBCURL
+#include <curl/curl.h>
 #endif
 
 static int make_socket(sa_family_t family);
@@ -120,9 +119,7 @@ make_socket(
     s = socket(family, SOCK_STREAM, 0);
     if (s == -1) {
         save_errno = errno;
-        dbprintf(("%s: make_socket: socket() failed: %s\n",
-                  debug_prefix_time(NULL),
-                  strerror(save_errno)));
+        dbprintf(_("make_socket: socket() failed: %s\n"), strerror(save_errno));
         errno = save_errno;
         return -1;
     }
@@ -136,9 +133,8 @@ make_socket(
     r = setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
     if (r < 0) {
 	save_errno = errno;
-	dbprintf(("%s: stream_server: setsockopt(SO_REUSEADDR) failed: %s\n",
-		  debug_prefix_time(NULL),
-		  strerror(errno)));
+	dbprintf(_("make_socket: setsockopt(SO_REUSEADDR) failed: %s\n"),
+		  strerror(errno));
 	errno = save_errno;
     }
 #endif
@@ -148,9 +144,8 @@ make_socket(
 		   (void *)&on, SIZEOF(on));
     if (r == -1) {
 	save_errno = errno;
-	dbprintf(("%s: make_socket: setsockopt() failed: %s\n",
-                  debug_prefix_time(NULL),
-                  strerror(save_errno)));
+	dbprintf(_("make_socket: setsockopt() failed: %s\n"),
+                  strerror(save_errno));
 	aclose(s);
 	errno = save_errno;
 	return -1;
@@ -202,10 +197,9 @@ connect_portrange(
 	}
     }
 
-    dbprintf(("%s: connect_portrange: all ports between %d and %d busy\n",
-	      debug_prefix_time(NULL),
+    dbprintf(_("connect_portrange: All ports between %d and %d are busy.\n"),
 	      first_port,
-	      last_port));
+	      last_port);
     errno = EAGAIN;
     return -1;
 }
@@ -231,17 +225,9 @@ connect_port(
 
     servPort = getservbyport((int)htons(port), proto);
     if (servPort != NULL && !strstr(servPort->s_name, "amanda")) {
-	dbprintf(("%s: connect_port: Skip port %d: Owned by %s.\n",
-		  debug_prefix_time(NULL), port, servPort->s_name));
+	dbprintf(_("connect_port: Skip port %d: owned by %s.\n"),
+		  port, servPort->s_name);
 	return -1;
-    }
-
-    if(servPort == NULL)
-	dbprintf(("%s: connect_port: Try  port %d: Available   - \n",
-		  debug_prefix_time(NULL), port));
-    else {
-	dbprintf(("%s: connect_port: Try  port %d: Owned by %s - \n",
-		  debug_prefix_time(NULL), port, servPort->s_name));
     }
 
     if ((s = make_socket(addrp->ss_family)) == -1) return -2;
@@ -251,14 +237,26 @@ connect_port(
     if (bind(s, (struct sockaddr *)addrp, socklen) != 0) {
 	save_errno = errno;
 	aclose(s);
+	if(servPort == NULL) {
+	    dbprintf(_("connect_port: Try  port %d: available - %s\n"),
+		     port, strerror(errno));
+	} else {
+	    dbprintf(_("connect_port: Try  port %d: owned by %s - %s\n"),
+		     port, servPort->s_name, strerror(errno));
+	}
 	if (save_errno != EADDRINUSE) {
-	    dbprintf(("errno %d strerror %s\n",
-		      errno, strerror(errno)));
 	    errno = save_errno;
 	    return -2;
 	}
+
 	errno = save_errno;
 	return -1;
+    }
+    if(servPort == NULL) {
+	dbprintf(_("connect_port: Try  port %d: available - Success\n"), port);
+    } else {
+	dbprintf(_("connect_port: Try  port %d: owned by %s - Success\n"),
+		  port, servPort->s_name);
     }
 
     /* find out what port was actually used */
@@ -266,9 +264,8 @@ connect_port(
     len = sizeof(*addrp);
     if (getsockname(s, (struct sockaddr *)addrp, &len) == -1) {
 	save_errno = errno;
-	dbprintf(("%s: connect_port: getsockname() failed: %s\n",
-		  debug_prefix_time(NULL),
-		  strerror(save_errno)));
+	dbprintf(_("connect_port: getsockname() failed: %s\n"),
+		  strerror(save_errno));
 	aclose(s);
 	errno = save_errno;
 	return -1;
@@ -278,14 +275,12 @@ connect_port(
 	fcntl(s, F_SETFL, fcntl(s, F_GETFL, 0)|O_NONBLOCK);
     if (connect(s, (struct sockaddr *)svaddr, SS_LEN(svaddr)) == -1 && !nonblock) {
 	save_errno = errno;
-	dbprintf(("%s: connect_portrange: connect from %s failed: %s\n",
-		  debug_prefix_time(NULL),
+	dbprintf(_("connect_portrange: Connect from %s failed: %s\n"),
 		  str_sockaddr(addrp),
-		  strerror(save_errno)));
-	dbprintf(("%s: connect_portrange: connect to %s failed: %s\n",
-		  debug_prefix_time(NULL),
+		  strerror(save_errno));
+	dbprintf(_("connect_portrange: connect to %s failed: %s\n"),
 		  str_sockaddr(svaddr),
-		  strerror(save_errno)));
+		  strerror(save_errno));
 	aclose(s);
 	errno = save_errno;
 	if (save_errno == ECONNREFUSED ||
@@ -297,12 +292,10 @@ connect_port(
 	return -1;
     }
 
-    dbprintf(("%s: connected to %s\n",
-              debug_prefix_time(NULL),
-              str_sockaddr(svaddr)));
-    dbprintf(("%s: our side is %s\n",
-              debug_prefix_time(NULL),
-              str_sockaddr(addrp)));
+    dbprintf(_("connected to %s\n"),
+              str_sockaddr(svaddr));
+    dbprintf(_("our side is %s\n"),
+              str_sockaddr(addrp));
     return s;
 }
 
@@ -343,85 +336,35 @@ bind_portrange(
     for (cnt = 0; cnt < num_ports; cnt++) {
 	servPort = getservbyport((int)htons(port), proto);
 	if ((servPort == NULL) || strstr(servPort->s_name, "amanda")) {
-	    if (servPort == NULL) {
-		dbprintf(("%s: bind_portrange2: Try  port %d: Available   - ",
-		      debug_prefix_time(NULL), port));
-	    } else {
-		dbprintf(("%s: bind_portrange2: Try  port %d: Owned by %s - ",
-		      debug_prefix_time(NULL), port, servPort->s_name));
-	    }
 	    SS_SET_PORT(addrp, port);
 	    socklen = SS_LEN(addrp);
 	    if (bind(s, (struct sockaddr *)addrp, socklen) >= 0) {
-	        dbprintf(("Success\n"));
+		if (servPort == NULL) {
+		    dbprintf(_("bind_portrange2: Try  port %d: Available - Success\n"), port);
+		} else {
+		    dbprintf(_("bind_portrange2: Try  port %d: Owned by %s - Success.\n"), port, servPort->s_name);
+		}
 		return 0;
 	    }
-	    dbprintf(("%s\n", strerror(errno)));
+	    if (servPort == NULL) {
+		dbprintf(_("bind_portrange2: Try  port %d: Available - %s\n"),
+			port, strerror(errno));
+	    } else {
+		dbprintf(_("bind_portrange2: Try  port %d: Owned by %s - %s\n"),
+			port, servPort->s_name, strerror(errno));
+	    }
 	} else {
-	        dbprintf(("%s: bind_portrange2: Skip port %d: Owned by %s.\n",
-		      debug_prefix_time(NULL), port, servPort->s_name));
+	        dbprintf(_("bind_portrange2: Skip port %d: Owned by %s.\n"),
+		      port, servPort->s_name);
 	}
 	if (++port > last_port)
 	    port = first_port;
     }
-    dbprintf(("%s: bind_portrange: all ports between %d and %d busy\n",
-		  debug_prefix_time(NULL),
+    dbprintf(_("bind_portrange: all ports between %d and %d busy\n"),
 		  first_port,
-		  last_port));
+		  last_port);
     errno = EAGAIN;
     return -1;
-}
-
-/*
- * Construct a datestamp (YYYYMMDD) from a time_t.
- */
-char *
-construct_datestamp(
-    time_t *t)
-{
-    struct tm *tm;
-    char datestamp[3 * NUM_STR_SIZE];
-    time_t when;
-
-    if (t == NULL) {
-	when = time((time_t *)NULL);
-    } else {
-	when = *t;
-    }
-    tm = localtime(&when);
-    if (!tm)
-	return stralloc("19000101");
-
-    snprintf(datestamp, SIZEOF(datestamp),
-             "%04d%02d%02d", tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday);
-    return stralloc(datestamp);
-}
-
-/*
- * Construct a timestamp (YYYYMMDDHHMMSS) from a time_t.
- */
-char *
-construct_timestamp(
-    time_t *t)
-{
-    struct tm *tm;
-    char timestamp[6 * NUM_STR_SIZE];
-    time_t when;
-
-    if (t == NULL) {
-	when = time((time_t *)NULL);
-    } else {
-	when = *t;
-    }
-    tm = localtime(&when);
-    if (!tm)
-	return stralloc("19000101000000");
-
-    snprintf(timestamp, SIZEOF(timestamp),
-	     "%04d%02d%02d%02d%02d%02d",
-	     tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday,
-	     tm->tm_hour, tm->tm_min, tm->tm_sec);
-    return stralloc(timestamp);
 }
 
 
@@ -447,7 +390,7 @@ quote_string(
 
     if ((str == NULL) || (*str == '\0')) {
 	ret = stralloc("\"\"");
-    } else if ((match("[\\\"[:space:][:cntrl:]]", str)) == 0) {
+    } else if ((match("[:\'\\\"[:space:][:cntrl:]]", str)) == 0) {
 	/*
 	 * String does not need to be quoted since it contains
 	 * neither whitespace, control or quote characters.
@@ -556,50 +499,11 @@ sanitize_string(
     } else {
 	ret = stralloc(str);
 	for (s = ret; *s != '\0'; s++) {
-	    if (iscntrl(*s))
+	    if (iscntrl((int)*s))
 		*s = '?';
 	}
     }
     return (ret);
-}
-
-char *
-strquotedstr(void)
-{
-    char *  tok = strtok(NULL, " ");
-
-    if ((tok != NULL) && (tok[0] == '"')) {
-	char *	t;
-	size_t	len;
-
-        len = strlen(tok);
-	do {
-	    t = strtok(NULL, " ");
-	    tok[len] = ' ';
-	    len = strlen(tok);
-	} while ((t != NULL) &&
-	         (tok[len - 1] != '"') && (tok[len - 2] != '\\'));
-    }
-    return tok;
-}
-
-ssize_t
-hexdump(
-    const char *buffer,
-    size_t	len)
-{
-    ssize_t rc = -1;
-
-    FILE *stream = popen("od -c -x -", "w");
-	
-    if (stream != NULL) {
-	fflush(stdout);
-	rc = (ssize_t)fwrite(buffer, len, 1, stream);
-	if (ferror(stream))
-	    rc = -1;
-	pclose(stream);
-    }
-    return rc;
 }
 
 /*
@@ -615,138 +519,6 @@ validate_mailto(
     return !match("\\*|<|>|\\(|\\)|\\[|\\]|,|;|:|\\\\|/|\"|\\!|\\$|\\|", mailto);
 }
 
-
-void
-dump_sockaddr(
-    struct sockaddr_storage *sa)
-{
-#ifdef WORKING_IPV6
-    char ipstr[INET6_ADDRSTRLEN];
-#else
-    char ipstr[INET_ADDRSTRLEN];
-#endif
-    int port;
-
-    port = SS_GET_PORT(sa);
-#ifdef WORKING_IPV6
-    if ( sa->ss_family == (sa_family_t)AF_INET6) {
-	inet_ntop(AF_INET6, &((struct sockaddr_in6 *)sa)->sin6_addr,
-		  ipstr, sizeof(ipstr));
-	dbprintf(("%s: (sockaddr_in6 *)%p = { %d, %d, %s }\n",
-		  debug_prefix_time(NULL), sa,
-		  ((struct sockaddr_in6 *)sa)->sin6_family,
-		  port,
-		  ipstr));
-    } else
-#endif
-    {
-	inet_ntop(AF_INET, &((struct sockaddr_in *)sa)->sin_addr, ipstr,
-		  sizeof(ipstr));
-	dbprintf(("%s: (sockaddr_in *)%p = { %d, %d, %s }\n",
-		  debug_prefix_time(NULL), sa,
-		  ((struct sockaddr_in *)sa)->sin_family,
-		  port,
-		  ipstr));
-    }
-}
-
-
-#ifdef WORKING_IPV6
-static char mystr_sockaddr[INET6_ADDRSTRLEN + 20];
-#else
-static char mystr_sockaddr[INET_ADDRSTRLEN + 20];
-#endif
-
-char *
-str_sockaddr(
-    struct sockaddr_storage *sa)
-{
-#ifdef WORKING_IPV6
-    char ipstr[INET6_ADDRSTRLEN];
-#else
-    char ipstr[INET_ADDRSTRLEN];
-#endif
-    int port;
-
-    port = SS_GET_PORT(sa);
-#ifdef WORKING_IPV6
-    if ( sa->ss_family == (sa_family_t)AF_INET6) {
-	inet_ntop(AF_INET6, &((struct sockaddr_in6 *)sa)->sin6_addr,
-		  ipstr, sizeof(ipstr));
-    } else
-#endif
-    {
-	inet_ntop(AF_INET, &((struct sockaddr_in *)sa)->sin_addr, ipstr,
-		  sizeof(ipstr));
-    }
-    snprintf(mystr_sockaddr,sizeof(mystr_sockaddr),"%s.%d", ipstr, port);
-    return mystr_sockaddr;
-}
-
-
-int
-cmp_sockaddr(
-    struct sockaddr_storage *ss1,
-    struct sockaddr_storage *ss2,
-    int addr_only)
-{
-    /* if addresses are v4mapped, "unmap" them */
-#ifdef WORKING_IPV6
-#ifdef IN6_IS_ADDR_V4MAPPED
-    struct sockaddr_in ss1_v4;
-    struct sockaddr_in ss2_v4;
-
-    if (ss1->ss_family == AF_INET6 &&
-        IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6 *)ss1)->sin6_addr)) {
-	memset(&ss1_v4, 0, sizeof(struct sockaddr_in));
-	memcpy(&ss1_v4.sin_addr.s_addr,
-	       &(((struct sockaddr_in6 *)ss1)->sin6_addr.s6_addr[12]),
-	       sizeof(struct in_addr));
-	ss1_v4.sin_family = AF_INET;
-	SS_SET_PORT((struct sockaddr_storage *)&ss1_v4, SS_GET_PORT(ss1));
-	ss1 = (struct sockaddr_storage *)&ss1_v4;
-    }
-
-    if (ss2->ss_family == AF_INET6 &&
-        IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6 *)ss2)->sin6_addr)) {
-	memset(&ss2_v4, 0, sizeof(struct sockaddr_in));
-	memcpy(&ss2_v4.sin_addr.s_addr,
-	       &(((struct sockaddr_in6 *)ss2)->sin6_addr.s6_addr[12]),
-	       sizeof(struct in_addr));
-	ss2_v4.sin_family = AF_INET;
-	SS_SET_PORT((struct sockaddr_storage *)&ss2_v4, SS_GET_PORT(ss2));
-	ss2 = (struct sockaddr_storage *)&ss2_v4;
-    }
-#endif
-#endif
-
-    if (ss1->ss_family == ss2->ss_family) {
-        if (addr_only) {
-#ifdef WORKING_IPV6
-            if(ss1->ss_family == (sa_family_t)AF_INET6)
-                return memcmp(
-                    &((struct sockaddr_in6 *)ss1)->sin6_addr,
-                    &((struct sockaddr_in6 *)ss2)->sin6_addr,
-                    sizeof(((struct sockaddr_in6 *)ss1)->sin6_addr));
-            else
-#endif
-                return memcmp(
-                    &((struct sockaddr_in *)ss1)->sin_addr,
-                    &((struct sockaddr_in *)ss2)->sin_addr,
-                    sizeof(((struct sockaddr_in *)ss1)->sin_addr));
-        } else {
-            return memcmp(ss1, ss2, SS_LEN(ss1));
-        }
-    } else {
-        /* compare families to give a total order */
-        if (ss1->ss_family < ss2->ss_family)
-            return -1;
-        else
-            return 1;
-    }
-}
-
-
 int copy_file(
     char  *dst,
     char  *src,
@@ -761,8 +533,8 @@ int copy_file(
     if ((infd = open(src, O_RDONLY)) == -1) {
 	save_errno = errno;
 	quoted = quote_string(src);
-	*errmsg = vstralloc("Can't open file ", quoted, " for reading: %s",
-			    strerror(save_errno), NULL);
+	*errmsg = vstrallocf(_("Can't open file '%s' for reading: %s"),
+			    quoted, strerror(save_errno));
 	amfree(quoted);
 	return -1;
     }
@@ -770,8 +542,8 @@ int copy_file(
     if ((outfd = open(dst, O_WRONLY|O_CREAT, 0600)) == -1) {
 	save_errno = errno;
 	quoted = quote_string(dst);
-	*errmsg = vstralloc("Can't open file ", quoted, " for writting: %s",
-			    strerror(save_errno), NULL);
+	*errmsg = vstrallocf(_("Can't open file '%s' for writting: %s"),
+			    quoted, strerror(save_errno));
 	amfree(quoted);
 	close(infd);
 	return -1;
@@ -781,8 +553,8 @@ int copy_file(
 	if(fullwrite(outfd,&buf,(size_t)nb) < nb) {
 	    save_errno = errno;
 	    quoted = quote_string(dst);
-	    *errmsg = vstralloc("Error writing to \"", quoted, "\":",
-				strerror(save_errno), NULL);
+	    *errmsg = vstrallocf(_("Error writing to '%s': %s"),
+				quoted, strerror(save_errno));
 	    amfree(quoted);
 	    close(infd);
 	    close(outfd);
@@ -793,8 +565,8 @@ int copy_file(
     if (nb < 0) {
 	save_errno = errno;
 	quoted = quote_string(src);
-	*errmsg = vstralloc("Error reading from \"", quoted, "\":",
-			    strerror(save_errno), NULL);
+	*errmsg = vstrallocf(_("Error reading from '%s': %s"),
+			    quoted, strerror(save_errno));
 	amfree(quoted);
 	close(infd);
 	close(outfd);
@@ -805,16 +577,18 @@ int copy_file(
     close(outfd);
     return 0;
 }
-#ifndef HAVE_LIBREADLINE
+
+#ifndef HAVE_READLINE
 /*
- * simple readline() replacements
+ * simple readline() replacements, used when we don't have readline
+ * support from the system.
  */
 
 char *
 readline(
     const char *prompt)
 {
-    printf("%s", prompt);
+    g_printf("%s", prompt);
     fflush(stdout);
     fflush(stderr);
     return agets(stdin);
@@ -824,6 +598,344 @@ void
 add_history(
     const char *line)
 {
-    (void)line; 	/* Quite unused parameter warning */
+    (void)line; 	/* Quiet unused parameter warning */
 }
+
 #endif
+
+/* Order of preference: readdir64(), readdir(). */
+#if HAVE_DECL_READDIR64
+#  define USE_DIRENT64
+#  define USE_READDIR64
+#elif HAVE_DECL_READDIR
+#  define USE_READDIR
+#else
+# error No readdir() or readdir64() available!
+#endif
+
+char * portable_readdir(DIR* handle) {
+
+#ifdef USE_DIRENT64
+    struct dirent64 *entry_p;
+#else
+    struct dirent *entry_p;
+#endif
+
+    static GStaticMutex mutex = G_STATIC_MUTEX_INIT;
+
+    g_static_mutex_lock(&mutex);
+
+#ifdef USE_READDIR
+    entry_p = readdir(handle);
+#endif
+#ifdef USE_READDIR64
+    entry_p = readdir64(handle);
+#endif
+
+    g_static_mutex_unlock(&mutex);
+    
+    if (entry_p == NULL)
+        return NULL;
+
+    /* FIXME: According to glibc documentation, d_name may not be
+       null-terminated in some cases on some very old platforms. Not
+       sure what to do about that case. */
+    return strdup(entry_p->d_name);
+}
+
+int search_directory(DIR * handle, const char * regex,
+                     SearchDirectoryFunctor functor, gpointer user_data) {
+    int rval = 0;
+    regex_t compiled_regex;
+    gboolean done = FALSE;
+
+    if (regcomp(&compiled_regex, regex, REG_EXTENDED | REG_NOSUB) != 0) {
+        regfree(&compiled_regex);
+        return -1;
+    }
+
+    rewinddir(handle);
+
+    while (!done) {
+        char * read_name;
+        int result;
+        read_name = portable_readdir(handle);
+        if (read_name == NULL) {
+            regfree(&compiled_regex);
+            return rval;
+	}
+        result = regexec(&compiled_regex, read_name, 0, NULL, 0);
+        if (result == 0) {
+            rval ++;
+            done = !functor(read_name, user_data);
+        }
+        amfree(read_name);
+    }
+    regfree(&compiled_regex);
+    return rval;
+}
+
+char* find_regex_substring(const char* base_string, const regmatch_t match) {
+    char * rval;
+    int size;
+
+    size = match.rm_eo - match.rm_so;
+    rval = malloc(size+1);
+    memcpy(rval, base_string + match.rm_so, size);
+    rval[size] = '\0';
+
+    return rval;
+}
+
+int compare_possibly_null_strings(const char * a, const char * b) {
+    if (a == b) {
+        /* NULL or otherwise, they're the same. */
+        return 0;
+    } else if (a == NULL) {
+        /* b != NULL */
+        return -1;
+    } else if (b == NULL) {
+        /* a != NULL */
+        return 1;
+    } else {
+        /* a != NULL != b */
+        return strcmp(a, b);
+    }
+}
+
+gboolean amanda_thread_init(void) {
+    gboolean success = FALSE;
+#ifdef HAVE_LIBCURL
+    static gboolean did_curl_init = FALSE;
+    if (!did_curl_init) {
+# ifdef G_THREADS_ENABLED
+        g_assert(!g_thread_supported());
+# endif
+        g_assert(curl_global_init(CURL_GLOBAL_ALL) == 0);
+        did_curl_init = TRUE;
+    }
+#endif
+#if defined(G_THREADS_ENABLED) && !defined(G_THREADS_IMPL_NONE)
+    if (g_thread_supported()) {
+        return TRUE;
+    }
+    g_thread_init(NULL);
+    success = TRUE;
+#endif
+    return success;
+}
+
+int
+resolve_hostname(const char *hostname,
+	int socktype,
+	struct addrinfo **res,
+	char **canonname)
+{
+    struct addrinfo hints;
+    struct addrinfo *myres;
+    int flags = 0;
+    int result;
+
+    if (res) *res = NULL;
+    if (canonname) {
+	*canonname = NULL;
+	flags = AI_CANONNAME;
+    }
+
+#ifdef AI_ADDRCONFIG
+    flags |= AI_ADDRCONFIG;
+#endif
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_flags = flags;
+    hints.ai_socktype = socktype;
+    result = getaddrinfo(hostname, NULL, &hints, &myres);
+    if (result != 0) {
+	return result;
+    }
+
+    if (canonname && myres && myres->ai_canonname) {
+	*canonname = stralloc(myres->ai_canonname);
+    }
+
+    if (res) {
+	*res = myres;
+    } else {
+	freeaddrinfo(myres);
+    }
+
+    return result;
+}
+
+char *
+_str_exit_status(
+    char *subject,
+    amwait_t status)
+{
+    if (WIFEXITED(status)) {
+	int exitstatus = WEXITSTATUS(status);
+	if (exitstatus == 0)
+	    return vstrallocf(_("%s exited normally"), subject);
+	else
+	    return vstrallocf(_("%s exited with status %d"), subject, exitstatus);
+    }
+
+    if (WIFSIGNALED(status)) {
+	int signal = WTERMSIG(status);
+#ifdef WCOREDUMP
+	if (WCOREDUMP(status))
+	    return vstrallocf(_("%s exited after receiving signal %d (core dumped)"),
+		subject, signal);
+	else
+#endif
+	    return vstrallocf(_("%s exited after receiving signal %d"),
+		subject, signal);
+    }
+
+    if (WIFSTOPPED(status)) {
+	int signal = WSTOPSIG(status);
+	return vstrallocf(_("%s stopped temporarily after receiving signal %d"),
+	    subject, signal);
+    }
+
+#ifdef WIFCONTINUED
+    if (WIFCONTINUED(status)) {
+	return vstrallocf(_("%s was resumed"), subject);
+    }
+#endif
+
+    return vstrallocf(_("%s exited in unknown circumstances"), subject);
+}
+
+void
+check_running_as(running_as_flags who)
+{
+#ifdef CHECK_USERID
+    struct passwd *pw;
+    uid_t uid_me;
+    uid_t uid_target;
+    char *uname_me = NULL;
+    char *uname_target = NULL;
+    char *dumpuser;
+
+    uid_me = getuid();
+    if ((pw = getpwuid(uid_me)) == NULL) {
+        error(_("current userid %ld not found in password database"), (long)uid_me);
+	/* NOTREACHED */
+    }
+    uname_me = stralloc(pw->pw_name);
+
+#ifndef SINGLE_USERID
+    if (!(who & RUNNING_AS_UID_ONLY) && uid_me != geteuid()) {
+	error(_("euid (%lld) does not match uid (%lld); is this program setuid-root when it shouldn't be?"),
+		(long long int)geteuid(), (long long int)uid_me);
+	/* NOTREACHED */
+    }
+#endif
+
+    switch (who & RUNNING_AS_USER_MASK) {
+	case RUNNING_AS_ROOT:
+	    uid_target = 0;
+	    uname_target = "root";
+	    break;
+
+	case RUNNING_AS_DUMPUSER_PREFERRED:
+	    dumpuser = getconf_str(CNF_DUMPUSER);
+	    if ((pw = getpwnam(dumpuser)) != NULL &&
+                    uid_me != pw->pw_uid) {
+		if ((pw = getpwnam(CLIENT_LOGIN)) != NULL &&
+		    uid_me == pw->pw_uid) {
+		    /* uid == CLIENT_LOGIN: not ideal, but OK */
+		    dbprintf(_("NOTE: running as '%s', which is the client"
+			       " user, not the dumpuser ('%s'); forging"
+			       " on anyway\n"),
+			     CLIENT_LOGIN, dumpuser);
+		    uid_target = uid_me; /* force success below */
+		   break;
+		}
+            }
+            /* FALLTHROUGH */
+
+	case RUNNING_AS_DUMPUSER:
+	    uname_target = getconf_str(CNF_DUMPUSER);
+	    if ((pw = getpwnam(uname_target)) == NULL) {
+		error(_("cannot look up dumpuser \"%s\""), uname_target);
+		/*NOTREACHED*/
+	    }
+	    uid_target = pw->pw_uid;
+	    break;
+
+	case RUNNING_AS_CLIENT_LOGIN:
+	    uname_target = CLIENT_LOGIN;
+	    if ((pw = getpwnam(uname_target)) == NULL) {
+		error(_("cannot look up client user \"%s\""), uname_target);
+		/*NOTREACHED*/
+	    }
+	    uid_target = pw->pw_uid;
+	    break;
+
+	default:
+	    error(_("Unknown check_running_as() call"));
+	    /* NOTREACHED */
+    }
+
+    if (uid_me != uid_target) {
+	error(_("running as user \"%s\" instead of \"%s\""), uname_me, uname_target);
+	/*NOTREACHED*/
+    }
+    amfree(uname_me);
+
+#else
+    /* Quiet unused variable warning */
+    (void)who;
+#endif
+}
+
+int
+set_root_privs(int need_root)
+{
+#ifndef SINGLE_USERID
+    if (need_root) {
+        if (seteuid(0) == -1) return 0;
+        /* (we don't switch the group back) */
+    } else {
+	if (geteuid() != 0) return 0;
+        if (seteuid(getuid()) == -1) return 0;
+        if (setegid(getgid()) == -1) return 0;
+    }
+#else
+    (void)need_root; /* Quiet unused variable warning */
+#endif
+    return 1;
+}
+
+int
+become_root(void)
+{
+#ifndef SINGLE_USERID
+    if (setuid(0) == -1) return 0;
+#endif
+    return 1;
+}
+
+/*
+ * Process parameters
+ */
+
+/* current process name */
+#define MAX_PNAME 128
+static char pname[MAX_PNAME] = "unknown";
+
+void
+set_pname(char *p)
+{
+    g_strlcpy(pname, p, sizeof(pname));
+}
+
+char *
+get_pname(void)
+{
+    return pname;
+}
+

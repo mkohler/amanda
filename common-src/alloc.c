@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: alloc.c,v 1.37 2006/07/05 10:41:32 martinea Exp $
+ * $Id: alloc.c 5280 2007-02-13 15:58:56Z martineau $
  *
  * Memory allocators with error handling.  If the allocation fails,
  * errordump() is called, relieving the caller from checking the return
@@ -34,165 +34,29 @@
 #include "arglist.h"
 #include "queue.h"
 
-#define MIN_ALLOC 64
-static char *internal_vstralloc(const char *, va_list);
+#define	MIN_ALLOC	64
 
-/*
- *=====================================================================
- * debug_caller_loc -- keep track of all allocation callers
- *
- * const char *debug_caller_loc(const char *file, int line)
- *
- * entry:	file = source file
- *		line = source line
- * exit:	a string like "genversion.c@999"
- *
- * The debug malloc library has a concept of a call stack that can be used
- * to fine tune what was running when a particular allocation was done.
- * We use it to tell who called our various allocation wrappers since
- * it wouldn't do much good to tell us a problem happened because of
- * the malloc call in alloc (they are all from there at some point).
- *
- * But the library expects the string passed to malloc_enter/malloc_leave
- * to be static, so we build a linked list of each one we get (there are
- * not really that many during a given execution).  When we get a repeat
- * we return the previously allocated string.  For a bit of performance,
- * we keep the list in least recently used order, which helps because
- * the calls to us come in pairs (one for malloc_enter and one right
- * after for malloc_leave).
- *=====================================================================
- */
-
-const char *
-debug_caller_loc(
-    const char *file,
-    int line)
-{
-    /*@keep@*/
-    struct loc_str {
-	char *str;
-	LIST_ENTRY(loc_str) le;
-    } *ls;
-    static LIST_HEAD(, loc_str) root = LIST_HEAD_INITIALIZER(root);
-    static char loc[256];	/* big enough for filename@lineno */
-    const char *p;
-
-    if ((p = strrchr(file, '/')) != NULL)
-	file = p + 1;				/* just the last path element */
-
-    snprintf(loc, SIZEOF(loc), "%s@%d", file, line);
-
-    for (ls = LIST_FIRST(&root); ls != NULL; ls = LIST_NEXT(ls, le)) {
-	if (strcmp(loc, ls->str) == 0) {
-	    if (ls != LIST_FIRST(&root)) {
-		/*
-		 * This is a repeat and was not at the head of the list.
-		 * Unlink it and move it to the front.
-		 */
-		LIST_REMOVE(ls, le);
-		LIST_INSERT_HEAD(&root, ls, le);
-	    }
-	    return (ls->str);
-	}
-    }
-
-    /*
-     * This is a new entry.  Put it at the head of the list.
-     */
-    ls = malloc(SIZEOF(*ls));
-    if (ls == NULL)
-	return ("??");			/* not much better than abort */
-    ls->str = malloc(strlen(loc) + 1);
-    if (ls->str == NULL) {
-	free(ls);
-	return ("??");			/* not much better than abort */
-    }
-    strcpy(ls->str, loc);
-    malloc_mark(ls);
-    malloc_mark(ls->str);
-    LIST_INSERT_HEAD(&root, ls, le);
-    return (ls->str);
-}
-
-/*
- *=====================================================================
- * Save the current source line for vstralloc/newvstralloc.
- *
- * int debug_alloc_push (char *s, int l)
- *
- * entry:	s = source file
- *		l = source line
- * exit:	always zero
- * 
- * See the comments in amanda.h about what this is used for.
- *=====================================================================
- */
-
-#define	DEBUG_ALLOC_SAVE_MAX	10
-
-static struct {
-	char		*file;
-	int		line;
-} debug_alloc_loc_info[DEBUG_ALLOC_SAVE_MAX];
-static int debug_alloc_ptr = 0;
-
-static char		*saved_file;
-static int		saved_line;
-
-int
-debug_alloc_push(
-    char *s,
-    int l)
-{
-    debug_alloc_loc_info[debug_alloc_ptr].file = s;
-    debug_alloc_loc_info[debug_alloc_ptr].line = l;
-    debug_alloc_ptr = (debug_alloc_ptr + 1) % DEBUG_ALLOC_SAVE_MAX;
-    return 0;
-}
-
-/*
- *=====================================================================
- * Pop the current source line information for vstralloc/newvstralloc.
- *
- * int debug_alloc_pop (void)
- *
- * entry:	none
- * exit:	none
- * 
- * See the comments in amanda.h about what this is used for.
- *=====================================================================
- */
-
-void
-debug_alloc_pop(void)
-{
-    debug_alloc_ptr =
-      (debug_alloc_ptr + DEBUG_ALLOC_SAVE_MAX - 1) % DEBUG_ALLOC_SAVE_MAX;
-    saved_file = debug_alloc_loc_info[debug_alloc_ptr].file;
-    saved_line = debug_alloc_loc_info[debug_alloc_ptr].line;
-}
+static char *internal_vstralloc(const char *, int, const char *, va_list);
 
 /*
  * alloc - a wrapper for malloc.
  */
 void *
 debug_alloc(
-    const char *s,
-    int l,
-    size_t size)
+    const char *file,
+    int		line,
+    size_t	size)
 {
     void *addr;
 
-    malloc_enter(debug_caller_loc(s, l));
     addr = (void *)malloc(max(size, 1));
     if (addr == NULL) {
-	errordump("%s@%d: memory allocation failed (" SIZE_T_FMT " bytes requested)",
-		  s ? s : "(unknown)",
-		  s ? l : -1,
-		  (SIZE_T_FMT_TYPE)size);
+	errordump(_("%s@%d: memory allocation failed (%zu bytes requested)"),
+		  file ? file : _("(unknown)"),
+		  file ? line : -1,
+		  size);
 	/*NOTREACHED*/
     }
-    malloc_leave(debug_caller_loc(s, l));
     return addr;
 }
 
@@ -202,17 +66,15 @@ debug_alloc(
  */
 void *
 debug_newalloc(
-    const char *s,
-    int l,
-    void *old,
-    size_t size)
+    const char *file,
+    int		line,
+    void *	old,
+    size_t	size)
 {
     char *addr;
 
-    malloc_enter(debug_caller_loc(s, l));
-    addr = debug_alloc(s, l, size);
+    addr = debug_alloc(file, line, size);
     amfree(old);
-    malloc_leave(debug_caller_loc(s, l));
     return addr;
 }
 
@@ -223,40 +85,16 @@ debug_newalloc(
  */
 char *
 debug_stralloc(
-    const char *s,
-    int l,
+    const char *file,
+    int		line,
     const char *str)
 {
     char *addr;
 
-    malloc_enter(debug_caller_loc(s, l));
-    addr = debug_alloc(s, l, strlen(str) + 1);
+    addr = debug_alloc(file, line, strlen(str) + 1);
     strcpy(addr, str);
-    malloc_leave(debug_caller_loc(s, l));
     return (addr);
 }
-
-/* vstrextend -- Extends the existing string by appending the other 
- * arguments. */
-/*@ignore@*/
-arglist_function(
-    char *vstrextend,
-    char **, oldstr)
-{
-	char *keep = *oldstr;
-	va_list ap;
-
-	arglist_start(ap, oldstr);
-
-	if (*oldstr == NULL)
-		*oldstr = "";
-	*oldstr = internal_vstralloc(*oldstr, ap);
-        amfree(keep);
-
-	arglist_end(ap);
-        return *oldstr;
-}
-/*@end@*/
 
 /*
  * internal_vstralloc - copies up to MAX_STR_ARGS strings into newly
@@ -270,6 +108,8 @@ arglist_function(
 
 static char *
 internal_vstralloc(
+    const char *file,
+    int		line,
     const char *str,
     va_list argp)
 {
@@ -282,7 +122,7 @@ internal_vstralloc(
     size_t l;
 
     if (str == NULL) {
-	errordump("internal_vstralloc: str is NULL");
+	errordump(_("internal_vstralloc: str is NULL"));
 	/*NOTREACHED*/
     }
 
@@ -297,9 +137,9 @@ internal_vstralloc(
 	    continue;				/* minor optimisation */
 	}
 	if (a >= MAX_VSTRALLOC_ARGS) {
-	    errordump("%s@%d: more than %d args to vstralloc",
-		      saved_file ? saved_file : "(unknown)",
-		      saved_file ? saved_line : -1,
+	    errordump(_("%s@%d: more than %d args to vstralloc"),
+		      file ? file : _("(unknown)"),
+		      file ? line : -1,
 		      MAX_VSTRALLOC_ARGS);
 	    /*NOTREACHED*/
 	}
@@ -309,7 +149,7 @@ internal_vstralloc(
 	a++;
     }
 
-    result = debug_alloc(saved_file, saved_line, total_len+1);
+    result = debug_alloc(file, line, total_len+1);
 
     next = result;
     for (b = 0; b < a; b++) {
@@ -325,19 +165,19 @@ internal_vstralloc(
 /*
  * vstralloc - copies multiple strings into newly allocated memory.
  */
-arglist_function(
-    char *debug_vstralloc,
-    const char *, str)
+char *
+debug_vstralloc(
+    const char *file,
+    int		line,
+    const char *str,
+    ...)
 {
     va_list argp;
     char *result;
 
-    debug_alloc_pop();
-    malloc_enter(debug_caller_loc(saved_file, saved_line));
     arglist_start(argp, str);
-    result = internal_vstralloc(str, argp);
+    result = internal_vstralloc(file, line, str, argp);
     arglist_end(argp);
-    malloc_leave(debug_caller_loc(saved_file, saved_line));
     return result;
 }
 
@@ -347,17 +187,15 @@ arglist_function(
  */
 char *
 debug_newstralloc(
-    const char *s,
-    int l,
-    char *oldstr,
+    const char *file,
+    int		line,
+    char *	oldstr,
     const char *newstr)
 {
     char *addr;
 
-    malloc_enter(debug_caller_loc(s, l));
-    addr = debug_stralloc(s, l, newstr);
+    addr = debug_stralloc(file, line, newstr);
     amfree(oldstr);
-    malloc_leave(debug_caller_loc(s, l));
     return (addr);
 }
 
@@ -365,21 +203,21 @@ debug_newstralloc(
 /*
  * newvstralloc - free existing string and then vstralloc a new one.
  */
-arglist_function1(
-    char *debug_newvstralloc,
-    char *, oldstr,
-    const char *, newstr)
+char *
+debug_newvstralloc(
+    const char *file,
+    int		line,
+    char *	oldstr,
+    const char *newstr,
+    ...)
 {
     va_list argp;
     char *result;
 
-    debug_alloc_pop();
-    malloc_enter(debug_caller_loc(saved_file, saved_line));
     arglist_start(argp, newstr);
-    result = internal_vstralloc(newstr, argp);
+    result = internal_vstralloc(file, line, newstr, argp);
     arglist_end(argp);
     amfree(oldstr);
-    malloc_leave(debug_caller_loc(saved_file, saved_line));
     return result;
 }
 
@@ -389,36 +227,95 @@ arglist_function1(
  */
 char *
 debug_vstrallocf(
+    const char *file,
+    int		line,
     const char *fmt,
     ...)
 {
-    char *      result;
-    size_t      size;
-    va_list     argp;
+    char *	result;
+    size_t	size;
+    va_list	argp;
 
-    debug_alloc_pop();
-    malloc_enter(debug_caller_loc(saved_file, saved_line));
 
-    result = debug_alloc(saved_file, saved_line, MIN_ALLOC);
+    result = debug_alloc(file, line, MIN_ALLOC);
     if (result != NULL) {
 
 	arglist_start(argp, fmt);
-	size = vsnprintf(result, MIN_ALLOC, fmt, argp);
+	size = g_vsnprintf(result, MIN_ALLOC, fmt, argp);
 	arglist_end(argp);
 
 	if (size >= (size_t)MIN_ALLOC) {
 	    amfree(result);
-	    result = debug_alloc(saved_file, saved_line, size + 1);
+	    result = debug_alloc(file, line, size + 1);
 
 	    arglist_start(argp, fmt);
-	    (void)vsnprintf(result, size + 1, fmt, argp);
+	    (void)g_vsnprintf(result, size + 1, fmt, argp);
 	    arglist_end(argp);
 	}
     }
 
-    malloc_leave(debug_caller_loc(saved_file, saved_line));
     return result;
 }
+
+
+/*
+ * newvstrallocf - free existing string and then vstrallocf a new one.
+ */
+char *
+debug_newvstrallocf(
+    const char *file,
+    int		line,
+    char *	oldstr,
+    const char *fmt,
+    ...)
+{
+    size_t	size;
+    char *	result;
+    va_list	argp;
+
+    result = debug_alloc(file, line, MIN_ALLOC);
+    if (result != NULL) {
+
+	arglist_start(argp, fmt);
+	size = g_vsnprintf(result, MIN_ALLOC, fmt, argp);
+	arglist_end(argp);
+
+	if (size >= MIN_ALLOC) {
+	    amfree(result);
+	    result = debug_alloc(file, line, size + 1);
+
+	    arglist_start(argp, fmt);
+	    (void)g_vsnprintf(result, size + 1, fmt, argp);
+	    arglist_end(argp);
+	}
+    }
+    amfree(oldstr);
+    return result;
+}
+
+/* vstrextend -- Extends the existing string by appending the other 
+ * arguments. */
+char *
+debug_vstrextend(
+    const char *file,
+    int		line,
+    char **	oldstr,
+    ...)
+{
+	char *keep = *oldstr;
+	va_list ap;
+
+	arglist_start(ap, oldstr);
+
+	if (*oldstr == NULL)
+		*oldstr = "";
+	*oldstr = internal_vstralloc(file, line, *oldstr, ap);
+        amfree(keep);
+
+	arglist_end(ap);
+        return *oldstr;
+}
+
 
 extern char **environ;
 /*
@@ -512,13 +409,13 @@ safe_env(void)
 
 int
 debug_amtable_alloc(
-    const char *s,
-    int l,
-    void **table,
-    size_t *current,
-    size_t elsize,
-    size_t count,
-    int bump,
+    const char *file,
+    int		line,
+    void **	table,
+    size_t *	current,
+    size_t	elsize,
+    size_t	count,
+    int		bump,
     void (*init_func)(void *))
 {
     void *table_new;
@@ -527,7 +424,7 @@ debug_amtable_alloc(
 
     if (count >= *current) {
 	table_count_new = ((count + bump) / bump) * bump;
-	table_new = debug_alloc(s, l, table_count_new * elsize);
+	table_new = debug_alloc(file, line, table_count_new * elsize);
 	if (0 != *table) {
 	    memcpy(table_new, *table, *current * elsize);
 	    free(*table);
@@ -557,8 +454,8 @@ debug_amtable_alloc(
 
 void
 amtable_free(
-    void **table,
-    size_t *current)
+    void **	table,
+    size_t *	current)
 {
     amfree(*table);
     *current = 0;

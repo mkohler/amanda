@@ -40,10 +40,9 @@
 #include "queue.h"
 #include "security.h"
 #include "security-util.h"
+#include "sockaddr-util.h"
 #include "stream.h"
 #include "version.h"
-
-#ifdef BSDTCP_SECURITY
 
 /*
  * Number of seconds bsdtcp has to start up
@@ -53,8 +52,11 @@
 /*
  * Interface functions
  */
-static void bsdtcp_accept(const struct security_driver *, int, int,
-    void (*)(security_handle_t *, pkt_t *));
+static void bsdtcp_accept(const struct security_driver *,
+    char *(*)(char *, void *),
+    int, int,
+    void (*)(security_handle_t *, pkt_t *),
+    void *);
 static void bsdtcp_connect(const char *,
     char *(*)(char *, void *), 
     void (*)(void *, security_handle_t *, security_status_t), void *, void *);
@@ -107,16 +109,14 @@ bsdtcp_connect(
 {
     struct sec_handle *rh;
     int result;
-    struct addrinfo hints;
-    struct addrinfo *res = NULL;
+    char *canonname;
 
     assert(fn != NULL);
     assert(hostname != NULL);
     (void)conf_fn;	/* Quiet unused parameter warning */
     (void)datap;	/* Quiet unused parameter warning */
 
-    auth_debug(1, ("%s: bsdtcp: bsdtcp_connect: %s\n", debug_prefix_time(NULL),
-		   hostname));
+    auth_debug(1, _("bsdtcp: bsdtcp_connect: %s\n"), hostname);
 
     rh = alloc(sizeof(*rh));
     security_handleinit(&rh->sech, &bsdtcp_security_driver);
@@ -125,43 +125,24 @@ bsdtcp_connect(
     rh->ev_timeout = NULL;
     rh->rc = NULL;
 
-#ifdef WORKING_IPV6
-    hints.ai_flags = AI_CANONNAME | AI_V4MAPPED | AI_ALL;
-    hints.ai_family = AF_UNSPEC;
-#else
-    hints.ai_flags = AI_CANONNAME;
-    hints.ai_family = AF_INET;
-#endif
-    hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_protocol = IPPROTO_UDP;
-    hints.ai_addrlen = 0;
-    hints.ai_addr = NULL;
-    hints.ai_canonname = NULL;
-    hints.ai_next = NULL;
-    result = getaddrinfo(hostname, NULL, &hints, &res);
-#ifdef WORKING_IPV6
-    if (result != 0) {
-	hints.ai_flags = AI_CANONNAME;
-	hints.ai_family = AF_UNSPEC;
-	result = getaddrinfo(hostname, NULL, &hints, &res);
-    }
-#endif
+    result = resolve_hostname(hostname, 0, NULL, &canonname);
     if(result != 0) {
-        dbprintf(("getaddrinfo(%s): %s\n", hostname, gai_strerror(result)));
-	security_seterror(&rh->sech, "getaddrinfo(%s): %s\n", hostname,
+	dbprintf(_("resolve_hostname(%s): %s\n"), hostname, gai_strerror(result));
+	security_seterror(&rh->sech, _("resolve_hostname(%s): %s\n"), hostname,
 			  gai_strerror(result));
 	(*fn)(arg, &rh->sech, S_ERROR);
 	return;
     }
-    if (res->ai_canonname == NULL) {
-	dbprintf(("getaddrinfo(%s) did not return a canonical name\n", hostname));
+    if (canonname == NULL) {
+	dbprintf(_("resolve_hostname(%s) did not return a canonical name\n"), hostname);
 	security_seterror(&rh->sech,
- 	        _("getaddrinfo(%s) did not return a canonical name\n"), hostname);
+	        _("resolve_hostname(%s) did not return a canonical name\n"), hostname);
 	(*fn)(arg, &rh->sech, S_ERROR);
        return;
     }
 
-    rh->hostname = stralloc(res->ai_canonname);	/* will be replaced */
+    rh->hostname = canonname;	/* will be replaced */
+    canonname = NULL; /* steal reference */
     rh->rs = tcpma_stream_client(rh, newhandle++);
     rh->rc->recv_security_ok = &bsd_recv_security_ok;
     rh->rc->prefix_packet = &bsd_prefix_packet;
@@ -198,12 +179,10 @@ bsdtcp_connect(
     rh->ev_timeout = event_register(CONNECT_TIMEOUT, EV_TIME,
 	sec_connect_timeout, rh);
 
-    freeaddrinfo(res);
     return;
 
 error:
     (*fn)(arg, &rh->sech, S_ERROR);
-    freeaddrinfo(res);
 }
 
 /*
@@ -212,9 +191,11 @@ error:
 static void
 bsdtcp_accept(
     const struct security_driver *driver,
+    char *	(*conf_fn)(char *, void *),
     int		in,
     int		out,
-    void	(*fn)(security_handle_t *, pkt_t *))
+    void	(*fn)(security_handle_t *, pkt_t *),
+    void       *datap)
 {
     struct sockaddr_storage sin;
     socklen_t len;
@@ -225,14 +206,13 @@ bsdtcp_accept(
 
     len = sizeof(sin);
     if (getpeername(in, (struct sockaddr *)&sin, &len) < 0) {
-	dbprintf(("%s: getpeername returned: %s\n", debug_prefix_time(NULL),
-		  strerror(errno)));
+	dbprintf(_("getpeername returned: %s\n"), strerror(errno));
 	return;
     }
     if ((result = getnameinfo((struct sockaddr *)&sin, len,
 			      hostname, NI_MAXHOST, NULL, 0, 0) != 0)) {
-	dbprintf(("%s: getnameinfo failed: %s\n",
-		  debug_prefix_time(NULL), gai_strerror(result)));
+	dbprintf(_("getnameinfo failed: %s\n"),
+		  gai_strerror(result));
 	return;
     }
     if (check_name_give_sockaddr(hostname,
@@ -244,11 +224,13 @@ bsdtcp_accept(
     rc = sec_tcp_conn_get(hostname, 0);
     rc->recv_security_ok = &bsd_recv_security_ok;
     rc->prefix_packet = &bsd_prefix_packet;
-    memcpy(&rc->peer, &sin, sizeof(rc->peer));
+    copy_sockaddr(&rc->peer, &sin);
     rc->read = in;
     rc->write = out;
     rc->accept_fn = fn;
     rc->driver = driver;
+    rc->conf_fn = conf_fn;
+    rc->datap = datap;
     sec_tcp_conn_read(rc);
 }
 
@@ -263,15 +245,13 @@ runbsdtcp(
     struct servent *	sp;
     int			server_socket;
     in_port_t		my_port;
-    uid_t		euid;
     struct tcp_conn *	rc = rh->rc;
 
     if ((sp = getservbyname(AMANDA_SERVICE_NAME, "tcp")) == NULL) {
-	error("%s/tcp unknown protocol", "amanda");
+	error(_("%s/tcp unknown protocol"), "amanda");
     }
 
-    euid = geteuid();
-    seteuid(0);
+    set_root_privs(1);
 
     server_socket = stream_client_privileged(rc->hostname,
 				     (in_port_t)(ntohs((in_port_t)sp->s_port)),
@@ -279,6 +259,7 @@ runbsdtcp(
 				     STREAM_BUFSIZE,
 				     &my_port,
 				     0);
+    set_root_privs(0);
 
     if(server_socket < 0) {
 	security_seterror(&rh->sech,
@@ -286,15 +267,12 @@ runbsdtcp(
 	
 	return -1;
     }
-    seteuid(euid);
 
     if(my_port >= IPPORT_RESERVED) {
 	security_seterror(&rh->sech,
-			  "did not get a reserved port: %d", my_port);
+			  _("did not get a reserved port: %d"), my_port);
     }
 
     rc->read = rc->write = server_socket;
     return 0;
 }
-
-#endif /* BSDTCP_SECURITY */

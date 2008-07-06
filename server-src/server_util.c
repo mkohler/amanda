@@ -42,9 +42,12 @@ const char *cmdstr[] = {
     "START", "FILE-DUMP", "PORT-DUMP", "CONTINUE", "ABORT",/* dumper cmds */
     "FAILED", "TRY-AGAIN", "NO-ROOM", "RQ-MORE-DISK",	/* dumper results */
     "ABORT-FINISHED", "BAD-COMMAND",			/* dumper results */
-    "START-TAPER", "FILE-WRITE", "PORT-WRITE",		/* taper cmds */
-    "PORT", "TAPE-ERROR", "TAPER-OK", "SPLIT-NEEDNEXT", /* taper results */
-    "SPLIT-CONTINUE",
+    "START-TAPER", "FILE-WRITE", "NEW-TAPE", "NO-NEW-TAPE",
+     
+    "PARTDONE", "PORT-WRITE", "DUMPER-STATUS",		    /* taper cmds */
+    "PORT", "TAPE-ERROR", "TAPER-OK",			 /* taper results */
+    "REQUEST-NEW-TAPE",
+    "LAST_TOK",
     NULL
 };
 
@@ -59,9 +62,9 @@ getcmd(
     assert(cmdargs != NULL);
 
     if (isatty(0)) {
-	printf("%s> ", get_pname());
+	g_printf("%s> ", get_pname());
 	fflush(stdout);
-        line = readline(NULL);
+        line = agets(stdin);
     } else {
         line = agets(stdin);
     }
@@ -71,14 +74,15 @@ getcmd(
 
     cmdargs->argc = split(line, cmdargs->argv,
 	(int)(sizeof(cmdargs->argv) / sizeof(cmdargs->argv[0])), " ");
+    dbprintf(_("getcmd: %s\n"), line);
     amfree(line);
 
 #if DEBUG
     {
 	int i;
-	fprintf(stderr,"argc = %d\n", cmdargs->argc);
+	g_fprintf(stderr,_("argc = %d\n"), cmdargs->argc);
 	for (i = 0; i < cmdargs->argc+1; i++)
-	    fprintf(stderr,"argv[%d] = \"%s\"\n", i, cmdargs->argv[i]);
+	    g_fprintf(stderr,_("argv[%d] = \"%s\"\n"), i, cmdargs->argv[i]);
     }
 #endif
 
@@ -97,8 +101,9 @@ printf_arglist_function1(void putresult, cmd_t, result, const char *, format)
     va_list argp;
 
     arglist_start(argp, format);
-    printf("%s ",cmdstr[result]);
-    vprintf(format, argp);
+    dbprintf(_("putresult: %d %s\n"), result, cmdstr[result]);
+    g_printf("%s ", cmdstr[result]);
+    g_vprintf(format, argp);
     fflush(stdout);
     arglist_end(argp);
 }
@@ -172,15 +177,19 @@ int check_infofile(
 		}
 		if (other_dle_match == 0) {
 		    if(mkpdir(infofile, (mode_t)02755, (uid_t)-1,
-			      (gid_t)-1) == -1) 
+			      (gid_t)-1) == -1)  {
 			*errmsg = vstralloc("Can't create directory for ",
 					    infofile, NULL);
 			return -1;
+		    }
 		    if(copy_file(infofile, old_infofile, errmsg) == -1) 
 			return -1;
 		}
 	    }
 	}
+	amfree(diskdir);
+	amfree(hostinfodir);
+	amfree(infofile);
     }
     return 0;
 }
