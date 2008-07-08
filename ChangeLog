@@ -1,4 +1,115 @@
- 2008-03-31  Dan Locks <dwlocks@zmanda.com>
+2008-05-13 Dan Locks <dwlocks@zmanda.com>
+	* packaging/deb/buildpkg: modified build script to create unsigned
+	  packages
+
+2008-05-12  Jean-Louis Martineau <martineau@zmanda.com>
+	  Patch by Orion Poplawski
+	* server-src/planner.c: Warn about overwrite of last level 1, and
+	  force backup of level 1 if overwrite on this run.
+
+2008-05-12  Dustin J. Mitchell <dustin@zmanda.com>
+	* server-src/dumper.c server-src/server_util.c
+	  server-src/infofile.c server-src/amtrmlog.c common-src/debug.c
+	  common-src/file.c: Always call mkpdir without the 02000 bit set,
+	  as it is not needed and causes problems on MacOS X.
+
+2008-05-08  Jean-Louis Martineau <martineau@zmanda.com>
+	* packaging/deb/buildpkg packaging/rpm/buildpkg: AMVER=amanda-2.6.0p1
+	* packaging/deb/changelog: amanda (2.6.0p1-1)
+	* packaging/deb/rules: AMVER=2.6.0p1
+	* packaging/rpm/amanda.spec: amanda_version 2.6.0p1, amanda_release 1
+	* NEWS: Update for 2.6.0p1
+	* configure.in: AM_INIT_AUTOMAKE(amanda, "2.6.0p1")
+
+2008-05-08  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: Define default tapetype.
+
+2008-05-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: Check the tapetype is defined.
+
+2008-05-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* device-src/tape-device.c: Allow user to set "read_buffer_size"
+	                            property.
+	* restore-src/amrestore.c: Don't limit blocksize to
+	                           --with-maxtapeblocksize.
+	* common-src/conffile.c: Increase readblocksize to blocksize.
+	  blocksize and readblocksize can be bigger than
+	  --with-maxtapeblocksize.
+
+2008-05-02 Dan Locks <dwlocks@zmanda.com>
+	* packaging/rpm/amanda.spec:  Replace ${ with %{ where applicable.
+
+2008-04-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/security-util.c: Typo.
+
+2008-04-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: Always sent a FAILED to taper if dumper failed.
+
+2008-04-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/planner.c: Fix vstrextend use.
+
+2008-04-16  Dan Locks <dwlocks@zmanda.com>
+	* Fixes to debian package reported by daniel_P
+	* packaging/deb/preinst: remove spaces near ${amanda_group}
+	* packaging/deb/amanda-backup-server.dirs
+	  packaging/deb/amanda-backup-client.dirs: added var/amanda and
+	  usr/share/lintian/overrides
+	* packaging/deb/rules: added logic to find PERLSITELIB and append that
+	  to amanda-backup-server.install, removed broken brace expansion
+	* packaging/deb/buildpkg: removed extraneous configure step
+	* packaging/deb/amanda-backup-server.postinst: added check for correct
+	  permissions on /tmp/amanda
+ 	  
+2008-04-16  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amadmin.c: Improve message.
+	* man/xml-source/amanda.conf.5.xml: Fix man page.
+	* server-src/planner.c: Fix DS_INCRONLY and FORCE_FULL
+
+2008-04-16  Dustin J. Mitchell <dustin@zmanda.com>
+	* config/amanda/dumpers.m4: continue searching for gnutar if we
+	  find a binary claiming to be gnu tar that is not.  This gets
+	  around serious breakage on Ubuntu, where star is installed as
+	  /bin/gnutar, but /bin/tar is actually GNU Tar.
+
+2008-04-15  Dustin J. Mitchell <dustin@zmanda.com>
+	* common-src/file.c(mk1dir): fix reversed conditional to handle 
+	  a race condition
+
+2008-04-15  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/debug.c (debug_logging_handler, debug_printf): Don't print
+	  msg_timestamp() to stderr.
+
+2008-04-15  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/find.c (dumps_match_dumpspecs): New function to only keep
+	  dumps that match a dumpspecs, using it simplify amfetchdump.
+	* server-src/find.h (dumps_match_dumpspecs): Prototype.
+	* restore-src/amrestore.c: Add a first_restored_file to
+	  search_a_tape(), to allow restore ot stop after the first image.
+	* restore-src/restore.c: Set first_restored_file, it was never set,
+	  it's needed to stop after the first image.
+	* restore-src/restore.c (restore_from_tapelist): break if piping to
+	  stdout.
+	* restore-src/amfetchdump.c: Use dumps_match_dumpspecs.
+	* restore-src/amfetchdump.c: If -p, the keep only one dump.
+	* perl/Amanda/Logfile.swg (dumps_match_dumpspecs): New prototype.
+	* perl/Amanda/Cmdline.swg: cmdline_parse_dumpspecs.
+	* perl/amglue/dumpspecs.swg: Map dumpspecs to perl.
+	* perl/Makefile.am (AMGLUE_SWG): Add amglue/dumpspecs.swg.
+
+2008-04-15  Jean-Louis Martineau <martineau@zmanda.com>
+	* tape-src/tapetype.c: Initialize an default config.
+
+2008-04-15  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/util.c (connect_portrange, connect_port, bind_portrange):
+	  Return the latest errno reported.
+
+2008-04-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* man/xml-source/*.xml: Use ulink tag to link to wiki.zmanda.com.
+
+2008-04-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* restore-src/restore.c: Check last_header->type != F_UNKNOWN.
+
+2008-03-31  Dan Locks <dwlocks@zmanda.com>
  	* packaging/deb/buildpkg
 	  packaging/rpm/buildpkg: added -p to cp to preserve file timestamps.
 

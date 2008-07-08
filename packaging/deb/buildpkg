@@ -49,7 +49,7 @@ fi
 
 if [ -z $AMVER ]
 then
-    AMVER=amanda-2.6.0
+    AMVER=amanda-2.6.0p1
 fi
 
 if [ -z $AMTARBALL ]
@@ -113,9 +113,8 @@ do_package() {
 
     echo "Building package"
     cd $AMVER
-    # This assumes that you have loaded zmanda's GPG key into your keyring to
-    # sign the packages.
-    dpkg-buildpackage -rfakeroot -k3C5D1C92 -tc
+    # Create unsigned packages
+    dpkg-buildpackage -rfakeroot -uc -us
 }
 
 
@@ -125,6 +124,5 @@ do_all() {
     do_package $1
 }
 
-do_build
 do_resources
 do_package

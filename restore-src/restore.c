@@ -1534,6 +1534,9 @@ try_restore_single_file(Device * device, int file_num, int* next_file,
     }
     record_seen_dump(tape_seen, source.header);
     restore(&source, flags);
+    if (first_restored_file) {
+	memcpy(first_restored_file, source.header, sizeof(dumpfile_t));
+    }
     return RESTORE_STATUS_NEXT_FILE;
 }
 
@@ -1736,6 +1739,7 @@ gboolean restore_holding_disk(FILE * prompt_out,
 
     if (last_header != NULL && !flags->amidxtaped &&
 	flags->pipe_to_fd == STDOUT_FILENO &&
+	last_header->type != F_UNKNOWN &&
         !headers_equal(last_header, source.header, 1)) {
         return FALSE;
     } else if (this_header != NULL) {
@@ -1812,6 +1816,9 @@ restore_from_tapelist(FILE * prompt_out,
                                      cur_volume, &seentapes,
                                      NULL, &first_restored_file, NULL);
             }
+	    if (flags->pipe_to_fd == fileno(stdout)) {
+		break;
+	    }
         } else {
             Device * device = NULL;
             if (use_changer) {
@@ -1847,7 +1854,7 @@ restore_from_tapelist(FILE * prompt_out,
                                cur_volume, dumpspecs, &seentapes,
                                &first_restored_file, 0, logstream)) {
                 g_object_unref(device);
-                break;;
+                break;
             }
             g_object_unref(device);
         }            
@@ -1875,6 +1882,8 @@ restore_without_tapelist(FILE * prompt_out,
     seentapes_t * seentapes;
     int tape_count = 0;
     dumpfile_t first_restored_file;
+
+    fh_init(&first_restored_file);
 
     /* This loop also aborts if we run out of manual tapes, or
        encounter a changer error. */

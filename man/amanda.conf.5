@@ -1,11 +1,11 @@
 .\"     Title: amanda.conf
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 03/31/2008
+.\"      Date: 05/14/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMANDA\.CONF" "5" "03/31/2008" "" ""
+.TH "AMANDA\.CONF" "5" "05/14/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -1482,9 +1482,7 @@ Only do incremental dumps\.
 \fBamadmin force\fR
 should be used to tell
 \fIAmanda\fR
-that a full dump has been performed off\-line, so that it resets to level 1\. It is similar to skip\-full, but with incronly full dumps may be scheduled manually\. Unfortunately, it appears that
-\fIAmanda\fR
-will perform full backups with this configuration, which is probably a bug\.
+that a full dump has been performed off\-line, so that it resets to level 1\.
 .RE
 .RE
 .PP
@@ -1768,6 +1766,6 @@ Stefan G\. Weichinger,
 \fBamanda-client.conf\fR(5),
 \fBamcrypt\fR(8),
 \fBaespipe\fR(1),
-\fBhttp://wiki.zmanda.com\fR()
+\fI\%http://wiki.zmanda.com\fR
 .PP
 An updated version of this man page may be available at http://wiki\.zmanda\.com/index\.php/Amanda\.conf\.

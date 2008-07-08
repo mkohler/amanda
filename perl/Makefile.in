@@ -280,8 +280,8 @@ LTLIBRARIES = $(amlib_LTLIBRARIES) $(libCmdline_LTLIBRARIES) \
 @WANT_SERVER_TRUE@	$(top_builddir)/server-src/libamserver.la \
 @WANT_SERVER_TRUE@	$(top_builddir)/common-src/libamanda.la
 am__libCmdline_la_SOURCES_DIST = Amanda/Cmdline.c amglue/amglue.swg \
-	amglue/constants.swg amglue/exports.swg amglue/glib.swg \
-	amglue/integers.swg
+	amglue/constants.swg amglue/dumpspecs.swg amglue/exports.swg \
+	amglue/glib.swg amglue/integers.swg
 am__objects_1 =
 @WANT_SERVER_TRUE@am_libCmdline_la_OBJECTS = Cmdline.lo \
 @WANT_SERVER_TRUE@	$(am__objects_1)
@@ -308,8 +308,8 @@ libDebug_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 @WANT_SERVER_TRUE@	$(top_builddir)/device-src/libamdevice.la \
 @WANT_SERVER_TRUE@	$(top_builddir)/common-src/libamanda.la
 am__libDevice_la_SOURCES_DIST = Amanda/Device.c amglue/amglue.swg \
-	amglue/constants.swg amglue/exports.swg amglue/glib.swg \
-	amglue/integers.swg
+	amglue/constants.swg amglue/dumpspecs.swg amglue/exports.swg \
+	amglue/glib.swg amglue/integers.swg
 @WANT_SERVER_TRUE@am_libDevice_la_OBJECTS = Device.lo $(am__objects_1)
 libDevice_la_OBJECTS = $(am_libDevice_la_OBJECTS)
 libDevice_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
@@ -320,8 +320,8 @@ libDevice_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 @WANT_SERVER_TRUE@	$(top_builddir)/server-src/libamserver.la \
 @WANT_SERVER_TRUE@	$(top_builddir)/common-src/libamanda.la
 am__libLogfile_la_SOURCES_DIST = Amanda/Logfile.c amglue/amglue.swg \
-	amglue/constants.swg amglue/exports.swg amglue/glib.swg \
-	amglue/integers.swg
+	amglue/constants.swg amglue/dumpspecs.swg amglue/exports.swg \
+	amglue/glib.swg amglue/integers.swg
 @WANT_SERVER_TRUE@am_libLogfile_la_OBJECTS = Logfile.lo \
 @WANT_SERVER_TRUE@	$(am__objects_1)
 libLogfile_la_OBJECTS = $(am_libLogfile_la_OBJECTS)
@@ -333,8 +333,8 @@ libLogfile_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 @WANT_SERVER_TRUE@	$(top_builddir)/server-src/libamserver.la \
 @WANT_SERVER_TRUE@	$(top_builddir)/common-src/libamanda.la
 am__libTapefile_la_SOURCES_DIST = Amanda/Tapefile.c amglue/amglue.swg \
-	amglue/constants.swg amglue/exports.swg amglue/glib.swg \
-	amglue/integers.swg
+	amglue/constants.swg amglue/dumpspecs.swg amglue/exports.swg \
+	amglue/glib.swg amglue/integers.swg
 @WANT_SERVER_TRUE@am_libTapefile_la_OBJECTS = Tapefile.lo \
 @WANT_SERVER_TRUE@	$(am__objects_1)
 libTapefile_la_OBJECTS = $(am_libTapefile_la_OBJECTS)
@@ -844,6 +844,7 @@ PERL_EXT_LDFLAGS = -avoid-version $(PERLEXTLIBS)
 AMGLUE_SWG = amglue/amglue.swg \
 	amglue/amglue.swg \
 	amglue/constants.swg \
+	amglue/dumpspecs.swg \
 	amglue/exports.swg \
 	amglue/glib.swg \
 	amglue/integers.swg

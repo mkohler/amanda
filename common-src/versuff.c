@@ -34,13 +34,13 @@
 const int   VERSION_MAJOR   = 2;
 const int   VERSION_MINOR   = 6;
 const int   VERSION_PATCH   = 0;
-const char *const VERSION_COMMENT = "";
+const char *const VERSION_COMMENT = "p1";
 
 const char *
 versionsuffix(void)
 {
 #ifdef USE_VERSION_SUFFIXES
-    return "-2.6.0";
+    return "-2.6.0p1";
 #else
     return "";
 #endif
@@ -49,5 +49,5 @@ versionsuffix(void)
 const char *
 version(void)
 {
-    return "2.6.0";
+    return "2.6.0p1";
 }

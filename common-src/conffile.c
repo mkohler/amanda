@@ -1814,6 +1814,11 @@ get_tapetype(void)
 	       _("tapetype parameter expected"), 1, copy_tapetype);
     get_conftoken(CONF_NL);
 
+    if (tapetype_get_readblocksize(&tpcur) <
+	tapetype_get_blocksize(&tpcur)) {
+	conf_init_size(&tpcur.value[TAPETYPE_READBLOCKSIZE],
+		       tapetype_get_blocksize(&tpcur));
+    }
     save_tapetype();
 
     allow_overwrites = save_overwrites;
@@ -2918,9 +2923,6 @@ validate_blocksize(
     if(val_t__size(val) < DISK_BLOCK_KB) {
 	conf_parserror(_("Tape blocksize must be at least %d KBytes"),
 		  DISK_BLOCK_KB);
-    } else if(val_t__size(val) > MAX_TAPE_BLOCK_KB) {
-	conf_parserror(_("Tape blocksize must not be larger than %d KBytes"),
-		  MAX_TAPE_BLOCK_KB);
     }
 }
 
@@ -3368,6 +3370,22 @@ update_derived_values(
 	    free_val_t(v);
 	    val_t__int(v) = getconf_int(CNF_NETUSAGE);
 	    val_t__seen(v) = getconf_seen(CNF_NETUSAGE);
+	}
+
+	/* Check the tapetype is defined */
+	if (lookup_tapetype(getconf_str(CNF_TAPETYPE)) == NULL) {
+	    /* Create a default tapetype */
+	    if (!getconf_seen(CNF_TAPETYPE) &&
+		strcmp(getconf_str(CNF_TAPETYPE), "EXABYTE") == 0 &&
+		!lookup_tapetype("EXABYTE")) {
+		init_tapetype_defaults();
+		tpcur.name = stralloc("EXABYTE");
+		tpcur.seen = -1;
+		save_tapetype();
+	    } else {
+		conf_parserror(_("tapetype %s is not defined"),
+			       getconf_str(CNF_TAPETYPE));
+	    }
 	}
     }
 
@@ -4415,7 +4433,11 @@ dump_configuration(void)
     }
 
     for(tp = tapelist; tp != NULL; tp = tp->next) {
-	g_printf("\nDEFINE TAPETYPE %s {\n", tp->name);
+	if(tp->seen == -1)
+	    prefix = "#";
+	else
+	    prefix = "";
+	g_printf("\n%sDEFINE TAPETYPE %s {\n", prefix, tp->name);
 	for(i=0; i < TAPETYPE_TAPETYPE; i++) {
 	    for(np=tapetype_var; np->token != CONF_UNKNOWN; np++)
 		if(np->parm == i) break;
@@ -4427,9 +4449,9 @@ dump_configuration(void)
 	    if(kt->token == CONF_UNKNOWN)
 		error(_("tapetype bad token"));
 
-            val_t_print_token(stdout, NULL, "      %-9s ", kt, &tp->value[i]);
+            val_t_print_token(stdout, prefix, "      %-9s ", kt, &tp->value[i]);
 	}
-	g_printf("}\n");
+	g_printf("%s}\n", prefix);
     }
 
     for(dp = dumplist; dp != NULL; dp = dp->next) {

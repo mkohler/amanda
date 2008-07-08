@@ -98,7 +98,11 @@ static void handle_tape_restore(char * device_name, rst_flags_t * flags,
     Device * device;
     ReadLabelStatusFlags read_label_status;
 
+    dumpfile_t first_restored_file;
+
     device_api_init();
+
+    fh_init(&first_restored_file);
     
     device = device_open(device_name);
     if (device == NULL) {
@@ -128,7 +132,7 @@ static void handle_tape_restore(char * device_name, rst_flags_t * flags,
     }
 
     search_a_tape(device, stderr, flags, NULL, NULL, dumpspecs,
-                  NULL, NULL, 0, NULL);
+                  NULL, &first_restored_file, 0, NULL);
 }
 
 /*
@@ -188,17 +192,11 @@ main(
 	    } else if(*e == 'm' || *e == 'M') {
 		rst_flags->blocksize *= 1024 * 1024;
 	    } else if(*e != '\0') {
-		error(_("invalid rst_flags->blocksize value \"%s\""), optarg);
+		error(_("invalid blocksize value \"%s\""), optarg);
 		/*NOTREACHED*/
 	    }
 	    if(rst_flags->blocksize < DISK_BLOCK_BYTES) {
 		error(_("minimum block size is %dk"), DISK_BLOCK_BYTES / 1024);
-		/*NOTREACHED*/
-	    }
-	    if(rst_flags->blocksize > MAX_TAPE_BLOCK_KB * 1024) {
-		g_fprintf(stderr,_("maximum block size is %dk, using it\n"),
-			MAX_TAPE_BLOCK_KB);
-		rst_flags->blocksize = MAX_TAPE_BLOCK_KB * 1024;
 		/*NOTREACHED*/
 	    }
 	    break;

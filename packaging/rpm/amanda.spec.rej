@@ -1,16 +1,17 @@
 ***************
-*** 1514,1519 ****
-  %{AMLIBEXECDIR}
-  %{AMLIBEXECDIR}/application
-  %{AMLIBDIR}
-  %{LOCALSTATEDIR}/amanda
-  %defattr(4750,root,disk)
-  %{AMLIBEXECDIR}/calcsize
---- 1517,1523 ----
-  %{AMLIBEXECDIR}
-  %{AMLIBEXECDIR}/application
-  %{AMLIBDIR}
-+ %{PERLSITELIB}
-  %{LOCALSTATEDIR}/amanda
-  %defattr(4750,root,disk)
-  %{AMLIBEXECDIR}/calcsize
+*** 122,128 ****
+  # --- Definitions ---
+  
+  # Define amanda_version if it is not already defined.
+- %{!?amanda_version: %define amanda_version 2.6.0}
+  %{!?amanda_release: %define amanda_release 2}
+  %define amanda_version_info "Amanda Community Edition - version %{amanda_version}"
+  %define amanda_user amandabackup
+--- 122,128 ----
+  # --- Definitions ---
+  
+  # Define amanda_version if it is not already defined.
++ %{!?amanda_version: %define amanda_version 2.6.0p1}
+  %{!?amanda_release: %define amanda_release 2}
+  %define amanda_version_info "Amanda Community Edition - version %{amanda_version}"
+  %define amanda_user amandabackup

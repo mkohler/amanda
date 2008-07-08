@@ -1423,15 +1423,16 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 
 /* -------- TYPES TABLE (BEGIN) -------- */
 
-#define SWIGTYPE_p_char swig_types[0]
-#define SWIGTYPE_p_double swig_types[1]
-#define SWIGTYPE_p_dumpspec_t swig_types[2]
-#define SWIGTYPE_p_float swig_types[3]
-#define SWIGTYPE_p_int swig_types[4]
-#define SWIGTYPE_p_p_char swig_types[5]
-#define SWIGTYPE_p_unsigned_char swig_types[6]
-static swig_type_info *swig_types[8];
-static swig_module_info swig_module = {swig_types, 7, 0, 0, 0, 0};
+#define SWIGTYPE_p_GSList swig_types[0]
+#define SWIGTYPE_p_char swig_types[1]
+#define SWIGTYPE_p_double swig_types[2]
+#define SWIGTYPE_p_dumpspec_t swig_types[3]
+#define SWIGTYPE_p_float swig_types[4]
+#define SWIGTYPE_p_int swig_types[5]
+#define SWIGTYPE_p_p_char swig_types[6]
+#define SWIGTYPE_p_unsigned_char swig_types[7]
+static swig_type_info *swig_types[9];
+static swig_module_info swig_module = {swig_types, 8, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1471,6 +1472,12 @@ SWIGEXPORT void SWIG_init (CV *cv, CPerlObj *);
 
 
 #include "amglue.h"
+
+
+#include "cmdline.h"
+
+
+typedef GSList amglue_dumpspec_list;
 
 
 #include <glib.h>
@@ -2027,7 +2034,7 @@ XS(_wrap_parse_dumpspecs) {
     int arg1 ;
     char **arg2 = (char **) 0 ;
     int arg3 ;
-    GSList *result = 0 ;
+    amglue_dumpspec_list *result = 0 ;
     int argvi = 0;
     dXSARGS;
     
@@ -2066,7 +2073,7 @@ XS(_wrap_parse_dumpspecs) {
         g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
       }
     }
-    result = (GSList *)cmdline_parse_dumpspecs(arg1,arg2,arg3);
+    result = (amglue_dumpspec_list *)cmdline_parse_dumpspecs(arg1,arg2,arg3);
     {
       if (result) {
         GSList *iter;
@@ -2102,6 +2109,7 @@ XS(_wrap_parse_dumpspecs) {
 
 /* -------- TYPE CONVERSION AND EQUIVALENCE RULES (BEGIN) -------- */
 
+static swig_type_info _swigt__p_GSList = {"_p_GSList", "amglue_dumpspec_list *|GSList *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_char = {"_p_char", "gchar *|char *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_dumpspec_t = {"_p_dumpspec_t", "struct dumpspec_t *|dumpspec_t *", 0, 0, (void*)"Amanda::Cmdline::dumpspec_t", 0};
@@ -2111,6 +2119,7 @@ static swig_type_info _swigt__p_p_char = {"_p_p_char", "char **", 0, 0, (void*)0
 static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "guchar *|unsigned char *", 0, 0, (void*)0, 0};
 
 static swig_type_info *swig_type_initial[] = {
+  &_swigt__p_GSList,
   &_swigt__p_char,
   &_swigt__p_double,
   &_swigt__p_dumpspec_t,
@@ -2120,6 +2129,7 @@ static swig_type_info *swig_type_initial[] = {
   &_swigt__p_unsigned_char,
 };
 
+static swig_cast_info _swigc__p_GSList[] = {  {&_swigt__p_GSList, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_char[] = {  {&_swigt__p_char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_double[] = {  {&_swigt__p_double, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_dumpspec_t[] = {  {&_swigt__p_dumpspec_t, 0, 0, 0},{0, 0, 0, 0}};
@@ -2129,6 +2139,7 @@ static swig_cast_info _swigc__p_p_char[] = {  {&_swigt__p_p_char, 0, 0, 0},{0, 0
 static swig_cast_info _swigc__p_unsigned_char[] = {  {&_swigt__p_unsigned_char, 0, 0, 0},{0, 0, 0, 0}};
 
 static swig_cast_info *swig_cast_initial[] = {
+  _swigc__p_GSList,
   _swigc__p_char,
   _swigc__p_double,
   _swigc__p_dumpspec_t,

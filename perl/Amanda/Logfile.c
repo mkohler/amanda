@@ -1424,14 +1424,16 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 /* -------- TYPES TABLE (BEGIN) -------- */
 
 #define SWIGTYPE_p_FILE swig_types[0]
-#define SWIGTYPE_p_char swig_types[1]
-#define SWIGTYPE_p_double swig_types[2]
-#define SWIGTYPE_p_find_result_t swig_types[3]
-#define SWIGTYPE_p_float swig_types[4]
-#define SWIGTYPE_p_int swig_types[5]
-#define SWIGTYPE_p_unsigned_char swig_types[6]
-static swig_type_info *swig_types[8];
-static swig_module_info swig_module = {swig_types, 7, 0, 0, 0, 0};
+#define SWIGTYPE_p_GSList swig_types[1]
+#define SWIGTYPE_p_char swig_types[2]
+#define SWIGTYPE_p_double swig_types[3]
+#define SWIGTYPE_p_dumpspec_t swig_types[4]
+#define SWIGTYPE_p_find_result_t swig_types[5]
+#define SWIGTYPE_p_float swig_types[6]
+#define SWIGTYPE_p_int swig_types[7]
+#define SWIGTYPE_p_unsigned_char swig_types[8]
+static swig_type_info *swig_types[10];
+static swig_module_info swig_module = {swig_types, 9, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1471,6 +1473,12 @@ SWIGEXPORT void SWIG_init (CV *cv, CPerlObj *);
 
 
 #include "amglue.h"
+
+
+#include "cmdline.h"
+
+
+typedef GSList amglue_dumpspec_list;
 
 
 #include <glib.h>
@@ -2397,21 +2405,164 @@ XS(_wrap_dumps_match) {
 }
 
 
+XS(_wrap_dumps_match_dumpspecs) {
+  {
+    find_result_t *arg1 = (find_result_t *) 0 ;
+    amglue_dumpspec_list *arg2 = (amglue_dumpspec_list *) 0 ;
+    gboolean arg3 ;
+    find_result_t *result = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 3) || (items > 3)) {
+      SWIG_croak("Usage: dumps_match_dumpspecs(output_find,dumpspecs,ok);");
+    }
+    {
+      AV *av;
+      I32 len, i;
+      find_result_t *head = NULL, *tail = NULL;
+      
+      if (!SvROK(ST(0)) || SvTYPE(SvRV(ST(0))) != SVt_PVAV) {
+        SWIG_exception(SWIG_TypeError, "expected an arrayref of find_result_t's");
+      }
+      
+      av = (AV *)SvRV(ST(0));
+      len = av_len(av) + 1;
+      
+      for (i = 0; i < len; i++) {
+        SV **val = av_fetch(av, i, 0);
+        find_result_t *r;
+        
+        if (!val || SWIG_ConvertPtr(*val, (void **)&r, SWIGTYPE_p_find_result_t, 0) == -1) {
+          SWIG_exception(SWIG_TypeError, "array member is not a find_result_t");
+        }
+        
+        if (!head) {
+          head = tail = r;
+        } else {
+          tail->next = r;
+          tail = r;
+        }
+        
+        tail->next = NULL;
+      }
+      
+      /* point to the head of that list */
+      arg1 = head;
+    }
+    {
+      AV *av;
+      int len;
+      int i;
+      
+      if (!SvROK(ST(1)) || SvTYPE(SvRV(ST(1))) != SVt_PVAV) {
+        SWIG_exception_fail(SWIG_TypeError, "Expected an arrayref of dumpspecs");
+      }
+      av = (AV *)SvRV(ST(1));
+      
+      len = av_len(av)+1;
+      arg2 = NULL;
+      for (i = 0; i < len; i++) {
+        dumpspec_t *ds = NULL;
+        SV **elt = av_fetch(av, i, 0);
+        if (elt)
+        SWIG_ConvertPtr(*elt, (void **)&ds, SWIGTYPE_p_dumpspec_t, 0);
+        if (!ds)
+        SWIG_exception_fail(SWIG_TypeError, "Expected an arrayref of dumpspecs");
+        arg2 = g_slist_append(arg2, ds);
+      }
+    }
+    {
+      if (sizeof(signed int) == 1) {
+        arg3 = amglue_SvI8(ST(2));
+      } else if (sizeof(signed int) == 2) {
+        arg3 = amglue_SvI16(ST(2));
+      } else if (sizeof(signed int) == 4) {
+        arg3 = amglue_SvI32(ST(2));
+      } else if (sizeof(signed int) == 8) {
+        arg3 = amglue_SvI64(ST(2));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    result = (find_result_t *)dumps_match_dumpspecs(arg1,arg2,arg3);
+    {
+      find_result_t *iter;
+      int len;
+      
+      /* measure the list and make room on the perl stack */
+      for (len=0, iter=result; iter; iter=iter->next) len++;
+      EXTEND(SP, len);
+      
+      iter = result;
+      while (iter) {
+        find_result_t *next;
+        /* Let SWIG take ownership of the object */
+        ST(argvi) = SWIG_NewPointerObj(iter, SWIGTYPE_p_find_result_t, SWIG_OWNER | SWIG_SHADOW);
+        argvi++;
+        
+        /* null out the 'next' field */
+        next = iter->next;
+        iter->next = NULL;
+        iter = next;
+      }
+    }
+    {
+      find_result_t *iter = arg1, *next;
+      
+      /* undo all the links we added earlier */
+      while (iter) {
+        next = iter->next;
+        iter->next = NULL;
+        iter = next;
+      }
+    }
+    {
+      /* Free the GSList, but not its contents (which are still owned by SWIG) */
+      g_slist_free(arg2);
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    {
+      find_result_t *iter = arg1, *next;
+      
+      /* undo all the links we added earlier */
+      while (iter) {
+        next = iter->next;
+        iter->next = NULL;
+        iter = next;
+      }
+    }
+    {
+      /* Free the GSList, but not its contents (which are still owned by SWIG) */
+      g_slist_free(arg2);
+    }
+    
+    SWIG_croak_null();
+  }
+}
+
+
 
 /* -------- TYPE CONVERSION AND EQUIVALENCE RULES (BEGIN) -------- */
 
 static swig_type_info _swigt__p_FILE = {"_p_FILE", "FILE *|loghandle *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_GSList = {"_p_GSList", "amglue_dumpspec_list *|GSList *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_char = {"_p_char", "gchar *|char *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_dumpspec_t = {"_p_dumpspec_t", "struct dumpspec_t *|dumpspec_t *", 0, 0, (void*)"Amanda::Cmdline::dumpspec_t", 0};
 static swig_type_info _swigt__p_find_result_t = {"_p_find_result_t", "find_result_t *", 0, 0, (void*)"Amanda::Logfile::find_result_t", 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *|gfloat *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_int = {"_p_int", "int *|logtype_t *|program_t *|gboolean *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_int = {"_p_int", "int *|logtype_t *|program_t *|gboolean *|cmdline_parse_dumpspecs_flags *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "guchar *|unsigned char *", 0, 0, (void*)0, 0};
 
 static swig_type_info *swig_type_initial[] = {
   &_swigt__p_FILE,
+  &_swigt__p_GSList,
   &_swigt__p_char,
   &_swigt__p_double,
+  &_swigt__p_dumpspec_t,
   &_swigt__p_find_result_t,
   &_swigt__p_float,
   &_swigt__p_int,
@@ -2419,8 +2570,10 @@ static swig_type_info *swig_type_initial[] = {
 };
 
 static swig_cast_info _swigc__p_FILE[] = {  {&_swigt__p_FILE, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_GSList[] = {  {&_swigt__p_GSList, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_char[] = {  {&_swigt__p_char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_double[] = {  {&_swigt__p_double, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_dumpspec_t[] = {  {&_swigt__p_dumpspec_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_find_result_t[] = {  {&_swigt__p_find_result_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_float[] = {  {&_swigt__p_float, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_int[] = {  {&_swigt__p_int, 0, 0, 0},{0, 0, 0, 0}};
@@ -2428,8 +2581,10 @@ static swig_cast_info _swigc__p_unsigned_char[] = {  {&_swigt__p_unsigned_char, 
 
 static swig_cast_info *swig_cast_initial[] = {
   _swigc__p_FILE,
+  _swigc__p_GSList,
   _swigc__p_char,
   _swigc__p_double,
+  _swigc__p_dumpspec_t,
   _swigc__p_find_result_t,
   _swigc__p_float,
   _swigc__p_int,
@@ -2465,6 +2620,7 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Logfilec::find_log", _wrap_find_log},
 {"Amanda::Logfilec::search_logfile", _wrap_search_logfile},
 {"Amanda::Logfilec::dumps_match", _wrap_dumps_match},
+{"Amanda::Logfilec::dumps_match_dumpspecs", _wrap_dumps_match_dumpspecs},
 {0,0}
 };
 /* -----------------------------------------------------------------------------

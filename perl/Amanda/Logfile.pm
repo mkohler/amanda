@@ -7,6 +7,7 @@ package Amanda::Logfile;
 require Exporter;
 require DynaLoader;
 @ISA = qw(Exporter DynaLoader);
+require Amanda::Cmdline;
 package Amanda::Logfilec;
 bootstrap Amanda::Logfile;
 package Amanda::Logfile;
@@ -55,6 +56,7 @@ package Amanda::Logfile;
 *find_log = *Amanda::Logfilec::find_log;
 *search_logfile = *Amanda::Logfilec::search_logfile;
 *dumps_match = *Amanda::Logfilec::dumps_match;
+*dumps_match_dumpspecs = *Amanda::Logfilec::dumps_match_dumpspecs;
 
 ############# Class : Amanda::Logfile::find_result_t ##############
 

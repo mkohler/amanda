@@ -766,6 +766,23 @@ setup_estimate(
 	}
     }
 
+    /* warn if last level 1 will be overwritten */
+    if (ep->last_level > 1 && strlen(info.inf[1].label) > 0) {
+	overwrite_runs = when_overwrite(info.inf[1].label);
+	if(overwrite_runs == 0) {
+	    log_add(L_WARNING, _("Last level 1 dump of %s:%s "
+		    "on tape %s overwritten on this run, resetting to level 1"),
+		    dp->host->hostname, qname, info.inf[1].label);
+	    ep->last_level = 0;
+	} else if(overwrite_runs <= RUNS_REDZONE) {
+	    log_add(L_WARNING,
+		    plural(_("Last level 1 dump of %s:%s on tape %s overwritten in %d run."),
+			   _("Last level 1 dump of %s:%s on tape %s overwritten in %d runs."), overwrite_runs),
+		    dp->host->hostname, qname, info.inf[1].label,
+		    overwrite_runs);
+	}
+    }
+
     if(ep->next_level0 < 0) {
 	g_fprintf(stderr,plural(_("%s:%s overdue %d day for level 0\n"),
 			      _("%s:%s overdue %d days for level 0\n"),
@@ -905,7 +922,7 @@ setup_estimate(
 
 	case DS_INCRONLY:
 	    if (ISSET(info.command, FORCE_FULL))
-		askfor(ep, i++, 0, &info);
+		ep->last_level = 0;
 	    break;
 	}
     }
@@ -2558,7 +2575,7 @@ arglist_function1(
     }
     strappend(errstr, "]");
     qerrstr = quote_string(errstr);
-    vstrextend(&bi->errstr, " ", qerrstr);
+    vstrextend(&bi->errstr, " ", qerrstr, NULL);
     amfree(errstr);
     amfree(qerrstr);
     arglist_end(argp);
