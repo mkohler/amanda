@@ -45,7 +45,7 @@
     RSA keys can be generated with the standard OpenSSL commands, e.g.:
   </para>
   <programlisting>
-$ cd /var/lib/amanda
+$ cd /var/backups
 $ openssl genrsa -aes128 -out backup-privkey.pem 1024
 Generating RSA private key, 1024 bit long modulus
 [...]
@@ -100,7 +100,7 @@ Writing RSA key
   <title>FILES</title>
   <variablelist remap='TP'>
     <varlistentry>
-      <term>/var/lib/amanda/backup-privkey.pem</term>
+      <term>/var/backups/backup-privkey.pem</term>
       <listitem>
 	<para>
 	  File containing the RSA private key. It should not be readable
@@ -109,7 +109,7 @@ Writing RSA key
       </listitem>
     </varlistentry>
     <varlistentry>
-      <term>/var/lib/amanda/backup-pubkey.pem</term>
+      <term>/var/backups/backup-pubkey.pem</term>
       <listitem>
 	<para>
 	  File containing the RSA public key.
@@ -117,7 +117,7 @@ Writing RSA key
       </listitem>
     </varlistentry>
     <varlistentry>
-      <term>/var/lib/amanda/.am_passphrase</term>
+      <term>/var/backups/.am_passphrase</term>
       <listitem>
 	<para>
 	  File containing the passphrase. It should not be readable by
