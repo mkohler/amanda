@@ -1,6 +1,7 @@
 amanda (1:2.5.2p1-4) UNRELEASED; urgency=low
 
   * bug fix version intended for inclusion in lenny release
+  * freshen to latest standards version
 
  -- Bdale Garbee <bdale@gag.com>  Sat, 16 Aug 2008 12:05:05 -0300
 

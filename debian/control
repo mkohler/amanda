@@ -3,7 +3,7 @@ Section: utils
 Priority: optional
 Maintainer: Bdale Garbee <bdale@gag.com>
 Build-Depends: debhelper (>= 5), dump, gnuplot, libncurses5-dev, libreadline5-dev | libreadline-dev, libtool, flex, perl, smbclient, mailx, lpr, mtx, xfsdump, po-debconf
-Standards-Version: 3.7.3
+Standards-Version: 3.8.0
 
 Package: amanda-common
 Architecture: any
