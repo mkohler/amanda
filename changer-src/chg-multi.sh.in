@@ -30,12 +30,15 @@
 # chg-multi.sh - generic tape changer script
 #
 
-# source utility functions and values from configure
+prefix=@prefix@
 exec_prefix=@exec_prefix@
+sbindir=@sbindir@
 libexecdir=@libexecdir@
-. ${libexecdir}/chg-lib.sh
 
 pname="chg-multi"
+
+PATH=$sbindir:$libexecdir:/usr/bin:/bin:/usr/sbin:/sbin:/usr/ucb
+export PATH
 
 if [ -d "@AMANDA_DBGDIR@" ]; then
 	logfile=@AMANDA_DBGDIR@/changer.debug
@@ -43,14 +46,37 @@ else
 	logfile=/dev/null
 fi
 
+# support simultaneous development with and without gettext
+_() {
+        fmt="$1"
+        shift
+        printf "$fmt" $*
+}
+
 echo `_ "arguments ->"` "$@" >> $logfile
 
-ourconf=`amgetconf changerfile`
-
-if ! error=try_find_mt; then
-    echo <none> $error
-    exit 2
+USE_VERSION_SUFFIXES="@USE_VERSION_SUFFIXES@"
+if test "$USE_VERSION_SUFFIXES" = "yes"; then
+	SUF="-@VERSION@"
+else
+	SUF=
 fi
+
+ourconf=`amgetconf$SUF changerfile`
+
+if [ -x $sbindir/ammt$SUF ]; then
+	MT=$sbindir/ammt$SUF
+	MTF=-f
+elif [ -x "@MT@" ]; then
+	MT=@MT@
+	MTF=@MT_FILE_FLAG@
+else
+	answer=`_ '<none> %s: mt program not found' "$myname"`
+	echo `_ 'Exit ->'` $answer >> $logfile
+	echo $answer
+	exit 1
+fi
+echo "MT ->" $MT $MTF >> $logfile
 
 EXPR=expr
 # EXPR=/usr/local/bin/expr # in case you need a more powerful expr...
@@ -300,7 +326,8 @@ then
 		exit 2
 	    fi
 	    echo `_ '     -> offline'` "$device" >> $logfile
-            if ! try_eject_device $device; then
+	    $MT $MTF $device offline >> $logfile 2>&1
+	    if [ $? -ne 0 ]; then
 		answer=`_ '%s %s: %s: unable to change to slot %s' "$newslot" "$pname" "$device" "$curslot"`
 		echo `_ 'Exit ->'` $answer >> $logfile
 		echo $answer
@@ -343,7 +370,7 @@ then
 		exit 2
 	fi
 	echo `_ '     -> offline'` $device >> $logfile
-        try_eject_device $device
+	$MT $MTF $device offline >> $logfile 2>&1
 	if [ $? -ne 0 ]; then
 		#
 		# XXX if the changer-specific eject command can distinguish
@@ -382,7 +409,8 @@ if [ $loadslot -eq 1 ]; then	# load the tape from the slot
 		echo $answer
 		exit 2
 	fi
-        amdevcheck_status $device
+	echo `_ '     -> rewind'` $device >> $logfile
+	$MT $MTF $device rewind >> $logfile 2>&1
 	if [ $? -ne 0 ]; then
 		#
 		# XXX if the changer-specific load command can distinguish

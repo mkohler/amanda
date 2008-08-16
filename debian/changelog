@@ -4,6 +4,8 @@ amanda (1:2.5.2p1-4) UNRELEASED; urgency=high
   * update version thresholds in Replaces to ease upgrades, closes: #476583
   * don't set maxdumpsize in the default amanda.conf, closes: #475524
   * freshen to latest standards version
+  * revert chg-multi.sh.in and patch since the new version previously pulled 
+    in caused more problems than it solved, closes: #486384
 
  -- Bdale Garbee <bdale@gag.com>  Sat, 16 Aug 2008 12:05:05 -0300
 
