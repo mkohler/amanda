@@ -19,8 +19,8 @@ Package: amanda-server
 Architecture: any
 Depends: ${shlibs:Depends}, amanda-common (= ${binary:Version}), mailx
 Suggests: perl5, gnuplot, amanda-client (= ${binary:Version}), cpio | mt-st
-Conflicts: amanda
-Replaces: amanda-common (<< 1:2.4.4)
+Conflicts: amanda, amanda-common (<< 1:2.5.2p1-3)
+Replaces: amanda-common (<< 1:2.5.2p1-3)
 Description: Advanced Maryland Automatic Network Disk Archiver (Server)
  Amanda is a backup system designed to archive many computers on a
  network to a single large-capacity tape drive. This package is
@@ -67,8 +67,8 @@ Package: amanda-client
 Architecture: any
 Depends: ${shlibs:Depends}, amanda-common (= ${binary:Version})
 Suggests: gnuplot, dump, smbclient
-Conflicts: amanda, amanda-common (<< 1:2.4.2)
-Replaces: amanda-common (<< 1:2.4.2)
+Conflicts: amanda, amanda-common (<< 1:2.5.2p1-3)
+Replaces: amanda-common (<< 1:2.5.2p1-3)
 Description: Advanced Maryland Automatic Network Disk Archiver (Client)
  Amanda is a backup system designed to archive many computers on a
  network to a single large-capacity tape drive. This package is

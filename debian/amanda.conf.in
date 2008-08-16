@@ -114,7 +114,7 @@ changerdev "@DEFAULT_CHANGER_DEVICE@"
 # Use with caution.
 ## label_new_tapes "DailySet1-%%%"
 
-maxdumpsize -1		# Maximum number of bytes the planner will schedule
+# maxdumpsize -1	# Maximum number of bytes the planner will schedule
 			# for a run (default: runtapes * tape_length).
 tapetype HP-DAT		# what kind of tape it is (see tapetypes below)
 labelstr "^DailySet1-[0-9][0-9]*$"	# label constraint regex: all tapes must match

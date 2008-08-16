@@ -1,6 +1,8 @@
-amanda (1:2.5.2p1-4) UNRELEASED; urgency=low
+amanda (1:2.5.2p1-4) UNRELEASED; urgency=high
 
-  * bug fix version intended for inclusion in lenny release
+  * high priority bug fixes intended for lenny release
+  * update version thresholds in Replaces to ease upgrades, closes: #476583
+  * don't set maxdumpsize in the default amanda.conf, closes: #475524
   * freshen to latest standards version
 
  -- Bdale Garbee <bdale@gag.com>  Sat, 16 Aug 2008 12:05:05 -0300
