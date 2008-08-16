@@ -1,4 +1,4 @@
-amanda (1:2.5.2p1-4) UNRELEASED; urgency=high
+amanda (1:2.5.2p1-4) unstable; urgency=high
 
   * high priority bug fixes intended for lenny release
   * update version thresholds in Replaces to ease upgrades, closes: #476583
@@ -9,7 +9,7 @@ amanda (1:2.5.2p1-4) UNRELEASED; urgency=high
   * undo traps on amverify exit to prevent double reports, closes: #487405
   * correct paths in amcrypt-ossl-asym(8) xml source, closes: #486739
 
- -- Bdale Garbee <bdale@gag.com>  Sat, 16 Aug 2008 12:05:05 -0300
+ -- Bdale Garbee <bdale@gag.com>  Sat, 16 Aug 2008 16:03:27 -0300
 
 amanda (1:2.5.2p1-3) unstable; urgency=low
 
