@@ -543,4 +543,7 @@ done
 
 sendreport
 
+rm -fr $TEMP
+trap - EXIT
+
 exit 0

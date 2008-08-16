@@ -6,6 +6,7 @@ amanda (1:2.5.2p1-4) UNRELEASED; urgency=high
   * freshen to latest standards version
   * revert chg-multi.sh.in and patch since the new version previously pulled 
     in caused more problems than it solved, closes: #486384
+  * undo traps on amverify exit to prevent double reports, closes: #487405
 
  -- Bdale Garbee <bdale@gag.com>  Sat, 16 Aug 2008 12:05:05 -0300
 
