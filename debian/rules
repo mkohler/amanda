@@ -44,7 +44,6 @@ clean:
 	[ ! -f Makefile ] || make clean
 	[ ! -f Makefile ] || make distclean
 	-rm -f build-stamp missing config/config.h common-src/genversion
-	-rm -f debian/po/templates.pot
 	-find . -type d -name .deps -exec rm -rf {} \;
 
 	-test -r /usr/share/misc/config.sub && \
@@ -52,9 +51,13 @@ clean:
 	-test -r /usr/share/misc/config.guess && \
 		cp -f /usr/share/misc/config.guess config/config.guess
 
-	debconf-updatepo
 	dh_clean
 
+# call this before packaging for upload when updating template English text
+updatepo:
+	-rm -f debian/po/templates.pot
+	debconf-updatepo
+	
 # Build architecture-independent files here.
 binary-indep: build
 
