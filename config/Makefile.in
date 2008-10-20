@@ -80,6 +80,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/amanda/rsh-security.m4 \
 	$(top_srcdir)/config/amanda/s3-device.m4 \
 	$(top_srcdir)/config/amanda/shmem.m4 \
+	$(top_srcdir)/config/amanda/socklen_t_equiv.m4 \
 	$(top_srcdir)/config/amanda/ssh-security.m4 \
 	$(top_srcdir)/config/amanda/summary.m4 \
 	$(top_srcdir)/config/amanda/swig.m4 \
@@ -565,10 +566,10 @@ EXTRA_DIST = config.guess config.sub install-sh libtool.m4 ltmain.sh \
 	amanda/ipv6.m4 amanda/krb4-security.m4 amanda/krb5-security.m4 \
 	amanda/lfs.m4 amanda/libs.m4 amanda/net.m4 amanda/progs.m4 \
 	amanda/readdir.m4 amanda/readline.m4 amanda/rsh-security.m4 \
-	amanda/s3-device.m4 amanda/shmem.m4 amanda/ssh-security.m4 \
-	amanda/summary.m4 amanda/swig.m4 amanda/syshacks.m4 \
-	amanda/tape.m4 amanda/types.m4 amanda/userid.m4 \
-	amanda/version.m4 gettext-macros/codeset.m4 \
+	amanda/s3-device.m4 amanda/shmem.m4 amanda/socklen_t_equiv.m4 \
+	amanda/ssh-security.m4 amanda/summary.m4 amanda/swig.m4 \
+	amanda/syshacks.m4 amanda/tape.m4 amanda/types.m4 \
+	amanda/userid.m4 amanda/version.m4 gettext-macros/codeset.m4 \
 	gettext-macros/gettext.m4 gettext-macros/glibc21.m4 \
 	gettext-macros/glibc2.m4 gettext-macros/iconv.m4 \
 	gettext-macros/intdiv0.m4 gettext-macros/intmax.m4 \

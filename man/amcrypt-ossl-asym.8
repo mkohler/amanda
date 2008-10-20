@@ -1,11 +1,11 @@
 .\"     Title: amcrypt-ossl-asym
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/14/2008
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMCRYPT\-OSSL\-ASYM" "8" "05/14/2008" "" ""
+.TH "AMCRYPT\-OSSL\-ASYM" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -22,7 +22,7 @@ amcrypt-ossl-asym - crypt program for Amanda asymmetric data encryption using Op
 uses
 \fBOpenSSL\fR
 to encrypt and decrypt data\. OpenSSL is available from
-\fIwww\.openssl\.org\fR\&[1]\. OpenSSL offers a wide variety of cipher choices (
+www\.openssl\.org\. OpenSSL offers a wide variety of cipher choices (
 \fBamcrypt\-ossl\-asym\fR
 defaults to 256\-bit AES) and can use hardware cryptographic accelerators on several platforms\.
 .PP
@@ -32,8 +32,6 @@ will search for the OpenSSL program in the following directories: /bin:/usr/bin:
 .SH "GENERATING PUBLIC AND PRIVATE KEYS"
 .PP
 RSA keys can be generated with the standard OpenSSL commands, e\.g\.:
-.sp
-.RS 4
 .nf
 $ cd /var/lib/amanda
 $ openssl genrsa \-aes128 \-out backup\-privkey\.pem 1024
@@ -45,9 +43,7 @@ Verifying \- Enter pass phrase for backup\-key\.pem: \fIENTER YOUR PASS PHRASE\f
 $ openssl rsa \-in backup\-privkey\.pem \-pubout \-out backup\-pubkey\.pem
 Enter pass phrase for backup\-privkey\.pem: \fIENTER YOUR PASS PHRASE\fR
 Writing RSA key
-
 .fi
-.RE
 .PP
 To generate a private key without a passphrase, omit the
 \fB\-aes128\fR
@@ -69,7 +65,7 @@ is used to decrypt data, and must be protected\. Encrypted backup data cannot be
 While the public key must be online at all times to perorm backups, the private key and optional passphrase are only needed to restore data\. It is recommended that the latter be stored offline all other times\. For example, you could keep the private key on removable media, and copy it into place for a restore; or you could keep the private key online, encrypted with a passphrase that is present only for a restore\.
 .PP
 OpenSSL\'s key derivation routines use a salt to guard against dictionary attacks on the pass phrase; still it is important to pick a pass phrase that is hard to guess\. The Diceware method (see
-\fIwww\.diceware\.com\fR\&[2]) can be used to create passphrases that are difficult to guess and easy to remember\.
+www\.diceware\.com) can be used to create passphrases that are difficult to guess and easy to remember\.
 .SH "FILES"
 .PP
 /var/lib/amanda/backup\-privkey\.pem
@@ -97,7 +93,7 @@ user\.
 \fBamanda.conf\fR(5),
 \fBopenssl\fR(1),
 \fBamcrypt-ossl\fR(8),
-\fI\%http://wiki.zmanda.com\fR
+: http://wiki.zmanda.com
 .SH "NOTES"
 .IP " 1." 4
 www.openssl.org

@@ -1,11 +1,11 @@
 .\"     Title: amcheck
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/14/2008
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMCHECK" "8" "05/14/2008" "" ""
+.TH "AMCHECK" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -116,8 +116,6 @@ The default is
 .SH "EXAMPLES"
 .PP
 In this example, both the tape server and client tests are run\. The results are displayed on standard output\.
-.sp
-.RS 4
 .nf
 % amcheck daily
 \fIAmanda\fR Tape Server Host Check
@@ -136,7 +134,6 @@ Client check: 136 hosts checked in 51\.945 seconds, 3 problems found\.
 
 (brought to you by \fIAmanda\fR 2\.5\.0) 
 .fi
-.RE
 .PP
 In this example, if the line
 \fBmailto csd\-amanda\fR
@@ -144,12 +141,9 @@ is in
 \fIamanda\.conf\fR, mail will be sent to
 \fBcsd\-amanda\fR
 if the server check returns an error\.
-.sp
-.RS 4
 .nf
 % amcheck \-s \-m daily 
 .fi
-.RE
 .SH "MESSAGES"
 .PP
 fatal slot \fIslot\fR: \fIerror message\fR
@@ -679,6 +673,13 @@ ERROR: \fIhost\fR: \fImessage\fR
 was reported by the status check on
 \fIhost\fR\.
 .RE
+.SH "EXIT CODE"
+
+The exit code of \fBamcheck\fR is one of:
+.nf
+ 0  = success
+ 1  = error
+.fi
 .SH "AUTHOR"
 .PP
 James da Silva,
@@ -692,4 +693,4 @@ Stefan G\. Weichinger,
 .PP
 \fBamanda\fR(8),
 \fBamdump\fR(8),
-\fI\%http://wiki.zmanda.com\fR
+: http://wiki.zmanda.com

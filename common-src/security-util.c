@@ -764,7 +764,7 @@ tcp1_stream_server(
 	rh->rc = sec_tcp_conn_get(rh->hostname, 1);
 	rh->rc->driver = rh->sech.driver;
 	rs->rc = rh->rc;
-	rs->socket = stream_server(rh->udp->peer.ss_family, &rs->port,
+	rs->socket = stream_server(SU_GET_FAMILY(&rh->udp->peer), &rs->port,
 				   STREAM_BUFSIZE, STREAM_BUFSIZE, 0);
 	if (rs->socket < 0) {
 	    security_seterror(&rh->sech,
@@ -963,7 +963,7 @@ bsd_recv_security_ok(
 	/*
 	 * Request packets must come from a reserved port
 	 */
-    port = SS_GET_PORT(&rh->peer);
+    port = SU_GET_PORT(&rh->peer);
 	if (port >= IPPORT_RESERVED) {
 	    security_seterror(&rh->sech,
 		_("host %s: port %u not secure"), rh->hostname,
@@ -1274,7 +1274,7 @@ udp_inithandle(
     udp_handle_t *	udp,
     struct sec_handle *	rh,
     char *              hostname,
-    struct sockaddr_storage *addr,
+    sockaddr_union *addr,
     in_port_t		port,
     char *		handle,
     int			sequence)
@@ -1288,7 +1288,7 @@ udp_inithandle(
 
     rh->hostname = stralloc(hostname);
     copy_sockaddr(&rh->peer, addr);
-    SS_SET_PORT(&rh->peer, port);
+    SU_SET_PORT(&rh->peer, port);
 
 
     rh->prev = udp->bh_last;
@@ -1395,7 +1395,7 @@ udp_netfd_read_callback(
 	return;
     }
 
-    port = SS_GET_PORT(&udp->peer);
+    port = SU_GET_PORT(&udp->peer);
     a = udp_inithandle(udp, rh,
 		   hostname,
 		   &udp->peer,
@@ -2077,7 +2077,7 @@ check_user_ruserok(
 char *
 check_user_amandahosts(
     const char *	host,
-    struct sockaddr_storage *addr,
+    sockaddr_union *addr,
     struct passwd *	pwd,
     const char *	remoteuser,
     const char *	service)
@@ -2160,12 +2160,12 @@ check_user_amandahosts(
 	    (strcasecmp(filehost, "localhost")== 0 ||
 	     strcasecmp(filehost, "localhost.localdomain")== 0)) {
 #ifdef WORKING_IPV6
-	    if (addr->ss_family == (sa_family_t)AF_INET6)
-		inet_ntop(AF_INET6, &((struct sockaddr_in6 *)addr)->sin6_addr,
+	    if (SU_GET_FAMILY(addr) == (sa_family_t)AF_INET6)
+		inet_ntop(AF_INET6, &addr->sin6.sin6_addr,
 			  ipstr, sizeof(ipstr));
 	    else
 #endif
-		inet_ntop(AF_INET, &((struct sockaddr_in *)addr)->sin_addr,
+		inet_ntop(AF_INET, &addr->sin.sin_addr,
 			  ipstr, sizeof(ipstr));
 	    if (strcmp(ipstr, "127.0.0.1") == 0 ||
 		strcmp(ipstr, "::1") == 0)
@@ -2260,7 +2260,7 @@ common_exit:
 /* return 1 on success, 0 on failure */
 int
 check_security(
-    struct sockaddr_storage *addr,
+    sockaddr_union *addr,
     char *		str,
     unsigned long	cksum,
     char **		errstr)
@@ -2304,7 +2304,7 @@ check_security(
 
 
     /* next, make sure the remote port is a "reserved" one */
-    port = SS_GET_PORT(addr);
+    port = SU_GET_PORT(addr);
     if (port >= IPPORT_RESERVED) {
 	*errstr = vstrallocf(_("[host %s: port %u not secure]"),
 			remotehost, (unsigned int)port);
@@ -2504,14 +2504,14 @@ show_stat_info(
 {
     char *name = vstralloc(a, b, NULL);
     struct stat sbuf;
-    struct passwd *pwptr;
-    struct passwd pw;
+    struct passwd *pwptr G_GNUC_UNUSED;
+    struct passwd pw G_GNUC_UNUSED;
     char *owner;
-    struct group *grptr;
-    struct group gr;
+    struct group *grptr G_GNUC_UNUSED;
+    struct group gr G_GNUC_UNUSED;
     char *group;
-    int buflen;
-    char *buf;
+    int buflen G_GNUC_UNUSED;
+    char *buf G_GNUC_UNUSED;
 
     if (stat(name, &sbuf) != 0) {
 	auth_debug(1, _("bsd: cannot stat %s: %s\n"), name, strerror(errno));
@@ -2528,20 +2528,27 @@ show_stat_info(
 #endif
     buf = malloc(buflen);
 
-    if (getpwuid_r(sbuf.st_uid, &pw, buf, buflen, &pwptr) != 0 ||
-	pwptr == NULL) {
+#ifdef HAVE_GETPWUID_R
+    if (getpwuid_r(sbuf.st_uid, &pw, buf, buflen, &pwptr) == 0 &&
+	pwptr != NULL) {
+	owner = stralloc(pwptr->pw_name);
+    } else
+#endif
+    {
 	owner = alloc(NUM_STR_SIZE + 1);
 	g_snprintf(owner, NUM_STR_SIZE, "%ld", (long)sbuf.st_uid);
-    } else {
-	owner = stralloc(pwptr->pw_name);
     }
-    if (getgrgid_r(sbuf.st_gid, &gr, buf, buflen, &grptr) != 0 ||
-	grptr == NULL) {
+#ifdef HAVE_GETGRGID_R
+    if (getgrgid_r(sbuf.st_gid, &gr, buf, buflen, &grptr) == 0 &&
+	grptr != NULL) {
+	group = stralloc(grptr->gr_name);
+    } else
+#endif
+    {
 	group = alloc(NUM_STR_SIZE + 1);
 	g_snprintf(group, NUM_STR_SIZE, "%ld", (long)sbuf.st_gid);
-    } else {
-	group = stralloc(grptr->gr_name);
     }
+
     auth_debug(1, _("bsd: processing file: %s\n"), name);
     auth_debug(1, _("bsd:                  owner=%s group=%s mode=%03o\n"),
 		   owner, group,
@@ -2588,7 +2595,7 @@ check_name_give_sockaddr(
     }
 
     for(res1=res; res1 != NULL; res1 = res1->ai_next) {
-	if (cmp_sockaddr((struct sockaddr_storage *)res1->ai_addr, (struct sockaddr_storage *)addr, 1) == 0) {
+	if (cmp_sockaddr((sockaddr_union *)res1->ai_addr, (sockaddr_union *)addr, 1) == 0) {
 	    freeaddrinfo(res);
 	    amfree(canonname);
 	    return 0;
@@ -2596,10 +2603,10 @@ check_name_give_sockaddr(
     }
 
     dbprintf(_("%s doesn't resolve to %s"),
-	    hostname, str_sockaddr((struct sockaddr_storage *)addr));
+	    hostname, str_sockaddr((sockaddr_union *)addr));
     *errstr = newvstrallocf(*errstr,
 			   "%s doesn't resolve to %s",
-			   hostname, str_sockaddr((struct sockaddr_storage *)addr));
+			   hostname, str_sockaddr((sockaddr_union *)addr));
 error:
     if (res) freeaddrinfo(res);
     amfree(canonname);

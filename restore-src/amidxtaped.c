@@ -186,7 +186,7 @@ void
 check_security_buffer(
     char *	buffer)
 {
-    socklen_t i;
+    socklen_t_equiv i;
     struct sockaddr_in addr;
     char *s, *fp, ch;
     char *errstr = NULL;
@@ -222,7 +222,7 @@ check_security_buffer(
 	/*NOTREACHED*/
     }
     skip_whitespace(s, ch);
-    if (!check_security((struct sockaddr_storage *)&addr, s-1, 0, &errstr)) {
+    if (!check_security((sockaddr_union *)&addr, s-1, 0, &errstr)) {
 	error(_("security check failed: %s"), errstr);
 	/*NOTREACHED*/
     }
@@ -236,7 +236,7 @@ main(
     char *buf = NULL;
     int data_sock = -1;
     in_port_t data_port = (in_port_t)-1;
-    socklen_t socklen;
+    socklen_t_equiv socklen;
     struct sockaddr_in addr;
     GSList *dumpspecs;
     tapelist_t *tapes = NULL;

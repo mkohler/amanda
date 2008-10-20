@@ -1,11 +1,11 @@
 .\"     Title: amgpgcrypt
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/14/2008
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMGPGCRYPT" "8" "05/14/2008" "" ""
+.TH "AMGPGCRYPT" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -56,8 +56,6 @@ Store the passphrase that you used in following "gpg \-\-gen\-key" command insid
    chmod 700 ~$amanda_user/\.am_passphrase
 .PP
 Run "gpg \-\-gen\-key"\. Below is an example:
-.sp
-.RS 4
 .nf
 $ gpg \-\-gen\-key
 gpg (GnuPG) 1\.2\.6; Copyright (C) 2004 Free Software Foundation, Inc\.
@@ -116,9 +114,7 @@ key marked as ultimately trusted\.
 pub  1024D/4417A8CB 2006\-02\-07 amandabackup (gpg keys for amandabackup)
      Key fingerprint = 139C 6369 44FC 7F1A 655C  E5E9 7EAA 515A 4417 A8CB
 sub  1024g/8C3A6A78 2006\-02\-07 [expires: 2006\-08\-06]
-
 .fi
-.RE
 .SH "FILES"
 .PP
 \fB$AMANDA_HOME/\.gnupg/pubring\.gpg\fR
@@ -154,4 +150,4 @@ The tool and its documentation was written by Zmanda, Inc (http://www\.zmanda\.c
 \fBamcrypt\fR(8),
 \fBamrestore\fR(8),
 \fBgpg\fR(1),
-\fI\%http://wiki.zmanda.com\fR
+: http://wiki.zmanda.com

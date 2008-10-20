@@ -1,11 +1,11 @@
 .\"     Title: amrecover
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/14/2008
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMRECOVER" "8" "05/14/2008" "" ""
+.TH "AMRECOVER" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -169,15 +169,10 @@ If you want amrecover to use your changer, the
 must be equal to the amrecover_changer setting on the server\.
 .sp
 If you need to change the protocol (tape:, rait:, file:, null:) then you must specify the hostname\.
-.sp
-.RS 4
 .nf
 settape 192\.168\.0\.10:file:/file1
 .fi
-.RE
 You can change the tape device when amrecover ask you to load the tape:
-.sp
-.RS 4
 .nf
 Load tape DMP014 now
 Continue? [Y/n/t]: t
@@ -185,7 +180,6 @@ Tape device: server2:/dev/nst2
 Continue? [Y/n/t]: Y
 Using tape /dev/nst2 from server server2\.
 .fi
-.RE
 .RE
 .PP
 \fBsetmode\fR \fImode\fR
@@ -314,8 +308,6 @@ Display a brief list of these commands\.
 The following shows the recovery of an old
 \fIsyslog\fR
 file\.
-.sp
-.RS 4
 .nf
 # cd /var/log
 # ls \-l syslog\.7
@@ -368,13 +360,10 @@ amrecover> quit
 total 26
 \-rw\-r\-\-r\-\-   1 root     other      12678 Oct 14 16:36 syslog\.7
 .fi
-.RE
 .PP
 If you do not want to overwrite existing files, create a subdirectory to run
 \fBamrecover\fR
 from and then move the restored files afterward\.
-.sp
-.RS 4
 .nf
 # cd /var
 # (umask 077 ; mkdir \.restore)
@@ -400,7 +389,6 @@ amrecover> quit
 # cd \.\.
 # rm \-fr \.restore
 .fi
-.RE
 .PP
 If you need to run
 \fBamrestore\fR
@@ -409,8 +397,6 @@ by hand instead of letting
 control it, use the
 \fBlist\fR
 command after browsing to display the needed tapes\.
-.sp
-.RS 4
 .nf
 # cd /var/log
 # amrecover
@@ -430,15 +416,12 @@ TAPE DMP015 LEVEL 1 DATE 1997\-12\-09
         /log/syslog
 amrecover> quit 
 .fi
-.RE
 .PP
 The
 \fBhistory\fR
 command shows each tape that has a backup of the current disk along with the date of the backup, the level, the tape label and the file position on the tape\. All active tapes are listed, not just back to the most recent full dump\.
 .PP
 Tape file position zero is a label\. The first backup image is in file position one\.
-.sp
-.RS 4
 .nf
 # cd /var/log
 # amrecover
@@ -459,7 +442,6 @@ amrecover> history
 \.\.\.
 amrecover> quit 
 .fi
-.RE
 .SH "ENVIRONMENT"
 .PP
 \fBPAGER\fR
@@ -492,4 +474,4 @@ Stefan G\. Weichinger,
 \fBamrestore\fR(8),
 \fBamfetchdump\fR(8),
 \fBreadline\fR(3),
-\fI\%http://wiki.zmanda.com\fR
+: http://wiki.zmanda.com

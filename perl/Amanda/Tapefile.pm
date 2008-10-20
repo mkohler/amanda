@@ -58,4 +58,15 @@ package Amanda::Tapefile;
 
 @EXPORT_OK = ();
 %EXPORT_TAGS = ();
+
+=head1 NAME
+
+Amanda::Tapefile - temporary hack
+
+=head1 HACK?
+
+Yeah, this is just here to make Amanda::Logfile usable.  This module
+wil become Amanda::Tapelist in the next release.
+
+=cut
 1;

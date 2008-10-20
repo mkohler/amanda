@@ -1,11 +1,11 @@
 .\"     Title: amlabel
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/14/2008
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMLABEL" "8" "05/14/2008" "" ""
+.TH "AMLABEL" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -81,20 +81,14 @@ Write an
 label with the string "DMP000" on the tape loaded in the device named in the
 \fBtapedev\fR
 option in /usr/local/etc/amanda/daily/amanda\.conf:
-.sp
-.RS 4
 .nf
 % amlabel daily DMP000 
 .fi
-.RE
 .PP
 Label the tape in slot 3 of the currently configured tape changer with the string "DMP003":
-.sp
-.RS 4
 .nf
 % amlabel daily DMP003 slot 3 
 .fi
-.RE
 .SH "MESSAGES"
 .PP
 label \fIlabel\fR doesn\'t match labelstr \fIstr\fR
@@ -171,4 +165,4 @@ Stefan G\. Weichinger,
 \fBamanda\fR(8),
 \fBamdump\fR(8),
 \fBamflush\fR(8),
-\fI\%http://wiki.zmanda.com\fR
+: http://wiki.zmanda.com

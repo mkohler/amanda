@@ -80,6 +80,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/amanda/rsh-security.m4 \
 	$(top_srcdir)/config/amanda/s3-device.m4 \
 	$(top_srcdir)/config/amanda/shmem.m4 \
+	$(top_srcdir)/config/amanda/socklen_t_equiv.m4 \
 	$(top_srcdir)/config/amanda/ssh-security.m4 \
 	$(top_srcdir)/config/amanda/summary.m4 \
 	$(top_srcdir)/config/amanda/swig.m4 \
@@ -612,15 +613,20 @@ WANTED_MAN_PAGES = $(COMMON_MAN_PAGES) $(am__append_1) $(am__append_2) \
 SRCMANPAGEDIR = $(srcdir)/xml-source
 MAN_XML = $(ALL_MAN_PAGES:%=xml-source/%.xml)
 EXTRA_XML = xslt/expand-sambadoc.xsl \
-            xslt/man.xsl \
+            xslt/man.xsl.in \
+            xslt/html.xsl.in \
             xslt/settings.xsl \
 	    entities/global.entities \
 	    entities/xinclude.dtd
 
-EXTRA_DIST = $(ALL_MAN_PAGES) $(MAN_XML) $(EXTRA_XML)
+
+# (no rule to build HTML without ENABLE_MANPAGE_BUILD)
+EXTRA_DIST = $(ALL_MAN_PAGES) $(MAN_XML) $(EXTRA_HTML) $(EXTRA_XML) \
+	index.php amanda.css
 GEN_XML = $(ALL_MAN_PAGES:%=xml-source/%.proc.xml)
 MOSTLYCLEANFILES = $(GEN_XML)
 MAINTAINERCLEANFILES = $(ALL_MAN_PAGES)
+ALL_MAN_HTMLS = $(ALL_MAN_PAGES:%=%.html)
 man_MANS = $(WANTED_MAN_PAGES)
 all: all-am
 
@@ -831,8 +837,6 @@ dvi: dvi-am
 
 dvi-am:
 
-html: html-am
-
 info: info-am
 
 info-am:
@@ -891,15 +895,28 @@ uninstall-man: uninstall-man5 uninstall-man8
 	uninstall-man uninstall-man5 uninstall-man8
 
 
+# some of the XSL needs to know what docbook-xsl version we've selected
+%.xsl: %.xsl.in $(top_builddir)/config.status
+	$(top_builddir)/config.status --file=$@:$<
+
+# phase one of the documentation build expands some macros.
 @ENABLE_MANPAGE_BUILD_TRUE@xml-source/%.proc.xml: $(SRCMANPAGEDIR)/%.xml $(srcdir)/xslt/expand-sambadoc.xsl
 @ENABLE_MANPAGE_BUILD_TRUE@	$(XSLTPROC) $(XSLTPROC_FLAGS) --path $(srcdir)/xslt/ --xinclude --stringparam latex.imagebasedir "$*/" --stringparam noreference 1 --output $@ $(srcdir)/xslt/expand-sambadoc.xsl $<
 
+# phase two generates a manpage from the resulting "expanded" docbook XML
 @ENABLE_MANPAGE_BUILD_TRUE@%: xml-source/%.proc.xml $(srcdir)/xslt/man.xsl
-@ENABLE_MANPAGE_BUILD_TRUE@	$(XSLTPROC) $(XSLTPROC_FLAGS) --path $(srcdir)/xslt/ --output $@ http://docbook.sourceforge.net/release/xsl/$(XSLREL)/manpages/docbook.xsl $<
+@ENABLE_MANPAGE_BUILD_TRUE@	$(XSLTPROC) $(XSLTPROC_FLAGS) --path $(srcdir)/xslt/ --output $@ xslt/man.xsl $<
+
+@ENABLE_MANPAGE_BUILD_TRUE@%.html: xml-source/%.proc.xml $(srcdir)/xslt/html.xsl
+@ENABLE_MANPAGE_BUILD_TRUE@	$(XSLTPROC) $(XSLTPROC_FLAGS) --path $(srcdir)/xslt/ --output $@ xslt/html.xsl $<
 
 @ENABLE_MANPAGE_BUILD_FALSE@%: $(SRCMANPAGEDIR)/%.xml
 @ENABLE_MANPAGE_BUILD_FALSE@	@echo WARNING: Not building needed $@ because building manpages is disabled.
 @ENABLE_MANPAGE_BUILD_FALSE@	@echo 'DUMMY' > $@
+
+# toplevel rule to build HTML manpages and tar them up
+html: amanda.css index.php $(ALL_MAN_HTMLS)
+	tar -zcf html.tar.gz $(ALL_MAN_HTMLS) amanda.css index.php
 
 # double-check that we don't ship dummy manpages
 dist-hook:

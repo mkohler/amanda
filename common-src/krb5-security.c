@@ -331,8 +331,8 @@ krb5_accept(
     void	(*fn)(security_handle_t *, pkt_t *),
     void       *datap)
 {
-    struct sockaddr_storage sin;
-    socklen_t len;
+    sockaddr_union sin;
+    socklen_t_equiv len;
     struct tcp_conn *rc;
     char hostname[NI_MAXHOST];
     int result;
@@ -511,7 +511,7 @@ gss_client(
 	 * Send back the response
 	 */
 	if (send_tok.length != 0 && tcpm_send_token(rc, rc->write, rs->handle, &errmsg, send_tok.value, send_tok.length) < 0) {
-	    security_seterror(&rh->sech, rc->errmsg);
+	    security_seterror(&rh->sech, "%s", rc->errmsg);
 	    gss_release_buffer(&min_stat, &send_tok);
 	    goto done;
 	}

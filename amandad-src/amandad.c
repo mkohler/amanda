@@ -218,7 +218,15 @@ main(
 
     config_init(CONFIG_INIT_CLIENT, NULL);
 
-    check_running_as(RUNNING_AS_CLIENT_LOGIN);
+    if (geteuid() == 0) {
+	check_running_as(RUNNING_AS_ROOT);
+	initgroups(CLIENT_LOGIN, get_client_gid());
+	setgid(get_client_gid());
+	setegid(get_client_gid());
+	seteuid(get_client_uid());
+    } else {
+	check_running_as(RUNNING_AS_CLIENT_LOGIN);
+    }
 
     erroutput_type = (ERR_INTERACTIVE|ERR_SYSLOG);
 
@@ -290,7 +298,7 @@ main(
 	    }
 #ifdef USE_REUSEADDR
 	    r = setsockopt(in, SOL_SOCKET, SO_REUSEADDR,
-		(void *)&on, (socklen_t)sizeof(on));
+		(void *)&on, (socklen_t_equiv)sizeof(on));
 	    if (r < 0) {
 		dbprintf(_("amandad: setsockopt(SO_REUSEADDR) failed: %s\n"),
 			  strerror(errno));
@@ -306,7 +314,7 @@ main(
 	    sin.sin_addr.s_addr = INADDR_ANY;
 	    sin.sin_port = (in_port_t)htons((in_port_t)atoi(argv[i]));
 #endif
-	    if (bind(in, (struct sockaddr *)&sin, (socklen_t)sizeof(sin)) < 0) {
+	    if (bind(in, (struct sockaddr *)&sin, (socklen_t_equiv)sizeof(sin)) < 0) {
 		error(_("can't bind to port %d: %s\n"), atoi(argv[i]),
 		    strerror(errno));
 		/*NOTREACHED*/
@@ -322,7 +330,7 @@ main(
 	    struct sockaddr_in sin;
 #endif
 	    int sock;
-	    socklen_t n;
+	    socklen_t_equiv n;
 
 	    argv[i] += strlen("-tcp=");
 #ifdef WORKING_IPV6
@@ -336,7 +344,7 @@ main(
 	    }
 #ifdef USE_REUSEADDR
 	    r = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
-		(void *)&on, (socklen_t)sizeof(on));
+		(void *)&on, (socklen_t_equiv)sizeof(on));
 	    if (r < 0) {
 		dbprintf(_("amandad: setsockopt(SO_REUSEADDR) failed: %s\n"),
 			  strerror(errno));
@@ -351,13 +359,13 @@ main(
 	    sin.sin_addr.s_addr = INADDR_ANY;
 	    sin.sin_port = (in_port_t)htons((in_port_t)atoi(argv[i]));
 #endif
-	    if (bind(sock, (struct sockaddr *)&sin, (socklen_t)sizeof(sin)) < 0) {
+	    if (bind(sock, (struct sockaddr *)&sin, (socklen_t_equiv)sizeof(sin)) < 0) {
 		error(_("can't bind to port %d: %s\n"), atoi(argv[i]),
 		    strerror(errno));
 		/*NOTREACHED*/
 	    }
 	    listen(sock, 10);
-	    n = (socklen_t)sizeof(sin);
+	    n = (socklen_t_equiv)sizeof(sin);
 	    in = out = accept(sock, (struct sockaddr *)&sin, &n);
 	}
 	/*
@@ -409,6 +417,18 @@ main(
 	exit_on_qlength = 1;
     }
 
+    if (getuid() == 0) {
+	if (strcasecmp(auth, "krb5") != 0) {
+	    error(_("Amanda must be run as user '%s' when using '%s' authetication"),
+		  CLIENT_LOGIN, auth);
+	}
+    } else {
+	if (strcasecmp(auth, "krb5") == 0) {
+	    error(_("Amanda must be run as user 'root' when using 'krb5' authetication"));
+	}
+    }
+
+
     /* initialize */
 
     startclock();
@@ -420,6 +440,11 @@ main(
 
     if (! (argc >= 1 && argv != NULL && argv[0] != NULL)) {
 	dbprintf(_("WARNING: argv[0] not defined: check inetd.conf\n"));
+    }
+
+    /* krb5 require the euid to be 0 */
+    if (strcasecmp(auth, "krb5") == 0) {
+	seteuid((uid_t)0);
     }
 
     /*

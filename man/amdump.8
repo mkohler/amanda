@@ -1,11 +1,11 @@
 .\"     Title: amdump
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/14/2008
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMDUMP" "8" "05/14/2008" "" ""
+.TH "AMDUMP" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -57,12 +57,9 @@ Here is a typical crontab entry\. It runs
 \fBamdump\fR
 every weeknight at 1 a\.m\. as user
 \fBbin\fR:
-.sp
-.RS 4
 .nf
 0 1 * * 1\-5 bin /usr/local/sbin/amdump daily
 .fi
-.RE
 .PP
 Please see the
 \fBcrontab\fR(5)
@@ -93,6 +90,17 @@ run\. This run is terminated\. If the problem is caused by the remains of a prev
 and then rerun
 \fBamdump\fR\.
 .RE
+.SH "EXIT CODE"
+
+The exit code of \fBamdump\fR is the ORed value of:
+.nf
+ 0  = success
+ 1  = error
+ 2  = a dle give strange message
+ 4  = a dle failed
+ 8  = Don\'t know the status of a dle (RESULT_MISSING in the report)
+ 16 = tape error or no more tape
+.fi
 .SH "AUTHOR"
 .PP
 James da Silva,
@@ -111,4 +119,4 @@ Stefan G\. Weichinger,
 \fBamrestore\fR(8),
 \fBamflush\fR(8),
 \fBcron\fR(8),
-\fI\%http://wiki.zmanda.com\fR
+: http://wiki.zmanda.com

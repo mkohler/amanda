@@ -1,11 +1,11 @@
 .\"     Title: amtoc
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/14/2008
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMTOC" "8" "05/14/2008" "" ""
+.TH "AMTOC" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -75,8 +75,6 @@ Marks the last option so the next parameter is the
 .SH "OUTPUT FORMAT"
 .PP
 The standard output has five fields separated by two spaces:
-.sp
-.RS 4
 .nf
 #  Server:/partition  date  level  size[Kb]
 0  daily\-05:  19991005  \-  \-
@@ -85,14 +83,9 @@ The standard output has five fields separated by two spaces:
   \.\.\.
 103  cuisg11:/  19991005  0  4139136
 103  total:  \-  \-  16716288
-
-
 .fi
-.RE
 .PP
 In tabular format (\-t), this would look like:
-.sp
-.RS 4
 .nf
   #  Server:/partition           date      lev  size[Kb]
   0  daily\-05:                   19991005    \-         \-
@@ -101,9 +94,7 @@ In tabular format (\-t), this would look like:
   \.\.\.
 103  cuisg11:/                   19991005    0   4139136
 103  total:                      \-           \-  16716288
-
 .fi
-.RE
 .SH "USAGE"
 .PP
 The easiest way to use it is to run
@@ -112,12 +103,9 @@ right after
 \fIamdump\fR
 in the
 \fIcron job:\fR
-.sp
-.RS 4
 .nf
 amdump daily ; logdir=`amgetconf daily logdir` ; log=`ls \-1t $logdir/log\.*\.[0\-9] | head \-1` ; amtoc \-a $log
 .fi
-.RE
 .PP
 which will generate /usr/local/etc/amanda//daily/\fItape_label\fR\.toc\. You may also want to call
 \fBamtoc\fR
@@ -129,7 +117,7 @@ after an
 \fBamdump\fR(8),
 \fBamflush\fR(8),
 \fBamgetconf\fR(8), cron, perl,
-\fI\%http://wiki.zmanda.com\fR
+: http://wiki.zmanda.com
 .SH "AUTHOR"
 .PP
 Nicolas Mayencourt

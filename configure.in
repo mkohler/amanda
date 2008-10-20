@@ -6,7 +6,7 @@ AC_CANONICAL_TARGET([])
 PACKAGE=amanda
 AC_SUBST(PACKAGE)
 
-AM_INIT_AUTOMAKE(amanda, "2.6.0p1")
+AM_INIT_AUTOMAKE(amanda, "2.6.0p2")
 AC_CONFIG_HEADERS([config/config.h])
 
 dnl Minimum Autoconf version required.
@@ -233,7 +233,7 @@ AC_TYPE_SIZE_T
 AC_TYPE_UID_T
 AC_TYPE_SIGNAL
 AC_STRUCT_TM
-AMANDA_CHECK_TYPE(socklen_t, int, sys/socket.h)
+AMANDA_SOCKLEN_T_EQUIV
 AMANDA_CHECK_TYPE(sa_family_t, unsigned short, sys/socket.h)
 AMANDA_CHECK_TYPE(in_port_t, unsigned short, netinet/in.h)
 CF_WAIT
@@ -249,6 +249,7 @@ AMANDA_CHECK_NET_LIBS
 AMANDA_CHECK_GLIB
 AMANDA_CHECK_READLINE
 AC_CHECK_LIB(m,modf)
+AMANDA_GLIBC_BACKTRACE
 
 #
 # Declarations
@@ -282,6 +283,8 @@ ICE_CHECK_DECL(fputs,stdio.h)
 ICE_CHECK_DECL(fread,stdio.h stdlib.h)
 ICE_CHECK_DECL(fseek,stdio.h)
 ICE_CHECK_DECL(fwrite,stdio.h stdlib.h)
+AC_CHECK_FUNCS(getgrgid_r)
+AC_CHECK_FUNCS(getpwuid_r)
 ICE_CHECK_DECL(gethostname,unistd.h)
 ICE_CHECK_DECL(getopt,stdlib.h unistd.h libc.h)
 ICE_CHECK_DECL(getpeername,sys/types.h sys/socket.h)

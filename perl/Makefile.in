@@ -181,6 +181,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/amanda/rsh-security.m4 \
 	$(top_srcdir)/config/amanda/s3-device.m4 \
 	$(top_srcdir)/config/amanda/shmem.m4 \
+	$(top_srcdir)/config/amanda/socklen_t_equiv.m4 \
 	$(top_srcdir)/config/amanda/ssh-security.m4 \
 	$(top_srcdir)/config/amanda/summary.m4 \
 	$(top_srcdir)/config/amanda/swig.m4 \
@@ -832,6 +833,16 @@ libamglue_la_SOURCES = \
 	amglue/amglue.h
 
 libamglue_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
+
+# This isn't a very robust implementation, as it's only meant to make the HTML
+# available online as part of the automated compilation process.  It assumes
+# that all perl modules were built (not just server or client), and that the
+# build directory does not contain any "junk".
+
+# HTML_SOURCE_FILES should contain the .pm files from which the HTML should
+# be geneated.  This is just the concatenation of foo_DATA for all $(foodir)
+# into which perl modules are installed.
+HTML_SOURCE_FILES = $(Amanda_DATA)
 
 # Tell libtool to not bother versioning the libs we build, since perl won't
 # pay attention to such things, anyway.
@@ -1504,8 +1515,6 @@ dvi: dvi-am
 
 dvi-am:
 
-html: html-am
-
 info: info-am
 
 info-am:
@@ -1662,6 +1671,12 @@ dist-scripts:
 	done; \
 	true
 dist-hook: dist-scripts
+html: make_html amperl.css $(HTML_SOURCE_FILES)
+	rm -rf html-tmp/ && mkdir html-tmp/
+	cp amperl.css html-tmp/
+	$(PERL) make_html html-tmp/ $(HTML_SOURCE_FILES)
+	cd html-tmp/ && tar -zcf $(abs_builddir)/html.tar.gz .
+	rm -rf html-tmp/
 
 # Suffix rules.  These are parallel-build compatible, but may cause
 # strange behavior if there are other .c files in this directory.  The

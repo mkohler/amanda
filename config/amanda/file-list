@@ -30,6 +30,7 @@ EXTRA_DIST += amanda/readline.m4
 EXTRA_DIST += amanda/rsh-security.m4
 EXTRA_DIST += amanda/s3-device.m4
 EXTRA_DIST += amanda/shmem.m4
+EXTRA_DIST += amanda/socklen_t_equiv.m4
 EXTRA_DIST += amanda/ssh-security.m4
 EXTRA_DIST += amanda/summary.m4
 EXTRA_DIST += amanda/swig.m4

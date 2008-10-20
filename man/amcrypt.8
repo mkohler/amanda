@@ -1,11 +1,11 @@
 .\"     Title: amcrypt
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/14/2008
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMCRYPT" "8" "05/14/2008" "" ""
+.TH "AMCRYPT" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -25,7 +25,7 @@ requires
 and
 \fBgpg\fR
 to work\. Aespipe is available from
-\fI\%http://loop-aes.sourceforge.net\fR
+: http://loop-aes.sourceforge.net
 .PP
 
 \fBamcrypt\fR
@@ -47,14 +47,11 @@ head \-c 2925 /dev/random | uuencode \-m \- | head \-n 66 | tail \-n 65 \e | gpg
 This will ask for a passphrase\. Remember this passphrase as you will need it in the next step\.
 .PP
 2\. Store the passphrase inside the home\-directory of the AMANDA\-user and protect it with proper permissions:
-.sp
-.RS 4
 .nf
 echo my_secret_passphrase > ~amanda/\.am_passphrase
 chown amanda:disk ~amanda/\.am_passphrase
 chmod 700 ~amanda/\.am_passphrase
 .fi
-.RE
 .SH "KEY AND PASSPHRASE"
 .PP
 
@@ -71,4 +68,4 @@ be recovered with the correct key and passphrase\.
 \fBaespipe\fR(1),
 \fBamaespipe\fR(8),
 \fBgpg\fR(1),
-\fI\%http://wiki.zmanda.com\fR
+: http://wiki.zmanda.com

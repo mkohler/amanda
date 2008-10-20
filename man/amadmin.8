@@ -1,11 +1,11 @@
 .\"     Title: amadmin
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/14/2008
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMADMIN" "8" "05/14/2008" "" ""
+.TH "AMADMIN" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -144,7 +144,6 @@ The
 \fB\-\-sort\fR
 option changes the sort order using the following flags:
 .sp
-.RS 4
 .nf
 \fIh\fR: host name
 \fIk\fR: disk name
@@ -153,7 +152,6 @@ option changes the sort order using the following flags:
 \fIp\fR: dump part
 \fIb\fR: tape label
 .fi
-.RE
 .sp
 An uppercase letter reverses the sort order for that key\. The default sort order is
 \fBhkdlpb\fR\.
@@ -263,23 +261,18 @@ Request three specific file systems on
 get a full level 0 backup during the next
 \fIAmanda\fR
 run\.
-.sp
-.RS 4
 .nf
 $ amadmin daily force machine\-a / /var /usr
 amadmin: machine\-a:/ is set to a forced level 0 tonight\.
 amadmin: machine\-a:/var is set to a forced level 0 tonight\.
 amadmin: machine\-a:/usr is set to a forced level 0 tonight\.
 .fi
-.RE
 .PP
 Request all file systems on
 \fImachine\-b\fR
 get a full level 0 backup during the next
 \fIAmanda\fR
 run\.
-.sp
-.RS 4
 .nf
 $ amadmin daily force machine\-b
 amadmin: machine\-b:/ is set to a forced level 0 tonight\.
@@ -287,7 +280,6 @@ amadmin: machine\-b:/var is set to a forced level 0 tonight\.
 amadmin: machine\-b:/usr is set to a forced level 0 tonight\.
 amadmin: machine\-b:/home is set to a forced level 0 tonight\.
 .fi
-.RE
 .PP
 Undo the previous
 \fBforce\fR
@@ -295,13 +287,10 @@ request for
 \fI/home\fR
 on
 \fImachine\-b\fR\. The other file systems will still get a full level 0 backup\.
-.sp
-.RS 4
 .nf
 $ amadmin daily unforce machine\-b /home
 amadmin: force command for machine\-b:/home cleared\.
 .fi
-.RE
 .PP
 Locate backup images of
 \fI/var\fR
@@ -313,8 +302,6 @@ column displays either a tape label or a filename depending on whether the image
 column tells you which file on the tape has the image (file number zero is a tape label)\. This column shows zero and is not meaningful if the image is still in the holding disk\. The
 \fIstatus\fR
 column tells you whether the backup was successful or had some type of error\.
-.sp
-.RS 4
 .nf
 $ amadmin daily find machine\-c /var
 date        host      disk lv tape or file                 file part  status
@@ -329,7 +316,6 @@ date        host      disk lv tape or file                 file part  status
 2000\-11\-01  machine\-c /var  1 000102                       5   \-\-  OK
 2000\-10\-31  machine\-c /var  1 000101                       3   \-\-  OK
 .fi
-.RE
 .PP
 Forget about the
 \fI/workspace\fR
@@ -339,26 +325,20 @@ disk on
 file,
 \fIAmanda\fR
 will treat it as a new disk during the next run\.
-.sp
-.RS 4
 .nf
 $ amadmin daily delete machine\-d /workspace
 amadmin: machine\-d:/workspace deleted from database\.
 amadmin: NOTE: you\'ll have to remove these from the disklist yourself\.
 .fi
-.RE
 .PP
 Find the next tape
 \fIAmanda\fR
 will use (in this case,
 123456)\.
-.sp
-.RS 4
 .nf
 $ amadmin daily tape
 The next \fIAmanda\fR run should go onto tape 123456 or a new tape\.
 .fi
-.RE
 .PP
 Show how well full backups are balanced across the dump cycle\. The
 \fIdue\-date\fR
@@ -383,8 +363,6 @@ The last line also shows an estimate of how many
 runs will be made between full backups for a file system\. In the example, a file system will probably have a full backup done every eight times
 \fIAmanda\fR
 is run (e\.g\. every eight days)\.
-.sp
-.RS 4
 .nf
 $ amadmin daily balance
  due\-date  #fs   orig KB    out KB  balance
@@ -402,7 +380,6 @@ $ amadmin daily balance
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
 TOTAL      241  12412187   7316312   731631  (estimated 8 runs per dumpcycle)
 .fi
-.RE
 .SH "FILES"
 .PP
 /usr/local/etc/amanda/\fIconfig\fR/amanda\.conf
@@ -422,4 +399,4 @@ Stefan G\. Weichinger,
 \fBamdump\fR(8),
 \fBamrestore\fR(8),
 \fBamfetchdump\fR(8),
-\fI\%http://wiki.zmanda.com\fR
+: http://wiki.zmanda.com

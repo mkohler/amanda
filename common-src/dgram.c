@@ -57,8 +57,8 @@ dgram_bind(
     in_port_t *	portp)
 {
     int s, retries;
-    socklen_t len;
-    struct sockaddr_storage name;
+    socklen_t_equiv len;
+    sockaddr_union name;
     int save_errno;
     int *portrange;
 
@@ -79,8 +79,8 @@ dgram_bind(
 	return -1;
     }
 
-    SS_INIT(&name, family);
-    SS_SET_INADDR_ANY(&name);
+    SU_INIT(&name, family);
+    SU_SET_INADDR_ANY(&name);
 
     /*
      * If a port range was specified, we try to get a port in that
@@ -117,7 +117,7 @@ dgram_bind(
 out:
     /* find out what name was actually used */
 
-    len = (socklen_t)sizeof(name);
+    len = (socklen_t_equiv)sizeof(name);
     if(getsockname(s, (struct sockaddr *)&name, &len) == -1) {
 	save_errno = errno;
 	dbprintf(_("dgram_bind: getsockname() failed: %s\n"), strerror(save_errno));
@@ -125,7 +125,7 @@ out:
 	aclose(s);
 	return -1;
     }
-    *portp = SS_GET_PORT(&name);
+    *portp = SU_GET_PORT(&name);
     dgram->socket = s;
 
     dbprintf(_("dgram_bind: socket %d bound to %s\n"),
@@ -136,7 +136,7 @@ out:
 
 int
 dgram_send_addr(
-    struct sockaddr_storage	*addr,
+    sockaddr_union	*addr,
     dgram_t *		dgram)
 {
     int s, rc;
@@ -158,7 +158,7 @@ dgram_send_addr(
 	s = dgram->socket;
 	socket_opened = 0;
     } else {
-	if((s = socket(addr->ss_family, SOCK_DGRAM, 0)) == -1) {
+	if((s = socket(SU_GET_FAMILY(addr), SOCK_DGRAM, 0)) == -1) {
 	    save_errno = errno;
 	    dbprintf(_("dgram_send_addr: socket() failed: %s\n"),
 		      strerror(save_errno));
@@ -168,7 +168,7 @@ dgram_send_addr(
 	socket_opened = 1;
 #ifdef USE_REUSEADDR
 	r = setsockopt(s, SOL_SOCKET, SO_REUSEADDR,
-		(void *)&on, (socklen_t)sizeof(on));
+		(void *)&on, (socklen_t_equiv)sizeof(on));
 	if (r < 0) {
 	    dbprintf(_("dgram_send_addr: setsockopt(SO_REUSEADDR) failed: %s\n"),
 		      strerror(errno));
@@ -241,13 +241,13 @@ ssize_t
 dgram_recv(
     dgram_t *		dgram,
     int			timeout,
-    struct sockaddr_storage *fromaddr)
+    sockaddr_union *fromaddr)
 {
     SELECT_ARG_TYPE ready;
     struct timeval to;
     ssize_t size;
     int sock;
-    socklen_t addrlen;
+    socklen_t_equiv addrlen;
     ssize_t nfound;
     int save_errno;
 
@@ -287,7 +287,7 @@ dgram_recv(
 	return nfound;
     }
 
-    addrlen = (socklen_t)sizeof(struct sockaddr_storage);
+    addrlen = (socklen_t_equiv)sizeof(sockaddr_union);
     size = recvfrom(sock, dgram->data, (size_t)MAX_DGRAM, 0,
 		    (struct sockaddr *)fromaddr, &addrlen);
     if(size == -1) {

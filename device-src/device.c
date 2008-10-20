@@ -651,6 +651,7 @@ static gboolean
 default_device_start (Device * self, DeviceAccessMode mode, char * label,
                       char * timestamp) {
     if (mode != ACCESS_WRITE && self->volume_label == NULL) {
+	g_debug("default_device_start calling device_read_label with mode %d", mode);
         if (device_read_label(self) != READ_LABEL_STATUS_SUCCESS)
             return FALSE;
     } else if (mode == ACCESS_WRITE) {
@@ -773,18 +774,52 @@ default_device_property_get(Device * self, DevicePropertyId ID,
 
 static gboolean
 default_device_read_to_fd(Device *self, int fd) {
-    return do_consumer_producer_queue(device_read_producer,
-                                      self,
-                                      fd_write_consumer,
-                                      GINT_TO_POINTER(fd));
+    GValue val;
+    StreamingRequirement streaming_mode;
+
+    /* Get the device's parameters */
+    bzero(&val, sizeof(val));
+    if (!device_property_get(self, PROPERTY_STREAMING, &val)
+	|| !G_VALUE_HOLDS(&val, STREAMING_REQUIREMENT_TYPE)) {
+	streaming_mode = STREAMING_REQUIREMENT_REQUIRED;
+    } else {
+	streaming_mode = g_value_get_enum(&val);
+    }
+
+    return QUEUE_SUCCESS ==
+	do_consumer_producer_queue_full(
+	    device_read_producer,
+	    self,
+	    fd_write_consumer,
+	    GINT_TO_POINTER(fd),
+	    device_read_max_size(self),
+	    DEFAULT_MAX_BUFFER_MEMORY,
+	    streaming_mode);
 }
 
 static gboolean
 default_device_write_from_fd(Device *self, int fd) {
-    return do_consumer_producer_queue(fd_read_producer,
-                                      GINT_TO_POINTER(fd),
-                                      device_write_consumer,
-                                      self);
+    GValue val;
+    StreamingRequirement streaming_mode;
+
+    /* Get the device's parameters */
+    bzero(&val, sizeof(val));
+    if (!device_property_get(self, PROPERTY_STREAMING, &val)
+	|| !G_VALUE_HOLDS(&val, STREAMING_REQUIREMENT_TYPE)) {
+	streaming_mode = STREAMING_REQUIREMENT_REQUIRED;
+    } else {
+	streaming_mode = g_value_get_enum(&val);
+    }
+
+    return QUEUE_SUCCESS ==
+	do_consumer_producer_queue_full(
+	    fd_read_producer,
+	    GINT_TO_POINTER(fd),
+	    device_write_consumer,
+	    self,
+	    device_write_max_size(self),
+	    DEFAULT_MAX_BUFFER_MEMORY,
+	    streaming_mode);
 }
 
 /* XXX WARNING XXX
@@ -810,6 +845,7 @@ device_open_device (Device * self, char * device_name)
 
 ReadLabelStatusFlags device_read_label(Device * self) {
     DeviceClass * klass;
+    g_debug("device_read_label; mode = %d", self->access_mode);
     g_return_val_if_fail(self != NULL, FALSE);
     g_return_val_if_fail(IS_DEVICE(self), FALSE);
     g_return_val_if_fail(self->access_mode == ACCESS_NULL, FALSE);
@@ -849,6 +885,7 @@ device_start (Device * self, DeviceAccessMode mode,
 {
 	DeviceClass *klass;
 
+	g_debug("device_start mode = %d", mode);
 	g_return_val_if_fail (self != NULL, FALSE);
 	g_return_val_if_fail (IS_DEVICE (self), FALSE);
         g_return_val_if_fail (mode != ACCESS_NULL, FALSE);
@@ -869,6 +906,7 @@ device_start (Device * self, DeviceAccessMode mode,
 
             rv = (*klass->start)(self, mode, label, timestamp);
 	    amfree(local_timestamp);
+	    g_debug("device_start done; dev->access_mode = %d, result %d", self->access_mode, rv);
 	    return rv;
         } else {
             return FALSE;

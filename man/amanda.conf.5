@@ -1,11 +1,11 @@
 .\"     Title: amanda.conf
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/14/2008
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMANDA\.CONF" "5" "05/14/2008" "" ""
+.TH "AMANDA\.CONF" "5" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -259,12 +259,8 @@ option set to
 These options can set various device properties, including block size, maximum volume usage, authentication information, hardware feature support, and more\.Specifics of how properties are used are device\-dependent, though some common properties are supported across multiple device drivers\.
 .sp
 Both strings are quoted; the first string contains the name of the property to set, and the second contains its value\. For example, to set a fixed block size of 128k, do:
-.sp
-.RS 4
 .nf
-device_property "BLOCK_SIZE" "131072"
-.fi
-.RE
+device_property "BLOCK_SIZE" "131072".fi
 .sp
 The order in which device properties are set is as follows:
 .sp
@@ -462,7 +458,6 @@ Default:
 Default:
 \fItttTTTTTTT\fR\. The priority order of each dumper:
 .sp
-.RS 4
 .nf
 s: smallest size
 S: largest size
@@ -471,7 +466,6 @@ T: largest time
 b: smallest bandwidth
 B: largest bandwidth
 .fi
-.RE
 .RE
 .PP
 \fBmaxdumps\fR int
@@ -661,8 +655,6 @@ is a comma (\',\') separated list of triples\. Each triple consists of three par
 .sp
 .RS 4
 \h'-04' 1.\h'+02'the name of the column, which may be:
-.sp
-.RS 4
 .nf
 	Compress (compression ratio)
 	Disk (client disk name)
@@ -674,9 +666,7 @@ is a comma (\',\') separated list of triples\. Each triple consists of three par
 	OutKB (output image size in KBytes)
 	TapeRate (tape writing rate in KBytes/sec)
 	TapeTime (total tape time in hours:minutes)
-	
-.fi
-.RE
+	.fi
 .RE
 .sp
 .RS 4
@@ -690,11 +680,9 @@ is a comma (\',\') separated list of triples\. Each triple consists of three par
 .IP "" 4
 Here is an example:
 .sp
-.RS 4
 .nf
 columnspec "Disk=1:18,HostName=0:10,OutKB=1:7"
 .fi
-.RE
 .sp
 The above will display the disk information in 18 characters and put one space before it\. The hostname column will be 10 characters wide with no space to the left\. The output KBytes column is seven characters wide with one space before it\.
 .RE
@@ -865,15 +853,12 @@ Default: \-\-with\-tcpportrange or
 The
 \fBamanda\.conf\fR
 file may define one or more holding disks used as buffers to hold backup images before they are written to tape\. The syntax is:
-.sp
-.RS 4
 .nf
 holdingdisk \fIname\fR {
     \fIholdingdisk\-option\fR \fIholdingdisk\-value\fR
     \.\.\.
 }
 .fi
-.RE
 .PP
 \fIName\fR
 is a logical name for this holding disk\.
@@ -926,15 +911,12 @@ file\. For instance, one set of options might be defined for file systems that c
 A set of backup options are entered in a
 \fBdumptype\fR
 section, which looks like this:
-.sp
-.RS 4
 .nf
 define dumptype \fIname\fR {
     \fIdumptype\-option\fR \fIdumptype\-value\fR
     \.\.\.
 }
 .fi
-.RE
 .PP
 \fIName\fR
 is the name of this set of backup options\. It is referenced from the
@@ -1254,12 +1236,9 @@ is specified for
 .sp
 For
 \fBexclude list\fR, if the file name is relative, the disk name being backed up is prepended\. So if this is entered:
-.sp
-.RS 4
 .nf
     exclude list "\.amanda\.excludes"
 .fi
-.RE
 the actual file used would be
 \fI/var/\.amanda\.excludes\fR
 for a backup of
@@ -1508,8 +1487,6 @@ The following
 \fBdumptype\fR
 entries are predefined by
 \fIAmanda\fR:
-.sp
-.RS 4
 .nf
 define dumptype no\-compress {
     compress none
@@ -1539,7 +1516,6 @@ define dumptype no\-full {
     skip\-full yes
 } 
 .fi
-.RE
 .PP
 In addition to options in a
 \fBdumptype\fR
@@ -1551,8 +1527,6 @@ inherit options from other previously defined
 \fBdumptype\fRs\. For instance, two sections might be the same except for the
 \fBrecord\fR
 option:
-.sp
-.RS 4
 .nf
 define dumptype normal {
     comment "Normal backup, no compression, do indexing"
@@ -1566,7 +1540,6 @@ define dumptype testing {
     record no
 }
 .fi
-.RE
 .PP
 \fIAmanda\fR
 provides a
@@ -1585,15 +1558,12 @@ The
 file may define multiple types of tape media and devices\. The information is entered in a
 \fBtapetype\fR
 section, which looks like this in the config file:
-.sp
-.RS 4
 .nf
 define tapetype \fIname\fR {
     \fItapetype\-option\fR \fItapetype\-value\fR
     \.\.\.
 }
 .fi
-.RE
 .PP
 \fIName\fR
 is the name of this type of tape medium/device\. It is referenced from the
@@ -1685,8 +1655,6 @@ name may be entered, which makes this
 \fBtapetype\fR
 inherit options from another
 \fBtapetype\fR\. For instance, the only difference between a DLT4000 tape drive using Compact\-III tapes and one using Compact\-IV tapes is the length of the tape\. So they could be entered as:
-.sp
-.RS 4
 .nf
 define tapetype DLT4000\-III {
     comment "DLT4000 tape drives with Compact\-III tapes"
@@ -1700,8 +1668,6 @@ define tapetype DLT4000\-IV {
     length 25000 mbytes         # 20 Gig tapes with some compression
 }
 .fi
-.RE
-.sp
 .SH "INTERFACE SECTION"
 .PP
 The
@@ -1709,15 +1675,12 @@ The
 file may define multiple types of network interfaces\. The information is entered in an
 \fBinterface\fR
 section, which looks like this:
-.sp
-.RS 4
 .nf
 define interface \fIname\fR {
     \fIinterface\-option\fR \fIinterface\-value\fR
     \.\.\.
 }
 .fi
-.RE
 .PP
 \fIname\fR
 is the name of this type of network interface\. It is referenced from the
@@ -1766,6 +1729,4 @@ Stefan G\. Weichinger,
 \fBamanda-client.conf\fR(5),
 \fBamcrypt\fR(8),
 \fBaespipe\fR(1),
-\fI\%http://wiki.zmanda.com\fR
-.PP
-An updated version of this man page may be available at http://wiki\.zmanda\.com/index\.php/Amanda\.conf\.
+: http://wiki.zmanda.com

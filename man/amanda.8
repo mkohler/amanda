@@ -1,11 +1,11 @@
 .\"     Title: amanda
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/14/2008
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMANDA" "8" "05/14/2008" "" ""
+.TH "AMANDA" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -396,12 +396,9 @@ The
 \fIdisklist\fR
 file determines which disks will be backed up by
 \fIAmanda\fR\. The file usually contains one line per disk:
-.sp
-.RS 4
 .nf
 \fIhostname diskname\fR [\fIdiskdevice\fR] \fIdumptype\fR [\fIspindle\fR [\fIinterface\fR] ]
 .fi
-.RE
 .PP
 All pairs [
 \fIhostname diskname\fR
@@ -505,15 +502,12 @@ For instance, if a
 named
 \fInormal\fR
 is used for most disks, but use of the holding disk needs to be disabled for the file system that holds it, this would work instead of defining a new dumptype:
-.sp
-.RS 4
 .nf
 \fIhostname diskname\fR [ \fIdiskdevice\fR ] {
   normal
   holdingdisk never
 } [ \fIspindle\fR [ \fIinterface\fR ] ]
 .fi
-.RE
 .SH "TAPE MANAGEMENT"
 .PP
 The
@@ -522,11 +516,9 @@ file contains the list of tapes in active use\. This file is maintained entirely
 \fIAmanda\fR
 and should not be created or edited during normal operation\. It contains lines of the form:
 .PP
-.RS 4
 .nf
 YYYYMMDD label flags
 .fi
-.RE
 .PP
 Where
 \fIYYYYMMDD\fR
@@ -581,19 +573,14 @@ This is the default driver\. The
 \fIdriver\-info\fR
 is the tape device name\. Entering
 .sp
-.RS 4
 .nf
 tapedev /dev/rmt/0mn
 .fi
-.RE
-.sp
 is really a short hand for
 .sp
-.RS 4
 .nf
 tapedev tape:/dev/rmt/0mn
 .fi
-.RE
 .RE
 .PP
 \fInull\fR
@@ -606,11 +593,9 @@ checks for and allows through regardless of what you have set in
 field is not used and may be left blank:
 .sp
 .sp
-.RS 4
 .nf
 tapedev null:
 .fi
-.RE
 .sp
 The
 \fIlength\fR
@@ -641,11 +626,9 @@ The
 field describes the devices to use\. Curly braces indicate multiple replacements in the string\. For instance:
 .sp
 .sp
-.RS 4
 .nf
 tapedev rait:/dev/rmt/tps0d{4,5,6}n
 .fi
-.RE
 .sp
 would use the following devices:
 .sp
@@ -784,13 +767,10 @@ needs a file on the Samba server (which may or may not also be the tape server) 
 \fI/etc/amandapass\fR
 with share names, (clear text) passwords and (optional) domain names, in that order, one per line, whitespace separated\. By default, the user used to connect to the PC is the same for all PC\'s and is compiled into
 \fIAmanda\fR\. It may be changed on a host by host basis by listing it first in the password field followed by a percent sign and then the password\. For instance:
-.sp
-.RS 4
 .nf
   //some\-pc/home normalpw
   //another\-pc/disk otheruser%otherpw
 .fi
-.RE
 With clear text passwords, this file should obviously be tightly protected\. It only needs to be readable by the
 \fIAmanda\fR\-user on the Samba server\.
 .sp
@@ -1117,12 +1097,9 @@ For global options,
 \fIname\fR
 is simply the name of the option, e\.g\.,
 .sp
-.RS 4
 .nf
 amdump \-oruntapes=2
 .fi
-.RE
-.sp
 For options in a named section of the configuration,
 \fIname\fR
 has the form
@@ -1132,24 +1109,19 @@ is one of TAPETYPE, DUMPTYPE, HOLDINGDISK, or INTERFACE, and
 \fIsection_name\fR
 is the name of the tapetype, dumptype, holdingdisk, or interface\. Examples:
 .sp
-.RS 4
 .nf
 amdump \-o TAPETYPE:HP\-DAT:length=2000m
 amdump \-o DUMPTYPE:no\-compress:compress="server fast"
 amdump \-o HOLDINGDISK:hd1:use="\-100 mb"
 amdump \-o INTERFACE:local:use="2000 kbps"
 .fi
-.RE
 .PP
 Note that configuration overrides are not effective for tape changers, which supply a tapedev based on their own configuration\. In order to override
 \fItapedev\fR, you must also disable any changer:
 .sp
-.RS 4
 .nf
 amdump \-otapedev=/dev/nst1 \-otpchanger=\'\'
 .fi
-.RE
-.sp
 .SH "AUTHOR"
 .PP
 James da Silva,
@@ -1188,4 +1160,4 @@ Stefan G\. Weichinger,
 \fBamcheckdump\fR(8),
 \fBamserverconfig\fR(8),
 \fBamaddclient\fR(8),
-\fI\%http://wiki.zmanda.com\fR
+: http://wiki.zmanda.com

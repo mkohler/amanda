@@ -582,7 +582,6 @@ keytab_t client_keytab[] = {
     { "INDEX_SERVER", CONF_INDEX_SERVER },
     { "TAPE_SERVER", CONF_TAPE_SERVER },
     { "TAPEDEV", CONF_TAPEDEV },
-    { "DEVICE-PROPERTY", CONF_DEVICE_PROPERTY },
     { "AUTH", CONF_AUTH },
     { "SSH_KEYS", CONF_SSH_KEYS },
     { "AMANDAD_PATH", CONF_AMANDAD_PATH },
@@ -1388,8 +1387,14 @@ read_conffile(
     current_filename = config_dir_relative(filename);
 
     if ((current_file = fopen(current_filename, "r")) == NULL) {
-	g_fprintf(stderr, _("could not open conf file \"%s\": %s\n"), current_filename,
+	/* client conf files are optional, and this fprintf ends up sending this message back
+	 * to the server without proper auth encapsulation, leading to "invalid size: could not
+	 * open .."  This is fixed in TRUNK by completely rewriting this module's error-handling
+	 * code. */
+	if (!is_client) {
+	    g_fprintf(stderr, _("could not open conf file \"%s\": %s\n"), current_filename,
 		strerror(errno));
+	}
 	got_parserror = TRUE;
 	goto finish;
     }
@@ -1573,7 +1578,7 @@ read_block(
 		    if(np->token == tok) break;
 
 		if(np->token == CONF_UNKNOWN)
-		    conf_parserror(errormsg);
+		    conf_parserror("%s", errormsg);
 		else {
 		    np->read_function(np, &valarray[np->parm]);
 		    if(np->validate_function)
@@ -3962,7 +3967,7 @@ apply_config_overwrites(
 	if (key_parm->type == CONFTYPE_STR) {
 	    current_line = vstralloc("\"", value, "\"", NULL);
 	} else {
-	    current_line = stralloc("");
+	    current_line = stralloc(value);
 	}
 
 	current_char = current_line;

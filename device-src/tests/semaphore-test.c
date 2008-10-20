@@ -20,6 +20,7 @@
 
 #include "semaphore.h"
 #include "amanda.h"
+#include "util.h"
 
 /*
  * test that decrement waits properly
@@ -49,11 +50,10 @@ static gboolean
 test_decr_wait(void)
 {
     GThread *th;
-    struct test_decr_wait_data data = {
-	semaphore_new_with_value(10),
-	FALSE
-    };
+    struct test_decr_wait_data data = { NULL, FALSE };
     int rv;
+
+    data.sem = semaphore_new_with_value(10),
 
     /* die after 10 seconds (default signal disposition is to fail) */
     alarm(10);
@@ -254,7 +254,7 @@ main(void)
     gboolean pass = TRUE;
 
 #if defined(G_THREADS_ENABLED) && !defined(G_THREADS_IMPL_NONE)
-    amanda_thread_init(NULL);
+    amanda_thread_init();
 
     pass = test_decr_wait() && pass;
     pass = test_wait_empty() && pass;

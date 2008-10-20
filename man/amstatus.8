@@ -1,11 +1,11 @@
 .\"     Title: amstatus
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/14/2008
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMSTATUS" "8" "05/14/2008" "" ""
+.TH "AMSTATUS" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -109,6 +109,16 @@ Display statistics about active\-time of taper and dumpers\.
 .RS 4
 Output the date in a locale independent format\. The format is the same executing: date +\'%Y\-%m\-%d %H:%M:%S %Z\'
 .RE
+.SH "EXIT CODE"
+
+The exit code of \fBamstatus\fR is the ORed value of:
+.nf
+ 0  = success
+ 1  = error
+ 4  = a dle failed
+ 8  = Don\'t know the status of a dle (RESULT_MISSING in the report)
+ 16 = tape error or no more tape
+.fi
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
@@ -116,4 +126,4 @@ Output the date in a locale independent format\. The format is the same executin
 \fBamdump\fR(8),
 \fBamrestore\fR(8),
 \fBamadmin\fR(8),
-\fI\%http://wiki.zmanda.com\fR
+: http://wiki.zmanda.com

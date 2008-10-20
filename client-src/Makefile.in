@@ -217,6 +217,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/amanda/rsh-security.m4 \
 	$(top_srcdir)/config/amanda/s3-device.m4 \
 	$(top_srcdir)/config/amanda/shmem.m4 \
+	$(top_srcdir)/config/amanda/socklen_t_equiv.m4 \
 	$(top_srcdir)/config/amanda/ssh-security.m4 \
 	$(top_srcdir)/config/amanda/summary.m4 \
 	$(top_srcdir)/config/amanda/swig.m4 \
@@ -294,7 +295,7 @@ am__vpath_adj = case $$p in \
   esac;
 am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
 am__installdirs = "$(DESTDIR)$(amlibdir)" "$(DESTDIR)$(amlibexecdir)" \
-	"$(DESTDIR)$(amlibexecdir)" "$(DESTDIR)$(sbindir)"
+	"$(DESTDIR)$(amlibexecdir)"
 amlibLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(amlib_LTLIBRARIES)
 libamclient_la_DEPENDENCIES = ../common-src/libamanda.la
@@ -372,8 +373,7 @@ versionsuffix_DEPENDENCIES = ../common-src/libamanda.la libamclient.la \
 	../amandad-src/libamandad.la ../common-src/libamanda.la \
 	../gnulib/libgnu.la
 amlibexecSCRIPT_INSTALL = $(INSTALL_SCRIPT)
-sbinSCRIPT_INSTALL = $(INSTALL_SCRIPT)
-SCRIPTS = $(amlibexec_SCRIPTS) $(sbin_SCRIPTS)
+SCRIPTS = $(amlibexec_SCRIPTS)
 DEFAULT_INCLUDES = -I. -I$(top_builddir)/config@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -825,8 +825,6 @@ AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
 LINT = $(AMLINT)
 LINTFLAGS = $(AMLINTFLAGS)
 amlib_LTLIBRARIES = libamclient.la
-sbin_SCRIPTS = @CLIENT_SCRIPTS_OPT@
-EXTRA_SCRIPTS = amhpfixdevs amsinixfixdevs
 amlibexec_SCRIPTS = patch-system
 CHECK_PERL = $(sbin_SCRIPTS)
 SCRIPTS_PERL = $(CHECK_PERL)
@@ -1004,25 +1002,6 @@ uninstall-amlibexecSCRIPTS:
 	  echo " rm -f '$(DESTDIR)$(amlibexecdir)/$$f'"; \
 	  rm -f "$(DESTDIR)$(amlibexecdir)/$$f"; \
 	done
-install-sbinSCRIPTS: $(sbin_SCRIPTS)
-	@$(NORMAL_INSTALL)
-	test -z "$(sbindir)" || $(MKDIR_P) "$(DESTDIR)$(sbindir)"
-	@list='$(sbin_SCRIPTS)'; for p in $$list; do \
-	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	  if test -f $$d$$p; then \
-	    f=`echo "$$p" | sed 's|^.*/||;$(transform)'`; \
-	    echo " $(sbinSCRIPT_INSTALL) '$$d$$p' '$(DESTDIR)$(sbindir)/$$f'"; \
-	    $(sbinSCRIPT_INSTALL) "$$d$$p" "$(DESTDIR)$(sbindir)/$$f"; \
-	  else :; fi; \
-	done
-
-uninstall-sbinSCRIPTS:
-	@$(NORMAL_UNINSTALL)
-	@list='$(sbin_SCRIPTS)'; for p in $$list; do \
-	  f=`echo "$$p" | sed 's|^.*/||;$(transform)'`; \
-	  echo " rm -f '$(DESTDIR)$(sbindir)/$$f'"; \
-	  rm -f "$(DESTDIR)$(sbindir)/$$f"; \
-	done
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -1158,7 +1137,7 @@ check: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) check-am
 all-am: Makefile $(LTLIBRARIES) $(PROGRAMS) $(SCRIPTS) $(HEADERS)
 installdirs:
-	for dir in "$(DESTDIR)$(amlibdir)" "$(DESTDIR)$(amlibexecdir)" "$(DESTDIR)$(amlibexecdir)" "$(DESTDIR)$(sbindir)"; do \
+	for dir in "$(DESTDIR)$(amlibdir)" "$(DESTDIR)$(amlibexecdir)" "$(DESTDIR)$(amlibexecdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: $(BUILT_SOURCES)
@@ -1220,8 +1199,7 @@ install-data-am: install-amlibLTLIBRARIES
 
 install-dvi: install-dvi-am
 
-install-exec-am: install-amlibexecPROGRAMS install-amlibexecSCRIPTS \
-	install-sbinSCRIPTS
+install-exec-am: install-amlibexecPROGRAMS install-amlibexecSCRIPTS
 	@$(NORMAL_INSTALL)
 	$(MAKE) $(AM_MAKEFLAGS) install-exec-hook
 
@@ -1256,7 +1234,7 @@ ps: ps-am
 ps-am:
 
 uninstall-am: uninstall-amlibLTLIBRARIES uninstall-amlibexecPROGRAMS \
-	uninstall-amlibexecSCRIPTS uninstall-sbinSCRIPTS
+	uninstall-amlibexecSCRIPTS
 
 .MAKE: install-am install-data-am install-exec-am install-strip
 
@@ -1270,13 +1248,12 @@ uninstall-am: uninstall-amlibLTLIBRARIES uninstall-amlibexecPROGRAMS \
 	install-data-hook install-dvi install-dvi-am install-exec \
 	install-exec-am install-exec-hook install-html install-html-am \
 	install-info install-info-am install-man install-pdf \
-	install-pdf-am install-ps install-ps-am install-sbinSCRIPTS \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	pdf pdf-am ps ps-am tags uninstall uninstall-am \
-	uninstall-amlibLTLIBRARIES uninstall-amlibexecPROGRAMS \
-	uninstall-amlibexecSCRIPTS uninstall-sbinSCRIPTS
+	install-pdf-am install-ps install-ps-am install-strip \
+	installcheck installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am uninstall-amlibLTLIBRARIES \
+	uninstall-amlibexecPROGRAMS uninstall-amlibexecSCRIPTS
 
 
 # Perl

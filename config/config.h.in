@@ -361,6 +361,9 @@
 /* Define to 1 if you have the `getaddrinfo' function. */
 #undef HAVE_GETADDRINFO
 
+/* Define to 1 if you have the `getgrgid_r' function. */
+#undef HAVE_GETGRGID_R
+
 /* Define to 1 if you have the `gethostbyname' function. */
 #undef HAVE_GETHOSTBYNAME
 
@@ -385,6 +388,9 @@
 /* Define if getpeername is declared. */
 #undef HAVE_GETPEERNAME_DECL
 
+/* Define to 1 if you have the `getpwuid_r' function. */
+#undef HAVE_GETPWUID_R
+
 /* Define to 1 if you have the `getsockname' function. */
 #undef HAVE_GETSOCKNAME
 
@@ -405,6 +411,9 @@
 
 /* Define to 1 if you have the `gettimeofday' function. */
 #undef HAVE_GETTIMEOFDAY
+
+/* Define this if glibc's backtrace functionality (execinfo.h) is present */
+#undef HAVE_GLIBC_BACKTRACE
 
 /* Define to 1 if you have the <grp.h> header file. */
 #undef HAVE_GRP_H
@@ -1689,8 +1698,11 @@
 /* Define to `unsigned int' if <sys/types.h> does not define. */
 #undef size_t
 
-/* Type for socklen_t, if it is not defined by the system */
+/* type to use in place of socklen_t if not defined */
 #undef socklen_t
+
+/* type to use for socket length parameters; use instead of socklen_t */
+#undef socklen_t_equiv
 
 /* Define as a signed type of the same size as size_t. */
 #undef ssize_t

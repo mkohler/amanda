@@ -1,11 +1,11 @@
 .\"     Title: amcheckdb
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 05/14/2008
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMCHECKDB" "8" "05/14/2008" "" ""
+.TH "AMCHECKDB" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -31,27 +31,21 @@ man page for more details about
 .SH "EXAMPLE"
 .PP
 This shows a normal response:
-.sp
-.RS 4
 .nf
 # amcheckdb daily
 Ready\.
 .fi
-.RE
 .PP
 This shows tape
 \fIDMP014\fR
 is still listed in the database but is no longer listed in the
 \fItapelist\fR
 file:
-.sp
-.RS 4
 .nf
 # amcheckdb daily
 Tape DMP014 missing in /usr/local/etc/amanda//daily/tapelist
 Ready\.
 .fi
-.RE
 .SH "AUTHOR"
 .PP
 Adrian T\. Filipi\-Martin <atf3r@cs\.virginia\.edu>: Original text
@@ -64,4 +58,4 @@ Stefan G\. Weichinger,
 \fBamadmin\fR(8),
 \fBamrmtape\fR(8),
 \fBamanda\fR(8),
-\fI\%http://wiki.zmanda.com\fR
+: http://wiki.zmanda.com

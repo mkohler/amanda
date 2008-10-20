@@ -52,15 +52,15 @@ stream_server(
     int    priv)
 {
     int server_socket, retries;
-    socklen_t len;
+    socklen_t_equiv len;
 #if defined(SO_KEEPALIVE) || defined(USE_REUSEADDR)
     const int on = 1;
     int r;
 #endif
-    struct sockaddr_storage server;
+    sockaddr_union server;
     int save_errno;
     int *portrange;
-    socklen_t socklen;
+    socklen_t_equiv socklen;
     int socket_family;
 
     *portp = USHRT_MAX;				/* in case we error exit */
@@ -95,12 +95,12 @@ stream_server(
 	return -1;
     }
 
-    SS_INIT(&server, socket_family);
-    SS_SET_INADDR_ANY(&server);
+    SU_INIT(&server, socket_family);
+    SU_SET_INADDR_ANY(&server);
 
 #ifdef USE_REUSEADDR
     r = setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR,
-	(void *)&on, (socklen_t)sizeof(on));
+	(void *)&on, (socklen_t_equiv)sizeof(on));
     if (r < 0) {
 	dbprintf(_("stream_server: setsockopt(SO_REUSEADDR) failed: %s\n"),
 		  strerror(errno));
@@ -174,7 +174,7 @@ out:
 
 #ifdef SO_KEEPALIVE
     r = setsockopt(server_socket, SOL_SOCKET, SO_KEEPALIVE,
-	(void *)&on, (socklen_t)sizeof(on));
+	(void *)&on, (socklen_t_equiv)sizeof(on));
     if(r == -1) {
 	save_errno = errno;
 	dbprintf(_("stream_server: setsockopt(SO_KEEPALIVE) failed: %s\n"),
@@ -185,7 +185,7 @@ out:
     }
 #endif
 
-    *portp = SS_GET_PORT(&server);
+    *portp = SU_GET_PORT(&server);
     dbprintf(_("stream_server: waiting for connection: %s\n"),
 	      str_sockaddr(&server));
     return server_socket;
@@ -201,7 +201,7 @@ stream_client_internal(
     int nonblock,
     int priv)
 {
-    struct sockaddr_storage svaddr, claddr;
+    sockaddr_union svaddr, claddr;
     int save_errno;
     char *f;
     int client_socket;
@@ -225,11 +225,11 @@ stream_client_internal(
 
     for (res_addr = res; res_addr != NULL; res_addr = res_addr->ai_next) {
 	/* copy the first (preferred) address we found */
-	copy_sockaddr(&svaddr, res_addr->ai_addr);
-	SS_SET_PORT(&svaddr, port);
+	copy_sockaddr(&svaddr, (sockaddr_union *)res_addr->ai_addr);
+	SU_SET_PORT(&svaddr, port);
 
-	SS_INIT(&claddr, svaddr.ss_family);
-	SS_SET_INADDR_ANY(&claddr);
+	SU_INIT(&claddr, SU_GET_FAMILY(&svaddr));
+	SU_SET_INADDR_ANY(&claddr);
 
 	/*
 	 * If a privileged port range was requested, we try to get a port in
@@ -269,7 +269,7 @@ out:
     try_socksize(client_socket, SO_SNDBUF, sendsize);
     try_socksize(client_socket, SO_RCVBUF, recvsize);
     if (localport != NULL)
-	*localport = SS_GET_PORT(&claddr);
+	*localport = SU_GET_PORT(&claddr);
     return client_socket;
 }
 
@@ -310,8 +310,8 @@ stream_client(
 }
 
 /* don't care about these values */
-static struct sockaddr_storage addr;
-static socklen_t addrlen;
+static sockaddr_union addr;
+static socklen_t_equiv addrlen;
 
 int
 stream_accept(
@@ -369,7 +369,7 @@ stream_accept(
     } while (nfound <= 0);
 
     while(1) {
-	addrlen = (socklen_t)sizeof(struct sockaddr_storage);
+	addrlen = (socklen_t_equiv)sizeof(sockaddr_union);
 	connected_socket = accept(server_socket,
 				  (struct sockaddr *)&addr,
 				  &addrlen);
@@ -382,12 +382,12 @@ stream_accept(
 	 * Make certain we got an inet connection and that it is not
 	 * from port 20 (a favorite unauthorized entry tool).
 	 */
-	if (addr.ss_family == (sa_family_t)AF_INET
+	if (SU_GET_FAMILY(&addr) == AF_INET
 #ifdef WORKING_IPV6
-	    || addr.ss_family == (sa_family_t)AF_INET6
+	    || SU_GET_FAMILY(&addr) == AF_INET6
 #endif
 	    ){
-	    port = SS_GET_PORT(&addr);
+	    port = SU_GET_PORT(&addr);
 	    if (port != (in_port_t)20) {
 		try_socksize(connected_socket, SO_SNDBUF, sendsize);
 		try_socksize(connected_socket, SO_RCVBUF, recvsize);
@@ -400,12 +400,12 @@ stream_accept(
 #ifdef WORKING_IPV6
 	    dbprintf(_("family is %d instead of %d(AF_INET)"
 		      " or %d(AF_INET6): ignored\n"),
-		      addr.ss_family,
+		      SU_GET_FAMILY(&addr),
 		      AF_INET, AF_INET6);
 #else
 	    dbprintf(_("family is %d instead of %d(AF_INET)"
 		      ": ignored\n"),
-		      addr.ss_family,
+		      SU_GET_FAMILY(&addr),
 		      AF_INET);
 #endif
 	}
@@ -436,7 +436,7 @@ try_socksize(
     /* keep trying, get as big a buffer as possible */
     while((isize > 1024) &&
 	  (setsockopt(sock, SOL_SOCKET,
-		      which, (void *) &isize, (socklen_t)sizeof(isize)) < 0)) {
+		      which, (void *) &isize, (socklen_t_equiv)sizeof(isize)) < 0)) {
 	isize -= 1024;
     }
     if(isize > 1024) {
