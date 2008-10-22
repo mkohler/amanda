@@ -1007,9 +1007,6 @@ YY_RULE_SETUP
 #line 98 "uscan.l"
 { return SMB; }
 	YY_BREAK
-
-    /* dates */
-
 case 29:
 YY_RULE_SETUP
 #line 99 "uscan.l"
@@ -2112,14 +2109,6 @@ void yyfree (void * ptr )
 
 #line 167 "uscan.l"
 
-#if YY_MAIN
-int main()
-	{
-	yylex();
-	return 0;
-	}
-#endif
-#line 165 "uscan.l"
 
 
 int

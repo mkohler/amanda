@@ -47,12 +47,6 @@
 #include "findpass.h"
 #endif
 
-#define selfcheck_debug(i,x) do {	\
-	if ((i) <= debug_selfcheck) {	\
-	    dbprintf(x);		\
-	}				\
-} while (0)
-
 int need_samba=0;
 int need_rundump=0;
 int need_dump=0;
@@ -124,10 +118,6 @@ main(
 
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
-
-#if defined(USE_DBMALLOC)
-    malloc_size_1 = malloc_inuse(&malloc_hist_1);
-#endif
 
     erroutput_type = (ERR_INTERACTIVE|ERR_SYSLOG);
     dbopen(DBG_SUBDIR_CLIENT);

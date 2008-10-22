@@ -900,53 +900,6 @@ rename_tmp_holding(
     return 1;
 }
 
-void
-cleanup_holdingdisk(
-    char *	diskdir,
-    int		verbose)
-{
-    DIR *topdir;
-    struct dirent *workdir;
-
-    if((topdir = opendir(diskdir)) == NULL) {
-	if(verbose && errno != ENOENT)
-	    printf(_("Warning: could not open holding dir %s: %s\n"),
-		   diskdir, strerror(errno));
-	return;
-   }
-
-    /* find all directories of the right format  */
-
-    if(verbose)
-	printf(_("Scanning %s...\n"), diskdir);
-    if ((chdir(diskdir)) == -1) {
-	log_add(L_INFO, _("%s: could not chdir: %s"),
-		    diskdir, strerror(errno));
-    }
-    while((workdir = readdir(topdir)) != NULL) {
-	if(strcmp(workdir->d_name, ".") == 0
-	   || strcmp(workdir->d_name, "..") == 0
-	   || strcmp(workdir->d_name, "lost+found") == 0)
-	    continue;
-
-	if(verbose)
-	    printf("  %s: ", workdir->d_name);
-	if(!is_dir(workdir->d_name)) {
-	    if(verbose)
-	        puts(_("skipping cruft file, perhaps you should delete it."));
-	}
-	else if(!is_datestr(workdir->d_name)) {
-	    if(verbose && (strcmp(workdir->d_name, "lost+found")!=0) )
-	        puts(_("skipping cruft directory, perhaps you should delete it."));
-	}
-	else if(rmdir(workdir->d_name) == 0) {
-	    if(verbose)
-	        puts(_("deleted empty Amanda directory."));
- 	}
-     }
-     closedir(topdir);
-}
-
 
 int
 mkholdingdir(

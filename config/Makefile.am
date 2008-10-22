@@ -2,7 +2,6 @@
 
 EXTRA_DIST =	config.guess	\
 		config.sub	\
-		gnulib.m4i	\
 		install-sh	\
 		libtool.m4	\
 		ltmain.sh	\

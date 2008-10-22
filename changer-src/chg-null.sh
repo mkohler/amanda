@@ -44,7 +44,7 @@ totalslots=200
 
 changerfile=`amgetconf$SUF changerfile`
 
-tapedev=`amgetconf$SUF tapedev`
+tapedev="null:/dev/xxx$$"
 
 cleanfile=$changerfile-clean
 accessfile=$changerfile-access

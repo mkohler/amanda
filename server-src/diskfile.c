@@ -1388,8 +1388,6 @@ main(
   /* Don't die when child closes pipe */
   signal(SIGPIPE, SIG_IGN);
 
-  malloc_size_1 = malloc_inuse(&malloc_hist_1);
-
   if (argc>1) {
     config_name = argv[1];
     if (strchr(config_name, '/') != NULL) {

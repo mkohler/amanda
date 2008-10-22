@@ -48,8 +48,7 @@ confdir=@CONFIG_DIR@
 PATH="$PATH:/usr/sbin:/sbin:/usr/ucb"
 export PATH
 
-AWK=@AWK@
-GNUPLOT=@GNUPLOT@
+# we use a different version of the compression variable than amanda itself.
 COMPRESS=@AMPLOT_COMPRESS@
 
 # Function to check that awk can do command-line variable

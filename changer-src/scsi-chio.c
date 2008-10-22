@@ -13,10 +13,6 @@
 
 #include "config.h"
 #include "amanda.h"
-#include "scsi-defs.h"
-
-#if (defined(HAVE_CHIO_H) || defined(HAVE_SYS_CHIO_H)) \
-    && !defined(HAVE_CAMLIB_H)
 
 #include <sys/types.h>
 #include <sys/ioctl.h>

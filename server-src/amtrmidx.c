@@ -93,10 +93,10 @@ main(
 
     cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
 
-    if (my_argc > 1 && strcmp(my_argv[1], "-t") == 0) {
+    if (argc > 1 && strcmp(argv[1], "-t") == 0) {
 	amtrmidx_debug = 1;
-	my_argc--;
-	my_argv++;
+	argc--;
+	argv++;
     }
 
     if (argc < 2) {

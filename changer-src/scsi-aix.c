@@ -34,8 +34,6 @@
 
 #include <amanda.h>
 
-#ifdef HAVE_AIX_LIKE_SCSI
-
 #include <scsi-defs.h>
 
 #ifdef HAVE_SYS_TYPES_H

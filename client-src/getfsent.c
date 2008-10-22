@@ -666,8 +666,6 @@ main(
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
-    malloc_size_1 = malloc_inuse(&malloc_hist_1);
-
     if(!open_fstab()) {
 	g_fprintf(stderr, _("getfsent_test: could not open fstab\n"));
 	return 1;

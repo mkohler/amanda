@@ -65,8 +65,7 @@ static amregex_t re_table[] = {
   /* samba may produce these output messages */
   AM_NORMAL_RE("^[Aa]dded interface"),
   AM_NORMAL_RE("^session request to "),
-  AM_NORMAL_RE("^ *tar: dumped [0-9][0-9]* (tar )?files"),
-  AM_NORMAL_RE("^Domain="),
+  AM_NORMAL_RE("^tar: dumped [0-9][0-9]* (tar )?files"),
 
 #if SAMBA_VERSION < 2
   AM_NORMAL_RE("^doing parameter"),
@@ -74,6 +73,7 @@ static amregex_t re_table[] = {
   AM_NORMAL_RE("^adding IPC"),
   AM_NORMAL_RE("^Opening"),
   AM_NORMAL_RE("^Connect"),
+  AM_NORMAL_RE("^Domain="),
   AM_NORMAL_RE("^max"),
   AM_NORMAL_RE("^security="),
   AM_NORMAL_RE("^capabilities"),

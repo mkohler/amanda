@@ -461,7 +461,6 @@ free_find_result(
 	amfree(output_find_result->label);
 	amfree(output_find_result->partnum);
 	amfree(output_find_result->status);
-	amfree(output_find_result->timestamp);
 	prev = output_find_result;
     }
     amfree(prev);

@@ -100,7 +100,6 @@ main(
 	/*NOTREACHED*/
     }
 
-    /* Consume any extranious input */
     signal(SIGTERM, term_kill_soft);
 
     /* Consume any extranious input */

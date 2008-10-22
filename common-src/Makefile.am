@@ -120,10 +120,6 @@ noinst_HEADERS =		\
 	util.h			\
 	version.h
 
-.sh:
-	cat $< > $@
-	chmod a+x $@
-
 EXTRA_PROGRAMS = genversion $(TEST_PROGS)
 
 # Version-building steps:

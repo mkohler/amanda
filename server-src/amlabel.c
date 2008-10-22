@@ -105,8 +105,6 @@ main(
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
-    malloc_size_1 = malloc_inuse(&malloc_hist_1);
-
     erroutput_type = ERR_INTERACTIVE;
 
     cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
@@ -180,8 +178,6 @@ main(
 	    error(_("could not load slot \"%s\": %s"), slotstr, changer_resultstr);
 	    /*NOTREACHED*/
 	}
-    }
-#endif /* HAVE_LINUX_ZFTAPE_H */
 
 	g_printf(_("labeling tape in slot %s (%s):\n"), outslot, tapename);
     }

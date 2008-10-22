@@ -573,6 +573,7 @@ skip_volume:
 	putresult(NO_NEW_TAPE, "%s\n", dump_info->handle);
 	return FALSE;
     }
+}
 
 /* Find out if the dump is PARTIAL or not, and set the proper driver
    and logfile tags for the dump. */
@@ -586,9 +587,6 @@ static void find_completion_tags(dump_info_t * dump_info, /* IN */
         *result_cmd = DONE;
         *result_log = L_DONE;
     }
-
-    memcpy(intp, &buf[1], SIZEOF(int));
-    return (int)buf[0];
 }
 
 /* Put an L_PARTIAL message to the logfile. */

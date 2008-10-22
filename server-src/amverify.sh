@@ -312,7 +312,7 @@ fi
 cd @AMANDA_TMPDIR@ || exit 1
 
 TEMP=@AMANDA_TMPDIR@/amverify.$$
-trap 'rm -fr $TEMP' EXIT
+trap 'rm -fr $TEMP' 0
 if ( umask 077 ; mkdir $TEMP ) ; then
 	:
 else
@@ -427,9 +427,6 @@ while [ $SLOT -lt $SLOTS ]; do
                         # Unless we went over, there is no extra output.
 			report "End-of-Tape detected."
 			break
-		elif [ -n "$EOI" ]; then
-                        report "End-of-Information detected."
-                        break
 		else
 			report "** Error detected ($FILE)"
 			echo "$VOLUME ($FILE):" >>$DEFECTS
@@ -500,8 +497,5 @@ for dump in $SPLIT_DUMPS;do
 done
 
 sendreport
-
-rm -fr $TEMP
-trap - EXIT
 
 exit 0

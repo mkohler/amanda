@@ -126,9 +126,6 @@
 /* Define as good substitute value for EOVERFLOW. */
 #undef EOVERFLOW
 
-/* Define to force to another user on client machines. */
-#undef FORCE_USERID
-
 /* Define to 1 if the `getpgrp' function requires zero arguments. */
 #undef GETPGRP_VOID
 
@@ -479,9 +476,6 @@
 /* Define if isnormal is declared. */
 #undef HAVE_ISNORMAL_DECL
 
-/* Define to 1 if you have the `c' library (-lc). */
-#undef HAVE_LIBC
-
 /* Define to 1 if you have the `cam' library (-lcam). */
 #undef HAVE_LIBCAM
 
@@ -634,12 +628,6 @@
 
 /* Define to 1 if you have the <netinet/in.h> header file. */
 #undef HAVE_NETINET_IN_H
-
-/* Define to 1 if you have the <netinet/in_systm.h> header file. */
-#undef HAVE_NETINET_IN_SYSTM_H
-
-/* Define to 1 if you have the <netinet/ip.h> header file. */
-#undef HAVE_NETINET_IP_H
 
 /* Define to 1 if you have the `on_exit' function. */
 #undef HAVE_ON_EXIT
@@ -1516,9 +1504,6 @@
 /* Define if the Win32 multithreading API can be used. */
 #undef USE_WIN32_THREADS
 
-/* Define on UnixWare. */
-#undef UWARE_TAPEIO
-
 /* Define the location of the vdump program. */
 #undef VDUMP
 
@@ -1589,9 +1574,6 @@
 
 /* Target system has functional IPv6 support */
 #undef WORKING_IPV6
-
-/* Define on XENIX/ISC. */
-#undef XENIX_TAPEIO
 
 /* Define the location of the xfsdump program on Irix hosts. */
 #undef XFSDUMP

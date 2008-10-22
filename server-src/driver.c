@@ -213,8 +213,6 @@ main(
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
-    malloc_size_1 = malloc_inuse(&malloc_hist_1);
-
     erroutput_type = (ERR_AMANDALOG|ERR_INTERACTIVE);
     set_logerror(logerror);
 
@@ -542,7 +540,6 @@ main(
     log_add(L_FINISH,_("date %s time %s"), driver_timestamp, walltime_str(curclock()));
     amfree(driver_timestamp);
 
-    free_new_argv(new_argc, new_argv);
     amfree(dumper_program);
     amfree(taper_program);
 
@@ -1120,11 +1117,6 @@ start_degraded_mode(
     disklist_t newq;
     off_t est_full_size;
     char *qname;
-
-    if (taper_ev_read != NULL) {
-	event_release(taper_ev_read);
-	taper_ev_read = NULL;
-    }
 
     newq.head = newq.tail = 0;
 
@@ -2975,7 +2967,7 @@ dump_to_tape(
 {
     dumper_t *dumper;
     cmd_t cmd;
-    int result_argc, rc;
+    int result_argc;
     char *result_argv[MAX_ARGS+1];
     char *qname;
 

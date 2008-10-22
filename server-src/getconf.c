@@ -226,13 +226,6 @@ static struct build_info {
 	NULL
 #endif
     },
-    { "AIX_TAPEIO",
-#if defined(AIX_TAPEIO)
-	"1"
-#else
-	NULL
-#endif
-    },
     { "DUMP_RETURNS_1",
 #if defined(DUMP_RETURNS_1)
 	"1"
@@ -278,13 +271,6 @@ static struct build_info {
     },
     { "ASSERTIONS",
 #if defined(ASSERTIONS)
-	"1"
-#else
-	NULL
-#endif
-    },
-    { "DEBUG_CODE",
-#if defined(DEBUG_CODE)
 	"1"
 #else
 	NULL
@@ -458,8 +444,8 @@ main(
 
     cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
 
-    if((pgm = strrchr(my_argv[0], '/')) == NULL) {
-	pgm = my_argv[0];
+    if((pgm = strrchr(argv[0], '/')) == NULL) {
+	pgm = argv[0];
     } else {
 	pgm++;
     }

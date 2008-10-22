@@ -338,10 +338,6 @@ main(
     prstr("AIX_BACKUP");
 #endif
 
-#ifdef AIX_TAPEIO
-    prstr("AIX_TAPEIO");
-#endif
-
 #ifdef BROKEN_VOID
     prstr("BROKEN_VOID");
 #endif
@@ -400,10 +396,6 @@ main(
 
 #ifdef ASSERTIONS
     prstr("ASSERTIONS");
-#endif
-
-#ifdef DEBUG_CODE
-    prstr("DEBUG_CODE");
 #endif
 
 #ifdef AMANDA_DEBUG_DAYS

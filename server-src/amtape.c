@@ -135,8 +135,6 @@ main(
 
     dbopen(DBG_SUBDIR_SERVER);
 
-    malloc_size_1 = malloc_inuse(&malloc_hist_1);
-
     erroutput_type = ERR_INTERACTIVE;
 
     cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
@@ -191,9 +189,6 @@ reset_changer(G_GNUC_UNUSED int	argc,
               G_GNUC_UNUSED char ** argv) {
     char *slotstr = NULL;
 
-    (void)argc;	/* Quiet unused parameter warning */
-    (void)argv;	/* Quiet unused parameter warning */
-
     switch(changer_reset(&slotstr)) {
     case 0:
 	g_fprintf(stderr, _("%s: changer is reset, slot %s is loaded.\n"),
@@ -217,9 +212,6 @@ clean_tape(G_GNUC_UNUSED int	argc,
            G_GNUC_UNUSED char ** argv) {
     char *devstr = NULL;
 
-    (void)argc;	/* Quiet unused parameter warning */
-    (void)argv;	/* Quiet unused parameter warning */
-
     if(changer_clean(&devstr) == 0) {
 	g_fprintf(stderr, _("%s: device %s is clean.\n"), get_pname(), devstr);
     } else {
@@ -235,9 +227,6 @@ static void
 eject_tape(G_GNUC_UNUSED int	argc,
            G_GNUC_UNUSED char ** argv) {
     char *slotstr = NULL;
-
-    (void)argc;	/* Quiet unused parameter warning */
-    (void)argv;	/* Quiet unused parameter warning */
 
     if(changer_eject(&slotstr) == 0) {
 	g_fprintf(stderr, _("%s: slot %3s is ejected.\n"), get_pname(), slotstr);
@@ -304,9 +293,6 @@ scan_init(G_GNUC_UNUSED void * data, int rc, G_GNUC_UNUSED int numslots,
 	error(_("could not get changer info: %s"), changer_resultstr);
 	/*NOTREACHED*/
     }
-
-    nslots = ns;
-    backwards = bk;
 
     return 0;
 }
@@ -547,49 +533,4 @@ show_device(G_GNUC_UNUSED int	argc,
     g_printf("%s\n", device);
     amfree(slot);
     amfree(device);
-}
-
-/* ---------------------------- */
-
-int
-update_one_slot(
-    void *	ud,
-    int		rc,
-    char *	slotstr,
-    char *	device)
-{
-    char *errstr = NULL;
-    char *datestamp = NULL;
-    char *label = NULL;
-
-    (void)ud;	/* Quiet unused parameter warning */
-
-    if(rc > 1)
-	error("could not load slot %s: %s", slotstr, changer_resultstr);
-    else if(rc == 1)
-	fprintf(stderr, "slot %s: %s\n", slotstr, changer_resultstr);
-    else if((errstr = tape_rdlabel(device, &datestamp, &label)) != NULL)
-	fprintf(stderr, "slot %s: %s\n", slotstr, errstr);
-    else {
-	fprintf(stderr, "slot %s: date %-8s label %s\n",
-		slotstr, datestamp, label);
-	changer_label(slotstr, label);
-    }
-    amfree(errstr);
-    amfree(datestamp);
-    amfree(label);
-    return 0;
-}
-
-void
-update_labeldb(
-    int		argc,
-    char **	argv)
-{
-    (void)argv;	/* Quiet unused parameter warning */
-
-    if(argc != 1)
-	usage();
-
-    changer_find(NULL, show_init_all, update_one_slot, NULL);
 }

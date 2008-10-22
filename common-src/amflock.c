@@ -90,7 +90,7 @@ amflock_impl_t *amflock_impls[] = {
 /* FIXME: for now, these just use the first non-NULL implementation
  */
 
-/* Locking using existance of a file.
+/* Get a file lock (for read/write files).
 */
 int
 amflock(
@@ -100,8 +100,6 @@ amflock(
     if (!amflock_impls[0]) return 0; /* no locking */
     return amflock_impls[0]->amflock_impl(fd, resource);
 }
-#endif
-
 
 /*
  * Get a file lock (for read-only files).

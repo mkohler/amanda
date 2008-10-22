@@ -281,8 +281,6 @@ main(
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
-    malloc_size_1 = malloc_inuse(&malloc_hist_1);
-
     erroutput_type = (ERR_AMANDALOG|ERR_INTERACTIVE);
     set_logerror(logerror);
 
@@ -299,22 +297,8 @@ main(
 
     dbrename(config_name, DBG_SUBDIR_SERVER);
 
-    report_bad_conf_arg();
-    /*
-     * Make our effective uid nonprivlidged, keeping save uid as root
-     * in case we need to get back (to bind privlidged ports, etc).
-     */
-    ruid = getuid();
-    if(geteuid() == 0) {
-	seteuid(ruid);
-	setgid(getgid());
-    }
-#if defined BSD_SECURITY && !defined SSH_SECURITY
-    else {
-    	error("must be run setuid root to communicate correctly");
-	/*NOTREACHED*/
-    }
-#endif
+    our_features = am_init_feature_set();
+    our_feature_string = am_feature_to_string(our_features);
 
     g_fprintf(stderr,
 	    _("%s: pid %ld executable %s version %s\n"),

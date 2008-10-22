@@ -193,7 +193,6 @@ main(
     char *line = NULL;
     char *err_extra = NULL;
     char *s;
-    char *conffile;
     int i;
     int ch;
     FILE *toolin;
@@ -748,7 +747,6 @@ check_status(
 	return 0;				/* normal exit */
     }
 
-    snprintf(numberpid, SIZEOF(number), "%d", (int)pid);
     if(ret == 0) {
 	thiserr = vstrallocf(_("%s (%d) %s got signal %d"), strX, (int)pid, str,
 			     sig);

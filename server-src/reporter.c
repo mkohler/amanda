@@ -363,8 +363,6 @@ main(
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
-    malloc_size_1 = malloc_inuse(&malloc_hist_1);
-
     /* Process options */
     
     erroutput_type = ERR_INTERACTIVE;

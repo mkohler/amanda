@@ -48,9 +48,9 @@
 #define	REP_TIMEOUT	(6*60*60)	/* secs for service to reply */
 #define	ACK_TIMEOUT  	10		/* XXX should be configurable */
 
-#define amandad_debug(i,x) do {		\
+#define amandad_debug(i, ...) do {	\
 	if ((i) <= debug_amandad) {	\
-		dbprintf(x);		\
+		dbprintf(__VA_ARGS__);	\
 	}				\
 } while (0)
 
@@ -132,17 +132,6 @@ static struct {
 } serviceq = {
     TAILQ_HEAD_INITIALIZER(serviceq.tailq), 0
 };
-
-/*
- * Data for dbmalloc to check for memory leaks
- */
-#ifdef USE_DBMALLOC
-static struct {
-    struct {
-	unsigned long size, hist;
-    } start, end;
-} dbmalloc_info;
-#endif
 
 static int wait_30s = 1;
 static int exit_on_qlength = 1;

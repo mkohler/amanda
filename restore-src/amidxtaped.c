@@ -298,25 +298,6 @@ main(
 	safe_fd(-1, 0);
     }
 
-#ifdef FORCE_USERID
-
-    /* we'd rather not run as root */
-
-    if(geteuid() == 0) {
-	if(client_uid == (uid_t) -1) {
-	    error("error [cannot find user %s in passwd file]\n", CLIENT_LOGIN);
-	    /*NOTREACHED*/
-	}
-
-	/*@ignore@*/
-	initgroups(CLIENT_LOGIN, client_gid);
-	/*@end@*/
-	setgid(client_gid);
-	setuid(client_uid);
-    }
-
-#endif	/* FORCE_USERID */
-
     /* initialize */
     /* close stderr first so that debug file becomes it - amrestore
        chats to stderr, which we don't want going to client */
@@ -453,14 +434,6 @@ main(
 	}
     }
     amfree(buf);
-
-    if(!tapes && rst_flags->alt_tapedev){
-	dbprintf(("%s: Looks like we're restoring from a holding file...\n", debug_prefix_time(NULL)));
-        tapes = unmarshal_tapelist_str(rst_flags->alt_tapedev);
-	tapes->isafile = 1;
-	amfree(rst_flags->alt_tapedev);
-	rst_flags->alt_tapedev = NULL;
-    }
 
     if(re_config) {
 	config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_FATAL, re_config);

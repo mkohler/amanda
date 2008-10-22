@@ -118,7 +118,6 @@ printf_arglist_function1(void log_add, logtype_t, typ, char *, format)
     char linebuf[STR_SIZE];
     size_t n;
 
-
     /* format error message */
 
     if((int)typ <= (int)L_BOGUS || (int)typ > (int)L_MARKER) typ = L_BOGUS;

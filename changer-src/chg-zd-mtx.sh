@@ -192,8 +192,6 @@
 #
 # autocleancount=99	    #### Number of access before a clean.
 #
-# cleancycle=120	    #### Time (seconds) to clean drive (default 120)
-#
 # havereader=0		    #### If you have a barcode reader, set to 1.
 #
 # offline_before_unload=0   #### Does your robot require an
@@ -707,11 +705,6 @@ labelfile=$changerfile-barcodes
 cleancount=`cat $cleanfile`
 accesscount=`cat $accessfile`
 
-test -z "$MT" && Exit 2 "<none>" "No mt command defined"
-test ! -f "$MT" && Exit 2 "<none>" "mt command ($MT) doesn't exist"
-test -z "$MTX" && Exit 2 "<none>" "No mtx command defined"
-test ! -f "$MTX" && Exit 2 "<none>" "mtx command ($MTX) doesn't exist"
-
 #### Dig out of the config file what is needed
 
 varlist=
@@ -761,11 +754,6 @@ if [ $DBGFILE = /dev/null ]; then
 		DBGFILE=/dev/null
 	fi
 	Log `_ '=== Start %s ===' "\`date\`"`
-fi
-if [ -z "$driveslot" ]; then
-	Exit 2 \
-	     `_ '<none>'` \
-	     `_ 'cannot determine drive slot from %s' "$tape"`
 fi
 
 stdout=$TMPDIR/$myname.1.$$

@@ -6518,7 +6518,7 @@
 
 2006-02-03  Ian Turner <ian@zmanda.com>
 	* server-src/amadmin.c (main): Don't free conf_tapelist too 
-	  early. Thanks to CÃ©dric Lucantis
+	  early. Thanks to Cédric Lucantis
 	  <cedric-lucantis@users.sourceforge.net> for the patch.
 
 2006-02-02 Kevin Till <ktill@zmanda.com>
@@ -13411,7 +13411,7 @@
 	* server-src/amverify.sh.in: Wait until device becomes ready after
 	rewinding.
 
-1999-06-15  Björn Brezger <Bjoern.Brezger@uni-konstanz.de>, Alexandre Oliva  <oliva@dcc.unicamp.br>
+1999-06-15  Bj�rn Brezger <Bjoern.Brezger@uni-konstanz.de>, Alexandre Oliva  <oliva@dcc.unicamp.br>
 
 	* client-src/calcsize.c (ROUND): Rewrite, it was broken.
 	Reported by Erik Lindahl <erik@theophys.kth.se>
@@ -17098,7 +17098,7 @@
 
 	* example/Makefile.am (EXTRA_DIST): add DIN-A4.ps
 
-1998-08-07  Günter Felkel  <G.Felkel@edelmann.de>
+1998-08-07  G�nter Felkel  <G.Felkel@edelmann.de>
 
 	* example/DIN-A4.ps: new file
 
@@ -17912,7 +17912,7 @@ Version 2.4.0p1
 	-Rob Riggs <rob@devilsthumb.com>
 
 	pass kerberos encryption switch to client.
-	-Fredrik Jönsson <fjo@nada.kth.se>
+	-Fredrik J�nsson <fjo@nada.kth.se>
 
 	rename afree to amfree, to work around IRIX 6.4's afree.
 	-oliva, reported Stephan P. Martin <smartin@schlund.de>

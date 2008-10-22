@@ -88,8 +88,8 @@ main(
 
     if (argc > 1 && strcmp(argv[1], "-t") == 0) {
 	amtrmidx_debug = 1;
-	my_argc--;
-	my_argv++;
+	argc--;
+	argv++;
     }
 
     if (argc < 2) {

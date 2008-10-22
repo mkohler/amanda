@@ -132,7 +132,6 @@ add_dump(
     if (disk_hist == NULL)
     {
 	disk_hist = new;
-	new->tapes = append_to_tapelist(new->tapes, tape, file, isafile);
 	new->next = NULL;
 	return;
     }

@@ -149,10 +149,6 @@ main(
     server_probs = client_probs = 0;
     tempfd = mainfd = -1;
 
-    parse_conf(argc, argv, &new_argc, &new_argv);
-    my_argc = new_argc;
-    my_argv = new_argv;
-
     /* process arguments */
 
     cfg_ovr = new_config_overwrites(argc/2);
@@ -512,9 +508,6 @@ main(
 	}
     }
 #endif
-    free_new_argv(new_argc, new_argv);
-    free_server_config();
-
     dbclose();
     return (server_probs || client_probs);
 }

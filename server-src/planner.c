@@ -248,23 +248,6 @@ main(
 
     protocol_init();
 
-    ruid = getuid();
-    if(geteuid() == 0) {
-	seteuid(ruid);
-	setgid(getgid());
-    }
-
-    /*
-     * From this point on we are running under our real uid, so we don't
-     * have to worry about opening security holes below.  Make sure we
-     * are a valid user.
-     */
-
-    if(getpwuid(getuid()) == NULL) {
-	error("can't get login name for my uid %ld", (long)getuid());
-	/*NOTREACHED*/
-    }
-
     /*
      * 2. Read in Configuration Information
      *
@@ -606,12 +589,6 @@ main(
 		    walltime_str(curclock()),
 		    walltime_str(timessub(curclock(), section_start)));
 
-
-    /* done with prvileged ops, make sure root privilege is dropped */
-    if ( geteuid() == 0 ) {
-      setuid(ruid);
-      seteuid(ruid);
-    }
 
     /*
      * 9. Output Schedule
@@ -1955,7 +1932,6 @@ static void handle_result(
 		amfree(qname);
 	    }
 	}
-	amfree(qname);
     }
     if(i == 0) {
 	/*

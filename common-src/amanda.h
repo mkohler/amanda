@@ -298,10 +298,6 @@ struct iovec {
 #include <sys/resource.h>
 #include <sys/socket.h>
 
-#if !defined(CONFIGURE_TEST)
-#  include "amanda-int.h"
-#endif
-
 #ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
@@ -312,121 +308,6 @@ struct iovec {
 
 #ifndef INET_ADDRSTRLEN
 #define INET_ADDRSTRLEN 16
-#endif
-
-/* Calculate the length of the data in a struct sockaddr_storage.
- * THIS IS A HACK.
- *
- * To be truly portable, the length of an address should be passed
- * in a companion variable.  When such lengths are available
- * everywhere they are needed, this macro should be removed.
- */
-#ifdef WORKING_IPV6
-# define SS_LEN(ss) (((struct sockaddr *)(ss))->sa_family==AF_INET6?sizeof(struct sockaddr_in6):sizeof(struct sockaddr_in))
-#else
-# define SS_LEN(ss) (sizeof(struct sockaddr_in))
-#endif
-
-
-/* AF_NATIVE is the "best" address family we support, backward compatible
- * through to AF_INET.
- */
-#ifdef WORKING_IPV6
-#define AF_NATIVE AF_INET6
-#else
-#define AF_NATIVE AF_INET
-#endif
-
-/* SS_INIT(ss, family) initializes ss to all zeroes (as directed by RFC),
- * and sets its ss_family as specified
- */
-#define SS_INIT(ss, family) do { \
-    memset((ss), 0, sizeof(*(ss))); \
-    (ss)->ss_family = (family); \
-} while (0);
-
-/* SS_SET_INADDR_ANY(ss) sets ss to the family-appropriate equivalent of
- * INADDR_ANY, a wildcard address and port.
- */
-#ifdef WORKING_IPV6
-#define SS_SET_INADDR_ANY(ss) do { \
-    switch ((ss)->ss_family) { \
-        case AF_INET6: \
-            ((struct sockaddr_in6 *)(ss))->sin6_flowinfo = 0; \
-            ((struct sockaddr_in6 *)(ss))->sin6_addr = in6addr_any; \
-            break; \
-        case AF_INET: \
-            ((struct sockaddr_in *)(ss))->sin_addr.s_addr = INADDR_ANY; \
-            break; \
-    } \
-} while (0);
-#else
-#define SS_SET_INADDR_ANY(ss) do { \
-    ((struct sockaddr_in *)(ss))->sin_addr.s_addr = INADDR_ANY; \
-} while (0);
-#endif
-
-/* Set/get the port in a sockaddr_storage that already has an family */
-#ifdef WORKING_IPV6
-#define SS_SET_PORT(ss, port) \
-switch ((ss)->ss_family) { \
-    case AF_INET: \
-        ((struct sockaddr_in *)(ss))->sin_port = (in_port_t)htons((port)); \
-        break; \
-    case AF_INET6: \
-        ((struct sockaddr_in6 *)(ss))->sin6_port = (in_port_t)htons((port)); \
-        break; \
-    default: assert(0); \
-}
-#else
-#define SS_SET_PORT(ss, port) \
-        ((struct sockaddr_in *)(ss))->sin_port = (in_port_t)htons((port));
-#endif
-
-#ifdef WORKING_IPV6
-#define SS_GET_PORT(ss) (ntohs( \
-       (ss)->ss_family == AF_INET6? \
-        ((struct sockaddr_in6 *)(ss))->sin6_port \
-       :((struct sockaddr_in *)(ss))->sin_port))
-#else
-#define SS_GET_PORT(ss) (ntohs( \
-        ((struct sockaddr_in *)(ss))->sin_port))
-#endif
-
-/*
- * The dbmalloc package comes from:
- *
- *  http://www.clark.net/pub/dickey/dbmalloc/dbmalloc.tar.gz
- *
- * or
- *
- *  ftp://gatekeeper.dec.com/pub/usenet/comp.sources.misc/volume32/dbmalloc/
- *
- * The following functions are sprinkled through the code, but are
- * disabled unless USE_DBMALLOC is defined:
- *
- *  malloc_enter(char *) -- stack trace for malloc reports
- *  malloc_leave(char *) -- stack trace for malloc reports
- *  malloc_mark(void *) -- mark an area as never to be free-d
- *  malloc_chain_check(void) -- check the malloc area now
- *  malloc_dump(int fd) -- report the malloc contents to a file descriptor
- *  malloc_list(int fd, ulong a, ulong b) -- report memory activated since
- *	history stamp a that is still active as of stamp b (leak check)
- *  malloc_inuse(ulong *h) -- create history stamp h and return the amount
- *	of memory currently in use.
- */
-
-#ifdef USE_DBMALLOC
-#include "dbmalloc.h"
-#else
-#define	malloc_enter(func)		((void)0)
-#define	malloc_leave(func)		((void)0)
-#define	malloc_mark(ptr)		((void)0)
-#define	malloc_chain_check()		((void)0)
-#define	malloc_dump(fd)			((void)0)
-#define	malloc_list(a,b,c)		((void)0)
-#define	malloc_inuse(hist)		(*(hist) = 0, 0)
-#define	dbmalloc_caller_loc(x,y)	(x)
 #endif
 
 #if !defined(HAVE_SIGACTION) && defined(HAVE_SIGVEC)
@@ -493,76 +374,6 @@ extern int errno;
 
 #define stringize(x) #x
 #define stringconcat(x, y) x ## y
-
-/*
- * So that we can use GNUC attributes (such as to get -Wall warnings
- * for printf-like functions).  Only do this in gcc 2.7 or later ...
- * it may work on earlier stuff, but why chance it.
- */
-#if !defined(__GNUC__) || __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 7) || defined(S_SPLINT_S) || defined(LINT) || defined(__lint)
-#undef __attribute__
-#define __attribute__(__x)
-#endif
-
-/*
- * assertions, but call error() instead of abort 
- */
-#ifndef ASSERTIONS
-
-#define assert(exp) ((void)0)
-
-#else	/* ASSERTIONS */
-
-#define assert(exp)	do {						\
-    if (!(exp)) {							\
-	onerror(abort);							\
-	error("assert: %s false, file %s, line %d",			\
-	   stringize(exp), __FILE__, __LINE__);				\
-        /*NOTREACHED*/							\
-    }									\
-} while (0)
-
-#endif	/* ASSERTIONS */
-
-/*
- * print debug output, else compile to nothing.
- */
-
-#ifdef DEBUG_CODE							/* { */
-#   define dbopen(a)	debug_open(a)
-#   define dbreopen(a,b) debug_reopen(a,b)
-#   define dbrename(a,b) debug_rename(a,b)
-#   define dbclose()	debug_close()
-#   define dbprintf(p)	(debug_printf p)
-#   define dbfd()	debug_fd()
-#   define dbfp()	debug_fp()
-#   define dbfn()	debug_fn()
-
-extern void debug_open(char *subdir);
-extern void debug_reopen(char *file, char *notation);
-extern void debug_rename(char *config, char *subdir);
-extern void debug_close(void);
-extern void debug_printf(const char *format, ...)
-    __attribute__ ((format (printf, 1, 2)));
-extern int  debug_fd(void);
-extern FILE *  debug_fp(void);
-extern char *  debug_fn(void);
-extern void set_debug_prefix_pid(pid_t);
-extern char *debug_prefix(char *);
-extern char *debug_prefix_time(char *);
-#else									/* }{ */
-#   define dbopen(a)
-#   define dbreopen(a,b)
-#   define dbrename(a,b)
-#   define dbclose()
-#   define dbprintf(p)
-#   define dbfd()	(-1)
-#   define dbfp()	NULL
-#   define dbfn()	NULL
-#   define set_debug_prefix_pid(x)
-#   define debug_prefix(x) get_pname()
-#   define debug_prefix_time(x) get_pname()
-#endif									/* } */
 
 /* amanda #days calculation, with roundoff */
 

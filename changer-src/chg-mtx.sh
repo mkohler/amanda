@@ -37,36 +37,6 @@ if [ "$tape" = "/dev/null" -o "$TAPE" = "/dev/null" ]; then
   exit 2;
 fi
 
-MTX=@MTX@
-
-if [ -x $sbindir/ammt$SUF ]; then
-	MT=$sbindir/ammt$SUF
-	MTF=-f
-elif [ -x "@MT@" ]; then
-	MT=@MT@
-	MTF=@MT_FILE_FLAG@
-else
-	answer="<none> $myname: mt program not found"
-	code=1
-	echo "Exit -> $answer" >> $logfile
-	echo "$answer"
-	exit $code
-fi
-echo MT "->" $MT $MTF >> $logfile
-
-if [ -x $sbindir/amdd$SUF ]; then
-	DD=$sbindir/amdd$SUF
-elif [ -x "@DD@" ]; then
-	DD=@DD@
-else
-	answer="<none> $myname: dd program not found"
-	code=1
-	echo "Exit -> $answer" >> $logfile
-	echo "$answer"
-	exit $code
-fi
-echo DD "->" $DD >> $logfile
-
 firstslot=1
 lastslot=5
 # counted from 1 !!!

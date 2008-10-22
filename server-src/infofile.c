@@ -730,8 +730,6 @@ main(
 
   dbopen(DBG_SUBDIR_SERVER);
 
-  malloc_size_1 = malloc_inuse(&malloc_hist_1);
-
   for(i = 1; i < argc; ++i) {
     if(i+1 >= argc) {
       g_fprintf(stderr,_("usage: %s host disk [host disk ...]\n"),argv[0]);
