@@ -1,0 +1,212 @@
+.\"     Title: amaddclient
+.\"    Author: 
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 08/22/2008
+.\"    Manual: 
+.\"    Source: 
+.\"
+.TH "AMADDCLIENT" "8" "08/22/2008" "" ""
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH "NAME"
+amaddclient - program to add client to an existing Amanda configuration
+.SH "SYNOPSIS"
+.HP 12
+\fBamaddclient\fR \-\-config \fIconfig\fR ||
+ \-\-client \fIclient\ name\fR ||
+ \-\-diskdev \fIdirectory\ to\ backup\fR [\-\-m] [\-\-dumptype\ \fIstring\fR] [\-\-includefile\ \fIstring\fR] [\-\-includelist\ \fIstring\fR] [\-\-excludefile\ \fIstring\fR] [\-\-excludelist\ \fIstring\fR] [\-\-user\ \fIstring\fR] [\-\-auth\ \fIstring\fR] [\-\-gnutar_list_dir\ \fIstring\fR] [\-\-amandates\ \fIstring\fR] [\-\-no\-client\-update] [\-\-batch] [\-\-help]
+.SH "DESCRIPTION"
+.PP
+After Amanda rpms are successfully installed and
+\fBamserverconfig\fR
+is run,
+\fBamaddclient\fR
+will add client to the
+\fIAmanda\fR
+configuration\.
+\fBamaddclient\fR
+create or update
+\fIAmanda\fR
+disklist file and create or update /var/lib/amanda/\.amandahosts file on the server\.
+.PP
+If \-\-no\-client\-update is not specified,
+\fBamaddclient\fR
+will attempt to update or create /var/lib/amanda/\.amandahost, amanda\-client\.conf and gnutar\-lists on the client\. (See
+ssh\-keygen(1)
+and
+ssh\-add(1)
+for detail\.)
+.PP
+
+\fBamaddclient\fR
+must be run by user amandabackup\.
+.PP
+\-\-config, \-\-client and \-\-diskdev must be specified\.
+.SH "OPTIONS"
+.PP
+.RS 4
+
+Options may be abbreviated, as long as the abbreviation is not ambiguous\. Option argument can either separated by \'=\' or a space\.
+Example: \-\-conf=v253, \-\-client client8\.zmanda\.com
+.RE
+.PP
+\fB\-\-config config\fR
+.RS 4
+\fIAmanda\fR
+configuration which this program will add the client to\.
+.RE
+.PP
+\fB\-\-client client\fR
+.RS 4
+The name of the client machine to add\. FQDN name recommended\.
+.RE
+.PP
+\fB\-\-diskdev diskdev\fR
+.RS 4
+Directory for this
+\fIAmanda\fR
+configuration to backup\.
+.RE
+.PP
+\fB\-\-m\fR
+.RS 4
+Modify existing entry in the disklist file\.
+.sp
+Note: if disklist file has been modified manually, this option might not work\.
+.RE
+.PP
+\fB\-\-dumptype dumptype\fR
+.RS 4
+dumptype to use\. Dumptype must be defined in /etc/amanda/template\.d/dumptypes or /etc/amanda/$config/amanda\.conf file\. Default: [user\-tar]
+.RE
+.PP
+\fB\-\-user string\fR
+.RS 4
+name of user using
+\fBamrecover\fR
+on the client, default is root\.
+.RE
+.PP
+\fB\-\-auth string\fR
+.RS 4
+authentication method to use when running
+\fBamrecover\fR
+from the client , default is bsdtcp\.
+.RE
+.PP
+\fB\-\-gnutar_list_dir string\fR
+.RS 4
+directory where gnutar keep its state file on the client\. Absolute path required\. Default is /var/lib/amanda/gnutar\-lists\. If \-\-no\-client\-update is not set, this program will attempt to create the directory on the client\.
+.RE
+.PP
+\fB\-\-amandates string\fR
+.RS 4
+file where amanda keep the date of each dumplevel on the client, default is /etc/amandates\.
+.RE
+.PP
+\fB\-\-batch\fR
+.RS 4
+Turn on batch mode when copying files to the client, default is off
+.RE
+.PP
+\fB\-\-no\-client\-update\fR
+.RS 4
+If this option is set,
+\fBamaddclient\fR
+will not attempt to update/create \.amandahosts, amanda\-client\.conf and gnutar\-lists file on the client\.
+.RE
+.PP
+\fB\-\-help\fR
+.RS 4
+Display usage\.
+.RE
+.PP
+.RS 4
+ 
+If any of the following four options are used,  \fBamaddclient\fR will extend the dumptype definition to an in\-line definition in the disklist file\. See \fBamanda\fR(8) DISKLIST FILE section for detail\.
+.RE
+.PP
+\fB\-\-includefile string\fR
+.RS 4
+string is a glob expression
+.RE
+.PP
+\fB\-\-includelist string\fR
+.RS 4
+string is a file name on the client containing glob expressions\. Specify either \-\-includefile or \-\-includelist\.
+.RE
+.PP
+\fB\-\-excludefile string\fR
+.RS 4
+string is a glob expression
+.RE
+.PP
+\fB\-\-excludelist string\fR
+.RS 4
+string is a file name on the client containing glob expressions\. Specify either \-\-excludefile or \-\-excludelist\.
+.RE
+.SH "FILES"
+.PP
+\fB/var/lib/amanda/template\.d\fR
+.RS 4
+Amanda configuration template files install location
+.RE
+.PP
+\fB/var/lib/amanda\fR
+.RS 4
+amandabackup home directory
+.RE
+.PP
+\fB/var/lib/amanda/\.amandahosts\fR
+.RS 4
+\fIAmanda\fR
+authentication file\.
+.RE
+.PP
+\fB/var/lib/amanda/gnutar\-lists\fR
+.RS 4
+A directory which contains backup timestamp and list of files backed up\.
+.RE
+.PP
+\fB/etc/amanda/$config\fR
+.RS 4
+\fIAmanda\fR
+configuration files location for $config(e\.g: DailySet1)\.
+.RE
+.PP
+\fB/etc/amanda/template\.d\fR
+.RS 4
+A directory contains dumptypes and tapetypes files used by all
+\fIAmanda\fR
+configurations\.
+.RE
+.PP
+\fB/etc/amandates\fR
+.RS 4
+\fIAmanda\fR
+file on the client\. It keeps track of structures of previous dumps\.
+.RE
+.PP
+\fB/tmp/amanda\fR
+.RS 4
+directory contains
+\fIAmanda\fR
+debug log files\.
+.RE
+.SH "RETURN VALUE"
+
+On success, zero is returned\.  On error, 1 is returned\.
+.SH "AUTHOR"
+.PP
+The tool and its documentation was written by Zmanda, Inc (http://www\.zmanda\.com/)\.
+.SH "SEE ALSO"
+.PP
+\fBamanda\fR(8),
+\fBamanda.conf\fR(5),
+\fBamserverconfig\fR(8)
+\fBssh-keygen\fR(1)
+\fBssh-add\fR(1)
+\fBscp\fR(1)
+: http://wiki.zmanda.com
