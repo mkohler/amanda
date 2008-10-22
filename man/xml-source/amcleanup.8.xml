@@ -22,6 +22,8 @@
 <refsynopsisdiv>
 <cmdsynopsis>
   <command>amcleanup</command>    
+    <arg choice='opt'><option>-k</option></arg>
+    <arg choice='opt'><option>-v</option></arg>
     <arg choice='plain'><replaceable>config</replaceable></arg>
 </cmdsynopsis>
 </refsynopsisdiv>
@@ -51,6 +53,12 @@ man page for more details about &A;.</para>
   <term><option>-k</option></term>
   <listitem>
    <para>Kill all Amanda processes.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><option>-v</option></term>
+  <listitem>
+   <para>Generate verbose output.</para>
   </listitem>
   </varlistentry>
 </variablelist>
@@ -89,7 +97,9 @@ amcleanup: no unprocessed logfile to clean up.
 
 <refsect1><title>SEE ALSO</title>
 <para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amdump</refentrytitle><manvolnum>8</manvolnum></citerefentry></para>
+<citerefentry><refentrytitle>amdump</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+<ulink url="http://wiki.zmanda.com"/>
+</para>
 </refsect1>
 </refentry>
 

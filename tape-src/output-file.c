@@ -25,6 +25,10 @@
  *			   University of Maryland at College Park
  */
 
+/* NOTE: this driver is *deprecated* and should not be used.  See the Device API
+ * in device-src/ for the new implementation.
+ */
+
 /*
  * $Id: output-file.c,v 1.14 2006/07/06 15:04:18 martinea Exp $
  *
@@ -151,7 +155,7 @@ check_online(
 	 */
 
 	rc = (errno != ENOENT);
-	fprintf(stderr,"ERROR: %s (%s)\n", qname, strerror(errno));
+	g_fprintf(stderr,_("ERROR: %s (%s)\n"), qname, strerror(errno));
 	goto common_exit;
     }
     while ((entry = readdir(tapedir)) != NULL) {
@@ -292,7 +296,7 @@ file_open(
 		host = tapefd_getinfo_host(fd);
 		disk = tapefd_getinfo_disk(fd);
 		level = tapefd_getinfo_level(fd);
-		snprintf(number, SIZEOF(number), "%d", level);
+		g_snprintf(number, SIZEOF(number), "%d", level);
 		if (host != NULL) {
 		    f = stralloc(host);
 		}
@@ -329,8 +333,8 @@ file_open(
 	    }
 	}
 	if (datafilename == NULL) {
-	    snprintf(number, SIZEOF(number),
-		    "%05" OFF_T_RFMT, (OFF_T_FMT_TYPE)pos);
+	    g_snprintf(number, SIZEOF(number),
+		    "%05lld", (long long)pos);
 	    datafilename = vstralloc(volume_info[fd].basename,
 				     number,
 				     DATA_INDICATOR,
@@ -355,15 +359,17 @@ file_open(
 	if (volume_info[fd].fd >= 0 && fi->ri_count == 0 &&
 		(rfd = open(recordfilename, O_RDONLY)) >= 0) {
 	    for (; (line = areads(rfd)) != NULL; free(line)) {
-                /* We play this game because OFF_T_FMT_TYPE is not
+                /* We play this game because long long is not
                    necessarily the same as off_t, and we need to cast the
                    actual value (not just the pointer. */
-                OFF_T_FMT_TYPE start_record_ = (OFF_T_FMT_TYPE)0;
-                OFF_T_FMT_TYPE end_record_ = (OFF_T_FMT_TYPE)0;
-		n = sscanf(line, OFF_T_FMT " " OFF_T_FMT " " SIZE_T_FMT,
-                           &start_record_, &end_record_, &record_size);
+                long long start_record_ = (long long)0;
+                long long end_record_ = (long long)0;
+		long record_size_ = (long)0;
+		n = sscanf(line, "%lld %lld %ld",
+                           &start_record_, &end_record_, &record_size_);
                 start_record = (off_t)start_record_;
                 end_record = (off_t)end_record_;
+                record_size = (size_t)record_size_;
 
 		if (n == 3) {
                     ri_p = &fi->ri;
@@ -416,8 +422,8 @@ file_close(
 		  NULL);
     fi = &volume_info[fd].fi[pos];
     if (fi->ri_altered) {
-	snprintf(number, SIZEOF(number),
-		 "%05" OFF_T_RFMT, (OFF_T_FMT_TYPE)pos);
+	g_snprintf(number, SIZEOF(number),
+		 "%05lld", (long long)pos);
 	filename = vstralloc(volume_info[fd].basename,
 			     number,
 			     RECORD_INDICATOR,
@@ -427,10 +433,10 @@ file_close(
 	    goto common_exit;
 	}
 	for (r = 0; r < fi->ri_count; r++) {
-	    fprintf(f, OFF_T_FMT " " OFF_T_FMT " " SIZE_T_FMT "\n",
-		    (OFF_T_FMT_TYPE)fi->ri[r].start_record,
-		    (OFF_T_FMT_TYPE)fi->ri[r].end_record,
-		    (SIZE_T_FMT_TYPE)fi->ri[r].record_size);
+	    g_fprintf(f, "%lld %lld %zu\n",
+		    (long long)fi->ri[r].start_record,
+		    (long long)fi->ri[r].end_record,
+		    fi->ri[r].record_size);
 	}
 	afclose(f);
 	fi->ri_altered = 0;
@@ -475,8 +481,8 @@ file_release(
 		      10,
 		      NULL);
 	if (volume_info[fd].fi[pos].name != NULL) {
-	    snprintf(number, SIZEOF(number),
-		     "%05" OFF_T_RFMT, (OFF_T_FMT_TYPE)pos);
+	    g_snprintf(number, SIZEOF(number),
+		     "%05lld", (long long)pos);
 	    filename = vstralloc(volume_info[fd].basename,
 				 number,
 				 DATA_INDICATOR,
@@ -739,8 +745,8 @@ file_tapefd_read(
 	volume_info[fd].at_bof = 0;
 	if ((size_t)result < record_size) {
 	    if (lseek(file_fd, (off_t)(record_size-result), SEEK_CUR) == (off_t)-1) {
-		dbprintf(("file_tapefd_read: lseek failed: <%s>\n",
-			  strerror(errno)));
+		dbprintf(_("file_tapefd_read: lseek failed: <%s>\n"),
+			  strerror(errno));
 	    }
 	}
 	volume_info[fd].record_current += (off_t)1;
@@ -850,13 +856,13 @@ file_tapefd_write(
 	off_t curpos;
 
 	if ((curpos = lseek(file_fd, (off_t)0, SEEK_CUR)) < 0) {
-	    dbprintf((": Can not determine current file position <%s>",
-		strerror(errno)));
+	    dbprintf(_(": Can not determine current file position <%s>"),
+		strerror(errno));
 	    return -1;
 	}
 	if (ftruncate(file_fd, curpos) != 0) {
-	    dbprintf(("ftruncate failed; Can not trim output file <%s>",
-		strerror(errno)));
+	    dbprintf(_("ftruncate failed; Can not trim output file <%s>"),
+		strerror(errno));
 	    return -1;
 	}
 	volume_info[fd].at_bof = 0;
@@ -883,7 +889,6 @@ file_tapefd_close(
     int save_errno;
     char *line;
     size_t len;
-    char number[NUM_STR_SIZE];
     ssize_t result;
     struct file_info **fi_p;
     struct record_info **ri_p;
@@ -943,9 +948,8 @@ file_tapefd_close(
 	    errno = save_errno;
 	    return -1;
 	}
-	snprintf(number, SIZEOF(number), "%05" OFF_T_RFMT,
-		 (OFF_T_FMT_TYPE)volume_info[fd].file_current);
-	line = vstralloc("position ", number, "\n", NULL);
+	line = vstrallocf("position %05lld\n",
+		 (long long)volume_info[fd].file_current);
 	len = strlen(line);
 	result = write(fd, line, len);
 	amfree(line);
@@ -1209,16 +1213,16 @@ file_tapefd_weof(
 
 	if ((curpos = lseek(file_fd, (off_t)0, SEEK_CUR)) < 0) {
 	    save_errno = errno;
-	    dbprintf((": Can not determine current file position <%s>",
-		strerror(errno)));
+	    dbprintf(_(": Can not determine current file position <%s>"),
+		strerror(errno));
 	    file_close(fd);
 	    errno = save_errno;
 	    return -1;
 	}
 	if (ftruncate(file_fd, curpos) != 0) {
 	    save_errno = errno;
-	    dbprintf(("ftruncate failed; Can not trim output file <%s>",
-		strerror(errno)));
+	    dbprintf(_("ftruncate failed; Can not trim output file <%s>"),
+		strerror(errno));
 	    file_close(fd);
 	    errno = save_errno;
 	    return -1;

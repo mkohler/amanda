@@ -1,29 +1,29 @@
 .\"     Title: amrmtape
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMRMTAPE" "8" "06/06/2007" "" ""
+.TH "AMRMTAPE" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amrmtape \- remove a tape from the Amanda database
+amrmtape - remove a tape from the Amanda database
 .SH "SYNOPSIS"
 .HP 9
 \fBamrmtape\fR [\-n] [\-v] [\-q] [\-d] \fIconfig\fR \fIlabel\fR
 .SH "DESCRIPTION"
 .PP
 \fBAmrmtape\fR
-invalidates the contents of an existing backup tape in the configuration database. This is meant as a recovery mechanism when a good backup is damaged either by faulty hardware or user error, e.g. the tape is eaten by the drive or is overwritten.
+invalidates the contents of an existing backup tape in the configuration database\. This is meant as a recovery mechanism when a good backup is damaged either by faulty hardware or user error, e\.g\. the tape is eaten by the drive or is overwritten\.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR.
+\fIAmanda\fR\.
 .SH "OPTIONS"
 .PP
 \fB\-n\fR
@@ -34,23 +34,23 @@ and database files with
 \fIlabel\fR
 removed, but leave them in
 \fI/tmp\fR
-and do not update the original copies.
+and do not update the original copies\.
 .RE
 .PP
 \fB\-v\fR
 .RS 4
-List backups of hosts and disks that are being discarded. Enabled by default.
+List backups of hosts and disks that are being discarded\. Enabled by default\.
 .RE
 .PP
 \fB\-q\fR
 .RS 4
 Opposite of
-\fB\-v\fR.
+\fB\-v\fR\.
 .RE
 .PP
 \fB\-d\fR
 .RS 4
-Run in debugging mode so all executed commands are shown.
+Run in debugging mode so all executed commands are shown\.
 .RE
 .SH "EXAMPLE"
 .PP
@@ -58,22 +58,20 @@ Remove tape labeled
 \fIDAILY034\fR
 from the
 \fIDailySet1\fR
-configuration.
-.sp
-.RS 4
+configuration\.
 .nf
 # amrmtape DailySet1 DAILY034
 .fi
-.RE
 .SH "AUTHOR"
 .PP
-Adrian T. Filipi\-Martin
-<atf3r@cs.virginia.edu>: Original text
+Adrian T\. Filipi\-Martin
+<atf3r@cs\.virginia\.edu>: Original text
 .PP
-Stefan G. Weichinger,
-<sgw@amanda.org>, maintainer of the
+Stefan G\. Weichinger,
+<sgw@amanda\.org>, maintainer of the
 \fIAmanda\fR\-documentation: XML\-conversion
 .SH "SEE ALSO"
 .PP
 \fBamadmin\fR(8),
-\fBamanda\fR(8)
+\fBamanda\fR(8),
+: http://wiki.zmanda.com

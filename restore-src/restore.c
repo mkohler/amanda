@@ -24,13 +24,12 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: restore.c,v 1.52 2006/08/23 11:41:54 martinea Exp $
+ * $Id: restore.c 6512 2007-05-24 17:00:24Z ian $
  *
  * retrieves files from an amanda tape
  */
 
 #include "amanda.h"
-#include "tapeio.h"
 #include "util.h"
 #include "restore.h"
 #include "find.h"
@@ -38,24 +37,35 @@
 #include "logfile.h"
 #include "fileheader.h"
 #include "arglist.h"
+#include "cmdline.h"
 #include <signal.h>
+#include <timestamp.h>
 
-#define LOAD_STOP    -1
-#define LOAD_CHANGER -2
+#include <device.h>
+#include <queueing.h>
+#include <glib.h>
+
+typedef enum {
+    LOAD_NEXT = 1,     /* An unknown new slot has been loaded. */
+    LOAD_CHANGER = -2, /* The requested slot has been loaded. */
+    LOAD_STOP = -1,    /* The search is complete. */
+} LoadStatus;
+
+typedef enum {
+    RESTORE_STATUS_NEXT_FILE,
+    RESTORE_STATUS_NEXT_TAPE,
+    RESTORE_STATUS_STOP
+} RestoreFileStatus;
 
 int file_number;
 
 /* stuff we're stuck having global */
-static size_t blocksize = (size_t)SSIZE_MAX;
-static char *cur_tapedev = NULL;
-static char *searchlabel = NULL;
 static int backwards;
 static int exitassemble = 0;
-static int tapefd;
 
 char *rst_conf_logdir = NULL;
 char *rst_conf_logfile = NULL;
-char *curslot = NULL;
+static char *curslot = NULL;
 
 typedef struct open_output_s {
     struct open_output_s *next;
@@ -70,43 +80,39 @@ typedef struct dumplist_s {
     dumpfile_t *file;
 } dumplist_t;
 
-typedef struct seentapes_s {
+struct seentapes_s {
     struct seentapes_s *next;
     char *slotstr;
     char *label;
     dumplist_t *files;
-} seentapes_t;
+};
 
 static open_output_t *open_outputs = NULL;
 static dumplist_t *alldumps_list = NULL;
 
 /* local functions */
 
-static ssize_t get_block(int tapefd, char *buffer, int isafile);
 static void append_file_to_fd(char *filename, int fd);
 static int headers_equal(dumpfile_t *file1, dumpfile_t *file2, int ignore_partnums);
 static int already_have_dump(dumpfile_t *file);
 static void handle_sigint(int sig);
 static int scan_init(void *ud, int rc, int ns, int bk, int s);
+static Device * conditional_device_open(char * tapedev, FILE * orompt_out,
+                                        rst_flags_t * flags,
+                                        am_feature_t * their_features,
+                                        tapelist_t * desired_tape);
 int loadlabel_slot(void *ud, int rc, char *slotstr, char *device);
-void drain_file(int tapefd, rst_flags_t *flags);
 char *label_of_current_slot(char *cur_tapedev, FILE *prompt_out,
 			    int *tapefd, dumpfile_t *file, rst_flags_t *flags,
 			    am_feature_t *their_features,
 			    ssize_t *read_result, tapelist_t *desired_tape);
 
-int load_next_tape(char **cur_tapedev, FILE *prompt_out, int backwards,
+LoadStatus load_next_tape(char **cur_tapedev, FILE *prompt_out, int backwards,
 		   rst_flags_t *flags, am_feature_t *their_features,
 		   tapelist_t *desired_tape);
-int load_manual_tape(char **cur_tapedev, FILE *prompt_out, FILE *prompt_in,
+LoadStatus load_manual_tape(char **cur_tapedev, FILE *prompt_out, FILE *prompt_in,
 		     rst_flags_t *flags, am_feature_t *their_features,
 		     tapelist_t *desired_tape);
-void search_a_tape(char *cur_tapedev, FILE *prompt_out, rst_flags_t *flags,
-		   am_feature_t *their_features, tapelist_t *desired_tape,
-		   int isafile, match_list_t *match_list,
-		   seentapes_t *tape_seen, dumpfile_t *file,
-		   dumpfile_t *prev_rst_file, dumpfile_t *tapestart,
-		   int slot_num, ssize_t *read_result);
 
 /*
  * We might want to flush any open dumps and unmerged splits before exiting
@@ -126,16 +132,11 @@ handle_sigint(
 int
 lock_logfile(void)
 {
-    rst_conf_logdir = getconf_str(CNF_LOGDIR);
-    if (*rst_conf_logdir == '/') {
-	rst_conf_logdir = stralloc(rst_conf_logdir);
-    } else {
-	rst_conf_logdir = stralloc2(config_dir, rst_conf_logdir);
-    }
+    rst_conf_logdir = config_dir_relative(getconf_str(CNF_LOGDIR));
     rst_conf_logfile = vstralloc(rst_conf_logdir, "/log", NULL);
     if (access(rst_conf_logfile, F_OK) == 0) {
-	dbprintf(("%s exists: amdump or amflush is already running, "
-		  "or you must run amcleanup\n", rst_conf_logfile));
+	dbprintf(_("%s exists: amdump or amflush is already running, "
+		  "or you must run amcleanup\n"), rst_conf_logfile);
 	return 0;
     }
     log_add(L_INFO, get_pname());
@@ -191,73 +192,34 @@ already_have_dump(
 static void
 append_file_to_fd(
     char *	filename,
-    int		fd)
+    int		write_fd)
 {
-    ssize_t bytes_read;
-    ssize_t s;
-    off_t wc = (off_t)0;
-    char *buffer;
+    int read_fd;
 
-    if(blocksize == SIZE_MAX)
-	blocksize = DISK_BLOCK_BYTES;
-    buffer = alloc(blocksize);
-
-    if((tapefd = open(filename, O_RDONLY)) == -1) {
-	error("can't open %s: %s", filename, strerror(errno));
+    read_fd = robust_open(filename, O_RDONLY, 0);
+    if (read_fd < 0) {
+	error(_("can't open %s: %s"), filename, strerror(errno));
 	/*NOTREACHED*/
     }
 
-    for (;;) {
-	bytes_read = get_block(tapefd, buffer, 1); /* same as isafile = 1 */
-	if(bytes_read < 0) {
-	    error("read error: %s", strerror(errno));
-	    /*NOTREACHED*/
-	}
-
-	if (bytes_read == 0)
-		break;
-
-	s = fullwrite(fd, buffer, (size_t)bytes_read);
-	if (s < bytes_read) {
-	    fprintf(stderr,"Error (%s) offset " OFF_T_FMT "+" OFF_T_FMT ", wrote " OFF_T_FMT "\n",
-		    strerror(errno), (OFF_T_FMT_TYPE)wc,
-		    (OFF_T_FMT_TYPE)bytes_read, (OFF_T_FMT_TYPE)s);
-	    if (s < 0) {
-		if((errno == EPIPE) || (errno == ECONNRESET)) {
-		    error("%s: pipe reader has quit in middle of file.",
-			get_pname());
-		    /*NOTREACHED*/
-		}
-		error("restore: write error = %s", strerror(errno));
-		/*NOTREACHED*/
-	    }
-	    error("Short write: wrote " SSIZE_T_FMT " bytes expected " SSIZE_T_FMT ".", s, bytes_read);
-	    /*NOTREACHCED*/
-	}
-	wc += (off_t)bytes_read;
+    if (!do_consumer_producer_queue(fd_read_producer, GINT_TO_POINTER(read_fd),
+                                    fd_write_consumer,
+                                    GINT_TO_POINTER(write_fd))) {
+        error("Error copying data from file \"%s\" to fd %d.\n",
+              filename, write_fd);
+        g_assert_not_reached();
     }
 
-    amfree(buffer);
-    aclose(tapefd);
+    aclose(read_fd);
 }
 
-/*
- * Tape changer support routines, stolen brazenly from amtape
- */
+/* A user_init function for changer_find(). See changer.h for
+   documentation. */
 static int 
-scan_init(
-     void *	ud,
-     int	rc,
-     int	ns,
-     int	bk,
-     int	s)
-{
-    (void)ud;	/* Quiet unused parameter warning */
-    (void)ns;	/* Quiet unused parameter warning */
-    (void)s;	/* Quiet unused parameter warning */
-
+scan_init(G_GNUC_UNUSED void *	ud, int	rc, G_GNUC_UNUSED int ns,
+          int bk, G_GNUC_UNUSED int s) {
     if(rc) {
-        error("could not get changer info: %s", changer_resultstr);
+        error(_("could not get changer info: %s"), changer_resultstr);
 	/*NOTREACHED*/
     }
     backwards = bk;
@@ -265,63 +227,91 @@ scan_init(
     return 0;
 }
 
-int
-loadlabel_slot(
-     void *	ud,
-     int	rc,
-     char *	slotstr,
-     char *	device)
-{
-    char *errstr;
-    char *datestamp = NULL;
-    char *label = NULL;
+typedef struct {
+    char ** cur_tapedev;
+    char * searchlabel;
+} loadlabel_data;
 
-    (void)ud;	/* Quiet unused parameter warning */
+/* DANGER WILL ROBINSON: This function references globals:
+          char * curslot;
+ */
+int
+loadlabel_slot(void *	datap,
+               int	rc,
+               char *	slotstr,
+               char *	device_name)
+{
+    loadlabel_data * data = (loadlabel_data*)datap;
+    Device * device;
+    ReadLabelStatusFlags label_status;
+
+    g_return_val_if_fail(rc > 1 || device_name != NULL, 0);
+    g_return_val_if_fail(slotstr != NULL, 0);
+
+    amfree(curslot);
 
     if(rc > 1) {
-        error("could not load slot %s: %s", slotstr, changer_resultstr);
-	/*NOTREACHED*/
-    } else if(rc == 1) {
-        fprintf(stderr, "%s: slot %s: %s\n",
-                get_pname(), slotstr, changer_resultstr);
-    } else if((errstr = tape_rdlabel(device, &datestamp, &label)) != NULL) {
-        fprintf(stderr, "%s: slot %s: %s\n", get_pname(), slotstr, errstr);
-    } else {
-	if(strlen(datestamp)>8)
-            fprintf(stderr, "%s: slot %s: date %-14s label %s",
-		    get_pname(), slotstr, datestamp, label);
-	else
-            fprintf(stderr, "%s: slot %s: date %-8s label %s",
-		    get_pname(), slotstr, datestamp, label);
-        if(strcmp(label, FAKE_LABEL) != 0
-           && strcmp(label, searchlabel) != 0)
-            fprintf(stderr, " (wrong tape)\n");
-        else {
-            fprintf(stderr, " (exact label match)\n");
-            if((errstr = tape_rewind(device)) != NULL) {
-                fprintf(stderr,
-                        "%s: could not rewind %s: %s",
-                        get_pname(), device, errstr);
-                amfree(errstr);
-            }
-	    amfree(cur_tapedev);
-	    curslot = newstralloc(curslot, slotstr);
-            amfree(datestamp);
-            amfree(label);
-	    if(device)
-		cur_tapedev = stralloc(device);
-            return 1;
-        }
+        error(_("could not load slot %s: %s"), slotstr, changer_resultstr);
+        g_assert_not_reached();
     }
-    amfree(datestamp);
-    amfree(label);
 
-    amfree(cur_tapedev);
+    if(rc == 1) {
+        g_fprintf(stderr, _("%s: slot %s: %s\n"),
+                get_pname(), slotstr, changer_resultstr);
+        return 0;
+    } 
+    
+    device = device_open(device_name);
+    if (device == NULL) {
+        g_fprintf(stderr, "%s: slot %s: Could not open device.\n",
+                get_pname(), slotstr);
+        return 0;
+    }
+
+    device_set_startup_properties_from_config(device);
+    label_status = device_read_label(device);
+    if (label_status != READ_LABEL_STATUS_SUCCESS) {
+        char * errstr =
+            g_english_strjoinv_and_free
+                (g_flags_nick_to_strv(label_status,
+                                      READ_LABEL_STATUS_FLAGS_TYPE), "or");
+        g_fprintf(stderr, "%s: slot %s: Error reading tape label:\n"
+                "%s: slot %s: %s\n",
+                get_pname(), slotstr, get_pname(), slotstr, errstr);
+        g_object_unref(device);
+        return 0;
+    }
+
+    g_assert(device->volume_label != NULL);
+    if (device->volume_label == NULL) {
+        g_fprintf(stderr, "%s: slot %s: Could not read tape label.\n",
+                get_pname(), slotstr);
+        g_object_unref(device);
+        return 0;
+    }
+
+    if (!device_start(device, ACCESS_READ, NULL, NULL)) {
+        g_fprintf(stderr, "%s: slot %s: Could not open device for reading.\n",
+                get_pname(), slotstr);
+        return 0;
+    }
+
+    g_fprintf(stderr, "%s: slot %s: time %-14s label %s",
+            get_pname(), slotstr, device->volume_time, device->volume_label);
+
+    if(strcmp(device->volume_label, data->searchlabel) != 0) {
+        g_fprintf(stderr, " (wrong tape)\n");
+        g_object_unref(device);
+        return 0;
+    }
+
+    g_fprintf(stderr, " (exact label match)\n");
+
+    g_object_unref(device);
     curslot = newstralloc(curslot, slotstr);
-    if(!device) return(1);
-    cur_tapedev = stralloc(device);
-
-    return 0;
+    amfree(*(data->cur_tapedev));
+    *(data->cur_tapedev) = stralloc(device_name);
+    return 1;
 }
 
 
@@ -389,7 +379,7 @@ flush_open_outputs(
     amwait_t compress_status;
 
     if(!only_file){
-	fprintf(stderr, "\n");
+	g_fprintf(stderr, "\n");
     }
 
     /*
@@ -421,7 +411,7 @@ flush_open_outputs(
 	    if(cur_file->partnum < 1) cur_find_res->partnum = stralloc("--");
 	    else{
 		char part_str[NUM_STR_SIZE];
-		snprintf(part_str, SIZEOF(part_str), "%d", cur_file->partnum);
+		g_snprintf(part_str, SIZEOF(part_str), "%d", cur_file->partnum);
 		cur_find_res->partnum = stralloc(part_str);
 	    }
 	    cur_find_res->user_ptr = (void*)cur_out;
@@ -458,11 +448,11 @@ flush_open_outputs(
 
 		    cur_filename  = make_filename(cur_file);
 		    main_filename = make_filename(main_file);
-		    fprintf(stderr, "Merging %s with %s\n",
+		    g_fprintf(stderr, _("Merging %s with %s\n"),
 		            cur_filename, main_filename);
 		    append_file_to_fd(cur_filename, outfd);
 		    if(unlink(cur_filename) < 0){
-			fprintf(stderr, "Failed to unlink %s: %s\n",
+			g_fprintf(stderr, _("Failed to unlink %s: %s\n"),
 			             cur_filename, strerror(errno));
 		    }
 		    amfree(cur_filename);
@@ -479,7 +469,7 @@ flush_open_outputs(
 			char *cur_filename = make_filename(cur_file);
 			open(cur_filename, O_RDWR|O_APPEND);
 			if (outfd < 0) {
-			  error("Couldn't open %s for appending: %s",
+			  error(_("Couldn't open %s for appending: %s"),
 			        cur_filename, strerror(errno));
 			  /*NOTREACHED*/
 			}
@@ -541,21 +531,21 @@ make_filename(
     char *pad = NULL;
     size_t padlen = 0;
 
-    snprintf(number, SIZEOF(number), "%d", file->dumplevel);
-    snprintf(part, SIZEOF(part), "%d", file->partnum);
+    g_snprintf(number, SIZEOF(number), "%d", file->dumplevel);
+    g_snprintf(part, SIZEOF(part), "%d", file->partnum);
 
     if(file->totalparts < 0) {
-	snprintf(totalparts, SIZEOF(totalparts), "UNKNOWN");
+	g_snprintf(totalparts, SIZEOF(totalparts), "UNKNOWN");
     }
     else {
-	snprintf(totalparts, SIZEOF(totalparts), "%d", file->totalparts);
+	g_snprintf(totalparts, SIZEOF(totalparts), "%d", file->totalparts);
     }
     padlen = strlen(totalparts) + 1 - strlen(part);
     pad = alloc(padlen);
     memset(pad, '0', padlen);
     pad[padlen - 1] = '\0';
 
-    snprintf(part, SIZEOF(part), "%s%d", pad, file->partnum);
+    g_snprintf(part, SIZEOF(part), "%s%d", pad, file->partnum);
 
     sfn = sanitise_filename(file->disk);
     fn = vstralloc(file->name,
@@ -574,32 +564,19 @@ make_filename(
     return fn;
 }
 
-
-/*
- * XXX Making this thing a lib functiong broke a lot of assumptions everywhere,
- * but I think I've found them all.  Maybe.  Damn globals all over the place.
- */
-
-static ssize_t
-get_block(
-    int		tapefd,
-    char *	buffer,
-    int 	isafile)
-{
-    if(isafile)
-	return (fullread(tapefd, buffer, blocksize));
-
-    return(tapefd_read(tapefd, buffer, blocksize));
-}
-
-/*
- * Returns 1 if the current dump file matches the hostname and diskname
+/* Returns 1 if the dump file matches the hostname and diskname
  * regular expressions given on the command line, 0 otherwise.  As a 
- * special case, empty regexs are considered equivalent to ".*": they 
- * match everything.
+ * special case, empty regexs and NULLs are considered equivalent to 
+ * ".*": they match everything.
+ *
+ * @param file: the file to examine
+ * @param datestamp: the datestamp regex, or NULL for any
+ * @param hostname: the hostname regex, or NULL for any
+ * @param diskname: the diskname regex, or NULL for any
+ * @param level: the level regex, or NULL for any
+ * @returns: 1 if the dump file matches
  */
-
-int
+static int
 disk_match(
     dumpfile_t *file,
     char *	datestamp,
@@ -608,84 +585,62 @@ disk_match(
     char *	level)
 {
     char level_str[NUM_STR_SIZE];
-    snprintf(level_str, SIZEOF(level_str), "%d", file->dumplevel);
+    g_snprintf(level_str, SIZEOF(level_str), "%d", file->dumplevel);
 
     if(file->type != F_DUMPFILE && file->type != F_SPLIT_DUMPFILE) return 0;
 
-    if((*hostname == '\0' || match_host(hostname, file->name)) &&
-       (*diskname == '\0' || match_disk(diskname, file->disk)) &&
-       (*datestamp == '\0' || match_datestamp(datestamp, file->datestamp)) &&
-       (*level == '\0' || match_level(level, level_str)))
+    if((!hostname || *hostname == '\0' || match_host(hostname, file->name)) &&
+       (!diskname || *diskname == '\0' || match_disk(diskname, file->disk)) &&
+       (!datestamp || *datestamp == '\0' || match_datestamp(datestamp, file->datestamp)) &&
+       (!level || *level == '\0' || match_level(level, level_str)))
 	return 1;
     else
 	return 0;
 }
 
-
 /*
- * Reads the first block of a tape file.
+ * Reads the first block of a holding disk file.
  */
 
-ssize_t
-read_file_header(
-    dumpfile_t *	file,
-    int			tapefd,
-    int			isafile,
-    rst_flags_t *	flags)
+static gboolean
+read_holding_disk_header(
+    dumpfile_t *       file,
+    int                        tapefd,
+    rst_flags_t *      flags)
 {
     ssize_t bytes_read;
     char *buffer;
-  
+    size_t blocksize;
+
     if(flags->blocksize > 0)
-	blocksize = (size_t)flags->blocksize;
-    else if(blocksize == (size_t)SSIZE_MAX)
-	blocksize = DISK_BLOCK_BYTES;
+        blocksize = (size_t)flags->blocksize;
+    else
+        blocksize = DISK_BLOCK_BYTES;
     buffer = alloc(blocksize);
 
-    bytes_read = get_block(tapefd, buffer, isafile);
+    bytes_read = fullread(tapefd, buffer, blocksize);
     if(bytes_read < 0) {
-	fprintf(stderr, "%s: error reading file header: %s\n",
+	g_fprintf(stderr, _("%s: error reading file header: %s\n"),
 		get_pname(), strerror(errno));
 	file->type = F_UNKNOWN;
     } else if((size_t)bytes_read < DISK_BLOCK_BYTES) {
 	if(bytes_read == 0) {
-	    fprintf(stderr, "%s: missing file header block\n", get_pname());
+	    g_fprintf(stderr, _("%s: missing file header block\n"), get_pname());
 	} else {
-	    fprintf(stderr, "%s: short file header block: " OFF_T_FMT " byte%s\n",
-		    get_pname(), (OFF_T_FMT_TYPE)bytes_read, (bytes_read == 1) ? "" : "s");
+	    g_fprintf(stderr,
+		    plural(_("%s: short file header block: %zd byte"),
+	    		   _("%s: short file header block: %zd bytes\n"),
+			   bytes_read),
+		    get_pname(), (size_t)bytes_read);
 	}
 	file->type = F_UNKNOWN;
     } else {
-	parse_file_header(buffer, file, (size_t)bytes_read);
+        parse_file_header(buffer, file, (size_t)bytes_read);
     }
     amfree(buffer);
-    return bytes_read;
-}
-
-
-void
-drain_file(
-    int			tapefd,
-    rst_flags_t *	flags)
-{
-    ssize_t bytes_read;
-    char *buffer;
-
-    if(flags->blocksize)
-	blocksize = (size_t)flags->blocksize;
-    else if(blocksize == (size_t)SSIZE_MAX)
-	blocksize = DISK_BLOCK_BYTES;
-    buffer = alloc(blocksize);
-
-    do {
-       bytes_read = get_block(tapefd, buffer, 0);
-       if(bytes_read < 0) {
-           error("drain read error: %s", strerror(errno));
-	   /*NOTREACHED*/
-       }
-    } while (bytes_read > 0);
-
-    amfree(buffer);
+    return (file->type != F_UNKNOWN &&
+            file->type != F_EMPTY &&
+            file->type != F_WEIRD);
 }
 
 /*
@@ -697,16 +652,12 @@ drain_file(
  * piped to restore).
  */
 
-ssize_t
-restore(
-    dumpfile_t *	file,
-    char *		filename,
-    int			tapefd,
-    int			isafile,
-    rst_flags_t *	flags)
+
+/* FIXME: Mondo function that needs refactoring. */
+void restore(RestoreSource * source,
+             rst_flags_t *	flags)
 {
     int dest = -1, out;
-    ssize_t s;
     int file_is_compressed;
     int is_continuation = 0;
     int check_for_aborted = 0;
@@ -717,50 +668,46 @@ restore(
     char *buffer;
     int need_compress=0, need_uncompress=0, need_decrypt=0;
     int stage=0;
-    ssize_t bytes_read;
     struct pipeline {
         int	pipe[2];
     } pipes[3];
+    char * filename;
+
+    filename = make_filename(source->header);
 
     memset(pipes, -1, SIZEOF(pipes));
-    if(flags->blocksize)
-	blocksize = (size_t)flags->blocksize;
-    else if(blocksize == (size_t)SSIZE_MAX)
-	blocksize = DISK_BLOCK_BYTES;
 
-    if(already_have_dump(file)){
-	char *filename = make_filename(file);
-	fprintf(stderr, " *** Duplicate file %s, one is probably an aborted write\n", filename);
-	amfree(filename);
+    if(already_have_dump(source->header)){
+	g_fprintf(stderr, _(" *** Duplicate file %s, one is probably an aborted write\n"), filename);
 	check_for_aborted = 1;
     }
 
     /* store a shorthand record of this dump */
-    tempdump = alloc(SIZEOF(dumplist_t));
-    tempdump->file = alloc(SIZEOF(dumpfile_t));
+    tempdump = malloc(SIZEOF(dumplist_t));
+    tempdump->file = malloc(SIZEOF(dumpfile_t));
     tempdump->next = NULL;
-    memcpy(tempdump->file, file, SIZEOF(dumpfile_t));
+    memcpy(tempdump->file, source->header, SIZEOF(dumpfile_t));
 
     /*
      * If we're appending chunked files to one another, and if this is a
      * continuation of a file we just restored, and we've still got the
      * output handle from that previous restore, we're golden.  Phew.
      */
-    if(flags->inline_assemble && file->type == F_SPLIT_DUMPFILE){
+    if(flags->inline_assemble && source->header->type == F_SPLIT_DUMPFILE){
 	myout = open_outputs;
 	while(myout != NULL){
 	    if(myout->file->type == F_SPLIT_DUMPFILE &&
-		    headers_equal(file, myout->file, 1)){
-		if(file->partnum == myout->lastpartnum + 1){
+               headers_equal(source->header, myout->file, 1)){
+		if(source->header->partnum == myout->lastpartnum + 1){
 		    is_continuation = 1;
 		    break;
 		}
 	    }
 	    myout = myout->next;
 	}
-	if(myout != NULL) myout->lastpartnum = file->partnum;
-	else if(file->partnum != 1){
-	    fprintf(stderr, "%s:      Chunk out of order, will save to disk and append to output.\n", get_pname());
+	if(myout != NULL) myout->lastpartnum = source->header->partnum;
+	else if(source->header->partnum != 1){
+	    g_fprintf(stderr, _("%s:      Chunk out of order, will save to disk and append to output.\n"), get_pname());
 	    flags->pipe_to_fd = -1;
 	    flags->compress = 0;
 	    flags->leave_comp = 1;
@@ -779,17 +726,18 @@ restore(
     if(is_continuation && flags->pipe_to_fd == -1){
 	char *filename;
 	filename = make_filename(myout->file);
-	fprintf(stderr, "%s:      appending to %s\n", get_pname(),
+	g_fprintf(stderr, _("%s:      appending to %s\n"), get_pname(),
 		filename);
 	amfree(filename);
     }
 
     /* adjust compression flag */
-    file_is_compressed = file->compressed;
-    if(!flags->compress && file_is_compressed && !known_compress_type(file)) {
-	fprintf(stderr, 
-		"%s: unknown compression suffix %s, can't uncompress\n",
-		get_pname(), file->comp_suffix);
+    file_is_compressed = source->header->compressed;
+    if(!flags->compress && file_is_compressed &&
+       !known_compress_type(source->header)) {
+	g_fprintf(stderr, 
+		_("%s: unknown compression suffix %s, can't uncompress\n"),
+		get_pname(), source->header->comp_suffix);
 	flags->compress = 1;
     }
 
@@ -799,12 +747,12 @@ restore(
       out = myout->outfd;
     } else {
       if(flags->pipe_to_fd != -1) {
-  	  dest = flags->pipe_to_fd;	/* standard output */
+  	  dest = flags->pipe_to_fd;
       } else {
   	  char *filename_ext = NULL;
   
   	  if(flags->compress) {
-  	      filename_ext = file_is_compressed ? file->comp_suffix
+  	      filename_ext = file_is_compressed ? source->header->comp_suffix
   	  				      : COMPRESS_SUFFIX;
   	  } else if(flags->raw) {
   	      filename_ext = ".RAW";
@@ -823,7 +771,7 @@ restore(
 	  tmp_filename = vstralloc(final_filename, ".tmp", NULL);
   	  if((dest = open(tmp_filename, (O_CREAT | O_RDWR | O_TRUNC),
 			  CREAT_MODE)) < 0) {
-  	      error("could not create output file %s: %s",
+  	      error(_("could not create output file %s: %s"),
 	      	    tmp_filename, strerror(errno));
               /*NOTREACHED*/
 	  }
@@ -845,8 +793,9 @@ restore(
 	dumpfile_t tmp_hdr;
 
 	if(flags->compress && !file_is_compressed) {
-	    file->compressed = 1;
-	    snprintf(file->uncompress_cmd, SIZEOF(file->uncompress_cmd),
+	    source->header->compressed = 1;
+	    g_snprintf(source->header->uncompress_cmd,
+                     SIZEOF(source->header->uncompress_cmd),
 		        " %s %s |", UNCOMPRESS_PATH,
 #ifdef UNCOMPRESS_OPT
 		        UNCOMPRESS_OPT
@@ -854,63 +803,67 @@ restore(
 		        ""
 #endif
 		        );
-	    strncpy(file->comp_suffix,
+	    strncpy(source->header->comp_suffix,
 		    COMPRESS_SUFFIX,
-		    SIZEOF(file->comp_suffix)-1);
-	    file->comp_suffix[SIZEOF(file->comp_suffix)-1] = '\0';
+		    SIZEOF(source->header->comp_suffix)-1);
+	    source->header->comp_suffix[SIZEOF(source->header->comp_suffix)-1]
+                = '\0';
 	}
 
-	memcpy(&tmp_hdr, file, SIZEOF(dumpfile_t));
+	memcpy(&tmp_hdr, source->header, SIZEOF(dumpfile_t));
 
 	/* remove CONT_FILENAME from header */
-	memset(file->cont_filename,'\0',SIZEOF(file->cont_filename));
-	file->blocksize = DISK_BLOCK_BYTES;
+	memset(source->header->cont_filename, '\0',
+               SIZEOF(source->header->cont_filename));
+	source->header->blocksize = DISK_BLOCK_BYTES;
 
 	/*
 	 * Dumb down split file headers as well, so that older versions of
 	 * things like amrecover won't gag on them.
 	 */
-	if(file->type == F_SPLIT_DUMPFILE && flags->mask_splits){
-	    file->type = F_DUMPFILE;
+	if(source->header->type == F_SPLIT_DUMPFILE && flags->mask_splits){
+	    source->header->type = F_DUMPFILE;
 	}
 
 	buffer = alloc(DISK_BLOCK_BYTES);
-	build_header(buffer, file, DISK_BLOCK_BYTES);
+	buffer = build_header(source->header, DISK_BLOCK_BYTES);
 
-	if((w = fullwrite(out, buffer, DISK_BLOCK_BYTES)) != DISK_BLOCK_BYTES) {
+	if((w = fullwrite(out, buffer,
+                          DISK_BLOCK_BYTES)) != DISK_BLOCK_BYTES) {
 	    if(w < 0) {
-		error("write error: %s", strerror(errno));
+		error(_("write error: %s"), strerror(errno));
 		/*NOTREACHED*/
 	    } else {
-		error("write error: " SSIZE_T_FMT " instead of %d", w, DISK_BLOCK_BYTES);
+		error(_("write error: %zd instead of %d"), w, DISK_BLOCK_BYTES);
 		/*NOTREACHED*/
 	    }
 	}
 	amfree(buffer);
-
-	memcpy(file, &tmp_hdr, SIZEOF(dumpfile_t));
+	memcpy(source->header, &tmp_hdr, SIZEOF(dumpfile_t));
     }
  
     /* find out if compression or uncompression is needed here */
     if(flags->compress && !file_is_compressed && !is_continuation
 	  && !flags->leave_comp
-	  && (flags->inline_assemble || file->type != F_SPLIT_DUMPFILE))
+	  && (flags->inline_assemble ||
+              source->header->type != F_SPLIT_DUMPFILE))
        need_compress=1;
        
     if(!flags->raw && !flags->compress && file_is_compressed
 	  && !is_continuation && !flags->leave_comp && (flags->inline_assemble
-	  || file->type != F_SPLIT_DUMPFILE))
+	  || source->header->type != F_SPLIT_DUMPFILE))
        need_uncompress=1;   
 
-    if(!flags->raw && file->encrypted && !is_continuation
-	  && (flags->inline_assemble || file->type != F_SPLIT_DUMPFILE))
+    if(!flags->raw && source->header->encrypted && !is_continuation &&
+       (flags->inline_assemble || source->header->type != F_SPLIT_DUMPFILE)) {
        need_decrypt=1;
+    }
    
     /* Setup pipes for decryption / compression / uncompression  */
     stage = 0;
     if (need_decrypt) {
       if (pipe(&pipes[stage].pipe[0]) < 0) {
-        error("error [pipe[%d]: %s]", stage, strerror(errno));
+        error(_("error [pipe[%d]: %s]"), stage, strerror(errno));
 	/*NOTREACHED*/
       }
       stage++;
@@ -918,7 +871,7 @@ restore(
 
     if (need_compress || need_uncompress) {
       if (pipe(&pipes[stage].pipe[0]) < 0) {
-        error("error [pipe[%d]: %s]", stage, strerror(errno));
+        error(_("error [pipe[%d]: %s]"), stage, strerror(errno));
 	/*NOTREACHED*/
       }
       stage++;
@@ -932,7 +885,7 @@ restore(
     if(need_decrypt) {
       switch(myout->comp_enc_pid = fork()) {
       case -1:
-	error("could not fork for decrypt: %s", strerror(errno));
+	error(_("could not fork for decrypt: %s"), strerror(errno));
 	/*NOTREACHED*/
 
       default:
@@ -943,28 +896,32 @@ restore(
 
       case 0:
 	if(dup2(pipes[stage].pipe[0], 0) == -1) {
-	    error("error decrypt stdin [dup2 %d %d: %s]", stage,
+	    error(_("error decrypt stdin [dup2 %d %d: %s]"), stage,
 	        pipes[stage].pipe[0], strerror(errno));
 		/*NOTREACHED*/
 	}
 
 	if(dup2(pipes[stage+1].pipe[1], 1) == -1) {
-	    error("error decrypt stdout [dup2 %d %d: %s]", stage + 1,
+	    error(_("error decrypt stdout [dup2 %d %d: %s]"), stage + 1,
 	        pipes[stage+1].pipe[1], strerror(errno));
 		/*NOTREACHED*/
 	}
 
 	safe_fd(-1, 0);
-	if (*file->srv_encrypt) {
-	  (void) execlp(file->srv_encrypt, file->srv_encrypt,
-			file->srv_decrypt_opt, (char *)NULL);
-	  error("could not exec %s: %s", file->srv_encrypt, strerror(errno));
-	  /*NOTREACHED*/
-	}  else if (*file->clnt_encrypt) {
-	  (void) execlp(file->clnt_encrypt, file->clnt_encrypt,
-			file->clnt_decrypt_opt, (char *)NULL);
-	  error("could not exec %s: %s", file->clnt_encrypt, strerror(errno));
-	  /*NOTREACHED*/
+	if (source->header->srv_encrypt[0] != '\0') {
+	  (void) execlp(source->header->srv_encrypt,
+                        source->header->srv_encrypt,
+			source->header->srv_decrypt_opt, NULL);
+	  error("could not exec %s: %s",
+                source->header->srv_encrypt, strerror(errno));
+          g_assert_not_reached();
+	}  else if (source->header->clnt_encrypt[0] != '\0') {
+	  (void) execlp(source->header->clnt_encrypt,
+                        source->header->clnt_encrypt,
+			source->header->clnt_decrypt_opt, NULL);
+	  error("could not exec %s: %s",
+                source->header->clnt_encrypt, strerror(errno));
+          g_assert_not_reached();
 	}
       }
     }
@@ -975,7 +932,7 @@ restore(
          */
 	switch(myout->comp_enc_pid = fork()) {
 	case -1:
-	    error("could not fork for %s: %s", COMPRESS_PATH, strerror(errno));
+	    error(_("could not fork for %s: %s"), COMPRESS_PATH, strerror(errno));
 	    /*NOTREACHED*/
 
 	default:
@@ -986,13 +943,13 @@ restore(
 
 	case 0:
 	    if(dup2(pipes[stage].pipe[0], 0) == -1) {
-		error("error compress stdin [dup2 %d %d: %s]", stage,
+		error(_("error compress stdin [dup2 %d %d: %s]"), stage,
 		  pipes[stage].pipe[0], strerror(errno));
 	        /*NOTREACHED*/
 	    }
 
 	    if(dup2(pipes[stage+1].pipe[1], 1) == -1) {
-		error("error compress stdout [dup2 %d %d: %s]", stage + 1,
+		error(_("error compress stdout [dup2 %d %d: %s]"), stage + 1,
 		  pipes[stage+1].pipe[1], strerror(errno));
 		  /*NOTREACHED*/
 	    }
@@ -1002,7 +959,7 @@ restore(
 
 	    safe_fd(-1, 0);
 	    (void) execlp(COMPRESS_PATH, COMPRESS_PATH, flags->comp_type, (char *)0);
-	    error("could not exec %s: %s", COMPRESS_PATH, strerror(errno));
+	    error(_("could not exec %s: %s"), COMPRESS_PATH, strerror(errno));
 	    /*NOTREACHED*/
 	}
     } else if(need_uncompress) {
@@ -1019,7 +976,7 @@ restore(
 	 */ 
 	switch(myout->comp_enc_pid = fork()) {
 	case -1: 
-	    error("could not fork for %s: %s",
+	    error(_("could not fork for %s: %s"),
 		  UNCOMPRESS_PATH, strerror(errno));
 	    /*NOTREACHED*/
 
@@ -1031,115 +988,93 @@ restore(
 
 	case 0:
 	    if(dup2(pipes[stage].pipe[0], 0) == -1) {
-		error("error uncompress stdin [dup2 %d %d: %s]", stage,
+		error(_("error uncompress stdin [dup2 %d %d: %s]"), stage,
 		  pipes[stage].pipe[0], strerror(errno));
 	        /*NOTREACHED*/
 	    }
 
 	    if(dup2(pipes[stage+1].pipe[1], 1) == -1) {
-		error("error uncompress stdout [dup2 %d %d: %s]", stage + 1,
+		error(_("error uncompress stdout [dup2 %d %d: %s]"), stage + 1,
 		  pipes[stage+1].pipe[1], strerror(errno));
 	        /*NOTREACHED*/
 	    }
 
 	    safe_fd(-1, 0);
-	    if (*file->srvcompprog) {
-	      (void) execlp(file->srvcompprog, file->srvcompprog, "-d",
-			    (char *)NULL);
-	      error("could not exec %s: %s", file->srvcompprog,
-		    strerror(errno));
-	      /*NOTREACHED*/
-	    } else if (*file->clntcompprog) {
-	      (void) execlp(file->clntcompprog, file->clntcompprog, "-d",
-			    (char *)NULL);
-	      error("could not exec %s: %s", file->clntcompprog,
-		    strerror(errno));
-	      /*NOTREACHED*/
+	    if (source->header->srvcompprog[0] != '\0') {
+	      (void) execlp(source->header->srvcompprog,
+                            source->header->srvcompprog, "-d", NULL);
+	      error("could not exec %s: %s", source->header->srvcompprog,
+                    strerror(errno));
+              g_assert_not_reached();
+	    } else if (source->header->clntcompprog[0] != '\0') {
+	      (void) execlp(source->header->clntcompprog,
+                            source->header->clntcompprog, "-d", NULL);
+	      error("could not exec %s: %s", source->header->clntcompprog,
+                    strerror(errno));
+              g_assert_not_reached();
 	    } else {
 	      (void) execlp(UNCOMPRESS_PATH, UNCOMPRESS_PATH,
 #ifdef UNCOMPRESS_OPT
 			  UNCOMPRESS_OPT,
 #endif
 			  (char *)NULL);
-	      error("could not exec %s: %s", UNCOMPRESS_PATH, strerror(errno));
+	      error(_("could not exec %s: %s"), UNCOMPRESS_PATH, strerror(errno));
 	      /*NOTREACHED*/
 	    }
 	}
     }
 
     /* copy the rest of the file from tape to the output */
-    if(flags->blocksize > 0)
-	blocksize = (size_t)flags->blocksize;
-    else if(blocksize == SIZE_MAX)
-	blocksize = DISK_BLOCK_BYTES;
-    buffer = alloc(blocksize);
-
-    do {
-	bytes_read = get_block(tapefd, buffer, isafile);
-	if(bytes_read < 0) {
-	    error("restore read error: %s", strerror(errno));
-	    /*NOTREACHED*/
-	}
-
-	if(bytes_read > 0) {
-	    if((s = fullwrite(pipes[0].pipe[1], buffer, (size_t)bytes_read)) < 0) {
-		if ((errno == EPIPE) || (errno == ECONNRESET)) {
-		    /*
-		     * reading program has ended early
-		     * e.g: bzip2 closes pipe when it
-		     * trailing garbage after EOF
-		     */
-		    break;
-		}
-		error("restore: write error: %s", strerror(errno));
-		/* NOTREACHED */
-	    } else if (s < bytes_read) {
-		error("restore: wrote " SSIZE_T_FMT " of " SSIZE_T_FMT " bytes: %s",
-		    s, bytes_read, strerror(errno));
-		/* NOTREACHED */
-	    }
-	}
-	else if(isafile) {
+    if (source->restore_mode == HOLDING_MODE) {
+        dumpfile_t file;
+        int fd = source->u.holding_fd;
+        memcpy(& file, source->header, sizeof(file));
+        for (;;) {
+            do_consumer_producer_queue(fd_read_producer,
+                                       GINT_TO_POINTER(fd),
+                                       fd_write_consumer,
+                                       GINT_TO_POINTER(pipes[0].pipe[1]));
 	    /*
 	     * See if we need to switch to the next file in a holding restore
 	     */
-	    if(file->cont_filename[0] == '\0') {
+	    if(file.cont_filename[0] == '\0') {
 		break;				/* no more files */
 	    }
-	    aclose(tapefd);
-	    if((tapefd = open(file->cont_filename, O_RDONLY)) == -1) {
-		char *cont_filename = strrchr(file->cont_filename,'/');
+	    aclose(fd);
+	    if((fd = open(file.cont_filename, O_RDONLY)) == -1) {
+		char *cont_filename =
+                    strrchr(file.cont_filename,'/');
 		if(cont_filename) {
 		    cont_filename++;
-		    if((tapefd = open(cont_filename,O_RDONLY)) == -1) {
-			error("can't open %s: %s", file->cont_filename,
+		    if((fd = open(cont_filename,O_RDONLY)) == -1) {
+			error(_("can't open %s: %s"), file.cont_filename,
 			      strerror(errno));
 		        /*NOTREACHED*/
 		    }
 		    else {
-			fprintf(stderr, "cannot open %s: %s\n",
-				file->cont_filename, strerror(errno));
-			fprintf(stderr, "using %s\n",
+			g_fprintf(stderr, _("cannot open %s: %s\n"),
+				file.cont_filename, strerror(errno));
+			g_fprintf(stderr, _("using %s\n"),
 				cont_filename);
 		    }
 		}
 		else {
-		    error("can't open %s: %s", file->cont_filename,
+		    error(_("can't open %s: %s"), file.cont_filename,
 			  strerror(errno));
 		    /*NOTREACHED*/
 		}
 	    }
-	    bytes_read = read_file_header(file, tapefd, isafile, flags);
-	    if(file->type != F_DUMPFILE && file->type != F_CONT_DUMPFILE
-		    && file->type != F_SPLIT_DUMPFILE) {
-		fprintf(stderr, "unexpected header type: ");
-		print_header(stderr, file);
+	    read_holding_disk_header(&file, fd, flags);
+	    if(file.type != F_DUMPFILE && file.type != F_CONT_DUMPFILE
+		    && file.type != F_SPLIT_DUMPFILE) {
+		g_fprintf(stderr, _("unexpected header type: "));
+		print_header(stderr, source->header);
 		exit(2);
 	    }
-	}
-    } while (bytes_read > 0);
-
-    amfree(buffer);
+	}            
+    } else {
+        device_read_to_fd(source->u.device, pipes[0].pipe[1]);
+    }
 
     if(!flags->inline_assemble) {
         if(out != dest)
@@ -1147,7 +1082,7 @@ restore(
     }
     if(!is_continuation){
 	if(tmp_filename && stat(tmp_filename, &statinfo) < 0){
-	    error("Can't stat the file I just created (%s)!", tmp_filename);
+	    error(_("Can't stat the file I just created (%s)!"), tmp_filename);
 	    /*NOTREACHED*/
 	} else {
 	    statinfo.st_size = (off_t)0;
@@ -1159,12 +1094,13 @@ restore(
 		if(oldstat.st_size <= statinfo.st_size){
 		    dumplist_t *prev_fileentry = NULL;
 		    open_output_t *prev_out = NULL;
-		    fprintf(stderr, "Newer restore is larger, using that\n");
+		    g_fprintf(stderr, _("Newer restore is larger, using that\n"));
 		    /* nuke the old dump's entry in alldump_list */
 		    for(fileentry=alldumps_list;
 			    fileentry->next;
 			    fileentry=fileentry->next){
-			if(headers_equal(file, fileentry->file, 0)){
+			if(headers_equal(source->header,
+                                         fileentry->file, 0)){
 			    if(prev_fileentry){
 				prev_fileentry->next = fileentry->next;
 			    }
@@ -1178,7 +1114,7 @@ restore(
 		    }
 		    myout = open_outputs;
 		    while(myout != NULL){
-			if(headers_equal(file, myout->file, 0)){
+			if(headers_equal(source->header, myout->file, 0)){
 			    if(myout->outfd >= 0)
 				aclose(myout->outfd);
 			    if(prev_out){
@@ -1193,20 +1129,21 @@ restore(
 		    }
 		}
 		else{
-		    fprintf(stderr, "Older restore is larger, using that\n");
+		    g_fprintf(stderr, _("Older restore is larger, using that\n"));
 		    if (tmp_filename)
 			unlink(tmp_filename);
 		    amfree(tempdump->file);
 		    amfree(tempdump);
 		    amfree(tmp_filename);
 		    amfree(final_filename);
-                    return (bytes_read);
+                    amfree(filename);
+                    return;
 		}
 	    }
 	}
 	if(tmp_filename && final_filename &&
-		rename(tmp_filename, final_filename) < 0) {
-	    error("Can't rename %s to %s: %s",
+           rename(tmp_filename, final_filename) < 0) {
+	    error(_("Can't rename %s to %s: %s"),
 	    	   tmp_filename, final_filename, strerror(errno));
 	    /*NOTREACHED*/
 	}
@@ -1222,11 +1159,11 @@ restore(
     if(!is_continuation){
         oldout = alloc(SIZEOF(open_output_t));
         oldout->file = alloc(SIZEOF(dumpfile_t));
-        memcpy(oldout->file, file, SIZEOF(dumpfile_t));
+        memcpy(oldout->file, source->header, SIZEOF(dumpfile_t));
         if(flags->inline_assemble) oldout->outfd = pipes[0].pipe[1];
 	else oldout->outfd = -1;
         oldout->comp_enc_pid = -1;
-        oldout->lastpartnum = file->partnum;
+        oldout->lastpartnum = source->header->partnum;
         oldout->next = open_outputs;
         open_outputs = oldout;
     }
@@ -1239,76 +1176,66 @@ restore(
     else {
 	alldumps_list = tempdump;
     }
-
-    return (bytes_read);
 }
 
 /* return NULL if the label is not the expected one                     */
-/* return the label if it is the expected one, and set *tapefd to a     */
-/* file descriptor to the tapedev                                       */
-char *
-label_of_current_slot(
-    char         *cur_tapedev,
-    FILE         *prompt_out,
-    int          *tapefd,
-    dumpfile_t   *file,
-    rst_flags_t  *flags,
-    am_feature_t *their_features,
-    ssize_t      *read_result,
-    tapelist_t   *desired_tape)
+/* returns a Device handle if it is the expected one. */
+/* FIXME: Was label_of_current_slot */
+static Device *
+conditional_device_open(char         *tapedev,
+                        FILE         *prompt_out,
+                        rst_flags_t  *flags,
+                        am_feature_t *their_features,
+                        tapelist_t   *desired_tape)
 {
-    struct stat stat_tape;
-    char *label = NULL;
-    int wrongtape = 0;
-    char *err;
+    Device * rval;
 
-    if (!cur_tapedev) {
+    if (tapedev == NULL) {
 	send_message(prompt_out, flags, their_features,
-		     "no tapedev specified");
-    } else if (tape_stat(cur_tapedev, &stat_tape) !=0 ) {
-	send_message(prompt_out, flags, their_features, 
-		     "could not stat '%s': %s",
-		     cur_tapedev, strerror(errno));
-	wrongtape = 1;
-    } else if((err = tape_rewind(cur_tapedev)) != NULL) {
-	send_message(prompt_out, flags, their_features, 
-			 "Could not rewind device '%s': %s",
-			 cur_tapedev, err);
-	wrongtape = 1;
-	/* err should not be freed */
-    } else if((*tapefd = tape_open(cur_tapedev, 0)) < 0){
-	send_message(prompt_out, flags, their_features,
-			 "could not open tape device %s: %s",
-			 cur_tapedev, strerror(errno));
-	wrongtape = 1;
+		     _("Volume labeled '%s' not found."), desired_tape->label);
+        return NULL;
     }
 
-    if (!wrongtape) {
- 	*read_result = read_file_header(file, *tapefd, 0, flags);
- 	if (file->type != F_TAPESTART) {
-	    send_message(prompt_out, flags, their_features,
-			     "Not an amanda tape");
- 	    tapefd_close(*tapefd);
-	} else {
-	    if (flags->check_labels && desired_tape &&
-			 strcmp(file->name, desired_tape->label) != 0) {
-		send_message(prompt_out, flags, their_features,
-				 "Label mismatch, got %s and expected %s",
-				 file->name, desired_tape->label);
-		tapefd_close(*tapefd);
-	    }
-	    else {
-		label = stralloc(file->name);
-	    }
-	}
+    rval = device_open(tapedev);
+    if (rval == NULL) {
+	send_message(prompt_out, flags, their_features, 
+		     "Error opening device '%s'.",
+		     tapedev);
+        return NULL;
     }
-    return label;
+
+    device_set_startup_properties_from_config(rval);
+    device_read_label(rval);
+
+    if (rval->volume_label == NULL) {
+        send_message(prompt_out, flags, their_features,
+                     "Not an amanda tape");
+        g_object_unref(rval);
+        return NULL;
+    }
+
+    if (!device_start(rval, ACCESS_READ, NULL, NULL)) {
+        send_message(prompt_out, flags, their_features,
+                     "Colud not open device %s for reading.\n",
+                     tapedev);
+        return NULL;
+    }
+
+    if (flags->check_labels && desired_tape &&
+        strcmp(rval->volume_label, desired_tape->label) != 0) {
+        send_message(prompt_out, flags, their_features,
+                     "Label mismatch, got %s and expected %s",
+                     rval->volume_label, desired_tape->label);
+        g_object_unref(rval);
+        return NULL;
+    }
+
+    return rval;
 }
 
-/* return >0            the number of slot move            */
-/* return LOAD_STOP     if the search must be stopped      */
-/* return LOAD_CHANGER  if the changer search the library  */
-int
+/* Do the right thing to try and load the next required tape. See
+   LoadStatus above for return value meaning. */
+LoadStatus
 load_next_tape(
     char         **cur_tapedev,
     FILE          *prompt_out,
@@ -1317,350 +1244,685 @@ load_next_tape(
     am_feature_t  *their_features,
     tapelist_t    *desired_tape)
 {
-    int ret = -1;
-
     if (desired_tape) {
 	send_message(prompt_out, flags, their_features,
-		     "Looking for tape %s...",
+		     _("Looking for tape %s..."),
 		     desired_tape->label);
 	if (backwards) {
-	    searchlabel = desired_tape->label; 
-	    changer_find(NULL, scan_init, loadlabel_slot,
+            loadlabel_data data;
+            data.cur_tapedev = cur_tapedev;
+            data.searchlabel = desired_tape->label;
+	    changer_find(&data, scan_init, loadlabel_slot,
 			 desired_tape->label);
-	    ret = LOAD_CHANGER;
+            return LOAD_CHANGER;
 	} else {
 	    amfree(curslot);
 	    changer_loadslot("next", &curslot,
 			     cur_tapedev);
-	    ret = 1;
+            return LOAD_NEXT;
 	}
     } else {
 	assert(!flags->amidxtaped);
 	amfree(curslot);
 	changer_loadslot("next", &curslot, cur_tapedev);
-	ret = 1;
+        return LOAD_NEXT;
     }
-    return ret;
+
+    g_assert_not_reached();
 }
 
 
-/* return  0     a new tape is loaded       */
-/* return -1     no new tape                */
-int
+/* will never return LOAD_CHANGER. */
+LoadStatus
 load_manual_tape(
-    char         **cur_tapedev,
+    char         **tapedev_ptr,
     FILE          *prompt_out,
     FILE          *prompt_in,
     rst_flags_t   *flags,
     am_feature_t  *their_features,
     tapelist_t    *desired_tape)
 {
-    int ret = 0;
     char *input = NULL;
 
     if (flags->amidxtaped) {
 	if (their_features &&
 	    am_has_feature(their_features,
 			   fe_amrecover_FEEDME)) {
-	    fprintf(prompt_out, "FEEDME %s\r\n",
+	    g_fprintf(prompt_out, "FEEDME %s\r\n",
 		    desired_tape->label);
 	    fflush(prompt_out);
 	    input = agets(prompt_in);/* Strips \n but not \r */
 	    if(!input) {
-		error("Connection lost with amrecover");
+		error(_("Connection lost with amrecover"));
 		/*NOTREACHED*/
 	    } else if (strcmp("OK\r", input) == 0) {
 	    } else if (strncmp("TAPE ", input, 5) == 0) {
-		amfree(*cur_tapedev);
-		*cur_tapedev = alloc(1025);
-		if (sscanf(input, "TAPE %1024s\r", *cur_tapedev) != 1) {
-		    error("Got bad response from amrecover: %s", input);
+		amfree(*tapedev_ptr);
+		*tapedev_ptr = alloc(1025);
+		if (sscanf(input, "TAPE %1024s\r", *tapedev_ptr) != 1) {
+		    error(_("Got bad response from amrecover: %s"), input);
 		    /*NOTREACHED*/
 		}
 	    } else {
 		send_message(prompt_out, flags, their_features,
-			     "Got bad response from amrecover: %s", input);
-		error("Got bad response from amrecover: %s", input);
+			     _("Got bad response from amrecover: %s"), input);
+		error(_("Got bad response from amrecover: %s"), input);
 		/*NOTREACHED*/
 	    }
 	} else {
 	    send_message(prompt_out, flags, their_features,
-			 "Client doesn't support fe_amrecover_FEEDME");
-	    error("Client doesn't support fe_amrecover_FEEDME");
+			 _("Client doesn't support fe_amrecover_FEEDME"));
+	    error(_("Client doesn't support fe_amrecover_FEEDME"));
 	    /*NOTREACHED*/
 	}
     }
     else {
 	if (desired_tape) {
-	    fprintf(prompt_out,
-		    "Insert tape labeled %s in device %s \n"
-		    "and press enter, ^D to finish reading tapes\n",
-		    desired_tape->label, *cur_tapedev);
+	    g_fprintf(prompt_out,
+		    _("Insert tape labeled %s in device %s \n"
+		    "and press enter, ^D to finish reading tapes\n"),
+		    desired_tape->label, *tapedev_ptr);
 	} else {
-	    fprintf(prompt_out,"Insert a tape to search and press "
-		    "enter, ^D to finish reading tapes\n");
+	    g_fprintf(prompt_out,_("Insert a tape to search and press "
+		    "enter, ^D to finish reading tapes\n"));
 	}
 	fflush(prompt_out);
 	if((input = agets(prompt_in)) == NULL)
-	    ret = -1;
+            return LOAD_STOP;
     }
 
     amfree(input);
-    return ret;
+    return LOAD_NEXT;
 }
 
+/* Search a seen-tapes list for a particular name, to see if we've already
+ * processed this tape. Returns TRUE if this label has already been seen. */
+static gboolean check_volume_seen(seentapes_t * list, char * label) {
+    seentapes_t * cur_tape;
+    for (cur_tape = list; cur_tape != NULL; cur_tape = cur_tape->next) {
+        if (strcmp(cur_tape->label, label) == 0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
 
-void 
-search_a_tape(
-    char         *cur_tapedev,
-    FILE         *prompt_out,
-    rst_flags_t  *flags,
-    am_feature_t *their_features,
-    tapelist_t   *desired_tape,
-    int           isafile,
-    match_list_t *match_list,
-    seentapes_t  *tape_seen,
-    dumpfile_t   *file,
-    dumpfile_t   *prev_rst_file,
-    dumpfile_t   *tapestart,
-    int           slot_num,
-    ssize_t      *read_result)
-{
+/* Add a volume to the seen tapes list. */
+static void record_seen_volume(seentapes_t ** list, char * label,
+                               char * slotstr) {
+    seentapes_t * new_entry;
+
+    if (list == NULL)
+        return;
+
+    new_entry = malloc(sizeof(seentapes_t));
+    new_entry->label = stralloc(label);
+    if (slotstr == NULL) {
+        new_entry->slotstr = NULL;
+    } else {
+        new_entry->slotstr = stralloc(slotstr);
+    }
+    new_entry->files = NULL;
+    new_entry->next = *list;
+    *list = new_entry;
+}
+
+/* Record a specific dump on a volume. */
+static void record_seen_dump(seentapes_t * volume, dumpfile_t * header) {
+    dumplist_t * this_dump;
+
+    if (volume == NULL)
+        return;
+    
+    this_dump = malloc(sizeof(*this_dump));
+    this_dump->file = g_memdup(header, sizeof(*header));
+    this_dump->next = NULL;
+    if (volume->files) {
+        dumplist_t * tmp_dump = volume->files;
+        while (tmp_dump->next != NULL) {
+            tmp_dump = tmp_dump->next;
+        }
+        tmp_dump->next = this_dump;
+    } else {
+        volume->files = this_dump;
+    }
+}
+
+static void print_tape_inventory(FILE * logstream, seentapes_t * tape_seen,
+                                 char * timestamp, char * label,
+                                 int tape_count) {
+    char * logline;
+    dumplist_t * fileentry;
+
+    logline = log_genstring(L_START, "taper",
+                            "datestamp %s label %s tape %d",
+                            timestamp, label, tape_count);
+    fputs(logline, logstream);
+    amfree(logline);
+    for(fileentry=tape_seen->files; fileentry; fileentry=fileentry->next){
+        switch (fileentry->file->type) {
+        case F_DUMPFILE:
+            logline = log_genstring(L_SUCCESS, "taper",
+                                    "%s %s %s %d [faked log entry]",
+                                    fileentry->file->name,
+                                    fileentry->file->disk,
+                                    fileentry->file->datestamp,
+                                    fileentry->file->dumplevel);
+            break;
+        case F_SPLIT_DUMPFILE:
+            logline = log_genstring(L_CHUNK, "taper", 
+                                    "%s %s %s %d %d [faked log entry]",
+                                    fileentry->file->name,
+                                    fileentry->file->disk,
+                                    fileentry->file->datestamp,
+                                    fileentry->file->partnum,
+                                    fileentry->file->dumplevel);
+            break;
+        default:
+            break;
+        }
+        if(logline != NULL){
+            fputs(logline, logstream);
+            amfree(logline);
+            fflush(logstream);
+        }
+    }
+}
+
+/* Check if the given header matches the given dumpspecs. Returns
+   TRUE if dumpspecs is NULL and false if the header is NULL. Returns
+   true if the header matches the  match list. */
+static gboolean run_dumpspecs(GSList * dumpspecs,
+                               dumpfile_t * header) {
+    dumpspec_t *ds;
+
+    if (dumpspecs == NULL)
+        return TRUE;
+    if (header == NULL)
+        return FALSE;
+
+    while (dumpspecs) {
+	ds = (dumpspec_t *)dumpspecs->data;
+        if (disk_match(header, ds->datestamp, ds->host,
+                       ds->disk, ds->level) != 0) {
+            return TRUE;
+        }
+	dumpspecs = dumpspecs->next;
+    }
+
+    return FALSE;
+}
+
+/* A wrapper around restore() above. This function does some extra
+   checking to seek to the file in question and ensure that we really,
+   really want to use it.
+
+   The next_file argument provides instruction on what to do if the
+   requested file does not exist on the volume: If next_file is NULL
+   then if the requested file is missing the function will return
+   RESTORE_STATUS_NEXT_FILE. If next_file is not NULL then the first
+   extant file whose number is equal to or greater than file_num will
+   be attempted. *next_file will be filled in with the number of the
+   file following the one that was attempted. */
+static RestoreFileStatus
+try_restore_single_file(Device * device, int file_num, int* next_file,
+                        FILE * prompt_out,
+                        rst_flags_t * flags,
+                        am_feature_t * their_features,
+                        dumpfile_t * first_restored_file,
+                        GSList * dumpspecs,
+                        seentapes_t * tape_seen) {
+    RestoreSource source;
+    source.u.device = device;
+    source.restore_mode = DEVICE_MODE;
+
+    source.header = device_seek_file(device, file_num);
+
+    if (source.header == NULL) {
+        /* This definitely indicates an error. */
+        send_message(prompt_out, flags, their_features,
+                     "Could not seek device %s to file %d.",
+                     device->device_name, file_num);
+        return RESTORE_STATUS_NEXT_TAPE;
+    } else if (source.header->type == F_TAPEEND) {
+        amfree(source.header);
+        return RESTORE_STATUS_NEXT_TAPE;
+    } else if (device->file != file_num) {
+        if (next_file == NULL) {
+            send_message(prompt_out, flags, their_features,
+                         "Requested file %d does not exist.",
+                         file_num);
+            return RESTORE_STATUS_NEXT_FILE;
+        } else {
+            send_message(prompt_out, flags, their_features,
+                         "Skipped from file %d to file %d.", 
+                         file_num, device->file);
+            file_num = device->file;
+        }
+    }
+
+    if (next_file != NULL) {
+        *next_file = file_num + 1;
+    }
+    
+    g_return_val_if_fail(source.header->type == F_DUMPFILE ||
+                         source.header->type == F_CONT_DUMPFILE ||
+                         source.header->type == F_SPLIT_DUMPFILE,
+                         RESTORE_STATUS_NEXT_FILE);
+    
+
+    if (!run_dumpspecs(dumpspecs, source.header)) {
+	if(!flags->amidxtaped) {
+            g_fprintf(prompt_out, "%s: %d: skipping ",
+		    get_pname(), file_num);
+            print_header(prompt_out, source.header);
+	}
+        return RESTORE_STATUS_NEXT_FILE;
+    }
+
+    if (first_restored_file != NULL &&
+        first_restored_file->type != F_UNKNOWN &&
+        !headers_equal(first_restored_file, source.header, 1) &&
+        (flags->pipe_to_fd == fileno(stdout))) {
+        return RESTORE_STATUS_STOP;
+    }
+
+    if (!flags->amidxtaped) {
+	g_fprintf(stderr, "%s: %d: restoring ",
+		get_pname(), file_num);
+	print_header(stderr, source.header);
+    }
+    record_seen_dump(tape_seen, source.header);
+    restore(&source, flags);
+    if (first_restored_file) {
+	memcpy(first_restored_file, source.header, sizeof(dumpfile_t));
+    }
+    return RESTORE_STATUS_NEXT_FILE;
+}
+
+/* This function handles processing of a particular tape or holding
+   disk file. It returns TRUE if it is useful to load another tape.*/
+
+gboolean
+search_a_tape(Device      * device,
+              FILE         *prompt_out, /* Where to send any prompts */
+              rst_flags_t  *flags,      /* Restore options. */
+              am_feature_t *their_features, 
+              tapelist_t   *desired_tape, /* A list of desired tape files */
+              GSList *dumpspecs, /* What disks to restore. */
+              seentapes_t **tape_seen,  /* Where to record data on
+                                           this tape. */
+              /* May be NULL. If zeroed, will be filled in with the
+                 first restored file. If already filled in, then we
+                 may only restore other files from the same dump. */
+              dumpfile_t   * first_restored_file,
+              int           tape_count,
+              FILE * logstream) {
+    seentapes_t * tape_seen_head = NULL;
+    RestoreSource source;
     off_t       filenum;
-    dumplist_t *fileentry = NULL;
+
     int         tapefile_idx = -1;
     int         i;
-    char       *logline = NULL;
-    FILE       *logstream = NULL;
-    off_t       fsf_by;
+    RestoreFileStatus restore_status = RESTORE_STATUS_NEXT_TAPE;
+
+    source.restore_mode = DEVICE_MODE;
+    source.u.device = device;
 
     filenum = (off_t)0;
     if(desired_tape && desired_tape->numfiles > 0)
 	tapefile_idx = 0;
 
     if (desired_tape) {
-	dbprintf(("search_a_tape: desired_tape=%p label=%s\n",
-		  desired_tape, desired_tape->label));
-	dbprintf(("tape:   numfiles = %d\n", desired_tape->numfiles));
+	dbprintf(_("search_a_tape: desired_tape=%p label=%s\n"),
+		  desired_tape, desired_tape->label);
+	dbprintf(_("tape:   numfiles = %d\n"), desired_tape->numfiles);
 	for (i=0; i < desired_tape->numfiles; i++) {
-	    dbprintf(("tape:   files[%d] = " OFF_T_FMT "\n",
-		      i, (OFF_T_FMT_TYPE)desired_tape->files[i]));
+	    dbprintf(_("tape:   files[%d] = %lld\n"),
+		      i, (long long)desired_tape->files[i]);
 	}
     } else {
-	dbprintf(("search_a_tape: no desired_tape\n"));
+	dbprintf(_("search_a_tape: no desired_tape\n"));
     }
-    dbprintf(("current tapefile_idx = %d\n", tapefile_idx));
+    dbprintf(_("current tapefile_idx = %d\n"), tapefile_idx);
+
+    if (tape_seen) {
+        if (check_volume_seen(*tape_seen, device->volume_label)) {
+            send_message(prompt_out, flags, their_features,
+                         "Skipping repeat tape %s in slot %s",
+                         device->volume_label, curslot);
+            return TRUE;
+        }
+        record_seen_volume(tape_seen, device->volume_label, curslot);
+        tape_seen_head = *tape_seen;
+    }
 	
-    /* if we know where we're going, fastforward there */
-    if(flags->fsf && !isafile){
-	/* If we have a tapelist entry, filenums will be store there */
-	if(tapefile_idx >= 0) {
-	    fsf_by = desired_tape->files[tapefile_idx]; 
-	} else {
-	    /*
-	     * older semantics assume we're restoring one file, with the fsf
-	     * flag being the filenum on tape for said file
-	     */
-	    fsf_by = (flags->fsf == 0) ? (off_t)0 : (off_t)1;
-	}
-	if(fsf_by > (off_t)0){
-	    if(tapefd_rewind(tapefd) < 0) {
-		send_message(prompt_out, flags, their_features,
-			     "Could not rewind device %s: %s",
-			     cur_tapedev, strerror(errno));
-		error("Could not rewind device %s: %s",
-		      cur_tapedev, strerror(errno));
-		/*NOTREACHED*/
-	    }
+    if (desired_tape && desired_tape->numfiles > 0) {
+        /* Iterate the tape list, handle each file in order. */
+        int file_index;
+        for (file_index = 0; file_index < desired_tape->numfiles;
+             file_index ++) {
+            int file_num = desired_tape->files[file_index];
+            restore_status = try_restore_single_file(device, file_num, NULL,
+                                                     prompt_out, flags,
+                                                     their_features,
+                                                     first_restored_file,
+                                                     NULL, tape_seen_head);
+            if (restore_status != RESTORE_STATUS_NEXT_FILE)
+                break;
+        }
+    } else if(flags->fsf && flags->amidxtaped) {
+        /* Restore a single file, then quit. */
+        restore_status =
+            try_restore_single_file(device, flags->fsf, NULL, prompt_out, flags,
+                                    their_features, first_restored_file,
+                                    dumpspecs, tape_seen_head);
+    } else {
+        /* Search the tape from beginning to end. */
+        int file_num;
 
-	    if(tapefd_fsf(tapefd, fsf_by) < 0) {
-		send_message(prompt_out, flags, their_features,
-			     "Could not fsf device %s by " OFF_T_FMT ": %s",
-			     cur_tapedev, (OFF_T_FMT_TYPE)fsf_by,
-			     strerror(errno));
-		error("Could not fsf device %s by " OFF_T_FMT ": %s",
-		      cur_tapedev, (OFF_T_FMT_TYPE)fsf_by,
-		      strerror(errno));
-		/*NOTREACHED*/
-	    }
-	    else {
-		filenum = fsf_by;
-	    }
-	    *read_result = read_file_header(file, tapefd, isafile, flags);
-	}
-    }
+        if (flags->fsf > 0) {
+            file_num = flags->fsf;
+        } else {
+            file_num = 1;
+        }
 
-    while((file->type == F_TAPESTART || file->type == F_DUMPFILE ||
-	   file->type == F_SPLIT_DUMPFILE) &&
-	  (tapefile_idx < 0 || tapefile_idx < desired_tape->numfiles)) {
-	int found_match = 0;
-	match_list_t *me;
-	dumplist_t *tempdump = NULL;
-
-	/* store record of this dump for inventorying purposes */
-	tempdump = alloc(SIZEOF(dumplist_t));
-	tempdump->file = alloc(SIZEOF(dumpfile_t));
-	tempdump->next = NULL;
-	memcpy(tempdump->file, &file, SIZEOF(dumpfile_t));
-	if(tape_seen->files){
-	    fileentry = tape_seen->files;
-	    while (fileentry->next != NULL)
-		   fileentry = fileentry->next;
-	    fileentry->next = tempdump;
-	}
-	else {
-	    tape_seen->files = tempdump;
+	if (!flags->amidxtaped) {
+            g_fprintf(prompt_out, "Restoring from tape %s starting with file %d.\n",
+		    device->volume_label, file_num);
+	    fflush(prompt_out);
 	}
 
-	/* see if we need to restore the thing */
-	if(isafile)
-	    found_match = 1;
-	else if(tapefile_idx >= 0){ /* do it by explicit file #s */
-	    if(filenum == desired_tape->files[tapefile_idx]){
-		found_match = 1;
-	   	tapefile_idx++;
-	    }
-	}
-	else{ /* search and match headers */
-	    for(me = match_list; me; me = me->next) {
-		if(disk_match(file, me->datestamp, me->hostname,
-			      me->diskname, me->level) != 0){
-		    found_match = 1;
-		    break;
-		}
-	    }
-	}
-
-	if(found_match){
-	    char *filename = make_filename(file);
-
-	    fprintf(stderr, "%s: " OFF_T_FMT ": restoring ",
-		    get_pname(), (OFF_T_FMT_TYPE)filenum);
-	    print_header(stderr, file);
-	    *read_result = restore(file, filename, tapefd, isafile, flags);
-	    filenum++;
-	    amfree(filename);
-	}
-
-	/* advance to the next file, fast-forwarding where reasonable */
-	if (!isafile) {
-	    if (*read_result == 0) {
-		tapefd_close(tapefd);
-		if((tapefd = tape_open(cur_tapedev, 0)) < 0) {
-		    send_message(prompt_out, flags, their_features,
-				 "could not open %s: %s",
-				 cur_tapedev, strerror(errno));
-		    error("could not open %s: %s",
-			  cur_tapedev, strerror(errno));
-		    /*NOTREACHED*/
-		}
-	    /* if the file is not what we're looking for fsf to next one */
-	    }
-	    else if (!found_match) {
-		if (tapefd_fsf(tapefd, (off_t)1) < 0) {
-		    send_message(prompt_out, flags, their_features,
-				 "Could not fsf device %s: %s",
-				 cur_tapedev, strerror(errno));
-		    error("Could not fsf device %s: %s",
-			  cur_tapedev, strerror(errno));
-		    /*NOTREACHED*/
-		}
-		filenum ++;
-	    }
-	    else if (flags->fsf && (tapefile_idx >= 0) && 
-		     (tapefile_idx < desired_tape->numfiles)) {
-		fsf_by = desired_tape->files[tapefile_idx] - filenum;
-		if (fsf_by > (off_t)0) {
-		    if(tapefd_fsf(tapefd, fsf_by) < 0) {
-			send_message(prompt_out, flags, their_features,
-				     "Could not fsf device %s by "
-				     OFF_T_FMT ": %s",
-				     cur_tapedev, (OFF_T_FMT_TYPE)fsf_by,
-				     strerror(errno));
-			error("Could not fsf device %s by " OFF_T_FMT ": %s",
-			      cur_tapedev, (OFF_T_FMT_TYPE)fsf_by,
-			      strerror(errno));
-			/*NOTREACHED*/
-		    }
-		    filenum = desired_tape->files[tapefile_idx];
-		}
-	    }
-	} /* !isafile */
-
-	memcpy(prev_rst_file, file, SIZEOF(dumpfile_t));
-	      
-	if(isafile)
-	    break;
-        *read_result = read_file_header(file, tapefd, isafile, flags);
-
-	/* only restore a single dump, if piping to stdout */
-	if (!headers_equal(prev_rst_file, file, 1) &&
-	    (flags->pipe_to_fd == fileno(stdout)) && found_match) {
-	    break;
-	}
-    } /* while we keep seeing headers */
-
-    if (!isafile) {
-	if (file->type == F_EMPTY) {
-	    aclose(tapefd);
-	    if((tapefd = tape_open(cur_tapedev, 0)) < 0) {
-		send_message(prompt_out, flags, their_features,
-			     "could not open %s: %s",
-			     cur_tapedev, strerror(errno));
-		error("could not open %s: %s",
-		      cur_tapedev, strerror(errno));
-		/*NOTREACHED*/
-	    }
-	} else {
-	    if (tapefd_fsf(tapefd, (off_t)1) < 0) {
-		send_message(prompt_out, flags, their_features,
-			     "could not fsf %s: %s",
-			     cur_tapedev, strerror(errno));;
-		error("could not fsf %s: %s",
-		      cur_tapedev, strerror(errno));
-		/*NOTREACHED*/
-	    }
-	}
-    }
-    tapefd_close(tapefd);
-
-    /* spit out our accumulated list of dumps, if we're inventorying */
-    if (logstream) {
-	logline = log_genstring(L_START, "taper",
-				    "datestamp %s label %s tape %d",
-				    tapestart->datestamp, tapestart->name,
-				    slot_num);
-	fprintf(logstream, "%s", logline);
-	for(fileentry=tape_seen->files; fileentry; fileentry=fileentry->next){
-	    logline = NULL;
-	    switch (fileentry->file->type) {
-		case F_DUMPFILE:
-		    logline = log_genstring(L_SUCCESS, "taper",
-            			       "%s %s %s %d [faked log entry]",
-            	                       fileentry->file->name,
-            	                       fileentry->file->disk,
-            	                       fileentry->file->datestamp,
-            	                       fileentry->file->dumplevel);
-            	    break;
-            	case F_SPLIT_DUMPFILE:
-            	    logline = log_genstring(L_CHUNK, "taper", 
-            			       "%s %s %s %d %d [faked log entry]",
-            	                       fileentry->file->name,
-            	                       fileentry->file->disk,
-            	                       fileentry->file->datestamp,
-            	                       fileentry->file->partnum,
-            	                       fileentry->file->dumplevel);
-            	    break;
-		default:
-            	    break;
-            }
-	    if(logline){
-		fprintf(logstream, "%s", logline);
-		amfree(logline);
-		fflush(logstream);
-	    }
+        for (;;) {
+            restore_status =
+                try_restore_single_file(device, file_num, &file_num,
+                                        prompt_out, flags,
+                                        their_features, first_restored_file,
+                                        dumpspecs, tape_seen_head);
+            if (restore_status != RESTORE_STATUS_NEXT_FILE)
+                break;
         }
     }
+    
+    /* spit out our accumulated list of dumps, if we're inventorying */
+    if (logstream != NULL) {
+        print_tape_inventory(logstream, tape_seen_head, device->volume_time,
+                             device->volume_label, tape_count);
+    }
+    return (restore_status != RESTORE_STATUS_STOP);
+}
+
+static void free_seen_tapes(seentapes_t * seentapes) {
+    while (seentapes != NULL) {
+	seentapes_t *tape_seen = seentapes;
+	seentapes = seentapes->next;
+	while(tape_seen->files != NULL) {
+	    dumplist_t *temp_dump = tape_seen->files;
+	    tape_seen->files = temp_dump->next;
+	    amfree(temp_dump->file);
+	    amfree(temp_dump);
+	}
+	amfree(tape_seen->label);
+	amfree(tape_seen->slotstr);
+	amfree(tape_seen);
+	
+    }
+}
+
+/* Spit out a list of expected tapes, so people with manual changers know
+   what to load */
+static void print_expected_tape_list(FILE* prompt_out, FILE* prompt_in,
+                                     tapelist_t *tapelist,
+                                     rst_flags_t * flags) {
+    tapelist_t * cur_volume;
+
+    g_fprintf(prompt_out, "The following tapes are needed:");
+    for(cur_volume = tapelist; cur_volume != NULL;
+        cur_volume = cur_volume->next){
+	g_fprintf(prompt_out, " %s", cur_volume->label);
+    }
+    g_fprintf(prompt_out, "\n");
+    fflush(prompt_out);
+    if(flags->wait_tape_prompt){
+	char *input = NULL;
+        g_fprintf(prompt_out,"Press enter when ready\n");
+	fflush(prompt_out);
+        input = agets(prompt_in);
+ 	amfree(input);
+	g_fprintf(prompt_out, "\n");
+	fflush(prompt_out);
+    }
+}
+
+/* Restore a single holding-disk file. We will fill in this_header
+   with the header from this restore (if it is not null), and in the
+   stdout-pipe case, we abort according to last_header. Returns TRUE
+   if the restore should continue, FALSE if we are done. */
+gboolean restore_holding_disk(FILE * prompt_out,
+                              rst_flags_t * flags,
+                              am_feature_t * features,
+                              tapelist_t * file,
+                              seentapes_t ** seen,
+                              GSList * dumpspecs,
+                              dumpfile_t * this_header,
+                              dumpfile_t * last_header) {
+    RestoreSource source;
+    gboolean read_result;
+    dumpfile_t header;
+
+    source.header = &header;
+    source.restore_mode = HOLDING_MODE;
+    source.u.holding_fd = robust_open(file->label, 0, 0);
+    if (source.u.holding_fd < 0) {
+        send_message(prompt_out, flags, features, 
+                     "could not open %s: %s",
+                     file->label, strerror(errno));
+        return TRUE;
+    }
+
+    g_fprintf(stderr, "Reading %s from fd %d\n",
+            file->label, source.u.holding_fd);
+    
+    read_result = read_holding_disk_header(source.header,
+                                           source.u.holding_fd, flags);
+    if (!read_result) {
+        send_message(prompt_out, flags, features, 
+                     "Invalid header reading %s.",
+                     file->label);
+        aclose(source.u.holding_fd);
+        return TRUE;
+    }
+
+    if (!run_dumpspecs(dumpspecs, source.header)) {
+        return FALSE;
+    }
+
+    if (last_header != NULL && !flags->amidxtaped &&
+	flags->pipe_to_fd == STDOUT_FILENO &&
+	last_header->type != F_UNKNOWN &&
+        !headers_equal(last_header, source.header, 1)) {
+        return FALSE;
+    } else if (this_header != NULL) {
+        memcpy(this_header, source.header, sizeof(*this_header));
+    }
+
+    if (seen != NULL) {
+        record_seen_volume(seen, file->label, "<none>");
+        record_seen_dump(*seen, source.header);
+    }
+
+    print_header(stderr, source.header);
+
+    restore(&source, flags);
+    aclose(source.u.holding_fd);
+    return TRUE;
+}
+
+/* Ask for a specific manual tape. If we find the right one, then open it
+ * and return a Device handle. If not, return NULL. Pass a device name, but
+ * it might be overridden. */
+static Device* manual_find_tape(char ** cur_tapedev, tapelist_t * cur_volume,
+                                FILE * prompt_out, FILE * prompt_in,
+                                rst_flags_t * flags,
+                                am_feature_t * features) {
+    LoadStatus status = LOAD_NEXT;
+    Device * rval;
+
+    for (;;) {
+        status = load_manual_tape(cur_tapedev, prompt_out, prompt_in,
+                                  flags, features, cur_volume);
+        
+        if (status == LOAD_STOP)
+            return NULL;
+
+        rval =  conditional_device_open(*cur_tapedev, prompt_out, flags,
+                                        features, cur_volume);
+        if (rval != NULL)
+            return rval;
+    }
+}
+
+/* If we have a tapelist, then we mandate restoring in tapelist
+   order. The logic is simple: Get the next tape, and deal with it,
+   then move on to the next one. */
+static void
+restore_from_tapelist(FILE * prompt_out,
+                      FILE * prompt_in,
+                      tapelist_t * tapelist,
+                      GSList * dumpspecs,
+                      rst_flags_t * flags,
+                      am_feature_t * features,
+                      char * cur_tapedev,
+                      gboolean use_changer,
+                      FILE * logstream) {
+    tapelist_t * cur_volume;
+    dumpfile_t first_restored_file;
+    seentapes_t * seentapes = NULL;
+
+    fh_init(&first_restored_file);
+
+    for(cur_volume = tapelist; cur_volume != NULL;
+        cur_volume = cur_volume->next){
+        if (cur_volume->isafile) {
+            /* Restore from holding disk; just go. */
+            if (first_restored_file.type == F_UNKNOWN) {
+                if (!restore_holding_disk(prompt_out, flags,
+                                          features, cur_volume, &seentapes,
+                                          NULL, NULL, &first_restored_file)) {
+                    break;
+                }
+            } else {
+                restore_holding_disk(prompt_out, flags, features,
+                                     cur_volume, &seentapes,
+                                     NULL, &first_restored_file, NULL);
+            }
+	    if (flags->pipe_to_fd == fileno(stdout)) {
+		break;
+	    }
+        } else {
+            Device * device = NULL;
+            if (use_changer) {
+                char * tapedev = NULL;
+                loadlabel_data data;
+                data.cur_tapedev = &tapedev;
+                data.searchlabel =  cur_volume->label;
+                changer_find(&data, scan_init, loadlabel_slot,
+                             cur_volume->label);
+                device = conditional_device_open(tapedev, prompt_out,
+                                                 flags, features,
+                                                 cur_volume);
+		amfree(tapedev);
+            }
+
+            if (device == NULL)
+                device = manual_find_tape(&cur_tapedev, cur_volume, prompt_out,
+                                          prompt_in, flags, features);
+
+            if (device == NULL)
+                break;
+
+            if (use_changer) {
+                g_fprintf(stderr, "Scanning volume %s (slot %s)\n",
+                          device->volume_label,
+                          curslot);
+            } else {
+                g_fprintf(stderr, "Scanning volume %s\n",
+                          device->volume_label);
+            }
+
+            if (!search_a_tape(device, prompt_out, flags, features,
+                               cur_volume, dumpspecs, &seentapes,
+                               &first_restored_file, 0, logstream)) {
+                g_object_unref(device);
+                break;
+            }
+            g_object_unref(device);
+        }            
+    }
+
+    free_seen_tapes(seentapes);
+}
+
+/* This function works when we are operating without a tapelist
+   (regardless of whether or not we have a changer). This only happens
+   when we are using amfetchdump without dump logs, but in the future
+   may include amrestore as well. The philosophy is to keep loading
+   tapes until we run out. */
+static void
+restore_without_tapelist(FILE * prompt_out,
+                         FILE * prompt_in,
+                         GSList * dumpspecs,
+                         rst_flags_t * flags,
+                         am_feature_t * features,
+                         char * cur_tapedev,
+                         /* -1 if no changer. */
+                         int slot_count,
+                         FILE * logstream) {
+    int cur_slot = 1;
+    seentapes_t * seentapes;
+    int tape_count = 0;
+    dumpfile_t first_restored_file;
+
+    fh_init(&first_restored_file);
+
+    /* This loop also aborts if we run out of manual tapes, or
+       encounter a changer error. */
+    for (;;) {
+        Device * device = NULL;
+        if (slot_count > 0) {
+            while (cur_slot < slot_count && device == NULL) {
+                amfree(curslot);
+                changer_loadslot("next", &curslot, &cur_tapedev);
+                device = conditional_device_open(cur_tapedev, prompt_out,
+                                                 flags, features,
+                                                 NULL);
+		amfree(cur_tapedev);
+                cur_slot ++;
+            }
+            if (cur_slot >= slot_count)
+                break;
+            
+            g_fprintf(stderr, "Scanning %s (slot %s)\n", device->volume_label,
+                    curslot);
+        } else {
+            device = manual_find_tape(&cur_tapedev, NULL, prompt_out,
+                                      prompt_in, flags, features);
+        }
+        
+        if (device == NULL)
+            break;;
+        
+        if (!search_a_tape(device, prompt_out, flags, features,
+                           NULL, dumpspecs, &seentapes, &first_restored_file,
+                           tape_count, logstream)) {
+            g_object_unref(device);
+            break;
+        }
+        g_object_unref(device);
+        tape_count ++;
+    }
+           
+    free_seen_tapes(seentapes);
 }
 
 /* 
@@ -1671,40 +1933,25 @@ search_a_tape(
  * tapes to search (rather than "everything I can find"), which in turn can
  * optionally list specific files to restore.
  */
-void
+ void
 search_tapes(
     FILE *		prompt_out,
-    FILE               *prompt_in,
+    FILE *              prompt_in,
     int			use_changer,
     tapelist_t *	tapelist,
-    match_list_t *	match_list,
+    GSList *		dumpspecs,
     rst_flags_t *	flags,
     am_feature_t *	their_features)
 {
-    int have_changer = 1;
-    int slot_num = -1;
+    char *cur_tapedev;
     int slots = -1;
     FILE *logstream = NULL;
     tapelist_t *desired_tape = NULL;
     struct sigaction act, oact;
-    ssize_t read_result;
-    int slot;
-    char *label = NULL;
-    seentapes_t *seentapes = NULL;
-    int ret;
+
+    device_api_init();
 
     if(!prompt_out) prompt_out = stderr;
-
-    dbprintf(("search_tapes(prompt_out=%d, prompt_in=%d,  use_changer=%d, "
-	      "tapelist=%p, "
-	      "match_list=%p, flags=%p, features=%p)\n",
-	      fileno(prompt_out), fileno(prompt_in), use_changer, tapelist,
-	      match_list, flags, their_features));
-
-    if(flags->blocksize)
-	blocksize = (size_t)flags->blocksize;
-    else if(blocksize == (size_t)SSIZE_MAX)
-	blocksize = DISK_BLOCK_BYTES;
 
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
@@ -1714,7 +1961,7 @@ search_tapes(
     sigemptyset(&act.sa_mask);
     act.sa_flags = 0;
     if(sigaction(SIGINT, &act, &oact) != 0){
-	error("error setting SIGINT handler: %s", strerror(errno));
+	error(_("error setting SIGINT handler: %s"), strerror(errno));
 	/*NOTREACHED*/
     }
     if(flags->delay_assemble || flags->inline_assemble) exitassemble = 1;
@@ -1724,61 +1971,42 @@ search_tapes(
     if(flags->inventory_log) {
 	if(!strcmp(flags->inventory_log, "-")) logstream = stdout;
 	else if((logstream = fopen(flags->inventory_log, "w+")) == NULL) {
-	    error("Couldn't open log file %s for writing: %s",
+	    error(_("Couldn't open log file %s for writing: %s"),
 		  flags->inventory_log, strerror(errno));
 	    /*NOTREACHED*/
 	}
     }
 
     /* Suss what tape device we're using, whether there's a changer, etc. */
-    if(!use_changer || (have_changer = changer_init()) == 0) {
+    if (use_changer) {
+	use_changer = changer_init();
+    }
+    if (!use_changer) {
+        cur_tapedev = NULL;
 	if (flags->alt_tapedev) {
 	    cur_tapedev = stralloc(flags->alt_tapedev);
 	} else if(!cur_tapedev) {
 	    cur_tapedev = getconf_str(CNF_TAPEDEV);
 	    if (cur_tapedev == NULL) {
-		error("No tapedev specified");
+		error(_("No tapedev specified"));
 	    }
 	}
 	/* XXX oughta complain if no config is loaded */
-	fprintf(stderr, "%s: Using tapedev %s\n", get_pname(), cur_tapedev);
- 	have_changer = 0;
-    } else if (have_changer != 1) {
-	error("changer initialization failed: %s", strerror(errno));
-	/*NOTREACHED*/
+	g_fprintf(stderr, _("%s: Using tapedev %s\n"), get_pname(), cur_tapedev);
     }
     else{ /* good, the changer works, see what it can do */
 	amfree(curslot);
 	changer_info(&slots, &curslot, &backwards);
     }
 
-    if(tapelist && !flags->amidxtaped){
-      slots = num_entries(tapelist);
-      /*
-	Spit out a list of expected tapes, so people with manual changers know
-	what to load
-      */
-      fprintf(prompt_out, "The following tapes are needed:");
-      for(desired_tape = tapelist; desired_tape != NULL;
-	  desired_tape = desired_tape->next){
-	fprintf(prompt_out, " %s", desired_tape->label);
-      }
-      fprintf(prompt_out, "\n");
-      fflush(prompt_out);
-      if(flags->wait_tape_prompt){
-	char *input = NULL;
-        fprintf(prompt_out,"Press enter when ready\n");
-	fflush(prompt_out);
-        input = agets(prompt_in);
- 	amfree(input);
-	fprintf(prompt_out, "\n");
-	fflush(prompt_out);
-      }
+    if (tapelist && !flags->amidxtaped) {
+        print_expected_tape_list(prompt_out, prompt_in, tapelist, flags);
     }
     desired_tape = tapelist;
 
-    if(use_changer && !cur_tapedev) { /* load current slot */
+    if (use_changer) { /* load current slot */
 	amfree(curslot);
+	cur_tapedev = NULL;
 	changer_loadslot("current", &curslot, &cur_tapedev);
     }
 
@@ -1794,155 +2022,15 @@ search_tapes(
      * (obnoxious, isn't this?)
      */
 
-    do { /* all desired tape */
-	seentapes_t *tape_seen = NULL;
-	dumpfile_t file, tapestart, prev_rst_file;
-	int isafile = 0;
-	read_result = 0;
-
-	slot_num = 0;
-
-	memset(&file, 0, SIZEOF(file));
-
-	if (desired_tape && desired_tape->isafile) {
-	    isafile = 1;
-	    if ((tapefd = open(desired_tape->label, 0)) == -1) {
-		send_message(prompt_out, flags, their_features, 
-			     "could not open %s: %s",
-			     desired_tape->label, strerror(errno));
-		continue;
-	    }
-	    fprintf(stderr, "Reading %s to fd %d\n",
-			    desired_tape->label, tapefd);
-
-	    read_result = read_file_header(&file, tapefd, 1, flags);
-	    label = stralloc(desired_tape->label);
-	} else {
-	    /* check current_slot */
-	    label = label_of_current_slot(cur_tapedev, prompt_out,
-					  &tapefd, &file, flags,
-					  their_features, &read_result,
-					  desired_tape);
-	    while (label==NULL && slot_num < slots &&
-		   use_changer) {
-		/*
-		 * If we have an incorrect tape loaded, go try to find
-		 * the right one
-		 * (or just see what the next available one is).
-		 */
-		slot = load_next_tape(&cur_tapedev, prompt_out,
-				      backwards, flags,
-				      their_features, desired_tape);
-		if(slot == LOAD_STOP) {
-		    slot_num = slots;
-		    amfree(label);
-		} else {
-		    if (slot == LOAD_CHANGER)
-			slot_num = slots;
-		    else /* slot > 0 */
-			slot_num += slot;
-
-		    /* check current_slot */
-		    label = label_of_current_slot(cur_tapedev, prompt_out,
-					          &tapefd, &file, flags,
-					          their_features, &read_result,
-					          desired_tape);
-		}
-	    }
-
-	    if (label == NULL) {
-		ret = load_manual_tape(&cur_tapedev, prompt_out, prompt_in,
-				       flags,
-				       their_features, desired_tape);
-		if (ret == 0) {
-		    label = label_of_current_slot(cur_tapedev, prompt_out,
-					          &tapefd, &file, flags,
-					          their_features, &read_result,
-					          desired_tape);
-		}
-	    }
-
-	    if (label)
-		memcpy(&tapestart, &file, SIZEOF(dumpfile_t));
-	}
-	
-	if (!label)
-	    continue;
-
-	/*
-	 * Skip this tape if we did it already.  Note that this would let
-	 * duplicate labels through, so long as they were in the same slot.
-	 * I'm over it, are you?
-	 */
-	if (!isafile) {
-	    for (tape_seen = seentapes; tape_seen;
-		 tape_seen = tape_seen->next) {
-		if (!strcmp(tape_seen->label, label) &&
-		    !strcmp(tape_seen->slotstr, curslot)){
-		    send_message(prompt_out, flags, their_features,
-				 "Saw repeat tape %s in slot %s",
-				 label, curslot);
-		    amfree(label);
-		    break;
-		}
-	    }
-	}
-
-	if(!label)
-	    continue;
-
-	if(!curslot)
-	    curslot = stralloc("<none>");
-
-	if(!isafile){
-	    fprintf(stderr, "Scanning %s (slot %s)\n", label, curslot);
-	    fflush(stderr);
-	}
-
-	tape_seen = alloc(SIZEOF(seentapes_t));
-	memset(tape_seen, '\0', SIZEOF(seentapes_t));
-
-	tape_seen->label = label;
-	tape_seen->slotstr = stralloc(curslot);
-	tape_seen->next = seentapes;
-	tape_seen->files = NULL;
-	seentapes = tape_seen;
-
-	/*
-	 * Start slogging through the tape itself.  If our tapelist (if we
-	 * have one) contains a list of files to restore, obey that instead
-	 * of checking for matching headers on all files.
-	 */
-
-	search_a_tape(cur_tapedev, prompt_out, flags, their_features,
-		      desired_tape, isafile, match_list, tape_seen,
-		      &file, &prev_rst_file, &tapestart, slot_num,
-		      &read_result);
-
-	fprintf(stderr, "%s: Search of %s complete\n",
-			get_pname(), tape_seen->label);
-	if (desired_tape) desired_tape = desired_tape->next;
-
-	/* only restore a single dump, if piping to stdout */
-	if (!headers_equal(&prev_rst_file, &file, 1) &&
-	    flags->pipe_to_fd == fileno(stdout))
-		break;
-
-    } while (desired_tape);
-
-    while (seentapes != NULL) {
-	seentapes_t *tape_seen = seentapes;
-	seentapes = seentapes->next;
-	while(tape_seen->files != NULL) {
-	    dumplist_t *temp_dump = tape_seen->files;
-	    tape_seen->files = temp_dump->next;
-	    amfree(temp_dump->file);
-	    amfree(temp_dump);
-	}
-	amfree(tape_seen->label);
-	amfree(tape_seen->slotstr);
-	amfree(tape_seen);
-	
+    if (tapelist) {
+        restore_from_tapelist(prompt_out, prompt_in, tapelist, dumpspecs,
+                              flags, their_features, cur_tapedev, use_changer,
+                              logstream);
+    } else {
+        restore_without_tapelist(prompt_out, prompt_in, dumpspecs, flags,
+                                 their_features, cur_tapedev,
+                                 (use_changer ? slots : -1),
+                                 logstream);
     }
 
     if(logstream && logstream != stderr && logstream != stdout){
@@ -1964,7 +2052,7 @@ new_rst_flags(void)
 
     memset(flags, 0, SIZEOF(rst_flags_t));
 
-    flags->fsf = 1;
+    flags->fsf = 0;
     flags->comp_type = COMPRESS_FAST_OPT;
     flags->inline_assemble = 1;
     flags->pipe_to_fd = -1;
@@ -1986,7 +2074,7 @@ check_rst_flags(
     if(!flags) return(-1);
 
     if(flags->compress && flags->leave_comp){
-	fprintf(stderr, "Cannot specify 'compress output' and 'leave compression alone' together\n");
+	g_fprintf(stderr, _("Cannot specify 'compress output' and 'leave compression alone' together\n"));
 	ret = -1;
     }
 
@@ -1994,28 +2082,28 @@ check_rst_flags(
 	struct stat statinfo;
 
 	if(flags->pipe_to_fd != -1){
-	    fprintf(stderr, "Specifying output directory and piping output are mutually exclusive\n");
+	    g_fprintf(stderr, _("Specifying output directory and piping output are mutually exclusive\n"));
 	    ret = -1;
 	}
 	if(stat(flags->restore_dir, &statinfo) < 0){
-	    fprintf(stderr, "Cannot stat restore target dir '%s': %s\n",
+	    g_fprintf(stderr, _("Cannot stat restore target dir '%s': %s\n"),
 		      flags->restore_dir, strerror(errno));
 	    ret = -1;
 	}
 	if((statinfo.st_mode & S_IFMT) != S_IFDIR){
-	    fprintf(stderr, "'%s' is not a directory\n", flags->restore_dir);
+	    g_fprintf(stderr, _("'%s' is not a directory\n"), flags->restore_dir);
 	    ret = -1;
 	}
     }
 
     if((flags->pipe_to_fd != -1 || flags->compress) &&
 	    (flags->delay_assemble || !flags->inline_assemble)){
-	fprintf(stderr, "Split dumps *must* be automatically reassembled when piping output or compressing/uncompressing\n");
+	g_fprintf(stderr, _("Split dumps *must* be automatically reassembled when piping output or compressing/uncompressing\n"));
 	ret = -1;
     }
 
     if(flags->delay_assemble && flags->inline_assemble){
-	fprintf(stderr, "Inline split assembling and delayed assembling are mutually exclusive\n");
+	g_fprintf(stderr, _("Inline split assembling and delayed assembling are mutually exclusive\n"));
 	ret = -1;
     }
 
@@ -2039,29 +2127,6 @@ free_rst_flags(
 }
 
 
-/*
- * Clean up after a match_list_t
- */
-void
-free_match_list(
-    match_list_t *	match_list)
-{
-    match_list_t *me;
-    match_list_t *prev = NULL;
-  
-    for(me = match_list; me; me = me->next){
-	/* XXX freeing these is broken? can't work out why */
-/*	amfree(me->hostname);
-	amfree(me->diskname);
-	amfree(me->datestamp);
-	amfree(me->level); */
-	amfree(prev);
-	prev = me;
-    }
-    amfree(prev);
-}
-
-
 printf_arglist_function3(
     void send_message,
     FILE *, prompt_out,
@@ -2073,13 +2138,13 @@ printf_arglist_function3(
     char linebuf[STR_SIZE];
 
     arglist_start(argp, format);
-    vsnprintf(linebuf, SIZEOF(linebuf)-1, format, argp);
+    g_vsnprintf(linebuf, SIZEOF(linebuf)-1, format, argp);
     arglist_end(argp);
 
-    fprintf(stderr,"%s\n", linebuf);
+    g_fprintf(stderr,"%s\n", linebuf);
     if (flags->amidxtaped && their_features &&
 	am_has_feature(their_features, fe_amrecover_message)) {
-	fprintf(prompt_out, "MESSAGE %s\r\n", linebuf);
+	g_fprintf(prompt_out, "MESSAGE %s\r\n", linebuf);
 	fflush(prompt_out);
     }
 }

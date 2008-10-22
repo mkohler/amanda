@@ -33,26 +33,7 @@
  */
 
 
-#include <amanda.h>
-
-#ifdef HAVE_CAM_LIKE_SCSI
-
-/*
-#ifdef HAVE_STDIO_H
-*/
-#include <stdio.h>
-/*
-#endif
-*/
-#ifdef HAVE_SYS_TYPES_H
-#include <sys/types.h>
-#endif
-#ifdef HAVE_SYS_STAT_H
-#include <sys/stat.h>
-#endif
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
+#include "amanda.h"
 
 #ifdef HAVE_CAMLIB_H
 # include <camlib.h>
@@ -97,28 +78,28 @@ int parse_btl(char *DeviceName,
   if (sscanf(p,"%d", path) != 1) {
       free(DeviceName);
       ChgExit("SCSI_OpenDevice",
-	"Path conversion error. Digits expected", FATAL);
+	_("Path conversion error. Digits expected"), FATAL);
   }
           
   if ((p = strtok(NULL,":")) == NULL) {
       free(DeviceName);
-      ChgExit("SCSI_OpenDevice", "target in Device Name not found", FATAL);
+      ChgExit("SCSI_OpenDevice", _("target in Device Name not found"), FATAL);
   }
 
   if (sscanf(p,"%d", target) != 1) {
       free(DeviceName);
       ChgExit("SCSI_OpenDevice",
-	"Target conversion error. Digits expected", FATAL);
+	_("Target conversion error. Digits expected"), FATAL);
   }
 
   if ((p = strtok(NULL,":")) == NULL) {
       free(DeviceName);
-      ChgExit("SCSI_OpenDevice", "lun in Device Name not found", FATAL);
+      ChgExit("SCSI_OpenDevice", _("lun in Device Name not found"), FATAL);
   }
   if (sscanf(p,"%d", lun) != 1) {
       free(DeviceName);
       ChgExit("SCSI_OpenDevice",
-	"LUN conversion error. Digits expected", FATAL);
+	_("LUN conversion error. Digits expected"), FATAL);
   }
 
   return 1;
@@ -191,7 +172,7 @@ int SCSI_OpenDevice(int ip)
         return(1);
       }
     } else { /* Device open failed */
-      DebugPrint(DEBUG_INFO, SECTION_SCSI,"##### STOP SCSI_OpenDevice open failed\n");
+      DebugPrint(DEBUG_INFO, SECTION_SCSI,_("##### STOP SCSI_OpenDevice open failed\n"));
       return(0);
     }
   }
@@ -238,7 +219,7 @@ int SCSI_ExecuteCommand(int DeviceFD,
   extern OpenFiles_T *pDev;
   union ccb *ccb;
   int ret;
-  uint32_t ccb_flags;
+  guint32 ccb_flags;
   OpenFiles_T *pwork = NULL;
 
   /* Basic sanity checks */
@@ -294,7 +275,7 @@ int SCSI_ExecuteCommand(int DeviceFD,
                 /* cbfncp */ NULL,
                 /* flags */ ccb_flags,
                 /* tag_action */ MSG_SIMPLE_Q_TAG,
-                /* data_ptr */ (u_int8_t*)DataBuffer,
+                /* data_ptr */ (guint8*)DataBuffer,
                 /* dxfer_len */ DataBufferLength,
                 /* sense_len */ SSD_FULL_SIZE,
                 /* cdb_len */ CDB_Length,
@@ -327,7 +308,7 @@ int SCSI_ExecuteCommand(int DeviceFD,
   /* ToDo add error handling */
   if ((ccb->ccb_h.status & CAM_STATUS_MASK) != CAM_REQ_CMP)
     {
-      dbprintf(("SCSI_ExecuteCommand return %d\n", (ccb->ccb_h.status & CAM_STATUS_MASK)));
+      dbprintf(_("SCSI_ExecuteCommand return %d\n"), (ccb->ccb_h.status & CAM_STATUS_MASK));
       return(SCSI_ERROR);
     }
 
@@ -361,7 +342,7 @@ int Tape_Ioctl( int DeviceFD, int command)
 
   if (ioctl(pDev[DeviceFD].fd , MTIOCTOP, &mtop) != 0)
     {
-      dbprintf(("Tape_Ioctl error ioctl %s\n", strerror(errno)));
+      dbprintf(_("Tape_Ioctl error ioctl %s\n"), strerror(errno));
       SCSI_CloseDevice(DeviceFD);
       return(-1);
     }
@@ -382,13 +363,13 @@ int Tape_Status( int DeviceFD)
 
   if (ioctl(pDev[DeviceFD].fd , MTIOCGET, &mtget) != 0)
   {
-     dbprintf(("Tape_Status error ioctl %s\n", strerror(errno)));
+     dbprintf(_("Tape_Status error ioctl %s\n"), strerror(errno));
      SCSI_CloseDevice(DeviceFD);
      return(-1);
   }
 
-  dbprintf(("ioctl -> mtget.mt_dsreg %lX\n",mtget.mt_dsreg));
-  dbprintf(("ioctl -> mtget.mt_erreg %lX\n",mtget.mt_erreg));
+  dbprintf("ioctl -> mtget.mt_dsreg %lX\n",mtget.mt_dsreg);
+  dbprintf("ioctl -> mtget.mt_erreg %lX\n",mtget.mt_erreg);
 
   /*
    * I have no idea what is the meaning of the bits in mt_erreg
@@ -426,7 +407,7 @@ int ScanBus(int print)
         {
           for (lun = 0; lun < 8; lun++)
             {
-              sprintf(pDev[count].dev, "%d:%d:%d", bus, target, lun);
+              g_sprintf(pDev[count].dev, "%d:%d:%d", bus, target, lun);
               pDev[count].inqdone = 0;
               if (OpenDevice(count, pDev[count].dev, "Scan", NULL))
                 {
@@ -438,45 +419,45 @@ int ScanBus(int print)
                     } else {
                       if (print)
                         {
-                          printf("bus:target:lun -> %s == ",pDev[count].dev);
+                          g_printf(_("bus:target:lun -> %s == "),pDev[count].dev);
                           
                           switch (pDev[count].inquiry->type)
                             {
                             case TYPE_DISK:
-                              printf("Disk");
+                              g_printf(_("Disk"));
                               break;
                             case TYPE_TAPE:
-                              printf("Tape");
+                              g_printf(_("Tape"));
                               break;
                             case TYPE_PRINTER:
-                              printf("Printer");
+                              g_printf(_("Printer"));
                               break;
                             case TYPE_PROCESSOR:
-                              printf("Processor");
+                              g_printf(_("Processor"));
                               break;
                             case TYPE_WORM:
-                              printf("Worm");
+                              g_printf(_("Worm"));
                               break;
                             case TYPE_CDROM:
-                              printf("Cdrom");
+                              g_printf(_("Cdrom"));
                               break;
                             case TYPE_SCANNER:
-                              printf("Scanner");
+                              g_printf(_("Scanner"));
                               break;
                             case TYPE_OPTICAL:
-                              printf("Optical");
+                              g_printf(_("Optical"));
                               break;
                             case TYPE_CHANGER:
-                              printf("Changer");
+                              g_printf(_("Changer"));
                               break;
                             case TYPE_COMM:
-                              printf("Comm");
+                              g_printf(_("Comm"));
                               break;
                             default:
-                              printf("unknown %d",pDev[count].inquiry->type);
+                              g_printf(_("unknown %d"),pDev[count].inquiry->type);
                               break;
                             }
-                          printf("\n");
+                          g_printf("\n");
                         }
                     } 
                 }
@@ -486,7 +467,6 @@ int ScanBus(int print)
     return 0;
 }
 
-#endif
 /*
  * Local variables:
  * indent-tabs-mode: nil

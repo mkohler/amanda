@@ -1,3 +1,59 @@
+Changes in release 2.6.0p2
+
+   * Bugs fix only:
+         o Various device-api fix
+         o Compilation on various platform
+         o others small fixes.
+
+Changes in release 2.6.0p1
+
+   * Bugs fix only:
+	 o amfetchdump -p
+	 o amtapetype crash
+	 o Fix DS_INCRONLY and FORCE_FULL
+	 o planner crash 
+	 o others small bugs
+
+Changes in release 2.6.0
+
+   * configure --disable-shared doesn't work because perl modules require
+     shared libraries.  Use configure --with-static-binaries to build
+     statically linked binaries.
+   * 'amverify' and 'amverifyrun' are deprecated and replaced with the
+     new, more flexible 'amcheckdump'
+   * 'amdd' and 'ammt' are deprecated.
+   * Some Amanda files are now installed in new "amanda/" subdirectories:
+     libraries are now installed in $libdir/amanda and internal programs
+     are now installed in $libexecdir/amanda. You can set --with-amlibdir
+     and --with-amlibexecdir if you don't want the amanda suffix.
+     If you mix 2.6.0 and earlier version with rsh/ssh auth, you need to
+     add an 'amandad_path' to the dumptype and to amanda-client.conf
+   * The amandates file, previously at /etc/amandates, is now at
+     $localstatedir/amanda/amandates.  You may want to move your existing
+     /etc/amandates when you upgrade Amanda.
+   * New 'amcryptsimple', 'amgpgcrypt' - encryption plugins based on gpg.
+   * New 'amserverconfig', 'amaddclient' - Initial Amanda configuration tools
+     these tools make assumptions, please see man page.
+   * Many bugs fixed and code rewrite/cleanup.
+     Speedup in 'amrecover find' and starting amrecover.
+   * glib is required to compile and run amanda.
+   * Device API: pluggable interface to storage devices, supporting tapes,
+     vtapes, RAIT, and Amazon S3
+   * New perl modules link directly to Amanda, to support writing Amanda
+     applications in Perl. Perl module are installed by default in the perl
+     installsitelib directory. It can be changed with
+     'configure --with-amperldir'.
+   * New 'local' security driver supports backups of the amanda server
+     without any network connection or other configuration.
+   * Almost 200 unit tests are available via 'make installcheck'.
+   * Amanda configuration file changes
+         o amanda.conf changes
+               + flush-threshold-dumped
+               + flush-threshold-scheduled
+               + taperflush
+               + device_property
+               + usetimestamps default to yes
+
 Changes in release 2.5.2p1
 
    * Many bugs fixed
@@ -24,8 +80,6 @@ Changes in release 2.5.2
                  see all debug_* config option
                + tapetype 'readblocksize', if maxtapeblocksize is set too
                  larger for your hardware
-   * Amanda command changes
-         o amadmin: new 'holding list' and 'holding delete' subcommand.
 
 Changes in release 2.5.1p3
 

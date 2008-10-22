@@ -46,7 +46,8 @@ typedef enum logtype_e {
     L_ERROR, L_WARNING,	L_INFO, L_SUMMARY,	 /* information messages */
     L_START, L_FINISH,				     /* start/end of run */
     L_DISK,							 /* disk */
-    L_SUCCESS, L_PARTIAL, L_FAIL, L_STRANGE,	    /* the end of a dump */
+    /* End of a dump: */
+    L_DONE, L_PART, L_PARTPARTIAL, L_SUCCESS, L_PARTIAL, L_FAIL, L_STRANGE,
     L_CHUNK, L_CHUNKSUCCESS,                            /* ... continued */
     L_STATS,						   /* statistics */
     L_MARKER,					  /* marker for reporter */
@@ -68,10 +69,9 @@ extern char *curstr;
 extern char *program_str[];
 
 void logerror(char *);
-void log_add(logtype_t typ, char * format, ...)
-    __attribute__ ((format (printf, 2, 3)));
-char* log_genstring(logtype_t typ, char *pname, char * format, ...);
-/*    __attribute__ ((format (printf, 3, 4))); */
+void log_add(logtype_t typ, char * format, ...) G_GNUC_PRINTF(2, 3);
+char* log_genstring(logtype_t typ, char *pname, char * format, ...)
+    		    G_GNUC_PRINTF(3, 4);
 void log_start_multiline(void);
 void log_end_multiline(void);
 void log_rename(char *datestamp);

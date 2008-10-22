@@ -30,19 +30,19 @@
 
 #include "amanda.h"
 #include "util.h"
+#include "timestamp.h"
+#include "arglist.h"
+#include "file.h"
 
 static int mk1dir(const char *, mode_t, uid_t, gid_t);
 static void areads_getbuf(const char *s, int l, int fd);
-
-uid_t client_uid = (uid_t) -1;
-gid_t client_gid = (gid_t) -1;
+static char *original_cwd = NULL;
 
 /* Make a directory (internal function).
-** If the directory already exists then we pretend we created it.
-** XXX - I'm not sure about the use of the chown() stuff.  On most systems
-**       it will do nothing - only root is permitted to change the owner
-**       of a file.
-*/
+ * If the directory already exists then we pretend we created it.
+ *
+ * The uid and gid are used only if we are running as root.
+ */
 static int
 mk1dir(
     const char *dir, /* directory to create */
@@ -52,17 +52,23 @@ mk1dir(
 {
     int rc;	/* return code */
 
-    if((rc = mkdir(dir, mode)) == 0) {
-	if ((rc = chown(dir, uid, gid)) == 0) { /* mkdir() affected by the umask */
-	    rc = chmod(dir, mode);
-	}
-    } else {			/* maybe someone beat us to it */
+    rc = mkdir(dir, mode);
+    if(rc != 0) {
 	int serrno;
 
 	serrno = errno;
-	if(access(dir, F_OK) != 0)
-	    rc = -1;
-	errno = serrno;	/* pass back the real error */
+	if(access(dir, F_OK) == 0)
+	    rc = 0; /* someone just beat us to it, so it's OK */
+	errno = serrno;
+    }
+
+    /* mkdir is affected by umask, so set the mode bits manually */
+    if (rc == 0) {
+	rc = chmod(dir, mode);
+    }
+
+    if (rc == 0 && geteuid() == 0) {
+	rc = chown(dir, uid, gid);
     }
 
     return rc;
@@ -161,9 +167,6 @@ rmpdir(
  *
  * void safe_cd (void)
  *
- * entry:	client_uid and client_gid set to CLIENT_LOGIN information
- * exit:	none
- *
  * Set a default umask of 0077.
  *
  * Create the Amada debug directory (if defined) and the Amanda temp
@@ -186,25 +189,25 @@ safe_cd(void)
 {
     int			cd_ok = 0;
     struct stat		sbuf;
-    struct passwd	*pwent;
     char		*d;
-
-    if(client_uid == (uid_t) -1 && (pwent = getpwnam(CLIENT_LOGIN)) != NULL) {
-	client_uid = pwent->pw_uid;
-	client_gid = pwent->pw_gid;
-	endpwent();
-    }
+    uid_t		client_uid = get_client_uid();
+    gid_t		client_gid = get_client_gid();
 
     (void) umask(0077);
+
+    /* stash away the current directory for later reference */
+    if (original_cwd == NULL) {
+	original_cwd = g_get_current_dir();
+    }
 
     if (client_uid != (uid_t) -1) {
 #if defined(AMANDA_DBGDIR)
 	d = stralloc2(AMANDA_DBGDIR, "/.");
-	(void) mkpdir(d, (mode_t)02700, client_uid, client_gid);
+	(void) mkpdir(d, (mode_t)0700, client_uid, client_gid);
 	amfree(d);
 #endif
 	d = stralloc2(AMANDA_TMPDIR, "/.");
-	(void) mkpdir(d, (mode_t)02700, client_uid, client_gid);
+	(void) mkpdir(d, (mode_t)0700, client_uid, client_gid);
 	amfree(d);
     }
 
@@ -256,7 +259,7 @@ safe_fd(
 {
     int			fd;
 
-    for(fd = 0; fd < FD_SETSIZE; fd++) {
+    for(fd = 0; fd < (int)FD_SETSIZE; fd++) {
 	if (fd < 3) {
 	    /*
 	     * Open three file descriptors.  If one of the standard
@@ -269,7 +272,7 @@ safe_fd(
 	     */
 	    if (fcntl(fd, F_GETFD) == -1) {
 		if (open("/dev/null", O_RDWR) == -1) {
-		   fprintf(stderr, "/dev/null is inaccessable: %s\n",
+		   g_fprintf(stderr, _("/dev/null is inaccessable: %s\n"),
 		           strerror(errno));
 		   exit(1);
 		}
@@ -319,7 +322,7 @@ save_core(void)
         char suffix[2];
         char *old, *new;
 
-	ts = construct_datestamp((time_t *)&sbuf.st_mtime);
+	ts = get_datestamp_from_time(sbuf.st_mtime);
         suffix[0] = 'z';
         suffix[1] = '\0';
         old = vstralloc("core", ts, suffix, NULL);
@@ -346,11 +349,13 @@ save_core(void)
 /*
 ** Sanitise a file name.
 ** 
-** Convert all '/' characters to '_' so that we can use,
+** Convert all '/', ':', and '\' characters to '_' so that we can use,
 ** for example, disk names as part of file names.
 ** Notes: 
 **  - there is a many-to-one mapping between input and output
-**  - Only / and '\0' are disallowed in filenames by POSIX...
+**  - Only / and '\0' are disallowed in filenames by POSIX, but Windows
+**    disallows ':' and '\' as well.  Furthermore, we use ':' as a 
+**    delimiter at other points in Amanda.
 */
 char *
 sanitise_filename(
@@ -366,7 +371,7 @@ sanitise_filename(
     d = buf;
     s = inp;
     while((ch = *s++) != '\0') {
-	if(ch == '/') {
+	if((ch == '/') || (ch == ':') || (ch == '\\')) {
 	    ch = '_';	/* convert "bad" to "_" */
 	}
 	*d++ = (char)ch;
@@ -404,6 +409,17 @@ old_sanitise_filename(
     *d = '\0';
 
     return buf;
+}
+
+void
+canonicalize_pathname(char *pathname, char *result_buf)
+{
+#ifdef __CYGWIN__
+    cygwin_conv_to_full_posix_path(pathname, result_buf);
+#else
+    strncpy(result_buf, pathname, PATH_MAX-1);
+    result_buf[PATH_MAX-1] = '\0';
+#endif
 }
 
 /*
@@ -623,8 +639,6 @@ debug_areads (
     size_t size;
     ssize_t r;
 
-    malloc_enter(dbmalloc_caller_loc(s, l));
-
     if(fd < 0) {
 	errno = EBADF;
 	return NULL;
@@ -657,7 +671,6 @@ debug_areads (
 	    if(r == 0) {
 		errno = 0;		/* flag EOF instead of error */
 	    }
-	    malloc_leave(dbmalloc_caller_loc(s, l));
 	    return NULL;
 	}
 	endptr[r] = '\0';		/* we always leave room for this */
@@ -670,8 +683,133 @@ debug_areads (
     memmove(buffer, nl, size);
     areads_buffer[fd].endptr = buffer + size;
     areads_buffer[fd].endptr[0] = '\0';
-    malloc_leave(dbmalloc_caller_loc(s, l));
     return line;
+}
+
+int robust_open(const char * pathname, int flags, mode_t mode) {
+    int result = -1;
+    int e_busy_count = 0;
+
+    for (;;) {
+        if (flags & O_CREAT) {
+            result = open(pathname, flags, mode);
+        } else {
+            result = open(pathname, flags);
+        }
+
+        if (result < 0) {
+#ifdef EBUSY
+            /* EBUSY is a tricky one; sometimes it is synonymous with
+               EINTR, but sometimes it means the device is open
+               elsewhere (e.g., with a tape drive on Linux). We take
+               the middle path and retry, but with limited
+               patience. */
+            if (errno == EBUSY && e_busy_count < 10) {
+                e_busy_count ++;
+                continue;
+            } else
+#endif
+            if (0
+                /* Always retry on EINTR; if the caller did
+                   not specify non-blocking mode, then also retry on
+                   EAGAIN or EWOULDBLOCK. */
+#ifdef EINTR
+                || errno == EINTR
+#endif
+                || ( 1
+#ifdef O_NONBLOCK
+                  && !(flags & O_NONBLOCK)
+#endif
+                  && ( 0
+#ifdef EAGAIN
+                       || errno == EAGAIN
+#endif
+#ifdef EWOULDBLOCK
+                       || errno == EWOULDBLOCK
+#endif
+                       ) ) ) {
+                /* Try again */
+                continue;
+            } else {
+                /* Failure. */
+                return result;
+            }
+        } else {
+            break;
+        }
+    }
+
+#ifdef F_SETFD
+    if (result >= 0) {
+        fcntl(result, F_SETFD, 1); /* Throw away result. */
+    }
+#endif
+
+    return result;
+}
+
+int robust_close(int fd) {
+    for (;;) {
+        int result;
+
+        result = close(fd);
+        if (result != 0 && (0
+#ifdef EINTR
+                            || errno == EINTR
+#endif
+#ifdef EBUSY
+                            || errno == EBUSY
+#endif
+#ifdef EAGAIN
+                            || errno == EAGAIN
+#endif
+#ifdef EWOULDBLOCK
+                            || errno == EWOULDBLOCK
+#endif
+                            )) {
+            continue;
+        } else {
+            return result;
+        }
+    }
+}
+
+uid_t
+get_client_uid(void)
+{
+    static uid_t client_uid = (uid_t) -1;
+    struct passwd      *pwent;
+
+    if(client_uid == (uid_t) -1 && (pwent = getpwnam(CLIENT_LOGIN)) != NULL) {
+	client_uid = pwent->pw_uid;
+	endpwent();
+    }
+
+    return client_uid;
+}
+
+gid_t
+get_client_gid(void)
+{
+    static gid_t client_gid = (gid_t) -1;
+    struct passwd      *pwent;
+
+    if(client_gid == (gid_t) -1 && (pwent = getpwnam(CLIENT_LOGIN)) != NULL) {
+	client_gid = pwent->pw_gid;
+	endpwent();
+    }
+
+    return client_gid;
+}
+
+char *
+get_original_cwd(void)
+{
+    if (original_cwd == NULL) {
+	original_cwd = g_get_current_dir();
+    }
+
+    return original_cwd;
 }
 
 #ifdef TEST
@@ -687,6 +825,15 @@ main(
 	char *top;
 	char *file;
 	char *line;
+
+	/*
+	 * Configure program for internationalization:
+	 *   1) Only set the message locale for now.
+	 *   2) Set textdomain for all amanda related programs to "amanda"
+	 *      We don't want to be forced to support dozens of message catalogs
+	 */  
+	setlocale(LC_MESSAGES, "C");
+	textdomain("amanda"); 
 
 	safe_fd(-1, 0);
 
@@ -710,25 +857,25 @@ main(
 		name = argv[3];
 	}
 
-	fprintf(stderr, "Create parent directories of %s ...", name);
+	g_fprintf(stderr, _("Create parent directories of %s ..."), name);
 	rc = mkpdir(name, (mode_t)02777, (uid_t)-1, (gid_t)-1);
 	if (rc == 0)
-		fprintf(stderr, " done\n");
+		g_fprintf(stderr, " done\n");
 	else {
-		perror("failed");
+		perror(_("failed"));
 		return rc;
 	}
 
-	fprintf(stderr, "Delete %s back to %s ...", name, top);
+	g_fprintf(stderr, _("Delete %s back to %s ..."), name, top);
 	rc = rmpdir(name, top);
 	if (rc == 0)
-		fprintf(stderr, " done\n");
+		g_fprintf(stderr, _(" done\n"));
 	else {
-		perror("failed");
+		perror(_("failed"));
 		return rc;
 	}
 
-	fprintf(stderr, "areads dump of %s ...", file);
+	g_fprintf(stderr, _("areads dump of %s ..."), file);
 	if ((fd = open (file, 0)) < 0) {
 		perror(file);
 		return 1;
@@ -739,10 +886,11 @@ main(
 		amfree(line);
 	}
 	aclose(fd);
-	fprintf(stderr, " done.\n");
+	g_fprintf(stderr, _(" done.\n"));
 
-	fprintf(stderr, "Finished.\n");
+	g_fprintf(stderr, _("Finished.\n"));
 	return 0;
 }
 
 #endif
+

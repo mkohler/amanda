@@ -1,11 +1,7 @@
 ## Process this file with automake to produce Makefile.in
 AUTOMAKE_OPTIONS = 1.4 foreign
 
-ACINCLUDE_M4 = $(srcdir)/acinclude.m4
-ACINCLUDE_M4I = $(srcdir)/config/acinclude.m4i
-LIBTOOL_M4I = $(srcdir)/config/libtool.m4i
-GNULIB_M4I  = $(srcdir)/config/gnulib.m4i
-ACINCLUDE_M4_DEPS = $(GNULIB_M4I) $(ACINCLUDE_M4I) $(LIBTOOL_M4I)
+ACLOCAL_AMFLAGS = --force -I . -I config -I config/gettext-macros -I config/gnulib -I config/amanda -I config/macro-archive
 
 if WANT_CLIENT
 CLIENT_SUBDIRS = client-src dumper-src
@@ -14,7 +10,7 @@ if WANT_TAPE
 TAPE_SUBDIRS = tape-src
 endif
 if WANT_SERVER
-SERVER_SUBDIRS = server-src changer-src
+SERVER_SUBDIRS = device-src server-src changer-src
 endif
 if WANT_RESTORE
 RESTORE_SUBDIRS = restore-src
@@ -37,11 +33,18 @@ SUBDIRS = \
 	$(RESTORE_SUBDIRS) \
 	$(RECOVER_SUBDIRS) \
 	$(PLOT_SUBDIRS) \
-	man docs example
+	perl \
+	po \
+	man \
+	example \
+	packaging \
+	installcheck
 
 pkgdata_DATA = \
-	ReleaseNotes			\
-	COPYRIGHT
+	ReleaseNotes	\
+	COPYRIGHT	\
+	NEWS		\
+	ChangeLog
 
 EXTRA_DIST = $(SNAPSHOT_STAMP) \
 	$(pkgdata_DATA)			\
@@ -64,11 +67,9 @@ EXTRA_DIST = $(SNAPSHOT_STAMP) \
 	contrib/gsc/ucfggsc.c		\
 	patches/regex-3.6alpha.patch	\
 	patches/samba-largefs.patch	\
-	patches/tar-1.12.patch
-
-$(ACINCLUDE_M4): $(ACINCLUDE_M4_DEPS)
-	@-rm -f $@
-	@cat $(ACINCLUDE_M4_DEPS) > $@
+	patches/tar-1.12.patch		\
+	UPGRADING			\
+	DEVELOPING
 
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status --recheck
@@ -96,3 +97,7 @@ lint:
 
 dist-hook:
 	find $(distdir)/. -name '*.test.c' -exec rm {} \;
+
+# ensure that configure gets the right arguments for distcheck; this keeps the
+# user/group through to the distcheck, rather than defaulting back to 'amanda'.
+DISTCHECK_CONFIGURE_FLAGS = --with-user=$(CLIENT_LOGIN) --with-group=$(SETUID_GROUP) --with-owner=$(BINARY_OWNER) --disable-installperms --without-force-uid --with-tmpdir=$(AMANDA_TMPDIR) SINGLE_USERID=yes

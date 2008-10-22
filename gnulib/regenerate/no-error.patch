@@ -7,7 +7,11 @@ Index: gnulib/Makefile.am
  
  AM_CPPFLAGS =
 +if GCC_COMPILER
+<<<<<<< HEAD:gnulib/regenerate/no-error.patch
 +  AM_CFLAGS += -Wno-error
+=======
++  AM_CFLAGS = -Wno-error -Wno-sign-compare
+>>>>>>> fb2bd066c2f8b34addafe48d62550e3033a59431:gnulib/regenerate/no-error.patch
 +endif
  
  noinst_LTLIBRARIES += libgnu.la

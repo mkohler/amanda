@@ -324,11 +324,7 @@ REPORT=$TEMP/report; rm -f $REPORT
 TAPELIST=
 EXITSTAT=$TEMP/amrecover.exit; rm -rf $EXITSTAT
 
-<<<<<<< HEAD:server-src/amverify.sh.in
-trap 'report "aborted!"; echo "aborted!" >> $DEFECTS; sendreport; rm -fr $TEMP; exit 1' EXIT
-=======
 trap 'report "aborted!"; echo `_ 'aborted!'` >> $DEFECTS; sendreport; rm -fr $TEMP; exit 1' 1 2 3 4 5 6 7 8 10 12 13 14 15
->>>>>>> upstream:server-src/amverify.sh
 
 $Echoe "Defects file is $DEFECTS"
 report "amverify $CONFIG"
@@ -359,33 +355,6 @@ while [ $SLOT -lt $SLOTS ]; do
 	report "Using device $DEVICE"
 	$Echon "Waiting for device to go ready..."
 	count=1800
-<<<<<<< HEAD:server-src/amverify.sh.in
-	until eval $DEVICE_READY > $TEMP/ammt.out 2>&1; do
-		[ count -lt 0 ] \
-			&& report "Device not ready" \
-			&& report "`cat $TEMP/ammt.out`" \
-			&& report cat $TEMP/ammt.out >> $DEFECTS \
-			&& break;
-		sleep 3
-		count=`expr $count - 3`
-	done
-	$Echon "Rewinding..."
-	ERRORS=0
-	until $MT $MTF $DEVICE rewind > $TEMP/ammt.out 2>&1; do
-		RESULT=`grep "No medium found" $TEMP/ammt.out`
-		[ X"$RESULT" != X"" ] \
-			&& report "** Error rewinding tape" \
-			&& report "`cat $TEMP/ammt.out`" \
-			&& cat $TEMP/ammt.out >> $DEFECTS \
-			&& break
-		ERRORS=`expr $ERRORS + 1`
-		[ $ERRORS -gt 100 ] \
-			&& report "** Error rewinding tape" \
-			&& report "`cat $TEMP/ammt.out`" \
-			&& cat $TEMP/ammt.out >> $DEFECTS \
-			&& break
-		sleep 3
-=======
         while true; do
             amdevcheck_output="`amdevcheck $CONFIG $DEVICE`"
             amdevcheck_status=$?
@@ -404,7 +373,6 @@ while [ $SLOT -lt $SLOTS ]; do
                     break;
                 fi
             fi
->>>>>>> upstream:server-src/amverify.sh
 	done
 	$Echon "Processing label..."
         amtape_output="`amtape $CONFIG current 2>&1`";
@@ -433,31 +401,6 @@ while [ $SLOT -lt $SLOTS ]; do
 	ERG=0
 	ERRORS=0
 	while [ $ERG = 0 ]; do
-<<<<<<< HEAD:server-src/amverify.sh.in
-		if [ $Echon = echon ]; then
-			$Echon "Waiting for device to go ready..."
-		fi
-		count=1800
-		until eval $DEVICE_READY > $TEMP/ammt.out 2>&1; do
-			[ count -lt 0 ] \
-				&& report "Device not ready" \
-				&& report "`cat $TEMP/ammt.out`" \
-				&& report cat $TEMP/ammt.out >> $DEFECTS \
-				&& break;
-			sleep 3
-			count=`expr $count - 3`
-		done
-		if [ $Echon = echon ]; then
-			$Echon "Reading..."
-		fi
-		RESULT=`$AMRESTORE -h -p $DEVICE 2> $TEMP/amrestore.out \
-			| doonefile 2> $TEMP/onefile.errors`
-		FILE=`grep restoring $TEMP/amrestore.out \
-			| sed 's/^.*restoring //'`
-		EOF=`grep "reached end of tape" $TEMP/amrestore.out`
-		EOI=`grep "reached end of information" $TEMP/amrestore.out`
-		# amrestore:   0: restoring sundae._mnt_sol1_usr.19961127.1
-=======
 	        FILENO=`expr $FILENO + 1`
 #            { cat <<EOF; dd if=/dev/zero bs=32k count=1; } | doonefile
 #AMANDA: FILE 20070925205916 localhost /boot  lev 0 comp N program /bin/tar
@@ -469,7 +412,6 @@ while [ $SLOT -lt $SLOTS ]; do
 			| doonefile 2> $TEMP/onefile.errors`
 		FILE=`grep restoring $TEMP/amrestore.out \
 			| sed 's/^.*restoring //'`
->>>>>>> upstream:server-src/amverify.sh
 		if [ X"$FILE" != X"" -a X"$RESULT" = X"0" ]; then
 			report "Checked $FILE"
 		elif [ X"$FILE" != X"" -a X"$RESULT" = X"500" ]; then

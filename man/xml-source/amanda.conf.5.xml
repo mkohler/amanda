@@ -232,15 +232,10 @@ with damaged or misplaced tapes or schedule adjustments that call for slight adj
   <term><emphasis remap='B'>usetimestamps</emphasis>
 	<emphasis remap='I'> bool</emphasis></term>
     <listitem>
-      <para>Default: <emphasis remap='B'>No</emphasis>.
-By default, Amanda can only track at most one run per calendar day. When
-this option is enabled, however, Amanda can track as many runs as you care
-to make.
-      </para>
-      <para>
-<emphasis remap='B'>WARNING</emphasis>: This option is not backward-compatible.
-Do not enable it if you intend to downgrade your server installation to
-Amanda community edition 2.5.0
+      <para>Default: <emphasis remap='B'>Yes</emphasis>.
+This option allows Amanda to track multiple runs per calendar
+day. The only reason one might disable it is that Amanda versions before 2.5.1
+can't read logfiles written when this option was enabled.
       </para>
     </listitem>
   </varlistentry>
@@ -288,6 +283,7 @@ See the
 option.</para>
   </listitem>
   </varlistentry>
+
   <varlistentry>
   <term><emphasis remap='B'>tapedev</emphasis> string</term>
   <listitem>
@@ -323,15 +319,27 @@ option set to
   </varlistentry>
 
   <varlistentry>
-  <term><emphasis remap='B'>rawtapedev</emphasis> string</term>
+  <term><emphasis remap='B'>device_property</emphasis> string string</term>
   <listitem>
-<para>Default:
-<filename>null:</filename>.
-The path name of the raw tape device.
-This is only used if &A; is compiled for Linux machines with floppy tapes
-and is needed for QIC volume table operations.</para>
+<para>These options can set various device properties, including block size,
+maximum volume usage, authentication information, hardware feature support,
+and more.Specifics of how properties are used are device-dependent, though
+some common properties are supported across multiple device drivers.</para>
+
+<para> Both strings are quoted; the first string contains the name of
+the property to set, and the second contains its value. For example, to set
+a fixed block size of 128k, do:</para><programlisting>device_property "BLOCK_SIZE" "131072"</programlisting>
+<para></para>
+<para>The order in which device properties are set is as follows:
+<orderedlist><listitem><para>Tapetype parameters, including length, blocksize,
+readblocksize, file-pad, are translated into device properties and set
+accordingly.</para></listitem>
+<listitem><para>Device properties from any device_property configuration directives
+are set, in the order they appear in the configuration file.</para></listitem>
+</orderedlist></para>
   </listitem>
   </varlistentry>
+
   <varlistentry>
   <term><emphasis remap='B'>tpchanger</emphasis> string</term>
   <listitem>
@@ -507,15 +515,14 @@ will wait before it fails with a data timeout error.</para>
   <listitem>
 <para>Default:
 <emphasis remap='I'>300 seconds</emphasis>.
-Amount of time per disk on a given client that the
-<emphasis remap='B'>planner</emphasis>
-step of
-<command>amdump</command>
-will wait to get the dump size estimates.
-For instance, with the default of 300 seconds and four disks on client A, 
-<emphasis remap='B'>planner</emphasis>
-will wait up to 20 minutes for that machine.
-A negative value will be interpreted as a total amount of time to wait
+Amount of time per estimate on a given client that the
+<emphasis remap='B'>planner</emphasis> step of
+<command>amdump</command> will wait to get the dump size estimates
+(note: Amanda runs up to 3 estimates for each DLE).  For instance,
+with the default of 300 seconds and four DLE's, each estimating level
+0 and level 1 on client A, <emphasis remap='B'>planner</emphasis>
+will wait up to 40 minutes for that machine.  A negative value will
+be interpreted as a total amount of time to wait
 per client instead of per disk.</para>
   </listitem>
   </varlistentry>
@@ -542,7 +549,7 @@ How many times the server will resend a REQ packet if it doesn't get the ACK pac
   <term><emphasis remap='B'>netusage</emphasis> int</term>
   <listitem>
 <para>Default:
-<emphasis remap='I'>300 Kbps</emphasis>.
+<emphasis remap='I'>8000 Kbps</emphasis>.
 The maximum network bandwidth allocated to &A;, in Kbytes per second.
 See also the
 <emphasis remap='B'>interface</emphasis>
@@ -767,18 +774,26 @@ file.
   </listitem>
   </varlistentry>
   <varlistentry>
+  <term><emphasis remap='B'>device_output_buffer_size</emphasis> <emphasis remap='I'> int</emphasis></term>
+  <listitem>
+<para>Default:
+<literal>640k</literal>.
+Controls the amount of memory used by &A;
+to hold data as it is read from the network or disk before it is written to
+the output device. Higher values may be
+useful on fast tape drives and optical media.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
   <term><emphasis remap='B'>tapebufs</emphasis> <emphasis remap='I'> int</emphasis></term>
   <listitem>
 <para>Default:
 <literal>20</literal>.
-The number of buffers used by the
-<emphasis remap='B'>taper</emphasis>
-process run by
-<command>amdump</command>
-and
-<emphasis remap='B'>amflush</emphasis>
-to hold data as it is read from the network or disk before it is written to tape.
-Each buffer is a little larger than 32 KBytes and is held in a shared memory region.</para>
+This option is deprecated; use
+the <emphasis remap='B'>device_output_buffer_size</emphasis> directive
+instead. <emphasis remap='B'>tapebufs</emphasis> works the same way,
+but the number specified is multiplied by the device blocksize prior
+to use.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -883,7 +898,9 @@ with one space before it.</para>
 <para>Default:
 <emphasis remap='I'>none</emphasis>.
 The name of an &A; configuration file to include within the current file.
-Useful for sharing dumptypes, tapetypes and interface definitions among several configurations.</para>
+Useful for sharing dumptypes, tapetypes and interface definitions among several configurations.
+Relative pathnames are relative to the configuration directory.
+</para>
   </listitem>
   </varlistentry>
 
@@ -969,11 +986,93 @@ Debug level of the taper process</para>
   </varlistentry>
 
   <varlistentry>
+  <term><emphasis remap='B'>flush-threshold-dumped</emphasis> int</term>
+  <listitem>
+<para>Default: <emphasis remap='I'>0</emphasis>.
+  &A; will not begin writing data to a new volume until the amount of
+  data on the holding disk is at least this percentage of the volume
+  size. In other words, &A; will not begin until the
+  inequality <inlineequation><mathphrase>h &lt; t &#215;
+  d</mathphrase></inlineequation> is satisfied,
+  where <mathphrase>h</mathphrase> is the amount of data on the
+  holding disk, <mathphrase>t</mathphrase> is the capacity of a
+  volume, and <mathphrase>d</mathphrase> is this parameter, expressed as a
+  percentage.</para>
+<para> Needless to say, your holding disk must be big enough
+  that this criterion could be satisfied. If the holding disk cannot
+  be used for a particular dump (because, for example, there is no
+  remaining holding space) then &A; will disregard the constraint
+  specified by this setting and start a new volume anyway. Once
+  writing to a volume has begun, this constraint is not applied unless
+  and until a new volume is needed.</para>
+<para> The value of this parameter may not exceed than that of
+  the <emphasis remap='B'>flush-threshold-scheduled</emphasis>
+  parameter.</para>
+  </listitem>
+  </varlistentry>
+
+  <varlistentry>
+  <term><emphasis remap='B'>flush-threshold-scheduled</emphasis> int</term>
+  <listitem>
+<para>Default: <emphasis remap='I'>0</emphasis>.
+  &A; will not begin writing data to a new volume until the sum of the
+  amount of data on the holding disk and the estimated amount of data
+  remaining to be dumped during this run is at least this percentage
+  of the volume size. In other words, &A; will not begin until the
+  inequality <inlineequation><mathphrase>h + s &lt; t &#215;
+  d</mathphrase></inlineequation> is satisfied,
+  where <mathphrase>h</mathphrase> is the amount of data on the
+  holding disk, <mathphrase>s</mathphrase> is the total amount of
+  data scheduled for this run but not dumped
+  yet, <mathphrase>t</mathphrase> is the capacity of a volume,
+  and <mathphrase>d</mathphrase> is this parameter, expressed as a
+  percentage.</para>
+<para>  Needless to say, your holding disk must be big enough
+  that this criterion could be satisfied. If the holding disk cannot
+  be used for a particular dump (because, for example, there is no
+  remaining holding space) then &A; will disregard the constraint
+  specified by this setting and start a new volume anyway.  Once
+  writing to a volume has begun, this constraint is not applied unless
+  and until a new volume is needed.</para>
+<para> The value of this parameter may not be less than that of
+  the <emphasis remap='B'>flush-threshold-dumped</emphasis>
+  or <emphasis remap='B'>taperflush</emphasis> parameters.</para>
+  </listitem>
+  </varlistentry>
+
+<!-- the entity '#215' below is U+00D7 MULTIPLICATION SIGN; the 'times' entity
+     is not as portable as one might hope. -->
+  <varlistentry>
+  <term><emphasis remap='B'>taperflush</emphasis> int</term>
+  <listitem>
+<para>Default: <emphasis remap='I'>0</emphasis>.
+  At the end of a run, &A; will start a new tape to flush remaining
+  data if there is more data on the holding disk at the end of a run
+  than this setting allows; the amount is specified as a percentage of
+  the capacity of a single
+  volume. In other words, at the end of a run, &A; will begin
+  a new tape if the 
+  inequality <inlineequation><mathphrase>h &lt; t &#215;
+  f</mathphrase></inlineequation> is satisfied,
+  where <mathphrase>h</mathphrase> is the amount of data remaining on the
+  holding disk from this or previous runs, <mathphrase>t</mathphrase>
+  is the capacity of a volume,
+  and <mathphrase>f</mathphrase> is this parameter, expressed as a
+  percentage.</para>
+<para> The value of this parameter may not exceed that of
+  the <emphasis remap='B'>flush-threshold-scheduled</emphasis>
+  parameter.; <emphasis remap='B'>autoflush</emphasis> must be set to 'yes' if
+ <emphasis remap='B'>taperflush</emphasis> is greater than 0.</para>
+  </listitem>
+  </varlistentry>
+
+  <varlistentry>
   <term><emphasis remap='B'>reserved-udp-port</emphasis> int,int</term>
   <listitem>
 <para>Default: --with-udpportrange or 
 <emphasis remap='I'>512,1023</emphasis>.
-Reserved udp port that will be used (bsd, bsdudp)</para>
+Reserved udp port that will be used (bsd, bsdudp).
+Range is inclusive.</para>
   </listitem>
   </varlistentry>
 
@@ -982,7 +1081,8 @@ Reserved udp port that will be used (bsd, bsdudp)</para>
   <listitem>
 <para>Default: --with-low-tcpportrange or 
 <emphasis remap='I'>512,1023</emphasis>.
-Reserved tcp port that will be used (bsdtcp)</para>
+Reserved tcp port that will be used (bsdtcp).
+Range is inclusive.</para>
   </listitem>
   </varlistentry>
 
@@ -990,8 +1090,9 @@ Reserved tcp port that will be used (bsdtcp)</para>
   <term><emphasis remap='B'>unreserved-tcp-port</emphasis> int,int</term>
   <listitem>
 <para>Default: --with-tcpportrange or 
-<emphasis remap='I'>1025,65536</emphasis>.
-Unreserved tcp port that will be used (bsd, bsdudp)</para>
+<emphasis remap='I'>1024,65535</emphasis>.
+Unreserved tcp port that will be used (bsd, bsdudp).
+Range is inclusive.</para>
   </listitem>
   </varlistentry>
 
@@ -1133,6 +1234,8 @@ tcp connection for all data stream.</para>
 authorization.</para>
 <para><emphasis remap='B'>krb5</emphasis> to use Kerberos-V
 authorization.</para>
+<para><emphasis remap='B'>local</emphasis>, if the client is the server, it 
+doesn't require authencation setup.</para>
 <para><emphasis remap='B'>rsh</emphasis> to use rsh
 authorization.</para>
 <para><emphasis remap='B'>ssh</emphasis> to use OpenSSH
@@ -1682,10 +1785,7 @@ The value should be hh*100+mm, e.g. 6:30PM (18:30) would be entered as
   <term><emphasis remap='B'>incronly</emphasis></term>
   <listitem>
   <para>Only do incremental dumps. <command>amadmin force</command> should be used to tell
-  &A; that a full dump has been performed off-line, so that it resets to level 1.
-  It is similar to skip-full, but with incronly full dumps may be scheduled manually.
-  Unfortunately, it appears that &A; will perform full backups with this configuration,
-  which is probably a bug.</para>
+  &A; that a full dump has been performed off-line, so that it resets to level 1.</para>
   </listitem>
   </varlistentry>
   </variablelist>
@@ -2003,7 +2103,7 @@ A comment string describing this set of network information.</para>
   <term><emphasis remap='B'>use</emphasis> <emphasis remap='I'> int</emphasis></term>
   <listitem>
 <para>Default:
-<emphasis remap='I'>300 Kbps</emphasis>.
+<emphasis remap='I'>8000 Kbps</emphasis>.
 The speed of the interface in Kbytes per second.</para>
   </listitem>
   </varlistentry>
@@ -2029,7 +2129,9 @@ At the moment, this is of little use.</para>
 <citerefentry><refentrytitle>amanda-client.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
 <citerefentry><refentrytitle>amcrypt</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
 <citerefentry><refentrytitle>aespipe</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
+<ulink url="http://wiki.zmanda.com"/>
 </para>
+
 </refsect1>
 </refentry>
 

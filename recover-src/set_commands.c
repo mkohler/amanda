@@ -66,8 +66,8 @@ set_date(
 	}
 	else
 	{
-	    printf("No index records for cwd on new date\n");
-	    printf("Setting cwd to mount point\n");
+	    g_printf(_("No index records for cwd on new date\n"));
+	    g_printf(_("Setting cwd to mount point\n"));
 	    disk_path = newstralloc(disk_path, "/");	/* fake it */
 	    clear_dir_list();
 	}
@@ -89,7 +89,7 @@ set_host(
 
     if (is_extract_list_nonempty())
     {
-	printf("Must clear extract list before changing host\n");
+	g_printf(_("Must clear extract list before changing host\n"));
 	return;
     }
 
@@ -112,7 +112,7 @@ set_host(
     if (!found_host) {
 	if ((hp = gethostbyname(uqhost)) != NULL) {
 	    host = hp->h_name;
-	    printf("Trying host %s ...\n", host);
+	    g_printf(_("Trying host %s ...\n"), host);
 	    cmd = newstralloc2(cmd, "HOST ", host);
 	    if (converse(cmd) == -1)
 		exit(1);
@@ -129,7 +129,7 @@ set_host(
 	if (hp) {
 	    for (hostp = hp->h_aliases; (host = *hostp) != NULL; hostp++)
 	    {
-		printf(_("Trying host %s ...\n"), host);
+		g_printf(_("Trying host %s ...\n"), host);
 		cmd = newstralloc2(cmd, "HOST ", host);
 		if (converse(cmd) == -1)
 		    exit(1);
@@ -142,38 +142,22 @@ set_host(
 	}
     }
 
-    /*
-     * gethostbyname() will not return a canonical name for a host with no
-     * IPv4 addresses, so use getaddrinfo() (if supported)
-     */
-#ifdef WORKING_IPV6
+    /* Try looking up the canonical name of the host */
     if (!found_host) {
-	struct addrinfo hints;
-	struct addrinfo *gaires = NULL;
-	int res;
+	char *canonname;
+	int result;
 
-	hints.ai_flags = AI_CANONNAME;
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = 0;
-	hints.ai_protocol = 0;
-	hints.ai_addrlen = 0;
-	hints.ai_addr = NULL;
-	hints.ai_canonname = NULL;
-	hints.ai_next = NULL;
-	if ((res = getaddrinfo(uqhost, NULL, &hints, &gaires)) == 0) {
-	    if (gaires && (host = gaires->ai_canonname)) {
-		printf(_("Trying host %s ...\n"), host);
-		cmd = newstralloc2(cmd, "HOST ", host);
-		if (converse(cmd) == -1)
-		    exit(1);
-		if(server_happy())
-		    found_host = 1;
-	    }
+	result = resolve_hostname(uqhost, 0, NULL, &canonname);
+	if (result == 0 && canonname) {
+	    host = canonname;
+	    g_printf(_("Trying host %s ...\n"), host);
+	    cmd = newstralloc2(cmd, "HOST ", host);
+	    if (converse(cmd) == -1)
+		exit(1);
+	    if(server_happy())
+		found_host = 1;
 	}
-
-	if (gaires) freeaddrinfo(gaires);
     }
-#endif
 
     if(found_host) {
 	dump_hostname = newstralloc(dump_hostname, host);
@@ -209,7 +193,7 @@ set_disk(
 
     if (is_extract_list_nonempty())
     {
-	printf("Must clear extract list before changing disk\n");
+	g_printf(_("Must clear extract list before changing disk\n"));
 	return;
     }
 
@@ -217,7 +201,7 @@ set_disk(
     if (mtpt != NULL) {
 	uqmtpt = unquote_string(mtpt);
 	if (*mtpt != '/') {
-	    printf("Mount point \"%s\" invalid - must start with /\n", uqmtpt);
+	    g_printf(_("Mount point \"%s\" invalid - must start with /\n"), uqmtpt);
 	    amfree(uqmtpt);
 	    return;
 	}
@@ -270,8 +254,8 @@ set_disk(
     }
     else
     {
-	printf("No index records for disk for specified date\n");
-	printf("If date correct, notify system administrator\n");
+	g_printf(_("No index records for disk for specified date\n"));
+	g_printf(_("If date correct, notify system administrator\n"));
 	disk_path = newstralloc(disk_path, "/");	/* fake it */
 	clear_dir_list();
     }
@@ -327,15 +311,15 @@ cd_glob(
     char *path_on_disk = NULL;
 
     if (disk_name == NULL) {
-	printf("Must select disk before changing directory\n");
+	g_printf(_("Must select disk before changing directory\n"));
 	return;
     }
 
     uqglob = unquote_string(glob);
     regex = glob_to_regex(uqglob);
-    dbprintf(("cd_glob (%s) -> %s\n", uqglob, regex));
+    dbprintf(_("cd_glob (%s) -> %s\n"), uqglob, regex);
     if ((s = validate_regexp(regex)) != NULL) {
-        printf("\"%s\" is not a valid shell wildcard pattern: ", glob);
+        g_printf(_("\"%s\" is not a valid shell wildcard pattern: "), glob);
         puts(s);
 	amfree(regex);
         return;
@@ -374,18 +358,33 @@ cd_regex(
     char *	regex)
 {
     char *s;
+    char *uq_orig_regex;
     char *uqregex;
+    int  len_uqregex;
 
     char *path_on_disk = NULL;
 
     if (disk_name == NULL) {
-	printf("Must select disk before changing directory\n");
+	g_printf(_("Must select disk before changing directory\n"));
 	return;
     }
 
-    uqregex = unquote_string(regex);
+    uq_orig_regex = unquote_string(regex);
+    uqregex = stralloc(uq_orig_regex);
+
+    /* Add a terminating '/' if it is not there, maybe before a '$' */
+    len_uqregex = strlen(uqregex);
+    if (uqregex[len_uqregex-1] == '$') {
+	if (uqregex[len_uqregex-2] != '/') {
+	    uqregex[len_uqregex-1] = '\0';
+	    strappend(uqregex, "/$");
+	}
+    } else if (uqregex[len_uqregex-1] != '/') {
+	//uqregex[len_uqregex-1] = '\0';
+	strappend(uqregex, "/");
+    }
     if ((s = validate_regexp(uqregex)) != NULL) {
-	printf("\"%s\" is not a valid regular expression: ", uqregex);
+	g_printf(_("\"%s\" is not a valid regular expression: "), uq_orig_regex);
 	amfree(uqregex);
 	puts(s);
 	return;
@@ -393,17 +392,18 @@ cd_regex(
 
     /* convert path (assumed in cwd) to one on disk */
     if (strcmp(disk_path, "/") == 0)
-        path_on_disk = stralloc2("/", regex);
+        path_on_disk = stralloc2("/", uqregex);
     else {
         char *clean_disk_path = clean_regex(disk_path);
         path_on_disk = vstralloc(clean_disk_path, "/", regex, NULL);
         amfree(clean_disk_path);
     }
 
-    cd_dir(path_on_disk, uqregex);
+    cd_dir(path_on_disk, uq_orig_regex);
 
     amfree(path_on_disk);
     amfree(uqregex);
+    amfree(uq_orig_regex);
 }
 
 void
@@ -411,22 +411,16 @@ cd_dir(
     char *	path_on_disk,
     char *	default_dir)
 {
-    char *path_on_disk_slash = NULL;
     char *dir = NULL;
     char *s;
-
     int nb_found;
     size_t i;
 
     DIR_ITEM *ditem;
 
-    path_on_disk_slash = stralloc2(path_on_disk, "/");
-    if ((s = validate_regexp(path_on_disk_slash)) != NULL) {
-	amfree(path_on_disk_slash);
-    }
-
     if ((s = validate_regexp(path_on_disk)) != NULL) {
-	path_on_disk = NULL;
+	set_directory(default_dir);
+	return;
     }
 
     nb_found = 0;
@@ -434,8 +428,7 @@ cd_dir(
     for (ditem=get_dir_list(); ditem!=NULL && nb_found <= 1; 
 			       ditem=get_next_dir_item(ditem))
     {
-	if ((path_on_disk && match(path_on_disk, ditem->path))
-	    || (path_on_disk_slash && match(path_on_disk_slash, ditem->path)))
+	if (match(path_on_disk, ditem->path))
 	{
 	    i = strlen(ditem->path);
 	    if((i > 0 && ditem->path[i-1] == '/')
@@ -457,7 +450,6 @@ cd_dir(
 	    }
 	}
     }
-    amfree(path_on_disk_slash);
 
     if(nb_found==0) {
 	set_directory(default_dir);
@@ -466,7 +458,7 @@ cd_dir(
 	set_directory(dir);
     }
     else {
-	printf("Too many directory\n");
+	g_printf(_("Too many directories\n"));
     }
     amfree(dir);
 }
@@ -489,7 +481,7 @@ set_directory(
     }
 
     if (disk_name == NULL) {
-	printf("Must select disk before setting directory\n");
+	g_printf(_("Must select disk before setting directory\n"));
 	return;
 	/*NOTREACHED*/
     }
@@ -509,7 +501,7 @@ set_directory(
 	{
 	    if (strncmp(mount_point, ldir, strlen(mount_point)) != 0)
 	    {
-		printf("Invalid directory - Can't cd outside mount point \"%s\"\n",
+		g_printf(_("Invalid directory - Can't cd outside mount point \"%s\"\n"),
 		       mount_point);
 		amfree(ldir);
 		return;
@@ -545,7 +537,7 @@ set_directory(
 	if (strcmp(dp, "..") == 0) {
 	    if (strcmp(new_dir, "/") == 0) {
 		/* at top of disk */
-		printf("Invalid directory - Can't cd outside mount point \"%s\"\n",
+		g_printf(_("Invalid directory - Can't cd outside mount point \"%s\"\n"),
 		       mount_point);
 		/*@ignore@*/
 		amfree(new_dir);
@@ -591,7 +583,7 @@ set_directory(
     }
     else
     {
-	printf("Invalid directory - %s\n", dir);
+	g_printf(_("Invalid directory - %s\n"), dir);
     }
 
     /*@ignore@*/
@@ -606,41 +598,48 @@ void
 show_directory(void)
 {
     if (mount_point == NULL || disk_path == NULL)
-        printf("Must select disk first\n");
+        g_printf(_("Must select disk first\n"));
     else if (strcmp(mount_point, "/") == 0)
-	printf("%s\n", disk_path);
+	g_printf("%s\n", disk_path);
     else if (strcmp(disk_path, "/") == 0)
-	printf("%s\n", mount_point);
+	g_printf("%s\n", mount_point);
     else
-	printf("%s%s\n", mount_point, disk_path);
+	g_printf("%s%s\n", mount_point, disk_path);
 }
 
 
-/* set the tape server and device */
+/* set the tape server and device (deprecated version) */
 void
 set_tape(
     char *	tape)
 {
     char *uqtape = unquote_string(tape);
     char *tapedev = strchr(uqtape, ':');
+    char *host = NULL;
+
+    g_printf(_("NOTE: 'settape' is deprecated; use setdevice instead.\n"));
 
     if (tapedev)
     {
+	/* This command is deprecated because this parsing is going to fall 
+	 * behind the list of available device names at some point, or to shadow
+	 * an interesting hostname (wouldn't 'tape' be a good name for a 
+	 * tape server?) */
 	if (tapedev != uqtape) {
 	    if((strchr(tapedev+1, ':') == NULL) &&
-	       (strncmp(uqtape, "null:", 5) == 0 ||
-		strncmp(uqtape, "rait:", 5) == 0 ||
-		strncmp(uqtape, "file:", 5) == 0 ||
-		strncmp(uqtape, "tape:", 5) == 0)) {
+	       (strncmp_const(uqtape, "null:") == 0 ||
+		strncmp_const(uqtape, "rait:") == 0 ||
+		strncmp_const(uqtape, "file:") == 0 ||
+		strncmp_const(uqtape, "s3:") == 0 ||
+		strncmp_const(uqtape, "tape:") == 0)) {
 		tapedev = uqtape;
 	    }
 	    else {
 		*tapedev = '\0';
-		tape_server_name = newstralloc(tape_server_name, uqtape);
+		host = stralloc(uqtape);
 		++tapedev;
 	    }
-	} else { /* reset server_name if start with : */
-	    amfree(tape_server_name);
+	} else {
 	    ++tapedev;
 	}
     } else
@@ -649,20 +648,42 @@ set_tape(
     if (tapedev[0])
     {
 	if (strcmp(tapedev, "default") == 0)
-	    amfree(tape_device_name);
-	else
-	    tape_device_name = newstralloc(tape_device_name, tapedev);
+	    tapedev = NULL;
     }
 
-    if (tape_device_name)
-	printf ("Using tape \"%s\"", tape_device_name);
+    /* call out to the new version */
+    set_device(host, tapedev);
+
+    amfree(host);
+    amfree(uqtape);
+}
+
+/* set the tape server and device, for real */
+void
+set_device(
+    char *	host,
+    char *	device)
+{
+    if (host)
+	tape_server_name = newstralloc(tape_server_name, host);
     else
-	printf ("Using default tape");
+	amfree(tape_server_name);
+
+    if (device)
+	tape_device_name = newstralloc(tape_device_name, device);
+    else
+	amfree(tape_device_name);
+
+    /* print the current status */
+    if (tape_device_name)
+	g_printf (_("Using tape \"%s\""), tape_device_name);
+    else
+	g_printf (_("Using default tape"));
 
     if (tape_server_name)
-	printf (" from server %s.\n", tape_server_name);
+	g_printf (_(" from server %s.\n"), tape_server_name);
     else
-	printf (".\nTape server unspecified, assumed to be %s.\n",
+	g_printf (_(".\nTape server unspecified, assumed to be %s.\n"),
 		server_name);
 }
 
@@ -672,11 +693,11 @@ set_mode(
 {
 #ifdef SAMBA_CLIENT
   if (mode == SAMBA_SMBCLIENT) {
-    printf ("SAMBA dumps will be extracted using smbclient\n");
+    g_printf (_("SAMBA dumps will be extracted using smbclient\n"));
     samba_extract_method = SAMBA_SMBCLIENT;
   } else {
     if (mode == SAMBA_TAR) {
-      printf ("SAMBA dumps will be extracted as TAR dumps\n");
+      g_printf (_("SAMBA dumps will be extracted as TAR dumps\n"));
       samba_extract_method = SAMBA_TAR;
     }
   }
@@ -689,12 +710,12 @@ void
 show_mode(void) 
 {
 #ifdef SAMBA_CLIENT
-  printf ("SAMBA dumps are extracted ");
+  g_printf (_("SAMBA dumps are extracted "));
 
   if (samba_extract_method == SAMBA_TAR) {
-    printf (" as TAR dumps\n");
+    g_printf (_(" as TAR dumps\n"));
   } else {
-    printf ("using smbclient\n");
+    g_printf (_("using smbclient\n"));
   }
 #endif /* SAMBA_CLIENT */
 }

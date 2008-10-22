@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: amrestore.c,v 1.63 2006/07/25 18:58:10 martinea Exp $
+ * $Id: amrestore.c 6512 2007-05-24 17:00:24Z ian $
  *
  * retrieves files from an amanda tape
  */
@@ -40,33 +40,13 @@
 
 #include "amanda.h"
 #include "util.h"
-#include "tapeio.h"
 #include "fileheader.h"
 #include "restore.h"
+#include "conffile.h"
+#include "device.h"
+#include "cmdline.h"
 
 #define CREAT_MODE	0640
-
-static off_t file_number;
-static pid_t comp_enc_pid = -1;
-static int tapedev;
-static off_t filefsf = (off_t)-1;
-
-/* local functions */
-
-static void errexit(void);
-static void usage(void);
-int main(int argc, char **argv);
-
-/*
- * Do exit(2) after an error, rather than exit(1).
- */
-
-static void
-errexit(void)
-{
-    exit(2);
-}
-
 
 /*
  * Print usage message and terminate.
@@ -75,12 +55,85 @@ errexit(void)
 static void
 usage(void)
 {
-    error("Usage: amrestore [-b blocksize] [-r|-c] [-p] [-h] [-f fileno] "
+    error(_("Usage: amrestore [-b blocksize] [-r|-c] [-p] [-h] [-f fileno] "
     	  "[-l label] tape-device|holdingfile [hostname [diskname [datestamp "
-	  "[hostname [diskname [datestamp ... ]]]]]]");
+	  "[hostname [diskname [datestamp ... ]]]]]]"));
     /*NOTREACHED*/
 }
 
+/* Checks if the given tape device is actually a holding disk file. We
+   accomplish this by stat()ing the file; if it is a regular file, we
+   assume (somewhat dangerously) that it's a holding disk file. If
+   it doesn't exist or is not a regular file, we assume it's a device
+   name.
+
+   Returns TRUE if we suspect the device is a holding disk, FALSE
+   otherwise. */
+static gboolean check_device_type(char * device_name) {
+    struct stat stat_buf;
+    int result;
+    
+    result = stat(device_name, &stat_buf);
+
+    return !((result != 0 || !S_ISREG(stat_buf.st_mode)));
+}
+
+static void handle_holding_disk_restore(char * filename, rst_flags_t * flags,
+                                        GSList * dumpspecs) {
+    dumpfile_t this_header;
+    tapelist_t this_disk;
+
+    bzero(&this_disk, sizeof(this_disk));
+    this_disk.label = filename;
+
+    if (!restore_holding_disk(stderr, flags, NULL, &this_disk, NULL,
+                              dumpspecs, &this_header, NULL)) {
+        g_fprintf(stderr, "%s did not match requested host.\n", filename);
+        return;
+    }
+}
+
+static void handle_tape_restore(char * device_name, rst_flags_t * flags,
+                                GSList * dumpspecs, char * check_label) {
+    Device * device;
+    ReadLabelStatusFlags read_label_status;
+
+    dumpfile_t first_restored_file;
+
+    device_api_init();
+
+    fh_init(&first_restored_file);
+    
+    device = device_open(device_name);
+    if (device == NULL) {
+        error("Could not open device.\n");
+    }
+    
+    device_set_startup_properties_from_config(device);
+    read_label_status = device_read_label(device);
+    if (read_label_status != READ_LABEL_STATUS_SUCCESS) {
+        char * errstr =
+            g_english_strjoinv_and_free
+                (g_flags_nick_to_strv(read_label_status,
+                                      READ_LABEL_STATUS_FLAGS_TYPE), "or");
+        error("Error reading volume label: %s.\n", errstr);
+    }
+
+    g_assert(device->volume_label != NULL);
+
+    if (!device_start(device, ACCESS_READ, NULL, NULL)) {
+        error("Could not open device %s for reading.\n", device_name);
+    }
+
+    if (check_label != NULL && strcmp(check_label,
+                                      device->volume_label) != 0) {
+        error("Wrong label: Expected %s, found %s.\n",
+              check_label, device->volume_label);
+    }
+
+    search_a_tape(device, stderr, flags, NULL, NULL, dumpspecs,
+                  NULL, &first_restored_file, 0, NULL);
+}
 
 /*
  * Parses command line, then loops through all files on tape, restoring
@@ -94,29 +147,23 @@ main(
 {
     extern int optind;
     int opt;
-    char *errstr;
-    int isafile;
-    struct stat stat_tape;
-    dumpfile_t file;
-    char *filename = NULL;
+    int holding_disk_mode;
     char *tapename = NULL;
-    struct match_list {
-	char *hostname;
-	char *diskname;
-	char *datestamp;
-	struct match_list *next;
-    } *match_list = NULL, *me = NULL;
-    int found_match;
-    int arg_state;
-    amwait_t compress_status;
-    int r = 0;
     char *e;
-    char *err;
     char *label = NULL;
     rst_flags_t *rst_flags;
-    int count_error;
     long tmplong;
-    ssize_t read_result;
+    GSList *dumpspecs;
+    config_overwrites_t *cfg_ovr;
+
+    /*
+     * Configure program for internationalization:
+     *   1) Only set the message locale for now.
+     *   2) Set textdomain for all amanda related programs to "amanda"
+     *      We don't want to be forced to support dozens of message catalogs.
+     */  
+    setlocale(LC_MESSAGES, "C");
+    textdomain("amanda"); 
 
     safe_fd(-1, 0);
 
@@ -128,14 +175,14 @@ main(
     signal(SIGPIPE, SIG_IGN);
 
     erroutput_type = ERR_INTERACTIVE;
-
-    onerror(errexit);
+    error_exit_status = 2;
 
     rst_flags = new_rst_flags();
     rst_flags->inline_assemble = 0;
 
+    cfg_ovr = new_config_overwrites(argc/2);
     /* handle options */
-    while( (opt = getopt(argc, argv, "b:cCd:rphf:l:")) != -1) {
+    while( (opt = getopt(argc, argv, "b:cCd:rphf:l:o:")) != -1) {
 	switch(opt) {
 	case 'b':
 	    tmplong = strtol(optarg, &e, 10);
@@ -145,21 +192,18 @@ main(
 	    } else if(*e == 'm' || *e == 'M') {
 		rst_flags->blocksize *= 1024 * 1024;
 	    } else if(*e != '\0') {
-		error("invalid rst_flags->blocksize value \"%s\"", optarg);
+		error(_("invalid blocksize value \"%s\""), optarg);
 		/*NOTREACHED*/
 	    }
 	    if(rst_flags->blocksize < DISK_BLOCK_BYTES) {
-		error("minimum block size is %dk", DISK_BLOCK_BYTES / 1024);
-		/*NOTREACHED*/
-	    }
-	    if(rst_flags->blocksize > MAX_TAPE_BLOCK_KB * 1024) {
-		fprintf(stderr,"maximum block size is %dk, using it\n",
-			MAX_TAPE_BLOCK_KB);
-		rst_flags->blocksize = MAX_TAPE_BLOCK_KB * 1024;
+		error(_("minimum block size is %dk"), DISK_BLOCK_BYTES / 1024);
 		/*NOTREACHED*/
 	    }
 	    break;
 	case 'c': rst_flags->compress = 1; break;
+	case 'o':
+	    add_config_overwrite_opt(cfg_ovr, optarg);
+	    break;
 	case 'C':
 	    rst_flags->compress = 1;
 	    rst_flags->comp_type = COMPRESS_BEST_OPT;
@@ -167,13 +211,12 @@ main(
 	case 'r': rst_flags->raw = 1; break;
 	case 'p': rst_flags->pipe_to_fd = fileno(stdout); break;
 	case 'h': rst_flags->headers = 1; break;
-	case 'f':
-	    filefsf = (off_t)OFF_T_STRTOL(optarg, &e, 10);
+	case 'f': rst_flags->fsf = (off_t)OFF_T_STRTOL(optarg, &e, 10);
 	    /*@ignore@*/
 	    if(*e != '\0') {
-		error("invalid fileno value \"%s\"", optarg);
-		/*NOTREACHED*/
-	    }
+		error(_("invalid fileno value \"%s\""), optarg);
+                g_assert_not_reached();
+            }
 	    /*@end@*/
 	    break;
 	case 'l':
@@ -184,249 +227,48 @@ main(
 	}
     }
 
+    /* initialize a generic configuration without reading anything */
+    config_init(CONFIG_INIT_CLIENT, NULL);
+    apply_config_overwrites(cfg_ovr);
+
     if(rst_flags->compress && rst_flags->raw) {
-	fprintf(stderr,
-		"Cannot specify both -r (raw) and -c (compressed) output.\n");
+	g_fprintf(stderr,
+		_("Cannot specify both -r (raw) and -c (compressed) output.\n"));
 	usage();
     }
 
     if(optind >= argc) {
-	fprintf(stderr, "%s: Must specify tape-device or holdingfile\n",
+	g_fprintf(stderr, _("%s: Must specify tape-device or holdingfile\n"),
 			get_pname());
 	usage();
     }
 
     tapename = argv[optind++];
 
-#define ARG_GET_HOST 0
-#define ARG_GET_DISK 1
-#define ARG_GET_DATE 2
+    dumpspecs = cmdline_parse_dumpspecs(argc - optind, argv + optind, 
+					CMDLINE_PARSE_DATESTAMP |
+					CMDLINE_EMPTY_TO_WILDCARD);
 
-    arg_state = ARG_GET_HOST;
-    while(optind < argc) {
-	switch(arg_state) {
-	case ARG_GET_HOST:
-	    /*
-	     * This is a new host/disk/date triple, so allocate a match_list.
-	     */
-	    me = alloc(SIZEOF(*me));
-	    me->hostname = argv[optind++];
-	    me->diskname = "";
-	    me->datestamp = "";
-	    me->next = match_list;
-	    match_list = me;
-	    if(me->hostname[0] != '\0'
-	       && (errstr=validate_regexp(me->hostname)) != NULL) {
-	        fprintf(stderr, "%s: bad hostname regex \"%s\": %s\n",
-		        get_pname(), me->hostname, errstr);
-	        usage();
-	    }
-	    arg_state = ARG_GET_DISK;
-	    break;
-	case ARG_GET_DISK:
-	    me->diskname = argv[optind++];
-	    if(me->diskname[0] != '\0'
-	       && (errstr=validate_regexp(me->diskname)) != NULL) {
-	        fprintf(stderr, "%s: bad diskname regex \"%s\": %s\n",
-		        get_pname(), me->diskname, errstr);
-	        usage();
-	    }
-	    arg_state = ARG_GET_DATE;
-	    break;
-	case ARG_GET_DATE:
-	    me->datestamp = argv[optind++];
-	    if(me->datestamp[0] != '\0'
-	       && (errstr=validate_regexp(me->datestamp)) != NULL) {
-	        fprintf(stderr, "%s: bad datestamp regex \"%s\": %s\n",
-		        get_pname(), me->datestamp, errstr);
-	        usage();
-	    }
-	    arg_state = ARG_GET_HOST;
-	    break;
-	}
-    }
-    if(match_list == NULL) {
-	match_list = alloc(SIZEOF(*match_list));
-	match_list->hostname = "";
-	match_list->diskname = "";
-	match_list->datestamp = "";
-	match_list->next = NULL;
-    }
+    holding_disk_mode = check_device_type(tapename);
 
-    if(tape_stat(tapename,&stat_tape)!=0) {
-	error("could not stat %s: %s", tapename, strerror(errno));
-	/*NOTREACHED*/
-    }
-    isafile=S_ISREG((stat_tape.st_mode));
-
-    if(label) {
-	if(isafile) {
-	    fprintf(stderr,"%s: ignoring -l flag when restoring from a file.\n",
+    if (holding_disk_mode) {
+        if (label) {
+	    g_fprintf(stderr,_("%s: ignoring -l flag when restoring from a file.\n"),
 		    get_pname());
-	}
-	else {
-	    if((err = tape_rewind(tapename)) != NULL) {
-		error("Could not rewind device '%s': %s", tapename, err);
-		/*NOTREACHED*/
-	    }
-	    if ((tapedev = tape_open(tapename, 0)) == -1) {;
-		error("Could not open device '%s': %s", tapename, err);
-		/*NOTREACHED*/
-	    }
-	    read_file_header(&file, tapedev, isafile, rst_flags);
-	    if(file.type != F_TAPESTART) {
-		fprintf(stderr,"Not an amanda tape\n");
-		exit (1);
-	    }
-	    if(strcmp(label, file.name) != 0) {
-		fprintf(stderr,"Wrong label: '%s'\n", file.name);
-		exit (1);
-	    }
-	    tapefd_close(tapedev);
-	    if((err = tape_rewind(tapename)) != NULL) {
-		error("Could not rewind device '%s': %s", tapename, err);
-		/*NOTREACHED*/
-	    }
-	}
-    }
-    file_number = (off_t)0;
-    if(filefsf != (off_t)-1) {
-	if(isafile) {
-	    fprintf(stderr,"%s: ignoring -f flag when restoring from a file.\n",
+        }
+
+        if (rst_flags->fsf > 0) {
+            g_fprintf(stderr,
+                    "%s: ignoring -f flag when restoring from a file.\n",
 		    get_pname());
-	}
-	else {
-	    if((err = tape_rewind(tapename)) != NULL) {
-		error("Could not rewind device '%s': %s", tapename, err);
-		/*NOTREACHED*/
-	    }
-	    if((err = tape_fsf(tapename, filefsf)) != NULL) {
-		error("Could not fsf device '%s': %s", tapename, err);
-		/*NOTREACHED*/
-	    }
-	    file_number = filefsf;
-	}
-    }
+        }
 
-    if(isafile) {
-	tapedev = open(tapename, O_RDWR);
+        handle_holding_disk_restore(tapename, rst_flags, dumpspecs);
     } else {
-	tapedev = tape_open(tapename, 0);
-    }
-    if(tapedev < 0) {
-	error("could not open %s: %s", tapename, strerror(errno));
-	/*NOTREACHED*/
+        handle_tape_restore(tapename, rst_flags, dumpspecs, label);
     }
 
-    read_result = read_file_header(&file, tapedev, isafile, rst_flags);
-    if(file.type != F_TAPESTART && !isafile && filefsf == (off_t)-1) {
-	fprintf(stderr, "%s: WARNING: not at start of tape, file numbers will be offset\n",
-			get_pname());
-    }
+    dumpspec_list_free(dumpspecs);
 
-    count_error = 0;
-    while(count_error < 10) {
-	if(file.type == F_TAPEEND) break;
-	found_match = 0;
-	if(file.type == F_DUMPFILE || file.type == F_SPLIT_DUMPFILE) {
-	    amfree(filename);
-	    filename = make_filename(&file);
-	    for(me = match_list; me; me = me->next) {
-		if(disk_match(&file,me->datestamp,me->hostname,me->diskname,"") != 0) {
-		    found_match = 1;
-		    break;
-		}
-	    }
-	    fprintf(stderr, "%s: " OFF_T_FMT ": %s ",
-			    get_pname(),
-			    (OFF_T_FMT_TYPE)file_number,
-			    found_match ? "restoring" : "skipping");
-	    if(file.type != F_DUMPFILE  && file.type != F_SPLIT_DUMPFILE) {
-		print_header(stderr, &file);
-	    } else {
-		fprintf(stderr, "%s\n", filename);
-	    }
-	}
-	if(found_match) {
-	    count_error=0;
-	    read_result = restore(&file, filename,
-		tapedev, isafile, rst_flags);
-	    if(comp_enc_pid > 0) {
-		waitpid(comp_enc_pid, &compress_status, 0);
-		comp_enc_pid = -1;
-	    }
-	    if(rst_flags->pipe_to_fd != -1) {
-		file_number++;			/* for the last message */
-		break;
-	    }
-	}
-	if(isafile) {
-	    break;
-	}
-	/*
-	 * Note that at this point we know we are working with a tape,
-	 * not a holding disk file, so we can call the tape functions
-	 * without checking.
-	 */
-	if(read_result == 0) {
-	    /*
-	     * If the last read got EOF, how to get to the next
-	     * file depends on how the tape device driver is acting.
-	     * If it is BSD-like, we do not really need to do anything.
-	     * If it is Sys-V-like, we need to either fsf or close/open.
-	     * The good news is, a close/open works in either case,
-	     * so that's what we do.
-	     */
-	    tapefd_close(tapedev);
-	    if((tapedev = tape_open(tapename, 0)) < 0) {
-		error("could not open %s: %s", tapename, strerror(errno));
-		/*NOTREACHED*/
-	    }
-	    count_error++;
-	} else {
-	    /*
-	     * If the last read got something (even an error), we can
-	     * do an fsf to get to the next file.
-	     */
-	    if(tapefd_fsf(tapedev, (off_t)1) < 0) {
-		error("could not fsf %s: %s", tapename, strerror(errno));
-		/*NOTREACHED*/
-	    }
-	    count_error=0;
-	}
-	file_number++;
-	read_result = read_file_header(&file, tapedev, isafile, rst_flags);
-    }
-    if(isafile) {
-	close(tapedev);
-    } else {
-	/*
-	 * See the notes above about advancing to the next file.
-	 */
-	if(read_result == 0) {
-	    tapefd_close(tapedev);
-	    if((tapedev = tape_open(tapename, 0)) < 0) {
-		error("could not open %s: %s", tapename, strerror(errno));
-		/*NOTREACHED*/
-	    }
-	} else {
-	    if(tapefd_fsf(tapedev, (off_t)1) < 0) {
-		error("could not fsf %s: %s", tapename, strerror(errno));
-		/*NOTREACHED*/
-	    }
-	}
-	tapefd_close(tapedev);
-    }
-
-    if((read_result <= 0 || file.type == F_TAPEEND) && !isafile) {
-	fprintf(stderr, "%s: " OFF_T_FMT ": reached ",
-		get_pname(), (OFF_T_FMT_TYPE)file_number);
-	if(read_result <= 0) {
-	    fprintf(stderr, "end of information\n");
-	} else {
-	    print_header(stderr,&file);
-	}
-	r = 1;
-    }
-    return r;
+    return 0;
 }

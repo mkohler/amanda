@@ -1,17 +1,17 @@
 .\"     Title: amcheckdb
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMCHECKDB" "8" "06/06/2007" "" ""
+.TH "AMCHECKDB" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amcheckdb \- check Amanda database for tape consistency
+amcheckdb - check Amanda database for tape consistency
 .SH "SYNOPSIS"
 .HP 10
 \fBamcheckdb\fR \fIconfig\fR
@@ -22,45 +22,40 @@ verifies that every tape mentioned in the
 \fIAmanda\fR
 database is still valid in the
 \fItapelist\fR
-file.
+file\.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR.
+\fIAmanda\fR\.
 .SH "EXAMPLE"
 .PP
 This shows a normal response:
-.sp
-.RS 4
 .nf
 # amcheckdb daily
-Ready.
+Ready\.
 .fi
-.RE
 .PP
 This shows tape
 \fIDMP014\fR
 is still listed in the database but is no longer listed in the
 \fItapelist\fR
 file:
-.sp
-.RS 4
 .nf
 # amcheckdb daily
 Tape DMP014 missing in /usr/local/etc/amanda//daily/tapelist
-Ready.
+Ready\.
 .fi
-.RE
 .SH "AUTHOR"
 .PP
-Adrian T. Filipi\-Martin <atf3r@cs.virginia.edu>: Original text
+Adrian T\. Filipi\-Martin <atf3r@cs\.virginia\.edu>: Original text
 .PP
-Stefan G. Weichinger,
-<sgw@amanda.org>, maintainer of the
+Stefan G\. Weichinger,
+<sgw@amanda\.org>, maintainer of the
 \fIAmanda\fR\-documentation: XML\-conversion
 .SH "SEE ALSO"
 .PP
 \fBamadmin\fR(8),
 \fBamrmtape\fR(8),
-\fBamanda\fR(8)
+\fBamanda\fR(8),
+: http://wiki.zmanda.com

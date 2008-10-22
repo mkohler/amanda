@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # Gnulib files in zmanda repo are from gnulib CVS updated with:
-#   cvs update -D '2007-01-31 13:12:51 -0600'
+#   cvs update -D '2007-10-25 17:00:00 -0600'
 
 # get to the project root
 cd `dirname $0`/../..
@@ -36,23 +36,18 @@ shopt -u nullglob
 ## Add your modules here, then see below if you need to patch them. ##
 ######################################################################
 
-GNULIB_MODULES="getaddrinfo lock visibility"
+GNULIB_MODULES="getaddrinfo lock visibility base64 physmem fsusage mkdtemp"
 
 ######################################################################
 ## End modules                                                      ##
 ######################################################################
 
-# check out a brand new gnulib directory and gnulib.m4i
+# create a brand new gnulib directory
 
 "${GNULIB_TOOL}" --import \
         --dir=. --lib=libgnu --source-base=gnulib --m4-base=config/gnulib \
         --doc-base=doc --aux-dir=config --libtool --macro-prefix=gl \
         ${GNULIB_MODULES} || exit 1
-
-for filename in config/gnulib/*.m4
- do
-    echo "m4_include([$filename])"
-done > config/gnulib.m4i || exit 1
 
 ########################## DEVELOPERS! ###############################
 ## Add your patch commands here, or use sed invoacations, etc.      ##

@@ -32,26 +32,7 @@
  */
 
 
-#include <amanda.h>
-
-#ifdef HAVE_IRIX_LIKE_SCSI
-
-/*
-#ifdef HAVE_STDIO_H
-*/
-#include <stdio.h>
-/*
-#endif
-*/
-#ifdef HAVE_SYS_TYPES_H
-#include <sys/types.h>
-#endif
-#ifdef HAVE_SYS_STAT_H
-#include <sys/stat.h>
-#endif
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
+#include "amanda.h"
 
 #include <sys/scsi.h>
 #include <sys/dsreq.h>
@@ -211,9 +192,9 @@ int SCSI_ExecuteCommand(int DeviceFD,
       {
         if (SCSI_OpenDevice(DeviceFD) == 0)
           {
-            dbprintf(("SCSI_ExecuteCommand could not open %s: %s\n",
+            dbprintf(_("SCSI_ExecuteCommand could not open %s: %s\n"),
                       pDev[DeviceFD].dev,
-	              strerror(errno)));
+	              strerror(errno));
             sleep(1); /* Give device a little time befor retry */
             continue;
           }
@@ -228,7 +209,7 @@ int SCSI_ExecuteCommand(int DeviceFD,
         return (SCSI_ERROR);
       }
     DecodeSCSI(CDB, "SCSI_ExecuteCommand : ");
-    dbprintf(("\t\t\tSTATUS(%02X) RET(%02X)\n", STATUS(&ds), RET(&ds)));
+    dbprintf(_("\t\t\tSTATUS(%02X) RET(%02X)\n"), STATUS(&ds), RET(&ds));
     switch (STATUS(&ds))
       {
       case ST_BUSY:                /*  BUSY */
@@ -303,7 +284,7 @@ int Tape_Status( int DeviceFD)
 
   if (ioctl(pDev[DeviceFD].fd , MTIOCGET, &mtget) != 0)
     {
-      dbprintf(("Tape_Status error ioctl %s\n",strerror(errno)));
+      dbprintf(_("Tape_Status error ioctl %s\n"),strerror(errno));
       SCSI_CloseDevice(DeviceFD);
       return(-1);
     }
@@ -344,7 +325,7 @@ int ScanBus(int print)
 
   if ((dir = opendir("/dev/scsi")) == NULL)
     {
-      dbprintf(("Can not read /dev/scsi: %s", strerror(errno)));
+      dbprintf(_("Can not read /dev/scsi: %s"), strerror(errno));
       return 0;
     }
 
@@ -354,7 +335,7 @@ int ScanBus(int print)
       {
         pDev[count].dev = malloc(10);
         pDev[count].inqdone = 0;
-        sprintf(pDev[count].dev,"/dev/scsi/%s", dirent->d_name);
+        g_sprintf(pDev[count].dev,"/dev/scsi/%s", dirent->d_name);
         if (OpenDevice(count,pDev[count].dev, "Scan", NULL ))
           {
             SCSI_CloseDevice(count);
@@ -362,48 +343,48 @@ int ScanBus(int print)
             
             if (print)
               {
-                printf("name /dev/scsi/%s ", dirent->d_name);
+                g_printf(_("name /dev/scsi/%s "), dirent->d_name);
                 
                 switch (pDev[count].inquiry->type)
                   {
                   case TYPE_DISK:
-                    printf("Disk");
+                    g_printf(_("Disk"));
                     break;
                   case TYPE_TAPE:
-                    printf("Tape");
+                    g_printf(_("Tape"));
                     break;
                   case TYPE_PRINTER:
-                    printf("Printer");
+                    g_printf(_("Printer"));
                     break;
                   case TYPE_PROCESSOR:
-                    printf("Processor");
+                    g_printf(_("Processor"));
                     break;
                   case TYPE_WORM:
-                    printf("Worm");
+                    g_printf(_("Worm"));
                     break;
                   case TYPE_CDROM:
-                    printf("Cdrom");
+                    g_printf(_("Cdrom"));
                     break;
                   case TYPE_SCANNER:
-                    printf("Scanner");
+                    g_printf(_("Scanner"));
                     break;
                   case TYPE_OPTICAL:
-                    printf("Optical");
+                    g_printf(_("Optical"));
                     break;
                   case TYPE_CHANGER:
-                    printf("Changer");
+                    g_printf(_("Changer"));
                     break;
                   case TYPE_COMM:
-                    printf("Comm");
+                    g_printf(_("Comm"));
                     break;
                   default:
-                    printf("unknown %d",pDev[count].inquiry->type);
+                    g_printf(_("unknown %d"),pDev[count].inquiry->type);
                     break;
                   }
-                printf("\n");
+                g_printf("\n");
               }
             count++;
-	    printf("Count %d\n",count);
+	    g_printf(_("Count %d\n"),count);
           } else {
             free(pDev[count].dev);
             pDev[count].dev=NULL;
@@ -413,7 +394,6 @@ int ScanBus(int print)
   return 0;
 }
 
-#endif
 /*
  * Local variables:
  * indent-tabs-mode: nil

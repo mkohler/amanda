@@ -1,17 +1,17 @@
 .\"     Title: amrecover
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMRECOVER" "8" "06/06/2007" "" ""
+.TH "AMRECOVER" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amrecover \- Amanda index database browser
+amrecover - Amanda index database browser
 .SH "SYNOPSIS"
 .HP 10
 \fBamrecover\fR [\-C\ \fIconfig\fR] [\-s\ \fIindex\-server\fR] [\-t\ \fItape\-server\fR] [\-d\ \fItape\-device\fR] [\-o\ \fIconfigoption\fR]...
@@ -20,80 +20,80 @@ amrecover \- Amanda index database browser
 \fBAmrecover\fR
 browses the database of
 \fIAmanda\fR
-index files to determine which tapes contain files to recover. Furthermore, it is able to recover files.
+index files to determine which tapes contain files to recover\. Furthermore, it is able to recover files\.
 .PP
 In order to restore files in place, you must invoke
 \fBamrecover\fR
 from the root of the backed up filesystem, or use
 \fBlcd\fR
-to move into that directory, otherwise a directory tree that resembles the backed up filesystem will be created in the current directory. See the examples below for details.
+to move into that directory, otherwise a directory tree that resembles the backed up filesystem will be created in the current directory\. See the examples below for details\.
 .PP
 Amrecover will read the
-\fBamanda\-client.conf\fR
+\fBamanda\-client\.conf\fR
 file and the
-\fIconfig\fR\fB/amanda\-client.conf\fR
-file.
+\fIconfig\fR\fB/amanda\-client\.conf\fR
+file\.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR.
+\fIAmanda\fR\.
 .SH "OPTIONS"
 .sp
 .it 1 an-trap
 .nr an-no-space-flag 1
 .nr an-break-flag 1
 .br
-\fBNote\fR
+Note
 .PP
-The Default values are those set at compile\-time. Use
+The Default values are those set at compile\-time\. Use
 \fBamrestore\fR
-to recover client\-encrypted or client\-custom\-compressed tapes.
+to recover client\-encrypted or client\-custom\-compressed tapes\.
 .PP
 \fB[ \-C ] config\fR
 .RS 4
 \fIAmanda\fR
-configuration.
+configuration\.
 .RE
 .PP
 \fB\-s index\-server\fR
 .RS 4
-Host that runs the index daemon.
+Host that runs the index daemon\.
 .RE
 .PP
 \fB\-t tape\-server\fR
 .RS 4
-Host that runs the tape server daemon.
+Host that runs the tape server daemon\.
 .RE
 .PP
 \fB\-d tape\-device\fR
 .RS 4
-Tape device to use on the tape server host.
+Tape device to use on the tape server host\.
 .RE
 .PP
 \fB\-o\fR \fIclientconfigoption\fR
 .RS 4
 See the "\fBCONFIGURATION OVERRIDE\fR" section in
-\fBamanda\fR(8).
+\fBamanda\fR(8)\.
 .RE
 .SH "COMMANDS"
 .PP
 \fBAmrecover\fR
-connects to the index server and then presents a command line prompt. Usage is similar to an ftp client. The GNU readline library is used to provide command line history and editing if it was built in to
-\fBamrecover\fR.
+connects to the index server and then presents a command line prompt\. Usage is similar to an ftp client\. The GNU readline library is used to provide command line history and editing if it was built in to
+\fBamrecover\fR\.
 .PP
 The purpose of browsing the database is to build up a
 \fIrestore list\fR
-of files to be extracted from the backup system. The following commands are available:
+of files to be extracted from the backup system\. The following commands are available:
 .PP
 \fBsethost hostname\fR
 .RS 4
-Specifies which host to look at backup files for (default: the local host).
+Specifies which host to look at backup files for (default: the local host)\.
 .RE
 .PP
 \fBsetdate YYYY\-MM\-DD\-HH\-MM[\-SS] | YYYY\-MM\-DD\fR
 .RS 4
-Set the restore time (default: now). File listing commands only return information on backup images for this day, for the day before with the next lower dump level, and so on, until the most recent level 0 backup on or before the specified date is encountered.
+Set the restore time (default: now)\. File listing commands only return information on backup images for this day, for the day before with the next lower dump level, and so on, until the most recent level 0 backup on or before the specified date is encountered\.
 .sp
 For example, if:
 .sp
@@ -117,10 +117,9 @@ would yield files from the following days:
 .fi
 .RE
 .sp
-Only the most recent version of a file will be presented.
+Only the most recent version of a file will be presented\.
 .sp
 The following abbreviated date specifications are accepted:
-.RS 4
 .PP
 \fB\-\-MM\-DD\fR
 .RS 4
@@ -132,22 +131,21 @@ dates in the current year
 dates in the current month of the current year
 .RE
 .RE
-.RE
 .PP
 \fBsetdisk\fR \fIdiskname\fR [\fImountpoint\fR]
 .RS 4
 Specifies which disk to consider (default: the disk holding the working directory where
 \fBamrecover\fR
-is started). It can only be set after the host is set with
-\fBsethost\fR.
+is started)\. It can only be set after the host is set with
+\fBsethost\fR\.
 \fIDiskname\fR
 is the device name specified in the
-\fIamanda.conf\fR
+\fIamanda\.conf\fR
 or
 \fIdisklist\fR
-configuration file. The disk must be local to the host. If
+configuration file\. The disk must be local to the host\. If
 \fImountpoint\fR
-is not specified, all pathnames will be relative to the (unknown) mount point instead of full pathnames.
+is not specified, all pathnames will be relative to the (unknown) mount point instead of full pathnames\.
 .RE
 .PP
 \fBlisthost\fR [\fIdiskdevice\fR]
@@ -162,84 +160,76 @@ List all
 \fBdiskname\fR
 .RE
 .PP
-\fBsettape\fR [[\fIserver\fR]:][\fItapedev\fR|\fIdefault\fR]
+\fBsetdevice\fR [[\-h \fItape\-server\fR] \fItapedev\fR]
 .RS 4
-Specifies the host to use as the tape server, and which of its tape devices to use. If the server is omitted, but the colon is not, the server name reverts to the configure\-time default. If the tape device is omitted, it remains unchanged. To use the default tape device selected by the tape server, the word
-\fIdefault\fR
-must be specified. If no argument is specified, or the argument is an empty string, no changes occur, and the current settings are displayed.
+Specifies the host to use as the tape server, and which of its tape devices to use\. If the server is omitted, the server name reverts to the configure\-time default\. If the tape device is omitted, the default is used\.
 .sp
 If you want amrecover to use your changer, the
 \fItapedev\fR
-must be equal to the amrecover_changer setting on the server.
+must be equal to the amrecover_changer setting on the server\.
 .sp
-If you need to change the protocol (tape:, rait:, file:, null:) then you must specify the hostname.
-.sp
-.RS 4
+If you need to change the protocol (tape:, rait:, file:, null:) then you must specify the hostname\.
 .nf
-settape 192.168.0.10:file:/file1
+settape 192\.168\.0\.10:file:/file1
 .fi
-.RE
 You can change the tape device when amrecover ask you to load the tape:
-.sp
-.RS 4
 .nf
 Load tape DMP014 now
 Continue? [Y/n/t]: t
 Tape device: server2:/dev/nst2
 Continue? [Y/n/t]: Y
-Using tape /dev/nst2 from server server2.
+Using tape /dev/nst2 from server server2\.
 .fi
-.RE
 .RE
 .PP
 \fBsetmode\fR \fImode\fR
 .RS 4
-Set the extraction mode for Samba shares. If
+Set the extraction mode for Samba shares\. If
 \fImode\fR
 is
-\fBsmb\fR, shares are sent to the Samba server to be restored back onto the PC. If
+\fBsmb\fR, shares are sent to the Samba server to be restored back onto the PC\. If
 \fImode\fR
 is
-\fBtar\fR, they are extracted on the local machine the same way tar volumes are extracted.
+\fBtar\fR, they are extracted on the local machine the same way tar volumes are extracted\.
 .RE
 .PP
 \fBmode\fR
 .RS 4
-Displays the extracting mode for Samba shares.
+Displays the extracting mode for Samba shares\.
 .RE
 .PP
 \fBhistory\fR
 .RS 4
-Show the backup history of the current host and disk. Dates, levels, tapes and file position on tape of each backup are displayed.
+Show the backup history of the current host and disk\. Dates, levels, tapes and file position on tape of each backup are displayed\.
 .RE
 .PP
 \fBpwd\fR
 .RS 4
-Display the name of the current backup working directory.
+Display the name of the current backup working directory\.
 .RE
 .PP
 \fBcd\fR \fIdir\fR
 .RS 4
 Change the backup working directory to
-\fIdir.\fR
+\fIdir\.\fR
 If the mount point was specified with
-\fBsetdisk\fR, this can be a full pathname or it can be relative to the current backup working directory. If the mount point was not specified, paths are relative to the mount point if they start with "/", otherwise they are relative to the current backup working directory. The
+\fBsetdisk\fR, this can be a full pathname or it can be relative to the current backup working directory\. If the mount point was not specified, paths are relative to the mount point if they start with "/", otherwise they are relative to the current backup working directory\. The
 \fIdir\fR
-can be a shell style wildcards.
+can be a shell style wildcards\.
 .RE
 .PP
 \fBcdx\fR \fIdir\fR
 .RS 4
 Like the
 \fBcd\fR
-command but allow regular expression.
+command but allow regular expression\.
 .RE
 .PP
 \fBlpwd\fR
 .RS 4
 Display the
 \fBamrecover\fR
-working directory. Files will be restored under this directory, relative to the backed up filesystem.
+working directory\. Files will be restored under this directory, relative to the backed up filesystem\.
 .RE
 .PP
 \fBlcd\fR \fIpath\fR
@@ -247,116 +237,114 @@ working directory. Files will be restored under this directory, relative to the 
 Change the
 \fBamrecover\fR
 working directory to
-\fIpath\fR.
+\fIpath\fR\.
 .RE
 .PP
 \fBls\fR
 .RS 4
-List the contents of the current backup working directory. See the description of the
+List the contents of the current backup working directory\. See the description of the
 \fBsetdate\fR
-command for how the view of the directory is built up. The backup date is shown for each file.
+command for how the view of the directory is built up\. The backup date is shown for each file\.
 .RE
 .PP
-\fBadd\fR \fIitem1 item2 ...\fR
+\fBadd\fR \fIitem1 item2 \.\.\.\fR
 .RS 4
-Add the specified files or directories to the restore list. Each item may have shell style wildcards.
+Add the specified files or directories to the restore list\. Each item may have shell style wildcards\.
 .RE
 .PP
-\fBaddx\fR \fIitem1 item2 ...\fR
+\fBaddx\fR \fIitem1 item2 \.\.\.\fR
 .RS 4
-Add the specified files or directories to the restore list. Each item may be a regular expression.
+Add the specified files or directories to the restore list\. Each item may be a regular expression\.
 .RE
 .PP
-\fBdelete\fR \fIitem1 item2 ...\fR
+\fBdelete\fR \fIitem1 item2 \.\.\.\fR
 .RS 4
-Delete the specified files or directories from the restore list. Each item may have shell style wildcards.
+Delete the specified files or directories from the restore list\. Each item may have shell style wildcards\.
 .RE
 .PP
-\fBdeletex\fR \fIitem1 item2 ...\fR
+\fBdeletex\fR \fIitem1 item2 \.\.\.\fR
 .RS 4
-Delete the specified files or directories from the restore list. Each item may be a regular expression.
+Delete the specified files or directories from the restore list\. Each item may be a regular expression\.
 .RE
 .PP
 \fBlist\fR \fIfile\fR
 .RS 4
-Display the contents of the restore list. If a file name is specified, the restore list is written to that file. This can be used to manually extract the files from the
+Display the contents of the restore list\. If a file name is specified, the restore list is written to that file\. This can be used to manually extract the files from the
 \fIAmanda\fR
 tapes with
-\fBamrestore\fR.
+\fBamrestore\fR\.
 .RE
 .PP
 \fBclear\fR
 .RS 4
-Clear the restore list.
+Clear the restore list\.
 .RE
 .PP
 \fBquit\fR
 .RS 4
-Close the connection to the index server and exit.
+Close the connection to the index server and exit\.
 .RE
 .PP
 \fBexit\fR
 .RS 4
-Close the connection to the index server and exit.
+Close the connection to the index server and exit\.
 .RE
 .PP
 \fBextract\fR
 .RS 4
-Start the extract sequence (see the examples below). Make sure the local working directory is the root of the backed up filesystem, or another directory that will behave like that. Use
+Start the extract sequence (see the examples below)\. Make sure the local working directory is the root of the backed up filesystem, or another directory that will behave like that\. Use
 \fBlpwd\fR
 to display the local working directory, and
 \fBlcd\fR
-to change it.
+to change it\.
 .RE
 .PP
 \fBhelp\fR
 .RS 4
-Display a brief list of these commands.
+Display a brief list of these commands\.
 .RE
 .SH "EXAMPLES"
 .PP
 The following shows the recovery of an old
 \fIsyslog\fR
-file.
-.sp
-.RS 4
+file\.
 .nf
 # cd /var/log
-# ls \-l syslog.7
-syslog.7: No such file or directory
+# ls \-l syslog\.7
+syslog\.7: No such file or directory
 # amrecover
-AMRECOVER Version 2.4.2. Contacting server on oops ...
-220 oops \fIAmanda\fR index server (2.4.2) ready.
+AMRECOVER Version 2\.4\.2\. Contacting server on oops \.\.\.
+220 oops \fIAmanda\fR index server (2\.4\.2) ready\.
 Setting restore date to today (1997\-12\-09)
-200 Working date set to 1997\-12\-09.
-200 Config set to daily.
-200 Dump host set to this\-host.some.org.
-$CWD '/var/log' is on disk '/var' mounted at '/var'.
-200 Disk set to /var.
+200 Working date set to 1997\-12\-09\.
+200 Config set to daily\.
+200 Dump host set to this\-host\.some\.org\.
+$CWD \'/var/log\' is on disk \'/var\' mounted at \'/var\'\.
+200 Disk set to /var\.
 /var/log
 WARNING: not on root of selected filesystem, check man\-page!
 amrecover> ls
-1997\-12\-09 daemon.log
+1997\-12\-09 daemon\.log
 1997\-12\-09 syslog
 1997\-12\-08 authlog
-1997\-12\-08 sysidconfig.log
-1997\-12\-08 syslog.0
-1997\-12\-08 syslog.1
-1997\-12\-08 syslog.2
-1997\-12\-08 syslog.3
-1997\-12\-08 syslog.4
-1997\-12\-08 syslog.5
-1997\-12\-08 syslog.6
-1997\-12\-08 syslog.7
-amrecover> add syslog.7
-Added /log/syslog.7
+1997\-12\-08 sysidconfig\.log
+1997\-12\-08 syslog\.0
+1997\-12\-08 syslog\.1
+1997\-12\-08 syslog\.2
+1997\-12\-08 syslog\.3
+1997\-12\-08 syslog\.4
+1997\-12\-08 syslog\.5
+1997\-12\-08 syslog\.6
+1997\-12\-08 syslog\.7
+amrecover> add syslog\.7
+Added /log/syslog\.7
 amrecover> lpwd
 /var/log
-amrecover> lcd ..
+amrecover> lcd \.\.
 /var
 amrecover> extract
 
-Extracting files using tape drive /dev/nst0 on host 192.168.0.10
+Extracting files using tape drive /dev/nst0 on host 192\.168\.0\.10
 
 The following tapes are needed: DMP014
 
@@ -365,46 +353,42 @@ Continue? [Y/n]: y
 
 Load tape DMP014 now
 Continue? [Y/n/t]: y
-set owner/mode for '.'? [yn] n
+set owner/mode for \'\.\'? [yn] n
 amrecover> quit
-200 Good bye.
-# ls \-l syslog.7
+200 Good bye\.
+# ls \-l syslog\.7
 total 26
-\-rw\-r\-\-r\-\-   1 root     other      12678 Oct 14 16:36 syslog.7
+\-rw\-r\-\-r\-\-   1 root     other      12678 Oct 14 16:36 syslog\.7
 .fi
-.RE
 .PP
 If you do not want to overwrite existing files, create a subdirectory to run
 \fBamrecover\fR
-from and then move the restored files afterward.
-.sp
-.RS 4
+from and then move the restored files afterward\.
 .nf
 # cd /var
-# (umask 077 ; mkdir .restore)
-# cd .restore
+# (umask 077 ; mkdir \.restore)
+# cd \.restore
 # amrecover
-AMRECOVER Version 2.4.2. Contacting server on oops ...
-\&...
+AMRECOVER Version 2\.4\.2\. Contacting server on oops \.\.\.
+\.\.\.
 amrecover> cd log
 /var/log
 amrecover> ls
-\&...
-amrecover> add syslog.7
-Added /log/syslog.7
+\.\.\.
+amrecover> add syslog\.7
+Added /log/syslog\.7
 amrecover> lpwd
-/var/.restore
+/var/\.restore
 amrecover> extract
 
-Extracting files using tape drive /dev/nst0 on host 192.168.0.10
-\&...
+Extracting files using tape drive /dev/nst0 on host 192\.168\.0\.10
+\.\.\.
 amrecover> quit
-200 Good bye.
-# mv \-i log/syslog.7 ../log/syslog.7\-restored
-# cd ..
-# rm \-fr .restore
+200 Good bye\.
+# mv \-i log/syslog\.7 \.\./log/syslog\.7\-restored
+# cd \.\.
+# rm \-fr \.restore
 .fi
-.RE
 .PP
 If you need to run
 \fBamrestore\fR
@@ -412,44 +396,39 @@ by hand instead of letting
 \fBamrecover\fR
 control it, use the
 \fBlist\fR
-command after browsing to display the needed tapes.
-.sp
-.RS 4
+command after browsing to display the needed tapes\.
 .nf
 # cd /var/log
 # amrecover
-AMRECOVER Version 2.4.2. Contacting server on oops ...
-\&...
+AMRECOVER Version 2\.4\.2\. Contacting server on oops \.\.\.
+\.\.\.
 amrecover> ls
-\&...
-amrecover> add syslog syslog.6 syslog.7
+\.\.\.
+amrecover> add syslog syslog\.6 syslog\.7
 Added /log/syslog
-Added /log/syslog.6
-Added /log/syslog.7
+Added /log/syslog\.6
+Added /log/syslog\.7
 amrecover> list
 TAPE DMP014 LEVEL 0 DATE 1997\-12\-08
-        /log/syslog.7
-        /log/syslog.6
+        /log/syslog\.7
+        /log/syslog\.6
 TAPE DMP015 LEVEL 1 DATE 1997\-12\-09
         /log/syslog
 amrecover> quit 
 .fi
-.RE
 .PP
 The
 \fBhistory\fR
-command shows each tape that has a backup of the current disk along with the date of the backup, the level, the tape label and the file position on the tape. All active tapes are listed, not just back to the most recent full dump.
+command shows each tape that has a backup of the current disk along with the date of the backup, the level, the tape label and the file position on the tape\. All active tapes are listed, not just back to the most recent full dump\.
 .PP
-Tape file position zero is a label. The first backup image is in file position one.
-.sp
-.RS 4
+Tape file position zero is a label\. The first backup image is in file position one\.
 .nf
 # cd /var/log
 # amrecover
-AMRECOVER Version 2.4.2. Contacting server on oops ...
-\&...
+AMRECOVER Version 2\.4\.2\. Contacting server on oops \.\.\.
+\.\.\.
 amrecover> history
-200\- Dump history for config "daily" host "this\-host.some.org" disk "/var"
+200\- Dump history for config "daily" host "this\-host\.some\.org" disk "/var"
 201\- 1997\-12\-09 1 DMP015 9
 201\- 1997\-12\-08 1 DMP014 11
 201\- 1997\-12\-07 0 DMP013 22
@@ -460,10 +439,9 @@ amrecover> history
 201\- 1997\-12\-02 1 DMP008 7
 201\- 1997\-12\-01 1 DMP007 9
 201\- 1997\-11\-30 1 DMP006 6
-\&...
+\.\.\.
 amrecover> quit 
 .fi
-.RE
 .SH "ENVIRONMENT"
 .PP
 \fBPAGER\fR
@@ -471,28 +449,29 @@ The
 \fBls\fR
 and
 \fBlist\fR
-commands will use $PAGER to display the file lists. Defaults to
+commands will use $PAGER to display the file lists\. Defaults to
 \fImore\fR
-if PAGER is not set.
+if PAGER is not set\.
 .PP
 \fBAMANDA_SERVER\fR
-If set, $AMANDA_SERVER will be used as index\-server. The value will take precedence over the compiled default, but will be overridden by the \-s switch.
+If set, $AMANDA_SERVER will be used as index\-server\. The value will take precedence over the compiled default, but will be overridden by the \-s switch\.
 .PP
 \fBAMANDA_TAPE_SERVER\fR
-If set, $AMANDA_TAPE_SERVER will be used as tape\-server. The value will take precedence over the compiled default, but will be overridden by the \-t switch.
+If set, $AMANDA_TAPE_SERVER will be used as tape\-server\. The value will take precedence over the compiled default, but will be overridden by the \-t switch\.
 .SH "AUTHOR"
 .PP
-Alan M. McIvor
-<alan@kauri.auck.irl.cri.nz>
+Alan M\. McIvor
+<alan@kauri\.auck\.irl\.cri\.nz>
 : Original text
 .PP
-Stefan G. Weichinger,
-<sgw@amanda.org>, maintainer of the
+Stefan G\. Weichinger,
+<sgw@amanda\.org>, maintainer of the
 \fIAmanda\fR\-documentation: XML\-conversion
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
-\fBamanda\-client.conf\fR(5),
+\fBamanda-client.conf\fR(5),
 \fBamrestore\fR(8),
 \fBamfetchdump\fR(8),
-\fBreadline\fR(3)
+\fBreadline\fR(3),
+: http://wiki.zmanda.com

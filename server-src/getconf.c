@@ -40,8 +40,8 @@ int main(int argc, char **argv);
  * HOSTNAME_INSTANCE may not be defined at this point.
  * We define it locally if it is needed...
  *
- * If CLIENT_HOST_PRINCIPLE is defined as HOSTNAME_INSTANCE
- * then local host is the client host principle.
+ * If CLIENT_HOST_PRINCIPAL is defined as HOSTNAME_INSTANCE
+ * then local host is the client host principal.
  */
 #ifndef HOSTNAME_INSTANCE
 #  define HOSTNAME_INSTANCE "localhost"
@@ -62,10 +62,13 @@ static struct build_info {
     { "bindir",				bindir },
     { "sbindir",			sbindir },
     { "libexecdir",			libexecdir },
+    { "amlibexecdir",			amlibexecdir },
     { "mandir",				mandir },
     { "AMANDA_TMPDIR",			AMANDA_TMPDIR },
     { "CONFIG_DIR",			CONFIG_DIR },
+#ifdef MAILER
     { "MAILER",				MAILER },
+#endif
     { "DEFAULT_SERVER",			DEFAULT_SERVER },
     { "DEFAULT_CONFIG",			DEFAULT_CONFIG },
     { "DEFAULT_TAPE_SERVER",		DEFAULT_TAPE_SERVER },
@@ -308,8 +311,8 @@ static struct build_info {
 	NULL
 #endif
     },
-    { "FORCE_USERID",
-#if defined(FORCE_USERID)
+    { "CHECK_USERID",
+#if defined(CHECK_USERID)
 	"1"
 #else
 	NULL
@@ -337,9 +340,16 @@ static struct build_info {
 	NULL
 #endif
     },
-    { "SERVER_HOST_PRINCIPLE",
+    { "SERVER_HOST_PRINCIPAL",
 #if defined(KRB4_SECURITY)
-	SERVER_HOST_PRINCIPLE
+	SERVER_HOST_PRINCIPAL
+#else
+	NULL
+#endif
+    },
+    { "SERVER_HOST_PRINCIPLE", /* backward-compatibility (spelling error) */
+#if defined(KRB4_SECURITY)
+	SERVER_HOST_PRINCIPAL
 #else
 	NULL
 #endif
@@ -358,9 +368,16 @@ static struct build_info {
 	NULL
 #endif
     },
-    { "CLIENT_HOST_PRINCIPLE",
+    { "CLIENT_HOST_PRINCIPAL",
 #if defined(KRB4_SECURITY)
-	CLIENT_HOST_PRINCIPLE
+	CLIENT_HOST_PRINCIPAL
+#else
+	NULL
+#endif
+    },
+    { "CLIENT_HOST_PRINCIPLE", /* backward-compatibility (spelling error) */
+#if defined(KRB4_SECURITY)
+	CLIENT_HOST_PRINCIPAL
 #else
 	NULL
 #endif
@@ -417,26 +434,29 @@ main(
     int		argc,
     char **	argv)
 {
-    char *result;
-    unsigned long malloc_hist_1, malloc_size_1;
-    unsigned long malloc_hist_2, malloc_size_2;
-    char *pgm;
-    char *conffile;
-    char *parmname;
+    char *result = NULL;
+    char *pgm = NULL;
+    char *parmname = NULL;
     int i;
     int asklist;
     char number[NUM_STR_SIZE];
-    int    new_argc,   my_argc;
-    char **new_argv, **my_argv;
     int myarg;
+    config_overwrites_t *cfg_ovr = NULL;
+    char *cfg_opt = NULL;
+    gboolean cfg_ok;
+
+    /*
+     * Configure program for internationalization:
+     *   1) Only set the message locale for now.
+     *   2) Set textdomain for all amanda related programs to "amanda"
+     *      We don't want to be forced to support dozens of message catalogs.
+     */  
+    setlocale(LC_MESSAGES, "C");
+    textdomain("amanda"); 
 
     safe_fd(-1, 0);
 
-    malloc_size_1 = malloc_inuse(&malloc_hist_1);
-
-    parse_conf(argc, argv, &new_argc, &new_argv);
-    my_argc = new_argc;
-    my_argv = new_argv;
+    cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
 
     if((pgm = strrchr(my_argv[0], '/')) == NULL) {
 	pgm = my_argv[0];
@@ -448,44 +468,41 @@ main(
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
-    if(my_argc < 2) {
-	fprintf(stderr, "Usage: %s [config] [--list] <parmname> [-o configoption]*\n", pgm);
+    if(argc < 2) {
+	g_fprintf(stderr, _("Usage: %s [config] [--list] <parmname> [-o configoption]*\n"), pgm);
 	exit(1);
     }
 
     asklist = 0;
     myarg = 1;
-    if (strcmp(my_argv[1],"--list") == 0) {
+    if (strcmp(argv[1],"--list") == 0) {
 	asklist = 1;
 	myarg = 2;
-    } else if (my_argc > 2 && strcmp(my_argv[2],"--list") == 0) {
+    } else if (argc > 2 && strcmp(argv[2],"--list") == 0) {
 	asklist = 1;
 	myarg = 3;
-    } else if (my_argc > 2) {
+    } else if (argc > 2) {
 	myarg = 2;
     }
 
-    if (myarg > asklist+1) {
-	config_name = stralloc(my_argv[1]);
-	config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
-    } else {
-	char my_cwd[STR_SIZE];
+    if (myarg > asklist + 1)
+	cfg_opt = argv[1];
 
-	if (getcwd(my_cwd, SIZEOF(my_cwd)) == NULL) {
-	    error("cannot determine current working directory");
-	    /*NOTREACHED*/
-	}
-	config_dir = stralloc2(my_cwd, "/");
-	if ((config_name = strrchr(my_cwd, '/')) != NULL) {
-	    config_name = stralloc(config_name + 1);
-	}
+    if (myarg >= argc) {
+	error(_("Must specify a parameter"));
     }
-    if (myarg >= my_argc) {
-	error("Must specify a parameter");
-    }
-    parmname = my_argv[myarg];
+    parmname = argv[myarg];
 
-    safe_cd();
+    /* do the config_init() now, although the result isn't checked until the end,
+     * when we try to look up config parameters */
+    cfg_ok = config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_USE_CWD, cfg_opt);
+    if (cfg_ok) apply_config_overwrites(cfg_ovr);
+
+    safe_cd(); /* call this *after* config_init() */
+
+    /* Note that we dont use check_running_as(..) here, because we may not have a configuration
+     * (e.g., when we're examining build parameters).  If folks run this as the wrong user, that's
+     * their own problem. */
 
     /*
      * Fill in the build values that need runtime help.
@@ -496,14 +513,14 @@ main(
 #else
     i = -1;
 #endif
-    snprintf(number, SIZEOF(number), "%ld", (long)i);
+    g_snprintf(number, SIZEOF(number), "%ld", (long)i);
     build_info[1].value = stralloc(number);
 #if defined(KRB4_SECURITY)
     i = TICKET_LIFETIME;
 #else
     i = -1;
 #endif
-    snprintf(number, SIZEOF(number), "%ld", (long)i);
+    g_snprintf(number, SIZEOF(number), "%ld", (long)i);
     build_info[2].value = stralloc(number);
 
 #undef p
@@ -560,7 +577,7 @@ main(
 
 	t = stralloc(parmname + SIZEOF(p) - 1);
 	if((dbname = strchr(t, ':')) == NULL) {
-	    error("cannot parse %s", parmname);
+	    error(_("cannot parse %s"), parmname);
 	    /*NOTREACHED*/
 	}
 	*dbname++ = '\0';
@@ -577,23 +594,40 @@ main(
 	amfree(t);
 
     } else {
-	conffile = stralloc2(config_dir, CONFFILE_NAME);
-	if(read_conffile(conffile)) {
-	    error("errors processing config file \"%s\"", conffile);
-	    /*NOTREACHED*/
+	/* *now* we check the result of config_init */
+	if (!cfg_ok) {
+	    if (cfg_opt) {
+		error(_("errors processing conf file \"%s\""), cfg_opt);
+		/*NOTREACHED*/
+	    } else {
+		error(_("errors processing conf file in current directory."));
+		/*NOTREACHED*/
+	    }
 	}
-	amfree(conffile);
+
 	dbrename(config_name, DBG_SUBDIR_SERVER);
-	report_bad_conf_arg();
 	if (asklist) {
-	    result = getconf_list(parmname);
+	    GSList *list = getconf_list(parmname);
+	    GSList *iter;
+	    result = stralloc("");
+
+	    for (iter = list; iter != NULL; iter = iter->next) {
+		result = newvstralloc(result, result, iter->data, "\n", NULL);
+	    }
+
+	    g_slist_free(list);
 	} else {
-	    result = getconf_byname(parmname);
+	    val_t *val = getconf_byname(parmname);
+	    if (val) {
+		char **dispstrs = val_t_display_strs(val, FALSE);
+		result = g_strjoinv("\n", dispstrs);
+		g_strfreev(dispstrs);
+	    }
 	}
     }
 
     if (result == NULL) {
-	fprintf(stderr, "%s: no such parameter \"%s\"\n",
+	g_fprintf(stderr, _("%s: no such parameter \"%s\"\n"),
 		get_pname(), parmname);
 	fflush(stderr);
     } else {
@@ -603,19 +637,9 @@ main(
 	    puts(result); /* add a '\n' */
     }
 
-    free_new_argv(new_argc, new_argv);
-    free_server_config();
     amfree(result);
-    amfree(config_dir);
-    amfree(config_name);
     for(i = 0; i < 3; i++) {
 	amfree(build_info[i].value);
-    }
-
-    malloc_size_2 = malloc_inuse(&malloc_hist_2);
-
-    if(malloc_size_1 != malloc_size_2) {
-	malloc_list(fileno(stderr), malloc_hist_1, malloc_hist_2);
     }
 
     return 0;

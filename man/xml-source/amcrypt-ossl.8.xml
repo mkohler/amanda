@@ -86,7 +86,8 @@
     <citerefentry>
       <refentrytitle>amcrypt-ossl-asym</refentrytitle>
       <manvolnum>8</manvolnum>
-    </citerefentry>
+    </citerefentry>,
+    <ulink url="http://wiki.zmanda.com"/>
   </para>
 </refsect1>
 

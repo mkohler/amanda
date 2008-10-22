@@ -33,6 +33,7 @@
  * argv[2] will be argv[0] of the DUMP program
  * ...
  */
+#include "util.h"
 #include "amanda.h"
 #include "version.h"
 
@@ -44,10 +45,10 @@ int main(int argc, char **argv);
 #endif
 
 #if !defined(USE_RUNDUMP)
-#  define ERRMSG "rundump not enabled on this system.\n"
+#  define ERRMSG _("rundump not enabled on this system.\n")
 #else
 #  if !defined(DUMP) && !defined(VXDUMP) && !defined(VDUMP) && !defined(XFSDUMP)
-#    define ERRMSG "DUMP not available on this system.\n"
+#    define ERRMSG _("DUMP not available on this system.\n")
 #  else
 #    undef ERRMSG
 #  endif
@@ -62,7 +63,17 @@ main(
     char *dump_program;
     int i;
     char *e;
+    char *cmdline;
 #endif /* ERRMSG */
+
+    /*
+     * Configure program for internationalization:
+     *   1) Only set the message locale for now.
+     *   2) Set textdomain for all amanda related programs to "amanda"
+     *      We don't want to be forced to support dozens of message catalogs.
+     */  
+    setlocale(LC_MESSAGES, "C");
+    textdomain("amanda"); 
 
     safe_fd(-1, 0);
     safe_cd();
@@ -74,47 +85,36 @@ main(
 
     dbopen(DBG_SUBDIR_CLIENT);
     if (argc < 3) {
-	error("%s: Need at least 3 arguments\n", debug_prefix_time(NULL));
+	error(_("Need at least 3 arguments\n"));
 	/*NOTREACHED*/
     }
 
-    dbprintf(("%s: version %s\n", debug_prefix_time(NULL), version()));
+    dbprintf(_("version %s\n"), version());
 
 #ifdef ERRMSG							/* { */
 
-    fprintf(stderr, ERRMSG);
-    dbprintf(("%s: %s", argv[0], ERRMSG));
+    g_fprintf(stderr, ERRMSG);
+    dbprintf("%s: %s", argv[0], ERRMSG);
     dbclose();
     return 1;
 
 #else								/* } { */
 
-    if(client_uid == (uid_t) -1) {
-	error("error [cannot find user %s in passwd file]\n", CLIENT_LOGIN);
+#ifdef WANT_SETUID_CLIENT
+    check_running_as(RUNNING_AS_CLIENT_LOGIN | RUNNING_AS_UID_ONLY);
+    if (!become_root()) {
+	error(_("error [%s could not become root (is the setuid bit set?)]\n"), get_pname());
 	/*NOTREACHED*/
     }
-
-#ifdef FORCE_USERID
-    if (getuid() != client_uid) {
-	error("error [must be invoked by %s]\n", CLIENT_LOGIN);
-	/*NOTREACHED*/
-    }
-
-    if (geteuid() != 0) {
-	error("error [must be setuid root]\n");
-	/*NOTREACHED*/
-    }
-#endif	/* FORCE_USERID */
-
-#if !defined (DONT_SUID_ROOT)
-    setuid(0);
+#else
+    check_running_as(RUNNING_AS_CLIENT_LOGIN);
 #endif
 
     /* skip argv[0] */
     argc--;
     argv++;
 
-    dbprintf(("config: %s\n", argv[0]));
+    dbprintf(_("config: %s\n"), argv[0]);
     if (strcmp(argv[0], "NOCONFIG") != 0)
 	dbrename(argv[0], DBG_SUBDIR_CLIENT);
     argc--;
@@ -158,18 +158,24 @@ main(
 # endif
 #endif
 
-    dbprintf(("running: %s: ",dump_program));
-    for (i=0; argv[i]; i++)
-	dbprintf(("%s ", argv[i]));
-    dbprintf(("\n"));
+    cmdline = stralloc(dump_program);
+    for (i = 1; argv[i]; i++) {
+	char *quoted;
+
+	quoted = quote_string(argv[i]);
+	cmdline = vstrextend(&cmdline, " ", quoted, NULL);
+	amfree(quoted);
+    }
+    dbprintf(_("running: %s\n"), cmdline);
+    amfree(cmdline);
 
     execve(dump_program, argv, safe_env());
 
     e = strerror(errno);
-    dbprintf(("failed (%s)\n", e));
+    dbprintf(_("failed (%s)\n"), e);
     dbclose();
 
-    fprintf(stderr, "rundump: could not exec %s: %s\n", dump_program, e);
+    g_fprintf(stderr, _("rundump: could not exec %s: %s\n"), dump_program, e);
     return 1;
 #endif								/* } */
 }

@@ -1,17 +1,17 @@
 .\"     Title: amanda
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMANDA" "8" "06/06/2007" "" ""
+.TH "AMANDA" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amanda \- Advanced Maryland Automatic Network Disk Archiver
+amanda - Advanced Maryland Automatic Network Disk Archiver
 .SH "SYNOPSIS"
 .HP 8
 \fBamadmin\fR \fIconfig\fR \fIcommand\fR [\fIoptions\fR]
@@ -97,82 +97,88 @@ amanda \- Advanced Maryland Automatic Network Disk Archiver
 \fBamtoc\fR [\fIoptions\fR] \fIlogfile\fR
 .br
 
-.HP 9
-\fBamverify\fR \fIconfig\fR
+.HP 12
+\fBamcheckdump\fR [\fIoptions\fR] \fIconfig\fR
+.br
+
+.HP 15
+\fBamserverconfig\fR [\fIoptions\fR] \fIconfig\fR
 .br
 
 .HP 12
-\fBamverifyrun\fR \fIconfig\fR
+\fBamaddclient\fR \fIconfig\fR [\fIoptions\fR]
+.br
+
 .SH "DESCRIPTION"
 .PP
 \fIAmanda\fR
-is the "Advanced Maryland Automatic Network Disk Archiver". This manual page gives an overview of the
+is the "Advanced Maryland Automatic Network Disk Archiver"\. This manual page gives an overview of the
 \fIAmanda\fR
-commands and configuration files for quick reference.
+commands and configuration files for quick reference\.
 .PP
 Here are all the
 \fIAmanda\fR
-commands. Each one has its own manual page. See them for all the gory details.
+commands\. Each one has its own manual page\. See them for all the gory details\.
 .PP
 \fBamdump\fR
 .RS 4
 Take care of automatic
 \fIAmanda\fR
-backups. This is normally executed by
+backups\. This is normally executed by
 \fBcron\fR
 on a computer called the
 \fItape server host\fR
 and requests backups of file systems located on
 \fIbackup\fR
-\fIclients\fR.
+\fIclients\fR\.
 \fBAmdump\fR
 backs up all disks in the
 \fIdisklist\fR
 file (discussed below) to tape or, if there is a problem, to a special
 \fIholding\fR
-\fIdisk\fR. After all backups are done,
+\fIdisk\fR\. After all backups are done,
 \fBamdump\fR
-sends mail reporting failures and successes.
+sends mail reporting failures and successes\.
 .RE
 .PP
 \fBamflush\fR
 .RS 4
-Flush backups from the holding disk to tape.
+Flush backups from the holding disk to tape\.
 \fBAmflush\fR
 is used after
 \fBamdump\fR
-has reported it could not write backups to tape for some reason. When this happens, backups stay in the holding disk. Run
+has reported it could not write backups to tape for some reason\. When this happens, backups stay in the holding disk\. Run
 \fBamflush\fR
-after the tape problem is corrected to write backups from the holding disk to tape.
+after the tape problem is corrected to write backups from the holding disk to tape\.
 .RE
 .PP
 \fBamcleanup\fR
 .RS 4
 Clean up after an interrupted
-\fBamdump\fR. This command is only needed if
+\fBamdump\fR\. This command is only needed if
 \fBamdump\fR
 was unable to complete for some reason, usually because the tape server host crashed while
 \fBamdump\fR
-was running.
+was running\.
 .RE
 .PP
 \fBamrecover\fR
 .RS 4
 Provides an interactive interface to browse the
 \fIAmanda\fR
-index files (backup image catalogues) and select which tapes to recover files from. It can also run
+index files (backup image catalogues) and select which tapes to recover files from\. It can also run
 \fBamrestore\fR
-and a restore program (e.g.
-\fBtar\fR) to actually recover the files.
+and a restore program (e\.g\.
+\fBtar\fR) to actually recover the files\.
 .RE
 .PP
 \fBamrestore\fR
 .RS 4
 Read an
 \fIAmanda\fR
-tape, searching for requested backups.
+tape, searching for requested backups\.
 \fBAmrestore\fR
-is suitable for everything from interactive restores of single files to a full restore of all partitions on a failed disk.
+is suitable for everything from interactive restores of single files to a full restore of all partitions on a failed disk\.
 .RE
 .PP
 \fBamfetchdump\fR
@@ -180,105 +186,119 @@ is suitable for everything from interactive restores of single files to a full r
 Performs
 \fIAmanda\fR
 tape restoration, similar to
-\fBamrestore\fR. Additional capabilities include "hands\-off" searching of multiple tapes, automatic retrieval of specific dump files based on dump logs, and assembly of tape\-spanning split dump files.
+\fBamrestore\fR\. Additional capabilities include "hands\-off" searching of multiple tapes, automatic retrieval of specific dump files based on dump logs, and assembly of tape\-spanning split dump files\.
 .RE
 .PP
 \fBamlabel\fR
 .RS 4
 Write an
 \fIAmanda\fR
-format label onto a tape. All
+format label onto a tape\. All
 \fIAmanda\fR
 tapes must be labeled with
-\fBamlabel\fR.
+\fBamlabel\fR\.
 \fBAmdump\fR
 and
 \fBamflush\fR
-will not write to an unlabeled tape (see TAPE MANAGEMENT below).
+will not write to an unlabeled tape (see TAPE MANAGEMENT below)\.
 .RE
 .PP
 \fBamcheck\fR
 .RS 4
-Verify the correct tape is mounted and all file systems on all backup client systems are ready to be backed up. Often run by
+Verify the correct tape is mounted and all file systems on all backup client systems are ready to be backed up\. Often run by
 \fBcron\fR
 before
 \fBamdump\fR
-to generate a mail warning that backups might fail unless corrective action is taken.
+to generate a mail warning that backups might fail unless corrective action is taken\.
 .RE
 .PP
 \fBamadmin\fR
 .RS 4
-Take care of administrative tasks like finding out which tapes are needed to restore a filesystem, forcing hosts to do full backups of selected disks and looking at schedule balance information.
+Take care of administrative tasks like finding out which tapes are needed to restore a filesystem, forcing hosts to do full backups of selected disks and looking at schedule balance information\.
 .RE
 .PP
 \fBamtape\fR
 .RS 4
-Take care of tape changer control operations like loading particular tapes, ejecting tapes and scanning the tape storage slots.
+Take care of tape changer control operations like loading particular tapes, ejecting tapes and scanning the tape storage slots\.
 .RE
 .PP
-\fBamverify\fR
+\fBamcheckdump\fR
 .RS 4
-Check
+Check the results of an
 \fIAmanda\fR
-backup tapes for errors.
+dump\.
+.RE
+.PP
+\fBamserverconfig\fR
+.RS 4
+Program to setup initial
+\fIAmanda\fR
+configuration\.
+.RE
+.PP
+\fBamaddclient\fR
+.RS 4
+Program to add client to an existing
+\fIAmanda\fR
+configuration\.
 .RE
 .PP
 \fBamrmtape\fR
 .RS 4
 Delete a tape from the
 \fIAmanda\fR
-databases.
+databases\.
 .RE
 .PP
 \fBamstatus\fR
 .RS 4
 Report the status of a running or completed
-\fBamdump\fR.
+\fBamdump\fR\.
 .RE
 .PP
 \fBamoverview\fR
 .RS 4
-Display a chart of hosts and file systems backed up every run.
+Display a chart of hosts and file systems backed up every run\.
 .RE
 .PP
 \fBamplot\fR
 .RS 4
 Generate utilization plots of
 \fIAmanda\fR
-runs for performance tuning.
+runs for performance tuning\.
 .RE
 .PP
 \fBamreport\fR
 .RS 4
 Generate an
 \fIAmanda\fR
-summary E\-mail report.
+summary E\-mail report\.
 .RE
 .PP
 \fBamtoc\fR
 .RS 4
 Generate table of content files for
 \fIAmanda\fR
-tapes.
+tapes\.
 .RE
 .PP
 \fBamcheckdb\fR
 .RS 4
 Verify every tape
 \fIAmanda\fR
-knows about is consistent in the database.
+knows about is consistent in the database\.
 .RE
 .PP
 \fBamgetconf\fR
 .RS 4
 Look up parameters in the
 \fIAmanda\fR
-configuration file.
+configuration file\.
 .RE
 .PP
 \fBamtapetype\fR
 .RS 4
-Generate a tapetype definition.
+Generate a tapetype definition\.
 .RE
 .PP
 \fBamaespipe\fR
@@ -293,150 +313,147 @@ Reference encryption program for Amanda symmetric data encryption
 .SH "CONFIGURATION"
 .PP
 There are three user\-editable files that control the behavior of
-\fIAmanda\fR.
+\fIAmanda\fR\.
 .PP
 The first is
-\fBamanda.conf\fR, the main configuration file. It contains parameters to customize
+\fBamanda\.conf\fR, the main configuration file\. It contains parameters to customize
 \fIAmanda\fR
-for the site. Refer to the
+for the site\. Refer to the
 \fBamanda.conf\fR(5), manpage for details on
 \fIAmanda\fR
-configuration parameters.
+configuration parameters\.
 .PP
 Second is the
 \fIdisklist\fR
-file, which lists hosts and disk partitions to back up.
+file, which lists hosts and disk partitions to back up\.
 .PP
 Third is the
 \fItapelist\fR
-file, which lists tapes that are currently active. These files are described in more detail in the following sections.
+file, which lists tapes that are currently active\. These files are described in more detail in the following sections\.
 .PP
 All files are stored in individual configuration directories under
-\fI/usr/local/etc/amanda/\fR. A site will often have more than one configuration. For example, it might have a
+\fI/usr/local/etc/amanda/\fR\. A site will often have more than one configuration\. For example, it might have a
 \fInormal\fR
 configuration for everyday backups and an
 \fIarchive\fR
-configuration for infrequent full archival backups. The configuration files would be stored under directories
+configuration for infrequent full archival backups\. The configuration files would be stored under directories
 \fI/usr/local/etc/amanda/normal/\fR
 and
-\fI/usr/local/etc/amanda/archive/\fR, respectively. Part of the job of an
+\fI/usr/local/etc/amanda/archive/\fR, respectively\. Part of the job of an
 \fIAmanda\fR
-administrator is to create, populate and maintain these directories.
+administrator is to create, populate and maintain these directories\.
 .PP
 All log and database files generated by
 \fIAmanda\fR
-go in corresponding directories somewhere. The exact location is controlled by entries in
-\fBamanda.conf\fR. A typical location would be under
-\fI/var/adm/amanda\fR. For the above example, the files might go in
+go in corresponding directories somewhere\. The exact location is controlled by entries in
+\fBamanda\.conf\fR\. A typical location would be under
+\fI/var/adm/amanda\fR\. For the above example, the files might go in
 \fI/var/adm/amanda/normal/\fR
 and
-\fI/var/adm/amanda/archive/\fR.
+\fI/var/adm/amanda/archive/\fR\.
 .PP
 As log files are no longer needed (no longer contain relevant information),
 \fIAmanda\fR
-cycles them out in various ways, depending on the type of file.
+cycles them out in various ways, depending on the type of file\.
 .PP
 Detailed information about
 \fBamdump\fR
 runs are stored in files named
-\fBamdump.\fR\fINN\fR
+\fBamdump\.\fR\fINN\fR
 where
 \fINN\fR
-is a sequence number, with 1 being the most recent file.
+is a sequence number, with 1 being the most recent file\.
 \fBAmdump\fR
 rotates these files each run, keeping roughly the last
 \fBtapecycle\fR
-(see below) worth of them.
+(see below) worth of them\.
 .PP
 The file used by
 \fBamreport\fR
 to generate the mail summary is named
-\fBlog.\fR\fIYYYYMMDD.NN\fR
+\fBlog\.\fR\fIYYYYMMDD\.NN\fR
 where
 \fIYYYYMMDD\fR
 is the datestamp of the start of the
 \fBamdump\fR
 run and
 \fINN\fR
-is a sequence number started at 0. At the end of each
+is a sequence number started at 0\. At the end of each
 \fBamdump\fR
 run, log files for runs whose tapes have been reused are renamed into a subdirectory of the main log directory (see the
 \fBlogdir\fR
 parameter below) named
-\fBoldlog\fR. It is up to the
+\fBoldlog\fR\. It is up to the
 \fIAmanda\fR
-administrator to remove them from this directory when desired.
+administrator to remove them from this directory when desired\.
 .PP
 Index (backup image catalogue) files older than the full dump matching the oldest backup image for a given client and disk are removed by
 \fBamdump\fR
-at the end of each run.
+at the end of each run\.
 .SH "DISKLIST FILE"
 .PP
 The
 \fIdisklist\fR
 file determines which disks will be backed up by
-\fIAmanda\fR. The file usually contains one line per disk:
-.sp
-.RS 4
+\fIAmanda\fR\. The file usually contains one line per disk:
 .nf
 \fIhostname diskname\fR [\fIdiskdevice\fR] \fIdumptype\fR [\fIspindle\fR [\fIinterface\fR] ]
 .fi
-.RE
 .PP
 All pairs [
 \fIhostname diskname\fR
-] must be unique.
+] must be unique\.
 .PP
-Lines starting with # are ignored, as are blank lines. The fields have the following meanings:
+Lines starting with # are ignored, as are blank lines\. The fields have the following meanings:
 .PP
 \fIhostname\fR
 .RS 4
-The name of the host to be backed up. If
+The name of the host to be backed up\. If
 \fBdiskdevice\fR
 refers to a PC share, this is the host
 \fIAmanda\fR
 will run the Samba
 \fBsmbclient\fR
-program on to back up the share.
+program on to back up the share\.
 .RE
 .PP
 \fIdiskname\fR
 .RS 4
-The name of the disk (a label). In most case, you set your
+The name of the disk (a label)\. In most case, you set your
 \fBdiskname\fR
 to the
 \fBdiskdevice\fR
-and you don't set the
-\fBdiskdevice.\fR
+and you don\'t set the
+\fBdiskdevice\.\fR
 If you want multiple entries with the same
 \fBdiskdevice\fR, you must set a different
 \fBdiskname\fR
-for each entry. It's the
+for each entry\. It\'s the
 \fBdiskname\fR
 that you use on the commandline for any
 \fIAmanda\fR
-command. Look at the example/disklist file for example.
+command\. Look at the example/disklist file for example\.
 .RE
 .PP
 \fIdiskdevice\fR
 .RS 4
-Default: same as diskname. The name of the disk device to be backed up. It may be a full device name, a device name without the
+Default: same as diskname\. The name of the disk device to be backed up\. It may be a full device name, a device name without the
 \fI/dev/\fR
-prefix, e.g.
+prefix, e\.g\.
 \fIsd0a\fR, or a mount point such as
-\fI/usr\fR.
+\fI/usr\fR\.
 .sp
-It may also refer to a PC share by starting the name with two (forward) slashes, e.g.
-\fI//some\-pc/home\fR. In this case, the
+It may also refer to a PC share by starting the name with two (forward) slashes, e\.g\.
+\fI//some\-pc/home\fR\. In this case, the
 \fBprogram\fR
 option in the associated
 \fBdumptype\fR
 must be entered as
-\fBGNUTAR\fR. It is the combination of the double slash disk name and
+\fBGNUTAR\fR\. It is the combination of the double slash disk name and
 \fBprogram GNUTAR\fR
 in the
 \fBdumptype\fR
-that triggers the use of Samba.
+that triggers the use of Samba\.
 .RE
 .PP
 \fIdumptype\fR
@@ -444,26 +461,26 @@ that triggers the use of Samba.
 Refers to a
 \fBdumptype\fR
 defined in the
-\fBamanda.conf\fR
-file.
+\fBamanda\.conf\fR
+file\.
 \fIDumptype\fRs specify backup related parameters, such as whether to compress the backups, whether to record backup results in
-\fI/etc/dumpdates\fR, the disk's relative priority, etc.
+\fI/etc/dumpdates\fR, the disk\'s relative priority, etc\.
 .RE
 .PP
 \fIspindle\fR
 .RS 4
 Default:
-\fB\-1\fR. A number used to balance backup load on a host.
+\fB\-1\fR\. A number used to balance backup load on a host\.
 \fIAmanda\fR
-will not run multiple backups at the same time on the same spindle, unless the spindle number is \-1, which means there is no spindle restriction.
+will not run multiple backups at the same time on the same spindle, unless the spindle number is \-1, which means there is no spindle restriction\.
 .RE
 .PP
 \fIinterface\fR
 .RS 4
 Default:
-\fIlocal\fR. The name of a network interface definition in the
-\fBamanda.conf\fR
-file, used to balance network load.
+\fIlocal\fR\. The name of a network interface definition in the
+\fBamanda\.conf\fR
+file, used to balance network load\.
 .RE
 .PP
 Instead of naming a
@@ -472,41 +489,36 @@ Instead of naming a
 options within curly braces, one per line, just like a
 \fBdumptype\fR
 definition in
-\fBamanda.conf\fR. Since pre\-existing
+\fBamanda\.conf\fR\. Since pre\-existing
 \fBdumptype\fRs are valid option names, this syntax may be used to customize
-\fBdumptype\fRs for particular disks.
+\fBdumptype\fRs for particular disks\.
 .PP
 A line break
 \fBmust\fR
-follow the left curly bracket.
+follow the left curly bracket\.
 .PP
 For instance, if a
 \fBdumptype\fR
 named
 \fInormal\fR
 is used for most disks, but use of the holding disk needs to be disabled for the file system that holds it, this would work instead of defining a new dumptype:
-.sp
-.RS 4
 .nf
 \fIhostname diskname\fR [ \fIdiskdevice\fR ] {
   normal
   holdingdisk never
 } [ \fIspindle\fR [ \fIinterface\fR ] ]
 .fi
-.RE
 .SH "TAPE MANAGEMENT"
 .PP
 The
 \fItapelist\fR
-file contains the list of tapes in active use. This file is maintained entirely by
+file contains the list of tapes in active use\. This file is maintained entirely by
 \fIAmanda\fR
-and should not be created or edited during normal operation. It contains lines of the form:
+and should not be created or edited during normal operation\. It contains lines of the form:
 .PP
-.RS 4
 .nf
 YYYYMMDD label flags
 .fi
-.RE
 .PP
 Where
 \fIYYYYMMDD\fR
@@ -521,16 +533,16 @@ tell
 whether the tape may be reused, etc (see the
 \fBreuse\fR
 options of
-\fBamadmin\fR).
+\fBamadmin\fR)\.
 .PP
 \fBAmdump\fR
 and
 \fBamflush\fR
-will refuse to write to an unlabeled tape, or to a labeled tape that is considered active. There must be more tapes in active rotation (see the
+will refuse to write to an unlabeled tape, or to a labeled tape that is considered active\. There must be more tapes in active rotation (see the
 \fBtapecycle\fR
 option) than there are runs in the backup cycle (see the
 \fBdumpcycle\fR
-option) to prevent overwriting a backup image that would be needed to do a full recovery.
+option) to prevent overwriting a backup image that would be needed to do a full recovery\.
 .SH "OUTPUT DRIVERS"
 .PP
 The normal value for the
@@ -540,10 +552,10 @@ parameter, or for what a tape changer returns, is a full path name to a non\-rew
 or
 \fI/dev/rmt/0mn\fR
 or
-\fI/dev/nst0.1\fR
-or whatever conventions the operating system uses.
+\fI/dev/nst0\.1\fR
+or whatever conventions the operating system uses\.
 \fIAmanda\fR
-provides additional application level drivers that support non\-traditional tape\-simulations or features. To access a specific output driver, set
+provides additional application level drivers that support non\-traditional tape\-simulations or features\. To access a specific output driver, set
 \fBtapedev\fR
 (or configure your changer to return) a string of the form
 \fIdriver\fR:\fIdriver\-info\fR
@@ -551,29 +563,24 @@ where
 \fIdriver\fR
 is one of the supported drivers and
 \fIdriver\-info\fR
-is optional additional information needed by the driver.
+is optional additional information needed by the driver\.
 .PP
 The supported drivers are:
 .PP
 \fItape\fR
 .RS 4
-This is the default driver. The
+This is the default driver\. The
 \fIdriver\-info\fR
-is the tape device name. Entering
+is the tape device name\. Entering
 .sp
-.RS 4
 .nf
 tapedev /dev/rmt/0mn
 .fi
-.RE
-.sp
 is really a short hand for
 .sp
-.RS 4
 .nf
 tapedev tape:/dev/rmt/0mn
 .fi
-.RE
 .RE
 .PP
 \fInull\fR
@@ -581,32 +588,30 @@ tapedev tape:/dev/rmt/0mn
 This driver throws away anything written to it and returns EOF for any reads except a special case is made for reading a label, in which case a "fake" value is returned that
 \fIAmanda\fR
 checks for and allows through regardless of what you have set in
-\fBlabelstr\fR. The
+\fBlabelstr\fR\. The
 \fIdriver\-info\fR
 field is not used and may be left blank:
 .sp
 .sp
-.RS 4
 .nf
 tapedev null:
 .fi
-.RE
 .sp
 The
 \fIlength\fR
 value from the associated
 \fBtapetype\fR
-is used to limit the amount of data written. When the limit is reached, the driver will simulate end of tape.
+is used to limit the amount of data written\. When the limit is reached, the driver will simulate end of tape\.
 .sp
 .it 1 an-trap
 .nr an-no-space-flag 1
 .nr an-break-flag 1
 .br
-\fBNote\fR
+Note
 This driver should only be used for debugging and testing, and probably only with the
 \fBrecord\fR
 option set to
-\fIno\fR.
+\fIno\fR\.
 .RE
 .PP
 \fIrait\fR
@@ -614,18 +619,16 @@ option set to
 \fIR\fRedundant
 \fIA\fRrray of
 \fII\fRnexpensive (?)
-\fIT\fRapes. Reads and writes tapes mounted on multiple drives by spreading the data across N\-1 drives and using the last drive for a checksum. See docs/RAIT for more information.
+\fIT\fRapes\. Reads and writes tapes mounted on multiple drives by spreading the data across N\-1 drives and using the last drive for a checksum\. See docs/RAIT for more information\.
 .sp
 The
 \fIdriver\-info\fR
-field describes the devices to use. Curly braces indicate multiple replacements in the string. For instance:
+field describes the devices to use\. Curly braces indicate multiple replacements in the string\. For instance:
 .sp
 .sp
-.RS 4
 .nf
 tapedev rait:/dev/rmt/tps0d{4,5,6}n
 .fi
-.RE
 .sp
 would use the following devices:
 .sp
@@ -636,49 +639,49 @@ would use the following devices:
 .PP
 \fIfile\fR
 .RS 4
-This driver emulates a tape device with a set of files in a directory. The
+This driver emulates a tape device with a set of files in a directory\. The
 \fIdriver\-info\fR
-field must be the name of an existing directory. The driver will test for a subdirectory of that named
+field must be the name of an existing directory\. The driver will test for a subdirectory of that named
 \fIdata\fR
 and return
 \fBoffline\fR
-until it is present. When present, the driver uses two files in the
+until it is present\. When present, the driver uses two files in the
 \fIdata\fR
-subdirectory for each tape file. One contains the actual data. The other contains record length information.
+subdirectory for each tape file\. One contains the actual data\. The other contains record length information\.
 .sp
 The driver uses a file named
 \fIstatus\fR
 in the
 \fBfile\fR
-device directory to hold driver status information, such as tape position. If not present, the driver will create it as though the device is rewound.
+device directory to hold driver status information, such as tape position\. If not present, the driver will create it as though the device is rewound\.
 .sp
 The
 \fIlength\fR
 value from the associated
 \fBtapetype\fR
-is used to limit the amount of data written. When the limit is reached, the driver will simulate end of tape.
+is used to limit the amount of data written\. When the limit is reached, the driver will simulate end of tape\.
 .sp
 One way to use this driver with a real device such as a CD\-writer is to create a directory for the
 \fBfile\fR
-device and one or more other directories for the actual data. Create a symlink named
+device and one or more other directories for the actual data\. Create a symlink named
 \fIdata\fR
 in the
 \fBfile\fR
-directory to one of the data directories. Set the
+directory to one of the data directories\. Set the
 \fBtapetype\fR
-length to whatever the medium will hold.
+length to whatever the medium will hold\.
 .sp
 When
 \fIAmanda\fR
 fills the
 \fBfile\fR
-device, remove the symlink and (optionally) create a new symlink to another data area. Use a CD writer software package to burn the image from the first data area.
+device, remove the symlink and (optionally) create a new symlink to another data area\. Use a CD writer software package to burn the image from the first data area\.
 .sp
 To read the CD, mount it and create the
 \fIdata\fR
 symlink in the
 \fBfile\fR
-device directory.
+device directory\.
 .RE
 .SH "AUTHORIZATION"
 .PP
@@ -686,37 +689,37 @@ device directory.
 processes on the tape server host run as the
 \fBdumpuser\fR
 user listed in
-\fBamanda.conf\fR. When they connect to a backup client, they do so with an
-\fIAmanda\fR\-specific protocol. They do not, for instance, use
+\fBamanda\.conf\fR\. When they connect to a backup client, they do so with an
+\fIAmanda\fR\-specific protocol\. They do not, for instance, use
 \fBrsh\fR
 or
 \fBssh\fR
-directly.
+directly\.
 .PP
 On the client side, the
 \fBamandad\fR
 daemon validates the connection using one of several methods, depending on how it was compiled and on options it is passed:
 .PP
-\&.rhosts
+\.rhosts
 .RS 4
 Even though
 \fIAmanda\fR
 does not use
 \fBrsh\fR, it can use
-\fB.rhosts\fR\-style authentication and a
-\fB.rhosts\fR
-file.
+\fB\.rhosts\fR\-style authentication and a
+\fB\.rhosts\fR
+file\.
 .RE
 .PP
-\&.amandahosts
+\.amandahosts
 .RS 4
 This is essentially the same as
-\fB.rhosts\fR
-authentication except a different file, with almost the same format, is used. This is the default mechanism built into
-\fIAmanda\fR.
+\fB\.rhosts\fR
+authentication except a different file, with almost the same format, is used\. This is the default mechanism built into
+\fIAmanda\fR\.
 .sp
 The format of the
-\fI.amandahosts\fR
+\fI\.amandahosts\fR
 file is:
 .sp
 \fIhostname\fR
@@ -729,11 +732,11 @@ file is:
 If
 \fIusername\fR
 is ommitted, it defaults to the user running
-\fBamandad\fR, i.e. the user listed in the
+\fBamandad\fR, i\.e\. the user listed in the
 \fBinetd\fR
 or
 \fBxinetd\fR
-configuration file.
+configuration file\.
 .sp
 The
 \fIservice\fR
@@ -744,7 +747,7 @@ is a list of the service the client is authorized to execute:
 \fBsendsize\fR,
 \fBsendbackup\fR,
 \fBamindexd\fR,
-\fBamidxtaped\fR.
+\fBamidxtaped\fR\.
 \fBamdump\fR
 is a shortcut for "noop selfcheck sendsize sendbackup"
 .RE
@@ -752,39 +755,36 @@ is a shortcut for "noop selfcheck sendsize sendbackup"
 Kerberos
 .RS 4
 \fIAmanda\fR
-may use the Kerberos authentication system. Further information is in the
+may use the Kerberos authentication system\. Further information is in the
 \fBdocs/KERBEROS\fR
 file that comes with an
 \fIAmanda\fR
-distribution.
+distribution\.
 .sp
 For Samba access,
 \fIAmanda\fR
 needs a file on the Samba server (which may or may not also be the tape server) named
 \fI/etc/amandapass\fR
-with share names, (clear text) passwords and (optional) domain names, in that order, one per line, whitespace separated. By default, the user used to connect to the PC is the same for all PC's and is compiled into
-\fIAmanda\fR. It may be changed on a host by host basis by listing it first in the password field followed by a percent sign and then the password. For instance:
-.sp
-.RS 4
+with share names, (clear text) passwords and (optional) domain names, in that order, one per line, whitespace separated\. By default, the user used to connect to the PC is the same for all PC\'s and is compiled into
+\fIAmanda\fR\. It may be changed on a host by host basis by listing it first in the password field followed by a percent sign and then the password\. For instance:
 .nf
   //some\-pc/home normalpw
   //another\-pc/disk otheruser%otherpw
 .fi
-.RE
-With clear text passwords, this file should obviously be tightly protected. It only needs to be readable by the
-\fIAmanda\fR\-user on the Samba server.
+With clear text passwords, this file should obviously be tightly protected\. It only needs to be readable by the
+\fIAmanda\fR\-user on the Samba server\.
 .sp
 You can find further information in the
 \fBdocs/SAMBA\fR
 file that comes with an
 \fIAmanda\fR
-distribution.
+distribution\.
 .RE
 .SH "HOST & DISK EXPRESSION"
 .PP
-All host and disk arguments to programs are special expressions. The command applies to all disks that match your arguments. This section describes the matcher.
+All host and disk arguments to programs are special expressions\. The command applies to all disks that match your arguments\. This section describes the matcher\.
 .PP
-The matcher matches by word, each word is a glob expression, words are separated by the separator '.' for host and '/' for disk. You can anchor the expression at left with a '^'. You can anchor the expression at right with a '$'. The matcher is case insensitive for host but is case sensitive for disk. A match succeeds if all words in your expression match contiguous words in the host or disk.
+The matcher matches by word, each word is a glob expression, words are separated by the separator \'\.\' for host and \'/\' for disk\. You can anchor the expression at left with a \'^\'\. You can anchor the expression at right with a \'$\'\. The matcher is case insensitive for host but is case sensitive for disk\. A match succeeds if all words in your expression match contiguous words in the host or disk\.
 .TS
 tab(:);
 l l
@@ -795,7 +795,7 @@ l l
 l l
 l l.
 T{
-\&.
+\.
 T}:T{
 word separator for a host
 T}
@@ -830,7 +830,6 @@ T}:T{
 match zero or more characters including the separator
 T}
 .TE
-.sp
 .PP
 Some examples:
 .TS
@@ -862,9 +861,65 @@ T}:T{
 WILL NOT MATCH
 T}
 T{
+hosta
+T}:T{
+hosta
+T}:T{
+hostb
+T}
+T{
 \ 
 T}:T{
-ho.aina.org
+hoSTA\.dOMAIna\.ORG
+T}:T{
+\ 
+T}
+T{
+\ 
+T}:T{
+foo\.hosta\.org
+T}:T{
+\ 
+T}
+T{
+host
+T}:T{
+host
+T}:T{
+hosta
+T}
+T{
+host?
+T}:T{
+hosta
+T}:T{
+host
+T}
+T{
+\ 
+T}:T{
+hostb
+T}:T{
+\ 
+T}
+T{
+ho*na
+T}:T{
+hoina
+T}:T{
+ho\.aina\.org
+T}
+T{
+ho**na
+T}:T{
+hoina
+T}:T{
+\ 
+T}
+T{
+\ 
+T}:T{
+ho\.aina\.org
 T}:T{
 \ 
 T}
@@ -873,7 +928,7 @@ T{
 T}:T{
 hosta
 T}:T{
-foo.hosta.org
+foo\.hosta\.org
 T}
 T{
 sda*
@@ -897,7 +952,7 @@ T}:T{
 opt (host)
 T}
 T{
-\&.opt.
+\.opt\.
 T}:T{
 opt (host)
 T}:T{
@@ -931,69 +986,13 @@ T}:T{
 T}:T{
 /usr/opt
 T}
-T{
-hosta
-T}:T{
-hosta
-T}:T{
-hostb
-T}
-T{
-\ 
-T}:T{
-hoSTA.dOMAIna.ORG
-T}:T{
-\ 
-T}
-T{
-\ 
-T}:T{
-foo.hosta.org
-T}:T{
-\ 
-T}
-T{
-host
-T}:T{
-host
-T}:T{
-hosta
-T}
-T{
-host?
-T}:T{
-hosta
-T}:T{
-host
-T}
-T{
-\ 
-T}:T{
-hostb
-T}:T{
-\ 
-T}
-T{
-ho*na
-T}:T{
-hoina
-T}:T{
-ho.aina.org
-T}
-T{
-ho**na
-T}:T{
-hoina
-T}:T{
-\ 
-T}
 .TE
 .sp
 .SH "DATESTAMP EXPRESSION"
 .PP
 A
 \fIdatestamp\fR
-expression is a range expression where we only match the prefix. Leading ^ is removed. Trailing $ forces an exact match.
+expression is a range expression where we only match the prefix\. Leading ^ is removed\. Trailing $ forces an exact match\.
 .TS
 allbox tab(:);
 l l
@@ -1039,12 +1038,11 @@ T}:T{
 match only 200010
 T}
 .TE
-.sp
 .PP
 .SH "DUMP SPECIFICATIONS"
 .PP
-A dump specification selects one or more dumps. It has the form
-\fI[host][:disk][@datestamp]\fR, where each component is a pattern as described above. If a component is missing, it is treated as a wildcard. The characters ':', '@', and '\e' may be escaped within any component by preceding them with a '\e'.
+A dump specification selects one or more dumps\. It has the form
+\fI[host][:disk][@datestamp]\fR, where each component is a pattern as described above\. If a component is missing, it is treated as a wildcard\. The characters \':\', \'@\', and \'\e\' may be escaped within any component by preceding them with a \'\e\'\.
 .PP
 Some examples:
 .TS
@@ -1089,32 +1087,56 @@ T}
 .sp
 .SH "CONFIGURATION OVERRIDE"
 .PP
-Most command allow to overwrite any configuration parameter on the command line with the \-o option.
+Most commands allow the override of specific configuration options on the command line, using the
+\-o
+option\. This option has the form
+\-o\fIname\fR=\fIvalue\fR\. An optional space is allowed after the
+\-o\. Each configuration option should be specified in a separate command\-line option\.
 .PP
-\-o NAME=value
+For global options,
+\fIname\fR
+is simply the name of the option, e\.g\.,
+.sp
+.nf
+amdump \-oruntapes=2
+.fi
+For options in a named section of the configuration,
+\fIname\fR
+has the form
+\fISECTION\fR:\fIsection_name\fR:\fIname\fR, where
+\fISECTION\fR
+is one of TAPETYPE, DUMPTYPE, HOLDINGDISK, or INTERFACE, and
+\fIsection_name\fR
+is the name of the tapetype, dumptype, holdingdisk, or interface\. Examples:
+.sp
+.nf
+amdump \-o TAPETYPE:HP\-DAT:length=2000m
+amdump \-o DUMPTYPE:no\-compress:compress="server fast"
+amdump \-o HOLDINGDISK:hd1:use="\-100 mb"
+amdump \-o INTERFACE:local:use="2000 kbps"
+.fi
 .PP
-eg. \-o runtapes=2
-.PP
-eg. \-o DUMPTYPE:no\-compress:compress="server fast"
-.PP
-eg. \-o TAPETYPE:HP\-DAT:length=2000m
-.PP
-eg. \-o INTERFACE:local:use="2000 kbps"
+Note that configuration overrides are not effective for tape changers, which supply a tapedev based on their own configuration\. In order to override
+\fItapedev\fR, you must also disable any changer:
+.sp
+.nf
+amdump \-otapedev=/dev/nst1 \-otpchanger=\'\'
+.fi
 .SH "AUTHOR"
 .PP
 James da Silva,
-<jds@amanda.org>
+<jds@amanda\.org>
 : Original text
 .PP
-Stefan G. Weichinger,
-<sgw@amanda.org>, maintainer of the
+Stefan G\. Weichinger,
+<sgw@amanda\.org>, maintainer of the
 \fIAmanda\fR\-documentation: XML\-conversion, major update
 .SH "SEE ALSO"
 .PP
 
 \fBamadmin\fR(8),
 \fBamanda.conf\fR(5),
-\fBamanda\-client.conf\fR(5),
+\fBamanda-client.conf\fR(5),
 \fBamcheck\fR(8),
 \fBamcheckdb\fR(8),
 \fBamcleanup\fR(8),
@@ -1135,5 +1157,7 @@ Stefan G. Weichinger,
 \fBamtape\fR(8),
 \fBamtapetype\fR(8),
 \fBamtoc\fR(8),
-\fBamverify\fR(8),
-\fBamverifyrun\fR(8)
+\fBamcheckdump\fR(8),
+\fBamserverconfig\fR(8),
+\fBamaddclient\fR(8),
+: http://wiki.zmanda.com

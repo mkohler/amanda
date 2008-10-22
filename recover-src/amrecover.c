@@ -42,9 +42,9 @@
 #include "event.h"
 #include "security.h"
 
-#define amrecover_debug(i,x) do {	\
+#define amrecover_debug(i, ...) do {	\
 	if ((i) <= debug_amrecover) {	\
-	    dbprintf(x);		\
+	    dbprintf(__VA_ARGS__);	\
 	}				\
 } while (0)
 
@@ -54,9 +54,8 @@ int grab_reply(int show);
 void sigint_handler(int signum);
 int main(int argc, char **argv);
 
-#define USAGE "Usage: amrecover [[-C] <config>] [-s <index-server>] [-t <tape-server>] [-d <tape-device>] [-o <clientconfigoption>]*\n"
+#define USAGE _("Usage: amrecover [[-C] <config>] [-s <index-server>] [-t <tape-server>] [-d <tape-device>] [-o <clientconfigoption>]*\n")
 
-char *config = NULL;
 char *server_name = NULL;
 int server_socket;
 char *server_line = NULL;
@@ -110,18 +109,18 @@ get_line(void)
 	buf = NULL;
 	size = security_stream_read_sync(streams[MESGFD].fd, &buf);
 	if(size < 0) {
-	    amrecover_debug(1, ("%s: amrecover: get_line size < 0 (%zd)\n", debug_prefix_time(NULL), size));
+	    amrecover_debug(1, "amrecover: get_line size < 0 (%zd)\n", size);
 	    return -1;
 	}
 	else if(size == 0) {
-	    amrecover_debug(1, ("%s: amrecover: get_line size == 0 (%zd)\n", debug_prefix_time(NULL), size));
+	    amrecover_debug(1, "amrecover: get_line size == 0 (%zd)\n", size);
 	    return -1;
 	}
 	else if (buf == NULL) {
-	    amrecover_debug(1, ("%s: amrecover: get_line buf == NULL\n", debug_prefix_time(NULL)));
+	    amrecover_debug(1, "amrecover: get_line buf == NULL\n");
 	    return -1;
 	}
-        amrecover_debug(1, ("%s: amrecover: get_line size = %zd\n", debug_prefix_time(NULL), size));
+        amrecover_debug(1, "amrecover: get_line size = %zd\n", size);
 	newbuf = alloc(strlen(mesg_buffer)+size+1);
 	strncpy(newbuf, mesg_buffer, (size_t)(strlen(mesg_buffer) + size));
 	memcpy(newbuf+strlen(mesg_buffer), buf, (size_t)size);
@@ -313,13 +312,20 @@ main(
     extern char *optarg;
     extern int optind;
     char *line = NULL;
-    char *conffile;
     const security_driver_t *secdrv;
     char *req = NULL;
     int response_error;
-    int new_argc;
-    char **new_argv;
     struct tm *tm;
+    config_overwrites_t *cfg_ovr;
+
+    /*
+     * Configure program for internationalization:
+     *   1) Only set the message locale for now.
+     *   2) Set textdomain for all amanda related programs to "amanda"
+     *      We don't want to be forced to support dozens of message catalogs.
+     */  
+    setlocale(LC_MESSAGES, "C");
+    textdomain("amanda"); 
 
     safe_fd(-1, 0);
 
@@ -340,84 +346,74 @@ main(
 
     localhost = alloc(MAX_HOSTNAME_LENGTH+1);
     if (gethostname(localhost, MAX_HOSTNAME_LENGTH) != 0) {
-	error("cannot determine local host name\n");
+	error(_("cannot determine local host name\n"));
 	/*NOTREACHED*/
     }
     localhost[MAX_HOSTNAME_LENGTH] = '\0';
 
-    parse_conf(argc, argv, &new_argc, &new_argv);
+    /* load the base client configuration */
+    config_init(CONFIG_INIT_CLIENT, NULL);
 
-    if (new_argc > 1 && new_argv[1][0] != '-') {
-	/*
-	 * If the first argument is not an option flag, then we assume
-	 * it is a configuration name to match the syntax of the other
-	 * Amanda utilities.
-	 */
-	char **new_argv1;
+    /* treat amrecover-specific command line options as the equivalent
+     * -o command-line options to set configuration values */
+    cfg_ovr = new_config_overwrites(argc/2);
 
-	new_argv1 = (char **) alloc((size_t)((new_argc + 1 + 1) * sizeof(*new_argv1)));
-	new_argv1[0] = new_argv[0];
-	new_argv1[1] = "-C";
-	for (i = 1; i < new_argc; i++) {
-	    new_argv1[i + 1] = new_argv[i];
-	}
-	new_argv1[i + 1] = NULL;
-	new_argc++;
-	amfree(new_argv);
-	new_argv = new_argv1;
+    /* If the first argument is not an option flag, then we assume
+     * it is a configuration name to match the syntax of the other
+     * Amanda utilities. */
+    if (argc > 1 && argv[1][0] != '-') {
+	add_config_overwrite(cfg_ovr, "conf", argv[1]);
+
+	/* remove that option from the command line */
+	argv[1] = argv[0];
+	argv++; argc--;
     }
-    while ((i = getopt(new_argc, new_argv, "C:s:t:d:U")) != EOF) {
+
+    /* now parse regular command-line '-' options */
+    while ((i = getopt(argc, argv, "o:C:s:t:d:U")) != EOF) {
 	switch (i) {
 	    case 'C':
-		add_client_conf(CNF_CONF, optarg);
+		add_config_overwrite(cfg_ovr, "conf", optarg);
 		break;
 
 	    case 's':
-		add_client_conf(CNF_INDEX_SERVER, optarg);
+		add_config_overwrite(cfg_ovr, "index_server", optarg);
 		break;
 
 	    case 't':
-		add_client_conf(CNF_TAPE_SERVER, optarg);
+		add_config_overwrite(cfg_ovr, "tape_server", optarg);
 		break;
 
 	    case 'd':
-		add_client_conf(CNF_TAPEDEV, optarg);
+		add_config_overwrite(cfg_ovr, "tapedev", optarg);
+		break;
+
+	    case 'o':
+		add_config_overwrite_opt(cfg_ovr, optarg);
 		break;
 
 	    case 'U':
 	    case '?':
-		(void)printf(USAGE);
+		(void)g_printf(USAGE);
 		return 0;
 	}
     }
-    if (optind != new_argc) {
-	(void)fprintf(stderr, USAGE);
+    if (optind != argc) {
+	(void)g_fprintf(stderr, USAGE);
 	exit(1);
     }
 
+    /* and now try to load the configuration named in that file */
+    apply_config_overwrites(cfg_ovr);
+    config_init(CONFIG_INIT_CLIENT | CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_OVERLAY,
+		getconf_str(CNF_CONF));
+
+    check_running_as(RUNNING_AS_ROOT);
+
+    dbrename(config_name, DBG_SUBDIR_CLIENT);
+
     our_features = am_init_feature_set();
     our_features_string = am_feature_to_string(our_features);
-
-    conffile = vstralloc(CONFIG_DIR, "/", "amanda-client.conf", NULL);
-    if (read_clientconf(conffile) > 0) {
-	error("error reading conffile: %s", conffile);
-	/*NOTREACHED*/
-    }
-    amfree(conffile);
-
-    config = stralloc(getconf_str(CNF_CONF));
-
-    conffile = vstralloc(CONFIG_DIR, "/", config, "/", "amanda-client.conf",
-			 NULL);
-    if (read_clientconf(conffile) > 0) {
-	error("error reading conffile: %s", conffile);
-	/*NOTREACHED*/
-    }
-    amfree(conffile);
-
-    dbrename(config, DBG_SUBDIR_CLIENT);
-
-    report_bad_conf_arg();
 
     server_name = NULL;
     if (getconf_seen(CNF_INDEX_SERVER) == -2) { /* command line argument */
@@ -426,14 +422,14 @@ main(
     if (!server_name) {
 	server_name = getenv("AMANDA_SERVER");
 	if (server_name) {
-	    printf("Using index server from environment AMANDA_SERVER (%s)\n", server_name);
+	    g_printf(_("Using index server from environment AMANDA_SERVER (%s)\n"), server_name);
 	}
     }
     if (!server_name) {
 	server_name = getconf_str(CNF_INDEX_SERVER);
     }
     if (!server_name) {
-	error("No index server set");
+	error(_("No index server set"));
 	/*NOTREACHED*/
     }
     server_name = stralloc(server_name);
@@ -447,25 +443,30 @@ main(
 	if (!tape_server_name) {
 	    tape_server_name = getenv("AMANDA_TAPESERVER");
 	    if (tape_server_name) {
-		printf("Using tape server from environment AMANDA_TAPESERVER (%s)\n", tape_server_name);
+		g_printf(_("Using tape server from environment AMANDA_TAPESERVER (%s)\n"), tape_server_name);
 	    }
 	} else {
-	    printf("Using tape server from environment AMANDA_TAPE_SERVER (%s)\n", tape_server_name);
+	    g_printf(_("Using tape server from environment AMANDA_TAPE_SERVER (%s)\n"), tape_server_name);
 	}
     }
     if (!tape_server_name) {
 	tape_server_name = getconf_str(CNF_TAPE_SERVER);
     }
     if (!tape_server_name) {
-	error("No tape server set");
+	error(_("No tape server set"));
 	/*NOTREACHED*/
     }
     tape_server_name = stralloc(tape_server_name);
 
     amfree(tape_device_name);
     tape_device_name = getconf_str(CNF_TAPEDEV);
-    if (tape_device_name)
+    if (!tape_device_name ||
+	strlen(tape_device_name) == 0 ||
+	!getconf_seen(CNF_TAPEDEV)) {
+	tape_device_name = NULL;
+    } else {
 	tape_device_name = stralloc(tape_device_name);
+    }
 
     authopt = stralloc(getconf_str(CNF_AUTH));
 
@@ -483,7 +484,7 @@ main(
     sigemptyset(&act.sa_mask);
     act.sa_flags = 0;
     if (sigaction(SIGINT, &act, &oact) != 0) {
-	error("error setting signal handler: %s", strerror(errno));
+	error(_("error setting signal handler: %s"), strerror(errno));
 	/*NOTREACHED*/
     }
 
@@ -492,14 +493,13 @@ main(
     /* We assume that amindexd support fe_amindexd_options_features */
     /*                             and fe_amindexd_options_auth     */
     /* We should send a noop to really know                         */
-    req = vstralloc("SERVICE amindexd\n",
-		    "OPTIONS ", "features=", our_features_string, ";",
-				"auth=", authopt, ";",
-		    "\n", NULL);
+    req = vstrallocf("SERVICE amindexd\n"
+		    "OPTIONS features=%s;auth=%s;\n",
+		    our_features_string, authopt);
 
     secdrv = security_getdriver(authopt);
     if (secdrv == NULL) {
-	error("no '%s' security driver available for host '%s'",
+	error(_("no '%s' security driver available for host '%s'"),
 	    authopt, server_name);
 	/*NOTREACHED*/
     }
@@ -510,11 +510,11 @@ main(
     amfree(req);
     protocol_run();
 
-    printf("AMRECOVER Version %s. Contacting server on %s ...\n",
+    g_printf(_("AMRECOVER Version %s. Contacting server on %s ...\n"),
 	   version(), server_name);
 
     if(response_error != 0) {
-	fprintf(stderr,"%s\n",errstr);
+	g_fprintf(stderr,"%s\n",errstr);
 	exit(1);
     }
 
@@ -543,7 +543,7 @@ main(
     {
 	char *their_feature_string = NULL;
 
-	line = stralloc2("FEATURES ", our_features_string);
+	line = vstrallocf("FEATURES %s", our_features_string);
 	if(exchange(line) == 0) {
 	    their_feature_string = stralloc(server_line+13);
 	    indexsrv_features = am_string_to_feature(their_feature_string);
@@ -561,17 +561,17 @@ main(
     if (tm) 
 	strftime(dump_date, sizeof(dump_date), "%Y-%m-%d", tm);
     else
-	error("BAD DATE");
+	error(_("BAD DATE"));
 
-    printf("Setting restore date to today (%s)\n", dump_date);
-    line = stralloc2("DATE ", dump_date);
+    g_printf(_("Setting restore date to today (%s)\n"), dump_date);
+    line = vstrallocf("DATE %s", dump_date);
     if (converse(line) == -1) {
         aclose(server_socket);
 	exit(1);
     }
     amfree(line);
 
-    line = stralloc2("SCNF ", config);
+    line = vstrallocf("SCNF %s", config_name);
     if (converse(line) == -1) {
         aclose(server_socket);
 	exit(1);
@@ -583,9 +583,9 @@ main(
 	amfree(dump_hostname);
 	set_host(localhost);
 	if (dump_hostname)
-	    printf("Use the setdisk command to choose dump disk to recover\n");
+	    g_printf(_("Use the setdisk command to choose dump disk to recover\n"));
 	else
-	    printf("Use the sethost command to choose a host to recover\n");
+	    g_printf(_("Use the sethost command to choose a host to recover\n"));
 
     }
 
@@ -599,6 +599,7 @@ main(
 	if (lineread[0] != '\0') 
 	{
 	    add_history(lineread);
+	    dbprintf(_("user command: '%s'\n"), lineread);
 	    process_line(lineread);	/* act on line's content */
 	}
 	amfree(lineread);
@@ -625,15 +626,15 @@ amindexd_response(
     assert(sech != NULL);
 
     if (pkt == NULL) {
-	errstr = newvstralloc(errstr, "[request failed: ",
-			     security_geterror(sech), "]", NULL);
+	errstr = newvstrallocf(errstr, _("[request failed: %s]"),
+			     security_geterror(sech));
 	*response_error = 1;
 	return;
     }
 
     if (pkt->type == P_NAK) {
 #if defined(PACKET_DEBUG)
-	fprintf(stderr, "got nak response:\n----\n%s\n----\n\n", pkt->body);
+	dbprintf(_("got nak response:\n----\n%s\n----\n\n"), pkt->body);
 #endif
 
 	tok = strtok(pkt->body, " ");
@@ -642,25 +643,25 @@ amindexd_response(
 
 	tok = strtok(NULL, "\n");
 	if (tok != NULL) {
-	    errstr = newvstralloc(errstr, "NAK: ", tok, NULL);
+	    errstr = newvstrallocf(errstr, "NAK: %s", tok);
 	    *response_error = 1;
 	} else {
 bad_nak:
-	    errstr = newstralloc(errstr, "request NAK");
+	    errstr = newvstrallocf(errstr, _("request NAK"));
 	    *response_error = 2;
 	}
 	return;
     }
 
     if (pkt->type != P_REP) {
-	errstr = newvstralloc(errstr, "received strange packet type ",
-			      pkt_type2str(pkt->type), ": ", pkt->body, NULL);
+	errstr = newvstrallocf(errstr, _("received strange packet type %s: %s"),
+			      pkt_type2str(pkt->type), pkt->body);
 	*response_error = 1;
 	return;
     }
 
 #if defined(PACKET_DEBUG)
-    fprintf(stderr, "got response:\n----\n%s\n----\n\n", pkt->body);
+    g_fprintf(stderr, _("got response:\n----\n%s\n----\n\n"), pkt->body);
 #endif
 
     for(i = 0; i < NSTREAMS; i++) {
@@ -678,9 +679,11 @@ bad_nak:
 	 */
 	if (strcmp(tok, "ERROR") == 0) {
 	    tok = strtok(NULL, "\n");
-	    if (tok == NULL)
-		tok = "[bogus error packet]";
-	    errstr = newstralloc(errstr, tok);
+	    if (tok == NULL) {
+	        errstr = newvstrallocf(errstr, _("[bogus error packet]"));
+	    } else {
+		errstr = newvstrallocf(errstr, "%s", tok);
+	    }
 	    *response_error = 2;
 	    return;
 	}
@@ -697,22 +700,16 @@ bad_nak:
 	    for (i = 0; i < NSTREAMS; i++) {
 		tok = strtok(NULL, " ");
 		if (tok == NULL || strcmp(tok, streams[i].name) != 0) {
-		    extra = vstralloc("CONNECT token is \"",
-				      tok ? tok : "(null)",
-				      "\": expected \"",
-				      streams[i].name,
-				      "\"",
-				      NULL);
+		    extra = vstrallocf(
+			   _("CONNECT token is \"%s\": expected \"%s\""),
+			   tok ? tok : _("(null)"), streams[i].name);
 		    goto parse_error;
 		}
 		tok = strtok(NULL, " \n");
 		if (tok == NULL || sscanf(tok, "%d", &ports[i]) != 1) {
-		    extra = vstralloc("CONNECT ",
-				      streams[i].name,
-				      " token is \"",
-				      tok ? tok : "(null)",
-				      "\": expected a port number",
-				      NULL);
+		    extra = vstrallocf(
+			   _("CONNECT %s token is \"%s\" expected a port number"),
+			   streams[i].name, tok ? tok : _("(null)"));
 		    goto parse_error;
 		}
 	    }
@@ -725,10 +722,10 @@ bad_nak:
 	if (strcmp(tok, "OPTIONS") == 0) {
 	    tok = strtok(NULL, "\n");
 	    if (tok == NULL) {
-		extra = stralloc("OPTIONS token is missing");
+		extra = vstrallocf(_("OPTIONS token is missing"));
 		goto parse_error;
 	    }
-/*
+#if 0
 	    tok_end = tok + strlen(tok);
 	    while((p = strchr(tok, ';')) != NULL) {
 		*p++ = '\0';
@@ -736,25 +733,21 @@ bad_nak:
 		    tok += SIZEOF("features=") - 1;
 		    am_release_feature_set(their_features);
 		    if((their_features = am_string_to_feature(tok)) == NULL) {
-			errstr = newvstralloc(errstr,
-					      "OPTIONS: bad features value: ",
-					      tok,
-					      NULL);
+			errstr = newvstrallocf(errstr,
+				      _("OPTIONS: bad features value: %s"),
+				      tok);
 			goto parse_error;
 		    }
 		}
 		tok = p;
 	    }
-*/
+#endif
 	    continue;
 	}
-/*
-	extra = vstralloc("next token is \"",
-			  tok ? tok : "(null)",
-			  "\": expected \"CONNECT\", \"ERROR\" or \"OPTIONS\"",
-			  NULL);
+#if 0
+	extra = vstrallocf(_("next token is \"%s\": expected \"CONNECT\", \"ERROR\" or \"OPTIONS\""), tok ? tok : _("(null)"));
 	goto parse_error;
-*/
+#endif
     }
 
     /*
@@ -765,9 +758,9 @@ bad_nak:
 	    continue;
 	streams[i].fd = security_stream_client(sech, ports[i]);
 	if (streams[i].fd == NULL) {
-	    errstr = newvstralloc(errstr,
-			"[could not connect ", streams[i].name, " stream: ",
-			security_geterror(sech), "]", NULL);
+	    errstr = newvstrallocf(errstr,
+			_("[could not connect %s stream: %s]"),
+			streams[i].name, security_geterror(sech));
 	    goto connect_error;
 	}
     }
@@ -778,9 +771,9 @@ bad_nak:
 	if (streams[i].fd == NULL)
 	    continue;
 	if (security_stream_auth(streams[i].fd) < 0) {
-	    errstr = newvstralloc(errstr,
-		"[could not authenticate ", streams[i].name, " stream: ",
-		security_stream_geterror(streams[i].fd), "]", NULL);
+	    errstr = newvstrallocf(errstr,
+		_("[could not authenticate %s stream: %s]"),
+		streams[i].name, security_stream_geterror(streams[i].fd));
 	    goto connect_error;
 	}
     }
@@ -790,7 +783,7 @@ bad_nak:
      * them, complain.
      */
     if (streams[MESGFD].fd == NULL) {
-        errstr = newstralloc(errstr, "[couldn't open MESG streams]");
+        errstr = newvstrallocf(errstr, _("[couldn't open MESG streams]"));
         goto connect_error;
     }
 
@@ -800,11 +793,9 @@ bad_nak:
     return;
 
 parse_error:
-    errstr = newvstralloc(errstr,
-			  "[parse of reply message failed: ",
-			  extra ? extra : "(no additional information)",
-			  "]",
-			  NULL);
+    errstr = newvstrallocf(errstr,
+			  _("[parse of reply message failed: %s]"),
+			  extra ? extra : _("(no additional information)"));
     amfree(extra);
     *response_error = 2;
     return;

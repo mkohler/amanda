@@ -37,7 +37,7 @@ displayunit "k"		# Possible values: "k|m|g|t"
 			# The unit used to print many numbers.
 			# k=kilo, m=mega, g=giga, t=tera
 			
-netusage  600 Kbps	# maximum net bandwidth for Amanda, in KB per sec
+netusage  8000 Kbps	# maximum net bandwidth for Amanda, in KB per sec
 
 dumpcycle 4 weeks	# the number of days in the normal dump cycle
 runspercycle 20         # the number of amdump runs in dumpcycle days
@@ -59,8 +59,8 @@ dtimeout 1800		# number of idle seconds before a dump is aborted.
 ctimeout 30		# maximum number of seconds that amcheck waits
 			# for each client host
  
-tapebufs 20             # A positive integer telling taper how many 
-                        # 32k buffers to allocate.  The default is 20 (640k).
+device_output_buffer_size 1280k
+                        # amount of buffer space to use when writing to devices
 
 # By default, Amanda can only track at most one run per calendar day. When
 # the usetimestamps option is enabled, however, Amanda can track as many
@@ -70,6 +70,46 @@ tapebufs 20             # A positive integer telling taper how many
 #          edition 2.5
 usetimestamps yes
 
+# flush-threshold-dumped, flush-threshold-scheduled, taperflush, and autoflush
+# are used to control tape utilization. See the amanda.conf (5) manpage for
+# details on how they work. Taping will not start until all criteria are
+# satisfied. Here are some examples:
+#
+# You want to fill tapes completely even in the case of failed dumps, and
+# don't care if some dumps are left on the holding disk after a run:
+# flush-threshold-dumped	100 # (or more)
+# flush-threshold-scheduled	100 # (or more)
+# taperflush			100
+# autoflush			yes
+#
+# You want to improve tape performance by waiting for a complete tape of data
+# before writing anything. However, all dumps will be flushed; none will
+# be left on the holding disk.
+# flush-threshold-dumped	100 # (or more)
+# flush-threshold-scheduled	100 # (or more)
+# taperflush	0
+#
+# You don't want to use a new tape for every run, but want to start writing
+# to tape as soon as possible:
+# flush-threshold-dumped	0   # (or more)
+# flush-threshold-scheduled	100 # (or more)
+# taperflush	100
+# autoflush     yes
+# maxdumpsize   100k # amount of data to dump each run; see above.
+#
+# You want to keep the most recent dumps on holding disk, for faster recovery.
+# Older dumps will be rotated to tape during each run.
+# flush-threshold-dumped	300 # (or more)
+# flush-threshold-scheduled	300 # (or more)
+# taperflush	300
+# autoflush     yes
+#
+# Defaults:
+# (no restrictions; flush to tape immediately; don't flush old dumps.)
+flush-threshold-dumped 0
+flush-threshold-scheduled 0
+taperflush 0
+autoflush no
 
 # Specify tape device and/or tape changer.  If you don't have a tape
 # changer, and you don't want to use more than one tape per run of
@@ -91,7 +131,7 @@ usetimestamps yes
 runtapes 1			# number of tapes to be used in a single run of amdump
 tpchanger "chg-manual"		# the tape-changer glue script
 tapedev "@EXAMPLE_TAPEDEV@"	# the no-rewind tape device to be used
-rawtapedev "@DEFAULT_RAW_TAPE_DEVICE@"	# the raw device to be used (ftape only)
+
 #changerfile "@CONFIG_DIR@/@DEFAULT_CONFIG@/changer"
 #changerfile "@CONFIG_DIR@/@DEFAULT_CONFIG@/changer-status"
 changerfile "@CONFIG_DIR@/@DEFAULT_CONFIG@/changer.conf"
@@ -112,11 +152,10 @@ amrecover_do_fsf yes		# amrecover will call amrestore with the
 				# -f flag for faster positioning of the tape.
 amrecover_check_label yes	# amrecover will call amrestore with the
 				# -l flag to check the label.
-amrecover_changer "@EXAMPLE_TAPEDEV@"	# amrecover will use the changer if you restore
-				# from this device.
-				# It could be a string like 'changer' and
-				# amrecover will use your changer if you
-				# set your tape with 'settape changer'
+amrecover_changer "changer"	# amrecover will use the changer if you restore
+    # from this device. It could be a string like 'changer' and amrecover will use your
+    # changer if you set your tape to 'changer' with 'setdevice changer' or via 
+    # 'tapedev "changer"' in amanda-client.conf
 
 # Specify holding disks.  These are used as a temporary staging area for
 # dumps before they are written to tape and are recommended for most sites.
@@ -165,10 +204,6 @@ holdingdisk hd1 {
 # reserve 30 # percent
 # This means save at least 30% of the holding disk space for degraded
 # mode backups.  
-
-autoflush no #
-# if autoflush is set to yes, then amdump will schedule all dump on
-# holding disks to be flush to tape during the run.
 
 # The format for a ColumnSpec is a ',' seperated list of triples.
 # Each triple consists of
@@ -312,6 +347,12 @@ define tapetype MIMSY-MEGATAPE {
     speed 170 kbytes		# limited by the Emulex bus interface, ugh
 }
 
+define tapetype SEAGATE-ULTRIUM-LTO {
+     comment "SEAGATE ULTRIUM 06242 LTO, compression off"
+     length 99584 mbytes
+     filemark 0 kbytes
+     speed 11288 kps
+}
 
 # dumptypes
 #
@@ -676,13 +717,13 @@ define dumptype client-encrypt-nocomp {
 
 define interface local {
     comment "a local disk"
-    use 1000 kbps
+    use 8000 kbps
 }
 
-define interface le0 {
-    comment "10 Mbps ethernet"
-    use 400 kbps
-}
+#define interface le0 {
+#    comment "10 Mbps ethernet"
+#    use 400 kbps
+#}
 
 # You may include other amanda configuration files, so you can share
 # dumptypes, tapetypes and interface definitions among several

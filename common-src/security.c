@@ -55,6 +55,7 @@ extern const security_driver_t bsdtcp_security_driver;
 #ifdef BSDUDP_SECURITY
 extern const security_driver_t bsdudp_security_driver;
 #endif
+extern const security_driver_t local_security_driver;
 
 static const security_driver_t *drivers[] = {
 #ifdef BSD_SECURITY
@@ -78,6 +79,7 @@ static const security_driver_t *drivers[] = {
 #ifdef BSDUDP_SECURITY
     &bsdudp_security_driver,
 #endif
+    &local_security_driver,
 };
 #define	NDRIVERS	(size_t)(sizeof(drivers) / sizeof(drivers[0]))
 
@@ -94,13 +96,12 @@ security_getdriver(
 
     for (i = 0; i < NDRIVERS; i++) {
 	if (strcasecmp(name, drivers[i]->name) == 0) {
-	    dbprintf(("%s: security_getdriver(name=%s) returns %p\n",
-		      debug_prefix_time(NULL), name, drivers[i]));
+	    dbprintf(_("security_getdriver(name=%s) returns %p\n"),
+		      name, drivers[i]);
 	    return (drivers[i]);
 	}
     }
-    dbprintf(("%s: security_getdriver(name=%s) returns NULL\n",
-	      debug_prefix_time(NULL), name));
+    dbprintf(_("security_getdriver(name=%s) returns NULL\n"), name);
     return (NULL);
 }
 
@@ -112,35 +113,35 @@ security_handleinit(
     security_handle_t *		handle,
     const security_driver_t *	driver)
 {
-    dbprintf(("%s: security_handleinit(handle=%p, driver=%p (%s))\n",
-	      debug_prefix_time(NULL), handle, driver, driver->name));
+    dbprintf(_("security_handleinit(handle=%p, driver=%p (%s))\n"),
+	      handle, driver, driver->name);
     handle->driver = driver;
-    handle->error = stralloc("unknown protocol error");
+    handle->error = stralloc(_("unknown protocol error"));
 }
 
 printf_arglist_function1(void security_seterror, security_handle_t *, handle,
     const char *, fmt)
 {
-    static char buf[256];
+    static char buf[1024];
     va_list argp;
 
     assert(handle->error != NULL);
     arglist_start(argp, fmt);
-    vsnprintf(buf, SIZEOF(buf), fmt, argp);
+    g_vsnprintf(buf, SIZEOF(buf), fmt, argp);
     arglist_end(argp);
     handle->error = newstralloc(handle->error, buf);
-    dbprintf(("%s: security_seterror(handle=%p, driver=%p (%s) error=%s)\n",
-	      debug_prefix_time(NULL), handle, handle->driver,
-	      handle->driver->name, handle->error));
+    dbprintf(_("security_seterror(handle=%p, driver=%p (%s) error=%s)\n"),
+	      handle, handle->driver,
+	      handle->driver->name, handle->error);
 }
 
 void
 security_close(
     security_handle_t *	handle)
 {
-    dbprintf(("%s: security_close(handle=%p, driver=%p (%s))\n",
-	      debug_prefix_time(NULL), handle, handle->driver,
-	      handle->driver->name));
+    dbprintf(_("security_close(handle=%p, driver=%p (%s))\n"),
+	      handle, handle->driver,
+	      handle->driver->name);
     amfree(handle->error);
     (*handle->driver->close)(handle);
 }
@@ -153,33 +154,31 @@ security_streaminit(
     security_stream_t *		stream,
     const security_driver_t *	driver)
 {
-    dbprintf(("%s: security_streaminit(stream=%p, driver=%p (%s))\n",
-	      debug_prefix_time(NULL), stream, driver, driver->name));
+    dbprintf(_("security_streaminit(stream=%p, driver=%p (%s))\n"),
+	      stream, driver, driver->name);
     stream->driver = driver;
-    stream->error = stralloc("unknown stream error");
+    stream->error = stralloc(_("unknown stream error"));
 }
 
 printf_arglist_function1(void security_stream_seterror,
     security_stream_t *, stream,
     const char *, fmt)
 {
-    static char buf[256];
+    static char buf[1024];
     va_list argp;
 
     arglist_start(argp, fmt);
-    vsnprintf(buf, SIZEOF(buf), fmt, argp);
+    g_vsnprintf(buf, SIZEOF(buf), fmt, argp);
     arglist_end(argp);
     stream->error = newstralloc(stream->error, buf);
-    dbprintf(("%s: security_stream_seterr(%p, %s)\n",
-	      debug_prefix_time(NULL), stream, stream->error));
+    dbprintf(_("security_stream_seterr(%p, %s)\n"), stream, stream->error);
 }
 
 void
 security_stream_close(
     security_stream_t *	stream)
 {
-    dbprintf(("%s: security_stream_close(%p)\n",
-	      debug_prefix_time(NULL), stream));
+    dbprintf(_("security_stream_close(%p)\n"), stream);
     amfree(stream->error);
     (*stream->driver->stream_close)(stream);
 }

@@ -68,8 +68,20 @@ typedef struct dumper_s {
     chunker_t *chunker;
 } dumper_t;
 
+/* holding disk reservation structure; this is built as a list parallel
+ * to the configuration's linked list of holding disks. */
+
+typedef struct holdalloc_s {
+    struct holdalloc_s *next;
+    holdingdisk_t *hdisk;
+
+    off_t disksize;
+    int allocated_dumpers;
+    off_t allocated_space;
+} holdalloc_t;
+
 typedef struct assignedhd_s {
-    holdingdisk_t	*disk;
+    holdalloc_t		*disk;
     off_t		used;
     off_t		reserved;
     char		*destname;
@@ -78,7 +90,9 @@ typedef struct assignedhd_s {
 /* schedule structure */
 
 typedef struct sched_s {
-    int attempted, priority;
+    int dump_attempted;
+    int taper_attempted;
+    int  priority;
     int level, degr_level;
     unsigned long est_time, degr_time;
     off_t est_nsize, est_csize, est_size;
@@ -99,23 +113,33 @@ typedef struct sched_s {
 #define sched(dp)	((sched_t *) (dp)->up)
 
 
-/* holding disk reservation structure */
-
-typedef struct holdalloc_s {
-    int allocated_dumpers;
-    off_t allocated_space;
-} holdalloc_t;
-
-#define holdalloc(hp)	((holdalloc_t *) (hp)->up)
-
 GLOBAL dumper_t dmptable[MAX_DUMPERS];
 GLOBAL chunker_t chktable[MAX_DUMPERS];
 
 /* command/result tokens */
 
+typedef enum {
+   TAPER_STATE_DEFAULT       = 0,
+   TAPER_STATE_DUMP_TO_TAPE  = (1 << 0), // if taper is doing a dump to tape
+   TAPER_STATE_WAIT_FOR_TAPE = (1 << 1), // if taper wait for a tape, after a
+					 //   REQUEST-NEW-TAPE
+   TAPER_STATE_TAPE_STARTED  = (1 << 2)	 // taper already started to write to
+					 //   a tape.
+} TaperState;
+
 GLOBAL int taper, taper_busy;
+GLOBAL int taper_sendresult;
+GLOBAL char *taper_input_error;
+GLOBAL char *taper_tape_error;
 GLOBAL pid_t taper_pid;
+GLOBAL int taper_result;
+GLOBAL dumper_t *taper_dumper;
 GLOBAL event_handle_t *taper_ev_read;
+GLOBAL char *taper_first_label;
+GLOBAL off_t taper_first_fileno;
+GLOBAL TaperState taper_state;
+GLOBAL off_t taper_written;		// Number of kb already written to tape
+					//   for the DLE.
 
 void init_driverio(void);
 void startup_tape_process(char *taper_program);

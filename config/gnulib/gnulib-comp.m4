@@ -42,21 +42,48 @@ AC_DEFUN([gl_INIT],
   gl_source_base='gnulib'
   gl_FUNC_ALLOCA
   gl_HEADER_ARPA_INET
-  dnl gl_USE_SYSTEM_EXTENSIONS must be added quite early to configure.ac.
+  AC_PROG_MKDIR_P
+  gl_FUNC_BASE64
+  gl_FLOAT_H
+  gl_FSUSAGE
   gl_GETADDRINFO
+  AC_SUBST([LIBINTL])
+  AC_SUBST([LTLIBINTL])
+  gl_FUNC_GETTIMEOFDAY
   gl_INET_NTOP
   gl_LOCK
+  gl_FUNC_MALLOC_POSIX
+  gl_STDLIB_MODULE_INDICATOR([malloc-posix])
+  gt_FUNC_MKDTEMP
+  gl_STDLIB_MODULE_INDICATOR([mkdtemp])
   gl_HEADER_NETINET_IN
+  AC_PROG_MKDIR_P
+  gl_PHYSMEM
+  gl_SAFE_READ
+  gl_SAFE_WRITE
   gl_SIZE_MAX
   gl_FUNC_SNPRINTF
+  gl_STDIO_MODULE_INDICATOR([snprintf])
   gl_TYPE_SOCKLEN_T
+  gt_TYPE_SSIZE_T
   AM_STDBOOL_H
+  gl_STDINT_H
+  gl_STDIO_H
+  gl_STDLIB_H
   gl_FUNC_STRDUP
+  gl_STRING_MODULE_INDICATOR([strdup])
   gl_HEADER_STRING_H
   gl_HEADER_SYS_SOCKET
   AC_PROG_MKDIR_P
+  gl_HEADER_SYS_STAT_H
+  AC_PROG_MKDIR_P
+  gl_HEADER_SYS_TIME_H
+  AC_PROG_MKDIR_P
+  gl_FUNC_GEN_TEMPNAME
+  gl_UNISTD_H
   gl_FUNC_VASNPRINTF
   gl_VISIBILITY
+  gl_WCHAR_H
   gl_XSIZE
   m4_popdef([AC_LIBSOURCES])
   m4_popdef([AC_REPLACE_FUNCS])
@@ -96,37 +123,71 @@ AC_DEFUN([gl_LIBSOURCES],
 # gnulib-tool and may be removed by future gnulib-tool invocations.
 AC_DEFUN([gl_FILE_LIST], [
   build-aux/config.rpath
+  build-aux/link-warning.h
   lib/alloca_.h
   lib/asnprintf.c
+  lib/base64.c
+  lib/base64.h
+  lib/float+.h
+  lib/float_.h
+  lib/fsusage.c
+  lib/fsusage.h
+  lib/full-read.c
+  lib/full-read.h
+  lib/full-write.c
+  lib/full-write.h
   lib/gai_strerror.c
   lib/getaddrinfo.c
   lib/getaddrinfo.h
   lib/gettext.h
+  lib/gettimeofday.c
   lib/inet_ntop.c
   lib/inet_ntop.h
   lib/lock.c
   lib/lock.h
+  lib/malloc.c
+  lib/mkdtemp.c
+  lib/netinet_in_.h
+  lib/physmem.c
+  lib/physmem.h
   lib/printf-args.c
   lib/printf-args.h
   lib/printf-parse.c
   lib/printf-parse.h
+  lib/safe-read.c
+  lib/safe-read.h
+  lib/safe-write.c
+  lib/safe-write.h
   lib/size_max.h
   lib/snprintf.c
-  lib/snprintf.h
-  lib/socket_.h
   lib/stdbool_.h
+  lib/stdint_.h
+  lib/stdio_.h
+  lib/stdlib_.h
   lib/strdup.c
   lib/string_.h
+  lib/sys_socket_.h
+  lib/sys_stat_.h
+  lib/sys_time_.h
+  lib/tempname.c
+  lib/tempname.h
+  lib/unistd_.h
   lib/vasnprintf.c
   lib/vasnprintf.h
+  lib/wchar_.h
   lib/xsize.h
   m4/absolute-header.m4
   m4/alloca.m4
   m4/arpa_inet_h.m4
+  m4/base64.m4
   m4/eoverflow.m4
   m4/extensions.m4
+  m4/float_h.m4
+  m4/fsusage.m4
   m4/getaddrinfo.m4
+  m4/gettimeofday.m4
   m4/gnulib-common.m4
+  m4/include_next.m4
   m4/inet_ntop.m4
   m4/intmax_t.m4
   m4/inttypes_h.m4
@@ -134,21 +195,35 @@ AC_DEFUN([gl_FILE_LIST], [
   m4/lib-link.m4
   m4/lib-prefix.m4
   m4/lock.m4
-  m4/longdouble.m4
   m4/longlong.m4
+  m4/malloc.m4
+  m4/mkdtemp.m4
   m4/netinet_in_h.m4
   m4/onceonly_2_57.m4
+  m4/physmem.m4
+  m4/safe-read.m4
+  m4/safe-write.m4
   m4/size_max.m4
   m4/snprintf.m4
   m4/socklen.m4
   m4/sockpfaf.m4
+  m4/ssize_t.m4
   m4/stdbool.m4
+  m4/stdint.m4
   m4/stdint_h.m4
+  m4/stdio_h.m4
+  m4/stdlib_h.m4
   m4/strdup.m4
   m4/string_h.m4
   m4/sys_socket_h.m4
+  m4/sys_stat_h.m4
+  m4/sys_time_h.m4
+  m4/tempname.m4
+  m4/ulonglong.m4
+  m4/unistd_h.m4
   m4/vasnprintf.m4
   m4/visibility.m4
+  m4/wchar.m4
   m4/wchar_t.m4
   m4/wint_t.m4
   m4/xsize.m4

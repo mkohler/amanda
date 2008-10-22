@@ -37,6 +37,7 @@
 #include "packet.h"
 #include "security.h"
 #include "security-util.h"
+#include "sockaddr-util.h"
 #include "stream.h"
 #include "version.h"
 
@@ -44,22 +45,17 @@
 #undef DUMPER_SOCKET_BUFFERING
 #endif
 
-#ifdef BSD_SECURITY						/* { */
-
-/*
- * Change the following from #undef to #define to cause detailed logging
- * of the security steps, e.g. into /tmp/amanda/amandad*debug.
- */
-#undef SHOW_SECURITY_DETAIL
-
 /*
  * Interface functions
  */
 static void	bsd_connect(const char *, char *(*)(char *, void *), 
 			void (*)(void *, security_handle_t *, security_status_t),
 			void *, void *);
-static void	bsd_accept(const struct security_driver *, int, int,
-			void (*)(security_handle_t *, pkt_t *));
+static void	bsd_accept(const struct security_driver *,
+			char *(*)(char *, void *),
+			int, int,
+			void (*)(security_handle_t *, pkt_t *),
+			void *);
 static void	bsd_close(void *);
 static void *	bsd_stream_server(void *);
 static int	bsd_stream_accept(void *);
@@ -131,12 +127,12 @@ bsd_connect(
     struct servent *se;
     in_port_t port = 0;
     struct timeval sequence_time;
-    amanda_timezone dontcare;
     int sequence;
     char *handle;
     int result;
-    struct addrinfo hints;
-    struct addrinfo *res = NULL;
+    struct addrinfo *res, *res_addr;
+    char *canonname;
+    int result_bind;
 
     assert(hostname != NULL);
 
@@ -147,117 +143,142 @@ bsd_connect(
     bh->proto_handle=NULL;
     security_handleinit(&bh->sech, &bsd_security_driver);
 
-    /*
-     * Only init the socket once
-     */
-#ifdef WORKING_IPV6
-    hints.ai_flags = AI_CANONNAME | AI_V4MAPPED | AI_ALL;
-    hints.ai_family = AF_INET6;
-#else
-    hints.ai_flags = AI_CANONNAME;
-    hints.ai_family = AF_INET;
-#endif
-    hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_protocol = IPPROTO_UDP;
-    hints.ai_addrlen = 0;
-    hints.ai_addr = NULL;
-    hints.ai_canonname = NULL;
-    hints.ai_next = NULL;
-    result = getaddrinfo(hostname, NULL, &hints, &res);
-#ifdef WORKING_IPV6
-    if (result != 0) {
-	hints.ai_flags = AI_CANONNAME;
-	hints.ai_family = AF_UNSPEC;
-	result = getaddrinfo(hostname, NULL, &hints, &res);
-    }
-#endif
+    result = resolve_hostname(hostname, SOCK_DGRAM, &res, &canonname);
     if(result != 0) {
-	dbprintf(("getaddrinfo(%s): %s\n", hostname, gai_strerror(result)));
-	security_seterror(&bh->sech, "getaddrinfo(%s): %s\n", hostname,
+	dbprintf(_("resolve_hostname(%s): %s\n"), hostname, gai_strerror(result));
+	security_seterror(&bh->sech, _("resolve_hostname(%s): %s\n"), hostname,
 			  gai_strerror(result));
 	(*fn)(arg, &bh->sech, S_ERROR);
 	return;
     }
-    if (res->ai_canonname == NULL) {
-	dbprintf(("getaddrinfo(%s) did not return a canonical name\n", hostname));
+    if (canonname == NULL) {
+	dbprintf(_("resolve_hostname(%s) did not return a canonical name\n"), hostname);
 	security_seterror(&bh->sech,
- 	        _("getaddrinfo(%s) did not return a canonical name\n"), hostname);
+	        _("resolve_hostname(%s) did not return a canonical name\n"), hostname);
 	(*fn)(arg, &bh->sech, S_ERROR);
+       return;
+    }
+    if (res == NULL) {
+	dbprintf(_("resolve_hostname(%s): no results\n"), hostname);
+	security_seterror(&bh->sech,
+	        _("resolve_hostname(%s): no results\n"), hostname);
+	(*fn)(arg, &bh->sech, S_ERROR);
+       amfree(canonname);
+       return;
+    }
+
+    for (res_addr = res; res_addr != NULL; res_addr = res_addr->ai_next) {
+#ifdef WORKING_IPV6
+	/* IPv6 socket already bound */
+	if (res_addr->ai_addr->sa_family == AF_INET6 && not_init6 == 0) {
+	    break;
+	}
+	/*
+	 * Only init the IPv6 socket once
+	 */
+	if (res_addr->ai_addr->sa_family == AF_INET6 && not_init6 == 1) {
+	    uid_t euid;
+	    dgram_zero(&netfd6.dgram);
+
+	    euid = geteuid();
+	    set_root_privs(1);
+	    result_bind = dgram_bind(&netfd6.dgram,
+				     res_addr->ai_addr->sa_family, &port);
+	    set_root_privs(0);
+	    if (result_bind != 0) {
+		continue;
+	    }
+	    netfd6.handle = NULL;
+	    netfd6.pkt.body = NULL;
+	    netfd6.recv_security_ok = &bsd_recv_security_ok;
+	    netfd6.prefix_packet = &bsd_prefix_packet;
+	    /*
+	     * We must have a reserved port.  Bomb if we didn't get one.
+	     */
+	    if (port >= IPPORT_RESERVED) {
+		security_seterror(&bh->sech,
+		    _("unable to bind to a reserved port (got port %u)"),
+		    (unsigned int)port);
+		(*fn)(arg, &bh->sech, S_ERROR);
+		freeaddrinfo(res);
+		amfree(canonname);
+		return;
+	    }
+	    not_init6 = 0;
+	    bh->udp = &netfd6;
+	    break;
+	}
+#endif
+
+	/* IPv4 socket already bound */
+	if (res_addr->ai_addr->sa_family == AF_INET && not_init4 == 0) {
+	    break;
+	}
+
+	/*
+	 * Only init the IPv4 socket once
+	 */
+	if (res_addr->ai_addr->sa_family == AF_INET && not_init4 == 1) {
+	    uid_t euid;
+	    dgram_zero(&netfd4.dgram);
+
+	    euid = geteuid();
+	    set_root_privs(1);
+	    result_bind = dgram_bind(&netfd4.dgram,
+				     res_addr->ai_addr->sa_family, &port);
+	    set_root_privs(0);
+	    if (result_bind != 0) {
+		continue;
+	    }
+	    netfd4.handle = NULL;
+	    netfd4.pkt.body = NULL;
+	    netfd4.recv_security_ok = &bsd_recv_security_ok;
+	    netfd4.prefix_packet = &bsd_prefix_packet;
+	    /*
+	     * We must have a reserved port.  Bomb if we didn't get one.
+	     */
+	    if (port >= IPPORT_RESERVED) {
+		security_seterror(&bh->sech,
+		    "unable to bind to a reserved port (got port %u)",
+		    (unsigned int)port);
+		(*fn)(arg, &bh->sech, S_ERROR);
+		freeaddrinfo(res);
+		amfree(canonname);
+		return;
+	    }
+	    not_init4 = 0;
+	    bh->udp = &netfd4;
+	    break;
+	}
+    }
+
+    if (res_addr == NULL) {
+	dbprintf(_("Can't bind a socket to connect to %s\n"), hostname);
+	security_seterror(&bh->sech,
+	        _("Can't bind a socket to connect to %s\n"), hostname);
+	(*fn)(arg, &bh->sech, S_ERROR);
+       amfree(canonname);
        return;
     }
 
 #ifdef WORKING_IPV6
-    if (res->ai_addr->sa_family == AF_INET6 && not_init6 == 1) {
-	uid_t euid;
-	dgram_zero(&netfd6.dgram);
-
-	euid = geteuid();
-	seteuid((uid_t)0);
-	dgram_bind(&netfd6.dgram, res->ai_addr->sa_family, &port);
-	seteuid(euid);
-	netfd6.handle = NULL;
-	netfd6.pkt.body = NULL;
-	netfd6.recv_security_ok = &bsd_recv_security_ok;
-	netfd6.prefix_packet = &bsd_prefix_packet;
-	/*
-	 * We must have a reserved port.  Bomb if we didn't get one.
-	 */
-	if (port >= IPPORT_RESERVED) {
-	    security_seterror(&bh->sech,
-		"unable to bind to a reserved port (got port %u)",
-		(unsigned int)port);
-	    (*fn)(arg, &bh->sech, S_ERROR);
-	    return;
-	}
-	not_init6 = 0;
-	bh->udp = &netfd6;
-    }
-#endif
-
-    if (res->ai_addr->sa_family == AF_INET && not_init4 == 1) {
-	uid_t euid;
-	dgram_zero(&netfd4.dgram);
-
-	euid = geteuid();
-	seteuid((uid_t)0);
-	dgram_bind(&netfd4.dgram, res->ai_addr->sa_family, &port);
-	seteuid(euid);
-	netfd4.handle = NULL;
-	netfd4.pkt.body = NULL;
-	netfd4.recv_security_ok = &bsd_recv_security_ok;
-	netfd4.prefix_packet = &bsd_prefix_packet;
-	/*
-	 * We must have a reserved port.  Bomb if we didn't get one.
-	 */
-	if (port >= IPPORT_RESERVED) {
-	    security_seterror(&bh->sech,
-		"unable to bind to a reserved port (got port %u)",
-		(unsigned int)port);
-	    (*fn)(arg, &bh->sech, S_ERROR);
-	    return;
-	}
-	not_init4 = 0;
-	bh->udp = &netfd4;
-    }
-
-#ifdef WORKING_IPV6
-    if (res->ai_addr->sa_family == AF_INET6)
+    if (res_addr->ai_addr->sa_family == AF_INET6)
 	bh->udp = &netfd6;
     else
 #endif
 	bh->udp = &netfd4;
 
-    auth_debug(1, ("Resolved hostname=%s\n", res->ai_canonname));
+    auth_debug(1, _("Resolved hostname=%s\n"), canonname);
     if ((se = getservbyname(AMANDA_SERVICE_NAME, "udp")) == NULL)
 	port = AMANDA_SERVICE_DEFAULT;
     else
 	port = (in_port_t)ntohs(se->s_port);
-    amanda_gettimeofday(&sequence_time, &dontcare);
+    amanda_gettimeofday(&sequence_time);
     sequence = (int)sequence_time.tv_sec ^ (int)sequence_time.tv_usec;
     handle=alloc(15);
-    snprintf(handle, 14, "000-%08x",  (unsigned)newhandle++);
-    if (udp_inithandle(bh->udp, bh, res->ai_canonname,
-	(struct sockaddr_storage *)res->ai_addr, port, handle, sequence) < 0) {
+    g_snprintf(handle, 14, "000-%08x",  (unsigned)newhandle++);
+    if (udp_inithandle(bh->udp, bh, canonname,
+	(sockaddr_union *)res_addr->ai_addr, port, handle, sequence) < 0) {
 	(*fn)(arg, &bh->sech, S_ERROR);
 	amfree(bh->hostname);
 	amfree(bh);
@@ -266,6 +287,7 @@ bsd_connect(
 	(*fn)(arg, &bh->sech, S_OK);
     }
     amfree(handle);
+    amfree(canonname);
 
     freeaddrinfo(res);
 }
@@ -276,9 +298,11 @@ bsd_connect(
 static void
 bsd_accept(
     const struct security_driver *	driver,
+    char       *(*conf_fn)(char *, void *),
     int		in,
     int		out,
-    void	(*fn)(security_handle_t *, pkt_t *))
+    void	(*fn)(security_handle_t *, pkt_t *),
+    void       *datap)
 {
 
     assert(in >= 0 && out >= 0);
@@ -286,6 +310,8 @@ bsd_accept(
 
     (void)out;	/* Quiet unused parameter warning */
     (void)driver; /* Quiet unused parameter warning */
+    (void)conf_fn;
+    (void)datap;
 
     /*
      * We assume in and out point to the same socket, and just use
@@ -320,8 +346,7 @@ bsd_close(
 	return;
     }
 
-    auth_debug(1, ("%s: bsd: close handle '%s'\n",
-		   debug_prefix_time(NULL), bh->proto_handle));
+    auth_debug(1, _("bsd: close handle '%s'\n"), bh->proto_handle);
 
     udp_recvpkt_cancel(bh);
     if(bh->next) {
@@ -363,11 +388,12 @@ bsd_stream_server(
 
     bs = alloc(SIZEOF(*bs));
     security_streaminit(&bs->secstr, &bsd_security_driver);
-    bs->socket = stream_server(&bs->port, (size_t)STREAM_BUFSIZE, 
-			(size_t)STREAM_BUFSIZE, 0);
+    bs->socket = stream_server(SU_GET_FAMILY(&bh->udp->peer), &bs->port,
+			       (size_t)STREAM_BUFSIZE, (size_t)STREAM_BUFSIZE,
+			       0);
     if (bs->socket < 0) {
 	security_seterror(&bh->sech,
-	    "can't create server stream: %s", strerror(errno));
+	    _("can't create server stream: %s"), strerror(errno));
 	amfree(bs);
 	return (NULL);
     }
@@ -393,7 +419,7 @@ bsd_stream_accept(
     bs->fd = stream_accept(bs->socket, 30, STREAM_BUFSIZE, STREAM_BUFSIZE);
     if (bs->fd < 0) {
 	security_stream_seterror(&bs->secstr,
-	    "can't accept new stream connection: %s", strerror(errno));
+	    _("can't accept new stream connection: %s"), strerror(errno));
 	return (-1);
     }
     return (0);
@@ -421,7 +447,7 @@ bsd_stream_client(
 	STREAM_BUFSIZE, STREAM_BUFSIZE, &bs->port, 0);
     if (bs->fd < 0) {
 	security_seterror(&bh->sech,
-	    "can't connect stream to %s port %d: %s", bh->hostname,
+	    _("can't connect stream to %s port %d: %s"), bh->hostname,
 	    id, strerror(errno));
 	amfree(bs);
 	return (NULL);
@@ -540,8 +566,7 @@ stream_read_sync_callback(
 
     assert(bs != NULL);
 
-    auth_debug(1, ("%s: bsd: stream_read_callback_sync: fd %d\n",
-		   debug_prefix_time(NULL), bs->fd));
+    auth_debug(1, _("bsd: stream_read_callback_sync: fd %d\n"), bs->fd);
 
     /*
      * Remove the event first, in case they reschedule it in the callback.
@@ -597,5 +622,3 @@ stream_read_callback(
 
     (*bs->fn)(bs->arg, bs->databuf, n);
 }
-
-#endif	/* BSD_SECURITY */					/* } */

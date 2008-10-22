@@ -32,26 +32,7 @@
  */
 
 
-#include <amanda.h>
-
-#ifdef HAVE_BSD_LIKE_SCSI
-
-/*
-#ifdef HAVE_STDIO_H
-*/
-#include <stdio.h>
-/*
-#endif
-*/
-#ifdef HAVE_SYS_TYPES_H
-#include <sys/types.h>
-#endif
-#ifdef HAVE_SYS_STAT_H
-#include <sys/stat.h>
-#endif
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
+#include "amanda.h"
 
 #include <sys/scsiio.h>
 #include <sys/mtio.h>
@@ -231,10 +212,10 @@ int SCSI_ExecuteCommand(int DeviceFD,
     memcpy(pRequestSense, ds.sense, RequestSenseLength);
     if (Result < 0)
       {
-        dbprintf(("errno : %s\n",strerror(errno)));
+        dbprintf("errno : %s\n",strerror(errno));
         return (SCSI_ERROR);
       }
-    dbprintf(("SCSI_ExecuteCommand(BSD) %02X STATUS(%02X) \n", CDB[0], ds.retsts));
+    dbprintf("SCSI_ExecuteCommand(BSD) %02X STATUS(%02X) \n", CDB[0], ds.retsts);
     switch (ds.retsts)
       {
       case SCCMD_BUSY:                /*  BUSY */
@@ -279,7 +260,7 @@ int Tape_Ioctl( int DeviceFD, int command)
 
   if (ioctl(pDev[DeviceFD].fd , MTIOCTOP, &mtop) != 0)
     {
-      dbprintf(("Tape_Ioctl error ioctl %s\n",strerror(errno)));
+      dbprintf(_("Tape_Ioctl error ioctl %s\n"),strerror(errno));
       SCSI_CloseDevice(DeviceFD);
       return(-1);
     }
@@ -304,7 +285,6 @@ int ScanBus(int print)
   return(-1);
 }
 
-#endif
 /*
  * Local variables:
  * indent-tabs-mode: nil

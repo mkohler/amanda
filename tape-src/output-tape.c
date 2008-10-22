@@ -25,6 +25,10 @@
  *			   University of Maryland at College Park
  */
 
+/* NOTE: this driver is *deprecated* and should not be used.  See the Device API
+ * in device-src/ for the new implementation.
+ */
+
 /*
  * $Id: output-tape.c,v 1.18 2006/08/22 14:19:39 martinea Exp $
  *
@@ -94,7 +98,7 @@ tape_tapefd_fsf(
 }
 #endif									/* } */
 
-#ifdef UWARE_TAPEIO							/* { */
+#ifdef WANT_TAPE_UWARE							/* { */
 
 #include <sys/tape.h>
 
@@ -165,7 +169,7 @@ tape_tapefd_weof(
 }
 
 #else									/* }{ */
-#ifdef AIX_TAPEIO							/* { */
+#ifdef WANT_TAPE_AIX							/* { */
 
 #include <sys/tape.h>
 
@@ -251,8 +255,8 @@ tape_tapefd_weof(
     return ioctl(fd, STIOCTOP, &st);
 }
 
-#else /* AIX_TAPEIO */							/* }{ */
-#ifdef XENIX_TAPEIO							/* { */
+#else /* WANT_TAPE_AIX */							/* }{ */
+#ifdef WANT_TAPE_XENIX							/* { */
 
 #include <sys/tape.h>
 
@@ -333,7 +337,7 @@ tape_tapefd_weof(
     return status;
 }
 
-#else	/* ! AIX_TAPEIO && !XENIX_TAPEIO */				/* }{ */
+#else	/* ! WANT_TAPE_AIX && !WANT_TAPE_XENIX */				/* }{ */
 
 #include <sys/mtio.h>
 
@@ -455,9 +459,9 @@ tape_tapefd_weof(
     return ioctl(fd, MTIOCTOP, &mt);
 }
 
-#endif /* !XENIX_TAPEIO */						/* } */
-#endif /* !AIX_TAPEIO */						/* } */
-#endif /* !UWARE_TAPEIO */						/* } */
+#endif /* !WANT_TAPE_XENIX */						/* } */
+#endif /* !WANT_TAPE_AIX */						/* } */
+#endif /* !WANT_TAPE_UWARE */						/* } */
 
 /*
  * At this point we have pulled in every conceivable #include file :-),
@@ -499,7 +503,7 @@ tape_tape_open(
 	    /*
 	     * Open failed completely: just return
 	     */
-	    fprintf(stderr, "Opening tapedev %s: got error %s.\n",
+	    g_fprintf(stderr, _("Opening tapedev %s: got error %s.\n"),
 			filename, strerror(errno));
 	    return -1;
 	}
@@ -511,7 +515,7 @@ tape_tape_open(
 	timeout -= delay;
 	if (timeout <= 0) {
 	    /* Open failed: just return */
-	    fprintf(stderr, "Opening tapedev %s: not ready.\n", filename);
+	    g_fprintf(stderr, _("Opening tapedev %s: not ready.\n"), filename);
 	    return -1;
 	}
 
@@ -530,14 +534,14 @@ tape_tape_open(
 	memset(&mt, 0, SIZEOF(mt));
 	if (ioctl(ret, MTIOCGET, &mt) < 0) {
 	    close(ret);
-	    fprintf(stderr, "tapedev %s is not a tape device!\n", filename);
+	    g_fprintf(stderr, _("tapedev %s is not a tape device!\n"), filename);
 	    return -1;
 	}
 
 #ifdef GMT_ONLINE
 	if (!GMT_ONLINE(mt.mt_gstat)) {
 	    close(ret);
-	    fprintf(stderr, "tapedev %s is offline or has no loaded tape.\n",
+	    g_fprintf(stderr, _("tapedev %s is offline or has no loaded tape.\n"),
 		    filename);
 	    return -1;
 	}
@@ -598,8 +602,8 @@ tape_tapefd_resetofs(
      * filesize limit (eg OSes with 2 GB filesize limits) on a long tape.
      */
     if (lseek(fd, (off_t)0, SEEK_SET) < 0) {
-	dbprintf(("tape_tapefd_resetofs: lseek failed: <%s>\n",
-		  strerror(errno)));
+	dbprintf(_("tape_tapefd_resetofs: lseek failed: <%s>\n"),
+		  strerror(errno));
     }
 }
 

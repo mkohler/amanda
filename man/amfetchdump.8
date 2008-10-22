@@ -1,24 +1,24 @@
 .\"     Title: amfetchdump
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMFETCHDUMP" "8" "06/06/2007" "" ""
+.TH "AMFETCHDUMP" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amfetchdump \- extract backup images from multiple Amanda tapes.
+amfetchdump - extract backup images from multiple Amanda tapes.
 .SH "SYNOPSIS"
 .HP 12
-\fBamfetchdump\fR [\-pcClawns] [\-d\ \fIdevice\fR] [\-O\ \fIdirectory\fR] [\-i\ \fIlogfile\fR] [\-b\ \fIblocksize\fR] \fIconfig\fR \fIhostname\fR [\fIdisk\fR\ [\ \fIdate\fR\ [\ \fIlevel\fR\ [\ \fIhostname\fR\ [...]\ ]\ ]\ ]] [\-o\ \fIconfigoption\fR]...
+\fBamfetchdump\fR [\-pcClawns] [\-d\ \fIdevice\fR] [\-O\ \fIdirectory\fR] [\-b\ \fIblocksize\fR] \fIconfig\fR \fIhostname\fR [\fIdisk\fR\ [\ \fIdate\fR\ [\ \fIlevel\fR\ [\ \fIhostname\fR\ [\.\.\.]\ ]\ ]\ ]] [\-o\ \fIconfigoption\fR]...
 .SH "DESCRIPTION"
 .PP
 \fBAmfetchdump\fR
-pulls one or more matching dumps from tape or from the holding disk, handling the reassembly of multi\-tape split dump files as well as any tape autochanger operations.
+pulls one or more matching dumps from tape or from the holding disk, handling the reassembly of multi\-tape split dump files as well as any tape autochanger operations\.
 .PP
 It will automatically use the logs created by
 \fBamdump\fR(8)
@@ -26,7 +26,7 @@ to locate available dumps on tape, in the same way that the
 \fBfind\fR
 feature of
 \fBamadmin\fR(8)
-lists available dumps. If these logs are unavailable, it can search tape\-by\-tape to find what it needs, and can generate new logs to serve as an emergency tape inventory.
+lists available dumps\. If these logs are unavailable, it can search tape\-by\-tape to find what it needs, and can generate new logs to serve as an emergency tape inventory\.
 .PP
 The
 \fIhostname\fR,
@@ -36,111 +36,105 @@ The
 dump pattern\-matching works as in
 \fBamrestore\fR(8), with the added requirement that at minimum a
 \fIhostname\fR
-must be specified when not in inventory mode.
+must be specified when not in inventory mode\.
 .PP
 Unless
 \fB\-p\fR
 is used, backup images are extracted to files in the current directory named:
 .PP
-\fIhostname.diskname.datestamp.dumplevel\fR
+\fIhostname\.diskname\.datestamp\.dumplevel\fR
 .SH "OPTIONS"
 .PP
 \fB\-p\fR
 .RS 4
 Pipe exactly one complete dump file to
-\fIstdout\fR, instead of writing the file to disk. This will restore only the first matching dumpfile (where "first" is determined by the dump log search facility).
+\fIstdout\fR, instead of writing the file to disk\. This will restore only the first matching dumpfile (where "first" is determined by the dump log search facility)\.
 .RE
 .PP
 \fB\-d\fR \fIdevice\fR
 .RS 4
-Restore from this tape device instead of the default.
+Restore from this tape device instead of the default\.
 .RE
 .PP
 \fB\-O\fR \fIdirectory\fR
 .RS 4
-Output restored files to this directory, instead of to the current working directory.
+Output restored files to this directory, instead of to the current working directory\.
 .RE
 .PP
 \fB\-c\fR
 .RS 4
-Compress output, fastest method available.
+Compress output, fastest method available\.
 .RE
 .PP
 \fB\-C\fR
 .RS 4
-Compress output, smallest file size method available.
+Compress output, smallest file size method available\.
 .RE
 .PP
 \fB\-l\fR
 .RS 4
-Leave dumps in the compressed/uncompressed state in which they were found on tape. By default,
+Leave dumps in the compressed/uncompressed state in which they were found on tape\. By default,
 \fBamfetchdump\fR
-will automatically uncompress when restoring.
+will automatically uncompress when restoring\.
 .RE
 .PP
 \fB\-a\fR
 .RS 4
-Assume that all tapes are already available, via tape changer or otherwise, instead of prompting the operator to ensure that all tapes are loaded.
-.RE
-.PP
-\fB\-i\fR \fIfilename\fR
-.RS 4
-Generate an inventory of all dumps "seen" on the tapes we search, for later use as a log.
+Assume that all tapes are already available, via tape changer or otherwise, instead of prompting the operator to ensure that all tapes are loaded\.
 .RE
 .PP
 \fB\-w\fR
 .RS 4
-Wait to put split dumps together until all chunks have been restored. Normally,
+Wait to put split dumps together until all chunks have been restored\. Normally,
 \fBamfetchdump\fR
-will attempt to read pieces of a split file from tape in order, so that it can assemble them simply by appending each file to the first. This option disables the appending behavior, and instead restores each piece as an individual file and reassembles them only after all have been restored.
+will attempt to read pieces of a split file from tape in order, so that it can assemble them simply by appending each file to the first\. This option disables the appending behavior, and instead restores each piece as an individual file and reassembles them only after all have been restored\.
 .sp
 .it 1 an-trap
 .nr an-no-space-flag 1
 .nr an-break-flag 1
 .br
-\fBNote\fR
-This requires at least double the size of your dump in free disk space, in order to build the final assembled dumpfile.
+Note
+This requires at least double the size of your dump in free disk space, in order to build the final assembled dumpfile\.
 
-This behavior is implicitly invoked in circumstances where knowing the location of all dumps on tape in advance is not possible, such as when you are restoring without log files.
+This behavior is implicitly invoked in circumstances where knowing the location of all dumps on tape in advance is not possible, such as when you are restoring without log files\.
 .RE
 .PP
 \fB\-n\fR
 .RS 4
-Do not reassemble split dump files at all, just restore each piece as an individual file.
+Do not reassemble split dump files at all, just restore each piece as an individual file\.
 .RE
 .PP
 \fB\-s\fR
 .RS 4
-Do not fast\-forward straight to needed files on tape. This will slow down most restores substantially. Only use this option if your tape drive does not properly support the fast\-forward operation.
+Do not fast\-forward straight to needed files on tape\. This will slow down most restores substantially\. Only use this option if your tape drive does not properly support the fast\-forward operation\.
 .RE
 .PP
 \fB\-b\fR \fIblocksize\fR
 .RS 4
-Force a particular block size when reading from tapes. This value will usually be autodetected, and should not normally need to be set.
+Force a particular block size when reading from tapes\. This value will usually be autodetected, and should not normally need to be set\.
 .RE
 .PP
 \fB\-o\fR \fIconfigoption\fR
 .RS 4
 See the "\fBCONFIGURATION OVERRIDE\fR" section in
-\fBamanda\fR(8).
+\fBamanda\fR(8)\.
 .RE
 .SH "EXAMPLES"
 .PP
 All the examples here assume your configuration is called
-\fISetA\fR.
+\fISetA\fR\.
 .PP
-Here's a simple case, restoring all known dumps of the host vanya to the current working directory.
+Here\'s a simple case, restoring all known dumps of the host vanya to the current working directory\.
 .sp
 .RS 4
 .nf
 $ amfetchdump SetA vanya
 .fi
 .RE
-.sp
 .PP
-A more likely scenario involves restoring a particular dump from a particular date. We'll pipe this one to
+A more likely scenario involves restoring a particular dump from a particular date\. We\'ll pipe this one to
 \fBGNU\-tar\fR
-as well, to automatically extract the dump.
+as well, to automatically extract the dump\.
 .sp
 .RS 4
 .nf
@@ -148,51 +142,26 @@ $ amfetchdump \-p SetA vanya /home 20051020 | gtar \-xvpf \-
 .fi
 .RE
 .sp
-.PP
-In a situation where all of our dump logs have been wiped out, we could also use amfetchdump to inventory our tapes and recreate an imitation of those logs, which we'll send to
-\fIstdout\fR
-for casual perusal.
-
-.sp
-.RS 4
-.nf
-$ amfetchdump \-i \- SetA
-.fi
-.RE
-.sp
-
-.PP
-Note that you can specify a restore while in inventory mode, and
-\fBamfetchdump\fR
-will continue searching for more dumps from this host even after successfully restoring a dump, inventorying all the while. If your backup searcher has been trashed, this is a handy way to recover what you have.
-
-.sp
-.RS 4
-.nf
-$ amfetchdump \-i /var/amanda/log SetA backupserver
-.fi
-.RE
-.sp
-
 .SH "CAVEATS"
 .PP
 \fBAmfetchdump\fR
-is dependent on accessing your server's config, tape changer, and (normally) dump logs. As such, it's not necessarily the most useful tool when those have all been wiped out and you desperately need to pull things from your tape. Pains have been taken to make it as capable as possible, but for seriously minimialist restores, look to
+is dependent on accessing your server\'s config, tape changer, and (normally) dump logs\. As such, it\'s not necessarily the most useful tool when those have all been wiped out and you desperately need to pull things from your tape\. Pains have been taken to make it as capable as possible, but for seriously minimialist restores, look to
 \fBamrestore\fR(8)
 or
 \fBdd\fR(8)
-instead.
+instead\.
 .SH "AUTHOR"
 .PP
 John Stange,
-<building@nap.edu>, National Academies Press
+<building@nap\.edu>, National Academies Press
 .PP
 Ian Turner,
-<ian@zmanda.com>: XML\-conversion
+<ian@zmanda\.com>: XML\-conversion
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
 \fBamadmin\fR(8),
 \fBamrestore\fR(8),
-\fBtar\fR(1)
-\fBrestore\fR(8)
+\fBtar\fR(1),
+\fBrestore\fR(8),
+: http://wiki.zmanda.com

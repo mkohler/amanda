@@ -1,40 +1,73 @@
 # Makefile for Amanda server programs.
 
+include $(top_srcdir)/config/automake/vars.am
+include $(top_srcdir)/config/automake/scripts.am
+include $(top_srcdir)/config/automake/installperms.am
+include $(top_srcdir)/config/automake/precompile.am
+
 INCLUDES =	-I$(top_builddir)/common-src \
 		-I$(top_srcdir)/common-src   \
 		-I$(top_srcdir)/restore-src  \
-		-I$(top_srcdir)/tape-src     \
 		-I$(top_srcdir)/amandad-src  \
+		-I$(top_srcdir)/device-src   \
 		-I$(top_srcdir)/gnulib
 
-LINT=@AMLINT@
-LINTFLAGS=@AMLINTFLAGS@
+AM_CFLAGS = $(AMANDA_WARNING_CFLAGS)
+AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
 
-lib_LTLIBRARIES = 	libamserver.la
-LIB_EXTENSION = la
+LINT=$(AMLINT)
+LINTFLAGS=$(AMLINTFLAGS)
 
-sbin_PROGRAMS =		amadmin		amcheck		amflush		\
-			amgetconf	amlabel		amtape		\
-			amreport
+amlib_LTLIBRARIES = 	libamserver.la
 
-libexec_PROGRAMS =	amindexd	amlogroll	amtrmidx	\
+sbin_PROGRAMS =		amadmin		amcheck		\
+			amflush		amgetconf	amlabel		\
+			amtape		amreport
+
+noinst_PROGRAMS = taper_source_test
+
+amlibexec_PROGRAMS =	amindexd	amlogroll	amtrmidx	\
 			amtrmlog	driver		dumper		\
 			planner		taper		amcleanupdisk	\
 			chunker
 
-sbin_SCRIPTS =		amcheckdb	amcleanup	amdump		\
-			amoverview	amrmtape	amtoc		\
-			amverify	amverifyrun	amstatus	\
-			amcrypt		amaespipe       amcrypt-ossl    \
-			amcrypt-ossl-asym
+# Exclude scripts which depend on perl extension modules from the syntax checks
+CHECK_PERL = \
+	    amaddclient \
+	    amoverview \
+	    amserverconfig \
+	    amstatus \
+	    amtoc
+SCRIPTS_PERL =  \
+	    $(CHECK_PERL) \
+	    amdevcheck \
+	    amcheckdump
 
-libamserver_la_SOURCES=	amindex.c	changer.c			\
-			diskfile.c	driverio.c	cmdline.c  \
-			holding.c	infofile.c	logfile.c	\
-			tapefile.c	find.c		server_util.c   \
-                        taperscan.c
+SCRIPTS_SHELL = \
+	    amcheckdb \
+	    amcleanup \
+	    amdump \
+	    amrmtape \
+	    amverify \
+	    amverifyrun
 
-libamserver_la_LDFLAGS= -release $(VERSION)
+sbin_SCRIPTS = $(SCRIPTS_PERL) $(SCRIPTS_SHELL)
+
+INSTALLPERMS_exec = \
+	dest=$(sbindir) chown=amanda chmod= \
+		$(sbin_PROGRAMS) \
+	chown=root chmod=u+s,o-rwx \
+		amcheck \
+	dest=$(amlibexecdir) chown=amanda chmod= \
+		$(amlibexec_PROGRAMS) \
+	chown=root chmod=u+s,o-rwx \
+		dumper planner
+
+INSTALLPERMS_data = \
+	dest=$(sbindir) chown=amanda chmod= \
+		$(sbin_SCRIPTS) \
+	dest=$(amlibexecdir) chown=amanda chmod= \
+		$(amlibexec_SCRIPTS)
 
 ###
 # Because libamanda includes routines (e.g. regex) provided by some system
@@ -43,41 +76,52 @@ libamserver_la_LDFLAGS= -release $(VERSION)
 # routines, and second to pick up any references in the other libraries.
 ###
 
-LDADD = ../common-src/libamanda.$(LIB_EXTENSION)   \
-	libamserver.$(LIB_EXTENSION)               \
-	../tape-src/libamtape.$(LIB_EXTENSION)     \
-	../common-src/libamanda.$(LIB_EXTENSION)   \
-	../tape-src/libamtape.$(LIB_EXTENSION)     \
-	../common-src/libamanda.$(LIB_EXTENSION)   \
-	../gnulib/libgnu.$(LIB_EXTENSION)          \
+LDADD = ../common-src/libamanda.la   \
+	libamserver.la               \
+	../device-src/libamdevice.la     \
+	../common-src/libamanda.la   \
+	../gnulib/libgnu.la          \
         $(READLINE_LIBS)
 
-amindexd_LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
-	libamserver.$(LIB_EXTENSION) \
-	../amandad-src/libamandad.$(LIB_EXTENSION) \
-	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) \
-	../tape-src/libamtape.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) \
-	../gnulib/libgnu.$(LIB_EXTENSION)
+libamserver_la_SOURCES=	amindex.c	changer.c			\
+			diskfile.c	driverio.c	cmdline.c  \
+			holding.c	infofile.c	logfile.c	\
+			tapefile.c	find.c		server_util.c   \
+                        taperscan.c
 
-SUFFIXES =		.sh .pl
+libamserver_la_LDFLAGS= -release $(VERSION)
+libamserver_la_LIBADD= ../device-src/libamdevice.la \
+		       ../common-src/libamanda.la
 
-.pl:
-			cat $< > $@
-			chmod a+x $@
-			-test -z "$(PERL)" || $(PERL) -c -w -W -t -T $@
+taper_source_test_SOURCES = taper-source-test.c \
+			taper-source.c \
+			taper-file-source.c \
+			taper-port-source.c \
+			taper-disk-port-source.c \
+			taper-mem-port-source.c
 
-.sh:
-			cat $< > $@
-			chmod a+x $@
+taper_SOURCES = 	taper.c \
+			taper-source.c \
+			taper-file-source.c \
+			taper-port-source.c \
+			taper-disk-port-source.c \
+			taper-mem-port-source.c
+
+taper_LDADD = $(LDADD) \
+	../amandad-src/libamandad.la
+
+taper_source_test_LDADD = $(LDADD) \
+	../amandad-src/libamandad.la
+
+amindexd_LDADD = $(LDADD) \
+	../amandad-src/libamandad.la
 
 # there are used for testing only:
 TEST_PROGS = diskfile infofile
 
 EXTRA_PROGRAMS =	$(TEST_PROGS)
 
-CLEANFILES = *.test.c $(sbin_SCRIPTS)
+CLEANFILES += *.test.c
 
 amindexd_CSRC =		amindexd.c	disk_history.c	list_dir.c
 amindexd_SOURCES =	disk_history.h	list_dir.h	$(amindexd_CSRC)
@@ -86,58 +130,16 @@ amreport_SOURCES =	reporter.c
 
 amgetconf_SOURCES =	getconf.c
 
-noinst_HEADERS = 	amindex.h	changer.h			\
+noinst_HEADERS = 	amindex.h	changer.h	cmdline.h	\
 			diskfile.h	driverio.h	\
 			holding.h	infofile.h	logfile.h	\
 			tapefile.h	find.h		server_util.h	\
-			taperscan.h cmdline.h
-
-install-exec-hook:
-	@list="$(sbin_PROGRAMS) $(sbin_SCRIPTS)"; \
-	for p in $$list; do \
-		pa=$(DESTDIR)$(sbindir)/`echo $$p|sed '$(transform)'`; \
-		echo chown $(BINARY_OWNER) $$pa; \
-		chown $(BINARY_OWNER) $$pa; \
-		echo chgrp $(SETUID_GROUP) $$pa; \
-		chgrp $(SETUID_GROUP) $$pa; \
-	done
-	@list="$(libexec_PROGRAMS) $(libexec_SCRIPTS)"; \
-	for p in $$list; do \
-		pa=$(DESTDIR)$(libexecdir)/`echo $$p|sed '$(transform)'`; \
-		echo chown $(BINARY_OWNER) $$pa; \
-		chown $(BINARY_OWNER) $$pa; \
-		echo chgrp $(SETUID_GROUP) $$pa; \
-		chgrp $(SETUID_GROUP) $$pa; \
-	done
-	@list="amcheck"; \
-	for p in $$list; do \
-		if echo "$(sbin_PROGRAMS)" | grep $$p >/dev/null 2>&1; then \
-			pa=$(DESTDIR)$(sbindir)/`echo $$p|sed '$(transform)'`; \
-			echo chown root $$pa; \
-			chown root $$pa; \
-			echo chmod u+s,o-rwx $$pa; \
-			chmod u+s,o-rwx $$pa; \
-		else true; \
-		fi; \
-	done
-##						       ##
-## enterprise version will install dumper/planner suid ##
-##						       ##
-
-	@list="dumper planner"; \
-	for p in $$list; do \
-		if echo "$(libexec_PROGRAMS)" | grep $$p >/dev/null 2>&1; then \
-			pa=$(DESTDIR)$(libexecdir)/`echo $$p|sed '$(transform)'`; \
-			echo chown root $$pa; \
-			chown root $$pa; \
-			echo chmod u+s,o-rwx $$pa; \
-			chmod u+s,o-rwx $$pa; \
-		else true; \
-		fi; \
-	done
+			taperscan.h taper-disk-port-source.h \
+			taper-mem-port-source.h  taper-file-source.h \
+			taper-port-source.h taper-source.h
 
 lint:
-	@ for p in $(libexec_PROGRAMS) $(sbin_PROGRAMS); do			\
+	@ for p in $(amlibexec_PROGRAMS) $(sbin_PROGRAMS); do			\
 		if [ $$p = "amindexd" ]; then					\
 			s="$(amindexd_CSRC)";					\
 		elif [ $$p = "amreport" ]; then					\
@@ -153,7 +155,7 @@ lint:
 		(cd ../tape-src; make listlibsrc);				\
 		f="$$f "`cat ../tape-src/listlibsrc.output`;			\
 		echo $(LINT) $$f;						\
-		$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I../config	\
+		$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I$(top_builddir)/config	\
 		    $(INCLUDES) $$f;						\
 		if [ $$? -ne 0 ]; then						\
 		    exit 1;							\

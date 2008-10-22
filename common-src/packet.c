@@ -72,14 +72,15 @@ printf_arglist_function2(void pkt_init, pkt_t *, pkt, pktype_t, type,
 
     assert(pkt != NULL);
     assert(strcmp(pkt_type2str(type), "BOGUS") != 0);
-    assert(fmt != NULL);
+    if(fmt == NULL)
+	fmt = "";
 
     pkt->type = type;
     pkt->packet_size = 1000;
     pkt->body = alloc(pkt->packet_size);
     while(1) {
 	arglist_start(argp, fmt);
-	len = vsnprintf(pkt->body, pkt->packet_size, fmt, argp);
+	len = g_vsnprintf(pkt->body, pkt->packet_size, fmt, argp);
 	arglist_end(argp);
 	if (len > -1 && len < (int)(pkt->packet_size - 1))
 	    break;
@@ -107,7 +108,7 @@ printf_arglist_function1(void pkt_cat, pkt_t *, pkt, const char *, fmt)
 
     while(1) {
 	arglist_start(argp, fmt);
-        lenX = vsnprintf(pkt->body + len, pkt->packet_size - len, fmt,argp);
+        lenX = g_vsnprintf(pkt->body + len, pkt->packet_size - len, fmt,argp);
 	arglist_end(argp);
 	if (lenX > -1 && lenX < (int)(pkt->packet_size - len - 1))
 	    break;

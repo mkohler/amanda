@@ -29,7 +29,8 @@
  * Terminology:
  *
  * Holding disk: a top-level directory given in amanda.conf
- * Holding directory: a subdirectory of a holding disk, named by datestamp
+ * Holding directory: a subdirectory of a holding disk, usually named by 
+ *  datestamp.  These are not accessible through this API.
  * Holding file: one or more os-level files in a holding directory, together
  *  representing a single dump
  * Holding file chunks: the individual os-level files (continuations) of
@@ -39,7 +40,7 @@
  *
  * /data/holding                                     <-- holding disk
  * /data/holding/200703061234                        <-- holding dir
- * /data/holding/200703061234/videoserver._video_a   <-- holding file, 
+ * /data/holding/200703061234/videoserver._video_a   <-- holding file,
                                                          holding file chunk
  * /data/holding/200703061234/videoserver._video_a.1 <-- holding file chunk
  *
@@ -51,76 +52,59 @@
 #include "amanda.h"
 #include "diskfile.h"
 #include "fileheader.h"
-#include "sl.h"
 
-/*
- * Verbosity
- */
-
-/* Set verbose flag for holding-disk functions
+/* Get a list of holding disks.  This is equivalent to 
+ * getconf_holdingdisks() with holdingdisk_get_diskdir().
  *
- * @param verbose: if true, log verbosely to stdout
- * @returns: old verbosity
+ * @returns: newly allocated GSList of matching disks
  */
-int
-holding_set_verbosity(int verbose);
-
-/*
- * Holding disks
- *
- * Use getconf_holdingdisks() to access the list of holding disks.
- */
-
-/*
- * Holding directories
- */
-
-/* Get a list of holding directories, optionally limited to a single
- * holding disk.  Can return a list either of full pathnames or of
- * bare directory names (datestamps).
- *
- * @param hdisk: holding disk to enumerate, or NULL for all
- * @param date_list: Limit to thes timestamps.
- * @param fullpaths: if true, return full pathnames
- * @returns: newly allocated sl_t of matching directories
- */
-sl_t *
-holding_get_directories(char *hdisk,
-			sl_t *date_list,
-                        int fullpaths);
-
-/*
- * Holding files
- */
+GSList *
+holding_get_disks(void);
 
 /* Get a list of holding files, optionally limited to a single holding
  * directory.  Can return a list either of full pathnames or of
  * bare file names.
  *
  * @param hdir: holding directory to enumerate, or NULL for all
- * @param date_list: Limit to thes timestamps.
  * @param fullpaths: if true, return full pathnames
- * @returns: newly allocated sl_t of matching files
+ * @returns: newly allocated GSList of matching files
  */
-sl_t *
+GSList *
 holding_get_files(char *hdir,
-		  sl_t *date_list,
                   int fullpaths);
+
+/* Get a list of holding files chunks in the given holding
+ * file.  Always returns full paths.
+ *
+ * @param hfile: holding file to enumerate
+ * @returns: newly allocated GSList of matching holding file chunks
+ */
+GSList *
+holding_get_file_chunks(char *hfile);
 
 /* Get a list of holding files that should be flushed, optionally
  * matching only certain datestamps.  This function filters out
  * files for host/disks that are no longer in the disklist.
  *
- * @param dateargs: sl_t of datestamps to dump, or NULL for all
- * @param interactive: if true, be interactive
- * @returns: a newly allocated sl_t listing all matching holding 
+ * @param dateargs: GSList of datestamps expressions to dump, or NULL 
+ * for all
+ * @returns: a newly allocated GSList listing all matching holding
  * files
  */
-sl_t *
-holding_get_files_for_flush(sl_t *dateargs, 
-                            int interactive);
+GSList *
+holding_get_files_for_flush(GSList *dateargs);
 
-/* Get the total size of a holding file, including all holding 
+/* Get a list of all datestamps for which dumps are in the holding
+ * disk.  This scans all dumps and takes the union of their
+ * datestamps (some/all of which may actually be timestamps, 
+ * depending on the setting of config option usetimestamps)
+ *
+ * @returns: a newly allocated GSList listing all datestamps
+ */
+GSList *
+holding_get_all_datestamps(void);
+
+/* Get the total size of a holding file, including all holding
  * file chunks, in kilobytes.
  *
  * @param holding_file: full pathname of holding file
@@ -128,8 +112,8 @@ holding_get_files_for_flush(sl_t *dateargs,
  * total size
  * @returns: total size of the holding file, or -1 in an error
  */
-off_t 
-holding_file_size(char *holding_file, 
+off_t
+holding_file_size(char *holding_file,
                   int strip_headers);
 
 /* Unlink a holding file, including all holding file chunks.
@@ -137,28 +121,8 @@ holding_file_size(char *holding_file,
  * @param holding_file: full pathname of holding file
  * @returns: 1 on success, else 0
  */
-int 
+int
 holding_file_unlink(char *holding_file);
-
-/* Given a pathname of a holding file, extract the hostname, diskname,
- * level, and filetype from the header.
- *
- * Caller is responsible for freeing memory for hostname and diskname.
- * None of the result parameters can be NULL.
- *
- * @param fname: full pathname of holding file
- * @param hostname: (result) hostname
- * @param diskname: (result) diskname
- * @param level: (result) level
- * @param datestamp: (result) datestamp of the dump
- * @returns: filetype (see common-src/fileheader.h)
- */
-filetype_t 
-holding_file_read_header(char *fname,
-                         char **hostname,
-                         char **diskname,
-                         int *level,
-                         char **datestamp);
 
 /* Given a pathname of a holding file, read the file header.
  * the result parameter may be altered even if an error is
@@ -168,65 +132,48 @@ holding_file_read_header(char *fname,
  * @param file: (result) dumpfile_t structure
  * @returns: 1 on success, else 0
  */
-int 
-holding_file_get_dumpfile(char *fname, 
+int
+holding_file_get_dumpfile(char *fname,
                           dumpfile_t *file);
 
 /*
- * Holding file chunks
+ * Maintenance
  */
 
-/* Get a list of holding files chunks in the given holding 
- * file.  Always returns full paths.
+/* Clean up all holding disks, restoring from a possible crash or
+ * other errors.  This function is intentionally opaque, as the
+ * details of holding disk are hidden from other applications.
  *
- * @param hfile: holding file to enumerate
- * @returns: newly allocated sl_t of matching holding file chunks
+ * All error and warning messages go to the debug log.
+ *
+ * @param corrupt_dle: function that is called for any DLEs for
+ * which corrupt dumps are found.
+ * @param verbose_output: if non-NULL, send progress messages to
+ * this file.
  */
-sl_t *
-holding_get_file_chunks(char *hfile);
+typedef void (*corrupt_dle_fn)(char *hostname, char *disk);
+void
+holding_cleanup(corrupt_dle_fn corrupt_dle,
+    FILE *verbose_output);
 
 /*
  * application-specific support
  */
 
-/* Allow the user to select a set of datestamps from those in
- * holding disks.
- *
- * @param verbose: verbose logging to stdout
- * @returns: a new sl_t listing all matching datestamps
- */
-sl_t *
-pick_datestamp(int verbose);
-
-/* Similar to pick_datestamp, but always select all available
- * datestamps.  Non-interactive, but outputs progress to stdout.
- *
- * @param verbose: verbose logging to stdout
- * @returns: a new sl_t listing all matching datestamps
- */
-sl_t *
-pick_all_datestamp(int verbose);
-
 /* Rename holding files from the temporary names used during
  * creation.
+ *
+ * This is currently called by driver.c, but will disappear when
+ * holding is fully converted to the device API
  *
  * @param holding_file: full pathname of holding file,
  * without '.tmp'
  * @param complete: if 0, set 'is_partial' to 1 in each file
  * @returns: 1 on success, else 0
  */
-int 
-rename_tmp_holding(char *holding_file, 
+int
+rename_tmp_holding(char *holding_file,
                    int complete);
-
-/* Remove any empty datestamp directories.
- *
- * @param diskdir: holding directory to clean
- * @param verbose: verbose logging to stdout
- */
-void 
-cleanup_holdingdisk(char *diskdir, 
-                    int verbose);
 
 /* Set up a holding directory and do basic permission
  * checks on it
@@ -234,7 +181,7 @@ cleanup_holdingdisk(char *diskdir,
  * @param diskdir: holding directory to set up
  * @returns: 1 on success, else 0
  */
-int 
+int
 mkholdingdir(char *diskdir);
 
 #endif /* HOLDING_H */

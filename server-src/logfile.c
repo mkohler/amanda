@@ -42,7 +42,8 @@ char *logtype_str[] = {
     "ERROR", "WARNING",	"INFO", "SUMMARY",	 /* information messages */
     "START", "FINISH",				   /* start/end of a run */
     "DISK",							 /* disk */
-    "SUCCESS", "PARTIAL", "FAIL", "STRANGE",	    /* the end of a dump */
+    /* the end of a dump */
+    "DONE", "PART", "PARTPARTIAL", "SUCCESS", "PARTIAL", "FAIL", "STRANGE",
     "CHUNK", "CHUNKSUCCESS",                            /* ... continued */
     "STATS",						   /* statistics */
     "MARKER",					  /* marker for reporter */
@@ -89,7 +90,7 @@ printf_arglist_function2(char *log_genstring, logtype_t, typ, char *, pname, cha
     va_list argp;
     char *leader = NULL;
     char linebuf[STR_SIZE];
-
+    char *xlated_fmt = dgettext("C", format);
 
     /* format error message */
 
@@ -102,7 +103,7 @@ printf_arglist_function2(char *log_genstring, logtype_t, typ, char *, pname, cha
     }
 
     arglist_start(argp, format);
-    vsnprintf(linebuf, SIZEOF(linebuf)-1, format, argp);
+    g_vsnprintf(linebuf, SIZEOF(linebuf)-1, xlated_fmt, argp);
 						/* -1 to allow for '\n' */
     arglist_end(argp);
     return(vstralloc(leader, linebuf, "\n", NULL));
@@ -113,6 +114,7 @@ printf_arglist_function1(void log_add, logtype_t, typ, char *, format)
     va_list argp;
     int saved_errout;
     char *leader = NULL;
+    char *xlated_fmt = gettext(format);
     char linebuf[STR_SIZE];
     size_t n;
 
@@ -128,7 +130,7 @@ printf_arglist_function1(void log_add, logtype_t, typ, char *, format)
     }
 
     arglist_start(argp, format);
-    vsnprintf(linebuf, SIZEOF(linebuf)-1, format, argp);
+    g_vsnprintf(linebuf, SIZEOF(linebuf)-1, xlated_fmt, argp);
 						/* -1 to allow for '\n' */
     arglist_end(argp);
 
@@ -142,7 +144,7 @@ printf_arglist_function1(void log_add, logtype_t, typ, char *, format)
     if(multiline == -1) open_log();
 
     if (fullwrite(logfd, leader, strlen(leader)) < 0) {
-	error("log file write error: %s", strerror(errno));
+	error(_("log file write error: %s"), strerror(errno));
 	/*NOTREACHED*/
     }
 
@@ -153,7 +155,7 @@ printf_arglist_function1(void log_add, logtype_t, typ, char *, format)
     linebuf[n] = '\0';
 
     if (fullwrite(logfd, linebuf, n) < 0) {
-	error("log file write error: %s", strerror(errno));
+	error(_("log file write error: %s"), strerror(errno));
 	/*NOTREACHED*/
     }
 
@@ -195,16 +197,11 @@ log_rename(
 
     if(datestamp == NULL) datestamp = "error";
 
-    conf_logdir = getconf_str(CNF_LOGDIR);
-    if (*conf_logdir == '/') {
-	conf_logdir = stralloc(conf_logdir);
-    } else {
-	conf_logdir = stralloc2(config_dir, conf_logdir);
-    }
+    conf_logdir = config_dir_relative(getconf_str(CNF_LOGDIR));
     logfile = vstralloc(conf_logdir, "/log", NULL);
 
     for(seq = 0; 1; seq++) {	/* if you've got MAXINT files in your dir... */
-	snprintf(seq_str, SIZEOF(seq_str), "%u", seq);
+	g_snprintf(seq_str, SIZEOF(seq_str), "%u", seq);
 	fname = newvstralloc(fname,
 			     logfile,
 			     ".", datestamp,
@@ -214,7 +211,7 @@ log_rename(
     }
 
     if(rename(logfile, fname) == -1) {
-	error("could not rename \"%s\" to \"%s\": %s",
+	error(_("could not rename \"%s\" to \"%s\": %s"),
 	      logfile, fname, strerror(errno));
 	/*NOTREACHED*/
     }
@@ -230,24 +227,24 @@ open_log(void)
 {
     char *conf_logdir;
 
-    conf_logdir = getconf_str(CNF_LOGDIR);
-    if (*conf_logdir == '/') {
-	conf_logdir = stralloc(conf_logdir);
-    } else {
-	conf_logdir = stralloc2(config_dir, conf_logdir);
-    }
+    /* now that we have a logfile, let the debug module know how to write
+     * error messages to it.  This is due to some rather obscure linking 
+     * problems. */
+    set_logerror(logerror);
+
+    conf_logdir = config_dir_relative(getconf_str(CNF_LOGDIR));
     logfile = vstralloc(conf_logdir, "/log", NULL);
     amfree(conf_logdir);
 
     logfd = open(logfile, O_WRONLY|O_CREAT|O_APPEND, 0600);
 
     if(logfd == -1) {
-	error("could not open log file %s: %s", logfile, strerror(errno));
+	error(_("could not open log file %s: %s"), logfile, strerror(errno));
 	/*NOTREACHED*/
     }
 
     if(amflock(logfd, "log") == -1) {
-	error("could not lock log file %s: %s", logfile, strerror(errno));
+	error(_("could not lock log file %s: %s"), logfile, strerror(errno));
 	/*NOTREACHED*/
     }
 }
@@ -257,12 +254,12 @@ static void
 close_log(void)
 {
     if(amfunlock(logfd, "log") == -1) {
-	error("could not unlock log file %s: %s", logfile, strerror(errno));
+	error(_("could not unlock log file %s: %s"), logfile, strerror(errno));
 	/*NOTREACHED*/
     }
 
     if(close(logfd) == -1) {
-	error("close log file: %s", strerror(errno));
+	error(_("close log file: %s"), strerror(errno));
 	/*NOTREACHED*/
     }
 
@@ -270,7 +267,8 @@ close_log(void)
     amfree(logfile);
 }
 
-
+/* WARNING: Function accesses globals curstr, curlog, and curprog
+ * WARNING: Function has static member logline, returned via globals */
 int
 get_logline(
     FILE *	logf)

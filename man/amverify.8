@@ -1,17 +1,17 @@
 .\"     Title: amverify
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMVERIFY" "8" "06/06/2007" "" ""
+.TH "AMVERIFY" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amverify \- check an Amanda tape for errors
+amverify - check an Amanda tape for errors
 .SH "SYNOPSIS"
 .HP 9
 \fBamverify\fR \fIconfig\fR [\fIslot\fR\ [\fIruntapes\fR]]
@@ -20,44 +20,45 @@ amverify \- check an Amanda tape for errors
 \fBAmverify\fR
 reads an Amanda format tape and makes sure each backup image can be processed by
 \fBamrestore\fR
-and, if possible, the appropriate restore program (e.g.
-\fBtar\fR).
+and, if possible, the appropriate restore program (e\.g\.
+\fBtar\fR)\.
 .PP
 \fBAmverify\fR
 runs
 \fBamrestore\fR
-on each file of the tape and pipes the output to a restore program (if available) with an option to create a catalogue of the backup. The catalogue itself is discarded. Only the success or failure of the operation itself is reported.
+on each file of the tape and pipes the output to a restore program (if available) with an option to create a catalogue of the backup\. The catalogue itself is discarded\. Only the success or failure of the operation itself is reported\.
 .PP
-If the backup image cannot be processed by the restore program, e.g. if it was written on a different operating system, the image is sent through
+If the backup image cannot be processed by the restore program, e\.g\. if it was written on a different operating system, the image is sent through
 \fBdd\fR
-to /dev/null. This still determines if the tape is readable, but does not do any internal consistency check on the image.
+to /dev/null\. This still determines if the tape is readable, but does not do any internal consistency check on the image\.
 .PP
 If
 \fIconfig\fR
 is set up to use a tape changer, the
 \fIslot\fR
-argument may be used to choose the first tape to process. Otherwise, the
+argument may be used to choose the first tape to process\. Otherwise, the
 \fBcurrent\fR
-slot is used.
+slot is used\.
 .PP
 The
 \fBruntapes\fR
-configuration parameter determines how many tapes are processed unless it is specified on the command line.
+configuration parameter determines how many tapes are processed unless it is specified on the command line\.
 .PP
 See the
 \fBamanda\fR(8)
-man page for more details about Amanda.
+man page for more details about Amanda\.
 .SH "AUTHOR"
 .PP
 Axel Zinser
-<fifi@icem.de>
+<fifi@icem\.de>
 : Original text
 .PP
-Stefan G. Weichinger,
-<sgw@amanda.org>, maintainer of the
+Stefan G\. Weichinger,
+<sgw@amanda\.org>, maintainer of the
 \fIAmanda\fR\-documentation: XML\-conversion
 .SH "SEE ALSO"
 .PP
 \fBamrestore\fR(8),
 \fBamanda\fR(8),
-\fBamverifyrun\fR(8)
+\fBamverifyrun\fR(8),
+: http://wiki.zmanda.com

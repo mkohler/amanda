@@ -40,17 +40,25 @@ char *datestamp;
 void handle_start(void);
 int main(int argc, char **argv);
 
-int main(int argc, char **argv)
+int
+main(
+    int		argc,
+    char **	argv)
 {
-    char *conffile;
     char *logfname;
     char *conf_logdir;
     FILE *logfile;
-    unsigned long malloc_hist_1, malloc_size_1;
-    unsigned long malloc_hist_2, malloc_size_2;
-    char my_cwd[STR_SIZE];
-    int    new_argc,   my_argc;
-    char **new_argv, **my_argv;
+    config_overwrites_t *cfg_ovr = NULL;
+    char *cfg_opt = NULL;
+
+    /*
+     * Configure program for internationalization:
+     *   1) Only set the message locale for now.
+     *   2) Set textdomain for all amanda related programs to "amanda"
+     *      We don't want to be forced to support dozens of message catalogs.
+     */  
+    setlocale(LC_MESSAGES, "C");
+    textdomain("amanda"); 
 
     safe_fd(-1, 0);
 
@@ -58,57 +66,33 @@ int main(int argc, char **argv)
 
     dbopen(DBG_SUBDIR_SERVER);
 
-    malloc_size_1 = malloc_inuse(&malloc_hist_1);
-
-    /* Process options */
-    
     erroutput_type = ERR_INTERACTIVE;
 
-    if (getcwd(my_cwd, SIZEOF(my_cwd)) == NULL) {
-	error("cannot determine current working directory");
-	/*NOTREACHED*/
+    /* Process options */
+    cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
+
+    if (argc >= 2) {
+	cfg_opt = argv[1];
     }
-
-    parse_conf(argc, argv, &new_argc, &new_argv);
-    my_argc = new_argc;
-    my_argv = new_argv;
-
-    if (my_argc < 2) {
-	config_dir = stralloc2(my_cwd, "/");
-	if ((config_name = strrchr(my_cwd, '/')) != NULL) {
-	    config_name = stralloc(config_name + 1);
-	}
-    } else {
-	config_name = stralloc(my_argv[1]);
-	config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
-    }
-
-    safe_cd();
 
     /* read configuration files */
 
-    conffile = stralloc2(config_dir, CONFFILE_NAME);
-    if(read_conffile(conffile)) {
-        error("errors processing config file \"%s\"", conffile);
-	/*NOTREACHED*/
-    }
-    amfree(conffile);
+    config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_USE_CWD | CONFIG_INIT_FATAL,
+		cfg_opt);
+    apply_config_overwrites(cfg_ovr);
+
+    safe_cd(); /* must happen after config_init */
+
+    check_running_as(RUNNING_AS_DUMPUSER);
 
     dbrename(config_name, DBG_SUBDIR_SERVER);
 
-    report_bad_conf_arg();
-
-    conf_logdir = getconf_str(CNF_LOGDIR);
-    if (*conf_logdir == '/') {
-        conf_logdir = stralloc(conf_logdir);
-    } else {
-        conf_logdir = stralloc2(config_dir, conf_logdir);
-    }
+    conf_logdir = config_dir_relative(getconf_str(CNF_LOGDIR));
     logfname = vstralloc(conf_logdir, "/", "log", NULL);
     amfree(conf_logdir);
 
     if((logfile = fopen(logfname, "r")) == NULL) {
-	error("could not open log %s: %s", logfname, strerror(errno));
+	error(_("could not open log %s: %s"), logfname, strerror(errno));
 	/*NOTREACHED*/
     }
     amfree(logfname);
@@ -129,16 +113,6 @@ int main(int argc, char **argv)
     log_rename(datestamp);
 
     amfree(datestamp);
-    amfree(config_dir);
-    amfree(config_name);
-    free_new_argv(new_argc, new_argv);
-    free_server_config();
-
-    malloc_size_2 = malloc_inuse(&malloc_hist_2);
-
-    if(malloc_size_1 != malloc_size_2) {
-	malloc_list(fileno(stderr), malloc_hist_1, malloc_hist_2);
-    }
 
     dbclose();
 

@@ -33,9 +33,6 @@
 
 #include "amanda.h"
 #include "arglist.h"
-#ifdef HAVE_NETINET_IN_SYSTM_H
-#include <netinet/in_systm.h>
-#endif
 #include "conffile.h"
 #include "diskfile.h"
 #include "tapefile.h"
@@ -58,20 +55,30 @@ static int sort_by_name_reversed(
 }
 
 
-int main(int argc, char **argv)
+int
+main(
+    int		argc,
+    char **	argv)
 {
     disk_t *diskp;
     disklist_t diskl;
     size_t i;
-    char *conffile;
     char *conf_diskfile;
     char *conf_tapelist;
     char *conf_indexdir;
     find_result_t *output_find;
     time_t tmp_time;
     int amtrmidx_debug = 0;
-    int    new_argc,   my_argc;
-    char **new_argv, **my_argv;
+    config_overwrites_t *cfg_ovr = NULL;
+
+    /*
+     * Configure program for internationalization:
+     *   1) Only set the message locale for now.
+     *   2) Set textdomain for all amanda related programs to "amanda"
+     *      We don't want to be forced to support dozens of message catalogs.
+     */  
+    setlocale(LC_MESSAGES, "C");
+    textdomain("amanda"); 
 
     safe_fd(-1, 0);
     safe_cd();
@@ -82,11 +89,9 @@ int main(int argc, char **argv)
     signal(SIGPIPE, SIG_IGN);
 
     dbopen(DBG_SUBDIR_SERVER);
-    dbprintf(("%s: version %s\n", argv[0], version()));
+    dbprintf(_("%s: version %s\n"), argv[0], version());
 
-    parse_conf(argc, argv, &new_argc, &new_argv);
-    my_argc = new_argc;
-    my_argv = new_argv;
+    cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
 
     if (my_argc > 1 && strcmp(my_argv[1], "-t") == 0) {
 	amtrmidx_debug = 1;
@@ -94,57 +99,36 @@ int main(int argc, char **argv)
 	my_argv++;
     }
 
-    if (my_argc < 2) {
-	fprintf(stderr, "Usage: %s [-t] <config> [-o configoption]*\n", my_argv[0]);
+    if (argc < 2) {
+	g_fprintf(stderr, _("Usage: %s [-t] <config> [-o configoption]*\n"), argv[0]);
 	return 1;
     }
 
-    config_name = my_argv[1];
+    config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_FATAL | CONFIG_INIT_USE_CWD,
+	argv[1]);
+    apply_config_overwrites(cfg_ovr);
 
-    config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
-    conffile = stralloc2(config_dir, CONFFILE_NAME);
-    if (read_conffile(conffile)) {
-	error("errors processing config file \"%s\"", conffile);
-	/*NOTREACHED*/
-    }
-    amfree(conffile);
+    check_running_as(RUNNING_AS_DUMPUSER);
 
     dbrename(config_name, DBG_SUBDIR_SERVER);
 
-    report_bad_conf_arg();
-
-    conf_diskfile = getconf_str(CNF_DISKFILE);
-    if(*conf_diskfile == '/') {
-	conf_diskfile = stralloc(conf_diskfile);
-    } else {
-	conf_diskfile = stralloc2(config_dir, conf_diskfile);
-    }
+    conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
     if (read_diskfile(conf_diskfile, &diskl) < 0) {
-	error("could not load disklist \"%s\"", conf_diskfile);
+	error(_("could not load disklist \"%s\""), conf_diskfile);
 	/*NOTREACHED*/
     }
     amfree(conf_diskfile);
 
-    conf_tapelist = getconf_str(CNF_TAPELIST);
-    if(*conf_tapelist == '/') {
-	conf_tapelist = stralloc(conf_tapelist);
-    } else {
-	conf_tapelist = stralloc2(config_dir, conf_tapelist);
-    }
+    conf_tapelist = config_dir_relative(getconf_str(CNF_TAPELIST));
     if(read_tapelist(conf_tapelist)) {
-	error("could not load tapelist \"%s\"", conf_tapelist);
+	error(_("could not load tapelist \"%s\""), conf_tapelist);
 	/*NOTREACHED*/
     }
     amfree(conf_tapelist);
 
-    output_find = find_dump(1, &diskl);
+    output_find = find_dump(&diskl);
 
-    conf_indexdir = getconf_str(CNF_INDEXDIR);
-    if(*conf_indexdir == '/') {
-	conf_indexdir = stralloc(conf_indexdir);
-    } else {
-	conf_indexdir = stralloc2(config_dir, conf_indexdir);
-    }
+    conf_indexdir = config_dir_relative(getconf_str(CNF_INDEXDIR));
 
     /* now go through the list of disks and find which have indexes */
     time(&tmp_time);
@@ -174,13 +158,13 @@ int main(int argc, char **argv)
 				 NULL);
 	    qindexdir = quote_string(indexdir);
 
-	    dbprintf(("%s %s -> %s\n", diskp->host->hostname,
-			qdisk, qindexdir));
+	    dbprintf("%s %s -> %s\n", diskp->host->hostname,
+			qdisk, qindexdir);
 	    amfree(host);
 	    amfree(qdisk);
 	    amfree(disk);
 	    if ((d = opendir(indexdir)) == NULL) {
-		dbprintf(("could not open index directory %s\n", qindexdir));
+		dbprintf(_("could not open index directory %s\n"), qindexdir);
 		amfree(indexdir);
 	        amfree(qindexdir);
 		continue;
@@ -221,10 +205,10 @@ int main(int argc, char **argv)
 		    if(lstat(path, &sbuf) != -1
 			&& ((sbuf.st_mode & S_IFMT) == S_IFREG)
 			&& ((time_t)sbuf.st_mtime < tmp_time)) {
-			dbprintf(("rm %s\n", qpath));
+			dbprintf("rm %s\n", qpath);
 		        if(amtrmidx_debug == 0 && unlink(path) == -1) {
-			    dbprintf(("Error removing %s: %s\n",
-				      qpath, strerror(errno)));
+			    dbprintf(_("Error removing %s: %s\n"),
+				      qpath, strerror(errno));
 		        }
 		    }
 		    amfree(qpath);
@@ -268,10 +252,10 @@ int main(int argc, char **argv)
 		    char *path, *qpath;
 		    path = stralloc2(indexdir, names[i]);
 		    qpath = quote_string(path);
-		    dbprintf(("rm %s\n", qpath));
+		    dbprintf("rm %s\n", qpath);
 		    if(amtrmidx_debug == 0 && unlink(path) == -1) {
-			dbprintf(("Error removing %s: %s\n",
-				  qpath, strerror(errno)));
+			dbprintf(_("Error removing %s: %s\n"),
+				  qpath, strerror(errno));
 		    }
 		    amfree(qpath);
 		    amfree(path);
@@ -286,12 +270,9 @@ int main(int argc, char **argv)
     }
 
     amfree(conf_indexdir);
-    amfree(config_dir);
     free_find_result(&output_find);
     clear_tapelist();
     free_disklist(&diskl);
-    free_new_argv(new_argc, new_argv);
-    free_server_config();
 
     dbclose();
 

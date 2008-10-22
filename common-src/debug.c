@@ -27,69 +27,65 @@
 /*
  * $Id: debug.c,v 1.40 2006/07/26 11:49:32 martinea Exp $
  *
- * debug log subroutines
+ * Logging support
  */
 
 #include "amanda.h"
 #include "util.h"
 #include "arglist.h"
 #include "clock.h"
+#include "timestamp.h"
+#include "conffile.h"
 
-#ifndef AMANDA_DBGDIR
-#  define AMANDA_DBGDIR		AMANDA_TMPDIR
+#ifdef HAVE_GLIBC_BACKTRACE
+#include <execinfo.h>
 #endif
 
-#ifdef DEBUG_CODE
-
-int debug = 1;
-
+/* Minimum file descriptor on which to keep the debug file.  This is intended
+ * to keep the descriptor "out of the way" of other processing.  It's not clear
+ * that this is required any longer, but it doesn't hurt anything.
+ */
 #define	MIN_DB_FD			10
 
-static int db_fd = 2;			/* default is stderr */
-static FILE *db_file = NULL;		/* stderr may not be a constant */
-static char *db_name  = NULL;		/* filename */
-static char *db_filename = NULL;	/* /path/to/filename */
+/* information on the current debug file */
+static int db_fd = 2;			/* file descriptor (default stderr) */
+static FILE *db_file = NULL;		/* stdio stream */
+static char *db_name  = NULL;		/* unqualified filename */
+static char *db_filename = NULL;	/* fully qualified pathname */
 
-static pid_t debug_prefix_pid = 0;
+/* directory containing debug file, including trailing slash */
+static char *dbgdir = NULL;
+
+/* time debug log was opened (timestamp of the file) */
+static time_t open_time;
+
+/* pointer to logfile.c's 'logerror()', if we're linked
+ * with it */
+static void (*logerror_fn)(char *) = NULL;
+
+/* storage for global variables */
+erroutput_type_t erroutput_type = ERR_INTERACTIVE;
+int error_exit_status = 1;
+
+/* static function prototypes */
 static char *get_debug_name(time_t t, int n);
 static void debug_setup_1(char *config, char *subdir);
-static void debug_setup_2(char *s, int fd, char *notation);
-static times_t debug_start_time;
-static int debug_clock_is_running = 0;
+static void debug_setup_2(char *s, int fd, char *annotation);
+static char *msg_timestamp(void);
 
-/*
- * Format and write a debug message to the process debug file.
- */
-printf_arglist_function(void debug_printf, const char *, format)
-{
-    va_list argp;
-
-    /*
-     * It is common in the code to call dbprintf to write out
-     * syserrno(errno) and then turn around and try to do something else
-     * with errno (e.g. printf() or log()), so we make sure errno goes
-     * back out with the same value it came in with.
-     */
-    if (debug != 0) {
-        int save_errno;
-
-	save_errno = errno;
-	if(db_file == NULL && db_fd == 2) {
-	    db_file = stderr;
-	}
-	if(db_file != NULL) {
-	    arglist_start(argp, format);
-	    vfprintf(db_file, format, argp);
-	    fflush(db_file);
-	    arglist_end(argp);
-	}
-	errno = save_errno;
-    }
-}
+static void debug_logging_handler(const gchar *log_domain,
+	GLogLevelFlags log_level,
+	const gchar *message,
+	gpointer user_data);
+static void debug_setup_logging(void);
 
 /*
  * Generate a debug file name.  The name is based on the program name,
  * followed by a timestamp, an optional sequence number, and ".debug".
+ *
+ * @param t: timestamp
+ * @param n: sequence number between 1 and 1000; if zero, no sequence number
+ * is included.
  */
 static char *
 get_debug_name(
@@ -103,24 +99,116 @@ get_debug_name(
     if(n < 0 || n > 1000) {
 	return NULL;
     }
-    ts = construct_timestamp(&t);
+    ts = get_timestamp_from_time(t);
     if(n == 0) {
 	number[0] = '\0';
     } else {
-	snprintf(number, SIZEOF(number), "%03d", n - 1);
+	g_snprintf(number, SIZEOF(number), "%03d", n - 1);
     }
     result = vstralloc(get_pname(), ".", ts, number, ".debug", NULL);
     amfree(ts);
     return result;
 }
 
-static char *dbgdir = NULL;
-static time_t curtime;
+/* A GLogFunc to handle g_log calls.  This function assumes that user_data
+ * is either NULL or a pointer to one of the debug_* configuration variables
+ * in conffile.c, indicating whether logging for this log domain is enabled.
+ *
+ * @param log_domain: the log domain, or NULL for general logging
+ * @param log_level: level, fatality, and recursion flags
+ * @param message: the message to log
+ * @param user_pointer: unused
+ */
+static void
+debug_logging_handler(const gchar *log_domain G_GNUC_UNUSED,
+	    GLogLevelFlags log_level,
+	    const gchar *message,
+	    gpointer user_data G_GNUC_UNUSED)
+{
+    char *maxlevel = NULL;
 
+    /* convert the highest level to a string and dbprintf it */
+    if (log_level & G_LOG_LEVEL_ERROR)
+	maxlevel = _("error (fatal): ");
+    else if (log_level & G_LOG_LEVEL_CRITICAL)
+	maxlevel = _("critical (fatal): ");
+    else if (log_level & G_LOG_LEVEL_WARNING)
+	maxlevel = _("warning: ");
+    else if (log_level & G_LOG_LEVEL_MESSAGE)
+	maxlevel = _("message: ");
+    else if (log_level & G_LOG_LEVEL_INFO)
+	maxlevel = _("info: ");
+    else
+	maxlevel = ""; /* no level displayed for debugging */
+
+    debug_printf("%s%s\n", maxlevel, message);
+
+    /* error and critical levels have special handling */
+    if (log_level & (G_LOG_LEVEL_ERROR|G_LOG_LEVEL_CRITICAL)) {
+	if (erroutput_type & ERR_AMANDALOG && logerror_fn != NULL)
+	    (*logerror_fn)((char *)message); /* discard 'const' */
+
+	if (erroutput_type & ERR_SYSLOG) {
+#ifdef LOG_AUTH
+	    openlog(get_pname(), LOG_PID, LOG_AUTH);
+#else
+	    openlog(get_pname(), LOG_PID, 0);
+#endif
+	    syslog(LOG_NOTICE, "%s", message);
+	    closelog();
+	}
+
+	if (erroutput_type & ERR_INTERACTIVE) {
+	    g_fprintf(stderr, "%s: %s\n", get_pname(), message);
+	    fflush(stderr);
+	}
+
+#ifdef HAVE_GLIBC_BACKTRACE
+	/* try logging a traceback to the debug log */
+	if (db_fd != -1) {
+	    void *stack[32];
+	    int naddrs;
+	    naddrs = backtrace(stack, sizeof(stack)/sizeof(*stack));
+	    backtrace_symbols_fd(stack, naddrs, db_fd);
+	}
+#endif
+
+	/* we're done */
+	if (log_level & G_LOG_LEVEL_CRITICAL)
+	    exit(error_exit_status);
+	else
+	    abort();
+	g_assert_not_reached();
+    }
+}
+
+/* Install our handler into the glib log handling system.
+ */
+static void
+debug_setup_logging(void)
+{
+    /* g_error and g_critical should be fatal, although the log handler
+     * takes care of this anyway */
+    g_log_set_always_fatal(G_LOG_LEVEL_ERROR |  G_LOG_LEVEL_CRITICAL);
+
+    /* set up handler (g_log_set_default_handler is new in glib-2.6, and
+     * hence not useable here) */
+    g_log_set_handler(NULL, G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION,
+		      debug_logging_handler, NULL);
+}
+
+/* Set the global dbgdir according to 'config' and 'subdir', and clean
+ * old debug files out of that directory
+ *
+ * The global open_time is set to the current time, and used to delete
+ * old files.
+ *
+ * @param config: configuration or NULL
+ * @param subdir: subdirectory (server, client, etc.) or NULL
+ */
 static void
 debug_setup_1(char *config, char *subdir)
 {
-    struct passwd *pwent;
     char *pname;
     size_t pname_len;
     char *e = NULL;
@@ -137,11 +225,6 @@ debug_setup_1(char *config, char *subdir)
     int i;
 
     memset(&sbuf, 0, SIZEOF(sbuf));
-    if(client_uid == (uid_t) -1 && (pwent = getpwnam(CLIENT_LOGIN)) != NULL) {
-	client_uid = pwent->pw_uid;
-	client_gid = pwent->pw_gid;
-	endpwent();
-    }
 
     pname = get_pname();
     pname_len = strlen(pname);
@@ -161,10 +244,10 @@ debug_setup_1(char *config, char *subdir)
 	dbgdir = vstralloc(AMANDA_DBGDIR, "/", subdir, "/", NULL);
     else
 	dbgdir = stralloc2(AMANDA_DBGDIR, "/");
-    if(mkpdir(dbgdir, 02700, client_uid, client_gid) == -1) {
-        error("create debug directory \"%s\": %s",
+    if(mkpdir(dbgdir, 0700, get_client_uid(), get_client_gid()) == -1) {
+	error(_("create debug directory \"%s\": %s"),
 	      dbgdir, strerror(errno));
-        /*NOTREACHED*/
+	/*NOTREACHED*/
     }
     amfree(sane_config);
 
@@ -175,12 +258,12 @@ debug_setup_1(char *config, char *subdir)
      * not be a conflict between an old and new name.
      */
     if((d = opendir(dbgdir)) == NULL) {
-        error("open debug directory \"%s\": %s",
+	error(_("open debug directory \"%s\": %s"),
 	      dbgdir, strerror(errno));
-        /*NOTREACHED*/
+	/*NOTREACHED*/
     }
-    time(&curtime);
-    test_name = get_debug_name(curtime - (AMANDA_DEBUG_DAYS * 24 * 60 * 60), 0);
+    time(&open_time);
+    test_name = get_debug_name(open_time - (AMANDA_DEBUG_DAYS * 24 * 60 * 60), 0);
     test_name_len = strlen(test_name);
     while((entry = readdir(d)) != NULL) {
 	if(is_dot_or_dotdot(entry->d_name)) {
@@ -224,7 +307,7 @@ debug_setup_1(char *config, char *subdir)
 		dbfilename = get_debug_name((time_t)sbuf.st_mtime, ++i);
 	    }
 	    if(dbfilename == NULL) {
-		error("cannot rename old debug file \"%s\"", entry->d_name);
+		error(_("cannot rename old debug file \"%s\""), entry->d_name);
 		/*NOTREACHED*/
 	    }
 	}
@@ -236,23 +319,44 @@ debug_setup_1(char *config, char *subdir)
     closedir(d);
 }
 
+/* Given an already-opened debug file, set the file's ownership
+ * appropriately, move its file descriptor above MIN_DB_FD, and
+ * add an initial log entry to the file.
+ *
+ * This function records the file's identity in the globals
+ * db_filename, db_fd, and db_file.  It does *not* set db_name.
+ * db_file is not set if fd is -1
+ *
+ * This function uses the global 'open_time', which is set by
+ * debug_setup_1.
+ *
+ * @param s: the filename of the debug file; string should be malloc'd,
+ * and should *not* be freed by the caller.
+ * @param fd: the descriptor connected to the debug file, or -1 if
+ * no decriptor moving should take place.
+ * @param annotation: an extra string to include in the initial
+ * log entry.
+ */
 static void
 debug_setup_2(
     char *	s,
     int		fd,
-    char *	notation)
+    char *	annotation)
 {
-    int saved_debug;
-    int i, rc;
+    int i;
     int fd_close[MIN_DB_FD+1];
 
     amfree(db_filename);
     db_filename = s;
     s = NULL;
-    if ((rc = chown(db_filename, client_uid, client_gid)) < 0) {
-	dbprintf(("chown(%s, %d, %d) failed. <%s>",
-		  db_filename, client_uid, client_gid, strerror(errno)));
-	(void)rc;
+
+    /* If we're root, change the ownership of the debug files.  If we're not root,
+     * this would either be redundant or an error. */
+    if (geteuid() == 0) {
+	if (chown(db_filename, get_client_uid(), get_client_gid()) < 0) {
+	    dbprintf(_("chown(%s, %d, %d) failed: %s"),
+		     db_filename, (int)get_client_uid(), (int)get_client_gid(), strerror(errno));
+	}
     }
     amfree(dbgdir);
     /*
@@ -271,18 +375,45 @@ debug_setup_2(
 	db_file = fdopen(db_fd, "a");
     }
 
-    if (notation) {
+    if (annotation) {
 	/*
 	 * Make the first debug log file entry.
 	 */
-	saved_debug = debug; debug = 1;
-	debug_printf("%s: debug %d pid %ld ruid %ld euid %ld: %s at %s",
-		     get_pname(), saved_debug, (long)getpid(),
+	debug_printf(_("pid %ld ruid %ld euid %ld: %s at %s"),
+		     (long)getpid(),
 		     (long)getuid(), (long)geteuid(),
-		     notation,
-		     ctime(&curtime));
-	debug = saved_debug;
+		     annotation,
+		     ctime(&open_time));
     }
+}
+
+/* Get current GMT time and return a message timestamp.
+ * Used for g_printf calls to logs and such.  The return value
+ * is to a static buffer, so it should be used immediately.
+ *
+ * @returns: timestamp
+ */
+static char *
+msg_timestamp(void)
+{
+    static char timestamp[128];
+    struct timeval tv;
+
+    gettimeofday(&tv, NULL);
+    g_snprintf(timestamp, SIZEOF(timestamp), "%lld.%06ld",
+		(long long)tv.tv_sec, (long)tv.tv_usec);
+
+    return timestamp;
+}
+
+/*
+ * ---- public functions
+ */
+
+void
+set_logerror(void (*f)(char *))
+{
+    logerror_fn = f;
 }
 
 void
@@ -292,40 +423,40 @@ debug_open(char *subdir)
     int i;
     char *s = NULL;
     mode_t mask;
-    amanda_timezone dontcare;
 
-    amanda_gettimeofday(&debug_start_time.r, &dontcare);
-    debug_clock_is_running = 1;
+    /* set up logging while we're here */
+    debug_setup_logging();
 
-    /*
-     * Do initial setup.
-     */
+    /* set 'dbgdir' and clean out old debug files */
     debug_setup_1(NULL, subdir);
 
     /*
      * Create the new file with a unique sequence number.
      */
     mask = (mode_t)umask((mode_t)0037); /* Allow the group read bit through */
+
+    /* iteratate through sequence numbers until we find one that
+     * is not already in use */
     for(i = 0; fd < 0; i++) {
 	amfree(db_name);
-	if ((db_name = get_debug_name(curtime, i)) == NULL) {
-	    error("Cannot create %s debug file", get_pname());
-	    /*NOTREACHED*/
-        }
-
-	if ((s = newvstralloc(s, dbgdir, db_name, NULL)) == NULL) {
-	    error("Cannot allocate %s debug file name memory", get_pname());
+	if ((db_name = get_debug_name(open_time, i)) == NULL) {
+	    error(_("Cannot create debug file name in %d tries."), i);
 	    /*NOTREACHED*/
 	}
 
-        if ((fd = open(s, O_WRONLY|O_CREAT|O_EXCL|O_APPEND, 0640)) < 0) {
-            if (errno != EEXIST) {
-                error("Cannot create %s debug file: %s",
-                       get_pname(), strerror(errno));
-                /*NOTREACHED*/
-            }
-            amfree(s);
-        }
+	if ((s = newvstralloc(s, dbgdir, db_name, NULL)) == NULL) {
+	    error(_("Cannot allocate debug file name memory"));
+	    /*NOTREACHED*/
+	}
+
+	if ((fd = open(s, O_WRONLY|O_CREAT|O_EXCL|O_APPEND, 0640)) < 0) {
+	    if (errno != EEXIST) {
+	        error(_("Cannot create debug file \"%s\": %s"),
+			s, strerror(errno));
+	        /*NOTREACHED*/
+	    }
+	    amfree(s);
+	}
     }
     (void)umask(mask); /* Restore mask */
 
@@ -340,7 +471,7 @@ debug_open(char *subdir)
 void
 debug_reopen(
     char *	dbfilename,
-    char *	notation)
+    char *	annotation)
 {
     char *s = NULL;
     int fd;
@@ -349,9 +480,7 @@ debug_reopen(
 	return;
     }
 
-    /*
-     * Do initial setup.
-     */
+    /* set 'dbgdir' and clean out old debug files */
     debug_setup_1(NULL, NULL);
 
     /*
@@ -363,7 +492,7 @@ debug_reopen(
 	s = newvstralloc(s, dbgdir, dbfilename, NULL);
     }
     if ((fd = open(s, O_RDWR|O_APPEND)) < 0) {
-	error("cannot reopen %s debug file %s", get_pname(), dbfilename);
+	error(_("cannot reopen debug file %s"), dbfilename);
 	/*NOTREACHED*/
     }
 
@@ -372,7 +501,7 @@ debug_reopen(
      *
      * Note: we release control of the string 's' points to.
      */
-    debug_setup_2(s, fd, notation);
+    debug_setup_2(s, fd, annotation);
 }
 
 void
@@ -388,9 +517,7 @@ debug_rename(
     if (!db_filename)
 	return;
 
-    /*
-     * Do initial setup.
-     */
+    /* set 'dbgdir' and clean out old debug files */
     debug_setup_1(config, subdir);
 
     s = newvstralloc(s, dbgdir, db_name, NULL);
@@ -401,20 +528,72 @@ debug_rename(
     }
 
     mask = (mode_t)umask((mode_t)0037);
-    /* check if a file with the same name already exist */
+
+#if defined(__CYGWIN__)
+    /*
+     * On cygwin, rename will not overwrite an existing file nor
+     * will it rename a file that is open for writing...
+     *
+     * Rename file directly.  Expect failure if file already exists
+     * or is open by another user.
+     */
+
+    i = 0;
+    while (rename(db_filename, s) < 0) {
+	if (errno != EEXIST) {
+	    /*
+	     * If the failure was not due to the target file name already
+	     * existing then we have bigger issues at hand so we keep 
+	     * the existing file.
+	     */
+	    dbprintf(_("Cannot rename \"%s\" to \"%s\": %s\n"),
+		     db_filename, s, strerror(errno));
+	    s = newvstralloc(s, db_filename, NULL);
+	    i = -1;
+	    break;
+	}
+
+	/*
+	 * Files already exists:
+	 * Continue searching for a unique file name that will work.
+	 */
+	amfree(db_name);
+	if ((db_name = get_debug_name(open_time, i++)) == NULL) {
+	    dbprintf(_("Cannot create unique debug file name"));
+	    break;
+	}
+	s = newvstralloc(s, dbgdir, db_name, NULL);
+    }
+    if (i >= 0) {
+	/*
+	 * We need to close and reopen the original file handle to
+	 * release control of the original debug file name.
+	 */
+	if ((fd = open(s, O_WRONLY|O_APPEND, 0640)) >= 0) {
+	    /*
+	     * We can safely close the the original log file
+	     * since we now have a new working handle.
+	     */
+	    db_fd = 2;
+	    fclose(db_file);
+	    db_file = NULL;
+	}
+    }
+#else
+    /* check if a file with the same name already exists. */
     if ((fd = open(s, O_WRONLY|O_CREAT|O_EXCL|O_APPEND, 0640)) < 0) {
 	for(i = 0; fd < 0; i++) {
 	    amfree(db_name);
-	    if ((db_name = get_debug_name(curtime, i)) == NULL) {
-		dbprintf(("Cannot create %s debug file", get_pname()));
+	    if ((db_name = get_debug_name(open_time, i)) == NULL) {
+		dbprintf(_("Cannot create debug file"));
 		break;
 	    }
 
 	    s = newvstralloc(s, dbgdir, db_name, NULL);
 	    if ((fd = open(s, O_WRONLY|O_CREAT|O_EXCL|O_APPEND, 0640)) < 0) {
 		if (errno != EEXIST) {
-		    dbprintf(("Cannot create %s debug file: %s", get_pname(),
-			      strerror(errno)));
+		    dbprintf(_("Cannot create debug file: %s"),
+			      strerror(errno));
 		    break;
 		}
 	    }
@@ -422,47 +601,77 @@ debug_rename(
     }
 
     if (fd >= 0) {
-	rename(db_filename, s);
+	close(fd);
+	if (rename(db_filename, s) == -1) {
+	    dbprintf(_("Cannot rename \"%s\" to \"%s\": %s\n"),
+		     db_filename, s, strerror(errno));
+	}
+	fd = -1;
     }
+#endif
+
     (void)umask(mask); /* Restore mask */
-    close(fd);
     /*
      * Finish setup.
      *
      * Note: we release control of the string 's' points to.
      */
-    debug_setup_2(s, -1, "rename");
+    debug_setup_2(s, fd, "rename");
 }
 
 void
 debug_close(void)
 {
     time_t curtime;
-    int save_debug;
-    pid_t save_pid;
 
     time(&curtime);
-    save_debug = debug;
-    debug = 1;
-    save_pid = debug_prefix_pid;
-    debug_prefix_pid = 0;
-    debug_printf("%s: pid %ld finish time %s",
-		 debug_prefix_time(NULL),
-		 (long)getpid(),
-		 ctime(&curtime));
-    debug_prefix_pid = save_pid;
-    debug = save_debug;
+    debug_printf(_("pid %ld finish time %s"), (long)getpid(), ctime(&curtime));
 
     if(db_file && fclose(db_file) == EOF) {
 	int save_errno = errno;
 
 	db_file = NULL;				/* prevent recursion */
-	fprintf(stderr, "close debug file: %s", strerror(save_errno));
+	g_fprintf(stderr, _("close debug file: %s"), strerror(save_errno));
 	/*NOTREACHED*/
     }
-    db_fd = -1;
+    db_fd = 2;
     db_file = NULL;
     amfree(db_filename);
+    amfree(db_name);
+}
+
+/*
+ * Format and write a debug message to the process debug file.
+ */
+printf_arglist_function(void debug_printf, const char *, format)
+{
+    va_list argp;
+    int save_errno;
+
+    /*
+     * It is common in the code to call dbprintf to write out
+     * syserrno(errno) and then turn around and try to do something else
+     * with errno (e.g. g_printf() or log()), so we make sure errno goes
+     * back out with the same value it came in with.
+     */
+
+    save_errno = errno;
+
+    /* handle the default (stderr) if debug_open hasn't been called yet */
+    if(db_file == NULL && db_fd == 2) {
+	db_file = stderr;
+    }
+    if(db_file != NULL) {
+	if (db_file != stderr)
+	    g_fprintf(db_file, "%s: %s: ", msg_timestamp(), get_pname());
+	else 
+	    g_fprintf(db_file, "%s: ", get_pname());
+	arglist_start(argp, format);
+	g_vfprintf(db_file, format, argp);
+	arglist_end(argp);
+	fflush(db_file);
+    }
+    errno = save_errno;
 }
 
 int
@@ -483,65 +692,16 @@ debug_fn(void)
     return db_filename;
 }
 
-/*
- * Routines for returning a common debug file line prefix.  Always starts
- * with the current program name, possibly with an optional suffix.
- * May then be followed by a PID.  May then be followed by an elapsed
- * time indicator.
- */ 
-
 void
-set_debug_prefix_pid(
-    pid_t	p)
+debug_dup_stderr_to_debug(void)
 {
-    debug_prefix_pid = p;
-}
-
-char *
-debug_prefix(
-    char *	suffix)
-{
-    int save_errno;
-    static char *s = NULL;
-    char debug_pid[NUM_STR_SIZE];
-
-    save_errno = errno;
-    s = newvstralloc(s, get_pname(), suffix, NULL);
-    if (debug_prefix_pid != (pid_t) 0) {
-	snprintf(debug_pid, SIZEOF(debug_pid),
-		 "%ld",
-		 (long) debug_prefix_pid);
-	s = newvstralloc(s, s, "[", debug_pid, "]", NULL);
+    if(db_fd != -1 && db_fd != STDERR_FILENO)
+    {
+       if(dup2(db_fd, STDERR_FILENO) != STDERR_FILENO)
+       {
+	   error(_("can't redirect stderr to the debug file"));
+	   g_assert_not_reached();
+       }
     }
-    errno = save_errno;
-    return s;
 }
 
-char *
-debug_prefix_time(
-    char *	suffix)
-{
-    int save_errno;
-    static char *s = NULL;
-    char *t1;
-    char *t2;
-    times_t diff;
-    times_t debug_end_time;
-    amanda_timezone dontcare;
-
-    save_errno = errno;
-    if (debug_clock_is_running == 1) {
-	amanda_gettimeofday(&debug_end_time.r, &dontcare);
-	diff = timessub(debug_end_time,debug_start_time);
-	t1 = ": time ";
-	t2 = walltime_str(diff);
-    } else {
-	t1 = t2 = NULL;
-    }
-
-    s = newvstralloc(s, debug_prefix(suffix), t1, t2, NULL);
-
-    errno = save_errno;
-    return s;
-}
-#endif

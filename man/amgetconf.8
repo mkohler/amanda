@@ -1,17 +1,17 @@
 .\"     Title: amgetconf
 .\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.72.0 <http://docbook.sf.net/>
-.\"      Date: 06/06/2007
+.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
+.\"      Date: 08/22/2008
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "AMGETCONF" "8" "06/06/2007" "" ""
+.TH "AMGETCONF" "8" "08/22/2008" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH "NAME"
-amgetconf \- look up amanda.conf variables
+amgetconf - look up amanda.conf variables
 .SH "SYNOPSIS"
 .HP 10
 \fBamgetconf\fR [\fIconfig\fR] [\fI\-\-list\fR] \fIparameter\fR [\-o\ \fIconfigoption\fR]...
@@ -19,78 +19,75 @@ amgetconf \- look up amanda.conf variables
 .PP
 \fBAmgetconf\fR
 looks up parameters in
-\fIamanda.conf\fR, the
+\fIamanda\.conf\fR, the
 \fIAmanda\fR
-configuration file, or from the build and runtime environment, and returns their corresponding value.
+configuration file, or from the build and runtime environment, and returns their corresponding value\.
 .PP
 If
 \fIconfig\fR
 is not specified,
 \fBamgetconf\fR
 assumes it is being run from the configuration directory and that
-\fIamanda.conf\fR
-is present.
+\fIamanda\.conf\fR
+is present\.
 .PP
 If
 \fIparameter\fR
 begins with
-\fIbuild.\fR, the (case insensitive) string following the period is a build environment variable. Variables without a value (e.g.
+\fIbuild\.\fR, the (case insensitive) string following the period is a build environment variable\. Variables without a value (e\.g\.
 \fIXFSDUMP\fR
-on a system that does not support that type of file system) will not report an error and will return an empty string as the value. Flag variables (e.g.
+on a system that does not support that type of file system) will not report an error and will return an empty string as the value\. Flag variables (e\.g\.
 \fIUSE_AMANDAHOSTS\fR) will return
 1
-if the flag is set or an empty string if it is not.
+if the flag is set or an empty string if it is not\.
 .PP
 If
 \fIparameter\fR
 begins with
-\fIdbopen.\fR, the string following the period is a program name and an
+\fIdbopen\.\fR, the string following the period is a program name and an
 \fIAmanda\fR
-debug file will be created for the caller. The name of the file is returned.
+debug file will be created for the caller\. The name of the file is returned\.
 .PP
 If
 \fIparameter\fR
 begins with
-\fIdbclose.\fR, the string following the period is a program name previously used with
-\fIdbopen.\fR, followed by a colon (:) and the previously opened file name.
+\fIdbclose\.\fR, the string following the period is a program name previously used with
+\fIdbopen\.\fR, followed by a colon (:) and the previously opened file name\.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR.
+\fIAmanda\fR\.
 .SH "OPTIONS"
 .PP
 \fB\-\-list\fR
 .RS 4
-The parameter must be 'tapetype', 'dumptype, 'holdingdisk' or 'interface'. It will output, one by line, the list of identifier for the parameter.
-.RS 4
+The parameter must be \'tapetype\', \'dumptype, \'holdingdisk\' or \'interface\'\. It will output, one by line, the list of identifier for the parameter\.
 .PP
 \-\-list tapetype
 .RS 4
-Output the list of tapetype, one by line.
+Output the list of tapetype, one by line\.
 .RE
 .PP
 \-\-list dumptype
 .RS 4
-Output the list of dumptype, one by line.
+Output the list of dumptype, one by line\.
 .RE
 .PP
 \-\-list holdingdisk
 .RS 4
-Output the list of holdingdisk, one by line.
+Output the list of holdingdisk, one by line\.
 .RE
 .PP
 \-\-list interface
 .RS 4
-Output the list of interface, one by line.
-.RE
+Output the list of interface, one by line\.
 .RE
 .RE
 .PP
 \fBparameter\fR
 .RS 4
 It could be one of the below format:
-.RS 4
 .PP
 runtapes
 .RS 4
@@ -112,12 +109,11 @@ HOLDINGDISK:hd1:use
 .RS 4
 .RE
 .RE
-.RE
 .PP
 \fB\-o\fR \fIconfigoption\fR
 .RS 4
 See the "\fBCONFIGURATION OVERRIDE\fR" section in
-\fBamanda\fR(8).
+\fBamanda\fR(8)\.
 .RE
 .SH "EXAMPLE"
 .PP
@@ -129,7 +125,6 @@ Find out the path to the log file directory:
 /usr/local/etc/amanda//daily
 .fi
 .RE
-.sp
 .PP
 Find out the current tape type:
 .sp
@@ -139,25 +134,23 @@ Find out the current tape type:
 DLT4000\-IV
 .fi
 .RE
-.sp
 .PP
 Find out the default configuration directory:
 .sp
 .RS 4
 .nf
-% amgetconf daily build.CONFIG_DIR
+% amgetconf daily build\.CONFIG_DIR
 /usr/local/etc/amanda/
 .fi
 .RE
-.sp
 .PP
 Create, use and close a debug file in a script:
 .sp
 .RS 4
 .nf
-% set debug_file = `amgetconf daily dbopen.myscript`
+% set debug_file = `amgetconf daily dbopen\.myscript`
 % echo debug information >> $debug_file
-% amgetconf daily dbclose.myscript:$debug_file
+% amgetconf daily dbclose\.myscript:$debug_file
 .fi
 .RE
 .sp
@@ -167,10 +160,12 @@ amgetconf: no such parameter \fIparam\fR
 .RS 4
 Parameter
 \fIparam\fR
-is not a known keyword (e.g. not a valid
-\fIamanda.conf\fR
-keyword).
+is not a known keyword (e\.g\. not a valid
+\fIamanda\.conf\fR
+keyword)\.
 .RE
 .SH "SEE ALSO"
 .PP
-\fBamanda\fR(8)
+
+\fBamanda\fR(8),
+: http://wiki.zmanda.com

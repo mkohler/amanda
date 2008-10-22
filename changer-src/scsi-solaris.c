@@ -32,25 +32,7 @@
  */
 
 
-#include <amanda.h>
-
-#ifdef HAVE_SOLARIS_LIKE_SCSI
-/*
-#ifdef HAVE_STDIO_H
-*/
-#include <stdio.h>
-/*
-#endif
-*/
-#ifdef HAVE_SYS_TYPES_H
-#include <sys/types.h>
-#endif
-#ifdef HAVE_SYS_STAT_H
-#include <sys/stat.h>
-#endif
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
+#include "amanda.h"
 
 #include <sys/scsi/impl/uscsi.h>
 
@@ -116,7 +98,7 @@ int SCSI_OpenDevice(int ip)
             pDev[ip].inquiry = NULL;
             return(1);
         } else {
-          dbprintf(("SCSI_OpenDevice %s failed\n", pDev[ip].dev));
+          dbprintf(_("SCSI_OpenDevice %s failed\n"), pDev[ip].dev);
           return(0);
         }
     } else {
@@ -155,7 +137,6 @@ int SCSI_ExecuteCommand(int DeviceFD,
   extern FILE * debug_file;
   int ret = 0;
   int retries = 1;
-  extern int errno;
   struct uscsi_cmd Command;
   static int depth = 0;
 
@@ -230,8 +211,8 @@ int SCSI_ExecuteCommand(int DeviceFD,
       ret = Command.uscsi_status;
       break;
     }
-    dbprintf(("ioctl on %d failed, errno %s, ret %d\n",
-	      pDev[DeviceFD].fd, strerror(errno), ret));
+    dbprintf(_("ioctl on %d failed, errno %s, ret %d\n"),
+	      pDev[DeviceFD].fd, strerror(errno), ret);
 #if 0
     RequestSense(DeviceFD, &pExtendedRequestSense, 0);
 #endif
@@ -241,7 +222,7 @@ int SCSI_ExecuteCommand(int DeviceFD,
   --depth;
   SCSI_CloseDevice(DeviceFD);
 
-  DebugPrint(DEBUG_INFO, SECTION_SCSI,"ioctl ret (%d)\n",ret);
+  DebugPrint(DEBUG_INFO, SECTION_SCSI,_("ioctl ret (%d)\n"),ret);
   return(SCSI_OK);
 }
 
@@ -271,7 +252,7 @@ int Tape_Ioctl( int DeviceFD, int command)
 
   if (ioctl(pDev[DeviceFD].fd , MTIOCTOP, &mtop) != 0)
     {
-      dbprintf(("Tape_Ioctl error ioctl %s\n", strerror(errno)));
+      dbprintf(_("Tape_Ioctl error ioctl %s\n"), strerror(errno));
       SCSI_CloseDevice(DeviceFD);
       return(-1);
     }
@@ -293,7 +274,7 @@ int Tape_Status( int DeviceFD)
   
   if (ioctl(pDev[DeviceFD].fd , MTIOCGET, &mtget) != 0)
     {
-      dbprintf(("Tape_Status error ioctl %s\n", strerror(errno)));
+      dbprintf(_("Tape_Status error ioctl %s\n"), strerror(errno));
       SCSI_CloseDevice(DeviceFD);
       return(-1);
     }
@@ -304,8 +285,8 @@ int Tape_Status( int DeviceFD)
    * 0x2 is no tape online
    */
 
-  DebugPrint(DEBUG_INFO, SECTION_TAPE, "ioctl result for mt_dsreg (%d)\n", mtget.mt_dsreg);
-  DebugPrint(DEBUG_INFO, SECTION_TAPE, "ioctl result for mt_erreg (%d)\n", mtget.mt_erreg);
+  DebugPrint(DEBUG_INFO, SECTION_TAPE, _("ioctl result for mt_dsreg (%d)\n"), mtget.mt_dsreg);
+  DebugPrint(DEBUG_INFO, SECTION_TAPE, _("ioctl result for mt_erreg (%d)\n"), mtget.mt_erreg);
 
   if (mtget.mt_erreg == 0)
     {
@@ -328,7 +309,6 @@ int ScanBus(int print)
 	return(-1);
 }
 
-#endif
 /*
  * Local variables:
  * indent-tabs-mode: nil

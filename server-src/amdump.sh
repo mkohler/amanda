@@ -51,11 +51,7 @@ fi
 
 if [ $# -lt 1 ]
 then
-<<<<<<< HEAD:server-src/amdump.sh.in
-        echo "Usage: amdump config [host [disk...]...]" 1>&2
-=======
         echo `_ 'Usage: %s config [host [disk...]...]' "$0"`  1>&2
->>>>>>> upstream:server-src/amdump.sh
         exit 1
 fi
 
@@ -63,11 +59,7 @@ exit_status=0;
 
 conf=$1
 if [ ! -d $confdir/$conf ]; then
-<<<<<<< HEAD:server-src/amdump.sh.in
-    echo "amdump$SUF: could not find directory $confdir/$conf" 1>&2
-=======
     echo `_ '%s: could not find directory %s' "amdump$SUF" "$confdir/$conf"` 1>&2
->>>>>>> upstream:server-src/amdump.sh
     exit 1
 fi
 shift
@@ -92,15 +84,6 @@ if [ $? -ne 0 ]; then
 	fi
 fi
 
-<<<<<<< HEAD:server-src/amdump.sh.in
-#if [ $runuser != $dumpuser ]; then
-#	echo "amdump: must be run as user $dumpuser, not $runuser" 1>&2
-#	exit 1
-#fi
-
-if test -f hold; then
-	echo "amdump: waiting for hold file to be removed" 1>&2
-=======
 if [ $runuser != $dumpuser ]; then
 	echo `_ '%s: must be run as user %s, not %s' "$0" "$dumpuser" "$runuser"` 1>&2
 	exit 1
@@ -108,18 +91,13 @@ fi
 
 if test -f hold; then
 	echo `_ '%s: waiting for hold file to be removed' "$0"` 1>&2
->>>>>>> upstream:server-src/amdump.sh
 	while test -f hold; do
 		sleep 60
 	done
 fi
 
 if test -f $errfile || test -f $logdir/log; then
-<<<<<<< HEAD:server-src/amdump.sh.in
-	echo "amdump: amdump or amflush is already running, or you must run amcleanup" 1>&2
-=======
 	echo `_ '%s: amdump or amflush is already running, or you must run amcleanup' "$0"` 1>&2
->>>>>>> upstream:server-src/amdump.sh
 	exit 1
 fi
 
@@ -134,15 +112,6 @@ exit_code=$?
 exec </dev/null 2>>$errfile 1>&2
 exit_code=$?
 [ $exit_code -ne 0 ] && exit_status=$exit_code
-<<<<<<< HEAD:server-src/amdump.sh.in
-echo "amdump: start at `date`"
-echo "amdump: datestamp `date +%Y%m%d`"
-echo "amdump: starttime `date +%Y%m%d%H%M%S`"
-$libexecdir/planner$SUF $conf "$@" | $libexecdir/driver$SUF $conf "$@"
-exit_code=$?
-[ $exit_code -ne 0 ] && exit_status=$exit_code
-echo "amdump: end at `date`"
-=======
 
 gdate=`date +'%a %b %e %H:%M:%S %Z %YAAAAA%Y%m%dBBBBB%Y%m%d%H%M%SCCCCC%Y-%m-%d %H:%M:%S %Z'`
 
@@ -167,7 +136,6 @@ $amlibexecdir/planner$SUF $conf --starttime $date_starttime "$@" | $amlibexecdir
 exit_code=$?
 [ $exit_code -ne 0 ] && exit_status=$exit_code
 printf '%s: end at %s\n' "amdump" "`date`"
->>>>>>> upstream:server-src/amdump.sh
 
 # Send out a report on the dumps.
 $sbindir/amreport$SUF $conf "$@"
@@ -175,29 +143,17 @@ exit_code=$?
 [ $exit_code -ne 0 ] && exit_status=$exit_code
 
 # Roll the log file to its datestamped name.
-<<<<<<< HEAD:server-src/amdump.sh.in
-$libexecdir/amlogroll$SUF $conf "$@"
-=======
 $amlibexecdir/amlogroll$SUF $conf "$@"
->>>>>>> upstream:server-src/amdump.sh
 exit_code=$?
 [ $exit_code -ne 0 ] && exit_status=$exit_code
 
 # Trim the log file to those for dumps that still exist.
-<<<<<<< HEAD:server-src/amdump.sh.in
-$libexecdir/amtrmlog$SUF $conf "$@"
-=======
 $amlibexecdir/amtrmlog$SUF $conf "$@"
->>>>>>> upstream:server-src/amdump.sh
 exit_code=$?
 [ $exit_code -ne 0 ] && exit_status=$exit_code
 
 # Trim the index file to those for dumps that still exist.
-<<<<<<< HEAD:server-src/amdump.sh.in
-$libexecdir/amtrmidx$SUF $conf "$@"
-=======
 $amlibexecdir/amtrmidx$SUF $conf "$@"
->>>>>>> upstream:server-src/amdump.sh
 exit_code=$?
 [ $exit_code -ne 0 ] && exit_status=$exit_code
 

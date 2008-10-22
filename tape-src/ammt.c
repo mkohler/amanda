@@ -69,14 +69,13 @@ do_asf(
     int r;
 
     if(debug_ammt) {
-	fprintf(stderr, "calling tapefd_rewind()\n");
+	g_fprintf(stderr, _("calling tapefd_rewind()\n"));
     }
     if(0 != (r = tapefd_rewind(fd))) {
 	return r;
     }
     if(debug_ammt) {
-	fprintf(stderr, "calling tapefd_fsf(" OFF_T_FMT ")\n",
-		(OFF_T_FMT_TYPE)count);
+	g_fprintf(stderr, _("calling tapefd_fsf(%lld)\n"), (long long)count);
     }
     return tapefd_fsf(fd, count);
 }
@@ -87,8 +86,7 @@ do_bsf(
     off_t	count)
 {
     if(debug_ammt) {
-	fprintf(stderr, "calling tapefd_fsf(" OFF_T_FMT ")\n", 
-		(OFF_T_FMT_TYPE)-count);
+	g_fprintf(stderr, _("calling tapefd_fsf(%lld)\n"), (long long)-count);
     }
     return tapefd_fsf(fd, -count);
 }
@@ -104,43 +102,43 @@ do_status(
     (void)count;	/* Quiet unused parameter warning */
 
     if(debug_ammt) {
-	fprintf(stderr, "calling tapefd_status()\n");
+	g_fprintf(stderr, _("calling tapefd_status()\n"));
     }
     if((ret = tapefd_status(fd, &stat)) != 0) {
 	return ret;
     }
-    printf("%s status:", tapename);
+    g_printf(_("%s status:"), tapename);
     if(stat.online_valid) {
 	if(stat.online) {
-	    fputs(" ONLINE", stdout);
+	    fputs(_(" ONLINE"), stdout);
 	} else {
-	    fputs(" OFFLINE", stdout);
+	    fputs(_(" OFFLINE"), stdout);
 	}
     }
     if(stat.bot_valid && stat.bot) {
-	fputs(" BOT", stdout);
+	fputs(_(" BOT"), stdout);
     }
     if(stat.eot_valid && stat.eot) {
-	fputs(" EOT", stdout);
+	fputs(_(" EOT"), stdout);
     }
     if(stat.protected_valid && stat.protected) {
-	fputs(" PROTECTED", stdout);
+	fputs(_(" PROTECTED"), stdout);
     }
     if(stat.device_status_valid) {
-	printf(" ds == 0x%0*lx",
+	g_printf(_(" ds == 0x%0*lx"),
 	       stat.device_status_size * 2,
 	       (unsigned long)stat.device_status);
     }
     if(stat.error_status_valid) {
-	printf(" er == 0x%0*lx",
+	g_printf(_(" er == 0x%0*lx"),
 	       stat.error_status_size * 2,
 	       (unsigned long)stat.error_status);
     }
     if(stat.fileno_valid) {
-	printf(" fileno == %ld", stat.fileno);
+	g_printf(_(" fileno == %ld"), stat.fileno);
     }
     if(stat.blkno_valid) {
-	printf(" blkno == %ld", stat.blkno);
+	g_printf(_(" blkno == %ld"), stat.blkno);
     }
 
     putchar('\n');
@@ -150,7 +148,7 @@ do_status(
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-d] [-f|-t device] command [count]\n", pgm);
+    g_fprintf(stderr, _("usage: %s [-d] [-f|-t device] command [count]\n"), pgm);
     exit(1);
 }
 
@@ -167,6 +165,17 @@ main(
     int save_errno;
     char *s;
 
+    /*
+     * Configure program for internationalization:
+     *   1) Only set the message locale for now.
+     *   2) Set textdomain for all amanda related programs to "amanda"
+     *      We don't want to be forced to support dozens of message catalogs.
+     */  
+    setlocale(LC_MESSAGES, "C");
+    textdomain("amanda"); 
+
+    fprintf(stderr, _("ammt is deprecated\n"));
+
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
@@ -180,7 +189,7 @@ main(
 	switch(ch) {
 	case 'd':
 	    debug_ammt = 1;
-	    fprintf(stderr, "debug mode!\n");
+	    g_fprintf(stderr, _("debug mode!\n"));
 	    break;
 	case 'f':
 	case 't':
@@ -217,7 +226,7 @@ main(
 	    cmd[i].min_chars++;
 	}
 	if(debug_ammt) {
-	    fprintf(stderr, "syntax: %-20s -> %*.*s\n",
+	    g_fprintf(stderr, _("syntax: %-20s -> %*.*s\n"),
 			    cmd[i].name,
 			    (int)cmd[i].min_chars,
 			    (int)cmd[i].min_chars,
@@ -228,27 +237,27 @@ main(
     /*
      * Process the command.
      */
-    s = "unknown";
+    s = _("unknown");
     j = strlen(argv[optind]);
     for(i = 0; cmd[i].name; i++) {
 	if(0 == strncmp(cmd[i].name, argv[optind], j)) {
 	    if(j >= cmd[i].min_chars) {
 		break;
 	    }
-	    s = "ambiguous";
+	    s = _("ambiguous");
 	}
     }
     if(0 == cmd[i].name) {
-	fprintf(stderr, "%s: %s command: %s\n", pgm, s, argv[optind]);
+	g_fprintf(stderr, _("%s: %s command: %s\n"), pgm, s, argv[optind]);
 	exit(1);
     }
     optind++;
     if(0 == tapename) {
-	fprintf(stderr, "%s: -f device or -t device is required\n", pgm);
+	g_fprintf(stderr, _("%s: -f device or -t device is required\n"), pgm);
 	exit(1);
     }
     if(debug_ammt) {
-	fprintf(stderr, "tapename is \"%s\"\n", tapename);
+	g_fprintf(stderr, _("tapename is \"%s\"\n"), tapename);
     }
 
     count = (off_t)1;
@@ -257,15 +266,15 @@ main(
     }
 
     if(debug_ammt) {
-	fprintf(stderr, "calling tape_open(\"%s\",%d)\n", tapename, cmd[i].flags);
+	g_fprintf(stderr, _("calling tape_open(\"%s\",%d)\n"), tapename, cmd[i].flags);
     }
     if((fd = tape_open(tapename, cmd[i].flags, 0)) < 0) {
 	goto report_error;
     }
 
     if(debug_ammt) {
-	fprintf(stderr, "processing %s(" OFF_T_FMT ")\n",
-		cmd[i].name, (OFF_T_FMT_TYPE)count);
+	g_fprintf(stderr, _("processing %s(%lld)\n"),
+		cmd[i].name, (long long)count);
     }
     if(0 != (*cmd[i].func)(fd, count)) {
 	goto report_error;
@@ -278,11 +287,11 @@ main(
 report_error:
 
     save_errno = errno;
-    fprintf(stderr, "%s %s", tapename, cmd[i].name);
+    g_fprintf(stderr, _("%s %s"), tapename, cmd[i].name);
     if(cmd[i].count) {
-	fprintf(stderr, " " OFF_T_FMT, (OFF_T_FMT_TYPE)count);
+	g_fprintf(stderr, " %lld", (long long)count);
     }
     errno = save_errno;
-    perror(" failed");
+    perror(_(" failed"));
     return (1); /* exit */
 }

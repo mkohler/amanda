@@ -123,18 +123,33 @@ and then rerun
 </variablelist>
 </refsect1>
 
+<refsect1><title>EXIT CODE</title>
+The exit code of <command>amdump</command> is the ORed value of:
+<programlisting>
+ 0  = success
+ 1  = error
+ 2  = a dle give strange message
+ 4  = a dle failed
+ 8  = Don't know the status of a dle (RESULT_MISSING in the report)
+ 16 = tape error or no more tape
+</programlisting>
+</refsect1>
+
 <refsect1><title>AUTHOR</title>
 <para>James da Silva, &email.jds; : Original text</para>
 <para>&maintainer.sgw;: XML-conversion</para>
 </refsect1>
 
 <refsect1><title>SEE ALSO</title>
-<para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amcheck</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amcleanup</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amrestore</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amflush</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>cron</refentrytitle><manvolnum>8</manvolnum></citerefentry></para>
+<para>
+  <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+  <citerefentry><refentrytitle>amcheck</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+  <citerefentry><refentrytitle>amcleanup</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+  <citerefentry><refentrytitle>amrestore</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+  <citerefentry><refentrytitle>amflush</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+  <citerefentry><refentrytitle>cron</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+  <ulink url="http://wiki.zmanda.com"/>
+</para>
 </refsect1>
 </refentry>
 
