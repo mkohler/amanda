@@ -1,16 +1,16 @@
 # SYNOPSIS
 #
-#   AMANDA_WITH_DUMPERDIR
+#   AMANDA_WITH_APPLICATIONDIR
 #
 # OVERVIEW
 #
-#   Define and substitute DUMPER_DIR with the result.
+#   Define and substitute APPLICATION_DIR with the result.
 #
-AC_DEFUN([AMANDA_WITH_DUMPERDIR],
+AC_DEFUN([AMANDA_WITH_APPLICATIONDIR],
 [
     AC_ARG_WITH(dumperdir,
 	AS_HELP_STRING([--with-dumperdir=DIR],
-	    [where we install the dumpers (default: exec_prefix/dumper)]),
+	    [where we install the dumpers (deprecated)]),
 	[
             AMANDA_MSG_WARN([--with-dumperdir is no longer used.])
 	]
@@ -24,7 +24,7 @@ AC_DEFUN([AMANDA_WITH_DUMPERDIR],
 # OVERVIEW
 #
 #   Allow user to specify the dumperdir, defaulting to ${exec_prefix}/dumper.
-#   Define and substitute DUMPER_DIR with the result.
+#   Define and substitute APPLICATION_DIR with the result.
 #
 AC_DEFUN([AMANDA_WITH_CONFIGDIR],
 [
@@ -156,11 +156,12 @@ AC_DEFUN([AMANDA_WITH_TMPDIR],
 #   - mandir
 #
 #   Also defines the following directories and expands any variable references:
+#   - amdatadir = --with-amdatadir or ${datadir}/amanda
 #   - amlibdir = --with-amlibdir or ${libdir}/amanda
 #   - amlibexecdir = --with-amlibexecdir or ${libexecdir}/amanda
 #   - amincludedir = ${includedir}/amanda
 #   - amperldir = --with-amperldir or `perl -V:installsitearch`
-#   - DUMPER_DIR = ${amlibexecdir}/application
+#   - APPLICATION_DIR = ${amlibexecdir}/application
 #
 AC_DEFUN([AMANDA_EXPAND_DIRS],
 [
@@ -241,10 +242,21 @@ AC_DEFUN([AMANDA_EXPAND_DIRS],
     AC_DEFINE_DIR([amperldir], [AMPERLLIB],
 	[Directory in which perl modules should be installed])
 
-    DUMPER_DIR='${amlibexecdir}/application'
-    AC_DEFINE_DIR([DUMPER_DIR],[DUMPER_DIR],
+    APPLICATION_DIR='${amlibexecdir}/application'
+    AC_DEFINE_DIR([APPLICATION_DIR],[APPLICATION_DIR],
            [Directory in which dumper interfaces should be installed and searched. ])
-    # TODO: rename to APPLICATION_DIR, add to Amanda::Paths and 'amgtconf build.APPLICATION_DIR'
+
+    AC_ARG_WITH(amdatadir,
+	AS_HELP_STRING([--with-amdatadir[[[[[=PATH]]]]]],
+		[Where amanda's templates and examples are installed; default: $datadir/amanda]),
+	[
+	    AMDATADIR=$withval
+	], [
+	    AMDATADIR=$datadir/amanda
+	]
+    )
+    AC_DEFINE_DIR([amdatadir], [AMDATADIR],
+	[Directory in which amanda's templates and examples are installed. ])
 ])
 
 # SYNOPSIS
@@ -258,9 +270,10 @@ AC_DEFUN([AMANDA_EXPAND_DIRS],
 AC_DEFUN([AMANDA_SHOW_DIRS_SUMMARY],
 [
     echo "Directories:"
-    echo "  Perl modules (amperldir): $amperldir"
-    echo "  Dumper: $DUMPER_DIR"
+    echo "  Application: $APPLICATION_DIR"
     echo "  Configuration: $CONFIG_DIR"
     echo "  GNU Tar lists: $GNUTAR_LISTED_INCREMENTAL_DIR"
+    echo "  Perl modules (amperldir): $amperldir"
+    echo "  Template and example data files (amdatadir): $amdatadir"
     echo "  Temporary: $AMANDA_TMPDIR"
 ])

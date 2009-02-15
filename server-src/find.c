@@ -35,6 +35,7 @@
 #include "logfile.h"
 #include "holding.h"
 #include "find.h"
+#include <regex.h>
 #include "cmdline.h"
 
 int find_match(char *host, char *disk);
@@ -207,18 +208,21 @@ search_holding_disk(
     GSList *e;
     char *holding_file;
     disk_t *dp;
-    dumpfile_t file;
 
     holding_file_list = holding_get_files(NULL, 1);
 
     for(e = holding_file_list; e != NULL; e = e->next) {
+	dumpfile_t file;
+
 	holding_file = (char *)e->data;
 
 	if (!holding_file_get_dumpfile(holding_file, &file))
 	    continue;
 
-	if (file.dumplevel < 0 || file.dumplevel > 9)
+	if (file.dumplevel < 0 || file.dumplevel > 9) {
+	    dumpfile_free_data(&file);
 	    continue;
+	}
 
 	dp = NULL;
 	for(;;) {
@@ -230,12 +234,12 @@ search_holding_disk(
 	    *s = '\0';
 	}
 	if ( dp == NULL ) {
+	    dumpfile_free_data(&file);
 	    continue;
 	}
 
 	if(find_match(file.name,file.disk)) {
-	    find_result_t *new_output_find =
-		alloc(SIZEOF(find_result_t));
+	    find_result_t *new_output_find = g_new0(find_result_t, 1);
 	    new_output_find->next=*output_find;
 	    new_output_find->timestamp = stralloc(file.datestamp);
 	    new_output_find->hostname = stralloc(file.name);
@@ -247,9 +251,21 @@ search_holding_disk(
 	    new_output_find->status=stralloc("OK");
 	    *output_find=new_output_find;
 	}
+	dumpfile_free_data(&file);
     }
 
     g_slist_free_full(holding_file_list);
+}
+
+static char *
+get_write_timestamp(char *tapelabel)
+{
+    tape_t *tp;
+
+    if (!tapelabel || !(tp = lookup_tapelabel(tapelabel)))
+	return "0";
+
+    return tp->datestamp;
 }
 
 static int
@@ -290,6 +306,9 @@ find_compare(
 	case 'b' : compare=compare_possibly_null_strings(i->label,
                                                          j->label);
                    break;
+	case 'w': compare=strcmp(get_write_timestamp(i->label),
+				 get_write_timestamp(j->label));
+		   break;
 	case 'p' :
 		   if(strcmp(i->partnum, "--") != 0 &&
 		      strcmp(j->partnum, "--") != 0){
@@ -426,7 +445,10 @@ print_find_result(
             formatted_label = output_find_result->label;
             if (formatted_label == NULL)
                 formatted_label = "";
+
 	    /*@ignore@*/
+	    /* sec and kb are omitted here, for compatibility with the existing
+	     * output from 'amadmin' */
 	    g_printf("%-*s %-*s %-*s %*d %-*s %*lld %*s %-*s\n",
                      max_len_datestamp, 
                      find_nicedate(output_find_result->timestamp),
@@ -622,6 +644,11 @@ search_logfile(
     find_result_t *a_part_find;
     gboolean right_label = FALSE;
     gboolean found_something = FALSE;
+    regex_t regex;
+    int reg_result;
+    regmatch_t pmatch[3];
+    double sec;
+    size_t kb;
 
     g_return_val_if_fail(output_find != NULL, 0);
     g_return_val_if_fail(logfile != NULL, 0);
@@ -774,6 +801,34 @@ search_logfile(
 		*s = '\0';
 	    }
 
+	    /* extract sec, kb, kps from 'rest', if present.  This isn't the stone age
+	     * anymore, so we'll just do it the easy way (a regex) */
+	    bzero(&regex, sizeof(regex));
+	    reg_result = regcomp(&regex,
+		    "\\[sec ([0-9.]+) kb ([0-9]+) kps [0-9.]+\\]", REG_EXTENDED);
+	    if (reg_result != 0) {
+		error("Error compiling regular expression for parsing log lines");
+		/* NOTREACHED */
+	    }
+
+	    /* an error here just means the line wasn't found -- not fatal. */
+	    reg_result = regexec(&regex, rest, sizeof(pmatch)/sizeof(*pmatch), pmatch, 0);
+	    if (reg_result == 0) {
+		char *str;
+
+		str = find_regex_substring(rest, pmatch[1]);
+		sec = atof(str);
+		amfree(str);
+
+		str = find_regex_substring(rest, pmatch[2]);
+		kb = OFF_T_ATOI(str);
+		amfree(str);
+	    } else {
+		sec = 0;
+		kb = 0;
+	    }
+	    regfree(&regex);
+
 	    dp = lookup_disk(host,disk);
 	    if ( dp == NULL ) {
 		if (dynamic_disklist == NULL) {
@@ -784,8 +839,7 @@ search_logfile(
 	    }
             if (find_match(host, disk)) {
 		if(curprog == P_TAPER) {
-		    find_result_t *new_output_find =
-			(find_result_t *)alloc(SIZEOF(find_result_t));
+		    find_result_t *new_output_find = g_new0(find_result_t, 1);
 		    new_output_find->timestamp = stralloc(date);
 		    new_output_find->hostname=stralloc(host);
 		    new_output_find->diskname=stralloc(disk);
@@ -794,6 +848,8 @@ search_logfile(
                     new_output_find->label=stralloc(current_label);
 		    new_output_find->status=NULL;
 		    new_output_find->filenum=filenum;
+		    new_output_find->sec=sec;
+		    new_output_find->kb=kb;
 		    new_output_find->next=NULL;
 		    if (curlog == L_SUCCESS) {
 			new_output_find->status = stralloc("OK");
@@ -836,9 +892,12 @@ search_logfile(
 			found_something = TRUE;
 		    }
 		}
-		else if(curlog == L_FAIL) {	/* print other failures too */
-		    find_result_t *new_output_find =
-			(find_result_t *)alloc(SIZEOF(find_result_t));
+		else if(curlog == L_FAIL) {
+		    /* print other failures too -- this is a hack to ensure that failures which
+		     * did not make it to tape are also listed in the output of 'amadmin x find';
+		     * users that do not want this information (e.g., Amanda::DB::Catalog) should
+		     * filter dumps with a NULL label. */
+		    find_result_t *new_output_find = g_new0(find_result_t, 1);
 		    new_output_find->next=*output_find;
 		    new_output_find->timestamp = stralloc(date);
 		    new_output_find->hostname=stralloc(host);
@@ -847,6 +906,8 @@ search_logfile(
 		    new_output_find->label=NULL;
 		    new_output_find->partnum=stralloc(partnum);
 		    new_output_find->filenum=0;
+		    new_output_find->sec=sec;
+		    new_output_find->kb=kb;
 		    new_output_find->status=vstralloc(
 			 "FAILED (",
 			 program_str[(int)curprog],
@@ -928,15 +989,17 @@ dumps_match(
 	   (!level || *level== '\0' || match_level(level, level_str)) &&
 	   (!ok || !strcmp(cur_result->status, "OK"))){
 
-	    find_result_t *curmatch = alloc(SIZEOF(find_result_t));
+	    find_result_t *curmatch = g_new0(find_result_t, 1);
 	    memcpy(curmatch, cur_result, SIZEOF(find_result_t));
 
 	    curmatch->timestamp = stralloc(cur_result->timestamp);
 	    curmatch->hostname = stralloc(cur_result->hostname);
 	    curmatch->diskname = stralloc(cur_result->diskname);
 	    curmatch->level = cur_result->level;
-	    curmatch->label = stralloc(cur_result->label);
+	    curmatch->label = cur_result->label? stralloc(cur_result->label) : NULL;
 	    curmatch->filenum = cur_result->filenum;
+	    curmatch->sec = cur_result->sec;
+	    curmatch->kb = cur_result->kb;
 	    curmatch->status = stralloc(cur_result->status);
 	    curmatch->partnum = stralloc(cur_result->partnum);
 
@@ -986,7 +1049,7 @@ dumps_match_dumpspecs(
 		curmatch->hostname = stralloc(cur_result->hostname);
 		curmatch->diskname = stralloc(cur_result->diskname);
 		curmatch->level = cur_result->level;
-		curmatch->label = stralloc(cur_result->label);
+		curmatch->label = cur_result->label? stralloc(cur_result->label) : NULL;
 		curmatch->filenum = cur_result->filenum;
 		curmatch->status = stralloc(cur_result->status);
 		curmatch->partnum = stralloc(cur_result->partnum);

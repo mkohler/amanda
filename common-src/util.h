@@ -45,13 +45,12 @@
 /* internal types and variables */
 
 
-ssize_t	fullread(int, void *, size_t);
-ssize_t	fullwrite(int, const void *, size_t);
-
 int	connect_portrange(sockaddr_union *, in_port_t, in_port_t, char *,
 			  sockaddr_union *, int);
 int	bind_portrange(int, sockaddr_union *, in_port_t, in_port_t,
 		       char *);
+
+ssize_t	full_writev(int, struct iovec *, int);
 
 char *	construct_datestamp(time_t *t);
 char *	construct_timestamp(time_t *t);
@@ -59,6 +58,25 @@ char *	construct_timestamp(time_t *t);
 /*@only@*//*@null@*/char *quote_string(const char *str);
 /*@only@*//*@null@*/char *unquote_string(const char *str);
 int	needs_quotes(const char * str);
+
+/* Split a string into space-delimited words, obeying quoting as created by
+ * quote_string.  To keep compatibility with the old split(), this has the
+ * characteristic that multiple consecutive spaces are not collapsed into
+ * a single space: "x  y" parses as [ "x", "", "y", NULL ].  The strings are
+ * unquoted before they are returned, unlike split().  An empty string is
+ * split into [ "", NULL ].
+ *
+ * Returns a NULL-terminated array of strings, which should be freed with
+ * g_strfreev.
+ */
+gchar ** split_quoted_strings(const gchar *string);
+
+/* Like strtok_r, but consider a quoted string to be a single token.  Caller
+ * must begin parsing with strtok_r first, then pass the saveptr to this function.
+ *
+ * Returns NULL on unparseable strings (e.g., unterminated quotes, bad escapes)
+ */
+char *		strquotedstr(char **saveptr);
 
 char *	sanitize_string(const char *str);
 int     copy_file(char *dst, char *src, char **errmsg);
@@ -102,11 +120,6 @@ void free_new_argv(int new_argc, char **new_argv);
 /* Like strcmp(a, b), except that NULL strings are sorted before non-NULL
  * strings, instead of segfaulting. */
 int compare_possibly_null_strings(const char * a, const char * b);
-
-/* Does g_thread_init(), along with anything else that should be done
- * before/after thread setup. It's OK to call this function more than once.
- * Returns TRUE if threads are supported. */
-gboolean amanda_thread_init(void);
 
 /* Given a hostname, call getaddrinfo to resolve it.  Optionally get the
  * entire set of results (if res is not NULL) and the canonical name of
@@ -155,6 +168,9 @@ char *_str_exit_status(char *subject, amwait_t status);
  * @param who: one of the RUNNING_AS_* constants, below.
  */
 typedef enum {
+        /* doesn't matter */
+    RUNNING_AS_ANY,
+
         /* userid is 0 */
     RUNNING_AS_ROOT,
 
@@ -199,6 +215,24 @@ int become_root(void);
  * Process parameters
  */
 
+/* The 'context' of a process gives a general description of how it is
+ * used.  This affects log output, among other things.
+ */
+typedef enum {
+    /* default context (logging to stderr, etc. -- not pretty) */
+    CONTEXT_DEFAULT = 0,
+
+    /* user-interfacing command-line utility like amadmin */
+    CONTEXT_CMDLINE,
+
+    /* daemon like amandad or sendbackup */
+    CONTEXT_DAEMON,
+
+    /* a utility used from shell scripts, and thus probably invoked
+     * quite often */
+    CONTEXT_SCRIPTUTIL,
+} pcontext_t;
+
 /* Set the name of the process.  The parameter is copied, and remains
  * the responsibility of the caller on return. This value is used in log
  * messages and other output throughout Amanda.
@@ -213,6 +247,33 @@ void set_pname(char *pname);
  * @returns: process name
  */
 char *get_pname(void);
+
+/* Set the type of the process.  The parameter is copied, and remains
+ * the responsibility of the caller on return.  This value dictates the
+ * directory in which debug logs are stored.
+ *
+ * @param pname: the new process type
+ */
+void set_ptype(char *ptype);
+
+/* Get the current process name; the result is in a static buffer, and
+ * should *not* be free()d by the caller.
+ *
+ * @returns: process name
+ */
+char *get_ptype(void);
+
+/* Set the process's context
+ *
+ * @param context: the new context
+ */
+void set_pcontext(pcontext_t context);
+
+/* Get the process's context
+ *
+ * @returns: the context
+ */
+pcontext_t get_pcontext(void);
 
 /*
  * Readline support
@@ -241,5 +302,29 @@ char *	readline(const char *prompt);
 void	add_history(const char *line);
 
 #endif
+
+char *base64_decode_alloc_string(char *);
+
+/* A GHFunc (callback for g_hash_table_foreach),
+ * Count the number of properties.
+ *
+ * @param key_p: (char *) property name.
+ * @param value_p: (GSList *) property values list.
+ * @param user_data_p: (int *) count are added to that value.
+ */
+void count_proplist(gpointer key_p,
+		    gpointer value_p,
+		    gpointer user_data_p);
+
+/* A GHFunc (callback for g_hash_table_foreach),
+ * Store a property and it's value in an ARGV.
+ *
+ * @param key_p: (char *) property name.
+ * @param value_p: (GSList *) property values list.
+ * @param user_data_p: (char ***) pointer to ARGV.
+ */
+void proplist_add_to_argv(gpointer key_p,
+			  gpointer value_p,
+			  gpointer user_data_p);
 
 #endif	/* UTIL_H */

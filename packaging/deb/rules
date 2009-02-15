@@ -8,7 +8,7 @@
 
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
-AMVER=2.6.0p2
+AMVER=2.6.1
 
 # These are variables that the user can override.  They get used in various
 # places during configure, build, and install.
@@ -60,7 +60,8 @@ build-stamp: /sbin/dump /usr/bin/smbclient
 		--libexecdir=$(LIBEXECDIR) \
 		--enable-shared \
 		--sysconfdir=$(SYSCONFDIR) \
-		--localstatedir=$(LOCALSTATEDIR)\
+		--localstatedir=$(LOCALSTATEDIR) \
+		--with-amdatadir=$(AMHOMEDIR) \
 		--with-gnutar-listdir=$(AMHOMEDIR)/gnutar-lists \
 		--with-index-server=localhost \
 		--with-tape-server=localhost \
@@ -149,10 +150,14 @@ binary-arch: build
 	chmod -R u=rwX,g=rwX,o-rwx  $(client)/$(AMHOMEDIR)/gnutar-lists $(server)/$(AMHOMEDIR)/gnutar-lists
 	# .. setuid
 	chown root:disk \
+ 		$(client)/$(AMLIBEXECDIR)/application/amgtar \
+ 		$(client)/$(AMLIBEXECDIR)/application/amstar \
 		$(client)/$(AMLIBEXECDIR)/killpgrp \
 		$(client)/$(AMLIBEXECDIR)/rundump \
 		$(client)/$(AMLIBEXECDIR)/runtar \
 		$(client)/$(AMLIBEXECDIR)/calcsize \
+ 		$(server)/$(AMLIBEXECDIR)/application/amgtar \
+ 		$(server)/$(AMLIBEXECDIR)/application/amstar \
 		$(server)/$(AMLIBEXECDIR)/killpgrp \
 		$(server)/$(AMLIBEXECDIR)/rundump \
 		$(server)/$(AMLIBEXECDIR)/runtar \
@@ -161,10 +166,14 @@ binary-arch: build
 		$(server)/$(AMLIBEXECDIR)/planner \
 		$(server)/usr/sbin/amcheck
 	chmod u=srwx,g=rx,o=r \
+ 		$(client)/$(AMLIBEXECDIR)/application/amgtar \
+ 		$(client)/$(AMLIBEXECDIR)/application/amstar \
 		$(client)$(AMLIBEXECDIR)/killpgrp \
 		$(client)$(AMLIBEXECDIR)/rundump \
 		$(client)$(AMLIBEXECDIR)/runtar \
 		$(client)$(AMLIBEXECDIR)/calcsize \
+ 		$(server)/$(AMLIBEXECDIR)/application/amgtar \
+ 		$(server)/$(AMLIBEXECDIR)/application/amstar \
 		$(server)$(AMLIBEXECDIR)/killpgrp \
 		$(server)$(AMLIBEXECDIR)/rundump \
 		$(server)$(AMLIBEXECDIR)/runtar \

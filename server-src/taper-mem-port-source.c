@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 2006 Zmanda Inc.
+ * Copyright (c) 2005-2008 Zmanda Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,8 +20,6 @@
 #define selfp (self->_priv)
 
 #include "taper-mem-port-source.h"
-
-#include "physmem.h"
 
 struct _TaperMemPortSourcePrivate {
     /* Actual size of this buffer is given by max_part_size in TaperSource. */
@@ -112,23 +110,18 @@ static int taper_mem_port_source_predict_parts(TaperSource * pself) {
 }
 
 /* Allocate buffer space, if it hasn't been done yet. */
-static void setup_retry_buffer(TaperMemPortSource * self) {
+static gboolean
+setup_retry_buffer(TaperMemPortSource * self) {
+    TaperSource *pself = TAPER_SOURCE(self);
     guint64 alloc_size;
-    guint64 max_usage;
     if (selfp->retry_buffer != NULL)
-        return;
+        return TRUE;
 
-    alloc_size = TAPER_SOURCE(self)->max_part_size;
+    alloc_size = pself->max_part_size;
     if (alloc_size > SIZE_MAX) {
         g_fprintf(stderr, "Fallback split size of %lld is greater that system maximum of %lld.\n",
                 (long long)alloc_size, (long long)SIZE_MAX);
         alloc_size = SIZE_MAX;
-    }
-    
-    max_usage = physmem_available() * .95;
-    if (alloc_size > max_usage) {
-        g_fprintf(stderr, "Fallback split size of %lld is greater than 95%% of available memory (%lld bytes).\n", (long long)alloc_size, (long long)max_usage);
-        alloc_size = max_usage;
     }
     
     if (alloc_size < DISK_BLOCK_BYTES * 10) {
@@ -137,8 +130,16 @@ static void setup_retry_buffer(TaperMemPortSource * self) {
         alloc_size = DISK_BLOCK_BYTES * 10;
     }
     
-    TAPER_SOURCE(self)->max_part_size = alloc_size;
+    pself->max_part_size = alloc_size;
     selfp->retry_buffer = malloc(alloc_size);
+
+    if (selfp->retry_buffer == NULL) {
+	pself->errmsg = g_strdup_printf(_("Can't allocate %ju bytes of memory for split buffer"),
+					(uintmax_t)pself->max_part_size);
+	return FALSE;
+    }
+
+    return TRUE;
 }
 
 static ssize_t 
@@ -165,7 +166,8 @@ taper_mem_port_source_read (TaperSource * pself, void * buf, size_t count) {
     } else {
         int read_result;
         if (selfp->retry_buffer == NULL) {
-            setup_retry_buffer(self);
+            if (!setup_retry_buffer(self))
+		return -1;
         }
 
         count = MIN(count, pself->max_part_size - selfp->buffer_len);

@@ -1,5 +1,6 @@
 # Makefile for Amanda restore programs.
 
+include $(top_srcdir)/config/automake/vars.am
 include $(top_srcdir)/config/automake/installperms.am
 include $(top_srcdir)/config/automake/precompile.am
 
@@ -13,8 +14,8 @@ INCLUDES =	-I$(top_builddir)/common-src \
 AM_CFLAGS = $(AMANDA_WARNING_CFLAGS)
 AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
 
-LINT=@AMLINT@
-LINTFLAGS=@AMLINTFLAGS@
+LINT=$(AMLINT)
+LINTFLAGS=$(AMLINTFLAGS)
 
 amlib_LTLIBRARIES =	librestore.la
 LIB_EXTENSION = la
@@ -32,7 +33,6 @@ amlibexec_PROGRAMS = 	amidxtaped
 
 LDADD = librestore.$(LIB_EXTENSION)              \
       ../common-src/libamanda.$(LIB_EXTENSION) \
-      ../gnulib/libgnu.$(LIB_EXTENSION) \
       $(READLINE_LIBS)
 
 amidxtaped_LDADD = $(LDADD) \
@@ -57,13 +57,12 @@ INSTALLPERMS_exec = \
 
 lint:
 	@ for p in $(amlibexec_PROGRAMS) $(sbin_PROGRAMS); do			\
+		p=`basename $$p $(EXEEXT)`;					\
 		f="$$p.c $(librestore_la_SOURCES)";				\
 		(cd ../common-src; make listlibsrc);				\
 		f="$$f "`cat ../common-src/listlibsrc.output`;			\
 		(cd ../server-src; make listlibsrc);				\
 		f="$$f "`cat ../server-src/listlibsrc.output`;			\
-		(cd ../tape-src; make listlibsrc);				\
-		f="$$f "`cat ../tape-src/listlibsrc.output`;			\
 		echo $(LINT) $$f;						\
 		$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I$(top_builddir)/config	\
 		    $(INCLUDES) $$f;						\

@@ -32,10 +32,9 @@
 #include "amanda.h"
 #include "util.h"
 #include "amrecover.h"
+#include "amxml.h"
 
-#ifdef SAMBA_CLIENT
 extern unsigned short samba_extract_method;
-#endif /* SAMBA_CLIENT */
 
 /* sets a date, mapping given date into standard form if needed */
 int
@@ -90,6 +89,7 @@ set_host(
     if (is_extract_list_nonempty())
     {
 	g_printf(_("Must clear extract list before changing host\n"));
+	amfree(uqhost);
 	return;
     }
 
@@ -216,8 +216,11 @@ set_disk(
 	exit(1);
     amfree(cmd);
 
-    if (!server_happy())
+    if (!server_happy()) {
+	amfree(uqmtpt);
+	amfree(uqdsk);
 	return;
+    }
 
     disk_name = newstralloc(disk_name, uqdsk);
     if (mtpt == NULL)
@@ -261,6 +264,27 @@ set_disk(
     }
     amfree(uqmtpt);
     amfree(uqdsk);
+
+    if (am_has_feature(indexsrv_features, fe_amindexd_DLE)) {
+	char *dle_str;
+	char *errmsg = NULL;
+
+	cmd = stralloc("DLE");
+	if (exchange(cmd) == -1)
+	    exit(1);
+	amfree(cmd);
+
+	if (!server_happy())
+	    return;
+
+	dle_str = reply_line();
+	if (BSTRNCMP(dle_str+4, "NODLE") == 0) {
+	    dump_dle = NULL;
+	} else {
+	    dle_str = unquote_string(dle_str+4);
+	    dump_dle = amxml_parse_node_CHAR(dle_str, &errmsg);
+	}
+    }
 }
 
 void
@@ -322,6 +346,7 @@ cd_glob(
         g_printf(_("\"%s\" is not a valid shell wildcard pattern: "), glob);
         puts(s);
 	amfree(regex);
+	amfree(uqglob);
         return;
     }
     /*
@@ -386,6 +411,7 @@ cd_regex(
     if ((s = validate_regexp(uqregex)) != NULL) {
 	g_printf(_("\"%s\" is not a valid regular expression: "), uq_orig_regex);
 	amfree(uqregex);
+	amfree(uq_orig_regex);
 	puts(s);
 	return;
     }
@@ -691,7 +717,6 @@ void
 set_mode(
     int		mode)
 {
-#ifdef SAMBA_CLIENT
   if (mode == SAMBA_SMBCLIENT) {
     g_printf (_("SAMBA dumps will be extracted using smbclient\n"));
     samba_extract_method = SAMBA_SMBCLIENT;
@@ -701,9 +726,6 @@ set_mode(
       samba_extract_method = SAMBA_TAR;
     }
   }
-#else
-  (void)mode;	/* Quiet unused parameter warning */
-#endif /* SAMBA_CLIENT */
 }
 
 void

@@ -3,7 +3,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
+   the Free Software Foundation; either version 3, or (at your option)
    any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -37,6 +37,6 @@
    <http://www.opengroup.org/susv3xsh/inet_ntop.html>.  */
 
 #if !HAVE_DECL_INET_NTOP
-extern const char *inet_ntop (int af, const void *restrict src,
-			      char *restrict dst, socklen_t cnt);
+extern const char *inet_ntop (int af, const void *src,
+			      char *dst, socklen_t cnt);
 #endif

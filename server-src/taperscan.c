@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Zmanda Inc.  All Rights Reserved.
+ * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -14,8 +14,8 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  * 
- * Contact information: Zmanda Inc, 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 /*
@@ -80,7 +80,7 @@ int scan_read_label(
 {
     Device * device;
     char *labelstr;
-    ReadLabelStatusFlags label_status;
+    DeviceStatusFlags device_status;
 
     g_return_val_if_fail(dev != NULL, -1);
 
@@ -88,77 +88,74 @@ int scan_read_label(
 	*error_message = stralloc("");
 
     *label = *timestamp = NULL;
-
     device = device_open(dev);
-    if (device == NULL ) {
+    g_assert(device != NULL);
+
+    if (device->status != DEVICE_STATUS_SUCCESS ) {
         *error_message = newvstrallocf(*error_message,
-                                       _("%sError opening device %s.\n"),
-                                       *error_message, dev);
+                                       _("%sError opening device %s: %s.\n"),
+                                       *error_message, dev,
+				       device_error_or_status(device));
+	g_object_unref(device);
         amfree(*timestamp);
         amfree(*label);
         return -1;
     }
 
-    device_set_startup_properties_from_config(device);
+    if (!device_configure(device, TRUE)) {
+        *error_message = newvstrallocf(*error_message,
+                                       _("%sError configuring device %s: %s.\n"),
+                                       *error_message, dev,
+				       device_error_or_status(device));
+	g_object_unref(device);
+        amfree(*timestamp);
+        amfree(*label);
+        return -1;
+    }
 
-    label_status = device_read_label(device);
-    g_assert((device->volume_label != NULL) ==
-             (label_status == READ_LABEL_STATUS_SUCCESS));
+    device_status = device_read_label(device);
     
-    if (device->volume_label != NULL) { 
+    if (device_status == DEVICE_STATUS_SUCCESS && device->volume_label != NULL) {
         *label = g_strdup(device->volume_label);
         *timestamp = strdup(device->volume_time);
-    } else if (label_status & READ_LABEL_STATUS_VOLUME_UNLABELED) {
-        g_object_unref(device);
+    } else if (device_status & DEVICE_STATUS_VOLUME_UNLABELED) {
         if (!getconf_seen(CNF_LABEL_NEW_TAPES)) {
             *error_message = newvstrallocf(*error_message,
-                                           _("%sFound a non-amanda tape.\n"),
+                                           _("%sFound an empty or non-amanda tape.\n"),
                                            *error_message);
-
+	    g_object_unref(device);
             return -1;
         }
+
+	/* If we got a header, but the Device doesn't think it's labeled, then this
+	 * tape probably has some data on it, so refuse to automatically label it */
+	if (device->volume_header && device->volume_header->type != F_EMPTY) {
+            *error_message = newvstrallocf(*error_message,
+		       _("%sFound a non-amanda tape; check and relabel it with 'amlabel -f'\n"),
+		       *error_message);
+	    g_object_unref(device);
+            return -1;
+	}
+	g_object_unref(device);
+
         *label = find_brand_new_tape_label();
         if (*label != NULL) {
             *timestamp = stralloc("X");
             *error_message = newvstrallocf(*error_message,
-                     _("%sFound a non-amanda tape, will label it `%s'.\n"),
+                     _("%sFound an empty tape, will label it `%s'.\n"),
                                            *error_message, *label);
 
             return 3;
         }
         *error_message = newvstrallocf(*error_message,
-                 _("%sFound a non-amanda tape, but have no labels left.\n"),
+                 _("%sFound an empty tape, but have no labels left.\n"),
                                        *error_message);
 
         return -1;
     } else {
         char * label_errstr;
-        char ** label_strv =
-            g_flags_nick_to_strv(label_status, READ_LABEL_STATUS_FLAGS_TYPE);
-        
-        switch (g_strv_length(label_strv)) {
-        case 0:
-            label_errstr = g_strdup(_("Unknown error reading volume label.\n"));
-            break;
-
-        case 1:
-            label_errstr =
-                g_strdup_printf(_("Error reading volume label: %s\n"),
-                                *label_strv);
-	    break;
-
-        default:
-            {
-                char * tmp_str = g_english_strjoinv(label_strv, "or");
-                label_errstr =
-                    g_strdup_printf(_("Error reading label: One of %s\n"),
-                                    tmp_str);
-                g_free(tmp_str);
-            }
-        }
-        
-        g_strfreev(label_strv);
-
+	label_errstr = g_strdup_printf(_("Error reading label: %s.\n"),
+				       device_error_or_status(device));
         *error_message = newvstralloc(*error_message, *error_message,
                                       label_errstr, NULL);
         g_free(label_errstr);
@@ -210,7 +207,7 @@ int scan_read_label(
             *error_message = 
                 newvstrallocf(*error_message,
                               _("%sTape with label %s is still active" 
-                                " and cannot be overwriten.\n"),
+                                " and cannot be overwritten.\n"),
                               *error_message, *label);
             return -1;
         }

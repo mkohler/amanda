@@ -43,6 +43,7 @@
 #include "conffile.h"
 #include "protocol.h"
 #include "event.h"
+#include "client_util.h"
 #include "security.h"
 
 typedef struct EXTRACT_LIST_ITEM {
@@ -83,7 +84,6 @@ char *amidxtaped_client_get_security_conf(char *, void *);
 static char *dump_device_name = NULL;
 static char *errstr;
 static char *amidxtaped_line = NULL;
-
 extern char *localhost;
 
 /* global pid storage for interrupt handler */
@@ -92,9 +92,7 @@ pid_t extract_restore_child_pid = -1;
 static EXTRACT_LIST *extract_list = NULL;
 static const security_driver_t *amidxtaped_secdrv;
 
-#ifdef SAMBA_CLIENT
 unsigned short samba_extract_method = SAMBA_TAR;
-#endif /* SAMBA_CLIENT */
 
 #define READ_TIMEOUT	240*60
 
@@ -1424,7 +1422,7 @@ okay_to_continue(
 	dbprintf("User prompt: '%s'; response: '%s'\n", prompt, line);
 
 	s = line;
-	while ((ch = *s++) != '\0' && isspace(ch)) {
+	while ((ch = *s++) != '\0' && g_ascii_isspace(ch)) {
 	    (void)ch;	/* Quiet empty loop compiler warning */
 	}
 	if (ch == '?') {
@@ -1613,7 +1611,7 @@ extract_files_setup(
        am_has_feature(indexsrv_features, fe_amidxtaped_datestamp)) {
 
 	if(am_has_feature(indexsrv_features, fe_amidxtaped_config)) {
-	    tt = newstralloc2(tt, "CONFIG=", config_name);
+	    tt = newstralloc2(tt, "CONFIG=", get_config_name());
 	    send_to_tape_server(amidxtaped_streams[CTLFD].fd, tt);
 	}
 	if(am_has_feature(indexsrv_features, fe_amidxtaped_label) &&
@@ -1708,7 +1706,7 @@ enum dumptypes {
 	IS_TAR,
 	IS_SAMBA,
 	IS_SAMBA_TAR,
-	IS_BACKUP_API
+	IS_APPLICATION_API
 };
 
 static void
@@ -1731,6 +1729,8 @@ extract_files_child(
 #ifdef SAMBA_CLIENT
     char *domain = NULL, *smbpass = NULL;
 #endif
+    backup_support_option_t *bsu;
+    GPtrArray		    *errarray;
 
     /* code executed by child to do extraction */
     /* never returns */
@@ -1754,7 +1754,7 @@ extract_files_child(
 
     if (file.program != NULL) {
 	if (strcmp(file.program, "BACKUP") == 0)
-	    dumptype = IS_BACKUP_API;
+	    dumptype = IS_APPLICATION_API;
 #ifdef GNUTAR
 	if (strcmp(file.program, GNUTAR) == 0)
 	    dumptype = IS_GNUTAR;
@@ -1807,8 +1807,20 @@ extract_files_child(
 	}
 #endif
     	break;
-    case IS_BACKUP_API:
-	extra_params = 5;
+    case IS_APPLICATION_API:
+	extra_params = 12;
+	if (dump_dle) {
+	    GSList   *scriptlist;
+	    script_t *script;
+	    extra_params += application_property_argv_size(dump_dle);
+	    for (scriptlist = dump_dle->scriptlist; scriptlist != NULL;
+		 scriptlist = scriptlist->next) {
+		script = (script_t *)scriptlist->data;
+		if (script->result && script->result->proplist) {
+		    extra_params += property_argv_size(script->result->proplist);
+		}
+	    }
+	}
 	break;
     }
     restore_args = (char **)alloc((size_t)((extra_params + files_off_tape + 1)
@@ -1872,20 +1884,57 @@ extract_files_child(
 	}
 #endif
 	break;
-    case IS_BACKUP_API:
-	restore_args[j++] = stralloc(file.dumper);
+    case IS_APPLICATION_API:
+	{
+	    g_option_t g_options;
+	    g_options.config = get_config_name();
+	    g_options.hostname = dump_hostname;
+	    if (dump_dle) {
+		bsu = backup_support_option(file.application, &g_options,
+					    file.disk, dump_dle->device,
+					    &errarray);
+	    } else {
+		bsu = backup_support_option(file.application, &g_options,
+					    file.disk, NULL,
+					    &errarray);
+	    }
+	}
+	restore_args[j++] = stralloc(file.application);
 	restore_args[j++] = stralloc("restore");
 	restore_args[j++] = stralloc("--config");
-	restore_args[j++] = stralloc(config_name);
+	restore_args[j++] = stralloc(get_config_name());
 	restore_args[j++] = stralloc("--disk");
 	restore_args[j++] = stralloc(file.disk);
+	if (dump_dle && dump_dle->device) {
+	    restore_args[j++] = stralloc("--device");
+	    restore_args[j++] = stralloc(dump_dle->device);
+	}
+	if (bsu->smb_recover_mode && samba_extract_method == SAMBA_SMBCLIENT){
+	    restore_args[j++] = "--recover-mode";
+	    restore_args[j++] = "smb";
+	}
+	if (dump_dle) {
+	    GSList   *scriptlist;
+	    script_t *script;
+
+	    j += application_property_add_to_argv(&restore_args[j], dump_dle, NULL);
+	    for (scriptlist = dump_dle->scriptlist; scriptlist != NULL;
+		 scriptlist = scriptlist->next) {
+		script = (script_t *)scriptlist->data;
+		if (script->result && script->result->proplist) {
+		    j += property_add_to_argv(&restore_args[j],
+					      script->result->proplist);
+		}
+	    }
+
+	}
 	break;
     }
   
     for (i = 0, fn = elist->files; i < files_off_tape; i++, fn = fn->next)
     {
 	switch (dumptype) {
-    	case IS_BACKUP_API:
+    	case IS_APPLICATION_API:
     	case IS_TAR:
     	case IS_GNUTAR:
     	case IS_SAMBA_TAR:
@@ -1968,8 +2017,8 @@ extract_files_child(
 	    cmd = stralloc("restore");
 	}
 	break;
-    case IS_BACKUP_API:
-	cmd = vstralloc(DUMPER_DIR, "/", file.dumper, NULL);
+    case IS_APPLICATION_API:
+	cmd = vstralloc(APPLICATION_DIR, "/", file.application, NULL);
 	break;
     }
     if (cmd) {
@@ -1997,6 +2046,13 @@ extract_files_child(
     /*NOT REACHED */
 }
 
+typedef struct ctl_data_s {
+  int           header_done;
+  int           child_pipe[2];
+  int           pid;
+  EXTRACT_LIST *elist;
+} ctl_data_t;
+
 /*
  * Interpose something between the process writing out the dump (writing it to
  * some extraction program, really) and the socket from which we're reading, so
@@ -2006,35 +2062,17 @@ int
 writer_intermediary(
     EXTRACT_LIST *	elist)
 {
-    int child_pipe[2];
-    pid_t pid;
-    amwait_t extractor_status;
+    ctl_data_t ctl_data;
+    amwait_t   extractor_status;
 
-    if(pipe(child_pipe) == -1) {
-	error(_("extract_list - error setting up pipe to extractor: %s\n"),
-	      strerror(errno));
-	/*NOTREACHED*/
-    }
-
-    /* okay, ready to extract. fork a child to do the actual work */
-    if ((pid = fork()) == 0) {
-	/* this is the child process */
-	/* never gets out of this clause */
-	aclose(child_pipe[1]);
-        extract_files_child(child_pipe[0], elist);
-	/*NOTREACHED*/
-    }
-
-    /* This is the parent */
-    if (pid == -1) {
-	g_printf(_("writer_intermediary - error forking child"));
-	return -1;
-    }
-
-    aclose(child_pipe[0]);
+    ctl_data.header_done   = 0;
+    ctl_data.child_pipe[0] = -1;
+    ctl_data.child_pipe[1] = -1;
+    ctl_data.pid           = -1;
+    ctl_data.elist         = elist;
 
     security_stream_read(amidxtaped_streams[DATAFD].fd,
-			 read_amidxtaped_data, &(child_pipe[1]));
+			 read_amidxtaped_data, &ctl_data);
 
     while(get_amidxtaped_line() >= 0) {
 	char desired_tape[MAX_TAPE_LABEL_BUF];
@@ -2071,14 +2109,21 @@ writer_intermediary(
 
     /* CTL might be close before DATA */
     event_loop(0);
-    aclose(child_pipe[1]);
+    if (ctl_data.child_pipe[1] != -1)
+	aclose(ctl_data.child_pipe[1]);
 
-    waitpid(pid, &extractor_status, 0);
-    if(WEXITSTATUS(extractor_status) != 0){
-	int ret = WEXITSTATUS(extractor_status);
-        if(ret == 255) ret = -1;
-	g_printf(_("Extractor child exited with status %d\n"), ret);
-	return -1;
+    if (ctl_data.header_done == 0) {
+	g_printf(_("Got no header and data from server, check in amidxtaped.*.debug and amandad.*.debug files on server\n"));
+    }
+
+    if (ctl_data.pid != -1) {
+	waitpid(ctl_data.pid, &extractor_status, 0);
+	if(WEXITSTATUS(extractor_status) != 0){
+	    int ret = WEXITSTATUS(extractor_status);
+            if(ret == 255) ret = -1;
+	    g_printf(_("Extractor child exited with status %d\n"), ret);
+	    return -1;
+	}
     }
     return(0);
 }
@@ -2111,6 +2156,9 @@ extract_files(void)
     int first;
     int otc;
     tapelist_t *tlist = NULL, *a_tlist;
+    g_option_t g_options;
+    GSList *all_level = NULL;
+    int last_level;
 
     if (!is_extract_list_nonempty())
     {
@@ -2192,10 +2240,8 @@ extract_files(void)
     g_printf(_("Restoring files into directory %s\n"), cwd);
     check_file_overwrite(cwd);
 
-#ifdef SAMBA_CLIENT
     if (samba_extract_method == SAMBA_SMBCLIENT)
       g_printf(_("(unless it is a Samba backup, that will go through to the SMB server)\n"));
-#endif
     dbprintf(_("Checking with user before restoring into directory %s\n"), cwd);
     if (!okay_to_continue(0,0,0)) {
         amfree(cwd);
@@ -2211,6 +2257,20 @@ extract_files(void)
     }
     free_unlink_list();
 
+    g_options.config = get_config_name();
+    g_options.hostname = dump_hostname;
+    for (elist = first_tape_list(); elist != NULL;
+	 elist = next_tape_list(elist)) {
+	all_level = g_slist_append(all_level, GINT_TO_POINTER(elist->level));
+    }
+    if (dump_dle) {
+	g_slist_free(dump_dle->level);
+	dump_dle->level = all_level;
+	run_client_scripts(EXECUTE_ON_PRE_RECOVER, &g_options, dump_dle,
+			   stderr);
+	dump_dle->level = NULL;
+    }
+    last_level = -1;
     while ((elist = first_tape_list()) != NULL)
     {
 	if(elist->tape[0]=='/') {
@@ -2240,6 +2300,17 @@ extract_files(void)
 	}
 	dump_datestamp = newstralloc(dump_datestamp, elist->date);
 
+	if (last_level != -1 && dump_dle) {
+	    dump_dle->level = g_slist_append(dump_dle->level,
+					     GINT_TO_POINTER(last_level));
+	    dump_dle->level = g_slist_append(dump_dle->level,
+					     GINT_TO_POINTER(elist->level));
+	    run_client_scripts(EXECUTE_ON_INTER_LEVEL_RECOVER, &g_options,
+			       dump_dle, stderr);
+	    g_slist_free(dump_dle->level);
+	    dump_dle->level = NULL;
+	}
+
 	/* connect to the tape handler daemon on the tape drive server */
 	if ((extract_files_setup(elist->tape, elist->fileno)) == -1)
 	{
@@ -2247,6 +2318,13 @@ extract_files(void)
 		    errstr);
 	    return;
 	}
+	if (dump_dle) {
+	    dump_dle->level = g_slist_append(dump_dle->level,
+					     GINT_TO_POINTER(elist->level));
+	    run_client_scripts(EXECUTE_ON_PRE_LEVEL_RECOVER, &g_options,
+			       dump_dle, stderr);
+	}
+	last_level = elist->level;
 
 	/* if the server have fe_amrecover_feedme_tape, it has asked for
 	 * the tape itself, even if the restore didn't succeed, we should
@@ -2257,6 +2335,21 @@ extract_files(void)
 	    delete_tape_list(elist);	/* tape done so delete from list */
 
 	stop_amidxtaped();
+
+	if (dump_dle) {
+	    run_client_scripts(EXECUTE_ON_POST_LEVEL_RECOVER, &g_options,
+			       dump_dle, stderr);
+	    g_slist_free(dump_dle->level);
+	    dump_dle->level = NULL;
+	}
+    }
+    if (dump_dle) {
+	dump_dle->level = all_level;
+	run_client_scripts(EXECUTE_ON_POST_RECOVER, &g_options, dump_dle,
+			   stderr);
+	g_slist_free(dump_dle->level);
+	all_level = NULL;
+	dump_dle->level = NULL;
     }
 }
 
@@ -2529,11 +2622,9 @@ read_amidxtaped_data(
     void *	buf,
     ssize_t	size)
 {
-    int fd;
-
+    ctl_data_t *ctl_data = (ctl_data_t *)cookie;
     assert(cookie != NULL);
 
-    fd = *(int *)cookie;
     if (size < 0) {
 	errstr = newstralloc2(errstr, _("amidxtaped read: "),
 		 security_stream_geterror(amidxtaped_streams[DATAFD].fd));
@@ -2554,10 +2645,34 @@ read_amidxtaped_data(
 
     assert(buf != NULL);
 
+    if (ctl_data->header_done == 0) {
+	ctl_data->header_done = 1;
+	if(pipe(ctl_data->child_pipe) == -1) {
+	    error(_("extract_list - error setting up pipe to extractor: %s\n"),
+		  strerror(errno));
+	    /*NOTREACHED*/
+	}
+
+	/* okay, ready to extract. fork a child to do the actual work */
+	if ((ctl_data->pid = fork()) == 0) {
+	    /* this is the child process */
+	    /* never gets out of this clause */
+	    aclose(ctl_data->child_pipe[1]);
+	    extract_files_child(ctl_data->child_pipe[0], ctl_data->elist);
+	    /*NOTREACHED*/
+	}
+	
+	if (ctl_data->pid == -1) {
+	    errstr = newstralloc(errstr, _("writer_intermediary - error forking child"));
+	    g_printf(_("writer_intermediary - error forking child"));
+	    return;
+	}
+	aclose(ctl_data->child_pipe[0]);
+    }
     /*
      * We ignore errors while writing to the index file.
      */
-    (void)fullwrite(fd, buf, (size_t)size);
+    (void)full_write(ctl_data->child_pipe[1], buf, (size_t)size);
     security_stream_read(amidxtaped_streams[DATAFD].fd, read_amidxtaped_data, cookie);
 }
 

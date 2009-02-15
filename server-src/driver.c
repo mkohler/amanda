@@ -144,7 +144,7 @@ typedef enum {
     TAPE_ACTION_START_A_FLUSH = (1 << 2)
 } TapeAction;
 
-static TapeAction tape_action(void);
+static TapeAction tape_action(char **why_no_new_tape);
 
 static const char *idle_strings[] = {
 #define NOT_IDLE		0
@@ -179,7 +179,7 @@ main(
     char *conf_diskfile;
     cmd_t cmd;
     int result_argc;
-    char *result_argv[MAX_ARGS+1];
+    char **result_argv = NULL;
     char *taper_program;
     char *conf_tapetype;
     tapetype_t *tape;
@@ -222,10 +222,21 @@ main(
 
     if (argc > 1)
 	cfg_opt = argv[1];
-    config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_USE_CWD | CONFIG_INIT_FATAL,
-		cfg_opt);
+    config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_USE_CWD, cfg_opt);
     apply_config_overwrites(cfg_ovr);
 
+    conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
+    read_diskfile(conf_diskfile, &origq);
+    amfree(conf_diskfile);
+
+    if (config_errors(NULL) >= CFGERR_WARNINGS) {
+	config_print_errors();
+	if (config_errors(NULL) >= CFGERR_ERRORS) {
+	    g_critical(_("errors processing config file"));
+	}
+    }
+
+    log_add(L_INFO, "%s pid %ld", get_pname(), (long)getpid());
     g_printf(_("%s: pid %ld executable %s version %s\n"),
 	   get_pname(), (long) getpid(), argv[0], version());
 
@@ -239,7 +250,7 @@ main(
 
     check_running_as(RUNNING_AS_DUMPUSER);
 
-    dbrename(config_name, DBG_SUBDIR_SERVER);
+    dbrename(get_config_name(), DBG_SUBDIR_SERVER);
 
     amfree(driver_timestamp);
     /* read timestamp from stdin */
@@ -292,6 +303,7 @@ main(
     conf_runtapes = getconf_int(CNF_RUNTAPES);
     tape = lookup_tapetype(conf_tapetype);
     tape_length = tapetype_get_length(tape);
+    g_printf("driver: tape size %lld\n", (long long)tape_length);
     conf_flush_threshold_dumped = getconf_int(CNF_FLUSH_THRESHOLD_DUMPED);
     conf_flush_threshold_scheduled = getconf_int(CNF_FLUSH_THRESHOLD_SCHEDULED);
     conf_taperflush = getconf_int(CNF_TAPERFLUSH);
@@ -303,15 +315,6 @@ main(
     driver_debug(1, _("flush_threshold_dumped: %lld\n"), (long long)flush_threshold_dumped);
     driver_debug(1, _("flush_threshold_scheduled: %lld\n"), (long long)flush_threshold_scheduled);
     driver_debug(1, _("taperflush: %lld\n"), (long long)taperflush);
-
-    /* start initializing: read in databases */
-
-    conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
-    if (read_diskfile(conf_diskfile, &origq) < 0) {
-	error(_("could not load disklist \"%s\""), conf_diskfile);
-	/*NOTREACHED*/
-    }
-    amfree(conf_diskfile);
 
     /* set up any configuration-dependent variables */
 
@@ -441,7 +444,7 @@ main(
     /* ok, planner is done, now lets see if the tape is ready */
 
     if (conf_runtapes > 0) {
-	cmd = getresult(taper, 1, &result_argc, result_argv, MAX_ARGS+1);
+	cmd = getresult(taper, 1, &result_argc, &result_argv);
 	if (cmd != TAPER_OK) {
 	    /* no tape, go into degraded mode: dump to holding disk */
 	    need_degraded = 1;
@@ -452,8 +455,8 @@ main(
 
     tape_left = tape_length;
     taper_busy = 0;
-    taper_input_error = NULL;
-    taper_tape_error = NULL;
+    amfree(taper_input_error);
+    amfree(taper_tape_error);
     taper_disk = NULL;
     taper_ev_read = NULL;
 
@@ -478,10 +481,33 @@ main(
 
     /* handle any remaining dumps by dumping directly to tape, if possible */
     while(!empty(directq) && taper > 0) {
-	diskp = dequeue_disk(&directq);
+	time_t  sleep_time  = 100000000;
+	disk_t *sleep_diskp = NULL;
+	time_t  now         = time(0);
+
+	/* Find one we can do immediately or the sonner */
+	for (diskp = directq.head; diskp != NULL; diskp = diskp->next) {
+	    if (diskp->to_holdingdisk == HOLD_REQUIRED ||
+		degraded_mode) {
+		sleep_time = 0;
+		sleep_diskp = diskp;
+	    } else if (diskp->host->start_t - now < sleep_time &&
+		       diskp->start_t -now < sleep_time) {
+		if (diskp->host->start_t > diskp->start_t)
+		    sleep_time = diskp->host->start_t - now;
+		else
+		    sleep_time = diskp->start_t - now;
+		sleep_diskp = diskp;
+	    }
+	}
+	diskp = sleep_diskp;
+	if (sleep_time > 0)
+	    sleep(sleep_time);
+	remove_disk(&directq, diskp);
+
 	if (diskp->to_holdingdisk == HOLD_REQUIRED) {
 	    char *qname = quote_string(diskp->name);
-	    log_add(L_FAIL, _("%s %s %s %d [%s]"),
+	    log_add(L_FAIL, "%s %s %s %d [%s]",
 		diskp->host->hostname, qname, sched(diskp)->datestamp,
 		sched(diskp)->level,
 		_("can't dump required holdingdisk"));
@@ -491,16 +517,18 @@ main(
 	    taper_state |= TAPER_STATE_DUMP_TO_TAPE;
 	    dump_to_tape(diskp);
 	    event_loop(0);
-	    taper_state &= !TAPER_STATE_DUMP_TO_TAPE;
+	    taper_state &= ~TAPER_STATE_DUMP_TO_TAPE;
 	}
 	else {
 	    char *qname = quote_string(diskp->name);
-	    log_add(L_FAIL, _("%s %s %s %d [%s]"),
+	    log_add(L_FAIL, "%s %s %s %d [%s]",
 		diskp->host->hostname, qname, sched(diskp)->datestamp,
 		sched(diskp)->level,
-		diskp->to_holdingdisk == HOLD_AUTO ?
-		    _("no more holding disk space") :
-		    _("can't dump no-hold disk in degraded mode"));
+		num_holdalloc == 0 ?
+		    _("can't do degraded dump without holding disk") :
+		diskp->to_holdingdisk != HOLD_NEVER ?
+		    _("out of holding space in degraded mode") :
+	 	    _("can't dump 'holdingdisk never' dle in degraded mode"));
 	    amfree(qname);
 	}
     }
@@ -518,7 +546,7 @@ main(
     if(!nodump) {
 	for(dumper = dmptable; dumper < dmptable + inparallel; dumper++) {
 	    if(dumper->fd >= 0)
-		dumper_cmd(dumper, QUIT, NULL);
+		dumper_cmd(dumper, QUIT, NULL, NULL);
 	}
     }
 
@@ -538,10 +566,13 @@ main(
     g_printf(_("driver: FINISHED time %s\n"), walltime_str(curclock()));
     fflush(stdout);
     log_add(L_FINISH,_("date %s time %s"), driver_timestamp, walltime_str(curclock()));
+    log_add(L_INFO, "pid-done %ld", (long)getpid());
     amfree(driver_timestamp);
 
     amfree(dumper_program);
     amfree(taper_program);
+    if (result_argv)
+	g_strfreev(result_argv);
 
     dbclose();
 
@@ -641,11 +672,12 @@ kill_children(int signal)
         }
     }
 
-    if(taper_pid > 1)
+    if(taper_pid > 1) {
 	g_printf(_("driver: sending signal %d to %s pid %u\n"), signal,
 	       "taper", (unsigned)taper_pid);
 	if (kill(taper_pid, signal) == -1 && errno == ESRCH)
 	    taper_pid = 0;
+    }
 }
 
 static void
@@ -656,10 +688,10 @@ wait_for_children(void)
     if(!nodump) {
 	for(dumper = dmptable; dumper < dmptable + inparallel; dumper++) {
 	    if (dumper->pid > 1 && dumper->fd >= 0) {
-		dumper_cmd(dumper, QUIT, NULL);
+		dumper_cmd(dumper, QUIT, NULL, NULL);
 		if (dumper->chunker && dumper->chunker->pid > 1 &&
 		    dumper->chunker->fd >= 0)
-		    chunker_cmd(dumper->chunker, QUIT, NULL);
+		    chunker_cmd(dumper->chunker, QUIT, NULL, NULL);
 	    }
 	}
     }
@@ -690,15 +722,17 @@ startaflush(void)
     int extra_tapes = 0;
     char *qname;
     TapeAction result_tape_action;
+    char *why_no_new_tape;
 
-    result_tape_action = tape_action();
+    result_tape_action = tape_action(&why_no_new_tape);
 
     if (result_tape_action & TAPE_ACTION_NEW_TAPE) {
-	taper_state &= !TAPER_STATE_WAIT_FOR_TAPE;
+	taper_state &= ~TAPER_STATE_WAIT_FOR_TAPE;
 	taper_cmd(NEW_TAPE, NULL, NULL, 0, NULL);
     } else if (result_tape_action & TAPE_ACTION_NO_NEW_TAPE) {
-	taper_state &= !TAPER_STATE_WAIT_FOR_TAPE;
-	taper_cmd(NO_NEW_TAPE, NULL, NULL, 0, NULL);
+	taper_state &= ~TAPER_STATE_WAIT_FOR_TAPE;
+	taper_cmd(NO_NEW_TAPE, why_no_new_tape, NULL, 0, NULL);
+	start_degraded_mode(&runq);
     }
 
     if (!degraded_mode && !taper_busy && !empty(tapeq) &&
@@ -781,13 +815,13 @@ startaflush(void)
 	if (dp) {
 	    taper_disk = dp;
 	    taper_busy = 1;
-	    taper_input_error = NULL;
-	    taper_tape_error = NULL;
+	    amfree(taper_input_error);
+	    amfree(taper_tape_error);
 	    taper_result = LAST_TOK;
 	    taper_sendresult = 0;
 	    taper_first_label = NULL;
 	    taper_written = 0;
-	    taper_state &= !TAPER_STATE_DUMP_TO_TAPE;
+	    taper_state &= ~TAPER_STATE_DUMP_TO_TAPE;
 	    taper_dumper = NULL;
 	    qname = quote_string(dp->name);
 	    taper_cmd(FILE_WRITE, dp, sched(dp)->destname, sched(dp)->level,
@@ -805,6 +839,7 @@ startaflush(void)
 	    error(_("FATAL: Taper marked busy and no work found."));
 	    /*NOTREACHED*/
 	}
+	short_dump_state();
     } else if(!taper_busy && taper_ev_read != NULL) {
 	event_release(taper_ev_read);
 	taper_ev_read = NULL;
@@ -843,11 +878,12 @@ start_some_dumps(
 {
     int cur_idle;
     disk_t *diskp, *delayed_diskp, *diskp_accept;
+    disk_t *dp;
     assignedhd_t **holdp=NULL, **holdp_accept;
     const time_t now = time(NULL);
     cmd_t cmd;
     int result_argc;
-    char *result_argv[MAX_ARGS+1];
+    char **result_argv;
     chunker_t *chunker;
     dumper_t *dumper;
     char dumptype;
@@ -1027,10 +1063,10 @@ start_some_dumps(
 	    chunker->result = LAST_TOK;
 	    dumper->result = LAST_TOK;
 	    startup_chunk_process(chunker,chunker_program);
-	    chunker_cmd(chunker, START, (void *)driver_timestamp);
+	    chunker_cmd(chunker, START, NULL, driver_timestamp);
 	    chunker->dumper = dumper;
-	    chunker_cmd(chunker, PORT_WRITE, diskp);
-	    cmd = getresult(chunker->fd, 1, &result_argc, result_argv, MAX_ARGS+1);
+	    chunker_cmd(chunker, PORT_WRITE, diskp, NULL);
+	    cmd = getresult(chunker->fd, 1, &result_argc, &result_argv);
 	    if(cmd != PORT) {
 		assignedhd_t **h=NULL;
 		int activehd;
@@ -1063,11 +1099,25 @@ start_some_dumps(
 						 handle_dumper_result, dumper);
 		chunker->ev_read = event_register((event_id_t)chunker->fd, EV_READFD,
 						   handle_chunker_result, chunker);
-		dumper->output_port = atoi(result_argv[2]);
+		dumper->output_port = atoi(result_argv[1]);
 
-		dumper_cmd(dumper, PORT_DUMP, diskp);
+		if (diskp->host->pre_script == 0) {
+		    for (dp=diskp->host->disks; dp != NULL; dp = dp->hostnext) {
+			run_server_scripts(EXECUTE_ON_PRE_HOST_BACKUP,
+					   get_config_name(), dp, -1);
+		    }
+		    diskp->host->pre_script = 1;
+		}
+		run_server_scripts(EXECUTE_ON_PRE_DLE_BACKUP,
+				   get_config_name(), diskp,
+				   sched(diskp)->level);
+		dumper_cmd(dumper, PORT_DUMP, diskp, NULL);
 	    }
 	    diskp->host->start_t = now + 15;
+
+	    if (result_argv)
+		g_strfreev(result_argv);
+	    short_dump_state();
 	}
     }
 }
@@ -1146,9 +1196,9 @@ start_degraded_mode(
 		enqueue_disk(&newq, dp);
 	    }
 	    else {
-		log_add(L_FAIL,_("%s %s %s %d [can't switch to incremental dump]"),
+		log_add(L_FAIL, "%s %s %s %d [%s]",
 		        dp->host->hostname, qname, sched(dp)->datestamp,
-			sched(dp)->level);
+			sched(dp)->level, sched(dp)->degr_mesg);
 	    }
 	}
         amfree(qname);
@@ -1186,7 +1236,7 @@ continue_port_dumps(void)
 	    }
 	    assert( dumper < dmptable + inparallel );
 	    sched(dp)->activehd = assign_holdingdisk( h, dp );
-	    chunker_cmd( dumper->chunker, CONTINUE, dp );
+	    chunker_cmd( dumper->chunker, CONTINUE, dp, NULL );
 	    amfree(h);
 	    remove_disk( &roomq, dp );
 	}
@@ -1229,8 +1279,8 @@ continue_port_dumps(void)
 	 * We abort that dump, hopefully not wasting too much time retrying it.
 	 */
 	remove_disk( &roomq, dp );
-	chunker_cmd( sched(dp)->dumper->chunker, ABORT, NULL);
-	dumper_cmd( sched(dp)->dumper, ABORT, NULL );
+	chunker_cmd(sched(dp)->dumper->chunker, ABORT, NULL, _("Not enough holding disk space"));
+	dumper_cmd( sched(dp)->dumper, ABORT, NULL, _("Not enough holding disk space"));
 	pending_aborts++;
     }
 }
@@ -1238,23 +1288,24 @@ continue_port_dumps(void)
 
 static void
 handle_taper_result(
-    void *cookie)
+	void *cookie G_GNUC_UNUSED)
 {
     disk_t *dp;
     cmd_t cmd;
     int result_argc;
-    char *result_argv[MAX_ARGS+1];
-    char *qname;
-
-    (void)cookie;	/* Quiet unused parameter warning */
+    char **result_argv;
+    char *qname, *q;
+    char *s;
 
     assert(cookie == NULL);
+    amfree(taper_input_error);
+    amfree(taper_tape_error);
     
     do {
         
 	short_dump_state();
         
-	cmd = getresult(taper, 1, &result_argc, result_argv, MAX_ARGS+1);
+	cmd = getresult(taper, 1, &result_argc, &result_argv);
         
 	switch(cmd) {
             
@@ -1264,24 +1315,42 @@ handle_taper_result(
 		/*NOTREACHED*/
 	    }
             
-	    dp = serial2disk(result_argv[2]);
+	    dp = serial2disk(result_argv[1]);
 	    assert(dp == taper_disk);
 	    if (!taper_dumper)
-		free_serial(result_argv[2]);
+		free_serial(result_argv[1]);
             
 	    qname = quote_string(dp->name);
 	    g_printf(_("driver: finished-cmd time %s taper wrote %s:%s\n"),
 		   walltime_str(curclock()), dp->host->hostname, qname);
 	    fflush(stdout);
-            amfree(qname);
 
-	    if (strcmp(result_argv[3], "INPUT-ERROR") == 0) {
-		taper_input_error = stralloc(result_argv[5]);
+	    if (strcmp(result_argv[2], "INPUT-ERROR") == 0) {
+		taper_input_error = newstralloc(taper_input_error, result_argv[4]);
+	    } else if (strcmp(result_argv[2], "INPUT-GOOD") != 0) {
+		taper_tape_error = newstralloc(taper_tape_error,
+					       _("Taper protocol error"));
+		taper_result = FAILED;
+		log_add(L_FAIL, _("%s %s %s %d [%s]"),
+		        dp->host->hostname, qname, sched(dp)->datestamp,
+		        sched(dp)->level, taper_tape_error);
+		amfree(qname);
+		break;
 	    }
-	    if (strcmp(result_argv[4], "TAPE-ERROR") == 0) {
-		taper_tape_error = stralloc(result_argv[6]);
+	    if (strcmp(result_argv[3], "TAPE-ERROR") == 0) {
+		taper_tape_error = newstralloc(taper_tape_error, result_argv[5]);
+	    } else if (strcmp(result_argv[3], "TAPE-GOOD") != 0) {
+		taper_tape_error = newstralloc(taper_tape_error,
+					       _("Taper protocol error"));
+		taper_result = FAILED;
+		log_add(L_FAIL, _("%s %s %s %d [%s]"),
+		        dp->host->hostname, qname, sched(dp)->datestamp,
+		        sched(dp)->level, taper_tape_error);
+		amfree(qname);
+		break;
 	    }
 
+	    amfree(qname);
 	    taper_result = cmd;
 
 	    break;
@@ -1293,70 +1362,96 @@ handle_taper_result(
 		/*NOTREACHED*/
 	    }
             
-	    dp = serial2disk(result_argv[2]);
+	    dp = serial2disk(result_argv[1]);
 	    assert(dp == taper_disk);
             if (!taper_dumper)
-                free_serial(result_argv[2]);
+                free_serial(result_argv[1]);
 
 	    qname = quote_string(dp->name);
 	    g_printf(_("driver: finished-cmd time %s taper wrote %s:%s\n"),
 		   walltime_str(curclock()), dp->host->hostname, qname);
-	    amfree(qname);
 	    fflush(stdout);
 
-	    if (strcmp(result_argv[3], "INPUT-ERROR") == 0) {
-		taper_input_error = stralloc(result_argv[5]);
+	    if (strcmp(result_argv[2], "INPUT-ERROR") == 0) {
+		taper_input_error = newstralloc(taper_input_error, result_argv[5]);
+	    } else if (strcmp(result_argv[2], "INPUT-GOOD") != 0) {
+		taper_tape_error = newstralloc(taper_tape_error,
+					       _("Taper protocol error"));
+		taper_result = FAILED;
+		log_add(L_FAIL, _("%s %s %s %d [%s]"),
+		        dp->host->hostname, qname, sched(dp)->datestamp,
+		        sched(dp)->level, taper_tape_error);
+		amfree(qname);
+		break;
 	    }
-	    if (strcmp(result_argv[4], "TAPE-ERROR") == 0) {
-		taper_tape_error = stralloc(result_argv[6]);
+	    if (strcmp(result_argv[3], "TAPE-ERROR") == 0) {
+		taper_tape_error = newstralloc(taper_tape_error, result_argv[6]);
+	    } else if (strcmp(result_argv[3], "TAPE-GOOD") != 0) {
+		taper_tape_error = newstralloc(taper_tape_error,
+					       _("Taper protocol error"));
+		taper_result = FAILED;
+		log_add(L_FAIL, _("%s %s %s %d [%s]"),
+		        dp->host->hostname, qname, sched(dp)->datestamp,
+		        sched(dp)->level, taper_tape_error);
+		amfree(qname);
+		break;
+	    }
+
+	    s = strstr(result_argv[4], " kb ");
+	    if (s) {
+		s += 4;
+		sched(dp)->dumpsize = atol(s);
 	    }
 
 	    taper_result = cmd;
+	    amfree(qname);
 
 	    break;
             
-        case PARTDONE:  /* PARTDONE <handle> <label> <fileno> <stat> */
-	    dp = serial2disk(result_argv[2]);
+        case PARTDONE:  /* PARTDONE <handle> <label> <fileno> <kbytes> <stat> */
+	    dp = serial2disk(result_argv[1]);
 	    assert(dp == taper_disk);
             if (result_argc != 6) {
-                error(_("error [taper PARTDONE result_argc != 5: %d]"),
+                error(_("error [taper PARTDONE result_argc != 6: %d]"),
                       result_argc);
 		/*NOTREACHED*/
             }
 	    if (!taper_first_label) {
-		taper_first_label = stralloc(result_argv[3]);
-		taper_first_fileno = OFF_T_ATOI(result_argv[4]);
+		taper_first_label = stralloc(result_argv[2]);
+		taper_first_fileno = OFF_T_ATOI(result_argv[3]);
 	    }
-	    taper_written = OFF_T_ATOI(result_argv[5]);
+	    taper_written = OFF_T_ATOI(result_argv[4]);
 	    if (taper_written > sched(taper_disk)->act_size)
 		sched(taper_disk)->act_size = taper_written;
             
             break;
 
-        case REQUEST_NEW_TAPE:  /* REQUEST-NEW-TAPE */
+        case REQUEST_NEW_TAPE:  /* REQUEST-NEW-TAPE <handle> */
             if (result_argc != 2) {
                 error(_("error [taper REQUEST_NEW_TAPE result_argc != 2: %d]"),
                       result_argc);
 		/*NOTREACHED*/
             }
-	    taper_state &= !TAPER_STATE_TAPE_STARTED;
+	    taper_state &= ~TAPER_STATE_TAPE_STARTED;
 
 	    if (current_tape >= conf_runtapes) {
-		taper_cmd(NO_NEW_TAPE, NULL, NULL, 0, NULL);
+		taper_cmd(NO_NEW_TAPE, "runtapes volumes already written", NULL, 0, NULL);
 		log_add(L_WARNING,
 			_("Out of tapes; going into degraded mode."));
 		start_degraded_mode(&runq);
 	    } else {
 		TapeAction result_tape_action;
+		char *why_no_new_tape;
 
 		taper_state |= TAPER_STATE_WAIT_FOR_TAPE;
-		result_tape_action = tape_action();
+		result_tape_action = tape_action(&why_no_new_tape);
 		if (result_tape_action & TAPE_ACTION_NEW_TAPE) {
 		    taper_cmd(NEW_TAPE, NULL, NULL, 0, NULL);
-		    taper_state &= !TAPER_STATE_WAIT_FOR_TAPE;
+		    taper_state &= ~TAPER_STATE_WAIT_FOR_TAPE;
 		} else if (result_tape_action & TAPE_ACTION_NO_NEW_TAPE) {
-		    taper_cmd(NO_NEW_TAPE, NULL, NULL, 0, NULL);
-		    taper_state &= !TAPER_STATE_WAIT_FOR_TAPE;
+		    taper_cmd(NO_NEW_TAPE, why_no_new_tape, NULL, 0, NULL);
+		    taper_state &= ~TAPER_STATE_WAIT_FOR_TAPE;
+		    start_degraded_mode(&runq);
 		}
 	    }
 	    break;
@@ -1380,6 +1475,7 @@ handle_taper_result(
                       result_argc);
 		/*NOTREACHED*/
             }
+	    start_degraded_mode(&runq);
 	    break;
 
 	case DUMPER_STATUS:  /* DUMPER-STATUS <handle> */
@@ -1400,22 +1496,24 @@ handle_taper_result(
 	    break;
 
         case TAPE_ERROR: /* TAPE-ERROR <handle> <err mess> */
-            dp = serial2disk(result_argv[2]);
+            dp = serial2disk(result_argv[1]);
 	    if (!taper_dumper)
-		free_serial(result_argv[2]);
+		free_serial(result_argv[1]);
 	    qname = quote_string(dp->name);
             g_printf(_("driver: finished-cmd time %s taper wrote %s:%s\n"),
                    walltime_str(curclock()), dp->host->hostname, qname);
 	    amfree(qname);
             fflush(stdout);
-            log_add(L_WARNING, _("Taper  error: %s"), result_argv[3]);
-	    taper_tape_error = stralloc(result_argv[3]);
+	    q = quote_string(result_argv[2]);
+            log_add(L_WARNING, _("Taper error: %s"), q);
+	    amfree(q);
+	    taper_tape_error = newstralloc(taper_tape_error, result_argv[2]);
             /*FALLTHROUGH*/
 
         case BOGUS:
             if (cmd == BOGUS) {
         	log_add(L_WARNING, _("Taper protocol error"));
-		taper_tape_error = stralloc("BOGUS");
+		taper_tape_error = newstralloc(taper_tape_error, "BOGUS");
             }
             /*
              * Since we received a taper error, we can't send anything more
@@ -1446,6 +1544,8 @@ handle_taper_result(
                   cmdstr[cmd]);
 	    /*NOTREACHED*/
 	}
+
+	g_strfreev(result_argv);
 
 	if (taper_result != LAST_TOK) {
 	    if(taper_dumper) {
@@ -1488,6 +1588,7 @@ file_taper_result(
 		amfree(sched(dp)->destname);
 		amfree(sched(dp)->dumpdate);
 		amfree(sched(dp)->degr_dumpdate);
+		amfree(sched(dp)->degr_mesg);
 		amfree(sched(dp)->datestamp);
 		amfree(dp->up);
 	    } else {
@@ -1504,6 +1605,7 @@ file_taper_result(
 		    amfree(sched(dp)->destname);
 		    amfree(sched(dp)->dumpdate);
 		    amfree(sched(dp)->degr_dumpdate);
+		    amfree(sched(dp)->degr_mesg);
 		    amfree(sched(dp)->datestamp);
 		    amfree(dp->up);
 		}
@@ -1512,10 +1614,13 @@ file_taper_result(
 	    amfree(sched(dp)->destname);
 	    amfree(sched(dp)->dumpdate);
 	    amfree(sched(dp)->degr_dumpdate);
+	    amfree(sched(dp)->degr_mesg);
 	    amfree(sched(dp)->datestamp);
 	    amfree(dp->up);
 	}
     } else if (taper_tape_error) {
+	g_printf("driver: taper failed %s %s with tape error: %s\n",
+		   dp->host->hostname, qname, taper_tape_error);
 	if(sched(dp)->taper_attempted >= 2) {
 	    log_add(L_FAIL, _("%s %s %s %d [too many taper retries]"),
 		    dp->host->hostname, qname, sched(dp)->datestamp,
@@ -1525,6 +1630,7 @@ file_taper_result(
 	    amfree(sched(dp)->destname);
 	    amfree(sched(dp)->dumpdate);
 	    amfree(sched(dp)->degr_dumpdate);
+	    amfree(sched(dp)->degr_mesg);
 	    amfree(sched(dp)->datestamp);
 	    amfree(dp->up);
 	} else {
@@ -1533,11 +1639,15 @@ file_taper_result(
 	    /* Re-insert into taper queue. */
 	    headqueue_disk(&tapeq, dp);
 	}
+    } else if (taper_result != DONE) {
+	g_printf("driver: taper failed %s %s without error\n",
+		   dp->host->hostname, qname);
     } else {
 	delete_diskspace(dp);
 	amfree(sched(dp)->destname);
 	amfree(sched(dp)->dumpdate);
 	amfree(sched(dp)->degr_dumpdate);
+	amfree(sched(dp)->degr_mesg);
 	amfree(sched(dp)->datestamp);
 	amfree(dp->up);
     }
@@ -1545,8 +1655,8 @@ file_taper_result(
     amfree(qname);
 
     taper_busy = 0;
-    taper_input_error = NULL;
-    taper_tape_error = NULL;
+    amfree(taper_input_error);
+    amfree(taper_tape_error);
     taper_disk = NULL;
             
     /* continue with those dumps waiting for diskspace */
@@ -1604,8 +1714,8 @@ dumper_taper_result(
 	taper_ev_read = NULL;
     }
     taper_busy = 0;
-    taper_input_error = NULL;
-    taper_tape_error = NULL;
+    amfree(taper_input_error);
+    amfree(taper_tape_error);
     dumper->busy = 0;
     dp->host->inprogress -= 1;
     dp->inprogress = 0;
@@ -1716,15 +1826,15 @@ dumper_chunker_result(
 
 static void
 handle_dumper_result(
-    void *	cookie)
+	void * cookie)
 {
-    /*static int pending_aborts = 0;*/
+    /* uses global pending_aborts */
     dumper_t *dumper = cookie;
-    disk_t *dp, *sdp;
+    disk_t *dp, *sdp, *dp1;
     cmd_t cmd;
     int result_argc;
     char *qname;
-    char *result_argv[MAX_ARGS+1];
+    char **result_argv;
 
     assert(dumper != NULL);
     dp = dumper->dp;
@@ -1734,13 +1844,13 @@ handle_dumper_result(
 
 	short_dump_state();
 
-	cmd = getresult(dumper->fd, 1, &result_argc, result_argv, MAX_ARGS+1);
+	cmd = getresult(dumper->fd, 1, &result_argc, &result_argv);
 
 	if(cmd != BOGUS) {
-	    /* result_argv[2] always contains the serial number */
-	    sdp = serial2disk(result_argv[2]);
+	    /* result_argv[1] always contains the serial number */
+	    sdp = serial2disk(result_argv[1]);
 	    if (sdp != dp) {
-		error(_("Invalid serial number %s"), result_argv[2]);
+		error(_("Invalid serial number %s"), result_argv[1]);
                 g_assert_not_reached();
 	    }
 	}
@@ -1754,8 +1864,8 @@ handle_dumper_result(
 		/*NOTREACHED*/
 	    }
 
-	    sched(dp)->origsize = OFF_T_ATOI(result_argv[3]);
-	    sched(dp)->dumptime = TIME_T_ATOI(result_argv[5]);
+	    sched(dp)->origsize = OFF_T_ATOI(result_argv[2]);
+	    sched(dp)->dumptime = TIME_T_ATOI(result_argv[4]);
 
 	    g_printf(_("driver: finished-cmd time %s %s dumped %s:%s\n"),
 		   walltime_str(curclock()), dumper->name,
@@ -1773,17 +1883,18 @@ handle_dumper_result(
 	     */
 	    if(sched(dp)->dump_attempted) {
 		char *qname = quote_string(dp->name);
+		char *qerr = quote_string(result_argv[2]);
 		log_add(L_FAIL, _("%s %s %s %d [too many dumper retry: %s]"),
 	    	    dp->host->hostname, qname, sched(dp)->datestamp,
-	    	    sched(dp)->level, result_argv[3]);
+		    sched(dp)->level, qerr);
 		g_printf(_("driver: dump failed %s %s %s, too many dumper retry: %s\n"),
-		        result_argv[2], dp->host->hostname, qname,
-		        result_argv[3]);
+		        result_argv[1], dp->host->hostname, qname, qerr);
 		amfree(qname);
+		amfree(qerr);
 	    }
 	    /* FALLTHROUGH */
 	case FAILED: /* FAILED <handle> <errstr> */
-	    /*free_serial(result_argv[2]);*/
+	    /*free_serial(result_argv[1]);*/
 	    dumper->result = cmd;
 	    break;
 
@@ -1795,7 +1906,7 @@ handle_dumper_result(
 	     * other dumps that are waiting on disk space.
 	     */
 	    assert(pending_aborts);
-	    /*free_serial(result_argv[2]);*/
+	    /*free_serial(result_argv[1]);*/
 	    dumper->result = cmd;
 	    break;
 
@@ -1810,19 +1921,17 @@ handle_dumper_result(
 	    aclose(dumper->fd);
 	    dumper->busy = 0;
 	    dumper->down = 1;	/* mark it down so it isn't used again */
-	    if(dp) {
-		/* if it was dumping something, zap it and try again */
-		if(sched(dp)->dump_attempted) {
+
+            /* if it was dumping something, zap it and try again */
+            if(sched(dp)->dump_attempted) {
 	    	log_add(L_FAIL, _("%s %s %s %d [%s died]"),
 	    		dp->host->hostname, qname, sched(dp)->datestamp,
 	    		sched(dp)->level, dumper->name);
-		}
-		else {
+            } else {
 	    	log_add(L_WARNING, _("%s died while dumping %s:%s lev %d."),
 	    		dumper->name, dp->host->hostname, qname,
 	    		sched(dp)->level);
-		}
-	    }
+            }
 	    dumper->result = cmd;
 	    break;
 
@@ -1830,16 +1939,35 @@ handle_dumper_result(
 	    assert(0);
 	}
         amfree(qname);
+	g_strfreev(result_argv);
+
+	if (cmd != BOGUS) {
+	    int last_dump = 1;
+	    run_server_scripts(EXECUTE_ON_POST_DLE_BACKUP,
+			       get_config_name(), dp, sched(dp)->level);
+	    for (dp1=runq.head; dp1 != NULL; dp1 = dp1->next) {
+		if (dp1 != dp) last_dump = 0;
+	    }
+	    if (last_dump && dp->host->post_script == 0) {
+		if (dp->host->post_script == 0) {
+		    for (dp1=dp->host->disks; dp1 != NULL; dp1 = dp1->hostnext) {
+			run_server_scripts(EXECUTE_ON_POST_HOST_BACKUP,
+					   get_config_name(), dp1, -1);
+		    }
+		    dp->host->post_script = 1;
+		}
+	    }
+	}
 
 	/* send the dumper result to the chunker */
 	if (dumper->chunker) {
 	    if (dumper->chunker->down == 0 && dumper->chunker->fd != -1 &&
 		dumper->chunker->result == LAST_TOK) {
 		if (cmd == DONE) {
-		    chunker_cmd(dumper->chunker, DONE, dp);
+		    chunker_cmd(dumper->chunker, DONE, dp, NULL);
 		}
 		else {
-		    chunker_cmd(dumper->chunker, FAILED, dp);
+		    chunker_cmd(dumper->chunker, FAILED, dp, NULL);
 		}
 	    }
 	    if( dumper->result != LAST_TOK &&
@@ -1866,14 +1994,13 @@ static void
 handle_chunker_result(
     void *	cookie)
 {
-    /*static int pending_aborts = 0;*/
     chunker_t *chunker = cookie;
     assignedhd_t **h=NULL;
     dumper_t *dumper;
     disk_t *dp, *sdp;
     cmd_t cmd;
     int result_argc;
-    char *result_argv[MAX_ARGS+1];
+    char **result_argv;
     int dummy;
     int activehd = -1;
     char *qname;
@@ -1887,22 +2014,21 @@ handle_chunker_result(
     assert(sched(dp)->destname != NULL);
     assert(dp != NULL && sched(dp) != NULL && sched(dp)->destname);
 
-    if(dp && sched(dp) && sched(dp)->holdp) {
+    if(sched(dp)->holdp) {
 	h = sched(dp)->holdp;
 	activehd = sched(dp)->activehd;
     }
 
     do {
-
 	short_dump_state();
 
-	cmd = getresult(chunker->fd, 1, &result_argc, result_argv, MAX_ARGS+1);
+	cmd = getresult(chunker->fd, 1, &result_argc, &result_argv);
 
 	if(cmd != BOGUS) {
-	    /* result_argv[2] always contains the serial number */
-	    sdp = serial2disk(result_argv[2]);
+	    /* result_argv[1] always contains the serial number */
+	    sdp = serial2disk(result_argv[1]);
 	    if (sdp != dp) {
-		error(_("Invalid serial number %s"), result_argv[2]);
+		error(_("Invalid serial number %s"), result_argv[1]);
                 g_assert_not_reached();
 	    }
 	}
@@ -1916,9 +2042,9 @@ handle_chunker_result(
 		      result_argc);
 	        /*NOTREACHED*/
 	    }
-	    /*free_serial(result_argv[2]);*/
+	    /*free_serial(result_argv[1]);*/
 
-	    sched(dp)->dumpsize = (off_t)atof(result_argv[3]);
+	    sched(dp)->dumpsize = (off_t)atof(result_argv[2]);
 
 	    qname = quote_string(dp->name);
 	    g_printf(_("driver: finished-cmd time %s %s chunked %s:%s\n"),
@@ -1940,7 +2066,7 @@ handle_chunker_result(
 
 	    break;
 	case FAILED: /* FAILED <handle> <errstr> */
-	    /*free_serial(result_argv[2]);*/
+	    /*free_serial(result_argv[1]);*/
 
 	    event_release(chunker->ev_read);
 
@@ -1953,10 +2079,10 @@ handle_chunker_result(
 		error(_("!h || activehd < 0"));
 		/*NOTREACHED*/
 	    }
-	    h[activehd]->used -= OFF_T_ATOI(result_argv[3]);
-	    h[activehd]->reserved -= OFF_T_ATOI(result_argv[3]);
-	    h[activehd]->disk->allocated_space -= OFF_T_ATOI(result_argv[3]);
-	    h[activehd]->disk->disksize -= OFF_T_ATOI(result_argv[3]);
+	    h[activehd]->used -= OFF_T_ATOI(result_argv[2]);
+	    h[activehd]->reserved -= OFF_T_ATOI(result_argv[2]);
+	    h[activehd]->disk->allocated_space -= OFF_T_ATOI(result_argv[2]);
+	    h[activehd]->disk->disksize -= OFF_T_ATOI(result_argv[2]);
 	    break;
 
 	case RQ_MORE_DISK: /* RQ-MORE-DISK <handle> */
@@ -1969,7 +2095,7 @@ handle_chunker_result(
 	    if( h[++activehd] ) { /* There's still some allocated space left.
 				   * Tell the dumper about it. */
 		sched(dp)->activehd++;
-		chunker_cmd( chunker, CONTINUE, dp );
+		chunker_cmd( chunker, CONTINUE, dp, NULL );
 	    } else { /* !h[++activehd] - must allocate more space */
 		sched(dp)->act_size = sched(dp)->est_size; /* not quite true */
 		sched(dp)->est_size = (sched(dp)->act_size/(off_t)20) * (off_t)21; /* +5% */
@@ -1987,7 +2113,7 @@ handle_chunker_result(
 		} else {
 		    /* OK, allocate space for disk and have chunker continue */
 		    sched(dp)->activehd = assign_holdingdisk( h, dp );
-		    chunker_cmd( chunker, CONTINUE, dp );
+		    chunker_cmd( chunker, CONTINUE, dp, NULL );
 		    amfree(h);
 		}
 	    }
@@ -2002,7 +2128,7 @@ handle_chunker_result(
 	     */
 	    /*assert(pending_aborts);*/
 
-	    /*free_serial(result_argv[2]);*/
+	    /*free_serial(result_argv[1]);*/
 
 	    event_release(chunker->ev_read);
 
@@ -2015,26 +2141,20 @@ handle_chunker_result(
 	    log_add(L_WARNING, _("%s pid %ld is messed up, ignoring it.\n"),
 		    chunker->name, (long)chunker->pid);
 
-	    if(dp) {
-		/* if it was dumping something, zap it and try again */
-		if (!h || activehd < 0) { /* should never happen */
-		    error(_("!h || activehd < 0"));
-		    /*NOTREACHED*/
-		}
-		qname = quote_string(dp->name);
-		if(sched(dp)->dump_attempted) {
-		    log_add(L_FAIL, _("%s %s %s %d [%s died]"),
-	    		    dp->host->hostname, qname, sched(dp)->datestamp,
-	    		    sched(dp)->level, chunker->name);
-		}
-		else {
-	    	    log_add(L_WARNING, _("%s died while dumping %s:%s lev %d."),
-	    		    chunker->name, dp->host->hostname, qname,
-	    		    sched(dp)->level);
-		}
-        	amfree(qname);
-		dp = NULL;
-	    }
+            /* if it was dumping something, zap it and try again */
+            g_assert(h && activehd >= 0);
+            qname = quote_string(dp->name);
+            if(sched(dp)->dump_attempted) {
+                log_add(L_FAIL, _("%s %s %s %d [%s died]"),
+                        dp->host->hostname, qname, sched(dp)->datestamp,
+                        sched(dp)->level, chunker->name);
+            } else {
+                log_add(L_WARNING, _("%s died while dumping %s:%s lev %d."),
+                        chunker->name, dp->host->hostname, qname,
+                        sched(dp)->level);
+            }
+            amfree(qname);
+            dp = NULL;
 
 	    event_release(chunker->ev_read);
 
@@ -2045,6 +2165,7 @@ handle_chunker_result(
 	default:
 	    assert(0);
 	}
+	g_strfreev(result_argv);
 
 	if(chunker->result != LAST_TOK && chunker->dumper->result != LAST_TOK)
 	    dumper_chunker_result(dp);
@@ -2059,7 +2180,6 @@ read_flush(void)
     sched_t *sp;
     disk_t *dp;
     int line;
-    dumpfile_t file;
     char *hostname, *diskname, *datestamp;
     int level;
     char *destname;
@@ -2075,6 +2195,8 @@ read_flush(void)
     tq.head = tq.tail = NULL;
 
     for(line = 0; (inpline = agets(stdin)) != NULL; free(inpline)) {
+	dumpfile_t file;
+
 	line++;
 	if (inpline[0] == '\0')
 	    continue;
@@ -2151,6 +2273,7 @@ read_flush(void)
 		log_add(L_INFO, _("%s: ignoring cruft file."), destname);
 	    amfree(diskname);
 	    amfree(destname);
+	    dumpfile_free_data(&file);
 	    continue;
 	}
 
@@ -2161,6 +2284,7 @@ read_flush(void)
 		    hostname, diskname, destname);
 	    amfree(diskname);
 	    amfree(destname);
+	    dumpfile_free_data(&file);
 	    continue;
 	}
 	amfree(diskname);
@@ -2171,6 +2295,7 @@ read_flush(void)
 	    log_add(L_INFO, _("%s: disk %s:%s not in database, skipping it."),
 		    destname, file.name, file.disk);
 	    amfree(destname);
+	    dumpfile_free_data(&file);
 	    continue;
 	}
 
@@ -2178,6 +2303,7 @@ read_flush(void)
 	    log_add(L_INFO, _("%s: ignoring file with bogus dump level %d."),
 		    destname, file.dumplevel);
 	    amfree(destname);
+	    dumpfile_free_data(&file);
 	    continue;
 	}
 
@@ -2185,6 +2311,7 @@ read_flush(void)
 	    log_add(L_INFO, "%s: removing file with no data.", destname);
 	    holding_file_unlink(destname);
 	    amfree(destname);
+	    dumpfile_free_data(&file);
 	    continue;
 	}
 
@@ -2208,6 +2335,7 @@ read_flush(void)
 	sp->level = file.dumplevel;
 	sp->dumpdate = NULL;
 	sp->degr_dumpdate = NULL;
+	sp->degr_mesg = NULL;
 	sp->datestamp = stralloc(file.datestamp);
 	sp->est_nsize = (off_t)0;
 	sp->est_csize = (off_t)0;
@@ -2226,6 +2354,7 @@ read_flush(void)
 	dp1->up = (char *)sp;
 
 	enqueue_disk(&tq, dp1);
+	dumpfile_free_data(&file);
     }
     amfree(inpline);
 
@@ -2239,7 +2368,7 @@ read_schedule(
     sched_t *sp;
     disk_t *dp;
     int level, line, priority;
-    char *dumpdate, *degr_dumpdate;
+    char *dumpdate, *degr_dumpdate, *degr_mesg;
     int degr_level;
     time_t time, degr_time;
     time_t *time_p = &time;
@@ -2381,7 +2510,18 @@ read_schedule(
 
 	degr_dumpdate = NULL;			/* flag if degr fields found */
 	skip_whitespace(s, ch);			/* find the degr level number */
-	if(ch != '\0') {
+	degr_mesg = NULL;
+	if (ch == '"') {
+	    qname = s - 1;
+	    skip_quoted_string(s, ch);
+	    s[-1] = '\0';			/* terminate degr mesg */
+	    degr_mesg = unquote_string(qname);
+	    degr_level = -1;
+	    degr_nsize = (off_t)0;
+	    degr_csize = (off_t)0;
+	    degr_time = (time_t)0;
+	    degr_kps = 0;
+	} else if (ch != '\0') {
 	    if(sscanf(s - 1, "%d", &degr_level) != 1) {
 		error(_("schedule line %d: syntax error (bad degr level)"), line);
 		/*NOTREACHED*/
@@ -2430,11 +2570,7 @@ read_schedule(
 	    }
 	    skip_integer(s, ch);
 	} else {
-	    degr_level = -1;
-	    degr_nsize = (off_t)0;
-	    degr_csize = (off_t)0;
-	    degr_time = (time_t)0;
-	    degr_kps = 0;
+	    error(_("schedule line %d: no degraded estimate or message"), line);
 	}
 
 	dp = lookup_disk(hostname, diskname);
@@ -2469,9 +2605,11 @@ read_schedule(
 	    sp->degr_csize = am_round(sp->degr_csize, DISK_BLOCK_KB);
 	    sp->degr_time = degr_time;
 	    sp->degr_kps = degr_kps;
+	    sp->degr_mesg = NULL;
 	} else {
 	    sp->degr_level = -1;
 	    sp->degr_dumpdate = NULL;
+	    sp->degr_mesg = degr_mesg;
 	}
 	/*@end@*/
 
@@ -2860,7 +2998,7 @@ build_diskspace(
 {
     int i, j;
     int fd;
-    ssize_t buflen;
+    size_t buflen;
     char buffer[DISK_BLOCK_BYTES];
     dumpfile_t file;
     assignedhd_t **result;
@@ -2880,9 +3018,20 @@ build_diskspace(
 	strncpy(dirname, filename, 999);
 	dirname[999]='\0';
 	ch = strrchr(dirname,'/');
-        *ch = '\0';
-	ch = strrchr(dirname,'/');
-        *ch = '\0';
+	if (ch) {
+	    *ch = '\0';
+	    ch = strrchr(dirname,'/');
+	    if (ch) {
+		*ch = '\0';
+	    }
+	}
+
+	if (!ch) {
+	    g_fprintf(stderr,_("build_diskspace: bogus filename '%s'\n"), filename);
+	    amfree(used);
+	    amfree(result);
+	    return NULL;
+	}
 
 	for(j = 0, ha = holdalloc; ha != NULL; ha = ha->next, j++ ) {
 	    if(strcmp(dirname, holdingdisk_get_diskdir(ha->hdisk))==0) {
@@ -2898,10 +3047,12 @@ build_diskspace(
 	if((fd = open(filename,O_RDONLY)) == -1) {
 	    g_fprintf(stderr,_("build_diskspace: open of %s failed: %s\n"),
 		    filename, strerror(errno));
+	    amfree(used);
+	    amfree(result);
 	    return NULL;
 	}
-	if ((buflen = fullread(fd, buffer, SIZEOF(buffer))) > 0) {;
-		parse_file_header(buffer, &file, (size_t)buflen);
+	if ((buflen = full_read(fd, buffer, SIZEOF(buffer))) > 0) {;
+		parse_file_header(buffer, &file, buflen);
 	}
 	close(fd);
 	filename = file.cont_filename;
@@ -2968,8 +3119,9 @@ dump_to_tape(
     dumper_t *dumper;
     cmd_t cmd;
     int result_argc;
-    char *result_argv[MAX_ARGS+1];
+    char **result_argv;
     char *qname;
+    disk_t *dp1;
 
     qname = quote_string(dp->name);
     g_printf(_("driver: dumping %s:%s directly to tape\n"),
@@ -2992,7 +3144,7 @@ dump_to_tape(
     /* tell the taper to read from a port number of its choice */
 
     taper_cmd(PORT_WRITE, dp, NULL, sched(dp)->level, sched(dp)->datestamp);
-    cmd = getresult(taper, 1, &result_argc, result_argv, MAX_ARGS+1);
+    cmd = getresult(taper, 1, &result_argc, &result_argv);
     if(cmd != PORT) {
 	g_printf(_("driver: did not get PORT from taper for %s:%s\n"),
 		dp->host->hostname, qname);
@@ -3005,7 +3157,7 @@ dump_to_tape(
     amfree(qname);
 
     /* copy port number */
-    dumper->output_port = atoi(result_argv[2]);
+    dumper->output_port = atoi(result_argv[1]);
 
     dumper->dp = dp;
     dumper->chunker = NULL;
@@ -3013,8 +3165,18 @@ dump_to_tape(
     taper_result = LAST_TOK;
     sched(dp)->dumper = dumper;
 
+    if (dp->host->pre_script == 0) {
+	for (dp1=dp->host->disks; dp1 != NULL; dp1 = dp1->hostnext) {
+	    run_server_scripts(EXECUTE_ON_PRE_HOST_BACKUP,
+			       get_config_name(), dp1, -1);
+	}
+	dp->host->pre_script = 1;
+    }
+    run_server_scripts(EXECUTE_ON_PRE_DLE_BACKUP, get_config_name(), dp,
+		       sched(dp)->level);
+
     /* tell the dumper to dump to a port */
-    dumper_cmd(dumper, PORT_DUMP, dp);
+    dumper_cmd(dumper, PORT_DUMP, dp, NULL);
     dp->host->start_t = time(NULL) + 15;
 
     /* update statistics & print state */
@@ -3024,8 +3186,6 @@ dump_to_tape(
     taper_tape_error = NULL;
     taper_dumper = dumper;
     taper_disk = dp;
-    taper_input_error = NULL;
-    taper_tape_error = NULL;
     taper_first_label = NULL;
     taper_written = 0;
     taper_state |= TAPER_STATE_DUMP_TO_TAPE;
@@ -3042,6 +3202,8 @@ dump_to_tape(
 				     handle_dumper_result, dumper);
     taper_ev_read = event_register(taper, EV_READFD,
 				   handle_taper_result, NULL);
+
+    g_strfreev(result_argv);
 }
 
 static int
@@ -3084,7 +3246,7 @@ short_dump_state(void)
     fflush(stdout);
 }
 
-static TapeAction tape_action(void)
+static TapeAction tape_action(char **why_no_new_tape)
 {
     TapeAction result = TAPE_ACTION_NO_ACTION;
     dumper_t *dumper;
@@ -3155,6 +3317,13 @@ static TapeAction tape_action(void)
 		 dump_to_disk_terminated))		//  or all dump to disk terminated
 	      ) {
 	result |= TAPE_ACTION_NO_NEW_TAPE;
+	if (flush_threshold_dumped >= tapeq_size) {
+	    *why_no_new_tape = _("flush-threshold-dumped criteria not met");
+	} else if (flush_threshold_scheduled >= sched_size) {
+	    *why_no_new_tape = _("flush-threshold-scheduled criteria not met");
+	} else {
+	    *why_no_new_tape = _("taperflush criteria not met");
+	}
     }
 
     // when to start a flush

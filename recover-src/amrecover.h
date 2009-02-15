@@ -31,6 +31,7 @@
 
 #include "amanda.h"
 #include "amfeatures.h"
+#include "amxml.h"
 
 #define STARTUP_TIMEOUT 60
 
@@ -51,6 +52,7 @@ extern char *config;
 extern char *dump_datestamp;		/* date we are restoring */
 extern char *dump_hostname;		/* which machine we are restoring */
 extern char *disk_name;			/* disk we are restoring */
+extern dle_t *dump_dle;
 extern char *mount_point;		/* where disk was mounted */
 extern char *disk_path;			/* path relative to mount point */
 extern char dump_date[STR_SIZE];	/* date on which we are restoring */
@@ -112,10 +114,8 @@ extern void delete_file(char *path, char *regex);
 
 extern void extract_files(void);
 
-#ifdef SAMBA_CLIENT
 #define SAMBA_SMBCLIENT 0
 #define SAMBA_TAR       1
-#endif
 
 extern char *get_security(void);
 extern void stop_amindexd(void);

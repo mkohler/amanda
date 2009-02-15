@@ -1,78 +1,236 @@
 .\"     Title: amlabel
-.\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 08/22/2008
-.\"    Manual: 
-.\"    Source: 
+.\"    Author: James da Silva <jds@amanda.org>
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 01/22/2009
+.\"    Manual: System Administration Commands
+.\"    Source: Amanda 2.6.1
+.\"  Language: English
 .\"
-.TH "AMLABEL" "8" "08/22/2008" "" ""
+.TH "AMLABEL" "8" "01/22/2009" "Amanda 2\&.6\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
-.SH "NAME"
-amlabel - label an Amanda tape
-.SH "SYNOPSIS"
-.HP 8
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "Name"
+amlabel \- label an \fIAmanda\fR tape
+.SH "Synopsis"
+.fam C
+.HP \w'\fBamlabel\fR\ 'u
 \fBamlabel\fR [\-f] \fIconfig\fR \fIlabel\fR [slot\ \fIslot\fR] [\-o\ \fIconfigoption\fR]...
+.fam
 .SH "DESCRIPTION"
 .PP
 All
 \fIAmanda\fR
-tapes must be pre\-labeled before they are used\.
+tapes must be pre\-labeled before they are used\&.
 \fIAmanda\fR
 verifies the label in
 \fBamdump\fR
 and
 \fBamflush\fR
-before writing to make sure the proper tape is loaded\.
+before writing to make sure the proper tape is loaded\&.
 .PP
 \fBAmlabel\fR
 writes an
 \fIAmanda\fR
 label on the tape in the device specified by the
-\fIamanda\.conf\fR
-file in /usr/local/etc/amanda/\fIconfig\fR\.
+\fIamanda\&.conf\fR
+file in /usr/local/etc/amanda/\fIconfig\fR\&.
 \fILabel\fR
 may be any string that does not contain whitespace and that matches the
-\fIamanda\.conf\fR
+\fIamanda\&.conf\fR
 \fBlabelstr\fR
-regular expression option\. It is up to the system administrator to define a naming convention\.
+regular expression option\&. It is up to the system administrator to define a naming convention\&.
 .PP
 \fBAmlabel\fR
 appends the new tape to the
-\fItapelist\fR
+\fBtapelist\fR(5)
 file so it will be used by
 \fIAmanda\fR
-before it reuses any other tapes\. When you
+before it reuses any other tapes\&. When you
 \fBamlabel\fR
 multiple tapes, they will be used in the order you
 \fBamlabel\fR
-them\.
+them\&.
 .PP
 \fBAmlabel\fR
 will not write the label if the tape contains an active
 \fIAmanda\fR
-tape or if the label specified is on an active tape\. The
+tape or if the label specified is on an active tape\&. The
 \fB\-f\fR
-(force) flag bypasses these verifications\.
+(force) flag bypasses these verifications\&.
 .PP
 An optional
 \fIslot\fR
-may be specified after the tape label\. If a tape changer is in use,
+may be specified after the tape label\&. If a tape changer is in use,
 \fBamlabel\fR
-will label the tape in the specified slot instead of the currently loaded tape\.
+will label the tape in the specified slot instead of the currently loaded tape\&.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR\.
+\fIAmanda\fR\&.
 .SH "OPTIONS"
 .PP
 \fB\-o\fR \fIconfigoption\fR
 .RS 4
 See the "\fBCONFIGURATION OVERRIDE\fR" section in
-\fBamanda\fR(8)\.
+\fBamanda\fR(8)\&.
 .RE
 .SH "EXAMPLE"
 .PP
@@ -80,7 +238,7 @@ Write an
 \fIAmanda\fR
 label with the string "DMP000" on the tape loaded in the device named in the
 \fBtapedev\fR
-option in /usr/local/etc/amanda/daily/amanda\.conf:
+option in /usr/local/etc/amanda/daily/amanda\&.conf:
 .nf
 % amlabel daily DMP000 
 .fi
@@ -100,7 +258,7 @@ on the command line does not match the
 regular expression
 \fIstr\fR
 from
-\fIamanda\.conf\fR\.
+\fIamanda\&.conf\fR\&.
 .RE
 .PP
 label \fIlabel\fR already on a tape
@@ -109,7 +267,7 @@ Label
 \fIlabel\fR
 is already listed as an active
 \fIAmanda\fR
-tape\.
+tape\&.
 .RE
 .PP
 no tpchanger specified in \fIpath\fR , so slot command invalid
@@ -117,10 +275,10 @@ no tpchanger specified in \fIpath\fR , so slot command invalid
 The command line has the
 \fBslot\fR
 parameter but the
-\fIamanda\.conf\fR
+\fIamanda\&.conf\fR
 file in
 \fIpath\fR
-does not have a tape changer configured\.
+does not have a tape changer configured\&.
 .RE
 .PP
 reading label \fIlabel\fR, tape is in another amanda configuration
@@ -131,7 +289,7 @@ tape, but label does not match
 \fBlabelstr\fR
 for this configuration so it is probably part of a different
 \fIAmanda\fR
-configuration\.
+configuration\&.
 .RE
 .PP
 reading label \fIlabel\fR, tape is active
@@ -140,7 +298,7 @@ Tape
 \fIlabel\fR
 appears to already be part of this
 \fIAmanda\fR
-configuration and active, i\.e\. has valid data on it\.
+configuration and active, i\&.e\&. has valid data on it\&.
 .RE
 .PP
 no label found, are you sure \fItape\fR is non\-rewinding?
@@ -150,19 +308,16 @@ While checking that the label was written correctly,
 got an error that might be caused by mis\-configuring
 \fIAmanda\fR
 with a rewinding tape device name instead of a non\-rewinding device name for
-\fItape\.\fR
+\fItape\&.\fR
 .RE
-.SH "AUTHOR"
-.PP
-James da Silva,
-<jds@amanda\.org>: Original text
-.PP
-Stefan G\. Weichinger,
-<sgw@amanda\.org>, maintainer of the
-\fIAmanda\fR\-documentation: XML\-conversion
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
 \fBamdump\fR(8),
 \fBamflush\fR(8),
 : http://wiki.zmanda.com
+.SH "Authors"
+.PP
+\fBJames da Silva\fR <\&jds@amanda\&.org\&>
+.PP
+\fBStefan G\&. Weichinger\fR <\&sgw@amanda\&.org\&>

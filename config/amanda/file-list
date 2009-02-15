@@ -25,6 +25,7 @@ EXTRA_DIST += amanda/lfs.m4
 EXTRA_DIST += amanda/libs.m4
 EXTRA_DIST += amanda/net.m4
 EXTRA_DIST += amanda/progs.m4
+EXTRA_DIST += amanda/ps.m4
 EXTRA_DIST += amanda/readdir.m4
 EXTRA_DIST += amanda/readline.m4
 EXTRA_DIST += amanda/rsh-security.m4

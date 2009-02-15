@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
  * 
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 2.1 as 
@@ -14,8 +14,8 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  * 
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 /*
@@ -27,6 +27,51 @@
 #include "amanda.h"
 #include "glib-util.h"
 #include "conffile.h" /* For find_multiplier. */
+
+#ifdef HAVE_LIBCURL
+#include <curl/curl.h>
+#endif
+
+void
+glib_init(void) {
+    static gboolean did_glib_init = FALSE;
+    if (did_glib_init) return;
+    did_glib_init = TRUE;
+
+    /* Initialize glib's type system */
+    g_type_init();
+
+    /* set up libcurl (this must happen before threading 
+     * is initialized) */
+#ifdef HAVE_LIBCURL
+# ifdef G_THREADS_ENABLED
+    g_assert(!g_thread_supported());
+# endif
+    g_assert(curl_global_init(CURL_GLOBAL_ALL) == 0);
+#endif
+
+    /* And set up glib's threads */
+#if defined(G_THREADS_ENABLED) && !defined(G_THREADS_IMPL_NONE)
+    if (g_thread_supported()) {
+        return;
+    }
+    g_thread_init(NULL);
+#endif
+
+    /* do a version check */
+#if GLIB_CHECK_VERSION(2,6,0)
+    {
+	const char *glib_err = glib_check_version(GLIB_MAJOR_VERSION,
+						  GLIB_MINOR_VERSION,
+						  GLIB_MICRO_VERSION);
+	if (glib_err) {
+	    error(_("%s: Amanda was compiled with glib-%d.%d.%d"), glib_err,
+		    GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION);
+	    exit(1); /* glib_init may be called before error handling is set up */
+	}
+    }
+#endif
+}
 
 typedef enum {
     FLAG_STRING_NAME,
@@ -402,6 +447,10 @@ char * g_english_strjoinv(char ** strv, const char * conjunction) {
     strv = g_strdupv(strv);
 
     length = g_strv_length(strv);
+
+    if (length == 1)
+	return stralloc(strv[0]);
+
     last = strv[length - 1];
     strv[length - 1] = NULL;
     
@@ -433,5 +482,43 @@ guint g_strv_length(gchar ** strv) {
     }
     return rval;
 }
-
 #endif /* GLIB_CHECK_VERSION(2.6.0) */
+
+#if !GLIB_CHECK_VERSION(2,4,0)
+void
+g_ptr_array_foreach (GPtrArray *array,
+                     GFunc      func,
+                     gpointer   user_data)
+{
+  guint i;
+
+  g_return_if_fail (array);
+
+  for (i = 0; i < array->len; i++)
+    (*func) (array->pdata[i], user_data);
+}
+#endif
+
+guint
+g_str_case_hash(
+	gconstpointer key)
+{
+    /* modified version of glib's hash function, copyright
+     * GLib Team and others 1997-2000. */
+    const char *p = key;
+    guint h = g_ascii_toupper(*p);
+
+    if (h)
+	for (p += 1; *p != '\0'; p++)
+	    h = (h << 5) - h + g_ascii_toupper(*p);
+
+    return h;
+}
+
+gboolean
+g_str_case_equal(
+	gconstpointer v1,
+	gconstpointer v2)
+{
+    return (0 == g_ascii_strcasecmp((char *)v1, (char *)v2));
+}

@@ -44,6 +44,7 @@
 #include "amfeatures.h"
 #include "stream.h"
 #include "amandad.h"
+#include "server_util.h"
 
 #define amidxtaped_debug(i,x) do {	\
 	if ((i) <= debug_amidxtaped) {	\
@@ -343,6 +344,8 @@ main(
 	/* read the REQ packet */
 	for(; (line = agets(stdin)) != NULL; free(line)) {
 	    if(strncmp_const(line, "OPTIONS ") == 0) {
+                if (g_options)
+                    error(_("ERROR recover program sent multiple OPTIONS"));
 		g_options = parse_g_options(line+8, 1);
 		if(!g_options->hostname) {
 		    g_options->hostname = alloc(MAX_HOSTNAME_LENGTH+1);
@@ -413,12 +416,24 @@ main(
 	    rst_flags->alt_tapedev= stralloc(s);
 	}
 	else if(strncmp_const_skip(buf, "HOST=", s, ch) == 0) {
-	    ds->host = stralloc(s);
+            if (ds->host) {
+                dbprintf(_("WARNING: HOST appeared twice in client request.\n"));
+                amfree(ds->host);
+            }
+            ds->host = stralloc(s);
 	}
 	else if(strncmp_const_skip(buf, "DISK=", s, ch) == 0) {
+            if (ds->disk) {
+                dbprintf(_("WARNING: DISK appeared twice in client request.\n"));
+                amfree(ds->disk);
+            }
 	    ds->disk = stralloc(s);
 	}
 	else if(strncmp_const_skip(buf, "DATESTAMP=", s, ch) == 0) {
+            if (ds->datestamp) {
+                dbprintf(_("WARNING: DATESTAMP appeared twice in client request.\n"));
+                amfree(ds->datestamp);
+            }
 	    ds->datestamp = stralloc(s);
 	}
 	else if(strncmp_const(buf, "END") == 0) {
@@ -436,10 +451,14 @@ main(
     amfree(buf);
 
     if(re_config) {
-	config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_FATAL, re_config);
+	config_init(CONFIG_INIT_EXPLICIT_NAME, re_config);
 	dbrename(re_config, DBG_SUBDIR_SERVER);
     } else {
 	config_init(0, NULL);
+    }
+
+    if (config_errors(NULL) >= CFGERR_ERRORS) {
+	g_critical(_("errors processing config file"));
     }
 
     check_running_as(RUNNING_AS_DUMPUSER_PREFERRED);
@@ -465,7 +484,6 @@ main(
     ds = NULL;
 
     if(!tapes && rst_flags->alt_tapedev){
-        sleep(10);
 	dbprintf(_("Looks like we're restoring from a holding file...\n"));
         tapes = unmarshal_tapelist_str(rst_flags->alt_tapedev);
 	tapes->isafile = 1;
@@ -484,6 +502,8 @@ main(
 	atexit(cleanup);
 	get_lock = lock_logfile();
     }
+    if (get_lock)
+	log_add(L_INFO, "%s pid %ld", get_pname(), (long)getpid());
 
     /* Init the tape changer */
     if(tapes && use_changer && changer_init() == 0) {
@@ -553,13 +573,14 @@ main(
        re_config && 
        (use_changer || (rst_flags->alt_tapedev && tapedev &&
                         strcmp(rst_flags->alt_tapedev, tapedev) == 0) ) ) {
+	char *process_name = get_master_process(rst_conf_logfile);
 	send_message(cmdout, rst_flags, their_features,
-		     _("%s exists: amdump or amflush is already running, "
+		     _("%s exists: %s is already running, "
 		     "or you must run amcleanup"), 
-		     rst_conf_logfile);
-	error(_("%s exists: amdump or amflush is already running, "
+		     rst_conf_logfile, process_name);
+	error(_("%s exists: %s is already running, "
 	      "or you must run amcleanup"),
-	      rst_conf_logfile);
+	      rst_conf_logfile, process_name);
     }
 
     /* make sure our restore flags aren't crazy */
@@ -593,7 +614,10 @@ main(
 static void
 cleanup(void)
 {
-    if(parent_pid == getpid()) {
-	if(get_lock) unlink(rst_conf_logfile);
+    if (parent_pid == getpid()) {
+	if (get_lock) {
+	    log_add(L_INFO, "pid-done %ld\n", (long)getpid());
+	    unlink(rst_conf_logfile);
+	}
     }
 }

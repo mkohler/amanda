@@ -1,18 +1,20 @@
 # Makefile for Amanda file recovery programs.
 
+include $(top_srcdir)/config/automake/vars.am
 include $(top_srcdir)/config/automake/installperms.am
 include $(top_srcdir)/config/automake/precompile.am
 
 INCLUDES =	-I$(top_builddir)/common-src \
 		-I$(top_srcdir)/common-src   \
 		-I$(top_srcdir)/client-src   \
+		-I$(top_srcdir)/amandad-src   \
 		-I$(top_srcdir)/gnulib
 
 AM_CFLAGS = $(AMANDA_WARNING_CFLAGS)
 AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
 
-LINT=@AMLINT@
-LINTFLAGS=@AMLINTFLAGS@
+LINT=$(AMLINT)
+LINTFLAGS=$(AMLINTFLAGS)
 
 LIB_EXTENSION = la
 
@@ -29,8 +31,7 @@ LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
 	@LEXLIB@ \
 	$(READLINE_LIBS) \
 	../client-src/libamclient.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION) \
-	../gnulib/libgnu.$(LIB_EXTENSION) 
+	../common-src/libamanda.$(LIB_EXTENSION)
 
 amrecover_CSRC =	amrecover.c					\
 			display_commands.c		extract_list.c	\
@@ -55,7 +56,7 @@ uparse.$(OBJEXT): uparse.c
 	$(CC) $(CFLAGS) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CPPFLAGS) -c $<
 
 INSTALLPERMS_exec = \
-	dest=$(sbindir) chown=amanda chmod=o-rwx $(sbin_PROGRAMS)
+	dest=$(sbindir) chown=amanda chmod=0750 $(sbin_PROGRAMS)
 
 lint:
 	@f="$(amrecover_CSRC)";							\

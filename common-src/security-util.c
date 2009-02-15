@@ -229,7 +229,8 @@ stream_sendpkt(
       pkt_type2str(pkt->type), pkt->type, strlen(pkt->body), pkt->body);
 
     if (security_stream_write(&rh->rs->secstr, buf, len) < 0) {
-	security_seterror(&rh->sech, security_stream_geterror(&rh->rs->secstr));
+	security_seterror(&rh->sech, "%s", security_stream_geterror(&rh->rs->secstr));
+	amfree(buf);
 	return (-1);
     }
     amfree(buf);
@@ -330,7 +331,7 @@ tcpm_stream_write(
 
     if (tcpm_send_token(rs->rc, rs->rc->write, rs->handle, &rs->rc->errmsg,
 			     buf, size)) {
-	security_stream_seterror(&rs->secstr, rs->rc->errmsg);
+	security_stream_seterror(&rs->secstr, "%s", rs->rc->errmsg);
 	return (-1);
     }
     return (0);
@@ -354,7 +355,7 @@ tcpm_stream_read(
      * Only one read request can be active per stream.
      */
     if (rs->ev_read == NULL) {
-	rs->ev_read = event_register((event_id_t)rs->rc, EV_WAIT,
+	rs->ev_read = event_register((event_id_t)rs->rc->event_id, EV_WAIT,
 	    stream_read_callback, rs);
 	sec_tcp_conn_read(rs->rc);
     }
@@ -380,7 +381,7 @@ tcpm_stream_read_sync(
     if (rs->ev_read != NULL) {
 	return -1;
     }
-    rs->ev_read = event_register((event_id_t)rs->rc, EV_WAIT,
+    rs->ev_read = event_register((event_id_t)rs->rc->event_id, EV_WAIT,
         stream_read_sync_callback, rs);
     sec_tcp_conn_read(rs->rc);
     event_wait(rs->ev_read);
@@ -466,7 +467,7 @@ tcpm_send_token(
         nb_iov = 3;
     }
 
-    rval = net_writev(fd, iov, nb_iov);
+    rval = full_writev(fd, iov, nb_iov);
     if (len != 0 && rc->driver->data_encrypt != NULL && buf != encbuf) {
 	amfree(encbuf);
     }
@@ -607,7 +608,7 @@ tcpm_close_connection(
 
     (void)hostname;
 
-    if (rh && rh->rc && rh->rc->toclose == 0) {
+    if (rh && rh->rc && rh->rc->read >= 0 && rh->rc->toclose == 0) {
 	rh->rc->toclose = 1;
 	sec_tcp_conn_put(rh->rc);
     }
@@ -862,7 +863,7 @@ tcp_stream_write(
 
     assert(rs != NULL);
 
-    if (fullwrite(rs->fd, buf, size) < 0) {
+    if (full_write(rs->fd, buf, size) < size) {
         security_stream_seterror(&rs->secstr,
             _("write error on stream %d: %s"), rs->port, strerror(errno));
         return (-1);
@@ -886,7 +887,7 @@ bsd_prefix_packet(
 	security_seterror(&rh->sech,
 			  _("can't get login name for my uid %ld"),
 			  (long)getuid());
-	return(NULL);
+	return "";
     }
     buf = alloc(16+strlen(pwd->pw_name));
     strncpy(buf, "SECURITY USER ", (16 + strlen(pwd->pw_name)));
@@ -1016,6 +1017,7 @@ bsd_recv_security_ok(
 	if ((tok = strtok(NULL, "")) == NULL) {
 	    security_seterror(&rh->sech,
 		_("SECURITY line: %s"), security_line);
+	    amfree(service);
 	    amfree(security_line);
 	    return (-1);	/* default errmsg */
 	}
@@ -1063,7 +1065,7 @@ udpbsd_sendpkt(
      * Initialize this datagram, and add the header
      */
     dgram_zero(&rh->udp->dgram);
-    dgram_cat(&rh->udp->dgram, pkthdr2str(rh, pkt));
+    dgram_cat(&rh->udp->dgram, "%s", pkthdr2str(rh, pkt));
 
     /*
      * Add the security info.  This depends on which kind of packet we're
@@ -1089,7 +1091,7 @@ udpbsd_sendpkt(
     /*
      * Add the body, and send it
      */
-    dgram_cat(&rh->udp->dgram, pkt->body);
+    dgram_cat(&rh->udp->dgram, "%s", pkt->body);
 
     auth_debug(1,
      _("sec: udpbsd_sendpkt: %s (%d) pkt_t (len %zu) contains:\n\n\"%s\"\n\n"),
@@ -1470,6 +1472,7 @@ sec_tcp_conn_get(
     rc->auth = 0;
     rc->conf_fn = NULL;
     rc->datap = NULL;
+    rc->event_id = newevent++;
     connq_append(rc);
     return (rc);
 }
@@ -1505,10 +1508,13 @@ sec_tcp_conn_put(
 	amfree(rc->errmsg);
     connq_remove(rc);
     amfree(rc->pkt);
-    if(!rc->donotclose)
-	amfree(rc); /* someone might still use it           */
-		    /* eg. in sec_tcp_conn_read_callback if */
-		    /*     event_wakeup call us.            */
+    if(!rc->donotclose) {
+	/* amfree(rc) */
+	/* a memory leak occurs, but freeing it lead to memory
+	 * corruption because it can still be used.
+	 * We need to find a good place to free 'rc'.
+	 */
+    }
 }
 
 /*
@@ -1583,7 +1589,7 @@ recvpkt_callback(
 	(*rh->fn.recvpkt)(rh->arg, NULL, S_ERROR);
 	return;
     case -1:
-	security_seterror(&rh->sech, security_stream_geterror(&rh->rs->secstr));
+	security_seterror(&rh->sech, "%s", security_stream_geterror(&rh->rs->secstr));
 	(*rh->fn.recvpkt)(rh->arg, NULL, S_ERROR);
 	return;
     default:
@@ -1637,7 +1643,7 @@ stream_read_sync_callback(
 
     if (rs->rc->pktlen <= 0) {
 	auth_debug(1, _("sec: stream_read_sync_callback: %s\n"), rs->rc->errmsg);
-	security_stream_seterror(&rs->secstr, rs->rc->errmsg);
+	security_stream_seterror(&rs->secstr, "%s", rs->rc->errmsg);
 	if(rs->closed_by_me == 0 && rs->closed_by_network == 0)
 	    sec_tcp_conn_put(rs->rc);
 	rs->closed_by_network = 1;
@@ -1683,7 +1689,7 @@ stream_read_callback(
 
     if (rs->rc->pktlen <= 0) {
 	auth_debug(1, _("sec: stream_read_callback: %s\n"), rs->rc->errmsg);
-	security_stream_seterror(&rs->secstr, rs->rc->errmsg);
+	security_stream_seterror(&rs->secstr, "%s", rs->rc->errmsg);
 	if(rs->closed_by_me == 0 && rs->closed_by_network == 0)
 	    sec_tcp_conn_put(rs->rc);
 	rs->closed_by_network = 1;
@@ -1723,7 +1729,7 @@ sec_tcp_conn_read_callback(
     if (rval < 0 || rc->handle == H_EOF) {
 	rc->pktlen = rval;
 	rc->handle = H_EOF;
-	revent = event_wakeup((event_id_t)rc);
+	revent = event_wakeup((event_id_t)rc->event_id);
 	auth_debug(1, _("sec: conn_read_callback: event_wakeup return %d\n"),
 		       revent);
 	/* delete our 'accept' reference */
@@ -1741,7 +1747,7 @@ sec_tcp_conn_read_callback(
 
     if(rval == 0) {
 	rc->pktlen = 0;
-	revent = event_wakeup((event_id_t)rc);
+	revent = event_wakeup((event_id_t)rc->event_id);
 	auth_debug(1,
 		   _("sec: conn_read_callback: event_wakeup return %d\n"), revent);
 	return;
@@ -1749,8 +1755,8 @@ sec_tcp_conn_read_callback(
 
     /* If there are events waiting on this handle, we're done */
     rc->donotclose = 1;
-    revent = event_wakeup((event_id_t)rc);
-    auth_debug(1, _("sec: conn_read_callback: event_wakeup return %zd\n"), rval);
+    revent = event_wakeup((event_id_t)rc->event_id);
+    auth_debug(1, _("sec: conn_read_callback: event_wakeup return %d\n"), revent);
     rc->donotclose = 0;
     if (rc->handle == H_TAKEN || rc->pktlen == 0) {
 	if(rc->refcnt == 0) amfree(rc);
@@ -1760,8 +1766,12 @@ sec_tcp_conn_read_callback(
     assert(rc->refcnt > 0);
 
     /* If there is no accept fn registered, then drop the packet */
-    if (rc->accept_fn == NULL)
+    if (rc->accept_fn == NULL) {
+	g_warning(
+	  _("sec: conn_read_callback: %zd bytes for handle %d went unclaimed!"),
+	  rc->pktlen, rc->handle);
 	return;
+    }
 
     rh = alloc(SIZEOF(*rh));
     security_handleinit(&rh->sech, rc->driver);
@@ -2237,7 +2247,7 @@ check_user_amandahosts(
     if (! found) {
 	if (strcmp(service, "amindexd") == 0 ||
 	    strcmp(service, "amidxtaped") == 0) {
-	    result = vstrallocf(_("Please add the line \"%s %s amindexd amidxtaped\" to %s on the client"), host, remoteuser, ptmp);
+	    result = vstrallocf(_("Please add the line \"%s %s amindexd amidxtaped\" to %s on the server"), host, remoteuser, ptmp);
 	} else if (strcmp(service, "amdump") == 0 ||
 		   strcmp(service, "noop") == 0 ||
 		   strcmp(service, "selfcheck") == 0 ||
@@ -2363,57 +2373,6 @@ check_security(
     amfree(remotehost);
     amfree(remoteuser);
     return *errstr == NULL;
-}
-
-/*
- * Writes out the entire iovec
- */
-ssize_t
-net_writev(
-    int			fd,
-    struct iovec *	iov,
-    int			iovcnt)
-{
-    ssize_t delta, n, total;
-
-    assert(iov != NULL);
-
-    total = 0;
-    while (iovcnt > 0) {
-	/*
-	 * Write the iovec
-	 */
-	n = writev(fd, iov, iovcnt);
-	if (n < 0) {
-	    if (errno != EINTR)
-		return (-1);
-	    auth_debug(1, _("net_writev got EINTR\n"));
-	}
-	else if (n == 0) {
-	    errno = EIO;
-	    return (-1);
-	} else {
-	    total += n;
-	    /*
-	     * Iterate through each iov.  Figure out what we still need
-	     * to write out.
-	     */
-	    for (; n > 0; iovcnt--, iov++) {
-		/* 'delta' is the bytes written from this iovec */
-		delta = ((size_t)n < (size_t)iov->iov_len) ? n : (ssize_t)iov->iov_len;
-		/* subtract from the total num bytes written */
-		n -= delta;
-		assert(n >= 0);
-		/* subtract from this iovec */
-		iov->iov_len -= delta;
-		iov->iov_base = (char *)iov->iov_base + delta;
-		/* if this iovec isn't empty, run the writev again */
-		if (iov->iov_len > 0)
-		    break;
-	    }
-	}
-    }
-    return (total);
 }
 
 /*

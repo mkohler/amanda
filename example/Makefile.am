@@ -1,13 +1,14 @@
 # Makefile for sample configuration files
 
+include $(top_srcdir)/config/automake/vars.am
 include $(top_srcdir)/config/automake/installperms.am
 
-amanda_dir     = $(localstatedir)/lib/amanda
+amanda_dir    = $(amdatadir)
 templatedir   = $(amanda_dir)/template.d
 exampledir    = $(amanda_dir)/example
 lbltempldir   = $(amanda_dir)/example/label-templates
 
-EXTRA_DIST =	chg-multi.conf \
+EXTRA_DIST +=	chg-multi.conf \
 		chg-scsi.conf \
 		config.site \
 		disklist \
@@ -26,6 +27,7 @@ dist_template_DATA = template.d/advanced.conf \
 dist_example_DATA = amanda.conf \
 	       amanda-client.conf \
 	       inetd.conf.amandaclient \
+	       inetd.conf.amandaserver \
 	       xinetd.amandaclient \
 	       xinetd.amandaserver 
 

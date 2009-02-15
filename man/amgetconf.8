@@ -1,171 +1,450 @@
 .\"     Title: amgetconf
-.\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 08/22/2008
-.\"    Manual: 
-.\"    Source: 
+.\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 01/22/2009
+.\"    Manual: System Administration Commands
+.\"    Source: Amanda 2.6.1
+.\"  Language: English
 .\"
-.TH "AMGETCONF" "8" "08/22/2008" "" ""
+.TH "AMGETCONF" "8" "01/22/2009" "Amanda 2\&.6\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
-.SH "NAME"
-amgetconf - look up amanda.conf variables
-.SH "SYNOPSIS"
-.HP 10
-\fBamgetconf\fR [\fIconfig\fR] [\fI\-\-list\fR] \fIparameter\fR [\-o\ \fIconfigoption\fR]...
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "Name"
+amgetconf \- look up configuration parameters and manipulate debug logs
+.SH "Synopsis"
+.fam C
+.HP \w'\fBamgetconf\fR\ 'u
+\fBamgetconf\fR [\fI\-l|\-\-list\fR] [\-o\ \fIconfigoption\fR]... [\fI\-\-client\fR] [\fI\-\-execute\-where\ client|server\fR] [\fIconfig\fR] \fIparameter\fR
+.fam
 .SH "DESCRIPTION"
 .PP
 \fBAmgetconf\fR
-looks up parameters in
-\fIamanda\.conf\fR, the
-\fIAmanda\fR
-configuration file, or from the build and runtime environment, and returns their corresponding value\.
+has three main jobs:
+to fetch configuration information from the Amanda configuration; to fetch build\-time configuration values; and to open and close debug logs for shell scripts\&. Each is treated in its own subsection, below\&.
 .PP
 If
 \fIconfig\fR
 is not specified,
 \fBamgetconf\fR
 assumes it is being run from the configuration directory and that
-\fIamanda\.conf\fR
-is present\.
-.PP
-If
+\fIamanda\&.conf\fR
+is present\&. The order of options and arguments does not matter\&.
 \fIparameter\fR
-begins with
-\fIbuild\.\fR, the (case insensitive) string following the period is a build environment variable\. Variables without a value (e\.g\.
-\fIXFSDUMP\fR
-on a system that does not support that type of file system) will not report an error and will return an empty string as the value\. Flag variables (e\.g\.
-\fIUSE_AMANDAHOSTS\fR) will return
-1
-if the flag is set or an empty string if it is not\.
+is always case\-insensitive, and \'\-\' and \'_\' are treated as identical, just as in
+\fBamanda.conf\fR(5)\&.
 .PP
-If
-\fIparameter\fR
-begins with
-\fIdbopen\.\fR, the string following the period is a program name and an
-\fIAmanda\fR
-debug file will be created for the caller\. The name of the file is returned\.
-.PP
-If
-\fIparameter\fR
-begins with
-\fIdbclose\.\fR, the string following the period is a program name previously used with
-\fIdbopen\.\fR, followed by a colon (:) and the previously opened file name\.
-.PP
-See the
-\fBamanda\fR(8)
-man page for more details about
-\fIAmanda\fR\.
-.SH "OPTIONS"
-.PP
-\fB\-\-list\fR
-.RS 4
-The parameter must be \'tapetype\', \'dumptype, \'holdingdisk\' or \'interface\'\. It will output, one by line, the list of identifier for the parameter\.
-.PP
-\-\-list tapetype
-.RS 4
-Output the list of tapetype, one by line\.
-.RE
-.PP
-\-\-list dumptype
-.RS 4
-Output the list of dumptype, one by line\.
-.RE
-.PP
-\-\-list holdingdisk
-.RS 4
-Output the list of holdingdisk, one by line\.
-.RE
-.PP
-\-\-list interface
-.RS 4
-Output the list of interface, one by line\.
-.RE
-.RE
-.PP
-\fBparameter\fR
-.RS 4
-It could be one of the below format:
-.PP
-runtapes
-.RS 4
-.RE
-.PP
-DUMPTYPE:no\-compress:compress
-.RS 4
-.RE
-.PP
-TAPETYPE:HP\-DAT:length
-.RS 4
-.RE
-.PP
-INTERFACE:local:use
-.RS 4
-.RE
-.PP
-HOLDINGDISK:hd1:use
-.RS 4
-.RE
-.RE
-.PP
-\fB\-o\fR \fIconfigoption\fR
-.RS 4
 See the "\fBCONFIGURATION OVERRIDE\fR" section in
-\fBamanda\fR(8)\.
+\fBamanda\fR(8)
+for information on the
+\FC\-o\F[]
+option\&.
+.SS "AMANDA CONFIGURATION"
+.PP
+If
+\fIparameter\fR
+is a configuration keyword (from
+\fBamanda.conf\fR(5)), then amgetconf will return the corresponding value\&. For keywords which can take multiple values, amgetconf will return all values, one on each line\&.
+.PP
+Values in configuration subsections are specified with parameters of the form
+\FCTYPE:NAME:PARAMETER\F[], where
+\FCTYPE\F[]
+is the subsection type (one of
+\FCdumptype\F[],
+\FCtapetype\F[],
+\FCinterface\F[],
+\FCholdingdisk\F[],
+\FCapplication\-tool\F[], or
+\FCscript\-tool\F[];
+\FCNAME\F[]
+is the name of the subsection (e\&.g\&.,
+\FCuser\-tar\F[]), and
+\FCPARAMETER\F[]
+is the name of the disired parameter within that subsection\&.
+.PP
+The
+\FC\-\-list\F[]
+option lists the subsections of a certain type, where the type is givein as the parameter\&.
+.PP
+The
+\FC\-\-client\F[]
+option is equivalent to
+\FC\-\-execute\-where server\F[]
+(below)\&.
+.PP
+The
+\FC\-\-execute\-where\F[]
+option tells amgetconf whether to operate on the client or the server; the server is the default\&.
+.SS "BUILD CONFIGURATION"
+.PP
+If
+\fIparameter\fR
+begins with
+\FCbuild\&.\F[], then the following name is a build environment variable\&. Variables without a value (e\&.g\&.
+\FCXFSDUMP\F[]
+on a system that does not support that type of file system) will not report an error and will return an empty string as the value\&. Some boolean variables (e\&.g\&.
+\fIUSE_AMANDAHOSTS\fR) will return
+\FC1\F[]
+if the flag is set or an empty string if it is not, while others return
+\FCyes\F[]
+or
+\FCno\F[], as indicated below (the difference is historical)\&.
+.PP
+Combining the
+\FC\-\-list\F[]
+option with the parameter
+\FCbuild\F[]
+will enumerate all available build parameters\&.
+.PP
+\fBBuild Parameters\fR
+.PP
+\FCbindir\F[], \FCsbindir\F[], \FClibexecdir\F[], \FCmandir\F[]
+.RS 4
+Install directories
 .RE
-.SH "EXAMPLE"
+.PP
+\FCAMANDA_TMPDIR\F[], \FCCONFIG_DIR\F[], \FCAMANDA_DBGDIR\F[], \FCGNUTAR_LISTED_INCREMENTAL_DIR\F[]
+.RS 4
+Runtime directories
+.RE
+.PP
+\FClisted_inc_dir\F[]
+.RS 4
+Same as
+\FCGNUTAR_LISTED_INCREMENTAL_DIR\F[]
+.RE
+.PP
+\FCCC\F[], \FCVERSION\F[], \FCASSERTIONS\F[], \FCLOCKING\F[], \FCUSE_VERSION_SUFFIXES\F[]
+.RS 4
+Build information\&.
+\FCASSERTIONS\F[]
+is 1 or empty, while
+\FCUSE_VERSION_SUFFIXES\F[]
+is yes/no\&.
+.RE
+.PP
+\FCDUMP\F[], \FCRESTORE\F[], \FCVDUMP\F[], \FCVRESTORE\F[], \FCXFSDUMP\F[], \FCXFSRESTORE\F[], \FCVXDUMP\F[], \FCVXRESTORE\F[], \FCSAMBA_CLIENT\F[], \FCGNUTAR\F[], \FCSTAR\F[], \FCCOMPRESS_PATH\F[], \FCUNCOMPRESS_PATH\F[]
+.RS 4
+Paths to various utility progarms (empty if they are not found or not used)
+.RE
+.PP
+\FCAIX_BACKUP\F[]
+.RS 4
+Is
+\FCDUMP\F[]
+the AIX backup program? (empty or 1)
+.RE
+.PP
+\FCDUMP_RETURNS_1\F[]
+.RS 4
+Does
+\FCDUMP\F[]
+return 1 on success? (empty or 1)
+.RE
+.PP
+\FCBSD_SECURITY\F[], \FCBSDUDP_SECURITY\F[], \FCBSDTCP_SECURITY\F[], \FCKRB4_SECURITY\F[], \FCKRB5_SECURITY\F[], \FCSSH_SECURITY\F[], \FCRSH_SECURITY\F[]
+.RS 4
+Indicate which authentication mechanisms are available (yes or no)\&.
+.RE
+.PP
+\FCUSE_AMANDAHOSTS\F[]
+.RS 4
+Should the "bsd" authentication mechanism use
+\FCamandahosts\F[]? (yes or no)\&.
+.RE
+.PP
+\FCAMANDA_DEBUG_DAYS\F[]
+.RS 4
+Number of days after which debug logs are deleted\&.
+.RE
+.PP
+\FCDEFAULT_SERVER\F[], \FCDEFAULT_CONFIG\F[], \FCDEFAULT_TAPE_SERVER\F[], \FCDEFAULT_TAPE_DEVICE\F[]
+.RS 4
+Default values for configuration parameters
+.RE
+.PP
+\FCCLIENT_LOGIN\F[]
+.RS 4
+Userid under which the client runs (from
+\FC\-\-with\-user\F[])\&.
+.RE
+.PP
+\FCUSE_RUNDUMP\F[]
+.RS 4
+Should Amanda use the
+\FCrundump\F[]
+wrapper? (empty or 1)
+.RE
+.PP
+\FCCHECK_USERID\F[]
+.RS 4
+Does Amanda check that userids are correct? (empty or 1)
+.RE
+.PP
+\FCCOMPRESS_SUFFIX\F[], \FCCOMPRESS_FAST_OPT\F[], \FCCOMPRESS_BEST_OPT\F[], \FCUNCOMPRESS_OPT\F[]
+.RS 4
+Command\-line options for the compression program\&.
+.RE
+.PP
+\FCTICKET_LIFETIME\F[], \FCSERVER_HOST_PRINCIPAL\F[], \FCSERVER_HOST_INSTANCE\F[], \FCSERVER_HOST_KEY_FILE\F[], \FCCLIENT_HOST_PRINCIPAL\F[], \FCCLIENT_HOST_INSTANCE\F[], \FCCLIENT_HOST_KEY_FILE\F[]
+.RS 4
+Kerberos parameters\&.
+.RE
+.SS "DEBUG LOG MANAGEMENT"
+.if n \{\
+.sp
+.\}
+.RS 4
+.BM yellow
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+That this application is responsible for debug logs is a
+historical quirk, but the functionality is widely used\&..sp .5v
+.EM yellow
+.RE
+.PP
+If
+\fIparameter\fR
+begins with
+\fIdbopen\&.\fR, the string following the period is a program name and an
+\fIAmanda\fR
+debug file will be created for the caller\&. The name of the logfile is returned\&.
+.PP
+If
+\fIparameter\fR
+begins with
+\fIdbclose\&.\fR, the string following the period is a program name previously used with
+\fIdbopen\&.\fR, followed by a colon (:) and the previously opened file name\&. The name of the logfile is returned\&.
+.SH "EXAMPLES"
 .PP
 Find out the path to the log file directory:
-.sp
-.RS 4
 .nf
 % amgetconf daily logdir
-/usr/local/etc/amanda//daily
+/usr/local/etc/amanda/daily/logs
 .fi
-.RE
 .PP
 Find out the current tape type:
-.sp
-.RS 4
 .nf
 % amgetconf daily tapetype
 DLT4000\-IV
 .fi
-.RE
 .PP
-Find out the default configuration directory:
-.sp
-.RS 4
+Find out that tape type\'s length:
 .nf
-% amgetconf daily build\.CONFIG_DIR
+% amgetconf daily tapetype:DLT4000\-IV:length
+1024000
+.fi
+.PP
+List the other available tapetype:
+.nf
+% amgetconf daily \-\-list tapetype
+DISK
+QIC\-60
+DEC\-DLT2000
+\&.\&.\&.
+.fi
+.PP
+Find out the configuration directory:
+.nf
+% amgetconf build\&.CONFIG_DIR
 /usr/local/etc/amanda/
 .fi
-.RE
+.PP
+List all build\-time parameters
+.nf
+% amgetconf \-\-list build
+AIX_BACKUP
+AMANDA_DBGDIR
+AMANDA_DEBUG_DAYS
+\&.\&.\&.
+.fi
 .PP
 Create, use and close a debug file in a script:
-.sp
-.RS 4
 .nf
-% set debug_file = `amgetconf daily dbopen\.myscript`
+% debug_file=`amgetconf daily dbopen\&.myscript`
 % echo debug information >> $debug_file
-% amgetconf daily dbclose\.myscript:$debug_file
+% amgetconf daily dbclose\&.myscript:$debug_file
 .fi
-.RE
-.sp
 .SH "MESSAGES"
 .PP
 amgetconf: no such parameter \fIparam\fR
 .RS 4
 Parameter
 \fIparam\fR
-is not a known keyword (e\.g\. not a valid
-\fIamanda\.conf\fR
-keyword)\.
+is not a known keyword (e\&.g\&. not a valid
+\fIamanda\&.conf\fR
+keyword)\&.
 .RE
 .SH "SEE ALSO"
 .PP
 
 \fBamanda\fR(8),
 : http://wiki.zmanda.com
+.SH "Author"
+.PP
+\fBJean\-Louis Martineau\fR <\&martineau@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (\FChttp://www\&.zmanda\&.com\F[])
+.RE

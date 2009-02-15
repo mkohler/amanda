@@ -1,20 +1,178 @@
 .\"     Title: amstatus
-.\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 08/22/2008
-.\"    Manual: 
-.\"    Source: 
+.\"    Author: Stefan G. Weichinger <sgw@amanda.org>
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 01/22/2009
+.\"    Manual: System Administration Commands
+.\"    Source: Amanda 2.6.1
+.\"  Language: English
 .\"
-.TH "AMSTATUS" "8" "08/22/2008" "" ""
+.TH "AMSTATUS" "8" "01/22/2009" "Amanda 2\&.6\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
-.SH "NAME"
-amstatus - display the state of an Amanda run
-.SH "SYNOPSIS"
-.HP 9
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "Name"
+amstatus \- display the state of an \fIAmanda\fR run
+.SH "Synopsis"
+.fam C
+.HP \w'\fBamstatus\fR\ 'u
 \fBamstatus\fR [\-\-config] \fIconfig\fR [\-\-file\ \fIamdumpfile\fR] [\-\-summary] [\-\-dumping] [\-\-waitdumping] [\-\-waittaper] [\-\-dumpingtape] [\-\-writingtape] [\-\-finished] [\-\-failed] [\-\-estimate] [\-\-gestimate] [\-\-stats] [\-\-locale\-independent\-date\-format]
+.fam
 .SH "DESCRIPTION"
 .PP
 \fBAmstatus\fR
@@ -22,23 +180,23 @@ gives the current state of the
 \fIAmanda\fR
 run specified by the
 \fIconfig\fR
-configuration\. If there is no active
+configuration\&. If there is no active
 \fIAmanda\fR
-running, it summarizes the result of the last run\. It may also be used to summarize the results of a previous run\.
+running, it summarizes the result of the last run\&. It may also be used to summarize the results of a previous run\&.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR\.
+\fIAmanda\fR\&.
 .SH "OPTIONS"
 .PP
-All options may be abbreviated to the shortest non\-ambiguous sub\-string\. If no options are given, everything is displayed\.
+All options may be abbreviated to the shortest non\-ambiguous sub\-string\&. If no options are given, everything is displayed\&.
 .PP
 \fB[\-\-config] config\fR
 .RS 4
 Specify the
 \fIAmanda\fR
-configuration you want to display the state for\.
+configuration you want to display the state for\&.
 .RE
 .PP
 \fB\-\-file amdumpfile\fR
@@ -47,67 +205,67 @@ Specify an alternate file instead of the
 \fIamdump\fR
 or
 \fIamflush\fR
-file\.
+file\&.
 .RE
 .PP
 \fB\-\-summary\fR
 .RS 4
-Display a summary of the state of the run\.
+Display a summary of the state of the run\&.
 .RE
 .PP
 \fB\-\-dumping\fR
 .RS 4
-Display all partitions that are dumping\.
+Display all partitions that are dumping\&.
 .RE
 .PP
 \fB\-\-waitdumping|wdumping\fR
 .RS 4
-Display all partitions that are waiting to be dumped\.
+Display all partitions that are waiting to be dumped\&.
 .RE
 .PP
 \fB\-\-waittaper|wtaper\fR
 .RS 4
-Display all partitions dumped that are waiting to be written to tape\.
+Display all partitions dumped that are waiting to be written to tape\&.
 .RE
 .PP
 \fB\-\-dumpingtape|dtape\fR
 .RS 4
-Display all partitions that are dumping directly to tape\.
+Display all partitions that are dumping directly to tape\&.
 .RE
 .PP
 \fB\-\-writingtape|wtape\fR
 .RS 4
-Display all partitions that are writing to tape\.
+Display all partitions that are writing to tape\&.
 .RE
 .PP
 \fB\-\-finished\fR
 .RS 4
-Display all partitions that are dumped and written to tape\.
+Display all partitions that are dumped and written to tape\&.
 .RE
 .PP
 \fB\-\-failed|error\fR
 .RS 4
-Display all partitions that failed\.
+Display all partitions that failed\&.
 .RE
 .PP
 \fB\-\-estimate\fR
 .RS 4
-Display all partitions whose estimate is finished\. Works only during the estimate phase\.
+Display all partitions whose estimate is finished\&. Works only during the estimate phase\&.
 .RE
 .PP
 \fB\-\-gestimate|gettingestimate\fR
 .RS 4
-Display all partitions whose estimate is not finished\. Works only during the estimate phase\.
+Display all partitions whose estimate is not finished\&. Works only during the estimate phase\&.
 .RE
 .PP
 \fB\-\-stats|statistics\fR
 .RS 4
-Display statistics about active\-time of taper and dumpers\.
+Display statistics about active\-time of taper and dumpers\&.
 .RE
 .PP
 \fB\-\-locale\-independent\-date\-format\fR
 .RS 4
-Output the date in a locale independent format\. The format is the same executing: date +\'%Y\-%m\-%d %H:%M:%S %Z\'
+Output the date in a locale independent format\&. The format is the same executing: date +\'%Y\-%m\-%d %H:%M:%S %Z\'
 .RE
 .SH "EXIT CODE"
 
@@ -127,3 +285,6 @@ The exit code of \fBamstatus\fR is the ORed value of:
 \fBamrestore\fR(8),
 \fBamadmin\fR(8),
 : http://wiki.zmanda.com
+.SH "Author"
+.PP
+\fBStefan G\&. Weichinger\fR <\&sgw@amanda\&.org\&>

@@ -1,0 +1,298 @@
+.\"     Title: disklist
+.\"    Author: James da Silva <jds@amanda.org>
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 01/22/2009
+.\"    Manual: File formats and conventions
+.\"    Source: Amanda 2.6.1
+.\"  Language: English
+.\"
+.TH "DISKLIST" "5" "01/22/2009" "Amanda 2\&.6\&.1" "File formats and conventions"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "Name"
+disklist \- List of partitions to back up for \fIAmanda\fR
+.SH "DESCRIPTION"
+.PP
+The
+\fIdisklist\fR
+file determines which disks will be backed up by
+\fIAmanda\fR\&. The file usually contains one line per disk:
+.nf
+\fIhostname diskname\fR [\fIdiskdevice\fR] \fIdumptype\fR [\fIspindle\fR [\fIinterface\fR] ]
+.fi
+.PP
+All pairs [
+\fIhostname diskname\fR
+] must be unique\&.
+.PP
+Lines starting with # are ignored, as are blank lines\&. The fields have the following meanings:
+.PP
+\fIhostname\fR
+.RS 4
+The name of the host to be backed up\&. If
+\fBdiskdevice\fR
+refers to a PC share, this is the host
+\fIAmanda\fR
+will run the Samba
+\fBsmbclient\fR
+program on to back up the share\&.
+.RE
+.PP
+\fIdiskname\fR
+.RS 4
+The name of the disk (a label)\&. In most case, you set your
+\fBdiskname\fR
+to the
+\fBdiskdevice\fR
+and you don\'t set the
+\fBdiskdevice\&.\fR
+If you want multiple entries with the same
+\fBdiskdevice\fR, you must set a different
+\fBdiskname\fR
+for each entry\&. It\'s the
+\fBdiskname\fR
+that you use on the commandline for any
+\fIAmanda\fR
+command\&. Look at the example/disklist file for example\&.
+.RE
+.PP
+\fIdiskdevice\fR
+.RS 4
+Default: same as diskname\&. The name of the disk device to be backed up\&. It may be a full device name, a device name without the
+\FC/dev/\F[]
+prefix, e\&.g\&.
+\fIsd0a\fR, or a mount point such as
+\FC/usr\F[]\&.
+.sp
+It may also refer to a PC share by starting the name with two (forward) slashes, e\&.g\&.
+\FC//some\-pc/home\F[]\&. In this case, the
+\fBprogram\fR
+option in the associated
+\fBdumptype\fR
+must be entered as
+\fBGNUTAR\fR\&. It is the combination of the double slash disk name and
+\fBprogram GNUTAR\fR
+in the
+\fBdumptype\fR
+that triggers the use of Samba\&.
+.RE
+.PP
+\fIdumptype\fR
+.RS 4
+Refers to a
+\fBdumptype\fR
+defined in the
+\fBamanda\&.conf\fR
+file\&.
+\fIDumptype\fRs specify backup related parameters, such as whether to compress the backups, whether to record backup results in
+\FC/etc/dumpdates\F[], the disk\'s relative priority, etc\&.
+.RE
+.PP
+\fIspindle\fR
+.RS 4
+Default:
+\fB\-1\fR\&. A number used to balance backup load on a host\&.
+\fIAmanda\fR
+will not run multiple backups at the same time on the same spindle, unless the spindle number is \-1, which means there is no spindle restriction\&.
+.RE
+.PP
+\fIinterface\fR
+.RS 4
+Default:
+\fIlocal\fR\&. The name of a network interface definition in the
+\fBamanda\&.conf\fR
+file, used to balance network load\&.
+.RE
+.PP
+Instead of naming a
+\fBdumptype\fR, it is possible to define one in\-line, enclosing
+\fBdumptype\fR
+options within curly braces, one per line, just like a
+\fBdumptype\fR
+definition in
+\fBamanda\&.conf\fR\&. Since pre\-existing
+\fBdumptype\fRs are valid option names, this syntax may be used to customize
+\fBdumptype\fRs for particular disks\&.
+.PP
+A line break
+\fBmust\fR
+follow the left curly bracket\&.
+.PP
+For instance, if a
+\fBdumptype\fR
+named
+\fInormal\fR
+is used for most disks, but use of the holding disk needs to be disabled for the file system that holds it, this would work instead of defining a new dumptype:
+.nf
+\fIhostname diskname\fR [ \fIdiskdevice\fR ] {
+  normal
+  holdingdisk never
+} [ \fIspindle\fR [ \fIinterface\fR ] ]
+.fi
+.SH "Authors"
+.PP
+\fBJames da Silva\fR <\&jds@amanda\&.org\&>
+.PP
+\fBStefan G\&. Weichinger\fR <\&sgw@amanda\&.org\&>
+.PP
+\fBDustin J\&. Mitchell\fR <\&dustin@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (\FChttp://www\&.zmanda\&.com\F[])
+.RE

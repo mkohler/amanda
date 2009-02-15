@@ -1,98 +1,289 @@
 .\"     Title: amtapetype
-.\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 08/22/2008
-.\"    Manual: 
-.\"    Source: 
+.\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 01/22/2009
+.\"    Manual: System Administration Commands
+.\"    Source: Amanda 2.6.1
+.\"  Language: English
 .\"
-.TH "AMTAPETYPE" "8" "08/22/2008" "" ""
+.TH "AMTAPETYPE" "8" "01/22/2009" "Amanda 2\&.6\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
-.SH "NAME"
-amtapetype - generate a tapetype definition.
-.SH "SYNOPSIS"
-.HP 11
-\fBamtapetype\fR [\-h] [\-c] [\-o] [\-b\ \fIblocksize\fR] \-e\ \fIestsize\fR [\-f\ \fItapedev\fR] [\-t\ \fItypename\fR]
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "Name"
+amtapetype \- generate a tapetype definition by testing the device directly
+.SH "Synopsis"
+.fam C
+.HP \w'\fBamtapetype\fR\ 'u
+\fBamtapetype\fR [\-h] [\-c] [\-f] [\-b\ \fIblocksize\fR] [\-t\ \fItypename\fR] [\-l\ \fIlabel\fR] [\-o\ \fIconfig_overwrite\fR] [\fIdevice\fR]
+.fam
 .SH "DESCRIPTION"
 .PP
 \fBamtapetype\fR
 generates a tapetype entry for
-\fIAmanda\fR\.
+\fIAmanda\fR
+by testing the device directly
 .SH "OPTIONS"
+.if n \{\
+.sp
+.\}
+.RS 4
+.BM yellow
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+.PP
+The options for
+\fBamtapetype\fR
+have changed in version 2\&.6\&.1
+.sp .5v
+.EM yellow
+.RE
 .PP
 \fB\-h\fR
 .RS 4
-Display an help message\.
+Display the help message\&.
 .RE
 .PP
 \fB\-c\fR
 .RS 4
-Run only the hardware compression detection heuristic test and stop\. This takes a few minutes only\.
+Run only the hardware compression detection heuristic test and stop\&. This takes a few minutes only\&.
 .RE
 .PP
-\fB\-o\fR
+\fB\-f\fR
 .RS 4
-Overwrite the tape, even if it\'s an
-\fIAmanda\fR
-tape\.
+Run amtapetype even if the loaded volume is already in use or compression is enabled\&.
 .RE
 .PP
 \fB\-b\fR\fI blocksize\fR
 .RS 4
-record block size (default: 32k)
+block size to use with the device (default: 32k)
 .RE
 .PP
-\fB\-e\fR\fI estsize\fR
+\fB\-t\fR \fItypename\fR
 .RS 4
-estimated tape size (No default!)
+Name to give to the new tapetype definition\&.
 .RE
 .PP
-\fB\-f\fR\fI tapedev\fR
+\fB\-l\fR\fI label\fR
 .RS 4
-tape device name (default: $TAPE) The device to perform the test\.
+Label to write on the tape (default is randomly generated)\&.
 .RE
 .PP
-\fB\-t\fR\fI typename\fR
+\fB\-o\fR \fIconfigoption\fR
 .RS 4
-tapetype name (default: unknown\-tapetype)
+See the "\fBCONFIGURATION OVERRIDE\fR" section in
+\fBamanda\fR(8)\&.
 .RE
 .SH "EXAMPLE"
 .PP
 Generate a tapetype definition for your tape device:
 .sp
+.if n \{\
 .RS 4
+.\}
+.fam C
+.ps -1
 .nf
-% amtapetype \-f /dev/nst0 \-e 150G
+.if t \{\
+.sp -1
+.\}
+.BB lightgray adjust-for-leading-newline
+.sp -1
+
+% amtapetype \-f /dev/nst0
+.EB lightgray adjust-for-leading-newline
+.if t \{\
+.sp 1
+.\}
 .fi
+.fam
+.ps +1
+.if n \{\
 .RE
+.\}
 .SH "NOTES"
 .PP
-Hardware compression is detected by measuring the writing speed difference of the tape drive when writing an amount of compressable and uncompresseable data\. It does not rely on the status bits of the tape drive or the OS parameters\. If your tape drive has very large buffers or is very fast, the program could fail to detect hardware compression status reliably\.
+If the device cannot reliably report its comprssion status (and as of this writing, no devices can do so), hardware compression is detected by measuring the writing speed difference of the tape drive when writing an amount of compressable and uncompresseable data\&. If your tape drive has very large buffers or is very fast, the program could fail to detect hardware compression status reliably\&.
 .PP
-During the first pass, it writes files that are estimated to be 1% of the expected tape capacity\. It gets the expected capacity from the \-e command line flag, or defaults to 1 GByte\. In a perfect world (which means there is zero chance of this happening with tapes :\-), there would be 100 files and 100 file marks\.
+Volume capacity is determined by writing one large file until an error, interpereted as end\-of\-tape, is encountered\&. In the next phase, about 100 files are written to fill the tape\&. This second phase will write less data, because each filemark consumes some tape\&. With a little arithmetic,
+\fBamtapetype\fR
+calculates the size of these filemarks\&.
 .PP
-During the second pass, the file size is cut in half\. In that same fairyland world, this means 200 files and 200 file marks\.
-.PP
-In both passes the total amount of data written is summed as well as the number of file marks written\. At the end of the second pass, quoting from the code:
-.PP
-* Compute the size of a filemark as the difference in data written between pass 1 and pass 2 divided by the difference in number of file marks written between pass 1 and pass 2\. \.\.\. *
-.PP
-So if we wrote 1\.0 GBytes on the first pass and 100 file marks, and 0\.9 GBytes on the second pass with 200 file marks, those additional 100 file marks in the second pass took 0\.1 GBytes and therefor a file mark is 0\.001 GBytes (1 MByte)\.
-.PP
-Note that if the estimated capacity is wrong, the only thing that happens is a lot more (or less, but unlikely) files, and thus, file marks, get written\. But the math still works out the same\. The \-e flag is there to keep the number of file marks down because they can be slow (since they force the drive to flush all its buffers to physical media)\.
-.PP
-All sorts of things might happen to cause the amount of data written to vary enough to generate a big file mark size guess\. A little more "shoe shining" because of the additional file marks (and flushes), dirt left on the heads from the first pass of a brand new tape, the temperature/humidity changed during the multi\-hour run, a different amount of data was written after the last file mark before EOT was reported, etc\.
+All sorts of things might happen to cause the amount of data written to vary enough to generate a strange file mark size guess\&. A little more "shoe shining" because of the additional file marks (and flushes), dirt left on the heads from the first pass of a brand new tape, the temperature/humidity changed during the multi\-hour run, a different amount of data was written after the last file mark before EOT was reported, etc\&.
 .PP
 Note that the file mark size might really be zero for whatever device this is, and it was just the measured capacity variation that caused
 \fBamtapetype\fR
-to think those extra file marks in pass 2 actually took up space\.
+to think those extra file marks in pass 2 actually took up space\&.
+.SH "Authors"
 .PP
-It also explains why
-\fBamtapetype\fR
-used to sometimes report a negative file mark size if the math happened to end up that way\. When that happens now we just report it as zero\.
-.SH "SEE ALSO"
+\fBDustin J\&. Mitchell\fR <\&dustin@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (\FChttp://www\&.zmanda\&.com\F[])
+.RE
 .PP
-\fBamanda\fR(8),
-: http://wiki.zmanda.com
+\fBJean\-Louis Martineau\fR <\&martineau@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (\FChttp://www\&.zmanda\&.com\F[])
+.RE

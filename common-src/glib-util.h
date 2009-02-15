@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
  * 
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 2.1 as 
@@ -14,8 +14,8 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  * 
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 /*
  * Utilities that aren't quite included in glib
@@ -28,6 +28,13 @@
 
 #include <glib.h>
 #include <glib-object.h>
+
+/* Call the requisite glib init functions, including calling
+ * g_init_types and setting up threading support.  This function can
+ * be called multiple times with no harm, although it is not
+ * re-entrant.
+ */
+void glib_init(void);
 
 /* like g_[s]list_foreach, but with a function taking only
  * one argument.
@@ -107,5 +114,14 @@ char * g_english_strjoinv_and_free(char ** strv, const char * conjunction);
 guint g_strv_length(gchar ** strv);
 #endif
 
+#if !GLIB_CHECK_VERSION(2,4,0)
+void g_ptr_array_foreach (GPtrArray *array,
+			  GFunc func,
+                          gpointer user_data);
 #endif
 
+/* functions for g_hash_table_new to hash and compare case-insensitive strings */
+guint g_str_case_hash(gconstpointer v);
+gboolean g_str_case_equal(gconstpointer v1, gconstpointer v2);
+
+#endif

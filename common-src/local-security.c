@@ -178,6 +178,7 @@ local_connect(
 
 error:
     (*fn)(arg, &rh->sech, S_ERROR);
+    amfree(rh->hostname);
 }
 
 /*
@@ -188,7 +189,7 @@ static int
 runlocal(
     struct tcp_conn *	rc,
     const char *	amandad_path,
-    const char *	client_username)
+    const char *	client_username G_GNUC_UNUSED)
 {
     int rpipe[2], wpipe[2];
     char *xamandad_path = (char *)amandad_path;

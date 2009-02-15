@@ -32,9 +32,8 @@
 #ifndef DRIVERIO_H
 #define DRIVERIO_H
 
-#include "event.h"
-
 #include "amanda.h"
+#include "event.h"
 #include "holding.h"
 #include "server_util.h"
 
@@ -108,6 +107,7 @@ typedef struct sched_s {
     char *datestamp;
     int activehd;
     int no_space;
+    char *degr_mesg;
 } sched_t;
 
 #define sched(dp)	((sched_t *) (dp)->up)
@@ -147,6 +147,7 @@ void startup_dump_process(dumper_t *dumper, char *dumper_program);
 void startup_dump_processes(char *dumper_program, int inparallel, char *timestamp);
 void startup_chunk_process(chunker_t *chunker, char *chunker_program);
 
+cmd_t getresult(int fd, int show, int *result_argc, char ***result_argv);
 disk_t *serial2disk(char *str);
 void free_serial(char *str);
 void free_serial_dp(disk_t *dp);

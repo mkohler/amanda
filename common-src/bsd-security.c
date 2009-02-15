@@ -156,15 +156,16 @@ bsd_connect(
 	security_seterror(&bh->sech,
 	        _("resolve_hostname(%s) did not return a canonical name\n"), hostname);
 	(*fn)(arg, &bh->sech, S_ERROR);
-       return;
+	if (res) freeaddrinfo(res);
+	return;
     }
     if (res == NULL) {
 	dbprintf(_("resolve_hostname(%s): no results\n"), hostname);
 	security_seterror(&bh->sech,
 	        _("resolve_hostname(%s): no results\n"), hostname);
 	(*fn)(arg, &bh->sech, S_ERROR);
-       amfree(canonname);
-       return;
+	amfree(canonname);
+	return;
     }
 
     for (res_addr = res; res_addr != NULL; res_addr = res_addr->ai_next) {
@@ -576,7 +577,7 @@ stream_read_sync_callback(
 	n = read(bs->fd, bs->databuf, sizeof(bs->databuf));
     } while ((n < 0) && ((errno == EINTR) || (errno == EAGAIN)));
     if (n < 0)
-        security_stream_seterror(&bs->secstr, strerror(errno));
+        security_stream_seterror(&bs->secstr, "%s", strerror(errno));
     bs->len = n;
 }
 
@@ -618,7 +619,7 @@ stream_read_callback(
     } while ((n < 0) && ((errno == EINTR) || (errno == EAGAIN)));
 
     if (n < 0)
-	security_stream_seterror(&bs->secstr, strerror(errno));
+	security_stream_seterror(&bs->secstr, "%s", strerror(errno));
 
     (*bs->fn)(bs->arg, bs->databuf, n);
 }

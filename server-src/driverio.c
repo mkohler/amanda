@@ -37,7 +37,6 @@
 #include "diskfile.h"
 #include "infofile.h"
 #include "logfile.h"
-#include "token.h"
 
 #define GLOBAL		/* the global variables defined here */
 #include "driverio.h"
@@ -113,7 +112,7 @@ startup_tape_process(
 	    error(_("taper dup2: %s"), strerror(errno));
 	config_options = get_config_options(2);
 	config_options[0] = "taper";
-	config_options[1] = config_name;
+	config_options[1] = get_config_name();
 	safe_fd(-1, 0);
 	execve(taper_program, config_options, safe_env());
 	error("exec %s: %s", taper_program, strerror(errno));
@@ -150,7 +149,7 @@ startup_dump_process(
 	    error(_("%s dup2: %s"), dumper->name, strerror(errno));
 	config_options = get_config_options(2);
 	config_options[0] = dumper->name ? dumper->name : "dumper",
-	config_options[1] = config_name;
+	config_options[1] = get_config_name();
 	safe_fd(-1, 0);
 	execve(dumper_program, config_options, safe_env());
 	error(_("exec %s (%s): %s"), dumper_program,
@@ -188,7 +187,7 @@ startup_dump_processes(
 	chktable[i].fd = -1;
 
 	startup_dump_process(dumper, dumper_program);
-	dumper_cmd(dumper, START, (void *)timestamp);
+	dumper_cmd(dumper, START, NULL, (void *)timestamp);
     }
 }
 
@@ -218,7 +217,7 @@ startup_chunk_process(
 	}
 	config_options = get_config_options(2);
 	config_options[0] = chunker->name ? chunker->name : "chunker",
-	config_options[1] = config_name;
+	config_options[1] = get_config_name();
 	safe_fd(-1, 0);
 	execve(chunker_program, config_options, safe_env());
 	error(_("exec %s (%s): %s"), chunker_program,
@@ -241,10 +240,8 @@ getresult(
     int fd,
     int show,
     int *result_argc,
-    char **result_argv,
-    int max_arg)
+    char ***result_argv)
 {
-    int arg;
     cmd_t t;
     char *line;
 
@@ -253,9 +250,11 @@ getresult(
 	    error(_("reading result from %s: %s"), childstr(fd), strerror(errno));
 	    /*NOTREACHED*/
 	}
+	*result_argv = NULL;
 	*result_argc = 0;				/* EOF */
     } else {
-	*result_argc = split(line, result_argv, max_arg, " ");
+	*result_argv = split_quoted_strings(line);
+	*result_argc = g_strv_length(*result_argv);
     }
 
     if(show) {
@@ -263,9 +262,7 @@ getresult(
 	       walltime_str(curclock()),
 	       childstr(fd));
 	if(line) {
-	    for(arg = 1; arg <= *result_argc; arg++) {
-		g_printf(" %s", result_argv[arg]);
-	    }
+	    g_printf(" %s", line);
 	    putchar('\n');
 	} else {
 	    g_printf(" (eof)\n");
@@ -274,16 +271,10 @@ getresult(
     }
     amfree(line);
 
-#ifdef DEBUG
-    g_printf("argc = %d\n", *result_argc);
-    for(arg = 0; arg < *result_argc; arg++)
-	g_printf("argv[%d] = \"%s\"\n", arg, result_argv[arg]);
-#endif
-
     if(*result_argc < 1) return BOGUS;
 
     for(t = (cmd_t)(BOGUS+1); t < LAST_TOK; t++)
-	if(strcmp(result_argv[1], cmdstr[t]) == 0) return t;
+	if(strcmp((*result_argv)[0], cmdstr[t]) == 0) return t;
 
     return BOGUS;
 }
@@ -305,6 +296,7 @@ taper_cmd(
     disk_t *dp;
     char *qname;
     char *qdest;
+    char *q;
 
     switch(cmd) {
     case START_TAPER:
@@ -367,8 +359,14 @@ taper_cmd(
 			    " ", disk2serial(dp),
 			    "\n", NULL);
 	break;
-    case NEW_TAPE:
     case NO_NEW_TAPE:
+	q = quote_string((char *)ptr);
+	cmdline = vstralloc(cmdstr[cmd],
+			    " ", q,
+			    "\n", NULL);
+	amfree(q);
+	break;
+    case NEW_TAPE:
     case QUIT:
 	cmdline = stralloc2(cmdstr[cmd], "\n");
 	break;
@@ -383,7 +381,7 @@ taper_cmd(
     g_printf(_("driver: send-cmd time %s to taper: %s"),
 	   walltime_str(curclock()), cmdline);
     fflush(stdout);
-    if ((fullwrite(taper, cmdline, strlen(cmdline))) < 0) {
+    if ((full_write(taper, cmdline, strlen(cmdline))) < strlen(cmdline)) {
 	g_printf(_("writing taper command '%s' failed: %s\n"),
 		cmdline, strerror(errno));
 	fflush(stdout);
@@ -399,7 +397,8 @@ int
 dumper_cmd(
     dumper_t *dumper,
     cmd_t cmd,
-    disk_t *dp)
+    disk_t *dp,
+    char   *mesg)
 {
     char *cmdline = NULL;
     char number[NUM_STR_SIZE];
@@ -408,11 +407,11 @@ dumper_cmd(
     char *device;
     char *features;
     char *qname;
-    char *qdest;
+    char *qmesg;
 
     switch(cmd) {
     case START:
-	cmdline = vstralloc(cmdstr[cmd], " ", (char *)dp, "\n", NULL);
+	cmdline = vstralloc(cmdstr[cmd], " ", mesg, "\n", NULL);
 	break;
     case PORT_DUMP:
 	if(dp && dp->device) {
@@ -428,11 +427,23 @@ dumper_cmd(
 	    g_snprintf(number, SIZEOF(number), "%d", sched(dp)->level);
 	    g_snprintf(numberport, SIZEOF(numberport), "%d", dumper->output_port);
 	    features = am_feature_to_string(dp->host->features);
-	    o = optionstr(dp, dp->host->features, NULL);
+	    if (am_has_feature(dp->host->features, fe_req_xml)) {
+		o = xml_optionstr(dp, dp->host->features, NULL, 1);
+		if (dp->application) {
+		    char *app = xml_application(dp->application,
+						dp->host->features);
+		    vstrextend(&o, app, NULL);
+		    amfree(app);
+		}
+		o = quote_string(o);
+	    } else {
+		o = optionstr(dp, dp->host->features, NULL);
+	    }
 	    if ( o == NULL ) {
 	      error(_("problem with option string, check the dumptype definition.\n"));
 	    }
-	      
+
+	    dbprintf("security_driver %s\n", dp->security_driver);
 	    cmdline = vstralloc(cmdstr[cmd],
 			    " ", disk2serial(dp),
 			    " ", numberport,
@@ -442,10 +453,11 @@ dumper_cmd(
 			    " ", device,
 			    " ", number,
 			    " ", sched(dp)->dumpdate,
-			    " ", dp->program,
+			    " ", dp->program && strcmp(dp->program,"APPLICATION")!=0 ? dp->program: application_get_plugin(dp->application),
 			    " ", dp->amandad_path,
 			    " ", dp->client_username,
 			    " ", dp->ssh_keys,
+			    " ", dp->security_driver,
 			    " |", o,
 			    "\n", NULL);
 	    amfree(features);
@@ -459,15 +471,9 @@ dumper_cmd(
 	break;
     case QUIT:
     case ABORT:
-	if( dp ) {
-	    qdest = quote_string(sched(dp)->destname);
-	    cmdline = vstralloc(cmdstr[cmd],
-				" ", qdest,
-				"\n", NULL );
-	    amfree(qdest);
-	} else {
-	    cmdline = stralloc2(cmdstr[cmd], "\n");
-	}
+	qmesg = quote_string(mesg);
+	cmdline = vstralloc(cmdstr[cmd], " ", qmesg, "\n", NULL );
+	amfree(qmesg);
 	break;
     default:
 	error(_("Don't know how to send %s command to dumper"), cmdstr[cmd]);
@@ -484,7 +490,7 @@ dumper_cmd(
 	g_printf(_("driver: send-cmd time %s to %s: %s"),
 	       walltime_str(curclock()), dumper->name, cmdline);
 	fflush(stdout);
-	if (fullwrite(dumper->fd, cmdline, strlen(cmdline)) < 0) {
+	if (full_write(dumper->fd, cmdline, strlen(cmdline)) < strlen(cmdline)) {
 	    g_printf(_("writing %s command: %s\n"), dumper->name, strerror(errno));
 	    fflush(stdout);
 	    amfree(cmdline);
@@ -500,7 +506,8 @@ int
 chunker_cmd(
     chunker_t *chunker,
     cmd_t cmd,
-    disk_t *dp)
+    disk_t *dp,
+    char   *mesg)
 {
     char *cmdline = NULL;
     char number[NUM_STR_SIZE];
@@ -515,7 +522,7 @@ chunker_cmd(
 
     switch(cmd) {
     case START:
-	cmdline = vstralloc(cmdstr[cmd], " ", (char *)dp, "\n", NULL);
+	cmdline = vstralloc(cmdstr[cmd], " ", mesg, "\n", NULL);
 	break;
     case PORT_WRITE:
 	if(dp && sched(dp) && sched(dp)->holdp) {
@@ -588,7 +595,11 @@ chunker_cmd(
 	break;
     case QUIT:
     case ABORT:
-	cmdline = stralloc2(cmdstr[cmd], "\n");
+	{
+	    char *q = quote_string(mesg);
+	    cmdline = vstralloc(cmdstr[cmd], " ", q, "\n", NULL);
+	    amfree(q);
+	}
 	break;
     case DONE:
     case FAILED:
@@ -611,7 +622,7 @@ chunker_cmd(
     g_printf(_("driver: send-cmd time %s to %s: %s"),
 	   walltime_str(curclock()), chunker->name, cmdline);
     fflush(stdout);
-    if (fullwrite(chunker->fd, cmdline, strlen(cmdline)) < 0) {
+    if (full_write(chunker->fd, cmdline, strlen(cmdline)) < strlen(cmdline)) {
 	g_printf(_("writing %s command: %s\n"), chunker->name, strerror(errno));
 	fflush(stdout);
 	amfree(cmdline);

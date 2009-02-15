@@ -1,4 +1,4 @@
-#!@PERL@ -Tw
+#!@PERL@
 #
 
 # Run perl.
@@ -7,8 +7,12 @@ eval '(exit $?0)' && eval 'exec @PERL@ -S $0 ${1+"$@"}'
 		if 0;
 
 require "newgetopt.pl";
+use warnings;
+use lib '@amperldir@';
 use Time::Local;
 use Text::ParseWords;
+use Amanda::Util;
+use Amanda::Process;
 
 delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV', 'PATH'};
 $ENV{'PATH'} = "/bin:/usr/bin:/usr/sbin:/sbin";       # force known path
@@ -19,6 +23,9 @@ $prefix=$prefix;		# avoid warnings about possible typo
 $exec_prefix="@exec_prefix@";
 $exec_prefix=$exec_prefix;	# ditto
 $sbindir="@sbindir@";
+
+my $Amanda_process = Amanda::Process->new(0);
+$Amanda_process->load_ps_table();
 
 #$STATUS_STRANGE =  2;
 $STATUS_FAILED  =  4;
@@ -73,11 +80,11 @@ if ($conf =~ /^([\w.-]+)$/) {          # $1 is untainted
 }
 
 if ( ! -e "$confdir/$conf" ) {
-    print "Configuration directory '" . $confdir/$conf . "' doesn't exist\n";
+    print "Configuration directory '$confdir/$conf' doesn't exist\n";
     exit 1;
 }
 if ( ! -d "$confdir/$conf" ) {
-    print "Configuration directory '" . $confdir/$conf . "' is not a directory\n";
+    print "Configuration directory '$confdir/$conf' is not a directory\n";
     exit 1;
  }
 
@@ -139,6 +146,7 @@ else {
 }
 
 
+my $dead_run = 0;
 if( defined $opt_file) {
 	if( $opt_file =~ m,^/, ) {
 		$errfile = $opt_file;
@@ -156,6 +164,7 @@ else {
 		} else {
 			$errfile="$logdir/amdump.1";
 		}
+		$dead_run = 1;
 	}
 }
 
@@ -312,10 +321,10 @@ while($lineX = <AMDUMP>) {
 			$esize=$line[14];	#compressed size
 			$esize=32 if $esize<32;
 			$esize{$hostpart}=$esize / $unitdivisor;
-			if(!defined($line[22])) {
+			if(!defined($line[25])) {
 				$degr_level{$hostpart}=-1;
 			} else {
-				$degr_level{$hostpart}=$line[18];
+				$degr_level{$hostpart}=$line[17];
 				$esize=$line[25];	#compressed size
 				$esize=32 if $esize<32;
 				$degr_size{$hostpart}=$esize / $unitdivisor;
@@ -332,7 +341,13 @@ while($lineX = <AMDUMP>) {
 		$holding_file{$hostpart}=$holding_file;
 		$level{$hostpart}=$level;
 	} elsif($line[0] eq "driver") {
-		if($line[1] eq "start" && $line[2] eq "time") {
+		if($line[1] eq "pid") {
+			$pid = $line[2];
+			if (! $Amanda_process->process_alive($pid, "driver")) {
+				$dead_run = 1;
+			}
+		}
+		elsif($line[1] eq "start" && $line[2] eq "time") {
 			$start_time=$line[3];
 			$current_time=$line[3];
 			$dumpers_active[0]=0;
@@ -707,6 +722,16 @@ while($lineX = <AMDUMP>) {
 			$ntsize{$nb_tape} = 0;
 			$ntesize{$nb_tape} = 0;
 		}
+		elsif($line[1] eq "using") {
+			#1:"using" #2:"label" #3:`label' #4:date #5 `timestamp'
+			$nb_tape++;
+			$lineX =~ /using label `(\S*)'/;
+			$label = $1;
+			$ntlabel{$nb_tape} = $label;
+			$ntpartition{$nb_tape} = 0;
+			$ntsize{$nb_tape} = 0;
+			$ntesize{$nb_tape} = 0;
+		}
 	}
    elsif($line[0] eq "splitting" &&
 			 $line[1] eq "chunk" &&
@@ -791,6 +816,7 @@ foreach $host (sort @hosts) {
 
 foreach $host (sort @hosts) {
 	foreach $partition (sort @$host) {
+	   $qpartition = Amanda::Util::quote_string($partition);
 	   foreach $datestamp (sort @datestamp) {
 			$hostpart=&make_hostpart($host,$partition,$datestamp);
 			next if(!defined $estimate{$hostpart} && !defined $flush{$hostpart});
@@ -803,20 +829,31 @@ foreach $host (sort @hosts) {
 			if($estimate_done != 1 && !defined $flush{$hostpart}) {
 				if(defined $estimate{$hostpart}) {
 					if($estimate{$hostpart} != 1) {
-						if( defined $opt_gestimate) {
+						if( defined $opt_gestimate ||
+							 defined $opt_failed && $dead_run != 0) {
 							printf "%8s ", $datestamp if defined $opt_date;
-							printf "%-${maxnamelength}s", "$host:$partition";
-							print "              getting estimate\n";
+							printf "%-${maxnamelength}s", "$host:$qpartition";
+							print "             ";
+							if ($dead_run) {
+								print " failed: killed while";
+								$exit_status |= $STATUS_FAILED;
+							}
+							print " getting estimate\n";
 						}
 					}
 					else {
 						if(defined $opt_estimate ||
-							(defined $opt_gestimate && $partialestimate{$hostpart} == 1)) {
+							(defined $opt_gestimate && $partialestimate{$hostpart} == 1) ||
+							(defined $opt_failed && $dead_run != 0 && $partialestimate{$hostpart} == 1)) {
 							printf "%8s ", $datestamp if defined $opt_date;
-							printf "%-${maxnamelength}s", "$host:$partition";
+							printf "%-${maxnamelength}s", "$host:$qpartition";
 							printf "%2d ",  $level{$hostpart};
 							printf "%9d$unit", $esize{$hostpart};
 							if($partialestimate{$hostpart} == 1) {
+								if ($dead_run) {
+									print " failed: killed while";
+									$exit_status |= $STATUS_FAILED;
+								}
 								print " partial";
 							}
 							print " estimate done\n";
@@ -835,7 +872,7 @@ foreach $host (sort @hosts) {
 					elsif (!defined $dump_started{$hostpart} || $dump_started{$hostpart} == 0) {
 						if( defined $opt_failed) {
 							printf "%8s ", $datestamp if defined $opt_date;
-							printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+							printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 							printf "           no estimate\n";
 						}
 						$exit_status |= $STATUS_FAILED;
@@ -850,22 +887,12 @@ foreach $host (sort @hosts) {
 				}
 				if(defined $taper_started{$hostpart} &&
 						$taper_started{$hostpart}==1) {
-					if(defined $dump_started{$hostpart}) {
-						$dpartition++;
-						if(defined($size{$hostpart})) {
-							$dsize += $size{$hostpart};
-						}
-						else {
-							$dsize += $esize{$hostpart};
-						}
-						$desize += $esize{$hostpart};
-					}
 					if(defined $dump_started{$hostpart} &&
 					   	$dump_started{$hostpart} == 1 &&
 							$dump_finished{$hostpart} == -1) {
 						if(defined $opt_failed) {
 							printf "%8s ", $datestamp if defined $opt_date;
-							printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+							printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 							printf "%9d$unit", $esize{$hostpart};
 							print " dump to tape failed: " . $error{$hostpart};
 							print "\n";
@@ -877,11 +904,20 @@ foreach $host (sort @hosts) {
 					   	$dump_started{$hostpart} == 1 &&
 							$dump_finished{$hostpart} == 0 &&
 							$taper_started{$hostpart} == 1) {
-						if( defined $opt_dumpingtape ) {
+						if( defined $opt_dumpingtape ||
+							 defined $opt_failed && $dead_run != 0) {
 							printf "%8s ", $datestamp if defined $opt_date;
-							printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+							printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 							printf "%9d$unit", $esize{$hostpart};
+							if ($dead_run) {
+								print " failed: killed while";
+								$exit_status |= $STATUS_FAILED;
+							}
 							print " dumping to tape";
+							if(defined($tapedsize{$hostpart})) {
+								printf " (%d$unit done)", $tapedsize{$hostpart};
+								$dtsize += $tapedsize{$hostpart};
+							}
 							if( defined $starttime ) {
 								print " (", &showtime($taper_time{$hostpart}), ")";
 							}
@@ -891,10 +927,15 @@ foreach $host (sort @hosts) {
 						$dtesize += $esize{$hostpart};
 					}
 					elsif($taper_finished{$hostpart} == 0) {
-						if( defined $opt_writingtape ) {
+						if( defined $opt_writingtape ||
+							 defined $opt_failed && $dead_run != 0) {
 							printf "%8s ", $datestamp if defined $opt_date;
-							printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+							printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 							printf "%9d$unit", $size{$hostpart};
+							if ($dead_run) {
+								print " failed: killed while";
+								$exit_status |= $STATUS_FAILED;
+							}
 							if($in_flush == 0) {
 								print " writing to tape";
 							}
@@ -942,7 +983,7 @@ foreach $host (sort @hosts) {
 						if( defined $opt_failed  ||
 							 (defined $opt_waittaper && ($taper_finished{$hostpart} == -1))) {
 							printf "%8s ", $datestamp if defined $opt_date;
-							printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+							printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 							printf "%9d$unit", $xsize;
 							if($in_flush == 0) {
 								print " failed to tape";
@@ -977,7 +1018,7 @@ foreach $host (sort @hosts) {
 					elsif($taper_finished{$hostpart} == 1) {
 						if( defined $opt_finished ) {
 							printf "%8s ", $datestamp if defined $opt_date;
-							printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+							printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 							printf "%9d$unit", $size{$hostpart};
 							if($in_flush == 0) {
 								print " finished";
@@ -994,18 +1035,23 @@ foreach $host (sort @hosts) {
 							}
 							print "\n";
 						}
+						$dpartition++;
 						$tpartition++;
+						$dsize += $size{$hostpart};
 						$tsize += $size{$hostpart};
+						$desize += $esize{$hostpart};
 						if(defined $esize{$hostpart} && $esize{$hostpart} > 1) {
+							$desize += $esize{$hostpart};
 							$tesize += $esize{$hostpart};
 						}
 						else {
+							$desize += $size{$hostpart};
 							$tesize += $size{$hostpart};
 						}
 					}
 					else {
 						printf "%8s ", $datestamp if defined $opt_date;
-						printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+						printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 						print " unknown state TAPER\n";
 					}
 				}
@@ -1013,7 +1059,7 @@ foreach $host (sort @hosts) {
 					if($dump_started{$hostpart} == -1) {
 						if( defined $opt_failed ) {
 							printf "%8s ", $datestamp if defined $opt_date;
-							printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+							printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 							printf " " . $error{$hostpart} . "\n";
 						}
 						$exit_status |= $STATUS_FAILED;
@@ -1025,7 +1071,7 @@ foreach $host (sort @hosts) {
 						if($estimate{$hostpart} == 1) {
 							if( defined $opt_waitdumping ) {
 								printf "%8s ", $datestamp if defined $opt_date;
-								printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+								printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 								printf "%9d$unit", $esize{$hostpart};
 								print " wait for dumping $error{$hostpart}\n";
 							}
@@ -1040,7 +1086,7 @@ foreach $host (sort @hosts) {
 							$dump_finished{$hostpart} == -1) {
 						if( defined $opt_failed ) {
 							printf "%8s ", $datestamp if defined $opt_date;
-							printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+							printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 							print " ", $error{$hostpart};
 							if( defined $starttime ) {
 								print " (", &showtime($dump_time{$hostpart}), ")";
@@ -1053,10 +1099,15 @@ foreach $host (sort @hosts) {
 					}
 					elsif($dump_started{$hostpart} == 1 &&
 							$dump_finished{$hostpart} != 1) {
-						if( defined $opt_dumping ) {
+						if( defined $opt_dumping ||
+							 defined $opt_failed && $dead_run != 0) {
 							printf "%8s ", $datestamp if defined $opt_date;
-							printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+							printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 							printf "%9d$unit", $esize{$hostpart};
+							if ($dead_run) {
+								print " failed: killed while";
+								$exit_status |= $STATUS_FAILED;
+							}
 							printf " dumping %8d$unit", $size{$hostpart};
 							if($size{$hostpart} != 0) {
 								printf " (%6.2f%%)", (100.0*$size{$hostpart})/$esize{$hostpart};
@@ -1077,7 +1128,7 @@ foreach $host (sort @hosts) {
 							$taper_started{$hostpart} != 1) {
 						if( defined $opt_waittaper ) {
 							printf "%8s ", $datestamp if defined $opt_date;
-							printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+							printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 							printf "%9d$unit", $size{$hostpart};
 							print " dump done";
 							if( defined $starttime ) {
@@ -1099,14 +1150,14 @@ foreach $host (sort @hosts) {
 					}
 					else {
 						printf "%8s ", $datestamp if defined $opt_date;
-						printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+						printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 						print " unknown state DUMPER\n";
 					}
 				}
 				elsif(defined $flush{$hostpart}) {
 					if( defined $opt_waittaper ) {
 						printf "%8s ", $datestamp if defined $opt_date;
-						printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+						printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 						printf "%9d$unit", $size{$hostpart};
 						print " waiting to flush";
 						if(defined $partial{$hostpart} && $partial{$hostpart} == 1) {
@@ -1120,7 +1171,7 @@ foreach $host (sort @hosts) {
 				}
 				elsif(defined $level{$hostpart}) {
 					printf "%8s ", $datestamp if defined $opt_date;
-					printf "%-${maxnamelength}s%2d ", "$host:$partition", $level{$hostpart};
+					printf "%-${maxnamelength}s%2d ", "$host:$qpartition", $level{$hostpart};
 					print " unknown state\n";
 				}
 			}
@@ -1141,9 +1192,16 @@ if (defined $opt_summary) {
 	printf "wait for dumping: %3d %20d$unit           (%6.2f%%)\n",
 		$wpartition , $wsize,
 		$estsize ? ($wsize * 1.0 / $estsize) * 100 : 0.0;
-	printf "dumping to tape : %3d %20d$unit           (%6.2f%%)\n",
-		$dtpartition, $dtesize,
-		$estsize ? ($dtesize * 1.0 / $estsize) * 100 : 0.0;
+	if(defined($dtsize)) {
+		printf "dumping to tape : %3d %9d$unit %9d$unit (%6.2f%%) (%6.2f%%)\n",
+			$dtpartition, $dtsize, $dtesize,
+			$dtsize ? ($dtsize * 1.0 / $dtesize) * 100 : 0.0,
+			$estsize ? ($dtesize * 1.0 / $estsize) * 100 : 0.0;
+	} else {
+		printf "dumping to tape : %3d %20d$unit           (%6.2f%%)\n",
+			$dtpartition, $dtesize,
+			$estsize ? ($dtesize * 1.0 / $estsize) * 100 : 0.0;
+	}
 	printf "dumping         : %3d %9d$unit %9d$unit (%6.2f%%) (%6.2f%%)\n",
 		$dupartition, $dusize, $duesize,
 		$duesize ? ($dusize * 1.0 / $duesize) * 100 : 0.0,
@@ -1195,22 +1253,22 @@ if (defined $opt_summary) {
 		$c3 = ($idle_dumpers == 1) ? " " : "";
 		printf "%d dumper%s idle%s %s: %s\n", $idle_dumpers, $c1, $c2, $c3, $status_driver;
 	}
-	if($status_taper eq "writing" && defined($qlen{"tapeq:"})) {
-		printf "taper writing, tapeq: %d\n", $qlen{"tapeq:"};
+	if($status_taper eq "writing" && defined($qlen{"tapeq"})) {
+		printf "taper writing, tapeq: %d\n", $qlen{"tapeq"};
 	}
 	else {
 		printf "taper idle\n";
 	}
-	if (defined ($free{"kps:"})) {
-		printf "network free kps: %9d\n", $free{"kps:"};
+	if (defined ($free{"kps"})) {
+		printf "network free kps: %9d\n", $free{"kps"};
 	}
-	if (defined ($free{"space:"})) {
+	if (defined ($free{"space"})) {
 		if ($holding_space) {
-			$hs = ($free{"space:"} * 1.0 / $holding_space) * 100;
+			$hs = ($free{"space"} * 1.0 / $holding_space) * 100;
 		} else {
 			$hs = 0.0;
 		}
-		printf "holding space   : %9d$unit (%6.2f%%)\n", ($free{"space:"}/$unitdivisor), $hs;
+		printf "holding space   : %9d$unit (%6.2f%%)\n", ($free{"space"}/$unitdivisor), $hs;
 	}
 }
 

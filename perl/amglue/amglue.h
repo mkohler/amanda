@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 2.1 as
@@ -14,8 +14,8 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  *
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 #ifndef AMANDA_AMGLUE_H
@@ -76,6 +76,22 @@
  */
 SV *g_hash_table_to_hashref(GHashTable *hash);
 
+/* Turn a GLib hash table (mapping strings to GSList of strings) into a reference
+ * to a Perl hash table.
+ *
+ * @param hash: GLib hash table
+ * @returns: Perl hashref
+ */
+SV *g_hash_table_to_hashref_gslist(GHashTable *hash);
+
+/* Turn a GLib hash table (mapping strings to property_t) into a reference
+ * to a Perl hash table.
+ *
+ * @param hash: GLib hash table
+ * @returns: Perl hashref
+ */
+SV *g_hash_table_to_hashref_property(GHashTable *hash);
+
 /*
  * prototypes for bigint.c
  */
@@ -114,5 +130,65 @@ gint16 amglue_SvI16(SV *sv);
 guint16 amglue_SvU16(SV *sv);
 gint8 amglue_SvI8(SV *sv);
 guint8 amglue_SvU8(SV *sv);
+
+/*
+ * prototypes for source.c
+ */
+
+typedef enum amglue_Source_state {
+    AMGLUE_SOURCE_NEW,
+    AMGLUE_SOURCE_ATTACHED,
+    AMGLUE_SOURCE_DESTROYED
+} amglue_Source_state;
+
+/* There is *one* amglue_Source object for each GSource; this
+ * allows us to attach amglue-related information to the 
+ * GSource.  See amglue/source.c for more detail. */
+
+typedef struct amglue_Source {
+    GSource *src;
+    GSourceFunc callback;
+    gint refcount;
+    amglue_Source_state state;
+    SV *callback_sv;
+} amglue_Source;
+
+/* Get the amglue_Source object associated with this GSource, creating a
+ * new one if necessary, and increment its refcount.
+ *
+ * The 'callback' parameter should be a C function with the
+ * appropriate signature for this GSource.  The callback will
+ * be given the amglue_Source as its 'data' argument, and should
+ * invoke its callback_sv as a Perl sub with the appropriate
+ * parameters.  Simple GSources can use amglue_source_callback_simple,
+ * below.
+ *
+ * This amglue_Source object can be returned directly to perl via a
+ * SWIG binding; it will be bound as an Amanda::MainLoop::Source
+ * object, and its memory management will be handled correctly.
+ *
+ * @param gsrc: the GSource object to wrap
+ * @param callback: function to trigger a perl callback
+ * @returns: an amglue_Source with appropriate refcount
+ */
+amglue_Source *amglue_source_get(GSource *gsrc, GSourceFunc callback);
+
+/* Create a new amglue_Source object for this GSource.  Use this when
+ * the GSource was just created and does not yet have a corresponding
+ * amglue_Source.
+ *
+ * @param gsrc: the GSource object to wrap
+ * @param callback: function to trigger a perl callback
+ * @returns: an amglue_Source with appropriate refcount
+ */
+amglue_Source *amglue_source_new(GSource *gsrc, GSourceFunc callback);
+
+/* Increment the refcount on an amglue_Source */
+#define amglue_source_ref(aS) aS->refcount++
+
+/* Unref an amglue_Source object, freeing it if its refcount reaches
+ * zero.  */
+#define amglue_source_unref(aS) if (!--(aS)->refcount) amglue_source_free((aS))
+void amglue_source_free(amglue_Source *);
 
 #endif /* AMANDA_AMGLUE_H */

@@ -172,19 +172,23 @@ main(
 	goto done;
     }
 
-    config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_FATAL, argv[1]);
+    config_init(CONFIG_INIT_EXPLICIT_NAME, argv[1]);
     apply_config_overwrites(cfg_ovr);
 
-    dbrename(config_name, DBG_SUBDIR_SERVER);
+    conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
+    read_diskfile(conf_diskfile, &diskq);
+    amfree(conf_diskfile);
+
+    if (config_errors(NULL) >= CFGERR_WARNINGS) {
+	config_print_errors();
+	if (config_errors(NULL) >= CFGERR_ERRORS) {
+	    g_critical(_("errors processing config file"));
+	}
+    }
+
+    dbrename(get_config_name(), DBG_SUBDIR_SERVER);
 
     check_running_as(RUNNING_AS_DUMPUSER);
-
-    conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
-    if (read_diskfile(conf_diskfile, &diskq) < 0) {
-	error(_("could not load disklist \"%s\""), conf_diskfile);
-	/*NOTREACHED*/
-    }
-    amfree(conf_diskfile);
 
     conf_tapelist = config_dir_relative(getconf_str(CNF_TAPELIST));
     if(read_tapelist(conf_tapelist)) {
@@ -1036,7 +1040,7 @@ find(
 
     if(argc < 3) {
 	g_fprintf(stderr,
-		_("%s: expecting \"find [--sort <hkdlpbf>] [hostname [<disk>]]*\"\n"),
+		_("%s: expecting \"find [--sort <hkdlpbfw>] [hostname [<disk>]]*\"\n"),
 		get_pname());
 	usage();
     }
@@ -1062,6 +1066,8 @@ find(
 	    case 'P':
 	    case 'b':
 	    case 'B':
+	    case 'w':
+	    case 'W':
 		    break;
 	    default: valid_sort=0;
 	    }
@@ -1228,14 +1234,16 @@ remove_holding_file_from_catalog(
     }
 
     if (get_info(file.name, file.disk, &info) == -1) {
-	    g_printf(_("WARNING: No curinfo record for %s:%s\n"), file.name, file.disk);
-	    return 1; /* not an error */
+	g_printf(_("WARNING: No curinfo record for %s:%s\n"), file.name, file.disk);
+	dumpfile_free_data(&file);
+	return 1; /* not an error */
     }
 
     matching_hist_idx = holding_file_find_history(&info, &file);
 
     if (matching_hist_idx == -1) {
         g_printf(_("WARNING: No dump matching %s found in curinfo.\n"), filename);
+	dumpfile_free_data(&file);
 	return 1; /* not an error */
     }
 
@@ -1243,7 +1251,7 @@ remove_holding_file_from_catalog(
     matching_hist = info.history[matching_hist_idx];
 
     /* Remove the history element itself before doing the stats */
-    for (i = matching_hist_idx; i <= NB_HISTORY; i++) {
+    for (i = matching_hist_idx; i < NB_HISTORY; i++) {
         info.history[i] = info.history[i+1];
     }
     info.history[NB_HISTORY].level = -1;
@@ -1317,10 +1325,12 @@ remove_holding_file_from_catalog(
 
     /* write out the changes */
     if (put_info(file.name, file.disk, &info) == -1) {
-	    g_printf(_("Could not write curinfo record for %s:%s\n"), file.name, file.disk);
-	    return 0;
+	g_printf(_("Could not write curinfo record for %s:%s\n"), file.name, file.disk);
+	dumpfile_free_data(&file);
+	return 0;
     }
 
+    dumpfile_free_data(&file);
     return 1;
 }
 
@@ -1402,6 +1412,7 @@ holding(
 		    }
 		}
                 amfree(dumpstr);
+		dumpfile_free_data(&file);
             }
             g_slist_free_full(file_list);
             break;
@@ -1978,6 +1989,7 @@ disklist_one(
     am_host_t *hp;
     netif_t *ip;
     sle_t *excl;
+    pp_scriptlist_t pp_scriptlist;
 
     hp = dp->host;
     ip = hp->netif;
@@ -1988,17 +2000,19 @@ disklist_one(
     g_printf("        interface %s\n",
 	   interface_name(ip->config)[0] ? interface_name(ip->config) : "default");
     g_printf("    disk %s:\n", dp->name);
-    if(dp->device) g_printf("        device %s\n", dp->device);
+    if (dp->device) g_printf("        device %s\n", dp->device);
 
     g_printf("        program \"%s\"\n", dp->program);
-    if(dp->exclude_file != NULL && dp->exclude_file->nb_element > 0) {
+    if (dp->application)
+	g_printf("        application \"%s\"\n", application_name(dp->application));
+    if (dp->exclude_file != NULL && dp->exclude_file->nb_element > 0) {
 	g_printf("        exclude file");
 	for(excl = dp->exclude_file->first; excl != NULL; excl = excl->next) {
 	    g_printf(" \"%s\"", excl->name);
 	}
 	g_printf("\n");
     }
-    if(dp->exclude_list != NULL && dp->exclude_list->nb_element > 0) {
+    if (dp->exclude_list != NULL && dp->exclude_list->nb_element > 0) {
 	g_printf("        exclude list");
 	if(dp->exclude_optional) g_printf(" optional");
 	for(excl = dp->exclude_list->first; excl != NULL; excl = excl->next) {
@@ -2006,16 +2020,16 @@ disklist_one(
 	}
 	g_printf("\n");
     }
-    if(dp->include_file != NULL && dp->include_file->nb_element > 0) {
+    if (dp->include_file != NULL && dp->include_file->nb_element > 0) {
 	g_printf("        include file");
 	for(excl = dp->include_file->first; excl != NULL; excl = excl->next) {
 	    g_printf(" \"%s\"", excl->name);
 	}
 	g_printf("\n");
     }
-    if(dp->include_list != NULL && dp->include_list->nb_element > 0) {
+    if (dp->include_list != NULL && dp->include_list->nb_element > 0) {
 	g_printf("        include list");
-	if(dp->include_optional) g_printf(" optional");
+	if (dp->include_optional) g_printf(" optional");
 	for(excl = dp->include_list->first; excl != NULL; excl = excl->next) {
 	    g_printf(" \"%s\"", excl->name);
 	}
@@ -2025,7 +2039,7 @@ disklist_one(
     g_printf("        dumpcycle %d\n", dp->dumpcycle);
     g_printf("        maxdumps %d\n", dp->maxdumps);
     g_printf("        maxpromoteday %d\n", dp->maxpromoteday);
-    if(dp->bumppercent > 0) {
+    if (dp->bumppercent > 0) {
 	g_printf("        bumppercent %d\n", dp->bumppercent);
     }
     else {
@@ -2142,6 +2156,25 @@ disklist_one(
     g_printf("        skip-incr %s\n", (dp->skip_incr? "YES" : "NO"));
     g_printf("        skip-full %s\n", (dp->skip_full? "YES" : "NO"));
     g_printf("        spindle %d\n", dp->spindle);
+    pp_scriptlist = dp->pp_scriptlist;
+    while (pp_scriptlist != NULL) {
+	g_printf("        script \"%s\"\n", (pp_script_name(pp_scriptlist->data)));
+	pp_scriptlist = pp_scriptlist->next;
+    }
+
+    {
+	dumptype_t *dtype;
+	char **prop, **p1;;
+
+	dtype = lookup_dumptype(dp->dtype_name);
+	prop = val_t_display_strs(dumptype_getconf((dtype), DUMPTYPE_PROPERTY),
+				  0);
+	for(p1 = prop; *p1 != NULL; p1++) {
+	    g_printf("        property %s\n", *p1);
+	    free(*p1);
+	}
+	amfree(prop);
+    }
 
     g_printf("\n");
 }

@@ -34,76 +34,11 @@
 #include "clock.h"
 #include "sockaddr-util.h"
 #include "conffile.h"
-
-#ifdef HAVE_LIBCURL
-#include <curl/curl.h>
-#endif
+#include "base64.h"
 
 static int make_socket(sa_family_t family);
 static int connect_port(sockaddr_union *addrp, in_port_t port, char *proto,
 			sockaddr_union *svaddr, int nonblock);
-
-/*
- * Keep calling read() until we've read buflen's worth of data, or EOF,
- * or we get an error.
- *
- * Returns the number of bytes read, 0 on EOF, or negative on error.
- */
-ssize_t
-fullread(
-    int		fd,
-    void *	vbuf,
-    size_t	buflen)
-{
-    ssize_t nread, tot = 0;
-    char *buf = vbuf;	/* cast to char so we can ++ it */
-
-    while (buflen > 0) {
-	nread = read(fd, buf, buflen);
-	if (nread < 0) {
-	    if ((errno == EINTR) || (errno == EAGAIN))
-		continue;
-	    return ((tot > 0) ? tot : -1);
-	}
-
-	if (nread == 0)
-	    break;
-
-	tot += nread;
-	buf += nread;
-	buflen -= nread;
-    }
-    return (tot);
-}
-
-/*
- * Keep calling write() until we've written buflen's worth of data,
- * or we get an error.
- *
- * Returns the number of bytes written, or negative on error.
- */
-ssize_t
-fullwrite(
-    int		fd,
-    const void *vbuf,
-    size_t	buflen)
-{
-    ssize_t nwritten, tot = 0;
-    const char *buf = vbuf;	/* cast to char so we can ++ it */
-
-    while (buflen > 0) {
-	nwritten = write(fd, buf, buflen);
-	if (nwritten < 0) {
-	    if ((errno == EINTR) || (errno == EAGAIN))
-		continue;
-	    return ((tot > 0) ? tot : -1);
-	}
-	tot += nwritten;
-	buf += nwritten;
-	buflen -= nwritten;
-    }
-    return (tot);
-}
 
 static int
 make_socket(
@@ -116,6 +51,7 @@ make_socket(
     int r;
 #endif
 
+    g_debug("make_socket opening socket with family %d", family);
     s = socket(family, SOCK_STREAM, 0);
     if (s == -1) {
         save_errno = errno;
@@ -376,6 +312,56 @@ bind_portrange(
     return -1;
 }
 
+/*
+ * Writes out the entire iovec
+ */
+ssize_t
+full_writev(
+    int			fd,
+    struct iovec *	iov,
+    int			iovcnt)
+{
+    ssize_t delta, n, total;
+
+    assert(iov != NULL);
+
+    total = 0;
+    while (iovcnt > 0) {
+	/*
+	 * Write the iovec
+	 */
+	n = writev(fd, iov, iovcnt);
+	if (n < 0) {
+	    if (errno != EINTR)
+		return (-1);
+	}
+	else if (n == 0) {
+	    errno = EIO;
+	    return (-1);
+	} else {
+	    total += n;
+	    /*
+	     * Iterate through each iov.  Figure out what we still need
+	     * to write out.
+	     */
+	    for (; n > 0; iovcnt--, iov++) {
+		/* 'delta' is the bytes written from this iovec */
+		delta = ((size_t)n < (size_t)iov->iov_len) ? n : (ssize_t)iov->iov_len;
+		/* subtract from the total num bytes written */
+		n -= delta;
+		assert(n >= 0);
+		/* subtract from this iovec */
+		iov->iov_len -= delta;
+		iov->iov_base = (char *)iov->iov_base + delta;
+		/* if this iovec isn't empty, run the writev again */
+		if (iov->iov_len > 0)
+		    break;
+	    }
+	}
+    }
+    return (total);
+}
+
 
 int
 needs_quotes(
@@ -487,6 +473,19 @@ unquote_string(
 		    in++;
 		    *(out++) = '\f';
 		    continue;
+		} else if (*in >= '0' && *in <= '7') {
+		    char c = 0;
+		    int i = 0;
+
+		    while (i < 3 && *in >= '0' && *in <= '7') {
+			c = (c << 3) + *(in++) - '0';
+			i++;
+		    }
+		    if (c)
+			*(out++) = c;
+		} else if (*in == '\0') {
+		    /* trailing backslash -- ignore */
+		    break;
 		}
 	    }
 	    *(out++) = *(in++);
@@ -494,6 +493,85 @@ unquote_string(
         *out = '\0';
     }
     return (ret);
+}
+
+gchar **
+split_quoted_strings(
+    const gchar *string)
+{
+    char *local = g_strdup(string);
+    char *start = local;
+    char *p = local;
+    char **result;
+    GPtrArray *strs = g_ptr_array_new();
+    int iq = 0;
+
+    while (*p) {
+	if (!iq && *p == ' ') {
+	    *p = '\0';
+	    g_ptr_array_add(strs, unquote_string(start));
+	    start = p+1;
+	} else if (*p == '\\') {
+	    /* next character is taken literally; if it's a multicharacter
+	     * escape (e.g., \171), that doesn't bother us here */
+	    p++;
+	    if (!*p) break;
+	} else if (*p == '\"') {
+	    iq = ! iq;
+	}
+
+	p++;
+    }
+    if (start != string)
+	g_ptr_array_add(strs, unquote_string(start));
+
+    /* now convert strs into a strv, by stealing its references to the underlying
+     * strings */
+    result = g_new0(char *, strs->len + 1);
+    memmove(result, strs->pdata, sizeof(char *) * strs->len);
+
+    g_ptr_array_free(strs, FALSE); /* FALSE => don't free strings */
+    g_free(local);
+
+    return result;
+}
+
+char *
+strquotedstr(char **saveptr)
+{
+    char *  tok = strtok_r(NULL, " ", saveptr);
+    size_t	len;
+    int         in_quote;
+    int         in_backslash;
+    char       *p, *t;
+
+    if (!tok)
+	return tok;
+    len = strlen(tok);
+    in_quote = 0;
+    in_backslash = 0;
+    p = tok;
+    while (in_quote || in_backslash || *p != '\0') {
+	if (*p == '\0') {
+	    /* append a new token */
+	    t = strtok_r(NULL, " ", saveptr);
+	    if (!t)
+		return NULL;
+	    tok[len] = ' ';
+	    len = strlen(tok);
+	}
+	if (!in_backslash) {
+	    if (*p == '"')
+		in_quote = !in_quote;
+	    else if (*p == '\\') {
+		in_backslash = 1;
+	    }
+	} else {
+	   in_backslash = 0;
+	}
+	p++;
+    }
+    return tok;
 }
 
 char *
@@ -535,7 +613,7 @@ int copy_file(
 {
     int     infd, outfd;
     int     save_errno;
-    ssize_t nb;
+    size_t nb;
     char    buf[32768];
     char   *quoted;
 
@@ -559,7 +637,7 @@ int copy_file(
     }
 
     while((nb=read(infd, &buf, SIZEOF(buf))) > 0) {
-	if(fullwrite(outfd,&buf,(size_t)nb) < nb) {
+	if(full_write(outfd,&buf,nb) < nb) {
 	    save_errno = errno;
 	    quoted = quote_string(dst);
 	    *errmsg = vstrallocf(_("Error writing to '%s': %s"),
@@ -571,7 +649,7 @@ int copy_file(
 	}
     }
 
-    if (nb < 0) {
+    if (errno != 0) {
 	save_errno = errno;
 	quoted = quote_string(src);
 	*errmsg = vstrallocf(_("Error reading from '%s': %s"),
@@ -712,28 +790,6 @@ int compare_possibly_null_strings(const char * a, const char * b) {
     }
 }
 
-gboolean amanda_thread_init(void) {
-    gboolean success = FALSE;
-#ifdef HAVE_LIBCURL
-    static gboolean did_curl_init = FALSE;
-    if (!did_curl_init) {
-# ifdef G_THREADS_ENABLED
-        g_assert(!g_thread_supported());
-# endif
-        g_assert(curl_global_init(CURL_GLOBAL_ALL) == 0);
-        did_curl_init = TRUE;
-    }
-#endif
-#if defined(G_THREADS_ENABLED) && !defined(G_THREADS_IMPL_NONE)
-    if (g_thread_supported()) {
-        return TRUE;
-    }
-    g_thread_init(NULL);
-    success = TRUE;
-#endif
-    return success;
-}
-
 int
 resolve_hostname(const char *hostname,
 	int socktype,
@@ -756,7 +812,14 @@ resolve_hostname(const char *hostname,
 #endif
 
     memset(&hints, 0, sizeof(hints));
+#ifdef WORKING_IPV6
+    /* get any kind of addresss */
     hints.ai_family = AF_UNSPEC;
+#else
+    /* even if getaddrinfo supports IPv6, don't let it return
+     * such an address */
+    hints.ai_family = AF_INET;
+#endif
     hints.ai_flags = flags;
     hints.ai_socktype = socktype;
     result = getaddrinfo(hostname, NULL, &hints, &myres);
@@ -844,6 +907,11 @@ check_running_as(running_as_flags who)
 #endif
 
     switch (who & RUNNING_AS_USER_MASK) {
+	case RUNNING_AS_ANY:
+	    uid_target = uid_me;
+	    uname_target = uname_me;
+	    return;
+
 	case RUNNING_AS_ROOT:
 	    uid_target = 0;
 	    uname_target = "root";
@@ -923,28 +991,123 @@ int
 become_root(void)
 {
 #ifndef SINGLE_USERID
+    // if euid !=0, it set only euid
+    if (setuid(0) == -1) return 0;
+    // will set ruid because euid == 0.
     if (setuid(0) == -1) return 0;
 #endif
     return 1;
 }
 
+
+char *
+base64_decode_alloc_string(
+    char *in)
+{
+    char   *out;
+    size_t  in_len = strlen(in);
+    size_t  out_len = 3 * (in_len / 4) + 3;
+
+    out = malloc(out_len);
+    if (!base64_decode(in, in_len, out, &out_len)) {
+	amfree(out);
+	return NULL;
+    }
+    out[out_len] = '\0';
+
+    return out;
+}
+
+
+/* A GHFunc (callback for g_hash_table_foreach) */
+void count_proplist(
+    gpointer key_p G_GNUC_UNUSED,
+    gpointer value_p,
+    gpointer user_data_p)
+{
+    property_t *value_s = value_p;
+    int    *nb = user_data_p;
+    GSList  *value;
+
+    for(value=value_s->values; value != NULL; value = value->next) {
+	(*nb)++;
+    }
+}
+
+/* A GHFunc (callback for g_hash_table_foreach) */
+void proplist_add_to_argv(
+    gpointer key_p,
+    gpointer value_p,
+    gpointer user_data_p)
+{
+    char         *property_s = key_p;
+    property_t   *value_s = value_p;
+    char       ***argv = user_data_p;
+    GSList       *value;
+    char         *q, *w, *qprop, *qvalue;
+
+    q = quote_string(property_s);
+    /* convert to lower case */
+    for (w=q; *w != '\0'; w++) {
+	*w = tolower(*w);
+	if (*w == '_')
+	    *w = '-';
+    }
+    qprop = stralloc2("--", q);
+    amfree(q);
+    for(value=value_s->values; value != NULL; value = value->next) {
+	qvalue = quote_string((char *)value->data);
+	**argv = stralloc(qprop);
+	(*argv)++;
+	**argv = qvalue;
+	(*argv)++;
+    }
+    amfree(qprop);
+}
+
+
 /*
  * Process parameters
  */
 
-/* current process name */
-#define MAX_PNAME 128
-static char pname[MAX_PNAME] = "unknown";
+static char *pname = NULL;
+static char *ptype = NULL;
+static pcontext_t pcontext = CONTEXT_DEFAULT; 
 
 void
 set_pname(char *p)
 {
-    g_strlcpy(pname, p, sizeof(pname));
+    pname = newstralloc(pname, p);
 }
 
 char *
 get_pname(void)
 {
+    if (!pname) pname = stralloc("unknown");
     return pname;
 }
 
+void
+set_ptype(char *p)
+{
+    ptype = newstralloc(ptype, p);
+}
+
+char *
+get_ptype(void)
+{
+    if (!ptype) ptype = stralloc("unknown");
+    return ptype;
+}
+
+void
+set_pcontext(pcontext_t pc)
+{
+    pcontext = pc;
+}
+
+pcontext_t
+get_pcontext(void)
+{
+    return pcontext;
+}

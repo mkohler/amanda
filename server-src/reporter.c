@@ -63,7 +63,7 @@
 #define STATUS_TAPE     16
 
 typedef struct line_s {
-    struct line_s *next;
+    struct line_s *next, *last;
     char *str;
 } line_t;
 
@@ -84,6 +84,7 @@ typedef struct repdata_s {
     timedata_t taper;
     timedata_t dumper;
     timedata_t chunker;
+    timedata_t planner;
     int level;
     struct repdata_s *next;
 } repdata_t;
@@ -302,6 +303,7 @@ addline(
     /* allocate new line node */
     new = (line_t *) alloc(SIZEOF(line_t));
     new->next = NULL;
+    new->last = NULL;
     new->str = stralloc(str);
 
     /* add to end of list */
@@ -309,9 +311,12 @@ addline(
     if (p == NULL) {
 	*lp = new;
     } else {
-	while (p->next != NULL)
-	    p = p->next;
-	p->next = new;	
+	if (p->last) {
+	    p->last->next = new;
+	} else {
+ 	    p->next = new;
+	}
+ 	p->last = new;
     }
 }
 
@@ -344,6 +349,7 @@ main(
     char *lbl_templ = NULL;
     config_overwrites_t *cfg_ovr = NULL;
     char *cfg_opt = NULL;
+    char *mailer;
 
     /*
      * Configure program for internationalization:
@@ -460,25 +466,29 @@ main(
 
     amfree(cwd);
 
-#if !defined MAILER
-    if(!outfname) {
-	g_printf(_("You must run amreport with '-f <output file>' because configure\n"));
-	g_printf(_("didn't find a mailer.\n"));
-	exit (1);
-    }
-#endif
-
     /* read configuration files */
 
     /* ignore any errors reading the config file (amreport can run without a config) */
     config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_USE_CWD, cfg_opt);
-    if (cfg_ovr) apply_config_overwrites(cfg_ovr);
+    apply_config_overwrites(cfg_ovr);
+
+    if (config_errors(NULL) >= CFGERR_WARNINGS) {
+	config_print_errors();
+    }
 
     check_running_as(RUNNING_AS_DUMPUSER);
 
-    dbrename(config_name, DBG_SUBDIR_SERVER);
+    dbrename(get_config_name(), DBG_SUBDIR_SERVER);
 
     safe_cd(); /* must be called *after* config_init() */
+
+    mailer = getconf_str(CNF_MAILER);
+    if (mailer && *mailer == '\0')
+	mailer = NULL;
+    if (!mailer && !outfname) {
+	g_printf(_("You must run amreport with '-f <output file>' because a mailer is not defined\n"));
+	exit (1);
+    }
 
     conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
     /* Ignore error from read_diskfile */
@@ -605,41 +615,6 @@ main(
     /* ignore SIGPIPE so if a child process dies we do not also go away */
     signal(SIGPIPE, SIG_IGN);
 
-    /* open pipe to mailer */
-
-    if(outfname) {
-	/* output to a file */
-	if((mailf = fopen(outfname,"w")) == NULL) {
-	    error(_("could not open output file: %s %s"), outfname, strerror(errno));
-	    /*NOTREACHED*/
-	}
-        if (mailto != NULL) {
-		g_fprintf(mailf, "To: %s\n", mailto);
-		g_fprintf(mailf, "Subject: %s\n\n", subj_str);
-	}
-
-    } else {
-#ifdef MAILER
-    	if(mailto) {
-		mail_cmd = vstralloc(MAILER,
-			     " -s", " \"", subj_str, "\"",
-			     " ", mailto, NULL);
-		if((mailf = popen(mail_cmd, "w")) == NULL) {
-	    	error(_("could not open pipe to \"%s\": %s"),
-		  	mail_cmd, strerror(errno));
-	    	/*NOTREACHED*/
-		}
-	}
-	else {
-		if(mailout) {
-                   g_printf(_("No mail sent! "));
-		   g_printf(_("No valid mail address has been specified in amanda.conf or on the commmand line\n"));
-		}
-		mailf = NULL;
-	}
-#endif
-    }
-
     /* open pipe to print spooler if necessary) */
 
     if(psfname) {
@@ -694,9 +669,54 @@ main(
 	}
     }
 
-    amfree(subj_str);
-
     sort_disks();
+
+    /* open pipe to mailer */
+
+    if(outfname) {
+	/* output to a file */
+	if((mailf = fopen(outfname,"w")) == NULL) {
+	    error(_("could not open output file: %s %s"), outfname, strerror(errno));
+	    /*NOTREACHED*/
+	}
+        if (mailto != NULL) {
+		g_fprintf(mailf, "To: %s\n", mailto);
+		g_fprintf(mailf, "Subject: %s\n\n", subj_str);
+	}
+
+    } else if (mailer) {
+    	if(mailto) {
+	    send_amreport_t send_amreport;
+	    int             do_mail;
+
+	    send_amreport = getconf_send_amreport(CNF_SEND_AMREPORT_ON);
+	    do_mail = send_amreport == SEND_AMREPORT_ALL ||
+		      (send_amreport == SEND_AMREPORT_STRANGE &&
+		       (!got_finish || first_failed || errsum ||
+		        first_strange || errdet || strangedet)) ||
+		      (send_amreport == SEND_AMREPORT_ERROR &&
+		       (!got_finish || first_failed || errsum || errdet));
+	    if (do_mail) {
+		mail_cmd = vstralloc(mailer,
+			     " -s", " \"", subj_str, "\"",
+			     " ", mailto, NULL);
+		if((mailf = popen(mail_cmd, "w")) == NULL) {
+		    error(_("could not open pipe to \"%s\": %s"),
+			  mail_cmd, strerror(errno));
+		    /*NOTREACHED*/
+		}
+	    }
+	}
+	else {
+	    if (mailout) {
+                g_printf(_("No mail sent! "));
+		g_printf(_("No valid mail address has been specified in amanda.conf or on the commmand line\n"));
+	    }
+	    mailf = NULL;
+	}
+    }
+
+    amfree(subj_str);
 
     if(mailf) {
 
@@ -705,7 +725,7 @@ main(
 	if (ghostname) {
 	    g_fprintf(mailf, _("Hostname: %s\n"), ghostname);
 	    g_fprintf(mailf, _("Org     : %s\n"), getconf_str(CNF_ORG));
-	    g_fprintf(mailf, _("Config  : %s\n"), config_name);
+	    g_fprintf(mailf, _("Config  : %s\n"), get_config_name());
 	    g_fprintf(mailf, _("Date    : %s\n"),
 		    nicedate(run_datestamp ? run_datestamp : "0"));
 	    g_fprintf(mailf,"\n");
@@ -776,7 +796,7 @@ main(
 	int exitcode;
         if((exitcode = pclose(mailf)) != 0) {
 	    char *exitstr = str_exit_status("mail command", exitcode);
-            error(exitstr);
+            error("%s", exitstr);
 	    /*NOTREACHED*/
 	}
         mailf = NULL;
@@ -807,20 +827,24 @@ main(
 	double q = (b);			    \
 	if (!isnormal(q))		    \
 	    g_fprintf((fp),"  -- ");	    \
-	else if ((q = (a)/q) >= 999.95)	    \
-	    g_fprintf((fp), "###.#");	    \
+	else if ((q = (a)/q) >= 99999.95)   \
+	    g_fprintf((fp), "#####");	    \
+	else if (q >= 999.95)		    \
+	    g_fprintf((fp), "%5.0lf",q);    \
 	else				    \
-	    g_fprintf((fp), "%5.1lf",q);	    \
+	    g_fprintf((fp), "%5.1lf",q);    \
     } while(0)
 #define divzero_wide(fp,a,b)	       	    \
     do {       	       	       	       	    \
 	double q = (b);			    \
 	if (!isnormal(q))		    \
 	    g_fprintf((fp),"    -- ");	    \
-	else if ((q = (a)/q) >= 99999.95)   \
-	    g_fprintf((fp), "#####.#");	    \
+	else if ((q = (a)/q) >= 9999999.95) \
+	    g_fprintf((fp), "#######");	    \
+	else if (q >= 99999.95)		    \
+	    g_fprintf((fp), "%7.0lf",q);    \
 	else				    \
-	    g_fprintf((fp), "%7.1lf",q);	    \
+	    g_fprintf((fp), "%7.1lf",q);    \
     } while(0)
 
 static void
@@ -1047,7 +1071,7 @@ output_tapeinfo(void)
 	if (h_size > 0) {
 	    g_fprintf(mailf,
 		    _("There are %lld%s of dumps left in the holding disk.\n"),
-		    (long long)h_size, displayunit);
+		    (long long)du(h_size), displayunit);
 	    if (getconf_boolean(CNF_AUTOFLUSH)) {
 		g_fprintf(mailf, _("They will be flushed on the next run.\n"));
 	    } else {
@@ -1282,7 +1306,7 @@ CalcMaxWidth(void)
 				"%3d:%02d", mnsc(repdata->dumper.sec));
 		else
 		    g_snprintf(TimeRateBuffer, SIZEOF(TimeRateBuffer),
-				"N/A ");
+				" ");
 		CheckStringMax(&ColumnData[DumpTime], TimeRateBuffer);
 
 		CheckFloatMax(&ColumnData[DumpRate], repdata->dumper.kps); 
@@ -1298,14 +1322,14 @@ CalcMaxWidth(void)
 		  "%3d:%02d", mnsc(repdata->taper.sec));
 	    else
 		g_snprintf(TimeRateBuffer, SIZEOF(TimeRateBuffer),
-		  "N/A ");
+		  " ");
 	    CheckStringMax(&ColumnData[TapeTime], TimeRateBuffer);
 
 	    if(repdata->taper.result == L_SUCCESS ||
 		    repdata->taper.result == L_CHUNKSUCCESS)
 		CheckFloatMax(&ColumnData[TapeRate], repdata->taper.kps);
 	    else
-		CheckStringMax(&ColumnData[TapeRate], "N/A ");
+		CheckStringMax(&ColumnData[TapeRate], " ");
 	}
       }
     }
@@ -1323,6 +1347,7 @@ output_summary(void)
     int i, h, w1, wDump, wTape;
     double outsize, origsize;
     double f;
+    int cdWidth;
 
     HostName = StringToColumn("HostName");
     Disk = StringToColumn("Disk");
@@ -1411,9 +1436,14 @@ output_summary(void)
 	    qdevname = quote_string(devname);
 	    devlen = strlen(qdevname);
 	    if (devlen > (size_t)cd->Width) {
-	   	fputc('-', mailf); 
-		g_fprintf(mailf, cd->Format, cd->Width-1, cd->Precision-1,
-			qdevname+devlen - (cd->Width-1) );
+		int nb = 1;
+		if (strcmp(devname, qdevname)) {
+		    nb = 2;
+		    fputc('"', mailf); 
+		}
+		fputc('-', mailf); 
+		g_fprintf(mailf, cd->Format, cd->Width-nb, cd->Precision-nb,
+			qdevname+devlen - (cd->Width-nb) );
 	    }
 	    else
 		g_fprintf(mailf, cd->Format, cd->Width, cd->Width, qdevname);
@@ -1476,7 +1506,7 @@ output_summary(void)
 	    if(isnormal(origsize))
 		g_fprintf(mailf, cd->Format, cd->Width, cd->Precision, du(origsize));
 	    else
-		g_fprintf(mailf, "%*.*s", cd->Width, cd->Width, "N/A");
+		g_fprintf(mailf, "%*.*s", cd->Width, cd->Width, "");
 
 	    cd= &ColumnData[OutKB];
 	    g_fprintf(mailf, "%*s", cd->PrefixSpace, "");
@@ -1496,23 +1526,46 @@ output_summary(void)
 	    fputs(sDivZero(pct(outsize), f, Compress), mailf);
 
 	    cd= &ColumnData[DumpTime];
+	    cdWidth = 0;
 	    g_fprintf(mailf, "%*s", cd->PrefixSpace, "");
 	    if(repdata->dumper.result == L_SUCCESS ||
-	       repdata->dumper.result == L_CHUNKSUCCESS)
+	       repdata->dumper.result == L_CHUNKSUCCESS) {
 		g_snprintf(TimeRateBuffer, SIZEOF(TimeRateBuffer),
-		  "%3d:%02d", mnsc(repdata->dumper.sec));
-	    else
-		g_snprintf(TimeRateBuffer, SIZEOF(TimeRateBuffer),
-		  "N/A ");
-	    g_fprintf(mailf, cd->Format, cd->Width, cd->Width, TimeRateBuffer);
+		  "%3d:%02d", mnsc(repdata->dumper.sec)); 
+		g_fprintf(mailf, cd->Format, cd->Width, cd->Width,
+			  TimeRateBuffer);
+	    } else {
+		cdWidth = cd->Width;
+	    }
 
 	    cd= &ColumnData[DumpRate];
 	    g_fprintf(mailf, "%*s", cd->PrefixSpace, "");
-	    if(repdata->dumper.result == L_SUCCESS ||
-		    repdata->dumper.result == L_CHUNKSUCCESS)
-		g_fprintf(mailf, cd->Format, cd->Width, cd->Precision, repdata->dumper.kps);
-	    else
-		g_fprintf(mailf, "%*s", cd->Width, "N/A ");
+	    if (repdata->dumper.result == L_SUCCESS ||
+		repdata->dumper.result == L_CHUNKSUCCESS) {
+		g_fprintf(mailf, cd->Format, cd->Width, cd->Precision,
+			  repdata->dumper.kps);
+	    } else if (repdata->dumper.result == L_FAIL) {
+		if (repdata->chunker.result == L_PARTIAL ||
+		    repdata->taper.result == L_PARTIAL) {
+		    int i;
+		    cdWidth += cd->Width;
+		    i = (cdWidth - strlen("PARTIAL")) / 2;
+		    g_fprintf(mailf, "%*s%*s", cdWidth-i, "PARTIAL", i, "");
+		} else {
+		    int i;
+		    cdWidth += cd->Width;
+		    i = (cdWidth - strlen("FAILED")) / 2;
+		    g_fprintf(mailf, "%*s%*s", cdWidth-i, "FAILED", i, "");
+		}
+	    } else if (repdata->dumper.result == L_BOGUS) {
+		int i;
+		cdWidth += cd->Width;
+		i = (cdWidth - strlen("FLUSH")) / 2;
+		g_fprintf(mailf, "%*s%*s", cdWidth-i, "FLUSH", i, "");
+	    } else {
+		cdWidth += cd->Width;
+		g_fprintf(mailf, "%*s", cdWidth, "");
+	    }
 
 	    cd= &ColumnData[TapeTime];
 	    g_fprintf(mailf, "%*s", cd->PrefixSpace, "");
@@ -1530,7 +1583,7 @@ output_summary(void)
 		  "%3d:%02d", mnsc(repdata->taper.sec));
 	    else
 		g_snprintf(TimeRateBuffer, SIZEOF(TimeRateBuffer),
-		  "N/A ");
+		  " ");
 	    g_fprintf(mailf, cd->Format, cd->Width, cd->Width, TimeRateBuffer);
 
 	    cd= &ColumnData[TapeRate];
@@ -1540,7 +1593,7 @@ output_summary(void)
 	       repdata->taper.result == L_CHUNKSUCCESS)
 		g_fprintf(mailf, cd->Format, cd->Width, cd->Precision, repdata->taper.kps);
 	    else
-		g_fprintf(mailf, "%*s", cd->Width, "N/A ");
+		g_fprintf(mailf, "%*s", cd->Width, " ");
 
 	    if (repdata->chunker.result == L_PARTIAL)
 		g_fprintf(mailf, " PARTIAL");
@@ -1916,10 +1969,23 @@ static void
 handle_note(void)
 {
     char *str = NULL;
+    char *pidstr;
 
-    str = vstrallocf("  %s: %s", program_str[curprog], curstr);
-    addline(&notes, str);
-    amfree(str);
+    if (curprog == P_DRIVER &&
+	BSTRNCMP(curstr, "Taper protocol error") == 0) {
+	exit_status |= STATUS_TAPE;
+    }
+    pidstr = index(curstr,' ');
+    if (pidstr) {
+	pidstr++;
+    }
+    /* Don't report the pid lines */
+    if ((!pidstr || BSTRNCMP(pidstr, "pid ") != 0) &&
+	BSTRNCMP(curstr, "pid-done ") != 0) {
+	str = vstrallocf("  %s: %s", program_str[curprog], curstr);
+	addline(&notes, str);
+	amfree(str);
+    }
 }
 
 
@@ -2338,6 +2404,17 @@ handle_success(
 	    if(!isnormal(origkb))
 		origkb = 0.1;
 	}
+	if (curprog == P_TAPER && logtype == L_PARTIAL) {
+	    char *t = index(s-1,']');
+	    if (t) {
+		char *errmsg, *u;
+		errmsg = unquote_string(t+1);
+		u = vstrallocf("  %s: partial %s: %s",
+			       prefix(hostname, diskname, level),
+			       program_str[curprog], errmsg);
+		addline(&errsum, u);
+	    }
+	}
     }
 
 
@@ -2613,6 +2690,8 @@ handle_failed(void)
 
 	if(curprog == P_TAPER)
 	    sp = &(repdata->taper);
+	else if (curprog == P_PLANNER)
+	    sp = &(repdata->planner);
 	else sp = &(repdata->dumper);
 
 	if(sp->result != L_SUCCESS)
@@ -2620,10 +2699,17 @@ handle_failed(void)
     }
     amfree(datestamp);
 
-    str = vstrallocf(_("FAILED %s"), errstr);
-    addtoX_summary(&first_failed, &last_failed, hostname, qdiskname, level,
-		   str);
-    amfree(str);
+    if (!((curprog == P_CHUNKER &&
+	   strcmp(errstr, "[dumper returned FAILED]") == 0) ||
+	  (curprog == P_CHUNKER &&
+	   strcmp(errstr, "[Not enough holding disk space]") == 0) ||
+	  (curprog == P_CHUNKER &&
+	   strcmp(errstr, "[cannot read header: got 0 bytes instead of 32768]") == 0))) {
+	str = vstrallocf(_("FAILED %s"), errstr);
+	addtoX_summary(&first_failed, &last_failed, hostname, qdiskname, level,
+		       str);
+	amfree(str);
+    }
 
     if(curprog == P_DUMPER) {
 	addline(&errdet,"");
@@ -2684,7 +2770,7 @@ generate_bad_estimate(void)
 		    else
 			outsize  = repdata->dumper.outsize;
 
-		    if(repdata->est_csize * 0.9 > outsize) {
+		    if( (repdata->est_csize * 0.9 > outsize) && ( repdata->est_csize - outsize > 1.0e5 ) ) {
 			g_snprintf(s, 1000,
 				_("  big estimate: %s %s %d"),
 				 repdata->disk->host->hostname,
@@ -2699,7 +2785,7 @@ generate_bad_estimate(void)
 			s[999] = '\0';
 			addline(&notes, s);
 		    }
-		    else if(repdata->est_csize * 1.1 < outsize) {
+		    else if( (repdata->est_csize * 1.1 < outsize) && (outsize - repdata->est_csize > 1.0e5 ) ) {
 			g_snprintf(s, 1000,
 				_("  small estimate: %s %s %d"),
 				 repdata->disk->host->hostname,
@@ -2978,7 +3064,7 @@ do_postscript_output(void)
 		    else {
 			g_fprintf(postscript,"(%s) (%s) (%d) (%3.0d) (%8s) (%8.0lf) DrawHost\n",
 			    dp->host->hostname, dp->name, repdata->level,
-			    repdata->taper.filenum, "N/A", 
+			    repdata->taper.filenum, "", 
 			    outsize);
 		    }
 		}

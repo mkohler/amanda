@@ -1,20 +1,178 @@
 .\"     Title: amcleanup
-.\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 08/22/2008
-.\"    Manual: 
-.\"    Source: 
+.\"    Author: James da Silva <jds@amanda.org>
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 01/22/2009
+.\"    Manual: System Administration Commands
+.\"    Source: Amanda 2.6.1
+.\"  Language: English
 .\"
-.TH "AMCLEANUP" "8" "08/22/2008" "" ""
+.TH "AMCLEANUP" "8" "01/22/2009" "Amanda 2\&.6\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
-.SH "NAME"
-amcleanup - run the Amanda cleanup process after a failure
-.SH "SYNOPSIS"
-.HP 10
-\fBamcleanup\fR [\fB\-k\fR] [\fB\-v\fR] \fIconfig\fR
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "Name"
+amcleanup \- run the \fIAmanda\fR cleanup process after a failure
+.SH "Synopsis"
+.fam C
+.HP \w'\fBamcleanup\fR\ 'u
+\fBamcleanup\fR [\fB\-k\fR] [\fB\-p\fR] [\fB\-v\fR] \fIconfig\fR
+.fam
 .SH "DESCRIPTION"
 .PP
 \fBAmcleanup\fR
@@ -22,42 +180,47 @@ generates the
 \fI\fIAmanda\fR\fR\fI Mail Report\fR
 and updates the
 \fIAmanda\fR
-databases after a system failure on a tape server host\. This cleanup process is normally done automatically as part of the
+databases after a system failure on a tape server host\&. This cleanup process is normally done automatically as part of the
 \fBamdump\fR
 program, but if
 \fBamdump\fR
 cannot complete for some reason (usually because of a tape server host crash),
 \fBamcleanup\fR
-must be run some time later (usually during system boot)\.
+must be run some time later (usually during system boot)\&.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR\.
+\fIAmanda\fR\&.
 .SH "OPTIONS"
 .PP
 \fB\-k\fR
 .RS 4
-Kill all Amanda processes\.
+Kill all process listed in the log file are their child\&. if there is no log file, then kill all amdump and amflush process and their child\&.
+.RE
+.PP
+\fB\-p\fR
+.RS 4
+Do the cleanup only if all process listed in the log file are already terminated\&.
 .RE
 .PP
 \fB\-v\fR
 .RS 4
-Generate verbose output\.
+Generate verbose output\&.
 .RE
 .SH "EXAMPLES"
 .PP
 This example runs the
 \fIAmanda\fR
-cleanup process by hand after a failure\.
+cleanup process by hand after a failure\&.
 .nf
 % amcleanup daily
 .fi
 .PP
-Putting the following line in a system boot script (e\.g\.
-\fI/etc/rc\.local\fR) runs the
+Putting the following line in a system boot script (e\&.g\&.
+\FC/etc/rc\&.local\F[]) runs the
 \fIAmanda\fR
-cleanup process as part of the reboot, eliminating the need to run it by hand\.
+cleanup process as part of the reboot, eliminating the need to run it by hand\&.
 .nf
 /usr/local/sbin/amcleanup daily
 .fi
@@ -66,18 +229,15 @@ If nothing needs to be done,
 \fBamcleanup\fR
 exits normally with the message:
 .nf
-amcleanup: no unprocessed logfile to clean up\.
+amcleanup: no unprocessed logfile to clean up\&.
 .fi
-.SH "AUTHOR"
-.PP
-James da Silva,
-<jds@amanda\.org>: Original text
-.PP
-Stefan G\. Weichinger,
-<sgw@amanda\.org>, maintainer of the
-\fIAmanda\fR\-documentation: XML\-conversion
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
 \fBamdump\fR(8),
 : http://wiki.zmanda.com
+.SH "Authors"
+.PP
+\fBJames da Silva\fR <\&jds@amanda\&.org\&>
+.PP
+\fBStefan G\&. Weichinger\fR <\&sgw@amanda\&.org\&>

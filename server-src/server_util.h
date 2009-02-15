@@ -54,23 +54,40 @@ enum {
 extern const char *cmdstr[];
 
 struct cmdargs {
+    cmd_t cmd;
     int argc;
-    char *argv[MAX_ARGS + 1];
+    char **argv;
 };
 
-cmd_t getcmd(struct cmdargs *cmdargs);
-cmd_t getresult(int fd, int show, int *result_argc, char **result_argv, int max_arg);
+struct cmdargs *getcmd(void);
+struct cmdargs *get_pending_cmd(void);
+void free_cmdargs(struct cmdargs *cmdargs);
 void putresult(cmd_t result, const char *, ...) G_GNUC_PRINTF(2, 3);
 int taper_cmd(cmd_t cmd, void *ptr, char *destname, int level, char *datestamp);
 
 struct disk_s;
 struct chunker_s;
-int chunker_cmd(struct chunker_s *chunker, cmd_t cmd, struct disk_s *dp);
+int chunker_cmd(struct chunker_s *chunker, cmd_t cmd, struct disk_s *dp,
+		char *mesg);
 
 struct dumper_s;
-int dumper_cmd(struct dumper_s *dumper, cmd_t cmd, struct disk_s *dp);
+int dumper_cmd(struct dumper_s *dumper, cmd_t cmd, struct disk_s *dp,
+	       char *mesg);
 
 char *amhost_get_security_conf(char *string, void *arg);
 int check_infofile(char *infodir, disklist_t *dl, char **errmsg);
+
+void run_server_script(pp_script_t  *pp_script,
+		       execute_on_t  execute_on,
+		       char         *config,
+		       disk_t       *dp,
+		       int           level);
+void run_server_scripts(execute_on_t  execute_on,
+			char         *config,
+			disk_t       *dp,
+		        int           level);
+
+void run_amcleanup(char *config_name);
+char *get_master_process(char *logfile);
 
 #endif	/* SERVER_UTIL_H */

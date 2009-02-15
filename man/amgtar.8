@@ -1,0 +1,302 @@
+.\"     Title: amgtar
+.\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 01/22/2009
+.\"    Manual: System Administration Commands
+.\"    Source: Amanda 2.6.1
+.\"  Language: English
+.\"
+.TH "AMGTAR" "8" "01/22/2009" "Amanda 2\&.6\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "Name"
+amgtar \- Amanda Application to interface with GNU Tar
+.SH "DESCRIPTION"
+.PP
+Amgtar is an
+\fIAmanda\fR
+Application API script\&. It should not be run by users directly\&. It uses GNU Tar to backup and restore data\&.
+.SH "PROPERTIES"
+.PP
+This section lists the properties that control amgtar\'s functionality\&. See
+\fBamanda-applications\fR(7)
+for information on application properties and how they are configured\&.
+.PP
+ATIME\-PRESERVE
+.RS 4
+
+If "YES" (the default), amgtar use the \fI\-\-atime\-preserve=system\fR option of gnutar to not update the atime of all files accessed; if "NO", gnutar will updates the atime for all files accessed\&. This property works only if you have gnutar 1\&.15\&.90 or newer, if not, you must set ATIME_PRESERVE to "NO"\&.
+.RE
+.PP
+CHECK\-DEVICE
+.RS 4
+
+If "YES" (the default), amgtar checks that the device number doesn\'t change for each file\&. If "NO", changes in device number are ignored\&.  To ignore device numbers, tar must support the \fI\-\-no\-check\-device\fR option (gnutar 1\&.19\&.90 and newer)\&. This option is needed for some filesystems and devices on which device numbers change frequently, such as LVM or FiberChannel\&.
+.RE
+.PP
+DIRECTORY
+.RS 4
+
+If set, gnutar will backup from that directory instead of the \fIdiskdevice\fR set by the DLE\&.
+.RE
+.PP
+GNUTAR\-LISTDIR
+.RS 4
+
+The directory where gnutar stores the database it uses to generate incremental dumps\&.  The default is set when \fIAmanda\fR is built\&.
+.RE
+.PP
+GNUTAR\-PATH
+.RS 4
+
+The path to the gnutar binary\&.  The default is set when \fIAmanda\fR is built\&.
+.RE
+.PP
+ONE\-FILE\-SYSTEM
+.RS 4
+
+If "YES" (the default), do not allow gnutar to cross filesystem boundaries\&. If "NO", gnutar will cross filesystem boundaries\&.  This corresponds to the \fI\-\-one\-filesystem\fR option of gnutar\&.
+.RE
+.PP
+TAR\-BLOCKSIZE
+.RS 4
+
+Block size of Nx512 bytes (default N=20)\&.  This corresponds to the \fI\-\-blocking\-factor\fR option of gnutar\&.
+.RE
+.PP
+SPARSE
+.RS 4
+
+If "YES" (the default), gnutar will store sparse files efficiently\&. If "NO", then the \fI\-\-sparse\fR option is not given to gnutar, and it will not try to detect sparse files\&.
+.RE
+.PP
+EXIT\-HANDLING
+.RS 4
+
+List which exit status of gtar are good or bad\&. eg\&. "1=GOOD 2=BAD", exit status of 1 will produce a good backup, exit status of 2 will give an error\&.
+.RE
+.PP
+NORMAL
+.RS 4
+
+List all regex (POSIX Extended Regular Expression syntax) that are normal output from gtar\&. These output are in the "FAILED DUMP DETAILS" section of the email report if the dump result is STRANGE or FAILED\&. Default values:
+.nf
+  "^could not open conf file"
+  "^Elapsed time:"
+  "^Throughput"
+  ": socket ignored$"
+  ": File \&.* shrunk by [0\-9][0\-9]* bytes, padding with zeros"
+  ": Cannot add file \&.*: No such file or directory$"
+  ": Error exit delayed from previous errors"
+.fi
+To treat one of these default patterns differently, specify it explicitly in a different property\&.
+.RE
+.PP
+IGNORE
+.RS 4
+
+List all regex (POSIX Extended Regular Expression syntax) that amanda ignore\&. These output are never in the email report\&. Default values:
+.nf
+  ": Directory is new$"
+  ": Directory has been renamed"
+.fi
+To treat one of these default patterns differently, specify it explicitly in a different property\&.
+.RE
+.PP
+STRANGE
+.RS 4
+
+List all regex (POSIX Extended Regular Expression syntax) that are strange output from gtar\&. All gtar output that doesn\'t match a normal or ignore regex are strange by default\&. The result of the dump is STRANGE if gtar produce a strange output\&. These output are in the "FAILED DUMP DETAILS" section of the email report\&.
+.RE
+.SH "EXAMPLE"
+.nf
+  define application\-tool app_amgtar {
+    property "ATIME\-PRESERVE" "NO"
+    property "CHECK\-DEVICE" "YES"
+    property "GNUTAR\-LISTDIR" "
+    property "GNUTAR\-PATH" "/bin/tar"
+    property "ONE\-FILE\-SYSTEM" "YES"
+    property "TAR_BLOCKSIZE" "20"
+    property "SPARSE" "YES"
+    property "EXIT\-HANDLING" "1=GOOD 2=BAD"
+    # change a default NORMAL regex to a STRANGE regex\&.
+    property "STRANGE" ": socket ignored$"
+    # add three new IGNORE regex
+    property "IGNORE" ": Directory is new$"
+    property append "IGNORE" ": Directory has been renamed"
+    property append "IGNORE" "file changed as we read it$"
+  }
+.fi
+.SH "SEE ALSO"
+.PP
+
+\fBamanda.conf\fR(5),
+\fBamanda-applications\fR(7)
+.SH "Authors"
+.PP
+\fBJean\-Louis Martineau\fR <\&martineau@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (\FChttp://www\&.zmanda\&.com\F[])
+.RE
+.PP
+\fBDustin J\&. Mitchell\fR <\&dustin@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (\FChttp://www\&.zmanda\&.com\F[])
+.RE

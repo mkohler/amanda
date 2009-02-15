@@ -52,6 +52,8 @@ typedef struct amhost_s {
     time_t start_t;			/* start dump after this time */
     char *up;				/* generic user pointer */
     am_feature_t *features;		/* feature set */
+    int	 pre_script;
+    int  post_script;
 } am_host_t;
 
 typedef struct disk_s {
@@ -112,6 +114,8 @@ typedef struct disk_s {
     int		spindle;		/* spindle # - for parallel dumps */
     int		inprogress;		/* being dumped now? */
     int		todo;
+    application_t *application;
+    pp_scriptlist_t pp_scriptlist;
     void	*up;			/* generic user pointer */
 } disk_t;
 
@@ -121,8 +125,9 @@ typedef struct disklist_s {
 
 #define empty(dlist)	((dlist).head == NULL)
 
-
-int read_diskfile(const char *, disklist_t *);
+/* This function is integrated with the conffile.c error-handling; handle its return
+ * value just as you would the return of config_init() */
+cfgerr_level_t read_diskfile(const char *, disklist_t *);
 
 am_host_t *lookup_host(const char *hostname);
 disk_t *lookup_disk(const char *hostname, const char *diskname);
@@ -140,6 +145,18 @@ void remove_disk(disklist_t *list, disk_t *disk);
 void dump_queue(char *str, disklist_t q, int npr, FILE *f);
 
 char *optionstr(disk_t *dp, am_feature_t *their_features, FILE *fdout);
+
+/* xml_optionstr()
+ * to_server must be set to 1 if the result is sent to another server
+ *           application, eg. driver to dumper.
+ *           It must be set to 0 if the result is sent to the client.
+ */
+char *xml_optionstr(disk_t *dp, am_feature_t *their_features, FILE *fdout,
+		    int to_server);
+char *clean_dle_str_for_client(char *dle_str);
+char *xml_application(application_t *application,
+		      am_feature_t *their_features);
+char *xml_scripts(pp_scriptlist_t pp_scriptlist, am_feature_t *their_features);
 
 char *match_disklist(disklist_t *origqp, int sargc, char **sargv);
 void free_disklist(disklist_t *dl);

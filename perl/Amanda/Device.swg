@@ -14,8 +14,8 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  *
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 %module "Amanda::Device"
@@ -41,8 +41,7 @@ Amanda::Device - interact with Amanda data-storage devices
   use Amanda::Device qw( :constants );
 
   my $dev = Amanda::Device->new($device_name);
-  $dev->set_startup_properties_from_config();
-  if ($dev->read_label() == $READ_LABEL_STATUS_SUCCESS) {
+  if ($dev->read_label() == $DEVICE_STATUS_SUCCESS) {
       print "Label on $device_name is '$dev->volume_label'\n";
   }
   
@@ -54,33 +53,12 @@ Stable
 
 =head1 Amanda::Device Objects
 
-=head2 Instance Variables
+See the wiki for descriptions of these functions.  Note that C instance variables
+are represented by accessor functions of the same name.
 
 =over
 
-=item C<$file>
-
-=item C<$block>
-
-=item C<$in_file>
-
-=item C<$device_name>
-
-=item C<$access_mode>
-
-=item C<$is_eof>
-
-=item C<$volume_label>
-
-=item C<$volume_time>
-
-=back
-
-=head2 Methods
-
-See the wiki for descriptions of these functions
-
-=over
+=item C<configure($use_global_config)>
 
 =item C<read_label()>
 
@@ -90,13 +68,7 @@ See the wiki for descriptions of these functions
 
 =item C<start_file($jobinfo)>
 
-where C<$jobinfo> is a C<dumpfile_t> (see L<Amanda::Datatypes>)
-
-=item C<write_min_size()>
-
-=item C<write_max_size()>
-
-=item C<read_max_size()>
+where C<$jobinfo> is a C<dumpfile_t> (see L<Amanda::Types>)
 
 =item C<write_block($size, $data, $short_block)>
 
@@ -104,7 +76,7 @@ Note that Perl code is not expected to handle on-device data, so there
 is currently no way to provide data to this function from Perl.  This may
 change in future revisions.
 
-=item C<write_from_fd($fd)>
+=item C<write_from_fd($queue_fd)>
 
 where C<$fd> is an integer file descriptor, not a filehandle
 
@@ -116,7 +88,7 @@ where C<$fd> is an integer file descriptor, not a filehandle
 
 =item C<read_block($size)>
 
-=item C<read_to_fd($fd)>
+=item C<read_to_fd($queue_fd)>
 
 where C<$fd> is an integer file descriptor, not a filehandle
 
@@ -126,19 +98,50 @@ change in future revisions.
 
 =item C<property_list()>
 
-returns a list of property names.
+returns a list of properties, each represented as a hash:
+
+  { 'access' => $access_flags,
+    'name' => $property_name,
+    'description' => $property_description }
 
 =item C<property_get($property_name)>
 
-returns the property as the appropriate Perl type.
+returns the property, with the appropriate Perl type, or undef.  In array
+context, returns the list C<($value, $surety, $source)>.
 
 =item C<property_set($property_name, $value)>
 
-where $value is of an appropriate type for the given property
+=item C<property_set_ex($property_name, $value, $surety, $source)>
+
+where C<$value> is of an appropriate type for the given property, C<$surety> is
+a C<$PROPERTY_SURETY_*> constant, and C<$source> is a C<$PROPERTY_SOURCE_*>
+constant.
 
 =item C<recycle_file($filenum)>
 
-=item C<set_startup_properties_from_config()>
+=item C<file()> (accessor function)
+
+=item C<block()> (accessor function)
+
+=item C<in_file()> (accessor function)
+
+=item C<device_name()> (accessor function)
+
+=item C<access_mode()> (accessor function)
+
+=item C<is_eof()> (accessor function)
+
+=item C<volume_label()> (accessor function)
+
+=item C<volume_time()> (accessor function)
+
+=item C<min_block_size()> (accessor function)
+
+=item C<max_block_size()> (accessor function)
+
+=item C<block_size()> (accessor function)
+
+=item C<volume_header()> (accessor function)
 
 =back
 
@@ -147,7 +150,7 @@ where $value is of an appropriate type for the given property
 This module defines a large number of constants.  Again, consult the
 wiki or C<device.h> for the details on their meaning.  These constants
 are available from the package namespace (e.g.,
-C<Amanda::Device::ACCESS_WRITE>), of imported with the C<:constant>
+C<Amanda::Device::ACCESS_WRITE>), or imported with the C<:constant>
 import tag.
 
 =cut
@@ -202,7 +205,7 @@ set_sv_from_gvalue(GValue *value)
 		sv = newRV((SV *)hv);
 		return newRV((SV *)hv);
 	    } else {
-		warn("Unsupported boxed property type #%d", boxed_type);
+		warn("Unsupported boxed property type #%d", (int)boxed_type);
 
 		sv = sv_newmortal();
 		sv_setsv(sv, &PL_sv_undef);
@@ -260,7 +263,7 @@ set_sv_from_gvalue(GValue *value)
 	case G_TYPE_INTERFACE:
 	case G_TYPE_OBJECT:
 	case G_TYPE_PARAM:
-	    warn("Unsupported fundamental property type #%d", fundamental);
+	    warn("Unsupported fundamental property type #%d", (int)fundamental);
 	    sv_setsv(sv, &PL_sv_undef);
 	    break;
     }
@@ -356,18 +359,30 @@ set_gvalue_from_sv(SV *sv, GValue *value)
  * Device struct, %extend-ed into a Perl class
  */
 
-typedef struct Device {
+typedef struct queue_fd_t {
     /* Instance variables -- all readonly */
     %immutable;
-    int file;
-    guint64 block;
-    gboolean in_file;
-    char * device_name;
-    DeviceAccessMode access_mode;
-    gboolean is_eof;
-    char * volume_label;
-    char * volume_time;
+    int fd;
+    char *errmsg;
+
     %mutable;
+
+    /* methods */
+    %extend {
+	/* constructor */
+	queue_fd_t(int fd) {
+	    return queue_fd_new(fd, NULL);
+	}
+
+	/* destructor */
+	~queue_fd_t() {
+	    amfree(self->errmsg);
+	    g_free(self);
+	}
+    }
+} queue_fd_t;
+
+typedef struct Device {
 
     /* methods */
     %extend {
@@ -380,7 +395,27 @@ typedef struct Device {
 	    g_object_unref(self);
 	}
 
-	ReadLabelStatusFlags
+	gboolean
+	configure(gboolean use_global_config) {
+	    return device_configure(self, use_global_config);
+	}
+
+	char *
+	error() {
+	    return device_error(self);
+	}
+
+	char *
+	status_error() {
+	    return device_status_error(self);
+	}
+
+	char *
+	error_or_status() {
+	    return device_error_or_status(self);
+	}
+
+	DeviceStatusFlags
 	read_label() {
 	    return device_read_label(self);
 	}
@@ -396,33 +431,18 @@ typedef struct Device {
 	}
 
 	gboolean
-	start_file(const dumpfile_t *jobInfo) {
+	start_file(dumpfile_t *jobInfo) {
 	    return device_start_file(self, jobInfo);
 	}
 
-	guint
-	write_min_size() {
-	    return device_write_min_size(self);
-	}
-
-	guint
-	write_max_size() {
-	    return device_write_max_size(self);
-	}
-
-	guint
-	read_max_size() {
-	    return device_read_max_size(self);
+	gboolean
+	write_block(guint size, gpointer data) {
+	    return device_write_block(self, size, data);
 	}
 
 	gboolean
-	write_block(guint size, gpointer data, gboolean short_block) {
-	    return device_write_block(self, size, data, short_block);
-	}
-
-	gboolean
-	write_from_fd(int fd) {
-	    return device_write_from_fd(self, fd);
+	write_from_fd(queue_fd_t *queue_fd) {
+	    return device_write_from_fd(self, queue_fd);
 	}
 
 	gboolean
@@ -445,34 +465,41 @@ typedef struct Device {
 	    return device_read_block(self, buffer, size);
 	}
 
-	gboolean read_to_fd(int fd) {
-	    return device_read_to_fd(self, fd);
+	gboolean read_to_fd(queue_fd_t *queue_fd) {
+	    return device_read_to_fd(self, queue_fd);
 	}
 
-	%typemap(out) const DeviceProperty * {
-	    int i = 0;
-	    int len = 0;
+	%typemap(out) const GSList * {
+	    GSList *iter;
 
 	    /* Count the DeviceProperties */
-	    while ($1[len].base) len++;
-	    EXTEND(SP, len); /* make room for return values */
+	    EXTEND(SP, g_slist_length($1)); /* make room for return values */
 
 	    /* Note that we set $result several times. the nature of
 	     * SWIG's wrapping is such that incrementing argvi points
 	     * $result to the next location in perl's argument stack.
              */
 
-	    for (i = 0; i < len ; i++) { 
-		$result = sv_newmortal(); 
-		sv_setpv($result, $1[i].base->name); 
+	    for (iter = $1; iter; iter = g_slist_next(iter)) {
+		DeviceProperty *prop = iter->data;
+		HV *hash = newHV();
+		SV *rv = newRV_noinc((SV *)hash);
+
+		hv_store(hash, "name", 4,
+			newSVpv(prop->base->name, 0), 0);
+		hv_store(hash, "description", 11,
+			newSVpv(prop->base->description, 0), 0);
+		hv_store(hash, "access", 6,
+			newSViv(prop->access), 0);
+		$result = sv_2mortal(rv);
 		argvi++;
-	    }; 
+	    }
 	}
-	const DeviceProperty * property_list(void) {
+	const GSList * property_list(void) {
 	    return device_property_get_list(self);
 	}
 
-	%typemap(out) const DeviceProperty *; /* remove typemap */
+	%typemap(out) const GSList *; /* remove typemap */
 
 	/* A typemap to convert a property name to a DevicePropertyBase. */
 	%typemap(in) DevicePropertyBase * {
@@ -490,31 +517,45 @@ typedef struct Device {
 	/* A typemap to convert the GValue in property_get to a return value.  The
 	 * (in) typemap sets up storage for the parameters, while the (argout) converts
 	 * them to a perl SV. */
-	%typemap(in,numinputs=0) (GValue *out_val, gboolean *val_found)
-			    (GValue val, gboolean found) {
+	%typemap(in,numinputs=0) (GValue *out_val, PropertySurety *surety,
+				  PropertySource *source, gboolean *val_found)
+			    (GValue val,
+			     PropertySurety surety,
+			     PropertySource source,
+			     gboolean found) {
 	    memset(&val, 0, sizeof(val));
 	    $1 = &val;
-	    $2 = &found;
+	    if (GIMME_V == G_ARRAY) {
+		$2 = &surety;
+		$3 = &source;
+	    }
+	    $4 = &found;
 	}
-	%typemap(argout) (GValue *out_val, gboolean *val_found) {
+	%typemap(argout) (GValue *out_val, PropertySurety *surety,
+			  PropertySource *source, gboolean *val_found) {
 	    /* if the result is valid */
-	    if (*$2) {
+	    if (*$4) {
 		/* move data from $1 to $result, somehow */
 		$result = set_sv_from_gvalue($1);
+		argvi++;
 
 		/* free any memory for the GValue */
 		g_value_unset($1);
-	    } else {
-		/* silently return 'undef', the sentinel for "undefined" */
-		$result = sv_newmortal();
-		sv_setsv($result, &PL_sv_undef);
+
+		if (GIMME_V == G_ARRAY) {
+		    $result = newSViv(*$2);
+		    argvi++;
+		    $result = newSViv(*$3);
+		    argvi++;
+		}
 	    }
-	    argvi++;
+	    /* otherwise, return nothing */
 	}
 
 	void
-	property_get(DevicePropertyBase *pbase, GValue *out_val, gboolean *val_found) {
-	    *val_found = device_property_get(self, pbase->ID, out_val);
+	property_get(DevicePropertyBase *pbase, GValue *out_val, PropertySurety *surety,
+		     PropertySource *source, gboolean *val_found) {
+	    *val_found = device_property_get_ex(self, pbase->ID, out_val, surety, source);
 	}
 
 	/* delete typemaps */
@@ -544,14 +585,46 @@ typedef struct Device {
 	    return FALSE;
 	}
 
+	gboolean
+	property_set_ex(DevicePropertyBase *pbase, SV *sv,
+			PropertySurety surety, PropertySource source) {
+	    GValue gval;
+	    memset(&gval, 0, sizeof(gval));
+	    g_value_init(&gval, pbase->type);
+	    if (!set_gvalue_from_sv(sv, &gval))
+		goto fail;
+
+	    if (!device_property_set_ex(self, pbase->ID, &gval, surety, source))
+		goto fail;
+
+	    g_value_unset(&gval);
+	    return TRUE;
+	fail:
+	    g_value_unset(&gval);
+	    return FALSE;
+	}
+
 	gboolean recycle_file(guint filenum) {
 	    return device_recycle_file(self, filenum);
 	}
 	
-	void set_startup_properties_from_config(void) {
-	    device_set_startup_properties_from_config(self);
-	}
+	/* accessor functions */
+
+	int file(void) { return self->file; }
+	guint64 block(void) { return self->block; }
+	gboolean in_file(void) { return self->in_file; }
+	char * device_name(void) { return self->device_name; }
+	DeviceAccessMode access_mode(void) { return self->access_mode; }
+	gboolean is_eof(void) { return self->is_eof; }
+	char * volume_label(void) { return self->volume_label; }
+	char * volume_time(void) { return self->volume_time; }
+	DeviceStatusFlags status(void) { return self->status; }
+	gsize min_block_size(void) { return self->min_block_size; }
+	gsize max_block_size(void) { return self->max_block_size; }
+	gsize block_size(void) { return self->block_size; }
+	dumpfile_t *volume_header(void) { return self->volume_header; }
     };
+
 } Device;
 
 /*
@@ -569,15 +642,15 @@ gboolean IS_WRITABLE_ACCESS_MODE(DeviceAccessMode mode);
 amglue_export_tag(DeviceAccessMode, IS_WRITABLE_ACCESS_MODE);
 amglue_copy_to_tag(DeviceAccessMode, constants);
 
-amglue_add_flag_tag_fns(ReadLabelStatusFlags);
-amglue_add_constant_short(READ_LABEL_STATUS_SUCCESS, "SUCCESS", ReadLabelStatusFlags);
-amglue_add_constant_short(READ_LABEL_STATUS_DEVICE_MISSING, "DEVICE_MISSING", ReadLabelStatusFlags);
-amglue_add_constant_short(READ_LABEL_STATUS_DEVICE_ERROR, "DEVICE_ERROR", ReadLabelStatusFlags);
-amglue_add_constant_short(READ_LABEL_STATUS_VOLUME_MISSING, "VOLUME_MISSING", ReadLabelStatusFlags);
-amglue_add_constant_short(READ_LABEL_STATUS_VOLUME_UNLABELED, "VOLUME_UNLABELED", ReadLabelStatusFlags);
-amglue_add_constant_short(READ_LABEL_STATUS_VOLUME_ERROR, "VOLUME_ERROR", ReadLabelStatusFlags);
-amglue_add_constant_noshort(READ_LABEL_STATUS_FLAGS_MAX, ReadLabelStatusFlags);
-amglue_copy_to_tag(ReadLabelStatusFlags, constants);
+amglue_add_flag_tag_fns(DeviceStatusFlags);
+amglue_add_constant_short(DEVICE_STATUS_SUCCESS, "SUCCESS", DeviceStatusFlags);
+amglue_add_constant_short(DEVICE_STATUS_DEVICE_ERROR, "DEVICE_ERROR", DeviceStatusFlags);
+amglue_add_constant_short(DEVICE_STATUS_DEVICE_BUSY, "DEVICE_BUSY", DeviceStatusFlags);
+amglue_add_constant_short(DEVICE_STATUS_VOLUME_MISSING, "VOLUME_MISSING", DeviceStatusFlags);
+amglue_add_constant_short(DEVICE_STATUS_VOLUME_UNLABELED, "VOLUME_UNLABELED", DeviceStatusFlags);
+amglue_add_constant_short(DEVICE_STATUS_VOLUME_ERROR, "VOLUME_ERROR", DeviceStatusFlags);
+amglue_add_constant_noshort(DEVICE_STATUS_FLAGS_MAX, DeviceStatusFlags);
+amglue_copy_to_tag(DeviceStatusFlags, constants);
 
 amglue_add_flag_tag_fns(PropertyPhaseFlags);
 amglue_add_constant_short(PROPERTY_PHASE_BEFORE_START, "BEFORE_START", PropertyPhaseFlags);
@@ -640,23 +713,16 @@ amglue_add_constant_short(SIZE_ACCURACY_ESTIMATE, "ESTIMATE", SizeAccuracy);
 amglue_add_constant_short(SIZE_ACCURACY_REAL, "REAL", SizeAccuracy);
 amglue_copy_to_tag(SizeAccuracy, constants);
 
-amglue_add_flag_tag_fns(FeatureSupportFlags);
-amglue_add_constant_short(FEATURE_STATUS_ENABLED, "STATUS_ENABLED", FeatureSupportFlags);
-amglue_add_constant_short(FEATURE_STATUS_DISABLED, "STATUS_DISABLED", FeatureSupportFlags);
-amglue_add_constant_short(FEATURE_SURETY_BAD, "SURETY_BAD", FeatureSupportFlags);
-amglue_add_constant_short(FEATURE_SURETY_GOOD, "SURETY_GOOD", FeatureSupportFlags);
-amglue_add_constant_short(FEATURE_SOURCE_DEFAULT, "SOURCE_DEFAULT", FeatureSupportFlags);
-amglue_add_constant_short(FEATURE_SOURCE_DETECTED, "SOURCE_DETECTED", FeatureSupportFlags);
-amglue_add_constant_short(FEATURE_SOURCE_USER, "SOURCE_USER", FeatureSupportFlags);
-amglue_add_constant_noshort(FEATURE_SUPPORT_FLAGS_MAX, FeatureSupportFlags);
-amglue_add_constant_noshort(FEATURE_SUPPORT_FLAGS_MASK, FeatureSupportFlags);
-amglue_add_constant_noshort(FEATURE_SUPPORT_FLAGS_STATUS_MASK, FeatureSupportFlags);
-amglue_add_constant_noshort(FEATURE_SUPPORT_FLAGS_SURETY_MASK, FeatureSupportFlags);
-amglue_add_constant_noshort(FEATURE_SUPPORT_FLAGS_SOURCE_MASK, FeatureSupportFlags);
+amglue_add_flag_tag_fns(PropertySurety);
+amglue_add_constant_short(PROPERTY_SURETY_BAD, "SURETY_BAD", PropertySurety);
+amglue_add_constant_short(PROPERTY_SURETY_GOOD, "SURETY_GOOD", PropertySurety);
+amglue_copy_to_tag(PropertySurety, constants);
 
-gboolean feature_support_flags_is_valid(FeatureSupportFlags);
-amglue_export_tag(FeatureSupportFlags, feature_support_flags_is_valid);
-amglue_copy_to_tag(FeatureSupportFlags, constants);
+amglue_add_flag_tag_fns(PropertySource);
+amglue_add_constant_short(PROPERTY_SOURCE_DEFAULT, "SOURCE_DEFAULT", PropertySource);
+amglue_add_constant_short(PROPERTY_SOURCE_DETECTED, "SOURCE_DETECTED", PropertySource);
+amglue_add_constant_short(PROPERTY_SOURCE_USER, "SOURCE_USER", PropertySource);
+amglue_copy_to_tag(PropertySource, constants);
 
 %perlcode %{
 

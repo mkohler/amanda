@@ -43,13 +43,16 @@ struct event_handle;
 typedef struct event_handle event_handle_t;
 
 /*
- * The 'id' of the event.  The meaning of this is dependant on the type
- * of event we are registering.  This is hopefully wide enough that
- * callers can cast pointers to it and keep the value untruncated and
- * unique.
- * FIXME: THIS IS NOT 64-BIT CLEAN!
+ * The 'id' of the event.  The meaning of this depends on the type of
+ * event we are registering -- see event_register.  The name 'id' is
+ * historical: it is quite possible to have many outstanding events with
+ * the same ID (same timeout or same file descriptor).
+ *
+ * Event id's are supplied by the caller, and in some cases are cast from
+ * pointers, so this value must be wide enough to hold a pointer without
+ * truncation.
  */
-typedef	unsigned long event_id_t;
+typedef	intmax_t event_id_t;
 
 /*
  * The types of events we can register.
@@ -57,10 +60,8 @@ typedef	unsigned long event_id_t;
 typedef enum {
     EV_READFD,			/* file descriptor is ready for reading */
     EV_WRITEFD,			/* file descriptor is ready for writing */
-    EV_SIG,			/* signal has fired */
     EV_TIME,			/* n seconds have elapsed */
     EV_WAIT,			/* event_wakeup() was called with this id */
-    EV_DEAD			/* internal use only */
 } event_type_t;
 
 /*
@@ -91,19 +92,56 @@ event_handle_t *event_register(event_id_t, event_type_t, event_fn_t, void *);
 void event_release(event_handle_t *);
 
 /*
- * Wake up all EV_WAIT events waiting on a specific id
+ * Wake up all EV_WAIT events waiting on a specific id.  This happens immediately,
+ * not in the next iteration of the event loop.  If callbacks made during the wakeup
+ * register a new event with the same ID, that new event will *not* be awakened.
  */
 int event_wakeup(event_id_t);
 
 /*
- * Block until the event is terminated.
+ * Call event_loop, returning when one of the following conditions is
+ * true:
+ *  evt is EV_WAIT, and it is released; or
+ *  evt is EV_READFD, EV_WRITEFD, or EV_TIME, and it is fired.
  */
-int event_wait(event_handle_t *);
+void event_wait(event_handle_t *evt);
 
 /*
  * Process events.  If the argument is nonzero, then the loop does
  * not block.
  */
-void event_loop(const int);
+void event_loop(int nonblock);
+
+/*
+ * Get the default GMainLoop object.  Applications which use the Glib
+ * main loop directly should use this object for calls to e.g.,
+ * g_main_loop_run(loop).
+ */
+GMainLoop *default_main_loop(void);
+
+/*
+ * Utility GSources
+ */
+
+/* Create a GSource that will callback when the given file descriptor is in
+ * any of the given conditions.  The callback is a simple GSourceFunc.
+ *
+ * @param fd: the file descriptr
+ * @param events: the conditions (GIOCondition flags)
+ * @return: GSource object
+ */
+GSource * new_fdsource(gint fd, GIOCondition events);
+
+/* Create a GSource that will callback when the given child dies.  The callback
+ * should match ChildWatchFunc.  Once the callback is made, it will not be called
+ * again by this source.
+ *
+ * Note: This is provided by glib in later versions, but not in version 2.2.0.
+ * This function and callback is modeled on g_child_watch_source_new.
+ *
+ * @param pid: the process ID @return: GSource object
+ */
+typedef void (*ChildWatchFunc)(pid_t pid, gint status, gpointer data); 
+GSource * new_child_watch_source(pid_t pid);
 
 #endif	/* EVENT_H */

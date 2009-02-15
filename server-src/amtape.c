@@ -74,15 +74,11 @@ static const struct {
     { "slot" , load_slot,
 	T_("slot current         load tape from current slot") },
     { "slot" , load_slot,
-	T_("slot prev            load tape from previous slot") },
-    { "slot" , load_slot,
 	T_("slot next            load tape from next slot") },
     { "slot" , load_slot,
 	T_("slot advance         advance to next slot but do not load") },
     { "slot" , load_slot,
 	T_("slot first           load tape from first slot") },
-    { "slot" , load_slot,
-	T_("slot last            load tape from last slot") },
     { "label", load_label,
 	T_("label <label>        find and load labeled tape") },
     { "taper", amtape_taper_scan,
@@ -140,13 +136,19 @@ main(
     cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
     if(argc < 3) usage();
 
-    config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_FATAL,
-		argv[1]);
+    config_init(CONFIG_INIT_EXPLICIT_NAME, argv[1]);
     apply_config_overwrites(cfg_ovr);
+
+    if (config_errors(NULL) >= CFGERR_WARNINGS) {
+	config_print_errors();
+	if (config_errors(NULL) >= CFGERR_ERRORS) {
+	    g_critical(_("errors processing config file"));
+	}
+    }
 
     check_running_as(RUNNING_AS_DUMPUSER);
 
-    dbrename(config_name, DBG_SUBDIR_SERVER);
+    dbrename(get_config_name(), DBG_SUBDIR_SERVER);
 
     conf_tapelist = config_dir_relative(getconf_str(CNF_TAPELIST));
     if (read_tapelist(conf_tapelist)) {
@@ -156,7 +158,7 @@ main(
     amfree(conf_tapelist);
 
     if((have_changer = changer_init()) == 0) {
-	error(_("no tpchanger specified in \"%s\""), config_filename);
+	error(_("no tpchanger specified in \"%s\""), get_config_filename());
 	/*NOTREACHED*/
     } else if (have_changer != 1) {
 	error(_("changer initialization failed: %s"), strerror(errno));
@@ -246,7 +248,6 @@ load_slot(
     char **	argv)
 {
     char *slotstr = NULL, *devicename = NULL;
-    int is_advance;
     Device * device;
 
     if(argc != 2)
@@ -254,28 +255,25 @@ load_slot(
 
     device_api_init();
 
-    is_advance = (strcmp(argv[1], "advance") == 0);
+    if (strcmp(argv[1], "advance") == 0) {
+	argv[1] = "next";
+    }
+
     if(changer_loadslot(argv[1], &slotstr, &devicename)) {
 	error(_("could not load slot %s: %s"), slotstr, changer_resultstr);
 	/*NOTREACHED*/
     }
-    
-    if (!is_advance) {
-        device = device_open(devicename);
-        if (device == NULL) {
-            g_fprintf(stderr,
-                    _("%s: could not open device %s"), get_pname(),
-                    devicename);
-        } else {
-            g_object_unref(device);
-        }
-    }
 
-    g_fprintf(stderr, _("%s: changed to slot %s"), get_pname(), slotstr);
-    if(! is_advance) {
-	g_fprintf(stderr, _(" on %s"), devicename);
+    device = device_open(devicename);
+    g_assert(device != NULL);
+    if (device->status != DEVICE_STATUS_SUCCESS) {
+	g_fprintf(stderr,
+		_("%s: could not open device %s: %s"), get_pname(),
+		devicename, device_error(device));
     }
-    fputc('\n', stderr);
+    g_object_unref(device);
+
+    g_fprintf(stderr, _("%s: changed to slot %s on %s\n"), get_pname(), slotstr, devicename);
     amfree(slotstr);
     amfree(devicename);
 }
@@ -321,7 +319,7 @@ loadlabel_slot(
 {
     LabelChangerStatus * status = ud;
     Device * device;
-    ReadLabelStatusFlags label_status;
+    DeviceStatusFlags device_status;
 
     if (rc > 1) {
 	error(_("could not load slot %s: %s"), slotstr, changer_resultstr);
@@ -333,22 +331,23 @@ loadlabel_slot(
     }
 
     device = device_open(device_name);
-    if (device == NULL) {
-        g_fprintf(stderr, _("%s: slot %3s: Could not open device.\n"),
-                get_pname(), slotstr);
+    g_assert(device != NULL);
+    if (device->status != DEVICE_STATUS_SUCCESS) {
+        g_fprintf(stderr, _("%s: slot %3s: Could not open device: %s.\n"),
+                  get_pname(), slotstr, device_error(device));
         return 0;
     }
-    
-    device_set_startup_properties_from_config(device);
 
-    label_status = device_read_label(device);
-    if (label_status != READ_LABEL_STATUS_SUCCESS) {
-        char * errstr = 
-            g_english_strjoinv_and_free
-                (g_flags_nick_to_strv(label_status,
-                                      READ_LABEL_STATUS_FLAGS_TYPE), "or");
+    if (!device_configure(device, TRUE)) {
+        g_fprintf(stderr, _("%s: slot %3s: Could not configure device: %s.\n"),
+                  get_pname(), slotstr, device_error(device));
+        return 0;
+    }
+
+    device_status = device_read_label(device);
+    if (device_status != DEVICE_STATUS_SUCCESS) {
         g_fprintf(stderr, _("%s: slot %3s: %s\n"),
-                get_pname(), slotstr, errstr);
+                  get_pname(), slotstr, device_error_or_status(device));
         g_object_unref(device);
         return 0;
     }
@@ -421,21 +420,23 @@ show_slots_slot(G_GNUC_UNUSED void * data, int rc, char * slotstr,
     }
 
     device = device_open(device_name);
-    if (device == NULL) {
-        g_fprintf(stderr, _("%s: slot %3s: Could not open device.\n"),
-                get_pname(), slotstr);
+    g_assert(device != NULL);
+    if (device->status != DEVICE_STATUS_SUCCESS) {
+        g_fprintf(stderr, _("%s: slot %3s: Could not open device: %s.\n"),
+                  get_pname(), slotstr, device_error(device));
     } else {
-        ReadLabelStatusFlags label_status;
-        device_set_startup_properties_from_config(device);
-        label_status = device_read_label(device);
+        DeviceStatusFlags device_status;
 
-        if (label_status != READ_LABEL_STATUS_SUCCESS) {
-            char * errstr = 
-                g_english_strjoinv_and_free
-                (g_flags_nick_to_strv(label_status,
-                                      READ_LABEL_STATUS_FLAGS_TYPE), "or");
+	if (!device_configure(device, TRUE)) {
             g_fprintf(stderr, _("%s: slot %3s: %s\n"),
-                    get_pname(), slotstr, errstr);
+                      get_pname(), slotstr, device_error_or_status(device));
+	}
+
+	device_status = device_read_label(device);
+
+        if (device_status != DEVICE_STATUS_SUCCESS) {
+            g_fprintf(stderr, _("%s: slot %3s: %s\n"),
+                      get_pname(), slotstr, device_error_or_status(device));
         } else {
             g_fprintf(stderr, _("slot %3s: time %-14s label %s\n"),
                     slotstr, device->volume_time, device->volume_label);
@@ -526,7 +527,7 @@ show_device(G_GNUC_UNUSED int	argc,
     char *slot = NULL, *device = NULL;
     
     if(changer_loadslot(_("current"), &slot, &device)) {
-	error(_("Could not load current slot.\n"));
+	error(_("could not load current slot: %s\n"), changer_resultstr);
 	/*NOTREACHED*/
     }
 

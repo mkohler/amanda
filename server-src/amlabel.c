@@ -46,25 +46,6 @@ static void usage(void) {
     exit(1);
 }
 
-static void print_read_label_status_error(ReadLabelStatusFlags status) {
-    char ** status_strv;
-
-    if (status == READ_LABEL_STATUS_SUCCESS)
-        return;
-
-    status_strv = g_flags_nick_to_strv(status,
-                                       READ_LABEL_STATUS_FLAGS_TYPE);
-    g_assert(g_strv_length(status_strv) > 0);
-    if (g_strv_length(status_strv) == 1) {
-        g_printf("Error was %s.\n", *status_strv);
-    } else {
-        char * status_list = g_english_strjoinv(status_strv, "or");
-        g_printf("Error was one of %s.\n", status_list);
-        amfree(status_list);
-    }
-    g_strfreev(status_strv);
-}
-
 int
 main(
     int		argc,
@@ -81,7 +62,7 @@ main(
     size_t tt_blocksize_kb;
     int slotcommand;
     Device * device;
-    ReadLabelStatusFlags label_status;
+    DeviceStatusFlags device_status;
     char *cfg_opt = NULL;
     config_overwrites_t *cfg_ovr = NULL;
 
@@ -129,13 +110,19 @@ main(
 	slotcommand = 0;
     }
 
-    config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_FATAL,
-		cfg_opt);
+    config_init(CONFIG_INIT_EXPLICIT_NAME, cfg_opt);
     apply_config_overwrites(cfg_ovr);
+
+    if (config_errors(NULL) >= CFGERR_WARNINGS) {
+	config_print_errors();
+	if (config_errors(NULL) >= CFGERR_ERRORS) {
+	    g_critical(_("errors processing config file"));
+	}
+    }
 
     check_running_as(RUNNING_AS_DUMPUSER);
 
-    dbrename(config_name, DBG_SUBDIR_SERVER);
+    dbrename(get_config_name(), DBG_SUBDIR_SERVER);
 
     conf_tapelist = config_dir_relative(getconf_str(CNF_TAPELIST));
     if (read_tapelist(conf_tapelist)) {
@@ -163,7 +150,7 @@ main(
 	if(slotcommand) {
 	    g_fprintf(stderr,
 	     _("%s: no tpchanger specified in \"%s\", so slot command invalid\n"),
-		    argv[0], config_filename);
+		    argv[0], get_config_filename());
 	    usage();
 	}
 	tapename = getconf_str(CNF_TAPEDEV);
@@ -185,24 +172,39 @@ main(
     tape_ok=1;
     g_printf("Reading label...\n");fflush(stdout);
     device = device_open(tapename);
-    if (device == NULL) {
-        error("Could not open device %s.\n", tapename);
+    g_assert(device != NULL);
+    if (device->status != DEVICE_STATUS_SUCCESS) {
+        error("Could not open device %s: %s.\n", tapename,
+	      device_error(device));
     }
-    
-    device_set_startup_properties_from_config(device);
-    label_status = device_read_label(device);
 
-    if (label_status & READ_LABEL_STATUS_VOLUME_UNLABELED) {
-        g_printf("Found an unlabeled tape.\n");
-    } else if (label_status != READ_LABEL_STATUS_SUCCESS) {
-        g_printf("Reading the tape label failed: \n  ");
-        print_read_label_status_error(label_status);
+    if (!device_configure(device, TRUE)) {
+        error("Could not configure device %s: %s.\n", tapename,
+	      device_error(device));
+    }
+
+    device_status = device_read_label(device);
+
+    if (device_status & DEVICE_STATUS_VOLUME_UNLABELED) {
+	/* if there's no header, then the tape was truly empty; otherwise, there
+	 * was *something* on the tape, so let's be careful and require a force */
+	if (!device->volume_header || device->volume_header->type == F_EMPTY) {
+	    g_printf("Found an empty tape.\n");
+	} else {
+	    g_printf("Found a non-Amanda tape.\n");
+	    if(!force)
+		tape_ok=0;
+	}
+    } else if (device_status != DEVICE_STATUS_SUCCESS) {
+        g_printf("Reading the tape label failed: %s.\n",
+		 device_error_or_status(device));
         tape_ok = 0;
     } else {
 	/* got an amanda tape */
 	g_printf(_("Found Amanda tape %s"),device->volume_label);
 	if(match(labelstr, device->volume_label) == 0) {
-	    g_printf(_(", but it is not from configuration %s."), config_name);
+	    g_printf(_(", but it is not from configuration %s."),
+		     get_config_name());
 	    if(!force)
 		tape_ok=0;
 	} else {
@@ -222,20 +224,22 @@ main(
         
 	timestamp = get_undef_timestamp();
         if (!device_start(device, ACCESS_WRITE, label, timestamp)) {
-	    error(_("Error writing label.\n"));
+	    error(_("Error writing label: %s.\n"),
+		  device_error(device));
             g_assert_not_reached();
 	} else if (!device_finish(device)) {
-            error(_("Error closing device.\n"));
+            error(_("Error closing device: %s.\n"),
+		  device_error(device));
             g_assert_not_reached();
         }
 	amfree(timestamp);
 
         g_printf(_("Checking label...\n")); fflush(stdout);
 
-        label_status = device_read_label(device);
-        if (label_status != READ_LABEL_STATUS_SUCCESS) {
-            g_printf("Checking the tape label failed: \n  ");
-            print_read_label_status_error(label_status);
+        device_status = device_read_label(device);
+        if (device_status != DEVICE_STATUS_SUCCESS) {
+	    g_printf(_("Checking the tape label failed: %s.\n"),
+		     device_error_or_status(device));
             exit(EXIT_FAILURE);
         } else if (device->volume_label == NULL) {
             error(_("no label found.\n"));
@@ -263,12 +267,17 @@ main(
         
         /* XXX add cur_tape number to tape list structure */
         remove_tapelabel(label);
-        add_tapelabel("0", label);
+        add_tapelabel("0", label, NULL);
         if(write_tapelist(conf_tapelist)) {
             error(_("couldn't write tapelist: %s"), strerror(errno));
             /*NOTREACHED*/
         }
-        
+
+        if (have_changer && changer_label(outslot, label) != 0) {
+	    error(_("couldn't update barcode database for slot %s, label %s\n"), outslot, label);
+	    /*NOTREACHED*/
+	}
+
         g_printf(_("Success!\n"));
     } else {
 	g_printf(_("\ntape not labeled\n"));
@@ -280,7 +289,6 @@ main(
     clear_tapelist();
     amfree(outslot);
     amfree(conf_tapelist);
-    config_name=NULL;
     dbclose();
 
     return 0;

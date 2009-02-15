@@ -15,6 +15,9 @@ AM_CFLAGS = -DSWIG
 INCLUDES =  \
             -I$(top_builddir)/common-src \
             -I$(top_srcdir)/common-src \
+            -I$(top_srcdir)/amandad-src \
+            -I$(top_srcdir)/amar-src \
+            -I$(top_srcdir)/xfer-src \
             -I$(top_srcdir)/perl/amglue \
             -I$(top_srcdir)/gnulib \
             $(PERL_INC)
@@ -46,6 +49,7 @@ amlib_LTLIBRARIES = libamglue.la
 libamglue_la_SOURCES = \
 	amglue/ghashtable.c \
 	amglue/bigint.c \
+	amglue/source.c \
 	amglue/amglue.h
 libamglue_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
 EXTRA_DIST += $(libamglue_la_SOURCES)
@@ -115,6 +119,18 @@ Amandadir=$(amperldir)/Amanda
 Amanda_DATA =
 HTML_SOURCE_FILES += $(Amanda_DATA)
 
+# PACKAGE: Amanda::Archive
+libArchivedir = $(amperldir)/auto/Amanda/Archive
+libArchive_LTLIBRARIES = libArchive.la
+libArchive_la_SOURCES = Amanda/Archive.c $(AMGLUE_SWG)
+libArchive_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
+libArchive_la_LIBADD = libamglue.la \
+	$(top_builddir)/amar-src/libamar.la \
+	$(top_builddir)/common-src/libamanda.la
+Amanda_DATA += Amanda/Archive.pm
+EXTRA_DIST += Amanda/Archive.swg Amanda/Archive.pm
+MAINTAINERCLEANFILES += Amanda/Archive.c Amanda/Archive.pm
+
 if WANT_SERVER
 # PACKAGE: Amanda::Device
 libDevicedir = $(amperldir)/auto/Amanda/Device
@@ -125,9 +141,11 @@ libDevice_la_LIBADD = libamglue.la \
 	$(top_builddir)/device-src/libamdevice.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Device.pm
-EXTRA_DIST += Amanda/Device.swg Amanda/Device.pm
 MAINTAINERCLEANFILES += Amanda/Device.c Amanda/Device.pm
+endif
+EXTRA_DIST += Amanda/Device.swg Amanda/Device.pm
 
+if WANT_SERVER
 # PACKAGE: Amanda::Logfile
 libLogfiledir = $(amperldir)/auto/Amanda/Logfile
 libLogfile_LTLIBRARIES = libLogfile.la
@@ -137,9 +155,11 @@ libLogfile_la_LIBADD = libamglue.la \
 	$(top_builddir)/server-src/libamserver.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Logfile.pm
-EXTRA_DIST += Amanda/Logfile.swg Amanda/Logfile.pm
 MAINTAINERCLEANFILES += Amanda/Logfile.c Amanda/Logfile.pm
+endif
+EXTRA_DIST += Amanda/Logfile.swg Amanda/Logfile.pm
 
+if WANT_SERVER
 # PACKAGE: Amanda::Cmdline
 libCmdlinedir = $(amperldir)/auto/Amanda/Cmdline
 libCmdline_LTLIBRARIES = libCmdline.la
@@ -149,26 +169,77 @@ libCmdline_la_LIBADD = libamglue.la \
 	$(top_builddir)/server-src/libamserver.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Cmdline.pm
-EXTRA_DIST += Amanda/Cmdline.swg Amanda/Cmdline.pm
 MAINTAINERCLEANFILES += Amanda/Cmdline.c Amanda/Cmdline.pm
+endif
+EXTRA_DIST += Amanda/Cmdline.swg Amanda/Cmdline.pm
 
-# PACKAGE: Amanda::Tapefile
-libTapefiledir = $(amperldir)/auto/Amanda/Tapefile
-libTapefile_LTLIBRARIES = libTapefile.la
-libTapefile_la_SOURCES = Amanda/Tapefile.c $(AMGLUE_SWG)
-libTapefile_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libTapefile_la_LIBADD = libamglue.la \
+if WANT_SERVER
+# PACKAGE: Amanda::Tapelist
+libTapelistdir = $(amperldir)/auto/Amanda/Tapelist
+libTapelist_LTLIBRARIES = libTapelist.la
+libTapelist_la_SOURCES = Amanda/Tapelist.c $(AMGLUE_SWG)
+libTapelist_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
+libTapelist_la_LIBADD = libamglue.la \
 	$(top_builddir)/server-src/libamserver.la \
 	$(top_builddir)/common-src/libamanda.la
-Amanda_DATA += Amanda/Tapefile.pm
-EXTRA_DIST += Amanda/Tapefile.swg Amanda/Tapefile.pm
-MAINTAINERCLEANFILES += Amanda/Tapefile.c Amanda/Tapefile.pm
+Amanda_DATA += Amanda/Tapelist.pm
+MAINTAINERCLEANFILES += Amanda/Tapelist.c Amanda/Tapelist.pm
+endif
+EXTRA_DIST += Amanda/Tapelist.swg Amanda/Tapelist.pm
 
+if WANT_SERVER
 # PACKAGE: Amanda::Changer
 Amanda_DATA += Amanda/Changer.pm
+endif
 EXTRA_DIST += Amanda/Changer.pm
 
+if WANT_SERVER
+# PACKAGE: Amanda::Changer::*
+AmandaChangerdir = $(amperldir)/Amanda/Changer
+AmandaChanger_DATA = \
+	Amanda/Changer/disk.pm \
+	Amanda/Changer/compat.pm \
+	Amanda/Changer/single.pm
+HTML_SOURCE_FILES += $(AmandaChanger_DATA)
 endif
+EXTRA_DIST += $(AmandaChanger_DATA)
+
+# PACKAGE: Amanda::Process
+if WANT_SERVER
+Amanda_DATA += Amanda/Process.pm
+endif
+EXTRA_DIST += Amanda/Process.pm
+
+if WANT_SERVER
+# PACKAGE: Amanda::DB::*
+Amanda_DBdir = $(Amandadir)/DB
+Amanda_DB_DATA =
+HTML_SOURCE_FILES += $(Amanda_DB_DATA)
+endif
+
+if WANT_SERVER
+# PACKAGE: Amanda::DB::Catalog
+Amanda_DB_DATA += Amanda/DB/Catalog.pm
+endif
+EXTRA_DIST += Amanda/DB/Catalog.pm
+
+if WANT_SERVER
+# PACKAGE: Amanda::Xfer
+libXferdir = $(amperldir)/auto/Amanda/Xfer
+libXfer_LTLIBRARIES = libXfer.la
+libXfer_la_SOURCES = Amanda/Xfer.c $(AMGLUE_SWG)
+libXfer_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
+libXfer_la_LIBADD = libamglue.la \
+	$(top_builddir)/xfer-src/libamxfer.la \
+	$(top_builddir)/common-src/libamanda.la
+Amanda_DATA += Amanda/Xfer.pm
+MAINTAINERCLEANFILES += Amanda/Xfer.c Amanda/Xfer.pm
+endif
+EXTRA_DIST += Amanda/Xfer.swg Amanda/Xfer.pm
+
+# PACKAGE: Amanda::BigIntCompat
+Amanda_DATA += Amanda/BigIntCompat.pm
+EXTRA_DIST += Amanda/BigIntCompat.pm
 
 # PACKAGE: Amanda::Debug
 libDebugdir = $(amperldir)/auto/Amanda/Debug
@@ -214,10 +285,66 @@ Amanda_DATA += Amanda/Types.pm
 EXTRA_DIST += Amanda/Types.swg Amanda/Types.pm
 MAINTAINERCLEANFILES += Amanda/Types.c Amanda/Types.pm
 
+# PACKAGE: Amanda::Tests
+libTestsdir = $(amperldir)/auto/Amanda/Tests
+libTests_LTLIBRARIES = libTests.la
+libTests_la_SOURCES = Amanda/Tests.c $(AMGLUE_SWG)
+libTests_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
+libTests_la_LIBADD = libamglue.la \
+	$(top_builddir)/common-src/libamanda.la
+Amanda_DATA += Amanda/Tests.pm
+EXTRA_DIST += Amanda/Tests.swg Amanda/Tests.pm
+MAINTAINERCLEANFILES += Amanda/Tests.c Amanda/Tests.pm
+
+# PACKAGE: Amanda::MainLoop
+libMainLoopdir = $(amperldir)/auto/Amanda/MainLoop
+libMainLoop_LTLIBRARIES = libMainLoop.la
+libMainLoop_la_SOURCES = Amanda/MainLoop.c $(AMGLUE_SWG)
+libMainLoop_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
+libMainLoop_la_LIBADD = libamglue.la \
+	$(top_builddir)/common-src/libamanda.la
+Amanda_DATA += Amanda/MainLoop.pm
+EXTRA_DIST += Amanda/MainLoop.swg Amanda/MainLoop.pm
+MAINTAINERCLEANFILES += Amanda/MainLoop.c Amanda/MainLoop.pm
+
 # PACKAGE: Amanda::Paths
 Amanda_DATA += Amanda/Paths.pm
 EXTRA_DIST += Amanda/Paths.pm.in
 DISTCLEANFILES += Amanda/Paths.pm
+
+# PACKAGE: Amanda::Constants
+Amanda_DATA += Amanda/Constants.pm
+EXTRA_DIST += Amanda/Constants.pm.in
+DISTCLEANFILES += Amanda/Constants.pm
+
+# PACKAGE: Amanda::Script_App
+Amanda_DATA += Amanda/Script_App.pm
+EXTRA_DIST += Amanda/Script_App.pm
+
+if WANT_CLIENT
+# PACKAGE: Amanda::Application
+libApplicationdir = $(amperldir)/auto/Amanda/Application
+libApplication_LTLIBRARIES = libApplication.la
+libApplication_la_SOURCES = Amanda/Application.c $(AMGLUE_SWG)
+libApplication_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
+libApplication_la_LIBADD = libamglue.la \
+	$(top_builddir)/client-src/libamclient.la
+Amanda_DATA += Amanda/Application.pm
+MAINTAINERCLEANFILES += Amanda/Application.c Amanda/Application.pm
+endif
+EXTRA_DIST += Amanda/Application.swg Amanda/Application.pm
+
+# PACKAGE: Amanda::Script
+Amanda_DATA += Amanda/Script.pm
+EXTRA_DIST += Amanda/Script.pm
+
+if WANT_CLIENT
+# PACKAGE: Amanda::Application::*
+AmandaApplicationdir = $(amperldir)/Amanda/Application
+AmandaApplication_DATA = Amanda/Application/Zfs.pm
+HTML_SOURCE_FILES += $(AmandaApplication_DATA)
+endif
+EXTRA_DIST += Amanda/Application/Zfs.pm
 
 # perl doesn't use the cyg prefix and it doesn't search in the bin
 # directory, dll must be copied to their modules directories.
@@ -226,6 +353,21 @@ amperldirauto="$(DESTDIR)$(amperldir)/auto/Amanda"
 install-data-hook:
 	@for cygdll in $(amperldirauto)/bin/cyg*.dll; do \
 	    destfname=`echo $$cygdll|sed 's!/bin/cyg\([^.]*\).dll!/\1/\1.dll!'`; \
-	    cp "$$cygdll" "$$destfname"; \
+	   cp "$$cygdll" "$$destfname"; \
 	done
 endif
+
+check-local:
+	@MODULES_TO_CHECK="$(Amanda_DATA) $(Amanda_DB_DATA) $(AmandaChanger_DATA) $(AmandaApplication_DATA)"; \
+	if test -f $(top_builddir)/perl/.libs/libConfig.so -o -f $(top_builddir)/perl/libConfig.so; then \
+		if test -n "$(PERL)"; then \
+			for perlobj in $$MODULES_TO_CHECK; do \
+				if test -f $$perlobj; then \
+					$(PERL) $(CHECK_PERL_FLAGS) -I$(top_builddir)/perl -I$(top_builddir)/perl/.libs -I$(top_srcdir)/perl -c -T $$perlobj || exit 1; \
+				else \
+					$(PERL) $(CHECK_PERL_FLAGS) -I$(top_builddir)/perl -I$(top_builddir)/perl/.libs -I$(top_srcdir)/perl -c -T $(top_srcdir)/perl/$$perlobj || exit 1; \
+				fi \
+			done; \
+		fi \
+        fi
+

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
  * 
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 2.1 as 
@@ -14,8 +14,8 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  * 
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 #include "amanda.h"
@@ -131,83 +131,60 @@ gboolean tape_setcompression(int fd G_GNUC_UNUSED,
 #endif
 }
 
-ReadLabelStatusFlags tape_is_tape_device(int fd) {
+DeviceStatusFlags tape_is_tape_device(int fd) {
     struct mtop mt;
     mt.mt_op = MTNOP;
     mt.mt_count = 1;
     if (0 == ioctl(fd, MTIOCTOP, &mt)) {
-        return READ_LABEL_STATUS_SUCCESS;
+        return DEVICE_STATUS_SUCCESS;
+#ifdef ENOMEDIUM
+    } else if (errno == ENOMEDIUM) {
+	return DEVICE_STATUS_VOLUME_MISSING;
+#endif
     } else {
-	dbprintf("tape_is_tape_device: ioctl(MTIOCTOP/MTNOP) failed: %s",
+	dbprintf("tape_is_tape_device: ioctl(MTIOCTOP/MTNOP) failed: %s\n",
 		 strerror(errno));
 	if (errno == EIO) {
 	    /* some devices return EIO while the drive is busy loading */
-	    return READ_LABEL_STATUS_DEVICE_ERROR|READ_LABEL_STATUS_VOLUME_MISSING;
+	    return DEVICE_STATUS_DEVICE_ERROR|DEVICE_STATUS_DEVICE_BUSY;
 	} else {
-	    return READ_LABEL_STATUS_DEVICE_ERROR;
+	    return DEVICE_STATUS_DEVICE_ERROR;
 	}
     }
 }
 
-TapeCheckResult tape_is_ready(int fd) {
+DeviceStatusFlags tape_is_ready(int fd, TapeDevice *t_self G_GNUC_UNUSED) {
     struct mtget get;
     if (0 == ioctl(fd, MTIOCGET, &get)) {
-#if defined(GMT_DR_OPEN)
-        if (!GMT_DR_OPEN(get.mt_gstat)) {
-            return TAPE_CHECK_SUCCESS;
+#if defined(GMT_ONLINE) || defined(GMT_DR_OPEN)
+        if (1
+#ifdef GMT_ONLINE
+            && (t_self->broken_gmt_online || GMT_ONLINE(get.mt_gstat))
+#endif
+#ifdef GMT_DR_OPEN
+            && !GMT_DR_OPEN(get.mt_gstat)
+#endif
+            ) {
+            return DEVICE_STATUS_SUCCESS;
         } else {
-	    dbprintf("tape_is_read: ioctl(MTIOCGET) failed: %s", strerror(errno));
-            return TAPE_CHECK_FAILURE;
+            return DEVICE_STATUS_VOLUME_MISSING;
         }
 #else /* Neither macro is defined. */
-        return TAPE_CHECK_UNKNOWN;
+        return DEVICE_STATUS_SUCCESS;
 #endif
     } else {
-        return TAPE_CHECK_FAILURE;
+        return DEVICE_STATUS_VOLUME_ERROR;
     }
 }
 
-void tape_device_discover_capabilities(TapeDevice * t_self) {
-    Device * self;
-    GValue val;
-
-    self = DEVICE(t_self);
-    g_return_if_fail(self != NULL);
-
-    bzero(&val, sizeof(val));
-    g_value_init(&val, FEATURE_SUPPORT_FLAGS_TYPE);
-
-    g_value_set_flags(&val,
-                      FEATURE_STATUS_ENABLED | FEATURE_SURETY_BAD |
-                      FEATURE_SOURCE_DEFAULT);
-    device_property_set(self, PROPERTY_FSF, &val);
-    
-    g_value_set_flags(&val,
-                      FEATURE_STATUS_ENABLED | FEATURE_SURETY_BAD |
-                      FEATURE_SOURCE_DEFAULT);
-    device_property_set(self, PROPERTY_BSF, &val);
-    
-    g_value_set_flags(&val,
-                      FEATURE_STATUS_ENABLED | FEATURE_SURETY_BAD |
-                      FEATURE_SOURCE_DEFAULT);
-    device_property_set(self, PROPERTY_FSR, &val);
-    
-    g_value_set_flags(&val,
-                      FEATURE_STATUS_ENABLED | FEATURE_SURETY_BAD |
-                      FEATURE_SOURCE_DEFAULT);
-    device_property_set(self, PROPERTY_BSR, &val);
-    
-    g_value_set_flags(&val,
-                      FEATURE_STATUS_ENABLED | FEATURE_SURETY_BAD |
-                      FEATURE_SOURCE_DEFAULT);
-    device_property_set(self, PROPERTY_EOM, &val);
-
-    g_value_set_flags(&val,
-                      FEATURE_STATUS_DISABLED | FEATURE_SURETY_BAD | 
-                      FEATURE_SOURCE_DEFAULT);
-    device_property_set(self, PROPERTY_BSF_AFTER_EOM, &val);
-
-    g_value_unset_init(&val, G_TYPE_UINT);
-    g_value_set_uint(&val, 2);
-    device_property_set(self, PROPERTY_FINAL_FILEMARKS, &val);
+void tape_device_detect_capabilities(TapeDevice * t_self) {
+    tape_device_set_capabilities(t_self,
+	TRUE,  PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT, /* fsf*/
+	TRUE,  PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT, /* bsf*/
+	TRUE,  PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT, /* fsr*/
+	TRUE,  PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT, /* bsr*/
+	TRUE,  PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT, /* eom*/
+	FALSE, PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT, /* bsf_after_eom*/
+	2,     PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT  /* final_filemarks*/
+	);
 }

@@ -15,8 +15,8 @@
 #  with this program; if not, write to the Free Software Foundation, Inc.,
 #  59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 # 
-#  Contact information: Zmanda Inc, 505 N Mathlida Ave, Suite 120
-#  Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+#  Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+#  Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 #
 
 
@@ -62,11 +62,11 @@
         %define disttag fc
         %define distver 7
     %endif
-    %if %(awk '$1 == "Fedora" && $3 ~ /8.*/ { exit 1; }' /etc/redhat-release; echo $?)
+    # if macro cannot have an empty test and we're just testing the existance
+    %if %{?fedora:yes}%{!?fedora:no} == yes
         %define dist fedora
         %define disttag fc
-        %define distver 8
-        # TODO: generalize this so that any platform can cross compile
+        %define distver %{fedora}
         %if %{_host_cpu} == x86_64 && %{_target_cpu} == i686
                 # Do nothing if PKG_CONFIG_PATH was set by the user above.
                 %{!?PKG_CONFIG_PATH: %define PKG_CONFIG_PATH /usr/lib/pkgconfig}
@@ -84,29 +84,58 @@
         %define distver 4
         %define tarver 1.14
     %endif
+    %if %(awk '$1 == "CentOS" && $3 ~ /4.*/ { exit 1; }' /etc/redhat-release; echo $?)
+	%define dist redhat
+	%define disttag rhel
+	%define distver 4
+	%define tarver 1.14
+    %endif
     %if %(awk '$1 == "Red" && $7 ~ /5.*/ { exit 1; }' /etc/redhat-release; echo $?)
         %define dist redhat
         %define disttag rhel
         %define distver 5
     %endif
+    %if %(awk '$1 == "CentOS" && $3 ~ /5.*/ { exit 1; }' /etc/redhat-release; echo $?)
+        %define dist redhat
+        %define disttag rhel
+        %define distver 5
+    %endif
+    
+    # If dist is undefined, we didn't detect.
+    %{!?dist:%define dist unknown}
 %endif
 # Detect Suse variants.  Suse gives us some nice macros in their rpms
 %if %{_vendor} == "suse"
-    %if %{suse_version} == 910
-        %define dist SuSE
-        %define disttag sles
-        %define distver 9
+    %define dist SuSE
+    %if %{sles_version} == 0
+	%define disttag suse
+	%if %{suse_version} == 910
+	    %define distver 9
+	%endif
+	%if %{suse_version} == 1000
+	    %define distver 10
+	%endif
+	%if %{suse_version} == 1010
+	    %define distver 10
+	%endif
+	# Written against SLES11-beta2, which is using SUSE11's rpm system.
+	# This will change when they release, I assume.
+	%if %{suse_version} == 1100
+	    # assume it's sles11 in disguise, for now
+	    %define disttag sles
+	    %define distver 11
+	%endif
+	%if %{suse_version} == 1110
+	    %define distver 11.1
+	%endif
+    %else
+	%define disttag sles
+	# sles versions are simple integers, just like we want
+	%define distver %{sles_version}
     %endif
-    %if %{suse_version} == 1010
-        %define dist SuSE
-        %define disttag sles
-        %define distver 10
-    %endif
-    %if %{suse_version} == 1000
-        %define dist SuSE
-        %define disttag suse
-        %define distver 10
-    %endif
+   
+    # If dist is undefined, we didn't detect.
+    %{!?dist:%define dist unknown}
 %endif
 
 # Set options per distribution
@@ -119,6 +148,9 @@
     %define xinetd_reload restart
 %endif
 
+# Let's die if we haven't detected the distro. This might save some frustration.
+# RPM does not provide a way to  exit gracefully, hence the tag_to_cause_exit. 
+%{!?distver: %{error:"Your distribution and its version were not detected."}; %tag_to_cause_exit }
 # Set minimum tar version if it wasn't set in the per-distro section
 %{!?tarver: %define tarver 1.15}
 
@@ -127,7 +159,7 @@
 # --- Definitions ---
 
 # Define amanda_version if it is not already defined.
-%{!?amanda_version: %define amanda_version 2.6.0p2}
+%{!?amanda_version: %define amanda_version 2.6.1}
 %{!?amanda_release: %define amanda_release 1}
 %define amanda_version_info "Amanda Community Edition - version %{amanda_version}"
 %define amanda_user amandabackup
@@ -159,7 +191,12 @@ BuildRequires: flex
 BuildRequires: gcc
 BuildRequires: glibc >= 2.2.0
 BuildRequires: readline
+BuildRequires: readline-devel
 BuildRequires: curl >= 7.10.0
+BuildRequires: curl-devel >= 7.10.0
+BuildRequires: openssl
+BuildRequires: openssl-devel
+BuildRequires: perl(ExtUtils::Embed)
 Requires: /bin/awk
 Requires: /bin/date
 Requires: /usr/bin/id
@@ -174,11 +211,15 @@ Requires: libc.so.6
 Requires: libm.so.6
 Requires: libnsl.so.1
 Requires: curl >= 7.10.0
+Requires: openssl
 Requires: xinetd
 Requires: perl >= 5.6.0
 Requires: tar >= %{tarver}
-%if  %{dist} == redhat || %{dist}== fedora
+Requires: readline
+%if  %{dist} == redhat || %{dist} == fedora
+  %if %{distver} <= 8
 Requires: libtermcap.so.2
+  %endif
 Requires: initscripts
 %endif
 Provides: amanda-backup_client = %{amanda_version}, amanda-backup_server = %{amanda_version}
@@ -190,7 +231,9 @@ Requires: /bin/awk
 Requires: fileutils
 Requires: grep
 %if  %{dist} == redhat || %{dist}== fedora
+  %if %{distver} <= 8
 Requires: libtermcap.so.2
+  %endif
 Requires: initscripts
 %endif
 Requires: xinetd
@@ -198,7 +241,8 @@ Requires: libc.so.6
 Requires: libm.so.6
 Requires: libnsl.so.1
 Requires: perl >= 5.6.0
-Requires: tar >= 1.15
+Requires: tar >= %{tarver}
+Requires: readline
 Provides: amanda-backup_client = %{amanda_version}
 Provides: libamclient-%{version}.so = %{amanda_version}
 Provides: libamanda-%{version}.so = %{amanda_version}
@@ -214,12 +258,14 @@ Requires: libc.so.6
 Requires: libm.so.6
 Requires: libnsl.so.1
 %if  %{dist} == redhat || %{dist}== fedora
+  %if %{distver} <= 8
 Requires: libtermcap.so.2
+  %endif
 Requires: initscripts
 %endif
 Requires: xinetd
 Requires: perl >= 5.6.0
-Requires: tar >= 1.15
+Requires: tar >= %{tarver}
 Provides: amanda-backup_server = %{amanda_version}
 Provides: libamclient-%{version}.so = %{amanda_version}
 Provides: libamanda-%{version}.so = %{amanda_version}
@@ -278,6 +324,7 @@ Amanda Documentation is available at: http://wiki.zmanda.com/
 %define DATADIR         %{PREFIX}/share
 %define SYSCONFDIR      /etc
 %define LOCALSTATEDIR   /var
+%define AMANDATES       %{AMANDAHOMEDIR}/amandates
 %define AMANDAHOMEDIR   %{LOCALSTATEDIR}/lib/amanda
 %ifarch x86_64
 %define LIBDIR          %{EPREFIX}/lib64
@@ -289,6 +336,7 @@ Amanda Documentation is available at: http://wiki.zmanda.com/
 %define MANDIR          %{DATADIR}/man
 %define LOGDIR          /var/log/amanda
 %define PERLSITELIB     %(eval "`perl -V:installsitelib`"; echo $installsitelib)
+%define AMDATADIR	/var/lib/amanda
 
 # Installation directories:
 %define ROOT_SBINDIR            %{buildroot}/%{SBINDIR}
@@ -300,6 +348,7 @@ Amanda Documentation is available at: http://wiki.zmanda.com/
 %define ROOT_LIBDIR             %{buildroot}/%{LIBDIR}
 %define ROOT_MANDIR             %{buildroot}/%{MANDIR}
 %define ROOT_LOGDIR             %{buildroot}/%{LOGDIR}
+%define ROOT_AMDATADIR          %{buildroot}/%{AMDATADIR}
 
 # --- Unpack ---
 
@@ -321,8 +370,8 @@ Amanda Documentation is available at: http://wiki.zmanda.com/
         --localstatedir=%{LOCALSTATEDIR} \
         --libdir=%{LIBDIR} \
         --includedir=%{INCLUDEDIR} \
+	--with-amdatadir=%{AMDATADIR} \
         --with-gnuplot=/usr/bin/gnuplot \
-        --with-gnutar=/bin/tar \
         --with-gnutar-listdir=%{AMANDAHOMEDIR}/gnutar-lists \
         --with-index-server=localhost \
         --with-tape-server=localhost \
@@ -354,6 +403,7 @@ Amanda Documentation is available at: http://wiki.zmanda.com/
         --localstatedir=%{LOCALSTATEDIR} \
         --libdir=%{LIBDIR} \
         --includedir=%{INCLUDEDIR} \
+	--with-amdatadir=%{AMDATADIR} \
         --with-star=/usr/bin/star \
         --with-gnuplot=/usr/bin/gnuplot \
         --with-gnutar=/bin/tar \
@@ -612,29 +662,29 @@ if [ -e /etc/xinetd.d ] && [ -d /etc/xinetd.d ] ; then
         fi
 fi
 
-echo "`date +'%b %e %Y %T'`: Installing '%{LOCALSTATEDIR}/amanda/amandates'." >${TMPFILE}
+echo "`date +'%b %e %Y %T'`: Installing '%{AMANDATES}'." >${TMPFILE}
 ret_val=0
-if [ ! -f %{LOCALSTATEDIR}/amanda/amandates ] ; then
-        touch %{LOCALSTATEDIR}/amanda/amandates >>${TMPFILE} 2>&1
+if [ ! -f %{AMANDATES} ] ; then
+        touch %{AMANDATES} >>${TMPFILE} 2>&1
         ret_val=$?
         if [ ${ret_val} -eq 0 ]; then
-                echo "`date +'%b %e %Y %T'`: The file '%{LOCALSTATEDIR}/amanda/amandates' has been created." >>${TMPFILE}
+                echo "`date +'%b %e %Y %T'`: The file '%{AMANDATES}' has been created." >>${TMPFILE}
         fi
 fi
 if [ ${ret_val} -eq 0 ]; then
-        echo "`date +'%b %e %Y %T'`: Ensuring correct permissions for '%{LOCALSTATEDIR}/amanda/amandates'." >>${TMPFILE}
-        chown %{amanda_user}:%{amanda_group} %{LOCALSTATEDIR}/amanda/amandates >>${TMPFILE} 2>&1
-        chmod 0640 %{LOCALSTATEDIR}/amanda/amandates >>${TMPFILE} 2>&1
+        echo "`date +'%b %e %Y %T'`: Ensuring correct permissions for '%{AMANDATES}'." >>${TMPFILE}
+        chown %{amanda_user}:%{amanda_group} %{AMANDATES} >>${TMPFILE} 2>&1
+        chmod 0640 %{AMANDATES} >>${TMPFILE} 2>&1
         if [ -x /sbin/restorecon ] ; then
-              /sbin/restorecon %{LOCALSTATEDIR}/amanda/amandates  >>${TMPFILE} 2>&1
+              /sbin/restorecon %{AMANDATES}  >>${TMPFILE} 2>&1
         fi
 fi
 if [ ${ret_val} -eq 0 ]; then
-        echo "`date +'%b %e %Y %T'`: '%{LOCALSTATEDIR}/amanda/amandates' Installation successful." >>${TMPFILE}
+        echo "`date +'%b %e %Y %T'`: '%{AMANDATES}' Installation successful." >>${TMPFILE}
         cat ${TMPFILE}
         cat ${TMPFILE} >>${INSTALL_LOG}
 else
-        echo "`date +'%b %e %Y %T'`: '%{LOCALSTATEDIR}/amanda/amandates' Installation failed." >>${TMPFILE}
+        echo "`date +'%b %e %Y %T'`: '%{AMANDATES}' Installation failed." >>${TMPFILE}
         cat ${TMPFILE}
         cat ${TMPFILE} >>${INSTALL_ERR}
 fi
@@ -977,26 +1027,26 @@ if [ -e /etc/xinetd.d ] && [ -d /etc/xinetd.d ] ; then
         fi
 fi
 
-echo "`date +'%b %e %Y %T'`: Installing '%{LOCALSTATEDIR}/amanda/amandates'." >${TMPFILE}
+echo "`date +'%b %e %Y %T'`: Installing '%{AMANDATES}'." >${TMPFILE}
 ret_val=0
-if [ ! -f %{LOCALSTATEDIR}/amanda/amandates ] ; then
-        touch %{LOCALSTATEDIR}/amanda/amandates >>${TMPFILE} 2>&1
+if [ ! -f %{AMANDATES} ] ; then
+        touch %{AMANDATES} >>${TMPFILE} 2>&1
         ret_val=$?
         if [ ${ret_val} -eq 0 ]; then
-                echo "`date +'%b %e %Y %T'`: The file '%{LOCALSTATEDIR}/amanda/amandates' has been created." >>${TMPFILE}
+                echo "`date +'%b %e %Y %T'`: The file '%{AMANDATES}' has been created." >>${TMPFILE}
         fi
 fi
 if [ ${ret_val} -eq 0 ]; then
-        echo "`date +'%b %e %Y %T'`: Ensuring correct permissions for '%{LOCALSTATEDIR}/amanda/amandates'." >>${TMPFILE}
-        chown %{amanda_user}:%{amanda_group} %{LOCALSTATEDIR}/amanda/amandates >>${TMPFILE} 2>&1
-        chmod 0640 %{LOCALSTATEDIR}/amanda/amandates >>${TMPFILE} 2>&1
+        echo "`date +'%b %e %Y %T'`: Ensuring correct permissions for '%{AMANDATES}'." >>${TMPFILE}
+        chown %{amanda_user}:%{amanda_group} %{AMANDATES} >>${TMPFILE} 2>&1
+        chmod 0640 %{AMANDATES} >>${TMPFILE} 2>&1
 fi
 if [ ${ret_val} -eq 0 ]; then
-        echo "`date +'%b %e %Y %T'`: '%{LOCALSTATEDIR}/amanda/amandates' Installation successful." >>${TMPFILE}
+        echo "`date +'%b %e %Y %T'`: '%{AMANDATES}' Installation successful." >>${TMPFILE}
         cat ${TMPFILE}
         cat ${TMPFILE} >>${INSTALL_LOG}
 else
-        echo "`date +'%b %e %Y %T'`: '%{LOCALSTATEDIR}/amanda/amandates' Installation failed." >>${TMPFILE}
+        echo "`date +'%b %e %Y %T'`: '%{AMANDATES}' Installation failed." >>${TMPFILE}
         cat ${TMPFILE}
         cat ${TMPFILE} >>${INSTALL_ERR}
 fi
@@ -1034,7 +1084,7 @@ echo "`date +'%b %e %Y %T'`: Checking '%{AMANDAHOMEDIR}/.am_passphrase' file." >
 if [ ! -f %{AMANDAHOMEDIR}/.am_passphrase ] ; then
         echo "`date +'%b %e %Y %T'`: Create '%{AMANDAHOMEDIR}/.am_passphrase' file." >${TMPFILE}
         touch %{AMANDAHOMEDIR}/.am_passphrase >>${TMPFILE} 2>&1
-        phrase=`echo "amandabackup" | md5sum | awk '{print $1}'`
+        phrase=`echo $RANDOM | md5sum | awk '{print $1}'`
         echo ${phrase} >>%{AMANDAHOMEDIR}/.am_passphrase
 
         chown %{amanda_user}:%{amanda_group} %{AMANDAHOMEDIR}/.am_passphrase >>${TMPFILE} 2>&1
@@ -1361,26 +1411,26 @@ if [ -e /etc/xinetd.d ] && [ -d /etc/xinetd.d ] ; then
         fi
 fi
 
-echo "`date +'%b %e %Y %T'`: Installing '%{LOCALSTATEDIR}/amanda/amandates'." >${TMPFILE}
+echo "`date +'%b %e %Y %T'`: Installing '%{AMANDATES}'." >${TMPFILE}
 ret_val=0
-if [ ! -f %{LOCALSTATEDIR}/amanda/amandates ] ; then
-        touch %{LOCALSTATEDIR}/amanda/amandates >>${TMPFILE} 2>&1
+if [ ! -f %{AMANDATES} ] ; then
+        touch %{AMANDATES} >>${TMPFILE} 2>&1
         ret_val=$?
         if [ ${ret_val} -eq 0 ]; then
-                echo "`date +'%b %e %Y %T'`: The file '%{LOCALSTATEDIR}/amanda/amandates' has been created." >>${TMPFILE}
+                echo "`date +'%b %e %Y %T'`: The file '%{AMANDATES}' has been created." >>${TMPFILE}
         fi
 fi
 if [ ${ret_val} -eq 0 ]; then
-        echo "`date +'%b %e %Y %T'`: Ensuring correct permissions for '%{LOCALSTATEDIR}/amanda/amandates'." >>${TMPFILE}
-        chown %{amanda_user}:%{amanda_group} %{LOCALSTATEDIR}/amanda/amandates >>${TMPFILE} 2>&1
-        chmod 0640 %{LOCALSTATEDIR}/amanda/amandates >>${TMPFILE} 2>&1
+        echo "`date +'%b %e %Y %T'`: Ensuring correct permissions for '%{AMANDATES}'." >>${TMPFILE}
+        chown %{amanda_user}:%{amanda_group} %{AMANDATES} >>${TMPFILE} 2>&1
+        chmod 0640 %{AMANDATES} >>${TMPFILE} 2>&1
 fi
 if [ ${ret_val} -eq 0 ]; then
-        echo "`date +'%b %e %Y %T'`: '%{LOCALSTATEDIR}/amanda/amandates' Installation successful." >>${TMPFILE}
+        echo "`date +'%b %e %Y %T'`: '%{AMANDATES}' Installation successful." >>${TMPFILE}
         cat ${TMPFILE}
         cat ${TMPFILE} >>${INSTALL_LOG}
 else
-        echo "`date +'%b %e %Y %T'`: '%{LOCALSTATEDIR}/amanda/amandates' Installation failed." >>${TMPFILE}
+        echo "`date +'%b %e %Y %T'`: '%{AMANDATES}' Installation failed." >>${TMPFILE}
         cat ${TMPFILE}
         cat ${TMPFILE} >>${INSTALL_ERR}
 fi
@@ -1508,14 +1558,13 @@ echo "Amanda installation log can be found in '${INSTALL_LOG}' and errors (if an
 # Notes:  Do not use wildcards on directories not wholly owned by amanda.  An
 # uninstall of the software will attempt to delete whatever matches here.
 %files backup_client
-%defattr(0755,%{amanda_user},%{amanda_group})
-%{SYSCONFDIR}/amanda
-%{AMANDAHOMEDIR}
+%defattr(0755,%{amanda_user},%{amanda_group},0755)
 %{AMLIBEXECDIR}
 %{AMLIBDIR}
-%{AMLIBEXECDIR}/amanda-sh-lib.sh
-%{LOCALSTATEDIR}/amanda
+%{PERLSITELIB}/auto/Amanda
 %defattr(4750,root,disk)
+%{AMLIBEXECDIR}/application/amgtar
+%{AMLIBEXECDIR}/application/amstar
 %{AMLIBEXECDIR}/calcsize
 %{AMLIBEXECDIR}/killpgrp
 %{AMLIBEXECDIR}/rundump
@@ -1527,17 +1576,30 @@ echo "Amanda installation log can be found in '${INSTALL_LOG}' and errors (if an
 %{SBINDIR}/amgpgcrypt
 %{SBINDIR}/amoldrecover
 %{SBINDIR}/amrecover
-%defattr(0644,%{amanda_user},%{amanda_group})
+%defattr(0644,%{amanda_user},%{amanda_group},0755)
+%{LOCALSTATEDIR}/amanda
+%{PERLSITELIB}/Amanda
+%{SYSCONFDIR}/amanda
 %docdir %{MANDIR}
 %{MANDIR}/man5/amanda.conf.5.gz
 %{MANDIR}/man5/amanda-client.conf.5.gz
+%{MANDIR}/man7/amanda-devices.7.gz
+%{MANDIR}/man7/amanda-applications.7.gz
+%{MANDIR}/man7/amanda-scripts.7.gz
+%{MANDIR}/man8/amaespipe.8.gz
 %{MANDIR}/man8/amanda.8.gz
 %{MANDIR}/man8/amcheckdump.8.gz
+%{MANDIR}/man8/amcrypt*
+%{MANDIR}/man8/amgpgcrypt.8.gz
 %{MANDIR}/man8/amrecover.8.gz
 %{AMLIBEXECDIR}/amcat.awk
-%{AMANDAHOMEDIR}/amanda-release
-%{AMANDAHOMEDIR}/example/xinetd.amandaclient
-%{AMANDAHOMEDIR}/example/amanda-client.conf
+%{AMANDAHOMEDIR}/gnutar-lists
+%doc %{AMANDAHOMEDIR}/amanda-release
+%doc %{AMANDAHOMEDIR}/example/xinetd.amandaclient
+%doc %{AMANDAHOMEDIR}/example/xinetd.amandaserver
+%doc %{AMANDAHOMEDIR}/example/amanda-client.conf
+%doc %{AMANDAHOMEDIR}/template.d/README
+%doc %{AMANDAHOMEDIR}/template.d/dumptypes
 
 %files backup_server
 %defattr(0755,%{amanda_user},%{amanda_group})
@@ -1548,32 +1610,7 @@ echo "Amanda installation log can be found in '${INSTALL_LOG}' and errors (if an
 %{PERLSITELIB}/auto/Amanda
 %{AMANDAHOMEDIR}
 %{LOCALSTATEDIR}/amanda
-%{SBINDIR}/amaddclient
-%{SBINDIR}/amadmin
-%{SBINDIR}/amcheckdb
-%{SBINDIR}/amcheckdump
-%{SBINDIR}/amcleanup
-%{SBINDIR}/amdd
-%{SBINDIR}/amdevcheck
-%{SBINDIR}/amdump
-%{SBINDIR}/amfetchdump
-%{SBINDIR}/amflush
-%{SBINDIR}/amgetconf
-%{SBINDIR}/amlabel
-%{SBINDIR}/ammt
-%{SBINDIR}/amoverview
-%{SBINDIR}/amplot
-%{SBINDIR}/amreport
-%{SBINDIR}/amrestore
-%{SBINDIR}/amrmtape
-%{SBINDIR}/amserverconfig
-%{SBINDIR}/amstatus
-%{SBINDIR}/amtape
-%{SBINDIR}/amtapetype
-%{SBINDIR}/amtoc
-%{SBINDIR}/amverify
-%{SBINDIR}/amverifyrun
-%{AMLIBEXECDIR}/amanda-sh-lib.sh
+%{SBINDIR}/am*
 %defattr(4750,root,disk)
 %{AMLIBEXECDIR}/calcsize
 %{AMLIBEXECDIR}/killpgrp
@@ -1584,11 +1621,9 @@ echo "Amanda installation log can be found in '${INSTALL_LOG}' and errors (if an
 %{SBINDIR}/amcheck
 %defattr(0750,%{amanda_user},%{amanda_group})
 %{LOGDIR}
+%{SBINDIR}/activate-devpay
 %{SBINDIR}/amaespipe
-%{SBINDIR}/amcrypt
-%{SBINDIR}/amcrypt-ossl
-%{SBINDIR}/amcrypt-ossl-asym
-%{SBINDIR}/amcryptsimple
+%{SBINDIR}/amcrypt*
 %{SBINDIR}/amgpgcrypt
 %{SBINDIR}/amoldrecover
 %{SBINDIR}/amrecover
@@ -1598,55 +1633,32 @@ echo "Amanda installation log can be found in '${INSTALL_LOG}' and errors (if an
 %{AMLIBEXECDIR}/amplot.g
 %{AMLIBEXECDIR}/amplot.gp
 %docdir %{MANDIR}
-%{MANDIR}/man5/amanda.conf.5.gz
-%{MANDIR}/man5/amanda-client.conf.5.gz
-%{MANDIR}/man8/amaddclient.8.gz
-%{MANDIR}/man8/amadmin.8.gz
-%{MANDIR}/man8/amanda.8.gz
-%{MANDIR}/man8/amcheck.8.gz
-%{MANDIR}/man8/amcheckdb.8.gz
-%{MANDIR}/man8/amcheckdump.8.gz
-%{MANDIR}/man8/amcleanup.8.gz
-%{MANDIR}/man8/amdd.8.gz
-%{MANDIR}/man8/amdump.8.gz
-%{MANDIR}/man8/amfetchdump.8.gz
-%{MANDIR}/man8/amflush.8.gz
-%{MANDIR}/man8/amgetconf.8.gz
-%{MANDIR}/man8/amlabel.8.gz
-%{MANDIR}/man8/ammt.8.gz
-%{MANDIR}/man8/amoverview.8.gz
-%{MANDIR}/man8/amplot.8.gz
-%{MANDIR}/man8/amrecover.8.gz
-%{MANDIR}/man8/amreport.8.gz
-%{MANDIR}/man8/amrestore.8.gz
-%{MANDIR}/man8/amrmtape.8.gz
-%{MANDIR}/man8/amserverconfig.8.gz
-%{MANDIR}/man8/amstatus.8.gz
-%{MANDIR}/man8/amtape.8.gz
-%{MANDIR}/man8/amtapetype.8.gz
-%{MANDIR}/man8/amtoc.8.gz
-%{MANDIR}/man8/amverify.8.gz
-%{MANDIR}/man8/amverifyrun.8.gz
-%{MANDIR}/man8/amcrypt.8.gz
-%{MANDIR}/man8/amcrypt-ossl.8.gz
-%{MANDIR}/man8/amcrypt-ossl-asym.8.gz
-%{MANDIR}/man8/amcryptsimple.8.gz
-%{MANDIR}/man8/amgpgcrypt.8.gz
-%{MANDIR}/man8/amaespipe.8.gz
-%{MANDIR}/man8/amdevcheck.8.gz
-%{AMANDAHOMEDIR}/amanda-release
-%{AMANDAHOMEDIR}/example/amanda-client.conf
-%{AMANDAHOMEDIR}/example/xinetd.amandaserver
+%{MANDIR}/man5/am*
+%{MANDIR}/man5/disklist.5.gz
+%{MANDIR}/man5/tapelist.5.gz
+%{MANDIR}/man7/am*
+%{MANDIR}/man8/am*
+%{MANDIR}/man8/script-email.8.gz
+%doc %{AMANDAHOMEDIR}/amanda-release
+%docdir %{AMANDAHOMEDIR}/example
+%docdir %{AMANDAHOMEDIR}/template.d
 
 # --- ChangeLog
 
 %changelog
+* Mon Sep 15 2008 Dan Locks <dwlocks at zmanda dot com> 2.6.1alpha
+- Added detection of CentOS 4 and 5 as suggested by dswartz
+- graceful failure when Distro/version is not detected correctly
+* Thu Jun 12 2008 Dan Locks <dwlocks at zmanda dot com> 2.6.1alpha
+- install amgtar and amstar suid root
+* Mon Jun 09 2008 Dan Locks <dwlocks at zmanda dot com> 2.6.1alpha
+- Replaced individual SBINDIR/am... entries with SBINDIR/am* in %%files
 * Fri May 02 2008 Dan Locks <dwlocks at zmanda dot com>
 - Changed instances of ${ to %%{ where applicable
 * Tue Mar 11 2008 Dan Locks <dwlocks at zmanda dot com>
 - fixed many rpmlint complaints
 - added --quiet to configure statements
-- moved PERLSITELIB to definitions section
+- added PERLSITELIB to definitions section and perl files to %%files section
 * Wed Feb 13 2008 Dan Locks <dwlocks at zmanda dot com>
 - added an environment check for PKG_CONFIG_PATH
 - added PKG_CONFIG_PATH conditional to handle cross comp on FC8 (environment 

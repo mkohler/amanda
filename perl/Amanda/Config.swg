@@ -14,8 +14,8 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  *
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 %module "Amanda::Config"
@@ -77,9 +77,6 @@ is loaded.
 =item If C<CONFIG_INIT_OVERLAY> is given, then any existing
 configuration is not reset.
 
-=item If C<CONFIG_INIT_FATAL> is given, then any errors are considered
-fatal, and C<config_init> does not return.
-
 =back
 
 See C<conffile.h> for more detailed information on these flags and
@@ -93,6 +90,19 @@ Once the configuration is loaded, the configuration name
 and filename (C</etc/amanda/DailySet1/amanda.conf>) are
 available from C<get_config_name()>, C<get_config_dir()>, and
 C<get_config_filename()>, respectively.
+
+=head3 CONFIG ERRORS
+
+This module collects configuration errors and warnings in a list, and also
+tracks the overall error level with an enumeration: C<$CFGERR_OK>,
+C<$CFGERR_WARNINGS>, and C<$CFGERR_ERRORS>.  C<config_init> and
+C<apply_config_overwrites> both return the current level.  The level and the
+list of error messages are available from C<config_errors>:
+
+  my ($cfgerr_level, @errors) = Amanda::Configconfig_errors();
+
+As a convenience, C<config_print_errors> will print all error messages to
+stderr.  The error state can be cleared with C<config_clear_errors>.
 
 =head2 CONFIG OVERWRITES
 
@@ -182,6 +192,10 @@ with constants beginning with C<$TAPETYPE_>
 
 with constants beginning with C<$DUMPTYPE_>
 
+=item C<interface>
+
+with constants beginning with C<$INTER_>
+
 =item C<holdingdisk>
 
 with constants beginning with C<$HOLDING_>
@@ -194,14 +208,28 @@ with constants beginning with C<$APPLICATION_>
 
 with constants beginning with C<$PP_SCRIPT_>
 
+=item C<device>
+
+with constants beginning with C<$DEVICE_CONFIG_>.
+
+=item C<changer>
+
+with constants beginning with C<$CHANGER_CONFIG_>.
+
 =back
 
 See C<conffile.h> for the names of the constants themselves.
 
-Parameter values are available by name from C<getconf_byname($name)>.
-This function implements the C<TYP:NAME:PARAM> syntax advertised by
-C<amgetconf> to access values in subsections.  C<getconf_list($typ)>
-returns a list of the names of all subsections of the given type.
+Parameter values are available by name from C<getconf_byname($name)> and
+C<getconf_byname_strs($name, $str_needs_quotes)>.  These functions implement
+the C<TYP:NAME:PARAM> syntax advertised by C<amgetconf> to access values in
+subsections.  The first function returns a perl value, while the second returns
+a string suitable for use in C<amanda.conf>, including quotes around strings if
+C<$str_needs_quotes> is true.
+
+C<getconf_list($typ)> returns a list of the names of all subsections of the
+given type.  C<%subsection_names> is a hash whose keys are allowed subsection
+names.
 
 The C<$CNF_DISPLAYUNIT> implies a certain divisor to convert from
 kilobytes to the desired unit.  This divisor is available from
@@ -252,10 +280,12 @@ amglue_add_constant(CNF_AMANDAD_PATH, confparm_key);
 amglue_add_constant(CNF_CLIENT_USERNAME, confparm_key);
 amglue_add_constant(CNF_GNUTAR_LIST_DIR, confparm_key);
 amglue_add_constant(CNF_AMANDATES, confparm_key);
+amglue_add_constant(CNF_MAILER, confparm_key);
 amglue_add_constant(CNF_MAILTO, confparm_key);
 amglue_add_constant(CNF_DUMPUSER, confparm_key);
 amglue_add_constant(CNF_TAPEDEV, confparm_key);
 amglue_add_constant(CNF_DEVICE_PROPERTY, confparm_key);
+amglue_add_constant(CNF_PROPERTY, confparm_key);
 amglue_add_constant(CNF_CHANGERDEV, confparm_key);
 amglue_add_constant(CNF_CHANGERFILE, confparm_key);
 amglue_add_constant(CNF_LABELSTR, confparm_key);
@@ -374,6 +404,9 @@ amglue_add_constant(DUMPTYPE_HOLDINGDISK, dumptype_key);
 amglue_add_constant(DUMPTYPE_KENCRYPT, dumptype_key);
 amglue_add_constant(DUMPTYPE_IGNORE, dumptype_key);
 amglue_add_constant(DUMPTYPE_INDEX, dumptype_key);
+amglue_add_constant(DUMPTYPE_APPLICATION, dumptype_key);
+amglue_add_constant(DUMPTYPE_PP_SCRIPTLIST, dumptype_key);
+amglue_add_constant(DUMPTYPE_PROPERTY, dumptype_key);
 amglue_copy_to_tag(dumptype_key, getconf);
 
 amglue_add_enum_tag_fns(interface_key);
@@ -387,6 +420,34 @@ amglue_add_constant(HOLDING_DISKDIR, holdingdisk_key);
 amglue_add_constant(HOLDING_DISKSIZE, holdingdisk_key);
 amglue_add_constant(HOLDING_CHUNKSIZE, holdingdisk_key);
 amglue_copy_to_tag(holdingdisk_key, getconf);
+
+amglue_add_enum_tag_fns(application_key);
+amglue_add_constant(APPLICATION_COMMENT, application_key);
+amglue_add_constant(APPLICATION_PLUGIN, application_key);
+amglue_add_constant(APPLICATION_PROPERTY, application_key);
+amglue_copy_to_tag(application_key, getconf);
+
+amglue_add_enum_tag_fns(pp_script_key);
+amglue_add_constant(PP_SCRIPT_COMMENT, pp_script_key);
+amglue_add_constant(PP_SCRIPT_PLUGIN, pp_script_key);
+amglue_add_constant(PP_SCRIPT_PROPERTY, pp_script_key);
+amglue_add_constant(PP_SCRIPT_EXECUTE_ON, pp_script_key);
+amglue_add_constant(PP_SCRIPT_EXECUTE_WHERE, pp_script_key);
+amglue_copy_to_tag(pp_script_key, getconf);
+
+amglue_add_enum_tag_fns(device_config_key);
+amglue_add_constant(DEVICE_CONFIG_COMMENT, device_config_key);
+amglue_add_constant(DEVICE_CONFIG_TAPEDEV, device_config_key);
+amglue_add_constant(DEVICE_CONFIG_DEVICE_PROPERTY, device_config_key);
+amglue_copy_to_tag(device_config_key, getconf);
+
+amglue_add_enum_tag_fns(changer_config_key);
+amglue_add_constant(CHANGER_CONFIG_COMMENT, changer_config_key);
+amglue_add_constant(CHANGER_CONFIG_TAPEDEV, changer_config_key);
+amglue_add_constant(CHANGER_CONFIG_TPCHANGER, changer_config_key);
+amglue_add_constant(CHANGER_CONFIG_CHANGERDEV, changer_config_key);
+amglue_add_constant(CHANGER_CONFIG_CHANGERFILE, changer_config_key);
+amglue_copy_to_tag(changer_config_key, getconf);
 
 /*
  * Various enumerated conftypes
@@ -440,143 +501,175 @@ amglue_add_constant(ALGO_SMALLEST, taperalgo_t);
 amglue_add_constant(ALGO_LAST, taperalgo_t);
 amglue_copy_to_tag(taperalgo_t, getconf);
 
+amglue_add_enum_tag_fns(execute_on_t);
+amglue_add_constant(EXECUTE_ON_PRE_DLE_AMCHECK, execute_on_t);
+amglue_add_constant(EXECUTE_ON_PRE_HOST_AMCHECK, execute_on_t);
+amglue_add_constant(EXECUTE_ON_POST_DLE_AMCHECK, execute_on_t);
+amglue_add_constant(EXECUTE_ON_POST_HOST_AMCHECK, execute_on_t);
+amglue_add_constant(EXECUTE_ON_PRE_DLE_ESTIMATE, execute_on_t);
+amglue_add_constant(EXECUTE_ON_PRE_HOST_ESTIMATE, execute_on_t);
+amglue_add_constant(EXECUTE_ON_POST_DLE_ESTIMATE, execute_on_t);
+amglue_add_constant(EXECUTE_ON_POST_HOST_ESTIMATE, execute_on_t);
+amglue_add_constant(EXECUTE_ON_PRE_DLE_BACKUP, execute_on_t);
+amglue_add_constant(EXECUTE_ON_PRE_HOST_BACKUP, execute_on_t);
+amglue_add_constant(EXECUTE_ON_POST_DLE_BACKUP, execute_on_t);
+amglue_add_constant(EXECUTE_ON_POST_HOST_BACKUP, execute_on_t);
+amglue_copy_to_tag(execute_on_t, getconf);
+
+amglue_add_enum_tag_fns(send_amreport_on_t);
+amglue_add_constant(SEND_AMREPORT_ALL, send_amreport_on_t);
+amglue_add_constant(SEND_AMREPORT_STRANGE, send_amreport_on_t);
+amglue_add_constant(SEND_AMREPORT_ERROR, send_amreport_on_t);
+amglue_add_constant(SEND_AMREPORT_NEVER, send_amreport_on_t);
+amglue_copy_to_tag(send_amreport_on_t, getconf);
+
 /*
  * val_t typemaps
  */
 
 /* Typemap to convert a val_t, the union in which config values are
  * stored, to a Perl value of the appropriate type.  This converts:
- *  - CONFTYPE_SIZE, CONFTYPE_INT, CONFTYPE_AM64,
+ *  - CONFTYPE_SIZE, CONFTYPE_INT, CONFTYPE_INT64,
  *    CONFTYPE_BOOLEAN -> IV
  *  - CONFTYPE_REAL -> NV
  *  - CONFTYPE_STR, CONFTYPE_IDENT -> PV
  *  - CONFTYPE_TIME -> IV (epoch timestamp)
  *  - CONFTYPE_COMPRESS, CONFTYPE_ENCRYPT, CONFTYPE_ESTIMATE, CONFTYPE_STRATEGY,
- *    CONFTYPE_TAPERALGO, CONFTYPE_PRIORITY, CONFTYPE_HOLDING -> IV (enums)
+ *    CONFTYPE_TAPERALGO, CONFTYPE_PRIORITY, CONFTYPE_HOLDING, CONFTYPE_EXECUTE_ON,
+ *    CONFTYPE_EXECUTE_WHERE, SEND_AMREPORT_ON -> IV (enums)
  *  - CONFTYPE_RATE -> list of two NVs
  *  - CONFTYPE_INTRANGE -> list of two IVs
  *  - CONFTYPE_EXINCLUDE -> hashref with keys 'list' (listref), 'file' (listref), 
  *    and 'optional' (int)
- *  - CONFTYPE_PROPLIST -> hashref
+ *  - CONFTYPE_PROPLIST -> hashref of hashref with keys 'append' (IV), 'priority' (IV),
+ *							'values' (listref)
  */
 %typemap (out) val_t * {
-    switch ($1->type) {
-	case CONFTYPE_RATE: {
-	    $result= sv_newmortal();
-	    sv_setnv($result, val_t__rate($1)[0]);
-	    argvi++;
+    if (!$1) {
+	$result = &PL_sv_undef;
+	argvi++;
+    } else {
+	switch ($1->type) {
+	    case CONFTYPE_RATE: {
+		$result= sv_newmortal();
+		sv_setnv($result, val_t__rate($1)[0]);
+		argvi++;
 
-	    $result= sv_newmortal();
-	    sv_setnv($result, val_t__rate($1)[1]);
-	    argvi++;
-	    break;
-	}
-
-	case CONFTYPE_INTRANGE: {
-	    $result= sv_newmortal();
-	    sv_setiv($result, val_t__intrange($1)[0]);
-	    argvi++;
-
-	    $result= sv_newmortal();
-	    sv_setiv($result, val_t__intrange($1)[1]);
-	    argvi++;
-	    break;
-	    break;
-	}
-
-	case CONFTYPE_EXINCLUDE: {
-	    /* exincludes are represented in perl as {
-	     *	'list' : [ 'list1', 'list2', ..],
-	     *	'file' : [ 'file1', 'file2', ..],
-	     *	'optional' : 1,
-	     * }
-	     */
-	    exinclude_t *ei = &val_t__exinclude($1);
-	    AV *list_entries = (AV *)sv_2mortal((SV *)newAV());
-	    AV *file_entries = (AV *)sv_2mortal((SV *)newAV());
-	    SV *optional = sv_newmortal();
-	    HV *hv;
-	    sle_t *iter;
-
-	    /* first set up each of the hash values */
-
-	    if (ei->sl_list) {
-		for (iter = ei->sl_list->first; iter != NULL; iter = iter->next) {
-		    av_push(list_entries, newSVpv(iter->name, 0));
-		}
+		$result= sv_newmortal();
+		sv_setnv($result, val_t__rate($1)[1]);
+		argvi++;
+		break;
 	    }
 
-	    if(ei->sl_file) {
-		for (iter = ei->sl_file->first; iter != NULL; iter = iter->next) {
-		    av_push(file_entries, newSVpv(iter->name, 0));
-		}
+	    case CONFTYPE_INTRANGE: {
+		$result= sv_newmortal();
+		sv_setiv($result, val_t__intrange($1)[0]);
+		argvi++;
+
+		$result= sv_newmortal();
+		sv_setiv($result, val_t__intrange($1)[1]);
+		argvi++;
+		break;
+		break;
 	    }
 
-	    sv_setiv(optional, ei->optional);
+	    case CONFTYPE_EXINCLUDE: {
+		/* exincludes are represented in perl as {
+		 *	'list' : [ 'list1', 'list2', ..],
+		 *	'file' : [ 'file1', 'file2', ..],
+		 *	'optional' : 1,
+		 * }
+		 */
+		exinclude_t *ei = &val_t__exinclude($1);
+		AV *list_entries = (AV *)sv_2mortal((SV *)newAV());
+		AV *file_entries = (AV *)sv_2mortal((SV *)newAV());
+		SV *optional = sv_newmortal();
+		HV *hv;
+		sle_t *iter;
 
-	    /* now build the hash */
-	    hv = (HV *)sv_2mortal((SV *)newHV());
-	    
-	    hv_store(hv, "file", 4, newRV((SV *)file_entries), 0);
-	    hv_store(hv, "list", 4, newRV((SV *)list_entries), 0);
-	    hv_store(hv, "optional", 8, optional, 0);
-	    SvREFCNT_inc(optional);
+		/* first set up each of the hash values */
 
-	    $result = sv_2mortal(newRV((SV *)hv));
-	    argvi++;
-	    break;
+		if (ei->sl_list) {
+		    for (iter = ei->sl_list->first; iter != NULL; iter = iter->next) {
+			av_push(list_entries, newSVpv(iter->name, 0));
+		    }
+		}
+
+		if(ei->sl_file) {
+		    for (iter = ei->sl_file->first; iter != NULL; iter = iter->next) {
+			av_push(file_entries, newSVpv(iter->name, 0));
+		    }
+		}
+
+		sv_setiv(optional, ei->optional);
+
+		/* now build the hash */
+		hv = (HV *)sv_2mortal((SV *)newHV());
+		
+		hv_store(hv, "file", 4, newRV((SV *)file_entries), 0);
+		hv_store(hv, "list", 4, newRV((SV *)list_entries), 0);
+		hv_store(hv, "optional", 8, optional, 0);
+		SvREFCNT_inc(optional);
+
+		$result = sv_2mortal(newRV((SV *)hv));
+		argvi++;
+		break;
+	    }
+
+	    case CONFTYPE_PROPLIST:
+		$result = sv_2mortal(g_hash_table_to_hashref_property(val_t__proplist($1)));
+		argvi++;
+		break;
+
+	    case CONFTYPE_SIZE:
+		$result = sv_2mortal(amglue_newSVi64(val_t__size($1)));
+		argvi++;
+		break;
+
+	    case CONFTYPE_INT64:
+		$result = sv_2mortal(amglue_newSVi64(val_t__int64($1)));
+		argvi++;
+		break;
+
+	    case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
+	    case CONFTYPE_COMPRESS:
+	    case CONFTYPE_ENCRYPT:
+	    case CONFTYPE_ESTIMATE:
+	    case CONFTYPE_STRATEGY:
+	    case CONFTYPE_TAPERALGO:
+	    case CONFTYPE_PRIORITY:
+	    case CONFTYPE_HOLDING:
+	    case CONFTYPE_EXECUTE_ON:
+	    case CONFTYPE_EXECUTE_WHERE:
+	    case CONFTYPE_SEND_AMREPORT_ON:
+	    case CONFTYPE_INT:
+		$result = sv_2mortal(amglue_newSVi64(val_t__int($1)));
+		argvi++;
+		break;
+
+	    case CONFTYPE_TIME:
+		$result = sv_2mortal(amglue_newSVi64(val_t__time($1)));
+		argvi++;
+		break;
+
+	    case CONFTYPE_REAL:
+		$result = sv_newmortal();
+		sv_setnv($result, val_t__real($1));
+		argvi++;
+		break;
+
+	    case CONFTYPE_IDENT:	    /* same as STRING */
+	    case CONFTYPE_STR:
+		$result = sv_newmortal();
+		sv_setpv($result, val_t__str($1));
+		argvi++;
+		break;
+
+	    /* No match yet -> not one of the "complex" types */
+	    default:
+		SWIG_exception(SWIG_TypeError, "Unknown val_t conftype");
+		break;
 	}
-
-	case CONFTYPE_PROPLIST:
-	    $result = sv_2mortal(g_hash_table_to_hashref(val_t__proplist($1)));
-	    argvi++;
-	    break;
-
-	case CONFTYPE_SIZE:
-	    $result = sv_2mortal(amglue_newSVi64(val_t__size($1)));
-	    argvi++;
-	    break;
-
-	case CONFTYPE_AM64:
-	    $result = sv_2mortal(amglue_newSVi64(val_t__am64($1)));
-	    argvi++;
-	    break;
-
-	case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
-	case CONFTYPE_COMPRESS:
-	case CONFTYPE_ENCRYPT:
-	case CONFTYPE_ESTIMATE:
-	case CONFTYPE_STRATEGY:
-	case CONFTYPE_TAPERALGO:
-	case CONFTYPE_PRIORITY:
-	case CONFTYPE_HOLDING:
-	case CONFTYPE_INT:
-	    $result = sv_2mortal(amglue_newSVi64(val_t__int($1)));
-	    argvi++;
-	    break;
-
-	case CONFTYPE_TIME:
-	    $result = sv_2mortal(amglue_newSVi64(val_t__time($1)));
-	    argvi++;
-	    break;
-
-	case CONFTYPE_REAL:
-	    $result = sv_newmortal();
-	    sv_setnv($result, val_t__real($1));
-	    argvi++;
-	    break;
-
-	case CONFTYPE_IDENT:	    /* same as STRING */
-	case CONFTYPE_STR:
-	    $result = sv_newmortal();
-	    sv_setpv($result, val_t__str($1));
-	    argvi++;
-	    break;
-
-	/* No match yet -> not one of the "complex" types */
-	default:
-	    SWIG_exception(SWIG_TypeError, "Unknown val_t conftype");
-	    break;
     }
 }
 
@@ -596,13 +689,37 @@ amglue_copy_to_tag(taperalgo_t, getconf);
     g_slist_free($1);
 }
 
+/* typedef and typemap for getconf_byname_strs, which is like getconf_byname, 
+ * but converts the result with val_t_dispaly_strs
+ */
+%typemap (out) val_t_strs {
+    char **it = $1;
+
+    while (it && *it) {
+	$result = sv_2mortal(newSVpv(*it, 0));
+	argvi++;
+	it++;
+    }
+    g_strfreev($1);
+}
+
 val_t *getconf(confparm_key key);
 gboolean getconf_seen(confparm_key key);
 val_t *getconf_byname(char *key);
 GSList *getconf_list(char *listname);
+%inline %{
+typedef char **val_t_strs;
+val_t_strs getconf_byname_strs(char *key, int str_needs_quotes) {
+    val_t *val = getconf_byname(key);
+    if (!val) return NULL;
+    return val_t_display_strs(val, str_needs_quotes);
+}
+%}
+
 amglue_export_tag(getconf,
     getconf getconf_seen 
-    getconf_byname getconf_list
+    getconf_byname getconf_byname_strs
+    getconf_list
 );
 
 tapetype_t *lookup_tapetype(char *identifier);
@@ -644,6 +761,56 @@ amglue_export_tag(getconf,
     holdingdisk_seen holdingdisk_seen
 );
 
+application_t *lookup_application(char *identifier);
+val_t *application_getconf(application_t *app, application_key key);
+char *application_name(application_t *app);
+gboolean application_seen(application_t *app, application_key key);
+amglue_export_tag(getconf,
+    lookup_application application_getconf application_name
+    application_seen application_seen
+);
+
+pp_script_t *lookup_pp_script(char *identifier);
+val_t *pp_script_getconf(pp_script_t *pps, pp_script_key key);
+char *pp_script_name(pp_script_t *pps);
+gboolean pp_script_seen(pp_script_t *app, pp_script_key key);
+amglue_export_tag(getconf,
+    lookup_pp_script pp_script_getconf pp_script_name
+    pp_script_seen pp_script_seen
+);
+
+device_config_t *lookup_device_config(char *identifier);
+val_t *device_config_getconf(device_config_t *pps, device_config_key key);
+char *device_config_name(device_config_t *pps);
+gboolean device_config_seen(device_config_t *app, device_config_key key);
+amglue_export_tag(getconf,
+    lookup_device_config device_config_getconf device_config_name
+    device_config_seen device_config_seen
+);
+
+changer_config_t *lookup_changer_config(char *identifier);
+val_t *changer_config_getconf(changer_config_t *pps, changer_config_key key);
+char *changer_config_name(changer_config_t *pps);
+gboolean changer_config_seen(changer_config_t *app, changer_config_key key);
+amglue_export_tag(getconf,
+    lookup_changer_config changer_config_getconf changer_config_name
+    changer_config_seen changer_config_seen
+);
+
+%perlcode %{
+our %subsection_names = (
+    "tapetype" => 1,
+    "dumptype" => 1,
+    "interface" => 1,
+    "holdingdisk" => 1,
+    "application-tool" => 1,
+    "script-tool" => 1,
+    "device" => 1,
+    "changer" => 1,
+);
+%}
+amglue_export_tag(getconf, %subsection_names);
+
 long int getconf_unit_divisor(void);
 
 extern int debug_amandad;
@@ -675,6 +842,49 @@ amglue_export_tag(getconf,
  * Initialization
  */
 
+amglue_add_enum_tag_fns(cfgerr_level_t);
+amglue_add_constant(CFGERR_OK, cfgerr_level_t);
+amglue_add_constant(CFGERR_WARNINGS, cfgerr_level_t);
+amglue_add_constant(CFGERR_ERRORS, cfgerr_level_t);
+amglue_copy_to_tag(cfgerr_level_t, init);
+
+amglue_add_flag_tag_fns(config_init_flags);
+amglue_add_constant(CONFIG_INIT_EXPLICIT_NAME, config_init_flags);
+amglue_add_constant(CONFIG_INIT_USE_CWD, config_init_flags);
+amglue_add_constant(CONFIG_INIT_CLIENT, config_init_flags);
+amglue_add_constant(CONFIG_INIT_OVERLAY, config_init_flags);
+amglue_copy_to_tag(config_init_flags, init);
+
+gboolean config_init(config_init_flags flags,
+		     char *arg_config_name);
+void config_uninit(void);
+char **get_config_options(int first);
+char *get_config_name(void);
+char *get_config_dir(void);
+char *get_config_filename(void);
+
+void config_print_errors(void);
+void config_clear_errors(void);
+
+/* Typemap for config_errors' result parameter; this is a GSList of strings
+ * which should *not* be freed. */
+%typemap(in, numinputs=0) GSList **ERRLIST (GSList *templist) {
+   templist = NULL;
+   $1 = &templist;
+}
+
+%typemap (argout) GSList **ERRLIST {
+    GSList *it = *$1;
+
+    while (it) {
+	$result = sv_2mortal(newSVpv(it->data, 0));
+	argvi++;
+	it = it->next;
+    }
+}
+cfgerr_level_t config_errors(GSList **ERRLIST);
+
+
 config_overwrites_t *new_config_overwrites(int size_estimate);
 void free_config_overwrites(config_overwrites_t *co);
 void add_config_overwrite(config_overwrites_t *co,
@@ -682,43 +892,14 @@ void add_config_overwrite(config_overwrites_t *co,
 			 char *value);
 void add_config_overwrite_opt(config_overwrites_t *co,
 			      char *optarg);
-void apply_config_overwrites(config_overwrites_t *co);
-amglue_export_tag(init,
-    new_config_overwrites free_config_overwrites add_config_overwrite
-    add_config_overwrite_opt apply_config_overwrites
-);
+cfgerr_level_t apply_config_overwrites(config_overwrites_t *co);
 
-
-
-
-amglue_add_flag_tag_fns(config_init_flags);
-amglue_add_constant(CONFIG_INIT_EXPLICIT_NAME, config_init_flags);
-amglue_add_constant(CONFIG_INIT_USE_CWD, config_init_flags);
-amglue_add_constant(CONFIG_INIT_CLIENT, config_init_flags);
-amglue_add_constant(CONFIG_INIT_OVERLAY, config_init_flags);
-amglue_add_constant(CONFIG_INIT_FATAL, config_init_flags);
-amglue_copy_to_tag(config_init_flags, init);
-
-gboolean config_init(config_init_flags flags,
-		     char *arg_config_name);
-void config_uninit(void);
-char **get_config_options(int first);
 amglue_export_tag(init,
     config_init config_uninit get_config_options
-);
-
-/* These are accessor functions, because SWIG's wrapping of global string
- * variables is no so good -- the resulting strings can't be passed to other
- * functions expecting char * arguments.  */
-%inline %{
-    char *get_config_name(void) { return config_name; }
-    char *get_config_dir(void) { return config_dir; }
-    char *get_config_filename(void) { return config_filename; }
-%}
-amglue_export_tag(init,
-    get_config_name 
-    get_config_dir 
-    get_config_filename
+    get_config_name get_config_dir get_config_filename
+    config_print_errors config_clear_errors config_errors
+    new_config_overwrites free_config_overwrites add_config_overwrite
+    add_config_overwrite_opt apply_config_overwrites
 );
 
 /*
@@ -726,9 +907,11 @@ amglue_export_tag(init,
  */
 
 void dump_configuration(void);
+%newobject config_dir_relative;
 char *config_dir_relative(char *filename);
 char *taperalgo2str(taperalgo_t taperalgo);
 gint64 find_multiplier(char * casestr);
+
 amglue_export_ok(
     dump_configuration config_dir_relative taperalgo2str find_multiplier
 );

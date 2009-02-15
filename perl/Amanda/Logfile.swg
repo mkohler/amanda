@@ -14,8 +14,8 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  *
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 %module "Amanda::Logfile"
@@ -38,7 +38,7 @@ Amanda::Logfile - manage Amanda trace logs
 
 =head1 SYNOPSIS
 
-  use Amanda::Logfile qw(:logtype_t); # XXX change
+  use Amanda::Logfile qw(:logtype_t);
   use Amanda::Config qw( :getconf config_dir_relative );
 
   for my $logfile (Amanda::Logfile::find_log()) {
@@ -53,7 +53,7 @@ Amanda::Logfile - manage Amanda trace logs
     }
     Amanda::Logfile::close_logfile($log);
 
-    my @dumps = Amanda::Logfile::search_logfile("TapeLabel-001", "19780615", $logfile);
+    my @dumps = Amanda::Logfile::search_logfile("TapeLabel-001", "19780615", $logfile, 1);
 
     my @matching = Amanda::Logfile::dumps_match([@dumps], "myhost", "/usr", undef, undef, 0);
     for my $dump (@matching) {
@@ -108,23 +108,32 @@ Instance variables are:
 
 =over
 
-=item C<$timestamp>
+=item C<timestamp>
 
-=item C<$hostname>
+=item C<hostname>
 
-=item C<$diskname>
+=item C<diskname>
 
-=item C<$level>
+=item C<level>
 
-=item C<$label>
+=item C<label>
 
-=item C<$filenum>
+=item C<filenum>
 
-=item C<$status>
+=item C<status>
 
-=item C<$partnum>
+=item C<partnum>
+
+=item C<sec>
+
+=item C<kb>
 
 =back
+
+Note that the format for these variables are based on that found in the
+logfiles.  In particular, C<partnum> is a string, usually with a slash (C</>)
+in it.  Also, C<timestamp> is the timestamp for the run in which the client
+dump took place, and not for the timestamp of the logfile.
 
 =head1 HIGHER-LEVEL FUNCTIONS
 
@@ -135,8 +144,7 @@ Functions in this section extract information from logfiles.
 =item C<find_log()>
 
 Return a list of logfiles for active tapes.  The tapelist must be loaded before
-this function is called (see L<Amanda::Tapefile>, and note that this module will be
-renamed to L<Amanda::Tapelist> in Amanda-2.6.1).
+this function is called (see L<Amanda::Tapelist>).
 
 =item C<search_logfile($label, $datestamp, $logfile, $add_missing_disks)>
 
@@ -250,6 +258,8 @@ typedef struct {
     off_t filenum;
     char *status;
     char *partnum;
+    double sec;
+    size_t kb;
     %mutable;
 } find_result_t;
 

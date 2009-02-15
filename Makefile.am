@@ -1,16 +1,16 @@
 ## Process this file with automake to produce Makefile.in
 AUTOMAKE_OPTIONS = 1.4 foreign
 
+include $(top_srcdir)/config/automake/vars.am
+include $(top_srcdir)/config/automake/installperms.am
+
 ACLOCAL_AMFLAGS = --force -I . -I config -I config/gettext-macros -I config/gnulib -I config/amanda -I config/macro-archive
 
 if WANT_CLIENT
-CLIENT_SUBDIRS = client-src dumper-src
-endif
-if WANT_TAPE
-TAPE_SUBDIRS = tape-src
+CLIENT_SUBDIRS = client-src application-src
 endif
 if WANT_SERVER
-SERVER_SUBDIRS = device-src server-src changer-src
+SERVER_SUBDIRS = device-src server-src changer-src xfer-src
 endif
 if WANT_RESTORE
 RESTORE_SUBDIRS = restore-src
@@ -22,10 +22,11 @@ if WANT_AMPLOT
 PLOT_SUBDIRS = amplot
 endif
 # order is significant, don't change it arbitrarily
-SUBDIRS = \
+SUBDIRS = . \
 	gnulib \
 	config \
 	common-src \
+	amar-src \
 	amandad-src \
 	$(TAPE_SUBDIRS) \
 	$(CLIENT_SUBDIRS) \
@@ -46,7 +47,7 @@ pkgdata_DATA = \
 	NEWS		\
 	ChangeLog
 
-EXTRA_DIST = $(SNAPSHOT_STAMP) \
+EXTRA_DIST += $(SNAPSHOT_STAMP) \
 	$(pkgdata_DATA)			\
         autogen 			\
 	contrib/README			\
@@ -74,6 +75,10 @@ EXTRA_DIST = $(SNAPSHOT_STAMP) \
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status --recheck
 
+# empty out the installperms manifest file when we start
+install-exec-local: installperms-init
+install-data-local: installperms-init
+
 ## This is only meaningful for snapshots, but it won't hurt releases.
 CONFIG_STATUS = config.status
 $(CONFIG_STATUS): $(SNAPSHOT_STAMP)
@@ -89,7 +94,7 @@ lint:
 	(cd recover-src; make lint)
 	(cd restore-src; make lint)
 	(cd server-src; make lint)
-	(cd tape-src; make lint)
+	(cd xfer-src; make lint)
 
 ## Do not release the *.test.c sources.  They get built on the fly and
 ## would contain a path from the distribution machine, which will just
@@ -100,4 +105,4 @@ dist-hook:
 
 # ensure that configure gets the right arguments for distcheck; this keeps the
 # user/group through to the distcheck, rather than defaulting back to 'amanda'.
-DISTCHECK_CONFIGURE_FLAGS = --with-user=$(CLIENT_LOGIN) --with-group=$(SETUID_GROUP) --with-owner=$(BINARY_OWNER) --disable-installperms --without-force-uid --with-tmpdir=$(AMANDA_TMPDIR) SINGLE_USERID=yes
+DISTCHECK_CONFIGURE_FLAGS = --with-user=$(CLIENT_LOGIN) --with-group=$(SETUID_GROUP) --with-owner=$(BINARY_OWNER) --disable-installperms --without-amperldir --without-force-uid --with-tmpdir=$(AMANDA_TMPDIR) SINGLE_USERID=yes CLOBBER_MY_CONFIG=OK

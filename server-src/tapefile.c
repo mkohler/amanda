@@ -51,7 +51,13 @@ read_tapelist(
 
     tape_list = NULL;
     if((tapef = fopen(tapefile,"r")) == NULL) {
-	return 1;
+	if (errno == ENOENT) {
+	    /* no tapelist is equivalent to an empty tapelist */
+	    return 0;
+	} else {
+	    g_debug("Error opening '%s': %s", tapefile, strerror(errno));
+	    return 1;
+	}
     }
 
     while((line = agets(tapef)) != NULL) {
@@ -95,6 +101,8 @@ write_tapelist(
 	g_fprintf(tapef, "%s %s", tp->datestamp, tp->label);
 	if(tp->reuse) g_fprintf(tapef, " reuse");
 	else g_fprintf(tapef, " no-reuse");
+	if (tp->comment)
+	    g_fprintf(tapef, " #%s", tp->comment);
 	g_fprintf(tapef, "\n");
     }
 
@@ -258,7 +266,8 @@ remove_tapelabel(
 tape_t *
 add_tapelabel(
     char *datestamp,
-    char *label)
+    char *label,
+    char *comment)
 {
     tape_t *cur, *new;
 
@@ -270,6 +279,7 @@ add_tapelabel(
     new->position = 0;
     new->reuse = 1;
     new->label = stralloc(label);
+    new->comment = comment? stralloc(comment) : NULL;
 
     new->prev  = NULL;
     if(tape_list != NULL) tape_list->prev = new;
@@ -362,10 +372,26 @@ parse_tapeline(
 
     skip_whitespace(s, ch);
     tp->reuse = 1;
-    if(strncmp_const(s - 1, "reuse") == 0)
+    if(strncmp_const(s - 1, "reuse") == 0) {
 	tp->reuse = 1;
-    if(strncmp_const(s - 1, "no-reuse") == 0)
+	s1 = s - 1;
+	skip_non_whitespace(s, ch);
+	s[-1] = '\0';
+	skip_whitespace(s, ch);
+    }
+    if(strncmp_const(s - 1, "no-reuse") == 0) {
 	tp->reuse = 0;
+	s1 = s - 1;
+	skip_non_whitespace(s, ch);
+	s[-1] = '\0';
+	skip_whitespace(s, ch);
+    }
+
+    if (*(s - 1) == '#') {
+	tp->comment = stralloc(s); /* skip leading '#' */
+    } else {
+	tp->comment = NULL;
+    }
 
     return tp;
 }

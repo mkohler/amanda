@@ -79,7 +79,6 @@ main(
     pid_t driver_pid, reporter_pid;
     amwait_t exitcode;
     int opt;
-    dumpfile_t file;
     GSList *holding_list=NULL, *holding_file;
     int driver_pipe[2];
     char date_string[100];
@@ -154,24 +153,30 @@ main(
 	/*NOTREACHED*/
     }
 
-    config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_FATAL,
+    config_init(CONFIG_INIT_EXPLICIT_NAME,
 		argv[0]);
     apply_config_overwrites(cfg_ovr);
-    check_running_as(RUNNING_AS_DUMPUSER);
-
-    dbrename(config_name, DBG_SUBDIR_SERVER);
 
     conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
-    if (read_diskfile(conf_diskfile, &diskq) < 0) {
-	error(_("could not read disklist file \"%s\""), conf_diskfile);
-	/*NOTREACHED*/
+    read_diskfile(conf_diskfile, &diskq);
+    amfree(conf_diskfile);
+
+    if (config_errors(NULL) >= CFGERR_WARNINGS) {
+	config_print_errors();
+	if (config_errors(NULL) >= CFGERR_ERRORS) {
+	    g_critical(_("errors processing config file"));
+	}
     }
+
+    check_running_as(RUNNING_AS_DUMPUSER);
+
+    dbrename(get_config_name(), DBG_SUBDIR_SERVER);
+
     errstr = match_disklist(&diskq, argc-1, argv+1);
     if (errstr) {
 	g_printf(_("%s"),errstr);
 	amfree(errstr);
     }
-    amfree(conf_diskfile);
 
     conf_tapelist = config_dir_relative(getconf_str(CNF_TAPELIST));
     if(read_tapelist(conf_tapelist)) {
@@ -193,11 +198,16 @@ main(
     conf_logdir = config_dir_relative(getconf_str(CNF_LOGDIR));
     conf_logfile = vstralloc(conf_logdir, "/log", NULL);
     if (access(conf_logfile, F_OK) == 0) {
-	error(_("%s exists: amdump or amflush is already running, or you must run amcleanup"), conf_logfile);
+	run_amcleanup(get_config_name());
+    }
+    if (access(conf_logfile, F_OK) == 0) {
+	char *process_name = get_master_process(conf_logfile);
+	error(_("%s exists: %s is already running, or you must run amcleanup"), conf_logfile, process_name);
 	/*NOTREACHED*/
     }
     amfree(conf_logfile);
 
+    log_add(L_INFO, "%s pid %ld", get_pname(), (long)getpid());
     driver_program = vstralloc(amlibexecdir, "/", "driver", versionsuffix(),
 			       NULL);
     reporter_program = vstralloc(sbindir, "/", "amreport", versionsuffix(),
@@ -305,7 +315,7 @@ main(
 	close(driver_pipe[1]);
 	config_options = get_config_options(3);
 	config_options[0] = "driver";
-	config_options[1] = config_name;
+	config_options[1] = get_config_name();
 	config_options[2] = "nodump";
 	safe_fd(-1, 0);
 	execve(driver_program, config_options, safe_env());
@@ -324,12 +334,14 @@ main(
     g_fprintf(driver_stream, "DATE %s\n", amflush_timestamp);
     for(holding_file=holding_list; holding_file != NULL;
 				   holding_file = holding_file->next) {
+	dumpfile_t file;
 	holding_file_get_dumpfile((char *)holding_file->data, &file);
 
 	if (holding_file_size((char *)holding_file->data, 1) <= 0) {
 	    log_add(L_INFO, "%s: removing file with no data.",
 		    (char *)holding_file->data);
 	    holding_file_unlink((char *)holding_file->data);
+	    dumpfile_free_data(&file);
 	    continue;
 	}
 
@@ -358,6 +370,7 @@ main(
 		qhname);
 	amfree(qdisk);
 	amfree(qhname);
+	dumpfile_free_data(&file);
     }
     g_fprintf(stderr, "ENDFLUSH\n"); fflush(stderr);
     g_fprintf(driver_stream, "ENDFLUSH\n"); fflush(driver_stream);
@@ -443,7 +456,7 @@ main(
 	 */
 	config_options = get_config_options(2);
 	config_options[0] = "amreport";
-	config_options[1] = config_name;
+	config_options[1] = get_config_name();
 	safe_fd(-1, 0);
 	execve(reporter_program, config_options, safe_env());
 	error(_("cannot exec %s: %s"), reporter_program, strerror(errno));
@@ -465,13 +478,15 @@ main(
 	}
     }
 
+    log_add(L_INFO, "pid-done %ld", (long)getpid());
+
     /*
      * Call amlogroll to rename the log file to its datestamped version.
      * Since we exec at this point, our exit code will be that of amlogroll.
      */
     config_options = get_config_options(2);
     config_options[0] = "amlogroll";
-    config_options[1] = config_name;
+    config_options[1] = get_config_name();
     safe_fd(-1, 0);
     execve(logroll_program, config_options, safe_env());
     error(_("cannot exec %s: %s"), logroll_program, strerror(errno));
@@ -486,7 +501,7 @@ get_letter_from_user(void)
     int r, ch;
 
     fflush(stdout); fflush(stderr);
-    while((ch = getchar()) != EOF && ch != '\n' && isspace(ch)) {
+    while((ch = getchar()) != EOF && ch != '\n' && g_ascii_isspace(ch)) {
 	(void)ch; /* Quite lint */
     }
     if(ch == '\n') {
@@ -556,14 +571,14 @@ pick_datestamp(void)
 
 	    a = answer;
 	    while ((ch = *a++) != '\0') {
-		if (!isspace(ch))
+		if (!g_ascii_isspace(ch))
 		    break;
 	    }
 
 	    /* rewrite the selected list into r_datestamp_list, then copy it over
 	     * to datestamp_list */
 	    do {
-		if (isspace(ch) || ch == ',') {
+		if (g_ascii_isspace(ch) || ch == ',') {
 		    continue;
 		}
 		chupper = (char)toupper(ch);

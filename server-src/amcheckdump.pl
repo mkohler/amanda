@@ -1,4 +1,22 @@
 #! @PERL@
+# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# 
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published 
+# by the Free Software Foundation.
+# 
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+# for more details.
+# 
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+# 
+# Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+# Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+
 use lib '@amperldir@';
 use strict;
 
@@ -9,9 +27,9 @@ use Amanda::Device qw( :constants );
 use Amanda::Debug qw( :logging );
 use Amanda::Config qw( :init :getconf config_dir_relative );
 use Amanda::Logfile;
-use Amanda::Util qw( :running_as_flags );
-use Amanda::Tapefile;
+use Amanda::Util qw( :constants );
 use Amanda::Changer;
+use Amanda::Constants;
 
 # Have all images been verified successfully so far?
 my $all_success = 1;
@@ -66,35 +84,47 @@ sub find_logfile_name($) {
 
 ## Device management
 
-my $changer_init_done = 0;
+my $changer;
+my $reservation;
 my $current_device;
 my $current_device_label;
 
 sub find_next_device {
     my $label = shift;
-    if (getconf_seen($CNF_TPCHANGER)) {
-	# We're using a changer script.
-	if (!$changer_init_done) {
-	    my $error = (Amanda::Changer::reset())[0];
-	    critical($error) if $error;
-	    $changer_init_done = 1;
-	}
-	my ($error, $slot, $tapedev) = Amanda::Changer::find($label);
-	if ($error) {
-	    critical("Error operating changer: $error.");
-	} elsif ($slot eq "<none>") {
-	    critical("Could not find tape label $label in changer.");
-	} else {
-	    return $tapedev;
-	}
-    } else {
-	# The user is changing tapes for us.
-	my $device_name = getconf($CNF_TAPEDEV);
-	printf("Insert volume with label %s in device %s and press ENTER: ",
-	       $label, $device_name);
-	<>;
-	return $device_name;
+    my $reset_done_cb;
+    my $find_done_cb;
+    my ($slot, $tapedev);
+
+    # if the changer hasn't been created yet, set it up
+    if (!$changer) {
+	$changer = Amanda::Changer->new();
     }
+
+    my $load_sub = sub {
+	my ($err) = @_;
+	die $err if $err;
+
+	$changer->load(
+	    label => $label,
+	    res_cb => sub {
+		(my $err, $reservation) = @_;
+		die $err if $err;
+		Amanda::MainLoop::quit();
+	    },
+	);
+    };
+
+    if (defined $reservation) {
+	$reservation->release(finished_cb => $load_sub);
+    } else {
+	$load_sub->(undef);
+    }
+
+    # let the mainloop run until the find is done.  This is a temporary
+    # hack until all of amcheckdump is event-based.
+    Amanda::MainLoop::run();
+
+    return $reservation->{device_name};
 }
 
 # Try to open a device containing a volume with the given label.  Returns undef
@@ -117,34 +147,39 @@ sub try_open_device {
     }
 
     my $device = Amanda::Device->new($device_name);
-    if ( !$device ) {
-	print "Could not open '$device_name'.\n";
-        return undef;
-    }
-
-    $device->set_startup_properties_from_config();
-
-    my $label_status = $device->read_label();
-    if ($label_status != $READ_LABEL_STATUS_SUCCESS) {
-	print "Could not read device $device_name: one of ",
-	     join(", ", ReadLabelStatusFlags_to_strings($label_status)),
-	     "\n";
+    if ($device->status() != $DEVICE_STATUS_SUCCESS) {
+	print "Could not open device $device_name: ",
+	      $device->error(), ".\n";
 	return undef;
     }
 
-    if ($device->{volume_label} ne $label) {
+    my $label_status = $device->read_label();
+    if ($label_status != $DEVICE_STATUS_SUCCESS) {
+	if ($device->error() ) {
+	    print "Could not read device $device_name: ",
+		  $device->error(), ".\n";
+	} else {
+	    print "Could not read device $device_name: one of ",
+	         join(", ", DevicestatusFlags_to_strings($label_status)),
+	         "\n";
+	}
+	return undef;
+    }
+
+    if ($device->volume_label() ne $label) {
 	printf("Labels do not match: Expected '%s', but the device contains '%s'.\n",
-		     $label, $device->{volume_label});
+		     $label, $device->volume_label());
 	return undef;
     }
 
     if (!$device->start($ACCESS_READ, undef, undef)) {
-	printf("Error reading device %s.\n", $device_name);
+	printf("Error reading device %s: %s.\n", $device_name,
+	       $device->error_message());
 	return undef;
     }
 
     $current_device = $device;
-    $current_device_label = $device->{volume_label};
+    $current_device_label = $device->volume_label();
 
     return $device;
 }
@@ -220,23 +255,43 @@ sub find_validation_command {
     # We base the actual archiver on our own table, but just trust
     # whatever is listed as the decrypt/uncompress commands.
     my $program = uc(basename($header->{program}));
-    
-    my $validation_program;
-    my %validation_programs = (
-        "DUMP" => "@RESTORE@ tbf 2 -",
-        "VDUMP" => "@VRESTORE@ tf -",
-        "VXDUMP" => "@VXRESTORE@ tbf 2 -",
-        "XFSDUMP" => "@XFSRESTORE@ -t -v silent -",
-        "TAR" => "@GNUTAR@ tf -",
-        "GTAR" => "@GNUTAR@ tf -",
-        "GNUTAR" => "@GNUTAR@ tf -",
-        "SMBCLIENT" => "@SAMBA_CLIENT@ tf -",
-    );
 
-    $validation_program = $validation_programs{$program};
+    my $validation_program;
+
+    if ($program ne "APPLICATION") {
+        my %validation_programs = (
+            "STAR" => "$Amanda::Constants::STAR -t -f -",
+            "DUMP" => "$Amanda::Constants::RESTORE tbf 2 -",
+            "VDUMP" => "$Amanda::Constants::VRESTORE tf -",
+            "VXDUMP" => "$Amanda::Constants::VXRESTORE tbf 2 -",
+            "XFSDUMP" => "$Amanda::Constants::XFSRESTORE -t -v silent -",
+            "TAR" => "$Amanda::Constants::GNUTAR tf -",
+            "GTAR" => "$Amanda::Constants::GNUTAR tf -",
+            "GNUTAR" => "$Amanda::Constants::GNUTAR tf -",
+            "SMBCLIENT" => "$Amanda::Constants::GNUTAR tf -",
+        );
+        $validation_program = $validation_programs{$program};
+    } else {
+	if (!defined $header->{application}) {
+            print STDERR "Application not set; ".
+	                 "Will send dumps to /dev/null instead.";
+            $validation_program = "cat > /dev/null";
+	} else {
+	    my $program_path = $Amanda::Paths::APPLICATION_DIR . "/" .
+                               $header->{application};
+            if (!-x $program_path) {
+                print STDERR "Application '" , $header->{application},
+			     "($program_path)' not available on the server; ".
+	                     "Will send dumps to /dev/null instead.";
+                $validation_program = "cat > /dev/null";
+	    } else {
+	        $validation_program = $program_path . " validate";
+	    }
+	}
+    }
     if (!defined $validation_program) {
-        warning("Could not determine validation for dumper $program; ".
-             "Will send dumps to /dev/null instead.");
+        print STDERR "Could not determine validation for dumper $program; ".
+	             "Will send dumps to /dev/null instead.";
         $validation_program = "cat > /dev/null";
     } else {
         # This is to clean up any extra output the program doesn't read.
@@ -259,7 +314,7 @@ sub find_validation_command {
 
 ## Application initialization
 
-Amanda::Util::setup_application("amcheckdump", "server", "cmdline");
+Amanda::Util::setup_application("amcheckdump", "server", $CONTEXT_CMDLINE);
 
 my $timestamp = undef;
 my $config_overwrites = new_config_overwrites($#ARGV+1);
@@ -273,18 +328,21 @@ GetOptions(
 
 usage() if (@ARGV < 1);
 
+my $timestamp_argument = 0;
+if (defined $timestamp) { $timestamp_argument = 1; }
+
 my $config_name = shift @ARGV;
-if (!config_init($CONFIG_INIT_EXPLICIT_NAME |
-                 $CONFIG_INIT_FATAL, $config_name)) {
-    critical('errors processing config file "' . 
-               Amanda::Config::get_config_filename() . '"');
-}
+config_init($CONFIG_INIT_EXPLICIT_NAME, $config_name);
 apply_config_overwrites($config_overwrites);
+my ($cfgerr_level, @cfgerr_errors) = config_errors();
+if ($cfgerr_level >= $CFGERR_WARNINGS) {
+    config_print_errors();
+    if ($cfgerr_level >= $CFGERR_ERRORS) {
+	die("errors processing config file");
+    }
+}
 
 Amanda::Util::finish_setup($RUNNING_AS_DUMPUSER);
-
-# Read the tape list.
-my $tl = Amanda::Tapefile::read_tapelist(config_dir_relative(getconf($CNF_TAPELIST)));
 
 # If we weren't given a timestamp, find the newer of
 # amdump.1 or amflush.1 and extract the datestamp from it.
@@ -300,12 +358,12 @@ if (!defined $timestamp) {
     } elsif (-f $amflush_log) {
          $logfile=$amflush_log;
     } else {
-	print "Could not find any dump log file.\n";
+	print "Could not find amdump.1 or amflush.1 files.\n";
 	exit;
     }
 
     # extract the datestamp from the dump log
-    open (AMDUMP, "<$logfile") || critical();
+    open (AMDUMP, "<$logfile") || die();
     while(<AMDUMP>) {
 	if (/^amdump: starttime (\d*)$/) {
 	    $timestamp = $1;
@@ -321,18 +379,32 @@ if (!defined $timestamp) {
 }
 
 # Find all logfiles matching our timestamp
+my $logfile_dir = config_dir_relative(getconf($CNF_LOGDIR));
 my @logfiles =
     grep { $_ =~ /^log\.$timestamp(?:\.[0-9]+|\.amflush)?$/ }
     Amanda::Logfile::find_log();
 
+# Check log file directory if find_log didn't find tape written
+# on that tapestamp
 if (!@logfiles) {
-    critical("Can't find any logfiles with timestamp $timestamp.");
+    opendir(DIR, $logfile_dir) || die "can't opendir $logfile_dir: $!";
+    @logfiles = grep { /^log.$timestamp\..*/ } readdir(DIR);
+    closedir DIR;
+
+    if (!@logfiles) {
+	if ($timestamp_argument) {
+	    print STDERR "Can't find any logfiles with timestamp $timestamp.\n";
+	} else {
+	    print STDERR "Can't find the logfile for last run.\n";
+	}
+	exit 1;
+    }
 }
 
 # compile a list of *all* dumps in those logfiles
-my $logfile_dir = config_dir_relative(getconf($CNF_LOGDIR));
 my @images;
 for my $logfile (@logfiles) {
+    chomp $logfile;
     push @images, Amanda::Logfile::search_logfile(undef, $timestamp,
                                                   "$logfile_dir/$logfile", 1);
 }
@@ -342,7 +414,12 @@ for my $logfile (@logfiles) {
 	undef, undef, undef, undef, 1);
 
 if (!@images) {
-    critical("Could not find any matching dumps");
+    if ($timestamp_argument) {
+	print STDERR "No backup written on timestamp $timestamp.\n";
+    } else {
+	print STDERR "No backup written on latest run.\n";
+    }
+    exit 1;
 }
 
 # Find unique tapelist, using a hash to filter duplicate tapes
@@ -350,7 +427,8 @@ my %tapes = map { ($_->{label}, undef) } @images;
 my @tapes = sort { $a cmp $b } keys %tapes;
 
 if (!@tapes) {
-    critical("Could not find any matching dumps");
+    print STDERR "Could not find any matching dumps.\n";
+    exit 1;
 }
 
 printf("You will need the following tape%s: %s\n", (@tapes > 1) ? "s" : "",
@@ -414,11 +492,16 @@ for my $image (@images) {
     my $pipeline = open_validation_app($image, $header);
 
     # send the datastream from the device straight to the application
-    if (!$device->read_to_fd(fileno($pipeline))) {
+    my $queue_fd = Amanda::Device::queue_fd_t->new(fileno($pipeline));
+    if (!$device->read_to_fd($queue_fd)) {
         print "Error reading device or writing data to validation command.\n";
 	$all_success = 0;
 	next IMAGE;
     }
+}
+
+if (defined $reservation) {
+    $reservation->release();
 }
 
 # clean up

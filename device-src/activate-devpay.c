@@ -13,10 +13,6 @@
 #include "base64.h"
 #include "s3.h"
 
-#ifndef WANT_DEVPAY
-# error activate_devpay only works if devpay is enabled.
-#endif
-
 #define MAX_RESPONSE_SIZE (1024*1024)
 
 typedef struct {
@@ -147,7 +143,7 @@ static void parser_got_text(GMarkupParseContext * context,
             /* Do nothing; wait for the message. */
         }
     } else if (g_strrstr(current_tag, "Message")) {
-        g_set_error(error, G_MARKUP_ERROR, -1, "%.*s", text_len, text);
+        g_set_error(error, G_MARKUP_ERROR, -1, "%.*s", (int)text_len, text);
     }
 }               
 

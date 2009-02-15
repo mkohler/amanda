@@ -4,20 +4,12 @@
 #
 # OVERVIEW
 #
-#   Implement the --with-maxtapeblocksize option, and DEFINE and SUBST the
-#   result in MAX_TAPE_BLOCk_KB and MAXTAPEBLOCKSIZE, respectively.
+#   Implement the deprecated --with-maxtapeblocksize option.
 #
 AC_DEFUN([AMANDA_WITH_MAXTAPEBLOCKSIZE], [
-    AC_ARG_WITH(maxtapeblocksize,
-	AS_HELP_STRING([--with-maxtapeblocksize=kb],
-	    [Maximum size of a tape block (default: 32)]),
-	[ MAXTAPEBLOCKSIZE="$withval" ],
-	[ MAXTAPEBLOCKSIZE=32 ]
+    AC_ARG_WITH(maxtapeblocksize, [(deprecated)],
+	[ AMANDA_MSG_WARN([--with-maxtapeblocksize is no longer needed]) ]
     )
-
-    AC_DEFINE_UNQUOTED(MAX_TAPE_BLOCK_KB,($MAXTAPEBLOCKSIZE),
-	[Maximum size of a tape block in KBytes.])
-    AC_SUBST(MAXTAPEBLOCKSIZE)
 ])
 
 # SYNOPSIS
@@ -34,9 +26,6 @@ AC_DEFUN([AMANDA_WITH_MAXTAPEBLOCKSIZE], [
 #
 #   If 'struct mtget' fields mt_flags, mt_fileno, mt_blkno, mt_dsreg, and 
 #   mt_erreg, the corresponding HAVE_MT_* is DEFINEd.
-#
-#   Not that most of the checks in this section correspond to the older
-#   tapeio (in tape-src/), rather than the new tape device.
 #
 AC_DEFUN([AMANDA_TAPE_DEVICE], [
     AC_CHECK_HEADERS( \

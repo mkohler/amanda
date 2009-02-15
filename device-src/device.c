@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
  * 
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 2.1 as 
@@ -14,8 +14,8 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  * 
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 /* The Device API abstracts device workings, interaction, properties, and
@@ -29,25 +29,34 @@
 
 #include "device.h"
 #include "queueing.h"
+#include "device-queueing.h"
 #include "property.h"
 
-#include "null-device.h"
 #include "timestamp.h"
-#include "vfs-device.h"
 #include "util.h"
-#ifdef WANT_TAPE_DEVICE
-#include "tape-device.h"
-#endif
-#include "rait-device.h"
+
+/*
+ * Prototypes for subclass registration functions
+ */
+
+void    null_device_register    (void);
+void	rait_device_register	(void);
 #ifdef WANT_S3_DEVICE
-  #include "s3-device.h"
+void    s3_device_register    (void);
 #endif
+#ifdef WANT_TAPE_DEVICE
+void    tape_device_register    (void);
+#endif
+void    vfs_device_register     (void);
+
+/*
+ * Registration infrastructure
+ */
 
 static GHashTable* driverList = NULL;
 
 void device_api_init(void) {
-    g_type_init();
-    amanda_thread_init();
+    glib_init();
     device_property_init();
     driverList = g_hash_table_new(g_str_hash, g_str_equal);
 
@@ -63,9 +72,13 @@ void device_api_init(void) {
 #endif
 }
 
-void register_device(DeviceFactory factory,
-                     const char ** device_prefix_list) {
+void
+register_device(
+    DeviceFactory factory,
+    const char ** device_prefix_list)
+{
     char ** tmp;
+
     g_assert(driverList != NULL);
     g_assert(factory != NULL);
     g_return_if_fail(device_prefix_list != NULL);
@@ -78,44 +91,44 @@ void register_device(DeviceFactory factory,
     }
 }
 
-static DeviceFactory lookup_device_factory(const char *device_name) {
+static DeviceFactory lookup_device_factory(const char *device_type) {
     gpointer key, value;
     g_assert(driverList != NULL);
 
-    if (g_hash_table_lookup_extended(driverList, device_name, &key, &value)) {
+    if (g_hash_table_lookup_extended(driverList, device_type, &key, &value)) {
         return (DeviceFactory)value;
     } else {
         return NULL;
     }
 }
 
-static const GFlagsValue read_label_status_flags_values[] = {
-    { READ_LABEL_STATUS_SUCCESS,
-      "READ_LABEL_STATUS_SUCCESS",
+static const GFlagsValue device_status_flags_values[] = {
+    { DEVICE_STATUS_SUCCESS,
+      "DEVICE_STATUS_SUCCESS",
       "Success" },
-    { READ_LABEL_STATUS_DEVICE_MISSING,
-      "READ_LABEL_STATUS_DEVICE_MISSING",
-      "Device not found" },
-    { READ_LABEL_STATUS_DEVICE_ERROR,
-      "READ_LABEL_STATUS_DEVICE_ERROR",
+    { DEVICE_STATUS_DEVICE_ERROR,
+      "DEVICE_STATUS_DEVICE_ERROR",
       "Device error" },
-    { READ_LABEL_STATUS_VOLUME_MISSING,
-      "READ_LABEL_STATUS_VOLUME_MISSING",
+    { DEVICE_STATUS_DEVICE_BUSY,
+      "DEVICE_STATUS_DEVICE_BUSY",
+      "Device busy" },
+    { DEVICE_STATUS_VOLUME_MISSING,
+      "DEVICE_STATUS_VOLUME_MISSING",
       "Volume not found" },
-    { READ_LABEL_STATUS_VOLUME_UNLABELED,
-      "READ_LABEL_STATUS_VOLUME_UNLABELED",
+    { DEVICE_STATUS_VOLUME_UNLABELED,
+      "DEVICE_STATUS_VOLUME_UNLABELED",
       "Volume not labeled" },
-    { READ_LABEL_STATUS_VOLUME_ERROR,
-      "READ_LABEL_STATUS_VOLUME_ERROR",
+    { DEVICE_STATUS_VOLUME_ERROR,
+      "DEVICE_STATUS_VOLUME_ERROR",
       "Volume error" },
     { 0, NULL, NULL }
 };
 
-GType read_label_status_flags_get_type(void) {
+GType device_status_flags_get_type(void) {
     static GType type = 0;
     if (G_UNLIKELY(type == 0)) {
-        type = g_flags_register_static("ReadLabelStatusFlags",
-                                       read_label_status_flags_values);
+        type = g_flags_register_static("DeviceStatusFlags",
+                                       device_status_flags_values);
     }
     return type;
 }
@@ -123,43 +136,76 @@ GType read_label_status_flags_get_type(void) {
 /* Device class definition starts here. */
 
 struct DevicePrivate_s {
-    /* This is the return value of the device_get_property_list()
-       method. */
-    GArray *property_list;
-    GHashTable * property_response;
+    /* hash table mapping ID to SimpleProperty object */
+    GHashTable * simple_properties;
+
+    /* In writing mode, after a short block is written, no additional blocks
+     * are allowed the file is finished and a new file started. This is only
+     * used for assertions. */
+    gboolean wrote_short_block;
+
+    /* Holds an error message if the function returned an error. */
+    char * errmsg;
+
+    /* temporary holding place for device_status_error() */
+    char * statusmsg;
+    DeviceStatusFlags last_status;
 };
 
 /* This holds the default response to a particular property. */
 typedef struct {
-    PropertyAccessFlags access;
+    DeviceProperty *prop;
     GValue response;
-} PropertyResponse;
+    PropertySurety surety;
+    PropertySource source;
+} SimpleProperty;
 
 #define selfp (self->private)
 
 /* here are local prototypes, so we can make function pointers. */
-static void device_init (Device * o) G_GNUC_UNUSED;
-static void device_class_init (DeviceClass * c) G_GNUC_UNUSED;
+static void device_init (Device * o);
+static void device_class_init (DeviceClass * c);
+static void device_base_init (DeviceClass * c);
 
-static void property_response_free(PropertyResponse *o);
+static void simple_property_free(SimpleProperty *o);
 
-static gboolean default_device_open_device(Device * self, char * device_name);
-static gboolean default_device_finish(Device * self);
-static gboolean default_device_start(Device * self, DeviceAccessMode mode,
-                                     char * label, char * timestamp);
-static gboolean default_device_start_file (Device * self,
-                                           const dumpfile_t * jobinfo);
-static gboolean default_device_write_block (Device * self, guint size,
-                                            gpointer data, gboolean last);
-static gboolean default_device_write_from_fd(Device *self, int fd);
-static gboolean default_device_finish_file (Device * self);
-static dumpfile_t* default_device_seek_file (Device * self, guint file);
-static gboolean default_device_seek_block (Device * self, guint64 block);
-static int default_device_read_block (Device * self, gpointer buffer,
-                                      int * size);
-static gboolean default_device_read_to_fd(Device *self, int fd);
-static gboolean default_device_property_get(Device * self, DevicePropertyId ID,
-                                            GValue * value);
+static void default_device_open_device(Device * self, char * device_name,
+				    char * device_type, char * device_node);
+static gboolean default_device_configure(Device *self, gboolean use_global_config);
+static gboolean default_device_write_from_fd(Device *self,
+					     queue_fd_t *queue_fd);
+static gboolean default_device_read_to_fd(Device *self, queue_fd_t *queue_fd);
+static gboolean default_device_property_get_ex(Device * self, DevicePropertyId id,
+					       GValue * val,
+					       PropertySurety *surety,
+					       PropertySource *source);
+static gboolean default_device_property_set_ex(Device *self,
+					       DevicePropertyId id,
+					       GValue * val,
+					       PropertySurety surety,
+					       PropertySource source);
+static void set_properties_from_global_config(Device * device);
+static void set_properties_from_device_config(Device * device, device_config_t *dc);
+
+static gboolean property_get_block_size_fn(Device *self,
+    DevicePropertyBase *base, GValue *val,
+    PropertySurety *surety, PropertySource *source);
+
+static gboolean property_set_block_size_fn(Device *self,
+    DevicePropertyBase *base, GValue *val,
+    PropertySurety surety, PropertySource source);
+
+static gboolean property_get_min_block_size_fn(Device *self,
+    DevicePropertyBase *base, GValue *val,
+    PropertySurety *surety, PropertySource *source);
+
+static gboolean property_get_max_block_size_fn(Device *self,
+    DevicePropertyBase *base, GValue *val,
+    PropertySurety *surety, PropertySource *source);
+
+static gboolean property_get_canonical_name_fn(Device *self,
+    DevicePropertyBase *base, GValue *val,
+    PropertySurety *surety, PropertySource *source);
 
 /* pointer to the class of our parent */
 static GObjectClass *parent_class = NULL;
@@ -168,11 +214,11 @@ GType
 device_get_type (void)
 {
     static GType type = 0;
-    
+
     if G_UNLIKELY(type == 0) {
         static const GTypeInfo info = {
             sizeof (DeviceClass),
-            (GBaseInitFunc) NULL,
+            (GBaseInitFunc) device_base_init,
             (GBaseFinalizeFunc) NULL,
             (GClassInitFunc) device_class_init,
             (GClassFinalizeFunc) NULL,
@@ -204,13 +250,15 @@ static void device_finalize(GObject *obj_self) {
     amfree(self->device_name);
     amfree(self->volume_label);
     amfree(self->volume_time);
-    g_array_free(selfp->property_list, TRUE);
-    g_hash_table_destroy(selfp->property_response);
+    amfree(self->volume_header);
+    amfree(selfp->errmsg);
+    amfree(selfp->statusmsg);
+    g_hash_table_destroy(selfp->simple_properties);
     amfree(self->private);
 }
 
 static void 
-device_init (Device * self G_GNUC_UNUSED)
+device_init (Device * self)
 {
     self->private = malloc(sizeof(DevicePrivate));
     self->device_name = NULL;
@@ -221,40 +269,92 @@ device_init (Device * self G_GNUC_UNUSED)
     self->in_file = FALSE;
     self->volume_label = NULL;
     self->volume_time = NULL;
-    selfp->property_list = g_array_new(TRUE, FALSE, sizeof(DeviceProperty));
-    selfp->property_response =
+    self->status = DEVICE_STATUS_SUCCESS;
+    self->min_block_size = 1;
+    self->max_block_size = SIZE_MAX; /* subclasses *really* should choose something smaller */
+    self->block_size = DISK_BLOCK_BYTES;
+    selfp->errmsg = NULL;
+    selfp->statusmsg = NULL;
+    selfp->last_status = 0;
+    selfp->simple_properties =
         g_hash_table_new_full(g_direct_hash,
                               g_direct_equal,
                               NULL,
-                              (GDestroyNotify) property_response_free);
+                              (GDestroyNotify) simple_property_free);
 }
 
 static void 
-device_class_init (DeviceClass * c G_GNUC_UNUSED)
+device_class_init (DeviceClass * device_class)
 {
-    GObjectClass *g_object_class G_GNUC_UNUSED = (GObjectClass*) c;
+    GObjectClass *g_object_class = (GObjectClass*) device_class;
     
     parent_class = g_type_class_ref (G_TYPE_OBJECT);
     
-    c->open_device = default_device_open_device;
-    c->finish = default_device_finish;
-    c->read_label = NULL;
-    c->start = default_device_start;
-    c->start_file = default_device_start_file;
-    c->write_block = default_device_write_block;
-    c->write_from_fd = default_device_write_from_fd;
-    c->finish_file = default_device_finish_file;
-    c->seek_file = default_device_seek_file;
-    c->seek_block = default_device_seek_block;
-    c->read_block = default_device_read_block;
-    c->read_to_fd = default_device_read_to_fd;
-    c->property_get = default_device_property_get;
-    c->property_set = NULL;
-    c->recycle_file = NULL;
+    device_class->open_device = default_device_open_device;
+    device_class->configure = default_device_configure;
+    device_class->write_from_fd = default_device_write_from_fd;
+    device_class->read_to_fd = default_device_read_to_fd;
+    device_class->property_get_ex = default_device_property_get_ex;
+    device_class->property_set_ex = default_device_property_set_ex;
     g_object_class->finalize = device_finalize;
 }
 
-static void property_response_free(PropertyResponse * resp) {
+static void
+device_base_init (DeviceClass * device_class)
+{
+    /* The base_init function is called once each time a child class is
+     * created, before the class_init functions (even our own) are called.  */
+
+    device_class->class_properties = g_array_new(FALSE, TRUE, sizeof(DeviceProperty));
+    device_class->class_properties_list = NULL;
+
+    device_class_register_property(device_class, PROPERTY_BLOCK_SIZE,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    property_get_block_size_fn,
+	    property_set_block_size_fn);
+
+    device_class_register_property(device_class, PROPERTY_MIN_BLOCK_SIZE,
+	    PROPERTY_ACCESS_GET_MASK,
+	    property_get_min_block_size_fn,
+	    NULL);
+
+    device_class_register_property(device_class, PROPERTY_MAX_BLOCK_SIZE,
+	    PROPERTY_ACCESS_GET_MASK,
+	    property_get_max_block_size_fn,
+	    NULL);
+
+    device_class_register_property(device_class, PROPERTY_CANONICAL_NAME,
+	    PROPERTY_ACCESS_GET_MASK,
+	    property_get_canonical_name_fn,
+	    NULL);
+
+    device_class_register_property(device_class, PROPERTY_CONCURRENCY,
+	    PROPERTY_ACCESS_GET_MASK,
+	    device_simple_property_get_fn,
+	    device_simple_property_set_fn);
+
+    device_class_register_property(device_class, PROPERTY_STREAMING,
+	    PROPERTY_ACCESS_GET_MASK,
+	    device_simple_property_get_fn,
+	    device_simple_property_set_fn);
+
+    device_class_register_property(device_class, PROPERTY_APPENDABLE,
+	    PROPERTY_ACCESS_GET_MASK,
+	    device_simple_property_get_fn,
+	    device_simple_property_set_fn);
+
+    device_class_register_property(device_class, PROPERTY_PARTIAL_DELETION,
+	    PROPERTY_ACCESS_GET_MASK,
+	    device_simple_property_get_fn,
+	    device_simple_property_set_fn);
+
+    device_class_register_property(device_class, PROPERTY_MEDIUM_ACCESS_TYPE,
+	    PROPERTY_ACCESS_GET_MASK,
+	    device_simple_property_get_fn,
+	    device_simple_property_set_fn);
+}
+
+static void simple_property_free(SimpleProperty * resp) {
     g_value_unset(&(resp->response));
     amfree(resp);
 }
@@ -273,7 +373,7 @@ regex_message(int result, regex_t *regex) {
 
 static gboolean
 handle_device_regex(const char * user_name, char ** driver_name,
-                    char ** device) {
+                    char ** device, char **errmsg) {
     regex_t regex;
     int reg_result;
     regmatch_t pmatch[3];
@@ -284,28 +384,31 @@ handle_device_regex(const char * user_name, char ** driver_name,
     reg_result = regcomp(&regex, regex_string, REG_EXTENDED | REG_ICASE);
     if (reg_result != 0) {
         char * message = regex_message(reg_result, &regex);
-        g_fprintf(stderr, "Error compiling regular expression \"%s\": %s\n",
-               regex_string, message);
-        amfree(message);
+	*errmsg = newvstrallocf(*errmsg, "Error compiling regular expression \"%s\": %s\n",
+			      regex_string, message);
+	amfree(message);
         return FALSE;
     }
 
     reg_result = regexec(&regex, user_name, 3, pmatch, 0);
     if (reg_result != 0 && reg_result != REG_NOMATCH) {
         char * message = regex_message(reg_result, &regex);
-        g_fprintf(stderr, "Error applying regular expression \"%s\" to string \"%s\":\n"
-               "%s\n", user_name, regex_string, message);
+	*errmsg = newvstrallocf(*errmsg,
+			"Error applying regular expression \"%s\" to string \"%s\": %s\n",
+			user_name, regex_string, message);
+	amfree(message);
         regfree(&regex);
         return FALSE;
     } else if (reg_result == REG_NOMATCH) {
 #ifdef WANT_TAPE_DEVICE
-        g_fprintf(stderr, "\"%s\" uses deprecated device naming convention; \n"
+	g_warning(
+		"\"%s\" uses deprecated device naming convention; \n"
                 "using \"tape:%s\" instead.\n",
                 user_name, user_name);
         *driver_name = stralloc("tape");
         *device = stralloc(user_name);
 #else /* !WANT_TAPE_DEVICE */
-        g_fprintf(stderr, "\"%s\" is not a valid device name.\n", user_name);
+	errmsg = newvstrallocf(errmsg, "\"%s\" is not a valid device name.\n", user_name);
 	regfree(&regex);
 	return FALSE;
 #endif /* WANT_TAPE_DEVICE */
@@ -317,168 +420,202 @@ handle_device_regex(const char * user_name, char ** driver_name,
     return TRUE;
 }
 
-Device* 
-device_open (char * device_name)
+/* helper function for device_open */
+static Device *
+make_null_error(char *errmsg, DeviceStatusFlags status)
 {
-    char *device_driver_name = NULL;
-    char *device_node_name = NULL;
     DeviceFactory factory;
     Device *device;
 
-    g_return_val_if_fail (device_name != NULL, NULL);
+    factory = lookup_device_factory("null");
+    g_assert(factory != NULL);
 
-    if (driverList == NULL) {
-        g_log(G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,
-              "device_open() called without device_api_init()!\n");
-        g_assert_not_reached();
-    }
+    device = factory("null:", "null", "");
+    device_set_error(device, errmsg, status);
 
-    if (!handle_device_regex(device_name, &device_driver_name, &device_node_name)) {
-        amfree(device_driver_name);
-        amfree(device_node_name);
-        return NULL;
-    }
-
-    factory = lookup_device_factory(device_driver_name);
-
-    if (factory == NULL) {
-        g_fprintf(stderr, "Device driver %s is not known.\n",
-                device_driver_name);
-        amfree(device_driver_name);
-        amfree(device_node_name);
-        return NULL;
-    }
-
-    device = factory(device_driver_name, device_node_name);
-    amfree(device_driver_name);
-    amfree(device_node_name);
     return device;
 }
 
-void 
-device_add_property (Device * self, DeviceProperty * prop, GValue * response)
+Device* 
+device_open (char * device_name)
 {
-    unsigned int i;
-    g_return_if_fail (self != NULL);
-    g_return_if_fail (IS_DEVICE (self));
-    g_assert(selfp->property_list != NULL);
-    g_assert(selfp->property_response != NULL);
+    char *device_type = NULL;
+    char *device_node = NULL;
+    char *errmsg = NULL;
+    char *unaliased_name = NULL;
+    DeviceFactory factory;
+    Device *device;
+    device_config_t *dc;
 
-    /* Delete it if it already exists. */
-    for(i = 0; i < selfp->property_list->len; i ++) {
-        if (g_array_index(selfp->property_list,
-                          DeviceProperty, i).base->ID == prop->base->ID) {
-            g_array_remove_index_fast(selfp->property_list, i);
-            break;
-        }
+    g_assert(device_name != NULL);
+
+    if (driverList == NULL) {
+        g_critical("device_open() called without device_api_init()!");
+        g_assert_not_reached();
     }
 
-    g_array_append_val(selfp->property_list, *prop);
-    
-    if (response != NULL) {
-        PropertyResponse * property_response;
-        
-        g_return_if_fail(G_IS_VALUE(response));
-        
-        property_response = malloc(sizeof(*property_response));
-        property_response->access = prop->access;
-        bzero(&(property_response->response),
-              sizeof(property_response->response));
-        g_value_init(&(property_response->response),
-                     G_VALUE_TYPE(response));
-        g_value_copy(response, &(property_response->response));
-        
-        g_hash_table_insert(selfp->property_response,
-                            GINT_TO_POINTER(prop->base->ID),
-                            property_response);
-    }
-}
+    if (device_name == NULL)
+	return make_null_error(stralloc(_("No device name specified")), DEVICE_STATUS_DEVICE_ERROR);
 
-const DeviceProperty * 
-device_property_get_list (Device * self)
-{
-	g_return_val_if_fail (self != NULL, (const DeviceProperty * )0);
-	g_return_val_if_fail (IS_DEVICE (self), (const DeviceProperty * )0);
-
-        return (const DeviceProperty*) selfp->property_list->data;
-}
-
-guint device_write_min_size(Device * self) {
-    GValue g_tmp;
-    int block_size, min_block_size;
-    
-    bzero(&g_tmp, sizeof(g_tmp));
-    device_property_get(self, PROPERTY_BLOCK_SIZE, &g_tmp);
-    block_size = g_value_get_int(&g_tmp);
-    g_value_unset(&g_tmp);
-    if (block_size > 0) {
-        return block_size;
-    }
-
-    /* variable block size */
-    device_property_get(self, PROPERTY_MIN_BLOCK_SIZE, &g_tmp);
-    min_block_size = g_value_get_uint(&g_tmp);
-    g_value_unset(&g_tmp);
-    return min_block_size;
-}
-
-guint device_write_max_size(Device * self) {
-    GValue g_tmp;
-    int block_size, max_block_size;
-    
-    bzero(&g_tmp, sizeof(g_tmp));
-    device_property_get(self, PROPERTY_BLOCK_SIZE, &g_tmp);
-    block_size = g_value_get_int(&g_tmp);
-    g_value_unset(&g_tmp);
-    if (block_size > 0) {
-        return block_size;
-    }
-
-    /* variable block size */
-    device_property_get(self, PROPERTY_MAX_BLOCK_SIZE, &g_tmp);
-    max_block_size = g_value_get_uint(&g_tmp);
-    g_value_unset(&g_tmp);
-    return max_block_size;
-}
-
-guint device_read_max_size(Device * self) {
-    GValue g_tmp;
-    
-    bzero(&g_tmp, sizeof(g_tmp));
-    if (device_property_get(self, PROPERTY_READ_BUFFER_SIZE, &g_tmp)) {
-        guint rval = g_value_get_uint(&g_tmp);
-        g_value_unset(&g_tmp);
-        return rval;
+    /* look up the unaliased device name in the configuration */
+    if ((dc = lookup_device_config(device_name))) {
+	if (!(unaliased_name = device_config_get_tapedev(dc))
+	    || unaliased_name[0] == '\0') {
+	    return make_null_error(
+		vstrallocf(_("Device '%s' has no tapedev"), device_name),
+		DEVICE_STATUS_DEVICE_ERROR);
+	}
     } else {
-        return device_write_max_size(self);
+	unaliased_name = device_name;
     }
+
+    if (!handle_device_regex(unaliased_name, &device_type, &device_node,
+			     &errmsg)) {
+	amfree(device_type);
+	amfree(device_node);
+	return make_null_error(errmsg, DEVICE_STATUS_DEVICE_ERROR);
+    }
+
+    factory = lookup_device_factory(device_type);
+
+    if (factory == NULL) {
+	Device *nulldev = make_null_error(vstrallocf(_("Device type %s is not known."),
+	    device_type), DEVICE_STATUS_DEVICE_ERROR);
+	amfree(device_type);
+	amfree(device_node);
+	return nulldev;
+    }
+
+    device = factory(device_name, device_type, device_node);
+    g_assert(device != NULL); /* factories must always return a device */
+
+    amfree(device_type);
+    amfree(device_node);
+
+    return device;
+}
+
+char *
+device_error(Device * self)
+{
+    if (self == NULL) {
+        return device_error_or_status(self);
+    } else if (selfp->errmsg) {
+	return selfp->errmsg;
+    } else {
+        return "Unknown Device error";
+    }
+}
+
+char *
+device_status_error(Device * self)
+{
+    char **status_strv;
+    char *statusmsg;
+
+    if (self == NULL) {
+        return device_error_or_status(self);
+    }
+
+    /* reuse a previous statusmsg, if it was for the same status */
+    if (selfp->statusmsg && selfp->last_status == self->status)
+	return selfp->statusmsg;
+
+    amfree(selfp->statusmsg);
+
+    status_strv = g_flags_nick_to_strv(self->status, DEVICE_STATUS_FLAGS_TYPE);
+    g_assert(g_strv_length(status_strv) > 0);
+    if (g_strv_length(status_strv) == 1) {
+	statusmsg = stralloc(*status_strv);
+    } else {
+	char * status_list = g_english_strjoinv(status_strv, "or");
+	statusmsg = g_strdup_printf("one of %s", status_list);
+	amfree(status_list);
+    }
+    g_strfreev(status_strv);
+
+    selfp->statusmsg = statusmsg;
+    selfp->last_status = self->status;
+    return statusmsg;
+}
+
+char *
+device_error_or_status(Device * self)
+{
+    if (self == NULL) {
+        return "Device is NULL";
+    } else if (selfp->errmsg) {
+	return selfp->errmsg;
+    } else {
+	return device_status_error(self);
+    }
+}
+
+void
+device_set_error(Device *self, char *errmsg, DeviceStatusFlags new_flags)
+{
+    char **flags_strv;
+    char *flags_str;
+    char *device_name;
+
+    if (!self) {
+	g_warning("device_set_error called with a NULL device: '%s'", errmsg? errmsg:"(NULL)");
+	amfree(errmsg);
+	return;
+    }
+
+    device_name = self->device_name? self->device_name : "(unknown device)";
+
+    if (errmsg && (!selfp->errmsg || strcmp(errmsg, selfp->errmsg) != 0))
+	g_debug("Device %s error = '%s'", device_name, errmsg);
+
+    amfree(selfp->errmsg);
+    selfp->errmsg = errmsg;
+
+    if (new_flags != DEVICE_STATUS_SUCCESS) {
+	flags_strv = g_flags_name_to_strv(new_flags, DEVICE_STATUS_FLAGS_TYPE);
+	g_assert(g_strv_length(flags_strv) > 0);
+	flags_str = g_english_strjoinv(flags_strv, "and");
+	g_debug("Device %s setting status flag(s): %s", device_name, flags_str);
+	amfree(flags_str);
+	g_strfreev(flags_strv);
+    }
+
+    self->status = new_flags;
 }
 
 char * device_build_amanda_header(Device * self, const dumpfile_t * info,
                                   int * size, gboolean * oneblock) {
     char *amanda_header;
-    unsigned int min_header_length;
-    unsigned int header_buffer_size;
+    size_t min_header_length;
+    size_t header_buffer_size;
 
-    min_header_length = device_write_min_size(self);
+    min_header_length = self->block_size;
     amanda_header = build_header(info, min_header_length);
     header_buffer_size = MAX(min_header_length, strlen(amanda_header)+1);
     if (size != NULL)
         *size = header_buffer_size;
     if (oneblock != NULL)
-        *oneblock = (header_buffer_size <=  device_write_max_size(self));
+        *oneblock = (header_buffer_size <= self->block_size);
     return amanda_header;
 }
 
 dumpfile_t * make_tapestart_header(Device * self, char * label,
                                    char * timestamp) {
     dumpfile_t * rval;
+    GValue val;
+    bzero(&val, sizeof(val));
 
-    g_return_val_if_fail(label != NULL, NULL);
+    g_assert(label != NULL);
 
     rval = malloc(sizeof(*rval));
     fh_init(rval);
     rval->type = F_TAPESTART;
+    if (device_property_get(self, PROPERTY_BLOCK_SIZE, &val)) {
+	rval->blocksize = g_value_get_int(&val);
+	g_value_unset(&val);
+    }
+
     amfree(self->volume_time);
     if (get_timestamp_state(timestamp) == TIME_STATE_REPLACE) {
         self->volume_time = get_proper_stamp_from_time(time(NULL));
@@ -503,71 +640,72 @@ dumpfile_t * make_tapeend_header(void) {
     return rval;
 }
 
-/* Try setting max/fixed blocksize on a device. Check results, fallback, and
- * print messages for problems. */
-static void try_set_blocksize(Device * device, guint blocksize,
-                              gboolean try_max_first) {
+/* Try setting the blocksize on a device. Check results, fallback, and
+ * set error status for problems. */
+static gboolean
+try_set_blocksize(Device * device, guint blocksize) {
     GValue val;
     gboolean success;
     bzero(&val, sizeof(val));
-    g_value_init(&val, G_TYPE_UINT);
-    g_value_set_uint(&val, blocksize);
-    if (try_max_first) {
-        success = device_property_set(device,
-                                      PROPERTY_MAX_BLOCK_SIZE,
-                                      &val);
-        if (!success) {
-            g_fprintf(stderr, "Setting MAX_BLOCK_SIZE to %u "
-                    "not supported for device %s.\n"
-                    "trying BLOCK_SIZE instead.\n",
-                    blocksize, device->device_name);
-        } else {
-            g_value_unset(&val);
-            return;
-        }
-    }
 
-    g_value_unset(&val);
     g_value_init(&val, G_TYPE_INT);
     g_value_set_int(&val, blocksize);
-    success = device_property_set(device,
-                                  PROPERTY_BLOCK_SIZE,
-                                  &val);
-    if (!success) {
-        g_fprintf(stderr, "Setting BLOCK_SIZE to %u "
-                "not supported for device %s.\n",
-                blocksize, device->device_name);
-    }
+    success = device_property_set(device, PROPERTY_BLOCK_SIZE, &val);
     g_value_unset(&val);
+
+    if (!success) {
+	device_set_error(device,
+	    vstrallocf(_("Setting BLOCK_SIZE to %u "
+		    "not supported for device %s.\n"),
+		    blocksize, device->device_name),
+	    DEVICE_STATUS_DEVICE_ERROR);
+    }
+
+    return success;
 }
 
 /* A GHFunc (callback for g_hash_table_foreach) */
 static void set_device_property(gpointer key_p, gpointer value_p,
                                    gpointer user_data_p) {
-    char * property_s = key_p;
-    char * value_s = value_p;
+    char   * property_s = key_p;
+    property_t * property = value_p;
     Device * device = user_data_p;
     const DevicePropertyBase* property_base;
     GValue property_value;
+    char   * value;
 
     g_return_if_fail(IS_DEVICE(device));
     g_return_if_fail(property_s != NULL);
-    g_return_if_fail(value_s != NULL);
+    g_return_if_fail(property != NULL);
+    g_return_if_fail(property->values != NULL);
+
+    /* don't continue beating on a device that's already erroring */
+    if (device_in_error(device)) return;
 
     property_base = device_property_get_by_name(property_s);
     if (property_base == NULL) {
         /* Nonexistant property name. */
-        g_fprintf(stderr, _("Unknown device property name %s.\n"), property_s);
+	device_set_error(device,
+	    vstrallocf(_("unknown device property name '%s'"), property_s),
+	    DEVICE_STATUS_DEVICE_ERROR);
         return;
+    }
+    if (g_slist_length(property->values) > 1) {
+	device_set_error(device,
+	    vstrallocf(_("multiple values for device property '%s'"), property_s),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return;
     }
     
     bzero(&property_value, sizeof(property_value));
     g_value_init(&property_value, property_base->type);
-    if (!g_value_set_from_string(&property_value, value_s)) {
+    value = property->values->data;
+    if (!g_value_set_from_string(&property_value, value)) {
         /* Value type could not be interpreted. */
-        g_fprintf(stderr,
-                _("Could not parse property value %s for property type %s.\n"),
-                value_s, g_type_name(property_base->type));
+	device_set_error(device,
+	    vstrallocf(_("Could not parse property value '%s' for property '%s'"),
+			value, g_type_name(property_base->type)),
+	    DEVICE_STATUS_DEVICE_ERROR);
         return;
     } else {
         g_assert (G_VALUE_HOLDS(&property_value, property_base->type));
@@ -575,15 +713,21 @@ static void set_device_property(gpointer key_p, gpointer value_p,
 
     if (!device_property_set(device, property_base->ID, &property_value)) {
         /* Device rejects property. */
-        g_fprintf(stderr, _("Could not set property %s to %s on device %s.\n"),
-                property_base->name, value_s, device->device_name);
+        if (!device_in_error(device)) {
+	    device_set_error(device,
+		vstrallocf(_("Could not set property '%s' to '%s' on %s"),
+			property_base->name, value, device->device_name),
+		DEVICE_STATUS_DEVICE_ERROR);
+	}
         return;
     }
 }
 
-/* Set up first-run properties, including DEVICE_MAX_VOLUME_USAGE property
- * based on the tapetype. */
-void device_set_startup_properties_from_config(Device * device) {
+/* Set up properties based on various taper-related configuration parameters
+ * and from the tapetype.
+ */
+static void
+set_properties_from_global_config(Device * device) {
     char * tapetype_name = getconf_str(CNF_TAPETYPE);
     if (tapetype_name != NULL) {
         tapetype_t * tapetype = lookup_tapetype(tapetype_name);
@@ -613,23 +757,49 @@ void device_set_startup_properties_from_config(Device * device) {
                                               &val);
                 g_value_unset(&val);
                 if (!success) {
-                    g_fprintf(stderr, "Setting READ_BUFFER_SIZE to %llu "
-                            "not supported for device %s.\n",
-                            1024*(long long unsigned int)blocksize_kb,
-			    device->device_name);
+		    /* a non-fatal error */
+                    g_warning("Setting READ_BUFFER_SIZE to %ju not supported for device %s.",
+                            1024*(uintmax_t)blocksize_kb, device->device_name);
                 }
             }
 
             if (tapetype_seen(tapetype, TAPETYPE_BLOCKSIZE)) {
 		blocksize_kb = tapetype_get_blocksize(tapetype);
-                try_set_blocksize(device, blocksize_kb * 1024,
-                                  !tapetype_get_file_pad(tapetype));
+		/* TODO: handle errors */
+                (void)try_set_blocksize(device, blocksize_kb * 1024);
             }
         }
     }
 
     g_hash_table_foreach(getconf_proplist(CNF_DEVICE_PROPERTY),
                          set_device_property, device);
+}
+
+/* Set properties specified within a device definition */
+static void
+set_properties_from_device_config(Device * device, device_config_t *dc) {
+    g_hash_table_foreach(device_config_get_property(dc),
+                         set_device_property, device);
+}
+
+static gboolean
+default_device_configure(Device *self, gboolean use_global_config)
+{
+    device_config_t *dc;
+
+    if (device_in_error(self))
+	return FALSE;
+
+    if (use_global_config)
+	set_properties_from_global_config(self);
+
+    if (device_in_error(self))
+	return FALSE;
+
+    if ((dc = lookup_device_config(self->device_name)))
+	set_properties_from_device_config(self, dc);
+
+    return !device_in_error(self);
 }
 
 void device_clear_volume_details(Device * device) {
@@ -646,136 +816,242 @@ void device_clear_volume_details(Device * device) {
    incomplete functionality. But they do offer the useful commonality
    that all devices can expect to need. */
 
-/* This function only updates access_mode, volume_label, and volume_time. */
-static gboolean
-default_device_start (Device * self, DeviceAccessMode mode, char * label,
-                      char * timestamp) {
-    if (mode != ACCESS_WRITE && self->volume_label == NULL) {
-	g_debug("default_device_start calling device_read_label with mode %d", mode);
-        if (device_read_label(self) != READ_LABEL_STATUS_SUCCESS)
-            return FALSE;
-    } else if (mode == ACCESS_WRITE) {
-        self->volume_label = newstralloc(self->volume_label, label);
-        self->volume_time = newstralloc(self->volume_time, timestamp);
-    }
-    self->access_mode = mode;
-
-    return TRUE;
-}
-
-static gboolean default_device_open_device(Device * self,
-                                           char * device_name) {
-    DeviceProperty prop;
-    guint i;
-
+static void default_device_open_device(Device * self, char * device_name,
+		    char * device_type G_GNUC_UNUSED, char * device_node G_GNUC_UNUSED) {
+    /* Set the device_name property */
     self->device_name = stralloc(device_name);
+}
 
-    prop.base = &device_property_canonical_name;
-    prop.access = PROPERTY_ACCESS_GET_MASK;
+static gboolean
+property_get_block_size_fn(
+	Device *self,
+	DevicePropertyBase *base G_GNUC_UNUSED,
+	GValue *val,
+	PropertySurety *surety,
+	PropertySource *source)
+{
+    g_value_unset_init(val, G_TYPE_INT);
+    g_assert(self->block_size < G_MAXINT); /* gsize -> gint */
+    g_value_set_int(val, (gint)self->block_size);
 
-    for(i = 0; i < selfp->property_list->len; i ++) {
-        if (g_array_index(selfp->property_list,
-                          DeviceProperty, i).base->ID == prop.base->ID) {
-            return TRUE;
-        }
+    if (surety)
+	*surety = self->block_size_surety;
+
+    if (source)
+	*source = self->block_size_source;
+
+    return TRUE;
+}
+
+static gboolean
+property_set_block_size_fn(
+	Device *self,
+	DevicePropertyBase *base G_GNUC_UNUSED,
+	GValue *val,
+	PropertySurety surety,
+	PropertySource source)
+{
+    gint block_size = g_value_get_int(val);
+
+    g_assert(block_size >= 0); /* int -> gsize (unsigned) */
+    if ((gsize)block_size < self->min_block_size
+       || (gsize)block_size > self->max_block_size)
+	return FALSE;
+
+    self->block_size = block_size;
+    self->block_size_surety = surety;
+    self->block_size_source = source;
+
+    return TRUE;
+}
+
+static gboolean
+property_get_min_block_size_fn(
+	Device *self,
+	DevicePropertyBase *base G_GNUC_UNUSED,
+	GValue *val,
+	PropertySurety *surety,
+	PropertySource *source)
+{
+    g_value_unset_init(val, G_TYPE_UINT);
+    g_assert(self->block_size < G_MAXUINT); /* gsize -> guint */
+    g_value_set_uint(val, (guint)self->min_block_size);
+
+    if (surety)
+	*surety = PROPERTY_SURETY_GOOD;
+
+    if (source)
+	*source = PROPERTY_SOURCE_DEFAULT;
+
+    return TRUE;
+}
+
+static gboolean
+property_get_max_block_size_fn(
+	Device *self,
+	DevicePropertyBase *base G_GNUC_UNUSED,
+	GValue *val,
+	PropertySurety *surety,
+	PropertySource *source)
+{
+    g_value_unset_init(val, G_TYPE_UINT);
+    g_assert(self->block_size < G_MAXUINT); /* gsize -> guint */
+    g_value_set_uint(val, (guint)self->max_block_size);
+
+    if (surety)
+	*surety = PROPERTY_SURETY_GOOD;
+
+    if (source)
+	*source = PROPERTY_SOURCE_DEFAULT;
+
+    return TRUE;
+}
+
+static gboolean
+property_get_canonical_name_fn(
+	Device *self,
+	DevicePropertyBase *base G_GNUC_UNUSED,
+	GValue *val,
+	PropertySurety *surety,
+	PropertySource *source)
+{
+    g_value_unset_init(val, G_TYPE_STRING);
+    g_value_set_string(val, self->device_name);
+
+    if (surety)
+	*surety = PROPERTY_SURETY_GOOD;
+
+    if (source)
+	*source = PROPERTY_SOURCE_DEFAULT;
+
+    return TRUE;
+}
+
+/* util function */
+static PropertyPhaseFlags
+state_to_phase(
+    Device *self)
+{
+    if (self->access_mode == ACCESS_NULL) {
+	return PROPERTY_PHASE_BEFORE_START;
+    } else if (IS_WRITABLE_ACCESS_MODE(self->access_mode)) {
+	if (self->in_file) {
+	    return PROPERTY_PHASE_INSIDE_FILE_WRITE;
+	} else {
+	    return PROPERTY_PHASE_BETWEEN_FILE_WRITE;
+	}
+    } else { /* read mode */
+	if (self->in_file) {
+	    return PROPERTY_PHASE_INSIDE_FILE_READ;
+	} else {
+	    return PROPERTY_PHASE_BETWEEN_FILE_READ;
+	}
     }
-    /* If we got here, the property was not registered. */
-    device_add_property(self, &prop, NULL);
-
-    return TRUE;
-}
-
-/* This default implementation does very little. */
-static gboolean
-default_device_finish (Device * self) {
-    self->access_mode = ACCESS_NULL;
-    return TRUE;
-}
-
-/* This function updates the file, in_file, and block attributes. */
-static gboolean
-default_device_start_file (Device * self,
-                           const dumpfile_t * jobInfo G_GNUC_UNUSED) {
-    self->in_file = TRUE;
-    if (self->file <= 0)
-        self->file = 1;
-    else
-        self->file ++;
-    self->block = 0;
-    return TRUE;
-}
-
-/* This function lies: It updates the block number and maybe calls
-   device_finish_file(), but returns FALSE. */
-static gboolean
-default_device_write_block(Device * self, guint size G_GNUC_UNUSED,
-                           gpointer data G_GNUC_UNUSED, gboolean last_block) {
-    self->block ++;
-    if (last_block)
-        device_finish_file(self);
-    return FALSE;
-}
-
-/* This function lies: It updates the block number, but returns
-   -1. */
-static int
-default_device_read_block(Device * self, gpointer buf G_GNUC_UNUSED,
-                          int * size G_GNUC_UNUSED) {
-    self->block ++;
-    return -1;
-}
-
-/* This function just updates the in_file field. */
-static gboolean
-default_device_finish_file(Device * self) {
-    self->in_file = FALSE;
-    return TRUE;
-}
-
-/* This function just updates the file number. */
-static dumpfile_t *
-default_device_seek_file(Device * self, guint file) {
-    self->in_file = TRUE;
-    self->file = file;
-    return NULL;
-}
-
-/* This function just updates the block number. */
-static gboolean
-default_device_seek_block(Device * self, guint64 block) {
-    self->block = block;
-    return TRUE;
 }
 
 /* This default implementation serves up static responses, and
-   implements a default response to the "canonical name" property. */
-
+   implements a few default responses based on values from the Device
+   struct. */
 static gboolean
-default_device_property_get(Device * self, DevicePropertyId ID,
-                            GValue * value) {
-    const PropertyResponse * resp;
+default_device_property_get_ex(
+	Device * self,
+	DevicePropertyId id,
+	GValue * val,
+	PropertySurety *surety,
+	PropertySource *source)
+{
+    DeviceProperty *prop;
+    GArray *class_properties;
+    PropertyPhaseFlags cur_phase;
 
-    resp = (PropertyResponse*)g_hash_table_lookup(selfp->property_response,
-                                                  GINT_TO_POINTER(ID));
-    if (resp == NULL) {
-        if (ID == PROPERTY_CANONICAL_NAME) {
-            g_value_unset_init(value, G_TYPE_STRING);
-            g_value_set_string(value, self->device_name);
-	    return TRUE;
-        } else {
-            return FALSE;
-        }
+    /* Most of this function's job is to sanity-check everything, then
+     * call the relevant getter. */
+
+    if (device_in_error(self))
+	return FALSE;
+
+    class_properties = DEVICE_GET_CLASS(self)->class_properties;
+    if (id >= class_properties->len)
+	return FALSE;
+
+    prop = &g_array_index(class_properties, DeviceProperty, id);
+    if (prop->base == NULL)
+	return FALSE;
+
+    if (val || surety || source) {
+	/* check the phase */
+	cur_phase = state_to_phase(self);
+	if (!(prop->access & cur_phase))
+	    return FALSE;
+
+	if (prop->getter == NULL)
+	    return FALSE;
+
+	if (!prop->getter(self, prop->base, val, surety, source))
+	    return FALSE;
     }
-
-    g_value_unset_copy(&resp->response, value);
 
     return TRUE;
 }
 
 static gboolean
-default_device_read_to_fd(Device *self, int fd) {
+default_device_property_set_ex(
+    Device *self,
+    DevicePropertyId id,
+    GValue * val,
+    PropertySurety surety,
+    PropertySource source)
+{
+    DeviceProperty *prop;
+    GArray *class_properties;
+    PropertyPhaseFlags cur_phase;
+
+    /* Most of this function's job is to sanity-check everything, then
+     * call the relevant setter. */
+
+    if (device_in_error(self))
+	return FALSE;
+
+    class_properties = DEVICE_GET_CLASS(self)->class_properties;
+    if (id >= class_properties->len)
+	return FALSE;
+
+    prop = &g_array_index(class_properties, DeviceProperty, id);
+    if (prop->base == NULL)
+	return FALSE;
+
+    /* check that the type matches */
+    if (!G_VALUE_HOLDS(val, prop->base->type))
+	return FALSE;
+
+    /* check the phase */
+    cur_phase = state_to_phase(self) << PROPERTY_PHASE_SHIFT;
+    if (!(prop->access & cur_phase))
+	return FALSE;
+
+    if (prop->setter == NULL)
+	return FALSE;
+
+    if (!prop->setter(self, prop->base, val, surety, source))
+	return FALSE;
+
+    return TRUE;
+}
+
+const GSList *
+device_property_get_list (Device * self)
+{
+    g_assert(IS_DEVICE(self));
+
+    return DEVICE_GET_CLASS(self)->class_properties_list;
+}
+
+static gboolean
+default_device_read_to_fd(Device *self, queue_fd_t *queue_fd) {
     GValue val;
     StreamingRequirement streaming_mode;
+
+    if (device_in_error(self)) return FALSE;
 
     /* Get the device's parameters */
     bzero(&val, sizeof(val));
@@ -791,16 +1067,18 @@ default_device_read_to_fd(Device *self, int fd) {
 	    device_read_producer,
 	    self,
 	    fd_write_consumer,
-	    GINT_TO_POINTER(fd),
-	    device_read_max_size(self),
+	    queue_fd,
+	    self->block_size,
 	    DEFAULT_MAX_BUFFER_MEMORY,
 	    streaming_mode);
 }
 
 static gboolean
-default_device_write_from_fd(Device *self, int fd) {
+default_device_write_from_fd(Device *self, queue_fd_t *queue_fd) {
     GValue val;
     StreamingRequirement streaming_mode;
+
+    if (device_in_error(self)) return FALSE;
 
     /* Get the device's parameters */
     bzero(&val, sizeof(val));
@@ -814,10 +1092,10 @@ default_device_write_from_fd(Device *self, int fd) {
     return QUEUE_SUCCESS ==
 	do_consumer_producer_queue_full(
 	    fd_read_producer,
-	    GINT_TO_POINTER(fd),
+	    queue_fd,
 	    device_write_consumer,
 	    self,
-	    device_write_max_size(self),
+	    self->block_size,
 	    DEFAULT_MAX_BUFFER_MEMORY,
 	    streaming_mode);
 }
@@ -828,294 +1106,396 @@ default_device_write_from_fd(Device *self, int fd) {
  * will do what you expect vis-a-vis virtual functions. But don't put code
  * in them beyond error checking and VFT lookup. */
 
-gboolean 
-device_open_device (Device * self, char * device_name)
+void
+device_open_device (Device * self, char * device_name,
+	char * device_type, char * device_node)
 {
-        DeviceClass *klass;
-	g_return_val_if_fail (self != NULL, FALSE);
-	g_return_val_if_fail (IS_DEVICE (self), FALSE);
-	g_return_val_if_fail (device_name != NULL, FALSE);
-	klass = DEVICE_GET_CLASS(self);
+    DeviceClass *klass;
 
-	if(klass->open_device)
-            return (*klass->open_device)(self,device_name);
-	else
-		return FALSE;
-}
-
-ReadLabelStatusFlags device_read_label(Device * self) {
-    DeviceClass * klass;
-    g_debug("device_read_label; mode = %d", self->access_mode);
-    g_return_val_if_fail(self != NULL, FALSE);
-    g_return_val_if_fail(IS_DEVICE(self), FALSE);
-    g_return_val_if_fail(self->access_mode == ACCESS_NULL, FALSE);
+    g_assert(IS_DEVICE(self));
+    g_assert(device_name != NULL);
 
     klass = DEVICE_GET_CLASS(self);
-    if (klass->read_label) {
-        return (klass->read_label)(self);
-    } else {
-        return ~ READ_LABEL_STATUS_SUCCESS;
-    }
+    g_assert(klass->open_device);
+    (klass->open_device)(self, device_name, device_type, device_node);
+}
+
+DeviceStatusFlags device_read_label(Device * self) {
+    DeviceClass * klass;
+
+    g_assert(self != NULL);
+    g_assert(IS_DEVICE(self));
+    g_assert(self->access_mode == ACCESS_NULL);
+
+    klass = DEVICE_GET_CLASS(self);
+    g_assert(klass->read_label);
+    return (klass->read_label)(self);
 }
 
 gboolean
 device_finish (Device * self) {
-	DeviceClass *klass;
-	g_return_val_if_fail (self != NULL, FALSE);
-	g_return_val_if_fail (IS_DEVICE (self), FALSE);
+    DeviceClass *klass;
 
-        if (self->access_mode == ACCESS_NULL)
-            return TRUE;
+    g_assert(IS_DEVICE (self));
 
-	klass = DEVICE_GET_CLASS(self);
-        if (klass->finish) {
-            return (*klass->finish)(self);
-        } else {
-            return FALSE;
-        }
+    klass = DEVICE_GET_CLASS(self);
+    g_assert(klass->finish);
+    return (klass->finish)(self);
 }
 
-/* For a good combination of synchronization and public simplicity,
-   this stub function does not take a timestamp, but the actual
-   implementation function does. We generate the timestamp here with
-   time(). */
+gboolean
+device_configure (Device * self, gboolean use_global_config)
+{
+    DeviceClass *klass;
+
+    g_assert(IS_DEVICE (self));
+    g_assert(self->access_mode == ACCESS_NULL);
+
+    klass = DEVICE_GET_CLASS(self);
+    if(klass->configure) {
+	return (klass->configure)(self, use_global_config);
+    } else {
+	device_set_error(self,
+	    stralloc(_("Unimplemented method")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
+}
+
 gboolean 
 device_start (Device * self, DeviceAccessMode mode,
               char * label, char * timestamp)
 {
-	DeviceClass *klass;
+    DeviceClass *klass;
+    char * local_timestamp = NULL;
+    gboolean rv;
 
-	g_debug("device_start mode = %d", mode);
-	g_return_val_if_fail (self != NULL, FALSE);
-	g_return_val_if_fail (IS_DEVICE (self), FALSE);
-        g_return_val_if_fail (mode != ACCESS_NULL, FALSE);
-        g_return_val_if_fail (mode != ACCESS_WRITE || label != NULL,
-                              FALSE);
-	klass = DEVICE_GET_CLASS(self);
+    g_assert(IS_DEVICE (self));
+    g_assert(mode != ACCESS_NULL);
+    g_assert(mode != ACCESS_WRITE || label != NULL);
 
-	if(klass->start) {
-	    char * local_timestamp = NULL;
-	    gboolean rv;
+    klass = DEVICE_GET_CLASS(self);
+    g_assert(klass->start);
 
-	    /* fill in a timestamp if none was given */
-	    if (mode == ACCESS_WRITE &&
-		get_timestamp_state(timestamp) == TIME_STATE_REPLACE) {
-		local_timestamp = timestamp = 
-		    get_proper_stamp_from_time(time(NULL));
-	    }
+    /* For a good combination of synchronization and public simplicity,
+       this stub function does not require a timestamp, but the actual
+       implementation function does. We generate the timestamp here with
+       time(). */
+    if (mode == ACCESS_WRITE &&
+	get_timestamp_state(timestamp) == TIME_STATE_REPLACE) {
+	local_timestamp = timestamp =
+	    get_proper_stamp_from_time(time(NULL));
+    }
 
-            rv = (*klass->start)(self, mode, label, timestamp);
-	    amfree(local_timestamp);
-	    g_debug("device_start done; dev->access_mode = %d, result %d", self->access_mode, rv);
-	    return rv;
-        } else {
-            return FALSE;
-        }
+    rv = (klass->start)(self, mode, label, timestamp);
+    amfree(local_timestamp);
+    return rv;
 }
 
 gboolean
-device_write_block (Device * self, guint size, gpointer block,
-                    gboolean short_block)
+device_write_block (Device * self, guint size, gpointer block)
 {
     DeviceClass *klass;
-    g_return_val_if_fail (self != NULL, FALSE);
-    g_return_val_if_fail (IS_DEVICE (self), FALSE);
-    g_return_val_if_fail (size > 0, FALSE);
-    g_return_val_if_fail (short_block ||
-                          size >= device_write_min_size(self), FALSE);
-    g_return_val_if_fail (size <= device_write_max_size(self), FALSE);
-    g_return_val_if_fail (block != NULL, FALSE);
-    g_return_val_if_fail (IS_WRITABLE_ACCESS_MODE(self->access_mode),
-                          FALSE);
+
+    g_assert(IS_DEVICE (self));
+    g_assert(size > 0);
+
+    /* these are all things that the caller should take care to
+     * guarantee, so we just assert them here */
+    g_assert(size <= self->block_size);
+    g_assert(self->in_file);
+    g_assert(!selfp->wrote_short_block);
+    g_assert(block != NULL);
+    g_assert(IS_WRITABLE_ACCESS_MODE(self->access_mode));
+
+    if (size < self->block_size)
+	selfp->wrote_short_block = TRUE;
 
     klass = DEVICE_GET_CLASS(self);
-    
-    if(klass->write_block)
-        return (*klass->write_block)(self,size, block, short_block);
-    else
-        return FALSE;
+    g_assert(klass->write_block);
+    return (*klass->write_block)(self,size, block);
 }
 
 gboolean 
-device_write_from_fd (Device * self, int fd)
+device_write_from_fd (Device * self, queue_fd_t * queue_fd)
 {
-	DeviceClass *klass;
-	g_return_val_if_fail (self != NULL, FALSE);
-	g_return_val_if_fail (IS_DEVICE (self), FALSE);
-	g_return_val_if_fail (fd >= 0, FALSE);
-        g_return_val_if_fail (IS_WRITABLE_ACCESS_MODE(self->access_mode),
-                              FALSE);
+    DeviceClass *klass;
 
-	klass = DEVICE_GET_CLASS(self);
+    g_assert(IS_DEVICE (self));
+    g_assert(queue_fd->fd >= 0);
+    g_assert(IS_WRITABLE_ACCESS_MODE(self->access_mode));
 
-	if(klass->write_from_fd)
-		return (*klass->write_from_fd)(self,fd);
-	else
-		return FALSE;
+    klass = DEVICE_GET_CLASS(self);
+    g_assert(klass->write_from_fd);
+    return (klass->write_from_fd)(self,queue_fd);
 }
 
 gboolean
-device_start_file (Device * self, const dumpfile_t * jobInfo) {
+device_start_file (Device * self, dumpfile_t * jobInfo) {
     DeviceClass * klass;
-    g_return_val_if_fail (self != NULL, FALSE);
-    g_return_val_if_fail (IS_DEVICE (self), FALSE);
-    g_return_val_if_fail (!(self->in_file), FALSE);
-    g_return_val_if_fail (jobInfo != NULL, FALSE);
+
+    g_assert(IS_DEVICE (self));
+    g_assert(!(self->in_file));
+    g_assert(jobInfo != NULL);
+
+    selfp->wrote_short_block = FALSE;
 
     klass = DEVICE_GET_CLASS(self);
-    
-    if(klass->start_file)
-        return (*klass->start_file)(self, jobInfo );
-    else
-        return FALSE;
+    g_assert(klass->start_file);
+    return (klass->start_file)(self, jobInfo );
 }
 
 gboolean 
 device_finish_file (Device * self)
 {
-	DeviceClass *klass;
-	g_return_val_if_fail (self != NULL, FALSE);
-	g_return_val_if_fail (IS_DEVICE (self), FALSE);
-        g_return_val_if_fail (IS_WRITABLE_ACCESS_MODE(self->access_mode),
-                              FALSE);
-        g_return_val_if_fail (self->in_file, FALSE);
+    DeviceClass *klass;
 
-	klass = DEVICE_GET_CLASS(self);
+    g_assert(IS_DEVICE (self));
+    g_assert(IS_WRITABLE_ACCESS_MODE(self->access_mode));
+    g_assert(self->in_file);
 
-	if(klass->finish_file)
-		return (*klass->finish_file)(self);
-	else
-		return FALSE;
+    klass = DEVICE_GET_CLASS(self);
+    g_assert(klass->finish_file);
+    return (klass->finish_file)(self);
 }
 
 dumpfile_t*
 device_seek_file (Device * self, guint file)
 {
-	DeviceClass *klass;
-	g_return_val_if_fail (self != NULL, NULL);
-	g_return_val_if_fail (IS_DEVICE (self), NULL);
-        g_return_val_if_fail (self->access_mode == ACCESS_READ,
-                              NULL);
+    DeviceClass *klass;
 
-	klass = DEVICE_GET_CLASS(self);
+    g_assert(IS_DEVICE (self));
+    g_assert(self->access_mode == ACCESS_READ);
 
-	if(klass->seek_file)
-		return (*klass->seek_file)(self,file);
-	else
-		return FALSE;
+    klass = DEVICE_GET_CLASS(self);
+    g_assert(klass->seek_file);
+    return (klass->seek_file)(self,file);
 }
 
 gboolean 
 device_seek_block (Device * self, guint64 block)
 {
-	DeviceClass *klass;
-	g_return_val_if_fail (self != NULL, FALSE);
-	g_return_val_if_fail (IS_DEVICE (self), FALSE);
-        g_return_val_if_fail (self->access_mode == ACCESS_READ,
-                              FALSE);
-        g_return_val_if_fail (self->in_file, FALSE);
+    DeviceClass *klass;
 
-	klass = DEVICE_GET_CLASS(self);
+    g_assert(IS_DEVICE (self));
+    g_assert(self->access_mode == ACCESS_READ);
+    g_assert(self->in_file);
 
-	if(klass->seek_block)
-		return (*klass->seek_block)(self,block);
-	else
-		return FALSE;
+    klass = DEVICE_GET_CLASS(self);
+    g_assert(klass->seek_block);
+    return (klass->seek_block)(self,block);
 }
 
 int
 device_read_block (Device * self, gpointer buffer, int * size)
 {
-	DeviceClass *klass;
-	g_return_val_if_fail (self != NULL, -1);
-	g_return_val_if_fail (IS_DEVICE (self), -1);
-	g_return_val_if_fail (size != NULL, -1);
-        g_return_val_if_fail (self->access_mode == ACCESS_READ, -1);
-        if (*size != 0) {
-            g_return_val_if_fail (buffer != NULL, -1);
-        }
+    DeviceClass *klass;
 
-        /* Do a quick check here, so fixed-block subclasses don't have to. */
-        if (*size == 0 &&
-            device_write_min_size(self) == device_write_max_size(self)) {
-            *size = device_write_min_size(self);
-            return 0;
-        }
+    g_assert(IS_DEVICE (self));
+    g_assert(size != NULL);
+    g_assert(self->access_mode == ACCESS_READ);
 
-	klass = DEVICE_GET_CLASS(self);
+    if (*size != 0) {
+	g_assert(buffer != NULL);
+    }
 
-	if(klass->read_block)
-            return (*klass->read_block)(self,buffer,size);
-	else
-            return -1;
+    klass = DEVICE_GET_CLASS(self);
+    g_assert(klass->read_block);
+    return (klass->read_block)(self,buffer,size);
 }
 
 gboolean 
-device_read_to_fd (Device * self, int fd)
+device_read_to_fd (Device * self, queue_fd_t *queue_fd)
 {
-	DeviceClass *klass;
-	g_return_val_if_fail (self != NULL, FALSE);
-	g_return_val_if_fail (IS_DEVICE (self), FALSE);
-	g_return_val_if_fail (fd >= 0, FALSE);
-        g_return_val_if_fail (self->access_mode == ACCESS_READ, FALSE);
+    DeviceClass *klass;
 
-	klass = DEVICE_GET_CLASS(self);
+    g_assert(IS_DEVICE (self));
+    g_assert(queue_fd->fd >= 0);
+    g_assert(self->access_mode == ACCESS_READ);
 
-	if(klass->read_to_fd)
-		return (*klass->read_to_fd)(self,fd);
-	else
-		return FALSE;
+    klass = DEVICE_GET_CLASS(self);
+    g_assert(klass->read_to_fd);
+    return (klass->read_to_fd)(self,queue_fd);
 }
 
 
 gboolean 
-device_property_get (Device * self, DevicePropertyId id, GValue * val)
+device_property_get_ex(
+	Device * self,
+	DevicePropertyId id,
+	GValue * val,
+	PropertySurety *surety,
+	PropertySource *source)
 {
-	DeviceClass *klass;
-	g_return_val_if_fail (self != NULL, FALSE);
-	g_return_val_if_fail (IS_DEVICE (self), FALSE);
-        g_return_val_if_fail (device_property_get_by_id(id) != NULL, FALSE);
+    DeviceClass *klass;
 
-	klass = DEVICE_GET_CLASS(self);
+    g_assert(IS_DEVICE (self));
+    g_assert(device_property_get_by_id(id) != NULL);
 
-        /* FIXME: Check access flags? */
+    klass = DEVICE_GET_CLASS(self);
 
-	if(klass->property_get)
-		return (*klass->property_get)(self,id,val);
-	else
-		return FALSE;
+    g_assert(klass->property_get_ex);
+    return (klass->property_get_ex)(self, id, val, surety, source);
 }
 
-gboolean 
-device_property_set (Device * self, DevicePropertyId id, GValue * val)
+gboolean
+device_property_set_ex(
+	Device * self,
+	DevicePropertyId id,
+	GValue * val,
+	PropertySurety surety,
+	PropertySource source)
 {
-	DeviceClass *klass;
-	g_return_val_if_fail (self != NULL, FALSE);
-	g_return_val_if_fail (IS_DEVICE (self), FALSE);
+    DeviceClass *klass;
 
-	klass = DEVICE_GET_CLASS(self);
+    g_assert(IS_DEVICE (self));
 
-        /* FIXME: Check access flags? */
+    klass = DEVICE_GET_CLASS(self);
 
-	if(klass->property_set)
-		return (*klass->property_set)(self,id,val);
-	else
-		return FALSE;
+    g_assert(klass->property_set_ex);
+    return (klass->property_set_ex)(self, id, val, surety, source);
 }
 
 gboolean 
 device_recycle_file (Device * self, guint filenum)
 {
-	DeviceClass *klass;
-	g_return_val_if_fail (self != NULL, FALSE);
-	g_return_val_if_fail (IS_DEVICE (self), FALSE);
-        g_return_val_if_fail (self->access_mode == ACCESS_APPEND, FALSE);
+    DeviceClass *klass;
 
-	klass = DEVICE_GET_CLASS(self);
+    g_assert(self != NULL);
+    g_assert(IS_DEVICE (self));
+    g_assert(self->access_mode == ACCESS_APPEND);
+    g_assert(!self->in_file);
 
-	if(klass->recycle_file)
-		return (*klass->recycle_file)(self,filenum);
-	else
-		return FALSE;
+    klass = DEVICE_GET_CLASS(self);
+
+    g_assert(klass->recycle_file);
+    return (klass->recycle_file)(self,filenum);
 }
 
+/* Property handling */
+
+void
+device_class_register_property(
+	DeviceClass *klass,
+	DevicePropertyId id,
+	PropertyAccessFlags access,
+	PropertyGetFn getter,
+	PropertySetFn setter)
+{
+    DevicePropertyBase *base;
+    DeviceProperty *prop;
+    GSList *proplist;
+    guint i;
+
+    g_assert(klass != NULL);
+
+    base = device_property_get_by_id(id);
+    g_assert(base != NULL);
+
+    if (klass->class_properties->len <= id) {
+	g_array_set_size(klass->class_properties, id+1);
+    }
+
+    prop = &g_array_index(klass->class_properties, DeviceProperty, id);
+    prop->base = base;
+    prop->access = access;
+    prop->getter = getter;
+    prop->setter = setter;
+
+    /* completely rewrite the list of prop pointers, as they may have changed,
+     * or we may have replaced an existing property*/
+
+    if (klass->class_properties_list) {
+	g_slist_free(klass->class_properties_list);
+    }
+
+    proplist = NULL;
+    for (i = 0; i < klass->class_properties->len; i++) {
+	prop = &g_array_index(klass->class_properties, DeviceProperty, i);
+	if (!prop->base)
+	    continue;
+	proplist = g_slist_prepend(proplist, prop);
+    }
+
+    klass->class_properties_list = proplist;
+}
+
+gboolean
+device_set_simple_property(
+	Device *self,
+	DevicePropertyId id,
+	GValue *val,
+	PropertySurety surety,
+	PropertySource source)
+{
+    SimpleProperty *simp;
+    DeviceProperty *prop;
+
+    prop = &g_array_index(DEVICE_GET_CLASS(self)->class_properties,
+			  DeviceProperty, id);
+
+    /* these assertions should already be checked, but let's be sure */
+    g_assert(prop->base != NULL);   /* prop must be registered with device */
+    g_assert(G_VALUE_HOLDS(val, prop->base->type));
+
+    simp = g_new0(SimpleProperty, 1);
+    simp->prop = prop;
+    g_value_unset_copy(val, &(simp->response));
+    simp->surety = surety;
+    simp->source = source;
+
+    g_hash_table_insert(selfp->simple_properties,
+			GINT_TO_POINTER(id),
+			simp);
+
+    return TRUE;
+}
+
+gboolean
+device_simple_property_set_fn(
+	Device *self,
+	DevicePropertyBase *base,
+	GValue *val,
+	PropertySurety surety,
+	PropertySource source)
+{
+    return device_set_simple_property(self, base->ID, val, surety, source);
+}
+
+gboolean
+device_get_simple_property(
+	Device *self,
+	DevicePropertyId id,
+	GValue *val,
+	PropertySurety *surety,
+	PropertySource *source)
+{
+    SimpleProperty *simp =
+	g_hash_table_lookup(selfp->simple_properties,
+			    GINT_TO_POINTER(id));
+
+    if (!simp)
+	return FALSE;
+
+    if (val)
+	g_value_unset_copy(&(simp->response), val);
+
+    if (surety)
+	*surety = simp->surety;
+
+    if (source)
+	*source = simp->source;
+
+    return TRUE;
+}
+
+gboolean
+device_simple_property_get_fn(
+	Device *self,
+	DevicePropertyBase *base,
+	GValue *val,
+	PropertySurety *surety,
+	PropertySource *source)
+{
+    return device_get_simple_property(self, base->ID, val, surety, source);
+}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
  * 
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 2.1 as 
@@ -14,8 +14,8 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  * 
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 /* An S3 device uses Amazon's S3 service (http://www.amazon.com/s3) to store 
@@ -35,7 +35,7 @@
 #include "amanda.h"
 #include "conffile.h"
 #include "device.h"
-#include "s3-device.h"
+#include "s3.h"
 #include <curl/curl.h>
 #ifdef HAVE_OPENSSL_HMAC_H
 # include <openssl/hmac.h>
@@ -50,15 +50,80 @@
 #endif
 
 /*
+ * Type checking and casting macros
+ */
+#define TYPE_S3_DEVICE	(s3_device_get_type())
+#define S3_DEVICE(obj)	G_TYPE_CHECK_INSTANCE_CAST((obj), s3_device_get_type(), S3Device)
+#define S3_DEVICE_CONST(obj)	G_TYPE_CHECK_INSTANCE_CAST((obj), s3_device_get_type(), S3Device const)
+#define S3_DEVICE_CLASS(klass)	G_TYPE_CHECK_CLASS_CAST((klass), s3_device_get_type(), S3DeviceClass)
+#define IS_S3_DEVICE(obj)	G_TYPE_CHECK_INSTANCE_TYPE((obj), s3_device_get_type ())
+
+#define S3_DEVICE_GET_CLASS(obj)	G_TYPE_INSTANCE_GET_CLASS((obj), s3_device_get_type(), S3DeviceClass)
+static GType	s3_device_get_type	(void);
+
+/*
+ * Main object structure
+ */
+typedef struct _S3MetadataFile S3MetadataFile;
+
+typedef struct _S3Device S3Device;
+struct _S3Device {
+    Device __parent__;
+
+    /* The "easy" curl handle we use to access Amazon S3 */
+    S3Handle *s3;
+
+    /* S3 access information */
+    char *bucket;
+    char *prefix;
+
+    /* The S3 access information. */
+    char *secret_key;
+    char *access_key;
+    char *user_token;
+    gboolean is_devpay;
+
+    char *bucket_location;
+
+    /* a cache for unsuccessful reads (where we get the file but the caller
+     * doesn't have space for it or doesn't want it), where we expect the
+     * next call will request the same file.
+     */
+    char *cached_buf;
+    char *cached_key;
+    int cached_size;
+
+    /* Produce verbose output? */
+    gboolean verbose;
+
+    /* Use SSL? */
+    gboolean use_ssl;
+};
+
+/*
+ * Class definition
+ */
+typedef struct _S3DeviceClass S3DeviceClass;
+struct _S3DeviceClass {
+    DeviceClass __parent__;
+};
+
+
+/*
  * Constants and static data
  */
+
+#define S3_DEVICE_NAME "s3"
+#define DEVPAY_DEVICE_NAME "s3zmanda"
 
 /* Maximum key length as specified in the S3 documentation
  * (*excluding* null terminator) */
 #define S3_MAX_KEY_LENGTH 1024
 
+/* Note: for compatability, min can only be decreased and max increased */
 #define S3_DEVICE_MIN_BLOCK_SIZE 1024
-#define S3_DEVICE_MAX_BLOCK_SIZE (10*1024*1024)
+#define S3_DEVICE_MAX_BLOCK_SIZE (100*1024*1024)
+#define S3_DEVICE_DEFAULT_BLOCK_SIZE (10*1024*1024)
 
 /* This goes in lieu of file number for metadata. */
 #define SPECIAL_INFIX "special-"
@@ -67,8 +132,33 @@
 static DeviceClass *parent_class = NULL;
 
 /*
+ * device-specific properties
+ */
+
+/* Authentication information for Amazon S3. Both of these are strings. */
+static DevicePropertyBase device_property_s3_access_key;
+static DevicePropertyBase device_property_s3_secret_key;
+#define PROPERTY_S3_SECRET_KEY (device_property_s3_secret_key.ID)
+#define PROPERTY_S3_ACCESS_KEY (device_property_s3_access_key.ID)
+
+/* Same, but for S3 with DevPay. */
+static DevicePropertyBase device_property_s3_user_token;
+#define PROPERTY_S3_USER_TOKEN (device_property_s3_user_token.ID)
+
+/* Location constraint for new buckets created on Amazon S3. */
+static DevicePropertyBase device_property_s3_bucket_location;
+#define PROPERTY_S3_BUCKET_LOCATION (device_property_s3_bucket_location.ID)
+
+/* Whether to use SSL with Amazon S3. */
+static DevicePropertyBase device_property_s3_ssl;
+#define PROPERTY_S3_SSL (device_property_s3_ssl.ID)
+
+
+/*
  * prototypes
  */
+
+void s3_device_register(void);
 
 /* 
  * utility functions */
@@ -133,17 +223,15 @@ static gboolean
 delete_file(S3Device *self, 
             int file);
 
-/* Set up self->s3 as best as possible.  Unless SILENT is TRUE,
- * any problems will generate warnings (with g_warning).  Regardless,
- * the return value is TRUE iff self->s3 is useable.
+/* Set up self->s3 as best as possible.
+ *
+ * The return value is TRUE iff self->s3 is useable.
  *
  * @param self: the S3Device object
- * @param silent: silence warnings
  * @returns: TRUE if the handle is set up
  */
 static gboolean 
-setup_handle(S3Device * self, 
-	     gboolean ignore_problems);
+setup_handle(S3Device * self);
 
 /* 
  * class mechanics */
@@ -158,17 +246,43 @@ static void
 s3_device_finalize(GObject * o);
 
 static Device*
-s3_device_factory(char * device_type,
-                  char * device_name);
+s3_device_factory(char * device_name, char * device_type, char * device_node);
+
+/*
+ * Property{Get,Set}Fns */
+
+static gboolean s3_device_set_access_key_fn(Device *self,
+    DevicePropertyBase *base, GValue *val,
+    PropertySurety surety, PropertySource source);
+
+static gboolean s3_device_set_secret_key_fn(Device *self,
+    DevicePropertyBase *base, GValue *val,
+    PropertySurety surety, PropertySource source);
+
+static gboolean s3_device_set_user_token_fn(Device *self,
+    DevicePropertyBase *base, GValue *val,
+    PropertySurety surety, PropertySource source);
+
+static gboolean s3_device_set_bucket_location_fn(Device *self,
+    DevicePropertyBase *base, GValue *val,
+    PropertySurety surety, PropertySource source);
+
+static gboolean s3_device_set_verbose_fn(Device *self,
+    DevicePropertyBase *base, GValue *val,
+    PropertySurety surety, PropertySource source);
+
+static gboolean s3_device_set_ssl_fn(Device *self,
+    DevicePropertyBase *base, GValue *val,
+    PropertySurety surety, PropertySource source);
 
 /* 
  * virtual functions */
 
-static gboolean
-s3_device_open_device(Device *pself, 
-                      char *device_name);
+static void
+s3_device_open_device(Device *pself, char *device_name,
+		  char * device_type, char * device_node);
 
-static ReadLabelStatusFlags s3_device_read_label(Device * self);
+static DeviceStatusFlags s3_device_read_label(Device * self);
 
 static gboolean 
 s3_device_start(Device * self, 
@@ -176,15 +290,17 @@ s3_device_start(Device * self,
                 char * label, 
                 char * timestamp);
 
+static gboolean
+s3_device_finish(Device * self);
+
 static gboolean 
 s3_device_start_file(Device * self,
-                     const dumpfile_t * jobInfo);
+                     dumpfile_t * jobInfo);
 
 static gboolean 
 s3_device_write_block(Device * self, 
                       guint size, 
-                      gpointer data, 
-                      gboolean last);
+                      gpointer data);
 
 static gboolean 
 s3_device_finish_file(Device * self);
@@ -206,15 +322,10 @@ static gboolean
 s3_device_recycle_file(Device *pself, 
                        guint file);
 
-static gboolean s3_device_property_set(Device * p_self, DevicePropertyId id,
-                                       GValue * val);
-static gboolean s3_device_property_get(Device * p_self, DevicePropertyId id,
-                                       GValue * val);
 /*
  * Private functions
  */
 
-/* {{{ file_and_block_to_key */
 static char *
 file_and_block_to_key(S3Device *self, 
                       int file, 
@@ -225,9 +336,7 @@ file_and_block_to_key(S3Device *self,
     g_assert(strlen(s3_key) <= S3_MAX_KEY_LENGTH);
     return s3_key;
 }
-/* }}} */
 
-/* {{{ special_file_to_key */
 static char *
 special_file_to_key(S3Device *self, 
                     char *special_name, 
@@ -238,46 +347,46 @@ special_file_to_key(S3Device *self,
     else
         return g_strdup_printf("%sf%08x-%s", self->prefix, file, special_name);
 }
-/* }}} */
 
-/* {{{ write_amanda_header */
 static gboolean
 write_amanda_header(S3Device *self, 
                     char *label, 
                     char * timestamp)
 {
-    char * amanda_header = NULL;
+    CurlBuffer amanda_header = {NULL, 0, 0, 0};
     char * key = NULL;
-    int header_size;
     gboolean header_fits, result;
     dumpfile_t * dumpinfo = NULL;
+    Device *d_self = DEVICE(self);
 
     /* build the header */
     dumpinfo = make_tapestart_header(DEVICE(self), label, timestamp);
-    amanda_header = device_build_amanda_header(DEVICE(self), dumpinfo, 
-                                               &header_size, &header_fits);
+    amanda_header.buffer = device_build_amanda_header(DEVICE(self), dumpinfo, 
+        /* casting guint* to int* */
+        (int*) &amanda_header.buffer_len, &header_fits);
     if (!header_fits) {
-        fprintf(stderr,
-                _("Amanda tapestart header won't fit in a single block!\n"));
-	g_free(amanda_header);
+	device_set_error(d_self,
+	    stralloc(_("Amanda tapestart header won't fit in a single block!")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	g_free(amanda_header.buffer);
 	return FALSE;
     }
 
     /* write out the header and flush the uploads. */
     key = special_file_to_key(self, "tapestart", -1);
-    result = s3_upload(self->s3, self->bucket, key, amanda_header, header_size);
-    g_free(amanda_header);
+    result = s3_upload(self->s3, self->bucket, key, S3_BUFFER_READ_FUNCS,
+                       &amanda_header, NULL, NULL);
+    g_free(amanda_header.buffer);
     g_free(key);
 
     if (!result) {
-        fprintf(stderr, _("While writing amanda header: %s\n"),
-                s3_strerror(self->s3));
+	device_set_error(d_self,
+	    vstrallocf(_("While writing amanda header: %s"), s3_strerror(self->s3)),
+	    DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
     }
     return result;
 }
-/* }}} */
 
-/* {{{ seek_to_end */
 static gboolean
 seek_to_end(S3Device *self) {
     int last_file;
@@ -292,7 +401,6 @@ seek_to_end(S3Device *self) {
 
     return TRUE;
 }
-/* }}} */
 
 /* Convert an object name into a file number, assuming the given prefix
  * length. Returns -1 if the object name is invalid, or 0 if the object name
@@ -302,7 +410,8 @@ static int key_to_file(guint prefix_len, const char * key) {
     int i;
     
     /* skip the prefix */
-    g_return_val_if_fail(strlen(key) > prefix_len, -1);
+    if (strlen(key) <= prefix_len)
+	return -1;
 
     key += prefix_len;
 
@@ -311,7 +420,8 @@ static int key_to_file(guint prefix_len, const char * key) {
     }
     
     /* check that key starts with 'f' */
-    g_return_val_if_fail(key[0] == 'f', -1);
+    if (key[0] != 'f')
+	return -1;
     key++;
     
     /* check that key is of the form "%08x-" */
@@ -334,7 +444,6 @@ static int key_to_file(guint prefix_len, const char * key) {
     return file;
 }
 
-/* {{{ find_last_file */
 /* Find the number of the last file that contains any data (even just a header). 
  * Returns -1 in event of an error
  */
@@ -344,12 +453,14 @@ find_last_file(S3Device *self) {
     GSList *keys;
     unsigned int prefix_len = strlen(self->prefix);
     int last_file = 0;
+    Device *d_self = DEVICE(self);
 
     /* list all keys matching C{PREFIX*-*}, stripping the C{-*} */
     result = s3_list_keys(self->s3, self->bucket, self->prefix, "-", &keys);
     if (!result) {
-        fprintf(stderr, _("While listing S3 keys: %s\n"),
-                s3_strerror(self->s3));
+	device_set_error(d_self,
+	    vstrallocf(_("While listing S3 keys: %s"), s3_strerror(self->s3)),
+	    DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
         return -1;
     }
 
@@ -363,9 +474,7 @@ find_last_file(S3Device *self) {
 
     return last_file;
 }
-/* }}} */
 
-/* {{{ find_next_file */
 /* Find the number of the file following the requested one, if any. 
  * Returns 0 if there is no such file or -1 in event of an error
  */
@@ -375,12 +484,14 @@ find_next_file(S3Device *self, int last_file) {
     GSList *keys;
     unsigned int prefix_len = strlen(self->prefix);
     int next_file = 0;
+    Device *d_self = DEVICE(self);
 
     /* list all keys matching C{PREFIX*-*}, stripping the C{-*} */
     result = s3_list_keys(self->s3, self->bucket, self->prefix, "-", &keys);
     if (!result) {
-        fprintf(stderr, _("While listing S3 keys: %s\n"),
-                s3_strerror(self->s3));
+	device_set_error(d_self,
+	    vstrallocf(_("While listing S3 keys: %s"), s3_strerror(self->s3)),
+	    DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
         return -1;
     }
 
@@ -403,9 +514,7 @@ find_next_file(S3Device *self, int last_file) {
 
     return last_file;
 }
-/* }}} */
 
-/* {{{ delete_file */
 static gboolean
 delete_file(S3Device *self,
             int file)
@@ -413,11 +522,13 @@ delete_file(S3Device *self,
     gboolean result;
     GSList *keys;
     char *my_prefix = g_strdup_printf("%sf%08x-", self->prefix, file);
+    Device *d_self = DEVICE(self);
     
     result = s3_list_keys(self->s3, self->bucket, my_prefix, NULL, &keys);
     if (!result) {
-        fprintf(stderr, _("While listing S3 keys: %s\n"),
-                s3_strerror(self->s3));
+	device_set_error(d_self,
+	    vstrallocf(_("While listing S3 keys: %s"), s3_strerror(self->s3)),
+	    DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
         return FALSE;
     }
 
@@ -425,8 +536,10 @@ delete_file(S3Device *self,
     for (; keys; keys = g_slist_remove(keys, keys->data)) {
         if (self->verbose) g_debug(_("Deleting %s"), (char*)keys->data);
         if (!s3_delete(self->s3, self->bucket, keys->data)) {
-            fprintf(stderr, _("While deleting key '%s': %s\n"),
-                    (char*)keys->data, s3_strerror(self->s3));
+	    device_set_error(d_self,
+		vstrallocf(_("While deleting key '%s': %s"),
+			    (char*)keys->data, s3_strerror(self->s3)),
+		DEVICE_STATUS_DEVICE_ERROR);
             g_slist_free(keys);
             return FALSE;
         }
@@ -434,24 +547,40 @@ delete_file(S3Device *self,
 
     return TRUE;
 }
-/* }}} */
 
 /*
  * Class mechanics
  */
 
-/* {{{ s3_device_register */
 void 
 s3_device_register(void)
 {
-    static const char * device_prefix_list[] = { "s3", NULL };
+    static const char * device_prefix_list[] = { S3_DEVICE_NAME, DEVPAY_DEVICE_NAME, NULL };
     g_assert(s3_init());
+
+    /* set up our properties */
+    device_property_fill_and_register(&device_property_s3_secret_key,
+                                      G_TYPE_STRING, "s3_secret_key",
+       "Secret access key to authenticate with Amazon S3");
+    device_property_fill_and_register(&device_property_s3_access_key,
+                                      G_TYPE_STRING, "s3_access_key",
+       "Access key ID to authenticate with Amazon S3");
+    device_property_fill_and_register(&device_property_s3_user_token,
+                                      G_TYPE_STRING, "s3_user_token",
+       "User token for authentication Amazon devpay requests");
+    device_property_fill_and_register(&device_property_s3_bucket_location,
+                                      G_TYPE_STRING, "s3_bucket_location",
+       "Location constraint for buckets on Amazon S3");
+    device_property_fill_and_register(&device_property_s3_ssl,
+                                      G_TYPE_BOOLEAN, "s3_ssl",
+       "Whether to use SSL with Amazon S3");
+
+
+    /* register the device itself */
     register_device(s3_device_factory, device_prefix_list);
 }
-/* }}} */
 
-/* {{{ s3_device_get_type */
-GType
+static GType
 s3_device_get_type(void)
 {
     static GType type = 0;
@@ -476,86 +605,56 @@ s3_device_get_type(void)
 
     return type;
 }
-/* }}} */
 
-/* {{{ s3_device_init */
 static void 
 s3_device_init(S3Device * self)
 {
-    Device * o;
-    DeviceProperty prop;
+    Device * dself = DEVICE(self);
     GValue response;
 
-    self->initializing = TRUE;
-
-    /* Register property values */
-    o = (Device*)(self);
+    /* Register property values
+     * Note: Some aren't added until s3_device_open_device()
+     */
     bzero(&response, sizeof(response));
 
-    prop.base = &device_property_concurrency;
-    prop.access = PROPERTY_ACCESS_GET_MASK;
     g_value_init(&response, CONCURRENCY_PARADIGM_TYPE);
     g_value_set_enum(&response, CONCURRENCY_PARADIGM_SHARED_READ);
-    device_add_property(o, &prop, &response);
+    device_set_simple_property(dself, PROPERTY_CONCURRENCY,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
     g_value_unset(&response);
-    
-    prop.base = &device_property_streaming;
+
     g_value_init(&response, STREAMING_REQUIREMENT_TYPE);
     g_value_set_enum(&response, STREAMING_REQUIREMENT_NONE);
-    device_add_property(o, &prop, &response);
-    g_value_unset(&response);
-    
-    prop.base = &device_property_block_size;
-    g_value_init(&response, G_TYPE_INT);
-    g_value_set_int(&response, -1); /* indicates a variable block size; see below */
-    device_add_property(o, &prop, &response);
-    g_value_unset(&response);
-    
-    prop.base = &device_property_min_block_size;
-    g_value_init(&response, G_TYPE_UINT);
-    g_value_set_uint(&response, S3_DEVICE_MIN_BLOCK_SIZE);
-    device_add_property(o, &prop, &response);
-
-    prop.base = &device_property_max_block_size;
-    g_value_set_uint(&response, S3_DEVICE_MAX_BLOCK_SIZE);
-    device_add_property(o, &prop, &response);
+    device_set_simple_property(dself, PROPERTY_STREAMING,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
     g_value_unset(&response);
 
-    prop.base = &device_property_appendable;
     g_value_init(&response, G_TYPE_BOOLEAN);
     g_value_set_boolean(&response, TRUE);
-    device_add_property(o, &prop, &response);
+    device_set_simple_property(dself, PROPERTY_APPENDABLE,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
+    g_value_unset(&response);
 
-    prop.base = &device_property_partial_deletion;
+    g_value_init(&response, G_TYPE_BOOLEAN);
     g_value_set_boolean(&response, TRUE);
-    device_add_property(o, &prop, &response);
+    device_set_simple_property(dself, PROPERTY_PARTIAL_DELETION,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
     g_value_unset(&response);
 
-    prop.base = &device_property_canonical_name;
-    g_value_init(&response, G_TYPE_STRING);
-    g_value_set_static_string(&response, "s3:");
-    device_add_property(o, &prop, &response);
+    g_value_init(&response, G_TYPE_BOOLEAN);
+    g_value_set_boolean(&response, FALSE);
+    device_set_simple_property(dself, PROPERTY_COMPRESSION,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
     g_value_unset(&response);
 
-    prop.base = &device_property_medium_access_type;
     g_value_init(&response, MEDIA_ACCESS_MODE_TYPE);
     g_value_set_enum(&response, MEDIA_ACCESS_MODE_READ_WRITE);
-    device_add_property(o, &prop, &response);
+    device_set_simple_property(dself, PROPERTY_MEDIUM_ACCESS_TYPE,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
     g_value_unset(&response);
-    
-    prop.access = PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START;
-    prop.base = &device_property_s3_secret_key;
-    device_add_property(o, &prop, NULL);
-    prop.base = &device_property_s3_access_key;
-    device_add_property(o, &prop, NULL);
-#ifdef WANT_DEVPAY
-    prop.base = &device_property_s3_user_token;
-    device_add_property(o, &prop, NULL);
-#endif
-}
-/* }}} */
 
-/* {{{ s3_device_class_init */
+}
+
 static void 
 s3_device_class_init(S3DeviceClass * c G_GNUC_UNUSED)
 {
@@ -567,6 +666,7 @@ s3_device_class_init(S3DeviceClass * c G_GNUC_UNUSED)
     device_class->open_device = s3_device_open_device;
     device_class->read_label = s3_device_read_label;
     device_class->start = s3_device_start;
+    device_class->finish = s3_device_finish;
 
     device_class->start_file = s3_device_start_file;
     device_class->write_block = s3_device_write_block;
@@ -577,81 +677,227 @@ s3_device_class_init(S3DeviceClass * c G_GNUC_UNUSED)
     device_class->read_block = s3_device_read_block;
     device_class->recycle_file = s3_device_recycle_file;
 
-    device_class->property_set = s3_device_property_set;
-    device_class->property_get = s3_device_property_get;
-
     g_object_class->finalize = s3_device_finalize;
-}
-/* }}} */
 
-/* {{{ s3_device_factory */
+    device_class_register_property(device_class, PROPERTY_S3_ACCESS_KEY,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    s3_device_set_access_key_fn);
+
+    device_class_register_property(device_class, PROPERTY_S3_SECRET_KEY,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    s3_device_set_secret_key_fn);
+
+    device_class_register_property(device_class, PROPERTY_S3_USER_TOKEN,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    s3_device_set_user_token_fn);
+
+    device_class_register_property(device_class, PROPERTY_S3_BUCKET_LOCATION,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    s3_device_set_bucket_location_fn);
+
+    device_class_register_property(device_class, PROPERTY_VERBOSE,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    s3_device_set_verbose_fn);
+
+    device_class_register_property(device_class, PROPERTY_S3_SSL,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    s3_device_set_ssl_fn);
+
+    device_class_register_property(device_class, PROPERTY_COMPRESSION,
+	    PROPERTY_ACCESS_GET_MASK,
+	    device_simple_property_get_fn,
+	    NULL);
+}
+
+static gboolean
+s3_device_set_access_key_fn(Device *p_self, DevicePropertyBase *base,
+    GValue *val, PropertySurety surety, PropertySource source)
+{
+    S3Device *self = S3_DEVICE(p_self);
+
+    amfree(self->access_key);
+    self->access_key = g_value_dup_string(val);
+    device_clear_volume_details(p_self);
+
+    return device_simple_property_set_fn(p_self, base, val, surety, source);
+}
+
+static gboolean
+s3_device_set_secret_key_fn(Device *p_self, DevicePropertyBase *base,
+    GValue *val, PropertySurety surety, PropertySource source)
+{
+    S3Device *self = S3_DEVICE(p_self);
+
+    amfree(self->secret_key);
+    self->secret_key = g_value_dup_string(val);
+    device_clear_volume_details(p_self);
+
+    return device_simple_property_set_fn(p_self, base, val, surety, source);
+}
+
+static gboolean
+s3_device_set_user_token_fn(Device *p_self, DevicePropertyBase *base,
+    GValue *val, PropertySurety surety, PropertySource source)
+{
+    S3Device *self = S3_DEVICE(p_self);
+
+    if (!self->is_devpay) {
+	device_set_error(p_self, stralloc(_(
+		   "Can't set a user token unless DevPay is in use")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
+
+    amfree(self->user_token);
+    self->user_token = g_value_dup_string(val);
+    device_clear_volume_details(p_self);
+
+    return device_simple_property_set_fn(p_self, base, val, surety, source);
+}
+
+static gboolean
+s3_device_set_bucket_location_fn(Device *p_self, DevicePropertyBase *base,
+    GValue *val, PropertySurety surety, PropertySource source)
+{
+    S3Device *self = S3_DEVICE(p_self);
+
+    if (self->use_ssl && !s3_curl_location_compat()) {
+	device_set_error(p_self, stralloc(_(
+		"Location constraint given for Amazon S3 bucket, "
+		"but libcurl is too old support wildcard certificates.")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+       return FALSE;
+    }
+
+    if (!s3_bucket_location_compat(self->bucket)) {
+	device_set_error(p_self, g_strdup_printf(_(
+		"Location constraint given for Amazon S3 bucket, "
+		"but the bucket name (%s) is not usable as a subdomain."),
+		self->bucket),
+	    DEVICE_STATUS_DEVICE_ERROR);
+       return FALSE;
+    }
+
+    amfree(self->bucket_location);
+    self->bucket_location = g_value_dup_string(val);
+    device_clear_volume_details(p_self);
+
+    return device_simple_property_set_fn(p_self, base, val, surety, source);
+}
+
+static gboolean
+s3_device_set_verbose_fn(Device *p_self, DevicePropertyBase *base,
+    GValue *val, PropertySurety surety, PropertySource source)
+{
+    S3Device *self = S3_DEVICE(p_self);
+
+    self->verbose = g_value_get_boolean(val);
+    /* Our S3 handle may not yet have been instantiated; if so, it will
+     * get the proper verbose setting when it is created */
+    if (self->s3)
+	s3_verbose(self->s3, self->verbose);
+
+    return device_simple_property_set_fn(p_self, base, val, surety, source);
+}
+
+static gboolean
+s3_device_set_ssl_fn(Device *p_self, DevicePropertyBase *base,
+    GValue *val, PropertySurety surety, PropertySource source)
+{
+    S3Device *self = S3_DEVICE(p_self);
+    gboolean new_val;
+
+    new_val = g_value_get_boolean(val);
+    /* Our S3 handle may not yet have been instantiated; if so, it will
+     * get the proper use_ssl setting when it is created */
+    if (self->s3 && !s3_use_ssl(self->s3, new_val)) {
+	device_set_error(p_self, g_strdup_printf(_(
+                "Error setting S3 SSL/TLS use "
+                "(tried to enable SSL/TLS for S3, but curl doesn't support it?)")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+        return FALSE;
+    }
+    self->use_ssl = new_val;
+
+    return device_simple_property_set_fn(p_self, base, val, surety, source);
+}
+
 static Device* 
-s3_device_factory(char * device_type,
-                  char * device_name)
+s3_device_factory(char * device_name, char * device_type, char * device_node)
 {
     Device *rval;
     S3Device * s3_rval;
-    g_assert(0 == strcmp(device_type, "s3"));
+    g_assert(0 == strcmp(device_type, S3_DEVICE_NAME) ||
+             0 == strcmp(device_type, DEVPAY_DEVICE_NAME));
     rval = DEVICE(g_object_new(TYPE_S3_DEVICE, NULL));
     s3_rval = (S3Device*)rval;
 
-    if (!device_open_device(rval, device_name)) {
-        g_object_unref(rval);
-        return NULL;
-    } else {
-        s3_rval->initializing = FALSE;
-        return rval;
-    }
-    
+    device_open_device(rval, device_name, device_type, device_node);
+    return rval;
 }
-/* }}} */
 
 /*
  * Virtual function overrides
  */
 
-/* {{{ s3_device_open_device */
-static gboolean 
-s3_device_open_device(Device *pself, 
-                      char *device_name)
+static void
+s3_device_open_device(Device *pself, char *device_name,
+			char * device_type, char * device_node)
 {
     S3Device *self = S3_DEVICE(pself);
     char * name_colon;
+    GValue tmp_value;
 
-    g_return_val_if_fail(self != NULL, FALSE);
+    pself->min_block_size = S3_DEVICE_MIN_BLOCK_SIZE;
+    pself->max_block_size = S3_DEVICE_MAX_BLOCK_SIZE;
+    pself->block_size = S3_DEVICE_DEFAULT_BLOCK_SIZE;
 
     /* Device name may be bucket/prefix, to support multiple volumes in a
      * single bucket. */
-    name_colon = index(device_name, '/');
+    name_colon = index(device_node, '/');
     if (name_colon == NULL) {
-        self->bucket = g_strdup(device_name);
+        self->bucket = g_strdup(device_node);
         self->prefix = g_strdup("");
     } else {
-        self->bucket = g_strndup(device_name, name_colon - device_name);
+        self->bucket = g_strndup(device_node, name_colon - device_node);
         self->prefix = g_strdup(name_colon + 1);
     }
     
+    self->is_devpay = !strcmp(device_type, DEVPAY_DEVICE_NAME);
+
     if (self->bucket == NULL || self->bucket[0] == '\0') {
-        fprintf(stderr, _("Empty bucket name in device %s.\n"), device_name);
+	device_set_error(pself,
+	    vstrallocf(_("Empty bucket name in device %s"), device_name),
+	    DEVICE_STATUS_DEVICE_ERROR);
         amfree(self->bucket);
         amfree(self->prefix);
-        return FALSE;
+        return;
     }
 
     g_debug(_("S3 driver using bucket '%s', prefix '%s'"), self->bucket, self->prefix);
 
-    /* default value */
+    /* default values */
     self->verbose = FALSE;
 
+    /* use SSL if available */
+    self->use_ssl = s3_curl_supports_ssl();
+    bzero(&tmp_value, sizeof(GValue));
+    g_value_init(&tmp_value, G_TYPE_BOOLEAN);
+    g_value_set_boolean(&tmp_value, self->use_ssl);
+    device_set_simple_property(pself, device_property_s3_ssl.ID,
+	&tmp_value, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DEFAULT);
+
     if (parent_class->open_device) {
-        parent_class->open_device(pself, device_name);
+        parent_class->open_device(pself, device_name, device_type, device_node);
     }
-
-    return TRUE;
 }
-/* }}} */
 
-/* {{{ s3_device_finalize */
 static void s3_device_finalize(GObject * obj_self) {
     S3Device *self = S3_DEVICE (obj_self);
 
@@ -661,55 +907,68 @@ static void s3_device_finalize(GObject * obj_self) {
     if(self->s3) s3_free(self->s3);
     if(self->bucket) g_free(self->bucket);
     if(self->prefix) g_free(self->prefix);
+    if(self->access_key) g_free(self->access_key);
+    if(self->secret_key) g_free(self->secret_key);
+    if(self->user_token) g_free(self->user_token);
+    if(self->bucket_location) g_free(self->bucket_location);
 }
-/* }}} */
 
-static gboolean setup_handle(S3Device * self, G_GNUC_UNUSED gboolean silent) {
+static gboolean setup_handle(S3Device * self) {
+    Device *d_self = DEVICE(self);
     if (self->s3 == NULL) {
-        if (self->access_key == NULL) {
-	    if (!silent) fprintf(stderr, _("No S3 access key specified\n"));
+        if (self->access_key == NULL)
             return FALSE;
-	}
-	if (self->secret_key == NULL) {
-	    if (!silent) fprintf(stderr, _("No S3 secret key specified\n"));
+	if (self->secret_key == NULL)
             return FALSE;
-	}
-#ifdef WANT_DEVPAY
-	if (self->user_token == NULL) {
-	    if (!silent) fprintf(stderr, _("No S3 user token specified\n"));
+	if (self->is_devpay && self->user_token == NULL)
             return FALSE;
-	}
-#endif
-        self->s3 = s3_open(self->access_key, self->secret_key
-#ifdef WANT_DEVPAY
-                           , self->user_token
-#endif
-                           );
+
+        self->s3 = s3_open(self->access_key, self->secret_key, self->user_token,
+            self->bucket_location);
         if (self->s3 == NULL) {
-            fprintf(stderr, "Internal error creating S3 handle.\n");
+	    device_set_error(d_self,
+		stralloc(_("Internal error creating S3 handle")),
+		DEVICE_STATUS_DEVICE_ERROR);
             return FALSE;
         }
     }
 
     s3_verbose(self->s3, self->verbose);
 
+    if (!s3_use_ssl(self->s3, self->use_ssl)) {
+	device_set_error(d_self, g_strdup_printf(_(
+                "Error setting S3 SSL/TLS use "
+                "(tried to enable SSL/TLS for S3, but curl doesn't support it?)")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+        return FALSE;
+    }
+
     return TRUE;
 }
 
-/* {{{ s3_device_read_label */
-static ReadLabelStatusFlags
+static DeviceStatusFlags
 s3_device_read_label(Device *pself) {
     S3Device *self = S3_DEVICE(pself);
     char *key;
-    gpointer buf;
-    guint buf_size;
-    dumpfile_t amanda_header;
-    
-    if (!setup_handle(self, self->initializing))
-        return READ_LABEL_STATUS_DEVICE_ERROR;
+    CurlBuffer buf = {NULL, 0, 0, S3_DEVICE_MAX_BLOCK_SIZE};
+    dumpfile_t *amanda_header;
+
+    /* note that this may be called from s3_device_start, when
+     * self->access_mode is not ACCESS_NULL */
+
+    amfree(pself->volume_label);
+    amfree(pself->volume_time);
+    amfree(pself->volume_header);
+
+    if (device_in_error(self)) return pself->status;
+
+    if (!setup_handle(self)) {
+	device_set_error(pself, stralloc(_("Error setting up S3 interface")), DEVICE_STATUS_DEVICE_ERROR);
+	return pself->status;
+    }
 
     key = special_file_to_key(self, "tapestart", -1);
-    if (!s3_read(self->s3, self->bucket, key, &buf, &buf_size, S3_DEVICE_MAX_BLOCK_SIZE)) {
+    if (!s3_read(self->s3, self->bucket, key, S3_BUFFER_WRITE_FUNCS, &buf, NULL, NULL)) {
         guint response_code;
         s3_error_code_t s3_error_code;
         s3_error(self->s3, NULL, &response_code, &s3_error_code, NULL, NULL, NULL);
@@ -718,36 +977,42 @@ s3_device_read_label(Device *pself) {
         if (response_code == 404 && 
              (s3_error_code == S3_ERROR_NoSuchKey || s3_error_code == S3_ERROR_NoSuchBucket)) {
             g_debug(_("Amanda header not found while reading tapestart header (this is expected for empty tapes)"));
-            return READ_LABEL_STATUS_VOLUME_UNLABELED;
+	    device_set_error(pself,
+		stralloc(_("Amanda header not found -- unlabeled volume?")),
+		  DEVICE_STATUS_DEVICE_ERROR
+		| DEVICE_STATUS_VOLUME_ERROR
+		| DEVICE_STATUS_VOLUME_UNLABELED);
+            return pself->status;
         }
 
         /* otherwise, log it and return */
-        fprintf(stderr, _("While trying to read tapestart header: %s\n"),
-                s3_strerror(self->s3));
-        return READ_LABEL_STATUS_DEVICE_ERROR;
+	device_set_error(pself,
+	    vstrallocf(_("While trying to read tapestart header: %s"), s3_strerror(self->s3)),
+	    DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
+        return pself->status;
     }
 
-    g_assert(buf != NULL);
-    fh_init(&amanda_header);
-    parse_file_header(buf, &amanda_header, buf_size);
+    g_assert(buf.buffer != NULL);
+    amanda_header = g_new(dumpfile_t, 1);
+    parse_file_header(buf.buffer, amanda_header, buf.buffer_pos);
+    pself->volume_header = amanda_header;
 
-    g_free(buf);
+    g_free(buf.buffer);
 
-    if (amanda_header.type != F_TAPESTART) {
-        fprintf(stderr, _("Invalid amanda header\n"));
-        return READ_LABEL_STATUS_VOLUME_ERROR;
+    if (amanda_header->type != F_TAPESTART) {
+	device_set_error(pself, stralloc(_("Invalid amanda header")), DEVICE_STATUS_VOLUME_ERROR);
+        return pself->status;
     }
 
-    amfree(pself->volume_label);
-    pself->volume_label = g_strdup(amanda_header.name);
-    amfree(pself->volume_time);
-    pself->volume_time = g_strdup(amanda_header.datestamp);
+    pself->volume_label = g_strdup(amanda_header->name);
+    pself->volume_time = g_strdup(amanda_header->datestamp);
+    /* pself->volume_header is already set */
 
-    return READ_LABEL_STATUS_SUCCESS;
+    device_set_error(pself, NULL, DEVICE_STATUS_SUCCESS);
+
+    return pself->status;
 }
-/* }}} */
 
-/* {{{ s3_device_start */
 static gboolean 
 s3_device_start (Device * pself, DeviceAccessMode mode,
                  char * label, char * timestamp) {
@@ -755,10 +1020,18 @@ s3_device_start (Device * pself, DeviceAccessMode mode,
     int file, last_file;
 
     self = S3_DEVICE(pself);
-    g_return_val_if_fail (self != NULL, FALSE);
 
-    if (!setup_handle(self, FALSE))
-        return FALSE;
+    if (device_in_error(self)) return FALSE;
+
+    if (!setup_handle(self)) {
+	device_set_error(pself,
+	    stralloc(_("Error setting up S3 interface")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
+
+    pself->access_mode = mode;
+    pself->in_file = FALSE;
 
     /* try creating the bucket, in case it doesn't exist */
     if (mode != ACCESS_READ && !s3_make_bucket(self->s3, self->bucket)) {
@@ -770,23 +1043,20 @@ s3_device_start (Device * pself, DeviceAccessMode mode,
          * return FALSE */
         if (response_code != 409 ||
             s3_error_code != S3_ERROR_BucketAlreadyExists) {
-            fprintf(stderr, _("While creating new S3 bucket: %s\n"),
-                    s3_strerror(self->s3));
+	    device_set_error(pself,
+		vstrallocf(_("While creating new S3 bucket: %s"), s3_strerror(self->s3)),
+		DEVICE_STATUS_DEVICE_ERROR);
             return FALSE;
         }
     }
 
-    /* call up to the parent (Device) to set access_mode, volume_label,
-     * and volume_time, either from the arguments (ACCESS_WRITE) or by 
-     * reading from the 0th file (otherwise)
-     */
-    if (parent_class->start) 
-        if (!parent_class->start((Device*)self, mode, label, timestamp))
-            return FALSE;
-
     /* take care of any dirty work for this mode */
     switch (mode) {
         case ACCESS_READ:
+	    if (pself->volume_label == NULL && s3_device_read_label(pself) != DEVICE_STATUS_SUCCESS) {
+		/* s3_device_read_label already set our error message */
+		return FALSE;
+	    }
             break;
 
         case ACCESS_WRITE:
@@ -794,156 +1064,73 @@ s3_device_start (Device * pself, DeviceAccessMode mode,
             last_file = find_last_file(self);
             if (last_file < 0) return FALSE;
             for (file = 0; file <= last_file; file++) {
-                if (!delete_file(self, file)) return FALSE;
+                if (!delete_file(self, file))
+		    /* delete_file already set our error message */
+		    return FALSE;
             }
 
             /* write a new amanda header */
             if (!write_amanda_header(self, label, timestamp)) {
                 return FALSE;
             }
+
+	    pself->volume_label = newstralloc(pself->volume_label, label);
+	    pself->volume_time = newstralloc(pself->volume_time, timestamp);
+
+	    /* unset the VOLUME_UNLABELED flag, if it was set */
+	    device_set_error(pself, NULL, DEVICE_STATUS_SUCCESS);
             break;
 
         case ACCESS_APPEND:
+	    if (pself->volume_label == NULL && s3_device_read_label(pself) != DEVICE_STATUS_SUCCESS) {
+		/* s3_device_read_label already set our error message */
+		return FALSE;
+	    }
             return seek_to_end(self);
             break;
+
         case ACCESS_NULL:
             g_assert_not_reached();
     }
 
-    g_assert(pself->access_mode == mode);
-
     return TRUE;
 }
-/* }}} */
 
-static gboolean s3_device_property_get(Device * p_self, DevicePropertyId id,
-                                       GValue * val) {
-    S3Device * self;
-    const DevicePropertyBase * base;
+static gboolean
+s3_device_finish (Device * pself) {
+    if (device_in_error(pself)) return FALSE;
 
-    self = S3_DEVICE(p_self);
-    g_return_val_if_fail(self != NULL, FALSE);
+    /* we're not in a file anymore */
+    pself->access_mode = ACCESS_NULL;
 
-    base = device_property_get_by_id(id);
-    g_return_val_if_fail(self != NULL, FALSE);
-    
-    g_value_unset_init(val, base->type);
-    
-    if (id == PROPERTY_S3_SECRET_KEY) {
-        if (self->secret_key != NULL) {
-            g_value_set_string(val, self->secret_key);
-            return TRUE;
-        } else {
-            return FALSE;
-        }
-    } else if (id == PROPERTY_S3_ACCESS_KEY) {
-        if (self->access_key != NULL) {
-            g_value_set_string(val, self->access_key);
-            return TRUE;
-        } else {
-            return FALSE;
-        }
-    }
-#ifdef WANT_DEVPAY
-    else if (id == PROPERTY_S3_USER_TOKEN) {
-        if (self->user_token != NULL) {
-            g_value_set_string(val, self->user_token);
-            return TRUE;
-        } else {
-            return FALSE;
-        }
-    }
-#endif /* WANT_DEVPAY */
-    else if (id == PROPERTY_VERBOSE) {
-        g_value_set_boolean(val, self->verbose);
-        return TRUE;
-    } else {
-        /* chain up */
-        if (parent_class->property_get) {
-            return (parent_class->property_get)(p_self, id, val);
-        } else {
-            return FALSE;
-        }
-    }
-
-    g_assert_not_reached();
-}
-
-static gboolean s3_device_property_set(Device * p_self, DevicePropertyId id,
-                                       GValue * val) {
-    S3Device * self;
-    const DevicePropertyBase * base;
-
-    self = S3_DEVICE(p_self);
-    g_return_val_if_fail(self != NULL, FALSE);
-
-    base = device_property_get_by_id(id);
-    g_return_val_if_fail(self != NULL, FALSE);
-
-    g_return_val_if_fail(G_VALUE_HOLDS(val, base->type), FALSE);
-
-    if (id == PROPERTY_S3_SECRET_KEY) {
-        if (p_self->access_mode != ACCESS_NULL)
-            return FALSE;
-        amfree(self->secret_key);
-        self->secret_key = g_value_dup_string(val);
-        device_clear_volume_details(p_self);
-        return TRUE;
-    } else if (id == PROPERTY_S3_ACCESS_KEY) {
-        if (p_self->access_mode != ACCESS_NULL)
-            return FALSE;
-        amfree(self->access_key);
-        self->access_key = g_value_dup_string(val);
-        device_clear_volume_details(p_self);
-        return TRUE;
-    }
-#ifdef WANT_DEVPAY
-    else if (id == PROPERTY_S3_USER_TOKEN) {
-        if (p_self->access_mode != ACCESS_NULL)
-            return FALSE;
-        amfree(self->user_token);
-        self->user_token = g_value_dup_string(val);
-        device_clear_volume_details(p_self);
-        return TRUE;
-    }
-#endif /* WANT_DEVPAY */
-    else if (id == PROPERTY_VERBOSE) {
-        self->verbose = g_value_get_boolean(val);
-	/* Our S3 handle may not yet have been instantiated; if so, it will
-	 * get the proper verbose setting when it is created */
-	if (self->s3)
-	    s3_verbose(self->s3, self->verbose);
-	return TRUE;
-    } else {
-        if (parent_class->property_set) {
-            return (parent_class->property_set)(p_self, id, val);
-        } else {
-            return FALSE;
-        }
-    }
-
-    g_assert_not_reached();
+    return TRUE;
 }
 
 /* functions for writing */
 
-/* {{{ s3_device_start_file */
 
 static gboolean
-s3_device_start_file (Device *pself, const dumpfile_t *jobInfo) {
+s3_device_start_file (Device *pself, dumpfile_t *jobInfo) {
     S3Device *self = S3_DEVICE(pself);
-    char *amanda_header;
-    int header_size;
+    CurlBuffer amanda_header = {NULL, 0, 0, 0};
     gboolean header_fits, result;
     char *key;
 
-    g_return_val_if_fail (self != NULL, FALSE);
+    if (device_in_error(self)) return FALSE;
+
+    /* Set the blocksize to zero, since there's no header to skip (it's stored
+     * in a distinct file, rather than block zero) */
+    jobInfo->blocksize = 0;
 
     /* Build the amanda header. */
-    amanda_header = device_build_amanda_header(pself, jobInfo,
-                                               &header_size, &header_fits);
-    g_return_val_if_fail(amanda_header != NULL, FALSE);
-    g_return_val_if_fail(header_fits, FALSE);
+    amanda_header.buffer = device_build_amanda_header(pself, jobInfo,
+        (int *) &amanda_header.buffer_len, &header_fits);
+    if (!header_fits) {
+	device_set_error(pself,
+	    stralloc(_("Amanda file header won't fit in a single block!")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
 
     /* set the file and block numbers correctly */
     pself->file = (pself->file > 0)? pself->file+1 : 1;
@@ -952,101 +1139,99 @@ s3_device_start_file (Device *pself, const dumpfile_t *jobInfo) {
 
     /* write it out as a special block (not the 0th) */
     key = special_file_to_key(self, "filestart", pself->file);
-    result = s3_upload(self->s3, self->bucket, key, amanda_header, header_size);
-    g_free(amanda_header);
+    result = s3_upload(self->s3, self->bucket, key, S3_BUFFER_READ_FUNCS,
+                       &amanda_header, NULL, NULL);
+    g_free(amanda_header.buffer);
     g_free(key);
     if (!result) {
-        fprintf(stderr, _("While writing filestart header: %s\n"),
-                s3_strerror(self->s3));
+	device_set_error(pself,
+	    vstrallocf(_("While writing filestart header: %s"), s3_strerror(self->s3)),
+	    DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
         return FALSE;
     }
 
     return TRUE;
 }
-/* }}} */
 
-/* {{{ s3_device_write_block */
 static gboolean
-s3_device_write_block (Device * pself, guint size, gpointer data,
-                         gboolean last_block) {
+s3_device_write_block (Device * pself, guint size, gpointer data) {
     gboolean result;
     char *filename;
-    S3Device * self = S3_DEVICE(pself);;
+    S3Device * self = S3_DEVICE(pself);
+    CurlBuffer to_write = {data, size, 0, 0};
 
     g_assert (self != NULL);
     g_assert (data != NULL);
+    if (device_in_error(self)) return FALSE;
     
     filename = file_and_block_to_key(self, pself->file, pself->block);
 
-    result = s3_upload(self->s3, self->bucket, filename, data, size);
+    result = s3_upload(self->s3, self->bucket, filename, S3_BUFFER_READ_FUNCS,
+        &to_write, NULL, NULL);
     g_free(filename);
     if (!result) {
-        fprintf(stderr, _("While writing data block to S3: %s\n"),
-                s3_strerror(self->s3));
+	device_set_error(pself,
+	    vstrallocf(_("While writing data block to S3: %s"), s3_strerror(self->s3)),
+	    DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
         return FALSE;
     }
 
     pself->block++;
 
-    /* if this is the last block, finish the file */
-    if (last_block) {
-        return s3_device_finish_file(pself);
-    }
-
     return TRUE;
 }
-/* }}} */
 
-/* {{{ s3_device_finish_file */
 static gboolean
 s3_device_finish_file (Device * pself) {
+    if (device_in_error(pself)) return FALSE;
+
     /* we're not in a file anymore */
     pself->in_file = FALSE;
 
     return TRUE;
 }
-/* }}} */
 
-/* {{{ s3_device_recycle_file */
 static gboolean
 s3_device_recycle_file(Device *pself, guint file) {
     S3Device *self = S3_DEVICE(pself);
+    if (device_in_error(self)) return FALSE;
 
     return delete_file(self, file);
+    /* delete_file already set our error message if necessary */
 }
-/* }}} */
 
 /* functions for reading */
 
-/* {{{ s3_device_seek_file */
 static dumpfile_t*
 s3_device_seek_file(Device *pself, guint file) {
     S3Device *self = S3_DEVICE(pself);
     gboolean result;
     char *key;
-    gpointer buf;
-    guint buf_size;
+    CurlBuffer buf = {NULL, 0, 0, S3_DEVICE_MAX_BLOCK_SIZE};
     dumpfile_t *amanda_header;
+    const char *errmsg = NULL;
+
+    if (device_in_error(self)) return NULL;
 
     pself->file = file;
+    pself->is_eof = FALSE;
+    pself->in_file = FALSE;
     pself->block = 0;
-    pself->in_file = TRUE;
 
     /* read it in */
     key = special_file_to_key(self, "filestart", pself->file);
-    result = s3_read(self->s3, self->bucket, key, &buf, &buf_size, S3_DEVICE_MAX_BLOCK_SIZE);
+    result = s3_read(self->s3, self->bucket, key, S3_BUFFER_WRITE_FUNCS,
+        &buf, NULL, NULL);
     g_free(key);
  
     if (!result) {
         guint response_code;
         s3_error_code_t s3_error_code;
-        s3_error(self->s3, NULL, &response_code, &s3_error_code, NULL, NULL, NULL);
+        s3_error(self->s3, &errmsg, &response_code, &s3_error_code, NULL, NULL, NULL);
 
         /* if it's an expected error (not found), check what to do. */
         if (response_code == 404 && s3_error_code == S3_ERROR_NoSuchKey) {
             int next_file;
-            pself->file = -1;
-            pself->in_file = FALSE;
             next_file = find_next_file(self, pself->file);
             if (next_file > 0) {
                 /* Note short-circut of dispatcher. */
@@ -1054,131 +1239,196 @@ s3_device_seek_file(Device *pself, guint file) {
             } else if (next_file == 0) {
                 /* No next file. Check if we are one past the end. */
                 key = special_file_to_key(self, "filestart", pself->file - 1);
-                result = s3_read(self->s3, self->bucket, key, &buf, &buf_size,
-                                 S3_DEVICE_MAX_BLOCK_SIZE);
+                result = s3_read(self->s3, self->bucket, key,
+                    S3_BUFFER_WRITE_FUNCS, &buf, NULL, NULL);
                 g_free(key);
                 if (result) {
+		    /* pself->file, etc. are already correct */
                     return make_tapeend_header();
                 } else {
+		    device_set_error(pself,
+			stralloc(_("Attempt to read past tape-end file")),
+			DEVICE_STATUS_SUCCESS);
                     return NULL;
                 }
             }
         } else {
-            /* An error occured finding out if we are the last file. */
+            /* An unexpected error occured finding out if we are the last file. */
+	    device_set_error(pself,
+		stralloc(errmsg),
+		DEVICE_STATUS_DEVICE_ERROR);
             return NULL;
         }
     }
    
     /* and make a dumpfile_t out of it */
-    g_assert(buf != NULL);
+    g_assert(buf.buffer != NULL);
     amanda_header = g_new(dumpfile_t, 1);
     fh_init(amanda_header);
-    parse_file_header(buf, amanda_header, buf_size);
-    g_free(buf);
+    parse_file_header(buf.buffer, amanda_header, buf.buffer_pos);
+    g_free(buf.buffer);
 
     switch (amanda_header->type) {
         case F_DUMPFILE:
         case F_CONT_DUMPFILE:
         case F_SPLIT_DUMPFILE:
-            return amanda_header;
+            break;
 
         default:
-            fprintf(stderr,
-                    _("Invalid amanda header while reading file header\n"));
+	    device_set_error(pself,
+		stralloc(_("Invalid amanda header while reading file header")),
+		DEVICE_STATUS_VOLUME_ERROR);
             g_free(amanda_header);
             return NULL;
     }
-}
-/* }}} */
 
-/* {{{ s3_device_seek_block */
+    pself->in_file = TRUE;
+    return amanda_header;
+}
+
 static gboolean
 s3_device_seek_block(Device *pself, guint64 block) {
+    if (device_in_error(pself)) return FALSE;
+
     pself->block = block;
     return TRUE;
 }
-/* }}} */
 
-/* {{{ s3_device_read_block */
+typedef struct s3_read_block_data {
+    gpointer data;
+    int size_req;
+    int size_written;
+
+    CurlBuffer curl;
+} s3_read_block_data;
+
+/* wrapper around s3_buffer_write_func to write as much data as possible to
+ * the user's buffer, and switch to a dynamically allocated buffer if that
+ * isn't large enough */
+static size_t
+s3_read_block_write_func(void *ptr, size_t size, size_t nmemb, void *stream)
+{
+    s3_read_block_data *dat = stream;
+    guint new_bytes, bytes_needed;
+
+    /* if data is NULL, call through to s3_buffer_write_func */
+    if (!dat->data) {
+	return s3_buffer_write_func(ptr, size, nmemb, (void *)(&dat->curl));
+    }
+
+    new_bytes = (guint) size * nmemb;
+    bytes_needed = dat->size_written + new_bytes;
+
+    if (bytes_needed > (guint)dat->size_written) {
+	/* this read will overflow the user's buffer, so malloc ourselves
+	 * a new buffer and keep reading */
+	dat->curl.buffer = g_malloc(bytes_needed);
+	dat->curl.buffer_len = bytes_needed;
+	dat->curl.buffer_pos = dat->size_written;
+	memcpy(dat->curl.buffer, dat->data, dat->size_written);
+	dat->data = NULL; /* signal that the user's buffer is too small */
+	return s3_buffer_write_func(ptr, size, nmemb, (void *)(&dat->curl));
+    }
+
+    memcpy(dat->data + dat->size_written, ptr, bytes_needed);
+    return new_bytes;
+}
+
 static int
 s3_device_read_block (Device * pself, gpointer data, int *size_req) {
     S3Device * self = S3_DEVICE(pself);
     char *key;
-    gpointer buf;
+    s3_read_block_data dat = {NULL, 0, 0, { NULL, 0, 0, S3_DEVICE_MAX_BLOCK_SIZE} };
     gboolean result;
-    guint buf_size;
 
     g_assert (self != NULL);
+    if (device_in_error(self)) return -1;
 
     /* get the file*/
     key = file_and_block_to_key(self, pself->file, pself->block);
     g_assert(key != NULL);
     if (self->cached_key && (0 == strcmp(key, self->cached_key))) {
-        /* use the cached copy and clear the cache */
-        buf = self->cached_buf;
-        buf_size = self->cached_size;
+	if (*size_req >= self->cached_size) {
+	    /* use the cached copy and clear the cache */
+	    memcpy(data, self->cached_buf, self->cached_size);
+	    *size_req = self->cached_size;
 
-        self->cached_buf = NULL;
-        g_free(self->cached_key);
-        self->cached_key = NULL;
-    } else {
-        /* clear the cache and actually download the file */
-        if (self->cached_buf) {
-            g_free(self->cached_buf);
-            self->cached_buf = NULL;
-        }
-        if (self->cached_key) {
-            g_free(self->cached_key);
-            self->cached_key = NULL;
-        }
+	    g_free(key);
+	    g_free(self->cached_key);
+	    self->cached_key = NULL;
+	    g_free(self->cached_buf);
+	    self->cached_buf = NULL;
 
-        result = s3_read(self->s3, self->bucket, key, &buf, &buf_size, S3_DEVICE_MAX_BLOCK_SIZE);
-        if (!result) {
-            guint response_code;
-            s3_error_code_t s3_error_code;
-            s3_error(self->s3, NULL, &response_code, &s3_error_code, NULL, NULL, NULL);
-
-            g_free(key);
-            key = NULL;
-
-            /* if it's an expected error (not found), just return -1 */
-            if (response_code == 404 && s3_error_code == S3_ERROR_NoSuchKey) {
-                pself->is_eof = TRUE;
-                pself->in_file = FALSE;
-                return -1;
-            }
-
-            /* otherwise, log it and return FALSE */
-            fprintf(stderr, _("While reading data block from S3: %s\n"),
-                    s3_strerror(self->s3));
-            return -1;
-        }
+	    pself->block++;
+	    return *size_req;
+	} else {
+	    *size_req = self->cached_size;
+	    g_free(key);
+	    return 0;
+	}
     }
 
-    /* INVARIANT: cache is NULL */
-    g_assert(self->cached_buf == NULL);
-    g_assert(self->cached_key == NULL);
+    /* clear the cache, as it's useless to us */
+    if (self->cached_key) {
+	g_free(self->cached_key);
+	self->cached_key = NULL;
 
-    /* now see how the caller wants to deal with that */
-    if (data == NULL || *size_req < 0 || buf_size > (guint)*size_req) {
-        /* A size query or short buffer -- load the cache and return the size*/
-        self->cached_buf = buf;
+	g_free(self->cached_buf);
+	self->cached_buf = NULL;
+    }
+
+    /* set up dat for the write_func callback */
+    if (!data || *size_req <= 0) {
+	dat.data = NULL;
+	dat.size_req = 0;
+    } else {
+	dat.data = data;
+	dat.size_req = *size_req;
+    }
+
+    result = s3_read(self->s3, self->bucket, key, s3_read_block_write_func,
+        s3_buffer_reset_func, &dat, NULL, NULL);
+    if (!result) {
+	guint response_code;
+	s3_error_code_t s3_error_code;
+	s3_error(self->s3, NULL, &response_code, &s3_error_code, NULL, NULL, NULL);
+
+	g_free(key);
+	key = NULL;
+
+	/* if it's an expected error (not found), just return -1 */
+	if (response_code == 404 && s3_error_code == S3_ERROR_NoSuchKey) {
+	    pself->is_eof = TRUE;
+	    pself->in_file = FALSE;
+	    device_set_error(pself,
+		stralloc(_("EOF")),
+		DEVICE_STATUS_SUCCESS);
+	    return -1;
+	}
+
+	/* otherwise, log it and return FALSE */
+	device_set_error(pself,
+	    vstrallocf(_("While reading data block from S3: %s"), s3_strerror(self->s3)),
+	    DEVICE_STATUS_VOLUME_ERROR);
+	return -1;
+    }
+
+    if (dat.data == NULL) {
+	/* data was larger than the available space, so cache it and return
+	 * the actual size */
+        self->cached_buf = dat.curl.buffer;
+        self->cached_size = dat.curl.buffer_pos;
         self->cached_key = key;
-        self->cached_size = buf_size;
+	key = NULL;
 
-        *size_req = buf_size;
+        *size_req = dat.curl.buffer_pos;
         return 0;
-    } else {
-        /* ok, all checks are passed -- copy the data */
-        *size_req = buf_size;
-        g_memmove(data, buf, buf_size);
-        g_free(key);
-        g_free(buf);
-
-        /* move on to the next block */
-        pself->block++;
-
-        return buf_size;
     }
+
+    /* ok, the read went directly to the user's buffer, so we need only
+     * set and return the size */
+    pself->block++;
+    g_free(key);
+    *size_req = dat.size_req;
+    return dat.size_req;
 }
-/* }}} */

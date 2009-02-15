@@ -11,11 +11,17 @@
 <refmeta>
 <refentrytitle>amcheckdump</refentrytitle>
 <manvolnum>8</manvolnum>
+&rmi.source;
+&rmi.version;
+&rmi.manual.8;
 </refmeta>
 <refnamediv>
 <refname>amcheckdump</refname>
 <refpurpose>check the results of an &A; dump</refpurpose>
 </refnamediv>
+<refentryinfo>
+&author.ian;
+</refentryinfo>
 <!-- body begins here -->
 <refsynopsisdiv>
 <cmdsynopsis>
@@ -48,11 +54,6 @@ remap='B'>CONFIGURATION OVERRIDE</emphasis>" section in
 <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
 for information on the <literal>-o</literal> option.</para>
 </refsect1>
- <refsect1><title>SEE ALSO</title>
- <para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
- <ulink url="http://wiki.zmanda.com"/>
- </para>
- </refsect1> 
 
 <refsect1><title>EXAMPLE</title>
 <para><programlisting>
@@ -64,8 +65,9 @@ amcheckdump MYCONFIG --timestamp 19780615
 </programlisting></para>
 </refsect1>
  <refsect1><title>SEE ALSO</title>
- <para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,  
- <citerefentry><refentrytitle>http://wiki.zmanda.com</refentrytitle></citerefentry>          
+ <para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+ <ulink url="http://wiki.zmanda.com"/>
  </para>
- </refsect1>                                                                          
+ </refsect1> 
+
 </refentry>

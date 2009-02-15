@@ -9,7 +9,6 @@ amanda-backup-client: file-in-unusual-dir usr/libexec/amanda/*
 amanda-backup-client: manpage-has-bad-whatis-entry
 amanda-backup-client: non-standard-dir-in-usr usr/libexec
 amanda-backup-client: non-standard-dir-in-var var/log/amanda
-amanda-backup-client: non-standard-dir-in-var var/amanda
 amanda-backup-client: non-standard-dir-perm var/lib/amanda/gnutar-lists
 amanda-backup-client: non-standard-dir-perm var/log/amanda 
 amanda-backup-client: package-name-doesnt-match-sonames

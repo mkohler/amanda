@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /* 
- * $Id: sendsize.c,v 1.171 2006/08/24 01:57:15 paddy_s Exp $
+ * $Id: sendsize.c 10421 2008-03-06 18:48:30Z martineau $
  *
  * send estimated backup sizes using dump
  */
@@ -83,19 +83,13 @@ typedef struct level_estimates_s {
 
 typedef struct disk_estimates_s {
     struct disk_estimates_s *next;
-    char *amname;
     char *qamname;
-    char *amdevice;
     char *qamdevice;
     char *dirname;
     char *qdirname;
-    char *program;
-    char *calcprog;
-    int program_is_backup_api;
-    int spindle;
     pid_t child;
     int done;
-    option_t *options;
+    dle_t *dle;
     level_estimate_t est[DUMP_LEVELS];
 } disk_estimates_t;
 
@@ -104,31 +98,27 @@ disk_estimates_t *est_list;
 static am_feature_t *our_features = NULL;
 static char *our_feature_string = NULL;
 static g_option_t *g_options = NULL;
+static gboolean amandates_started = FALSE;
 
 /* local functions */
 int main(int argc, char **argv);
-void add_diskest(char *disk, char *amdevice, int level, int spindle, 
-		    int program_is_backup_api, char *prog, char *calcprog,
-		    option_t *options);
+void dle_add_diskest(dle_t *dle);
 void calc_estimates(disk_estimates_t *est);
 void free_estimates(disk_estimates_t *est);
 void dump_calc_estimates(disk_estimates_t *);
 void star_calc_estimates(disk_estimates_t *);
 void smbtar_calc_estimates(disk_estimates_t *);
 void gnutar_calc_estimates(disk_estimates_t *);
-void backup_api_calc_estimate(disk_estimates_t *);
+void application_api_calc_estimate(disk_estimates_t *);
 void generic_calc_estimates(disk_estimates_t *);
-
 
 int
 main(
     int		argc,
     char **	argv)
 {
-    int level, spindle;
-    char *prog, *calcprog, *dumpdate;
-    option_t *options = NULL;
-    int program_is_backup_api;
+    int level;
+    char *dumpdate;
     disk_estimates_t *est;
     disk_estimates_t *est1;
     disk_estimates_t *est_prev;
@@ -139,13 +129,11 @@ main(
     int done;
     int need_wait;
     int dumpsrunning;
-    char *disk = NULL;
     char *qdisk = NULL;
     char *qlist = NULL;
-    char *amdevice = NULL;
     char *qamdevice = NULL;
-    char *amandates_file;
-    int   amandates_read = 0;
+    dle_t *dle;
+    GSList *errlist;
 
     (void)argc;	/* Quiet unused parameter warning */
     (void)argv;	/* Quiet unused parameter warning */
@@ -178,6 +166,7 @@ main(
     our_feature_string = am_feature_to_string(our_features);
 
     config_init(CONFIG_INIT_CLIENT, NULL);
+    /* (check for config errors comes later) */
 
     check_running_as(RUNNING_AS_CLIENT_LOGIN);
 
@@ -212,20 +201,24 @@ main(
 		config_init(CONFIG_INIT_CLIENT | CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_OVERLAY,
 			    g_options->config);
 
-		dbrename(config_name, DBG_SUBDIR_CLIENT);
+		dbrename(get_config_name(), DBG_SUBDIR_CLIENT);
 	    }
 
+	    /* check for any config errors now */
+	    if (config_errors(&errlist) >= CFGERR_ERRORS) {
+		char *errstr = config_errors_to_error_string(errlist);
+		g_printf("%s\n", errstr);
+		dbclose();
+		return 1;
+	    }
+
+	    if (am_has_feature(g_options->features, fe_req_xml)) {
+		break;
+	    }
 	    continue;
 	}
 
-	if (amandates_read == 0) {
-	    amandates_file = getconf_str(CNF_AMANDATES);
-	    if(!start_amandates(amandates_file, 0))
-	        error("error [opening %s: %s]", amandates_file,
-		      strerror(errno));
-	    amandates_read = 1;
-	}
-
+	dle = alloc_dle();
 	s = line;
 	ch = *s++;
 
@@ -234,44 +227,46 @@ main(
 	    err_extra = stralloc(_("no program name"));
 	    goto err;				/* no program name */
 	}
-	prog = s - 1;
+	dle->program = s - 1;
 	skip_non_whitespace(s, ch);
 	s[-1] = '\0';
 
-	program_is_backup_api=0;
-	if(strncmp_const(prog, "CALCSIZE") == 0) {
+	dle->program_is_application_api=0;
+	if(strncmp_const(dle->program, "CALCSIZE") == 0) {
 	    skip_whitespace(s, ch);		/* find the program name */
 	    if(ch == '\0') {
 		err_extra = stralloc(_("no program name"));
 		goto err;
 	    }
-	    calcprog = s - 1;
+	    dle->calcsize = 1;
+	    dle->program = s - 1;
 	    skip_non_whitespace(s, ch);
 	    s[-1] = '\0';
-	    if (strcmp(calcprog,"BACKUP") == 0) {
-		program_is_backup_api=1;
+	    if (strcmp(dle->program,"APPLICATION") == 0) {
+		dle->program_is_application_api=1;
 		skip_whitespace(s, ch);		/* find dumper name */
 		if (ch == '\0') {
 		    goto err;			/* no program */
 		}
-		calcprog = s - 1;
+		dle->program = s - 1;
 		skip_non_whitespace(s, ch);
 		s[-1] = '\0';
 	    }
 	}
 	else {
-	    calcprog = NULL;
-	    if (strcmp(prog,"BACKUP") == 0) {
-		program_is_backup_api=1;
+	    dle->calcsize = 0;
+	    if (strcmp(dle->program,"APPLICATION") == 0) {
+		dle->program_is_application_api=1;
 		skip_whitespace(s, ch);		/* find dumper name */
 		if (ch == '\0') {
 		    goto err;			/* no program */
 		}
-		prog = s - 1;
+		dle->program = s - 1;
 		skip_non_whitespace(s, ch);
 		s[-1] = '\0';
 	    }
 	}
+	dle->program = stralloc(dle->program);
 
 	skip_whitespace(s, ch);			/* find the disk name */
 	if(ch == '\0') {
@@ -281,14 +276,12 @@ main(
 
 	if (qdisk != NULL)
 	    amfree(qdisk);
-	if (disk != NULL)
-	    amfree(disk);
 
 	fp = s - 1;
 	skip_quoted_string(s, ch);
 	s[-1] = '\0';				/* terminate the disk name */
 	qdisk = stralloc(fp);
-	disk = unquote_string(qdisk);
+	dle->disk = unquote_string(qdisk);
 
 	skip_whitespace(s, ch);			/* find the device or level */
 	if (ch == '\0') {
@@ -300,11 +293,11 @@ main(
 	    skip_quoted_string(s, ch);
 	    s[-1] = '\0';
 	    qamdevice = stralloc(fp);
-	    amdevice = unquote_string(qamdevice);
+	    dle->device = unquote_string(qamdevice);
 	    skip_whitespace(s, ch);		/* find level number */
 	}
 	else {
-	    amdevice = stralloc(disk);
+	    dle->device = stralloc(dle->disk);
 	    qamdevice = stralloc(qdisk);
 	}
 
@@ -318,6 +311,7 @@ main(
 	    goto err;
 	}
 	skip_integer(s, ch);
+	dle->level = g_slist_append(dle->level, GINT_TO_POINTER(level));
 
 	skip_whitespace(s, ch);			/* find the dump date */
 	if(ch == '\0') {
@@ -329,11 +323,11 @@ main(
 	s[-1] = '\0';
 	(void)dumpdate;				/* XXX: Set but not used */
 
-	spindle = 0;				/* default spindle */
+	dle->spindle = 0;			/* default spindle */
 
 	skip_whitespace(s, ch);			/* find the spindle */
 	if(ch != '\0') {
-	    if(sscanf(s - 1, "%d", &spindle) != 1) {
+	    if(sscanf(s - 1, "%d", &dle->spindle) != 1) {
 		err_extra = stralloc(_("bad spindle"));
 		goto err;			/* bad spindle */
 	    }
@@ -342,35 +336,32 @@ main(
 	    skip_whitespace(s, ch);		/* find the parameters */
 	    if(ch != '\0') {
 		if(strncmp_const(s-1, "OPTIONS |;") == 0) {
-		    options = parse_options(s + 8,
-					    disk,
-					    amdevice,
-					    g_options->features,
-					    0);
+		    parse_options(s + 8,
+				  dle,
+				  g_options->features,
+				  0);
 		}
 		else {
-		    options = alloc(SIZEOF(option_t));
-		    init_options(options);
 		    while (ch != '\0') {
 			if(strncmp_const(s-1, "exclude-file=") == 0) {
 			    qlist = unquote_string(s+12);
-			    options->exclude_file =
-				append_sl(options->exclude_file, qlist);
+			    dle->exclude_file =
+				append_sl(dle->exclude_file, qlist);
 			    amfree(qlist);
 			} else if(strncmp_const(s-1, "exclude-list=") == 0) {
 			    qlist = unquote_string(s+12);
-			    options->exclude_list =
-				append_sl(options->exclude_list, qlist);
+			    dle->exclude_list =
+				append_sl(dle->exclude_list, qlist);
 			    amfree(qlist);
 			} else if(strncmp_const(s-1, "include-file=") == 0) {
 			    qlist = unquote_string(s+12);
-			    options->include_file =
-				append_sl(options->include_file, qlist);
+			    dle->include_file =
+				append_sl(dle->include_file, qlist);
 			    amfree(qlist);
 			} else if(strncmp_const(s-1, "include-list=") == 0) {
 			    qlist = unquote_string(s+12);
-			    options->include_list =
-				append_sl(options->include_list, qlist);
+			    dle->include_list =
+				append_sl(dle->include_list, qlist);
 			    amfree(qlist);
 			} else {
 			    err_extra = vstrallocf(_("Invalid parameter (%s)"), s-1);
@@ -382,33 +373,43 @@ main(
 		    }
 		}
 	    }
-	    else {
-		options = alloc(SIZEOF(option_t));
-		init_options(options);
-	    }
-	}
-	else {
-	    options = alloc(SIZEOF(option_t));
-	    init_options(options);
 	}
 
 	/*@ignore@*/
-	add_diskest(disk, amdevice, level, spindle, program_is_backup_api, prog, calcprog, options);
+	dle_add_diskest(dle);
 	/*@end@*/
-	amfree(disk);
-	amfree(qdisk);
-	amfree(amdevice);
-	amfree(qamdevice);
     }
     if (g_options == NULL) {
-	printf(_("ERROR [Missing OPTIONS line in sendsize input]\n"));
+	g_printf(_("ERROR [Missing OPTIONS line in sendsize input]\n"));
 	error(_("Missing OPTIONS line in sendsize input\n"));
 	/*NOTREACHED*/
     }
     amfree(line);
 
-    finish_amandates();
-    free_amandates();
+    if (am_has_feature(g_options->features, fe_req_xml)) {
+	char    *errmsg = NULL;
+	dle_t   *dles, *dle;
+
+	dles = amxml_parse_node_FILE(stdin, &errmsg);
+	if (errmsg) {
+	    err_extra = errmsg;
+	    goto err;
+	}
+	for (dle = dles; dle != NULL; dle = dle->next) {
+	    dle_add_diskest(dle);
+	}
+    }
+
+    if (amandates_started) {
+	finish_amandates();
+	free_amandates();
+	amandates_started = FALSE;
+    }
+
+    for(est = est_list; est != NULL; est = est->next) {
+	run_client_scripts(EXECUTE_ON_PRE_HOST_ESTIMATE, g_options, est->dle,
+			   stdout);
+    }
 
     dumpsrunning = 0;
     need_wait = 0;
@@ -454,6 +455,8 @@ main(
 		est->done = 1;
 		est->child = 0;
 		dumpsrunning--;
+		run_client_scripts(EXECUTE_ON_POST_DLE_ESTIMATE, g_options,
+				   est->dle, stdout);
 	    }
 	}
 	/*
@@ -478,7 +481,7 @@ main(
 	    /*
 	     * Make sure there is no spindle conflict.
 	     */
-	    if(est->spindle != -1) {
+	    if(est->dle->spindle != -1) {
 		for(est1 = est_list; est1 != NULL; est1 = est1->next) {
 		    if(est1->child == 0 || est == est1 || est1->done) {
 			/*
@@ -487,7 +490,7 @@ main(
 			 */
 			continue;
 		    }
-		    if(est1->spindle == est->spindle) {
+		    if(est1->dle->spindle == est->dle->spindle) {
 			break;			/* oops -- they match */
 		    }
 		}
@@ -503,6 +506,9 @@ main(
 	    }
 	} else {
 	    done = 0;
+	    run_client_scripts(EXECUTE_ON_PRE_DLE_ESTIMATE, g_options,
+			       est->dle, stdout);
+
 	    if((est->child = fork()) == 0) {
 		calc_estimates(est);		/* child does the estimate */
 		exit(0);
@@ -512,6 +518,11 @@ main(
 	    }
 	    dumpsrunning++;			/* parent */
 	}
+    }
+
+    for(est = est_list; est != NULL; est = est->next) {
+	run_client_scripts(EXECUTE_ON_POST_HOST_ESTIMATE, g_options, est->dle,
+			   stdout);
     }
 
     est_prev = NULL;
@@ -529,52 +540,87 @@ main(
     dbclose();
     return 0;
  err:
-    g_printf(_("FORMAT ERROR IN REQUEST PACKET\n"));
     if (err_extra) {
+	g_printf(_("FORMAT ERROR IN REQUEST PACKET '%s'\n"), err_extra);
 	dbprintf(_("REQ packet is bogus: %s\n"), err_extra);
 	amfree(err_extra);
     } else {
+	g_printf(_("ERROR FORMAT ERROR IN REQUEST PACKET\n"));
 	dbprintf(_("REQ packet is bogus\n"));
     }
+
+    free_g_options(g_options);
+
     dbclose();
     return 1;
 }
 
 
 void
-add_diskest(
-    char *	disk,
-    char *	amdevice,
-    int		level,
-    int		spindle,
-    int		program_is_backup_api,
-    char *	prog,
-    char *	calcprog,
-    option_t *	options)
+dle_add_diskest(
+    dle_t    *dle)
 {
     disk_estimates_t *newp, *curp;
     amandates_t *amdp;
     int dumplev, estlev;
     time_t dumpdate;
+    GSList *level;
+    char *amandates_file;
+    gboolean need_amandates = FALSE;
 
-    if (level < 0)
-	level = 0;
-    if (level >= DUMP_LEVELS)
-	level = DUMP_LEVELS - 1;
+    level = dle->level;
+    if (level == NULL) {
+	g_printf(_("ERROR Missing level in request\n"));
+	return;
+    }
+
+    /* should we use amandates for this? */
+    if (dle->calcsize)
+	need_amandates = TRUE;
+    if (strcmp(dle->program, "GNUTAR") == 0) {
+	/* GNUTAR only needs amandates if gnutar_list_dir is NULL */
+	char *gnutar_list_dir = getconf_str(CNF_GNUTAR_LIST_DIR);
+	if (!gnutar_list_dir || !*gnutar_list_dir)
+	    need_amandates = TRUE;
+    }
+
+    /* start amandates here, before adding this DLE to est_list, in case
+     * we encounter an error. */
+    if (need_amandates) {
+	if (!amandates_started) {
+	    amandates_file = getconf_str(CNF_AMANDATES);
+	    if(!start_amandates(amandates_file, 0)) {
+		char *errstr = strerror(errno);
+		char *qamname = quote_string(dle->disk);
+		char *errmsg = vstrallocf(_("could not open %s: %s"), amandates_file, errstr);
+		char *qerrmsg = quote_string(errmsg);
+		g_printf(_("%s %d ERROR %s\n"), qamname, 0, qerrmsg);
+		amfree(qamname);
+		amfree(errmsg);
+		amfree(qerrmsg);
+		return;
+	    }
+	    amandates_started = TRUE;
+	}
+    }
+
+    while (level != NULL) {
+	if (GPOINTER_TO_INT(level->data) < 0)
+	    level->data = GINT_TO_POINTER(0);
+	if (GPOINTER_TO_INT(level->data) >= DUMP_LEVELS)
+	    level->data = GINT_TO_POINTER(DUMP_LEVELS - 1);
+	level = g_slist_next(level);
+    }
 
     for(curp = est_list; curp != NULL; curp = curp->next) {
-	if(strcmp(curp->amname, disk) == 0) {
+	if(strcmp(curp->dle->disk, dle->disk) == 0) {
 	    /* already have disk info, just note the level request */
-	    curp->est[level].needestimate = 1;
-	    if(options) {
-		free_sl(options->exclude_file);
-		free_sl(options->exclude_list);
-		free_sl(options->include_file);
-		free_sl(options->include_list);
-		amfree(options->auth);
-		amfree(options->str);
-		amfree(options);
+	    level = dle->level;
+	    while (level != NULL) {
+		curp->est[GPOINTER_TO_INT(level->data)].needestimate = 1;
+		level = g_slist_next(level);
 	    }
+
 	    return;
 	}
     }
@@ -583,32 +629,39 @@ add_diskest(
     memset(newp, 0, SIZEOF(*newp));
     newp->next = est_list;
     est_list = newp;
-    newp->amname = stralloc(disk);
-    newp->qamname = quote_string(disk);
-    newp->amdevice = stralloc(amdevice);
-    newp->qamdevice = quote_string(amdevice);
-    newp->dirname = amname_to_dirname(newp->amdevice);
-    newp->qdirname = quote_string(newp->dirname);
-    newp->program = stralloc(prog);
-    if(calcprog != NULL)
-	newp->calcprog = stralloc(calcprog);
-    else
-	newp->calcprog = NULL;
-    newp->program_is_backup_api = program_is_backup_api;
-    newp->spindle = spindle;
-    newp->est[level].needestimate = 1;
-    newp->options = options;
+    newp->qamname = quote_string(dle->disk);
+    if (dle->device) {
+	newp->qamdevice = quote_string(dle->device);
+	newp->dirname = amname_to_dirname(dle->device);
+	newp->qdirname = quote_string(newp->dirname);
+    } else {
+	newp->qamdevice = stralloc("");
+	newp->dirname = stralloc("");
+	newp->qdirname = stralloc("");
+    }
+    level = dle->level;
+    while (level != NULL) {
+	newp->est[GPOINTER_TO_INT(level->data)].needestimate = 1;
+	level = g_slist_next(level);
+    }
+    newp->dle = dle;
 
     /* fill in dump-since dates */
+    if (need_amandates) {
+	amdp = amandates_lookup(newp->dle->disk);
 
-    amdp = amandates_lookup(newp->amname);
-
-    newp->est[0].dumpsince = EPOCH;
-    for(dumplev = 0; dumplev < DUMP_LEVELS; dumplev++) {
-	dumpdate = amdp->dates[dumplev];
-	for(estlev = dumplev+1; estlev < DUMP_LEVELS; estlev++) {
-	    if(dumpdate > newp->est[estlev].dumpsince)
-		newp->est[estlev].dumpsince = dumpdate;
+	newp->est[0].dumpsince = EPOCH;
+	for(dumplev = 0; dumplev < DUMP_LEVELS; dumplev++) {
+	    dumpdate = amdp->dates[dumplev];
+	    for(estlev = dumplev+1; estlev < DUMP_LEVELS; estlev++) {
+		if(dumpdate > newp->est[estlev].dumpsince)
+		    newp->est[estlev].dumpsince = dumpdate;
+	    }
+	}
+    } else {
+	/* just zero everything out */
+	for(dumplev = 0; dumplev < DUMP_LEVELS; dumplev++) {
+	    newp->est[dumplev].dumpsince = 0;
 	}
     }
 }
@@ -618,21 +671,12 @@ void
 free_estimates(
     disk_estimates_t *	est)
 {
-    amfree(est->amname);
     amfree(est->qamname);
-    amfree(est->amdevice);
     amfree(est->qamdevice);
     amfree(est->dirname);
     amfree(est->qdirname);
-    amfree(est->program);
-    if(est->options) {
-	free_sl(est->options->exclude_file);
-	free_sl(est->options->exclude_list);
-	free_sl(est->options->include_file);
-	free_sl(est->options->include_list);
-	amfree(est->options->str);
-	amfree(est->options->auth);
-	amfree(est->options);
+    if(est->dle) {
+/* free DLE */
     }
 }
 
@@ -645,38 +689,40 @@ void
 calc_estimates(
     disk_estimates_t *	est)
 {
-    dbprintf(_("calculating for amname %s, dirname %s, spindle %d\n"),
-	      est->qamname, est->qdirname, est->spindle);
-	
-    if(est->program_is_backup_api ==  1)
-	backup_api_calc_estimate(est);
+    dbprintf(_("calculating for amname %s, dirname %s, spindle %d %s\n"),
+	      est->qamname, est->qdirname, est->dle->spindle, est->dle->program);
+
+    if(est->dle->program_is_application_api ==  1)
+	application_api_calc_estimate(est);
+    else
+    if(est->dle->calcsize ==  1)
+	if (est->dle->device[0] == '/' && est->dle->device[1] == '/')
+	    dbprintf(_("Can't use CALCSIZE for samba estimate: %s %s\n"),
+		     est->qamname, est->qdirname);
+	else
+	    generic_calc_estimates(est);
     else
 #ifndef USE_GENERIC_CALCSIZE
-    if(strcmp(est->program, "DUMP") == 0)
+    if(strcmp(est->dle->program, "DUMP") == 0)
 	dump_calc_estimates(est);
     else
 #endif
 #ifdef SAMBA_CLIENT
-      if (strcmp(est->program, "GNUTAR") == 0 &&
-	  est->amdevice[0] == '/' && est->amdevice[1] == '/')
+      if (strcmp(est->dle->program, "GNUTAR") == 0 &&
+	  est->dle->device[0] == '/' && est->dle->device[1] == '/')
 	smbtar_calc_estimates(est);
       else
 #endif
 #ifdef GNUTAR
-	if (strcmp(est->program, "GNUTAR") == 0)
+	if (strcmp(est->dle->program, "GNUTAR") == 0)
 	  gnutar_calc_estimates(est);
 	else
 #endif
-#ifdef SAMBA_CLIENT
-	  if (est->amdevice[0] == '/' && est->amdevice[1] == '/')
-	    dbprintf(_("Can't use CALCSIZE for samba estimate: %s %s\n"),
-		      est->qamname, est->qdirname);
-	  else
-#endif
-	    generic_calc_estimates(est);
+	    dbprintf(_("Invalid program: %s %s %s\n"),
+		      est->qamname, est->qdirname, est->dle->program);
 
     dbprintf(_("done with amname %s dirname %s spindle %d\n"),
-	      est->qamname, est->qdirname, est->spindle);
+	      est->qamname, est->qdirname, est->dle->spindle);
 }
 
 /*
@@ -685,51 +731,114 @@ calc_estimates(
  */
 
 /* local functions */
-off_t getsize_dump(char *disk, char *amdevice, int level, option_t *options,
-		   char **errmsg);
-off_t getsize_smbtar(char *disk, char *amdevice, int level, option_t *options,
-		     char **errmsg);
-off_t getsize_gnutar(char *disk, char *amdevice, int level,
-		       option_t *options, time_t dumpsince, char **errmsg);
-off_t getsize_backup_api(char *program, char *disk, char *amdevice, int level,
-			option_t *options, time_t dumpsince, char **errmsg);
+off_t getsize_dump(dle_t *dle, int level, char **errmsg);
+off_t getsize_smbtar(dle_t *dle, int level, char **errmsg);
+off_t getsize_gnutar(dle_t *dle, int level, time_t dumpsince, char **errmsg);
+off_t getsize_star(dle_t *dle, int level, time_t dumpsince, char **errmsg);
+off_t getsize_application_api(disk_estimates_t *est, int nb_level,
+			      int *levels, backup_support_option_t *bsu);
 off_t handle_dumpline(char *str);
 double first_num(char *str);
 
 void
-backup_api_calc_estimate(
+application_api_calc_estimate(
     disk_estimates_t *	est)
 {
     int    level;
-    off_t  size;
-    char  *errmsg = NULL, *qerrmsg;
+    int    i;
+    int    levels[DUMP_LEVELS];
+    int    nb_level = 0;
+    backup_support_option_t *bsu;
+    GPtrArray               *errarray;
 
-    for(level = 0; level < DUMP_LEVELS; level++) {
-	if (est->est[level].needestimate) {
-	    dbprintf(_("getting size via application API for %s %s level %d\n"),
-		      est->qamname, est->qamdevice, level);
-	    size = getsize_backup_api(est->program, est->amname, est->amdevice,
-				      level, est->options,
-				      est->est[level].dumpsince, &errmsg);
-
-	    amflock(1, "size");
-
-	    g_printf(_("%s %d SIZE %lld\n"), est->qamname, level,
-		   (long long)size);
-	    if (errmsg && errmsg[0] != '\0') {
-		if(am_has_feature(g_options->features,
-				  fe_rep_sendsize_quoted_error)) {
-		    qerrmsg = quote_string(errmsg);
-		    dbprintf(_("errmsg is %s\n"), errmsg);
+    bsu = backup_support_option(est->dle->program, g_options, est->dle->disk,
+				est->dle->device, &errarray);
+    if (!bsu) {
+	guint  i;
+	for (i=0; i < errarray->len; i++) {
+	    char  *line;
+	    char  *errmsg;
+	    char  *qerrmsg;
+	    line = g_ptr_array_index(errarray, i);
+	    if(am_has_feature(g_options->features,
+			      fe_rep_sendsize_quoted_error)) {
+		errmsg = g_strdup_printf(_("Application '%s': %s"),
+				     est->dle->program, line);
+		qerrmsg = quote_string(errmsg);
+		for (level = 0; level < DUMP_LEVELS; level++) {
+		    if (est->est[level].needestimate) {
+			g_printf(_("%s %d ERROR %s\n"),
+				 est->dle->disk, level, qerrmsg);
+			dbprintf(_("%s %d ERROR A %s\n"),
+				 est->qamname, level, qerrmsg);
+		    }
+		}
+		amfree(errmsg);
+		amfree(qerrmsg);
+	    }
+	}
+	if (i == 0) { /* nothing in errarray */
+	    char  *errmsg;
+	    char  *qerrmsg;
+	    errmsg = g_strdup_printf(
+		_("Application '%s': cannon execute support command"),
+		est->dle->program);
+	    qerrmsg = quote_string(errmsg);
+	    for (level = 0; level < DUMP_LEVELS; level++) {
+		if (est->est[level].needestimate) {
 		    g_printf(_("%s %d ERROR %s\n"),
-			   est->qamname, level, qerrmsg);
-		    amfree(qerrmsg);
+			     est->dle->disk, level, qerrmsg);
+		    dbprintf(_("%s %d ERROR %s\n"),
+			     est->qamname, level, qerrmsg);
 		}
 	    }
 	    amfree(errmsg);
-	    fflush(stdout);
+	    amfree(qerrmsg);
+	}
+	for (level = 0; level < DUMP_LEVELS; level++) {
+	    est->est[level].needestimate = 0;
+	}
+	g_ptr_array_free(errarray, TRUE);
+    }
 
-	    amfunlock(1, "size");
+    for(level = 0; level < DUMP_LEVELS; level++) {
+	if (est->est[level].needestimate) {
+	    if (level > bsu->max_level) {
+		/* planner will not even consider this level */
+		g_printf("%s %d SIZE %lld\n", est->qamname, level,
+			 (long long)-2);
+		est->est[level].needestimate = 0;
+	    } else if (est->dle->estimate == ES_SERVER) {
+		/* planner will consider this level, */
+		/* but use a server-side estimate    */
+		g_printf("%s %d SIZE %lld\n", est->qamname, level,
+			 (long long)-1);
+		est->est[level].needestimate = 0;
+	    } else {
+		levels[nb_level++] = level;
+	    }
+	}
+    }
+
+    if (nb_level == 0)
+	return;
+
+    if (bsu->multi_estimate) {
+	for (i=0;i<nb_level;i++) {
+	    dbprintf(_("getting size via application API for %s %s level %d\n"),
+		     est->qamname, est->qamdevice, levels[i]);
+	}
+	getsize_application_api(est, nb_level, levels, bsu);
+
+    } else {
+	for(level = 0; level < DUMP_LEVELS; level++) {
+	    if (est->est[level].needestimate) {
+		dbprintf(
+		    _("getting size via application API for %s %s level %d\n"),
+		    est->qamname, est->qamdevice, level);
+		levels[0] = level;
+		getsize_application_api(est, 1, levels, bsu);
+	    }
 	}
     }
 }
@@ -758,6 +867,7 @@ generic_calc_estimates(
     amwait_t wait_status;
     char *errmsg = NULL, *qerrmsg;
     char tmppath[PATH_MAX];
+    int len;
 
     cmd = vstralloc(amlibexecdir, "/", "calcsize", versionsuffix(), NULL);
 
@@ -769,28 +879,25 @@ generic_calc_estimates(
     else
 	my_argv[my_argc++] = stralloc("NOCONFIG");
 
-    my_argv[my_argc++] = stralloc(est->calcprog);
-
-    my_argv[my_argc++] = stralloc(est->amname);
+    my_argv[my_argc++] = stralloc(est->dle->program);
+    canonicalize_pathname(est->dle->disk, tmppath);
+    my_argv[my_argc++] = stralloc(tmppath);
     canonicalize_pathname(est->dirname, tmppath);
     my_argv[my_argc++] = stralloc(tmppath);
 
+    if (est->dle->exclude_file)
+	nb_exclude += est->dle->exclude_file->nb_element;
+    if (est->dle->exclude_list)
+	nb_exclude += est->dle->exclude_list->nb_element;
+    if (est->dle->include_file)
+	nb_include += est->dle->include_file->nb_element;
+    if (est->dle->include_list)
+	nb_include += est->dle->include_list->nb_element;
 
-    if(est->options->exclude_file)
-	nb_exclude += est->options->exclude_file->nb_element;
-    if(est->options->exclude_list)
-	nb_exclude += est->options->exclude_list->nb_element;
-    if(est->options->include_file)
-	nb_include += est->options->include_file->nb_element;
-    if(est->options->include_list)
-	nb_include += est->options->include_list->nb_element;
-
-    if(nb_exclude > 0)
-	file_exclude = build_exclude(est->amname,
-		est->amdevice, est->options, 0);
-    if(nb_include > 0)
-	file_include = build_include(est->amname,
-		est->amdevice, est->options, 0);
+    if (nb_exclude > 0)
+	file_exclude = build_exclude(est->dle, 0);
+    if (nb_include > 0)
+	file_include = build_include(est->dle, 0);
 
     if(file_exclude) {
 	my_argv[my_argc++] = stralloc("-X");
@@ -832,7 +939,8 @@ generic_calc_estimates(
 	goto common_exit;
     }
 
-    calcpid = pipespawnv(cmd, STDERR_PIPE, &nullfd, &nullfd, &pipefd, my_argv);
+    calcpid = pipespawnv(cmd, STDERR_PIPE, 0,
+			 &nullfd, &nullfd, &pipefd, my_argv);
     amfree(cmd);
 
     dumpout = fdopen(pipefd,"r");
@@ -840,12 +948,15 @@ generic_calc_estimates(
 	error(_("Can't fdopen: %s"), strerror(errno));
 	/*NOTREACHED*/
     }
-    match_expr = vstralloc(est->qamname," %d SIZE %lld", NULL);
+    match_expr = vstralloc(" %d SIZE %lld", NULL);
+    len = strlen(est->qamname);
     for(size = (off_t)-1; (line = agets(dumpout)) != NULL; free(line)) {
 	long long size_ = (long long)0;
-	if (line[0] == '\0')
+	if (line[0] == '\0' || (int)strlen(line) <= len)
 	    continue;
-	if(sscanf(line, match_expr, &level, &size_) == 2) {
+	/* Don't use sscanf for est->qamname because it can have a '%'. */
+	if (strncmp(line, est->qamname, len) == 0 &&
+	    sscanf(line+len, match_expr, &level, &size_) == 2) {
 	    g_printf("%s\n", line); /* write to amandad */
 	    dbprintf(_("estimate size for %s level %d: %lld KB\n"),
 		      est->qamname,
@@ -914,8 +1025,7 @@ dump_calc_estimates(
 	if(est->est[level].needestimate) {
 	    dbprintf(_("getting size via dump for %s level %d\n"),
 		      est->qamname, level);
-	    size = getsize_dump(est->amname, est->amdevice,
-				level, est->options, &errmsg);
+	    size = getsize_dump(est->dle, level, &errmsg);
 
 	    amflock(1, "size");
 
@@ -952,8 +1062,7 @@ smbtar_calc_estimates(
 	if(est->est[level].needestimate) {
 	    dbprintf(_("getting size via smbclient for %s level %d\n"),
 		      est->qamname, level);
-	    size = getsize_smbtar(est->amname, est->amdevice, level,
-				  est->options, &errmsg);
+	    size = getsize_smbtar(est->dle, level, &errmsg);
 
 	    amflock(1, "size");
 
@@ -991,8 +1100,8 @@ gnutar_calc_estimates(
 	if (est->est[level].needestimate) {
 	    dbprintf(_("getting size via gnutar for %s level %d\n"),
 		      est->qamname, level);
-	    size = getsize_gnutar(est->amname, est->amdevice, level,
-				  est->options, est->est[level].dumpsince,
+	    size = getsize_gnutar(est->dle, level,
+				  est->est[level].dumpsince,
 				  &errmsg);
 
 	    amflock(1, "size");
@@ -1084,10 +1193,8 @@ regex_scale_t re_size[] = {
 
 off_t
 getsize_dump(
-    char       *disk,
-    char       *amdevice,
+    dle_t      *dle,
     int		level,
-    option_t   *options G_GNUC_UNUSED,
     char      **errmsg)
 {
     int pipefd[2], nullfd, stdoutfd, killctl[2];
@@ -1104,7 +1211,7 @@ getsize_dump(
     char level_str[NUM_STR_SIZE];
     int s;
     times_t start_time;
-    char *qdisk = quote_string(disk);
+    char *qdisk = quote_string(dle->disk);
     char *qdevice;
     char *config;
     amwait_t wait_status;
@@ -1112,11 +1219,17 @@ getsize_dump(
     int is_rundump = 1;
 #endif
 
+    if (level > 9)
+	return -2; /* planner will not even consider this level */
+    if (dle->estimate == ES_SERVER)
+	return -1; /* planner will consider this level, */
+		   /* but use a server-side estimate    */
+
     g_snprintf(level_str, SIZEOF(level_str), "%d", level);
 
-    device = amname_to_devname(amdevice);
+    device = amname_to_devname(dle->device);
     qdevice = quote_string(device);
-    fstype = amname_to_fstype(amdevice);
+    fstype = amname_to_fstype(dle->device);
 
     dbprintf(_("calculating for device %s with %s\n"),
 	      qdevice, fstype);
@@ -1455,7 +1568,7 @@ getsize_dump(
 		    cmd, name);
     } else if(size == (off_t)0 && level == 0) {
 	dbprintf(_("possible %s%s problem -- is \"%s\" really empty?\n"),
-		  cmd, name, disk);
+		  cmd, name, dle->disk);
 	dbprintf(".....\n");
     } else {
 	    dbprintf(_("estimate size for %s level %d: %lld KB\n"),
@@ -1536,10 +1649,8 @@ getsize_dump(
 #ifdef SAMBA_CLIENT
 off_t
 getsize_smbtar(
-    char       *disk,
-    char       *amdevice,
+    dle_t      *dle,
     int		level,
-    option_t   *options,
     char      **errmsg)
 {
     int pipefd = -1, nullfd = -1, passwdfd = -1;
@@ -1555,14 +1666,18 @@ getsize_smbtar(
     char *pw_fd_env;
     times_t start_time;
     char *error_pn = NULL;
-    char *qdisk = quote_string(disk);
+    char *qdisk = quote_string(dle->disk);
     amwait_t wait_status;
-
-    (void)options;	/* Quiet unused parameter warning */
 
     error_pn = stralloc2(get_pname(), "-smbclient");
 
-    parsesharename(amdevice, &share, &subdir);
+    if (level > 1)
+	return -2; /* planner will not even consider this level */
+    if (dle->estimate == ES_SERVER)
+	return -1; /* planner will consider this level, */
+		   /* but use a server-side estimate    */
+
+    parsesharename(dle->device, &share, &subdir);
     if (!share) {
 	amfree(share);
 	amfree(subdir);
@@ -1587,7 +1702,7 @@ getsize_smbtar(
 	}
 	set_pname(error_pn);
 	amfree(error_pn);
-	error(_("cannot find password for %s"), disk);
+	error(_("cannot find password for %s"), dle->disk);
 	/*NOTREACHED*/
     }
     lpass = strlen(user_and_password);
@@ -1600,7 +1715,7 @@ getsize_smbtar(
 	}
 	set_pname(error_pn);
 	amfree(error_pn);
-	error(_("password field not \'user%%pass\' for %s"), disk);
+	error(_("password field not \'user%%pass\' for %s"), dle->disk);
 	/*NOTREACHED*/
     }
     *pwtext++ = '\0';
@@ -1651,7 +1766,7 @@ getsize_smbtar(
     } else {
 	pw_fd_env = "dummy_PASSWD_FD";
     }
-    dumppid = pipespawn(SAMBA_CLIENT, STDERR_PIPE|PASSWD_PIPE,
+    dumppid = pipespawn(SAMBA_CLIENT, STDERR_PIPE|PASSWD_PIPE, 0,
 	      &nullfd, &nullfd, &pipefd, 
 	      pw_fd_env, &passwdfd,
 	      "smbclient",
@@ -1673,7 +1788,7 @@ getsize_smbtar(
 	amfree(domain);
     }
     aclose(nullfd);
-    if(pwtext_len > 0 && fullwrite(passwdfd, pwtext, (size_t)pwtext_len) < 0) {
+    if(pwtext_len > 0 && full_write(passwdfd, pwtext, pwtext_len) < pwtext_len) {
 	int save_errno = errno;
 
 	memset(user_and_password, '\0', (size_t)lpass);
@@ -1730,7 +1845,7 @@ getsize_smbtar(
 	dbprintf(".....\n");
     } else if(size == (off_t)0 && level == 0) {
 	dbprintf(_("possible %s problem -- is \"%s\" really empty?\n"),
-		  SAMBA_CLIENT, disk);
+		  SAMBA_CLIENT, dle->disk);
 	dbprintf(".....\n");
     }
     dbprintf(_("estimate size for %s level %d: %lld KB\n"),
@@ -1772,10 +1887,8 @@ getsize_smbtar(
 #ifdef GNUTAR
 off_t
 getsize_gnutar(
-    char       *disk,
-    char       *amdevice,
+    dle_t      *dle,
     int		level,
-    option_t   *options,
     time_t	dumpsince,
     char      **errmsg)
 {
@@ -1803,18 +1916,24 @@ getsize_gnutar(
     int infd, outfd;
     ssize_t nb;
     char buf[32768];
-    char *qdisk = quote_string(disk);
+    char *qdisk = quote_string(dle->disk);
     char *gnutar_list_dir;
     amwait_t wait_status;
     char tmppath[PATH_MAX];
 
-    if(options->exclude_file) nb_exclude += options->exclude_file->nb_element;
-    if(options->exclude_list) nb_exclude += options->exclude_list->nb_element;
-    if(options->include_file) nb_include += options->include_file->nb_element;
-    if(options->include_list) nb_include += options->include_list->nb_element;
+    if (level > 9)
+	return -2; /* planner will not even consider this level */
+    if (dle->estimate == ES_SERVER)
+	return -1; /* planner will consider this level, */
+		   /* but use a server-side estimate    */
 
-    if(nb_exclude > 0) file_exclude = build_exclude(disk, amdevice, options, 0);
-    if(nb_include > 0) file_include = build_include(disk, amdevice, options, 0);
+    if(dle->exclude_file) nb_exclude += dle->exclude_file->nb_element;
+    if(dle->exclude_list) nb_exclude += dle->exclude_list->nb_element;
+    if(dle->include_file) nb_include += dle->include_file->nb_element;
+    if(dle->include_list) nb_include += dle->include_list->nb_element;
+
+    if(nb_exclude > 0) file_exclude = build_exclude(dle, 0);
+    if(nb_include > 0) file_include = build_include(dle, 0);
 
     my_argv = alloc(SIZEOF(char *) * 22);
     i = 0;
@@ -1825,7 +1944,7 @@ getsize_gnutar(
     if (gnutar_list_dir) {
 	char number[NUM_STR_SIZE];
 	int baselevel;
-	char *sdisk = sanitise_filename(disk);
+	char *sdisk = sanitise_filename(dle->disk);
 
 	basename = vstralloc(gnutar_list_dir,
 			     "/",
@@ -1876,7 +1995,7 @@ getsize_gnutar(
 	}
 
 	while ((nb = read(infd, &buf, SIZEOF(buf))) > 0) {
-	    if (fullwrite(outfd, &buf, (size_t)nb) < nb) {
+	    if (full_write(outfd, &buf, (size_t)nb) < (size_t)nb) {
 		*errmsg = vstrallocf(_("writing to %s: %s"),
 				     incrname, strerror(errno));
 		dbprintf("%s\n", *errmsg);
@@ -1914,7 +2033,7 @@ getsize_gnutar(
 		gmtm->tm_year + 1900, gmtm->tm_mon+1, gmtm->tm_mday,
 		gmtm->tm_hour, gmtm->tm_min, gmtm->tm_sec);
 
-    dirname = amname_to_dirname(amdevice);
+    dirname = amname_to_dirname(dle->device);
 
     cmd = vstralloc(amlibexecdir, "/", "runtar", versionsuffix(), NULL);
     my_argv[i++] = "runtar";
@@ -1931,6 +2050,9 @@ getsize_gnutar(
     my_argv[i++] = "--create";
     my_argv[i++] = "--file";
     my_argv[i++] = "/dev/null";
+    /* use --numeric-owner for estimates, to reduce the number of user/group
+     * lookups required */
+    my_argv[i++] = "--numeric-owner";
     my_argv[i++] = "--directory";
     canonicalize_pathname(dirname, tmppath);
     my_argv[i++] = tmppath;
@@ -1978,7 +2100,8 @@ getsize_gnutar(
 	goto common_exit;
     }
 
-    dumppid = pipespawnv(cmd, STDERR_PIPE, &nullfd, &nullfd, &pipefd, my_argv);
+    dumppid = pipespawnv(cmd, STDERR_PIPE, 0,
+			 &nullfd, &nullfd, &pipefd, my_argv);
 
     dumpout = fdopen(pipefd,"r");
     if (!dumpout) {
@@ -2019,7 +2142,7 @@ getsize_gnutar(
 	dbprintf(".....\n");
     } else if(size == (off_t)0 && level == 0) {
 	dbprintf(_("possible %s problem -- is \"%s\" really empty?\n"),
-		  my_argv[0], disk);
+		  my_argv[0], dle->disk);
 	dbprintf(".....\n");
     }
     dbprintf(_("estimate size for %s level %d: %lld KB\n"),
@@ -2072,48 +2195,47 @@ common_exit:
 #endif
 
 off_t
-getsize_backup_api(
-    char	*program,
-    char	*disk,
-    char	*amdevice,
-    int		 level,
-    option_t	*options,
-    time_t	 dumpsince,
-    char        **errmsg)
+getsize_application_api(
+    disk_estimates_t         *est,
+    int		              nb_level,
+    int		             *levels,
+    backup_support_option_t  *bsu)
 {
-    int pipeinfd[2], pipeoutfd[2], nullfd;
+    dle_t *dle = est->dle;
+    int pipeinfd[2], pipeoutfd[2], pipeerrfd[2];
     pid_t dumppid;
     off_t size = (off_t)-1;
-    FILE *dumpout, *toolin;
+    FILE *dumpout;
+    FILE *dumperr;
     char *line = NULL;
     char *cmd = NULL;
     char *cmdline;
-    char dumptimestr[80];
-    struct tm *gmtm;
-    int  i, j;
-    char *argvchild[10];
+    int  i, j, k;
+    char **argvchild;
     char *newoptstr = NULL;
     off_t size1, size2;
     times_t start_time;
-    char *qdisk = quote_string(disk);
-    char *qamdevice = quote_string(amdevice);
+    char *qdisk = quote_string(dle->disk);
+    char *qamdevice = quote_string(dle->device);
     amwait_t wait_status;
     char levelstr[NUM_STR_SIZE];
-    backup_support_option_t *bsu;
+    GSList   *scriptlist;
+    script_t *script;
+    char     *errmsg = NULL;
 
-    (void)options;
-    gmtm = gmtime(&dumpsince);
-    g_snprintf(dumptimestr, SIZEOF(dumptimestr),
-		"%04d-%02d-%02d %2d:%02d:%02d GMT",
-		gmtm->tm_year + 1900, gmtm->tm_mon+1, gmtm->tm_mday,
-		gmtm->tm_hour, gmtm->tm_min, gmtm->tm_sec);
-
-    cmd = vstralloc(DUMPER_DIR, "/", program, NULL);
-
-    bsu = backup_support_option(program, g_options, disk, amdevice);
+    cmd = vstralloc(APPLICATION_DIR, "/", dle->program, NULL);
 
     i=0;
-    argvchild[i++] = program;
+    k = application_property_argv_size(dle);
+    for (scriptlist = dle->scriptlist; scriptlist != NULL;
+	 scriptlist = scriptlist->next) {
+	script = (script_t *)scriptlist->data;
+	if (script->result && script->result->proplist) {
+	    k += property_argv_size(script->result->proplist);
+	}
+    }
+    argvchild = g_new0(char *, 16 + k + DUMP_LEVELS*2);
+    argvchild[i++] = dle->program;
     argvchild[i++] = "estimate";
     if (bsu->message_line == 1) {
 	argvchild[i++] = "--message";
@@ -2128,43 +2250,54 @@ getsize_backup_api(
 	argvchild[i++] = g_options->hostname;
     }
     argvchild[i++] = "--device";
-    argvchild[i++] = amdevice;
-    if (disk && bsu->disk == 1) {
+    argvchild[i++] = dle->device;
+    if (dle->disk && bsu->disk == 1) {
 	argvchild[i++] = "--disk";
-	argvchild[i++] = disk;
+	argvchild[i++] = dle->disk;
     }
-    if (level <= bsu->max_level) {
+    for (j=0; j < nb_level; j++) {
 	argvchild[i++] = "--level";
-	g_snprintf(levelstr,SIZEOF(levelstr),"%d",level);
-	argvchild[i++] = levelstr;
+	g_snprintf(levelstr,SIZEOF(levelstr),"%d", levels[j]);
+	argvchild[i++] = stralloc(levelstr);
+    }
+    if (dle->calcsize && bsu->calcsize) {
+	argvchild[i++] = "--calcsize";
+    }
+
+    i += application_property_add_to_argv(&argvchild[i], dle, bsu);
+
+    for (scriptlist = dle->scriptlist; scriptlist != NULL;
+	 scriptlist = scriptlist->next) {
+	script = (script_t *)scriptlist->data;
+	if (script->result && script->result->proplist) {
+	    i += property_add_to_argv(&argvchild[i],
+				      script->result->proplist);
+	}
     }
 
     argvchild[i] = NULL;
 
     cmdline = stralloc(cmd);
     for(j = 1; j < i; j++)
-	cmdline = vstrextend(&cmdline, " ", argvchild[i], NULL);
+	cmdline = vstrextend(&cmdline, " ", argvchild[j], NULL);
     dbprintf("running: \"%s\"\n", cmdline);
     amfree(cmdline);
 
-    if ((nullfd = open("/dev/null", O_RDWR)) == -1) {
-	*errmsg = vstrallocf(_("Cannot access /dev/null : %s"),
-			     strerror(errno));
-	dbprintf("%s\n", *errmsg);
+    if (pipe(pipeerrfd) < 0) {
+	errmsg = vstrallocf(_("getsize_application_api could not create data pipes: %s"),
+			    strerror(errno));
 	goto common_exit;
     }
 
     if (pipe(pipeinfd) < 0) {
-	*errmsg = vstrallocf(_("getsize_backup_api could create data pipes: %s"),
-			     strerror(errno));
-	dbprintf("%s\n", *errmsg);
+	errmsg = vstrallocf(_("getsize_application_api could not create data pipes: %s"),
+			    strerror(errno));
 	goto common_exit;
     }
 
     if (pipe(pipeoutfd) < 0) {
-	*errmsg = vstrallocf(_("getsize_backup_api could create data pipes: %s"),
-			     strerror(errno));
-	dbprintf("%s\n", *errmsg);
+	errmsg = vstrallocf(_("getsize_application_api could not create data pipes: %s"),
+			    strerror(errno));
 	goto common_exit;
     }
 
@@ -2179,9 +2312,10 @@ getsize_backup_api(
     case 0:
       dup2(pipeinfd[0], 0);
       dup2(pipeoutfd[1], 1);
-      dup2(nullfd, 2);
+      dup2(pipeerrfd[1], 2);
       aclose(pipeinfd[1]);
       aclose(pipeoutfd[0]);
+      aclose(pipeerrfd[0]);
       safe_fd(-1, 0);
 
       execve(cmd, argvchild, safe_env());
@@ -2192,16 +2326,8 @@ getsize_backup_api(
 
     aclose(pipeinfd[0]);
     aclose(pipeoutfd[1]);
-
-    toolin = fdopen(pipeinfd[1],"w");
-    if (!toolin) {
-	error("Can't fdopen: %s", strerror(errno));
-	/*NOTREACHED*/
-    }
-
-    output_tool_property(toolin, options);
-    fflush(toolin);
-    fclose(toolin);
+    aclose(pipeerrfd[1]);
+    aclose(pipeinfd[1]);
 
     dumpout = fdopen(pipeoutfd[0],"r");
     if (!dumpout) {
@@ -2212,69 +2338,102 @@ getsize_backup_api(
     for(size = (off_t)-1; (line = agets(dumpout)) != NULL; free(line)) {
 	long long size1_ = (long long)0;
 	long long size2_ = (long long)0;
+	int  level = 0;
 	if (line[0] == '\0')
 	    continue;
 	dbprintf("%s\n", line);
-	i = sscanf(line, "%lld %lld", &size1_, &size2_);
+	if (strncmp(line,"ERROR ", 6) == 0) {
+	    char *errmsg, *qerrmsg;
+
+	    errmsg = stralloc(line+6);
+	    qerrmsg = quote_string(errmsg);
+	    dbprintf(_("errmsg is %s\n"), errmsg);
+	    g_printf(_("%s %d ERROR %s\n"), est->qamname, levels[0], qerrmsg);
+	    amfree(qerrmsg);
+	    continue;
+	}
+	i = sscanf(line, "%d %lld %lld", &level, &size1_, &size2_);
+	if (i != 3) {
+	    i = sscanf(line, "%lld %lld", &size1_, &size2_);
+	    level = levels[0];
+	    if (i != 2) {
+		char *errmsg, *qerrmsg;
+
+		errmsg = vstrallocf(_("bad line %s"), line);
+		qerrmsg = quote_string(errmsg);
+		dbprintf(_("errmsg is %s\n"), errmsg);
+		g_printf(_("%s %d ERROR %s\n"), est->qamname, levels[0], qerrmsg);
+		amfree(qerrmsg);
+		continue;
+	    }
+	}
 	size1 = (off_t)size1_;
 	size2 = (off_t)size2_;
-	if(i == 2) {
+	if (size1 <= 0 || size2 <=0)
+	    size = -1;
+	else if (size1 * size2 > 0)
 	    size = size1 * size2;
-	}
-	if(size > -1) {
-	    amfree(line);
-	    while ((line = agets(dumpout)) != NULL) {
-	        if (line[0] != '\0')
-		    break;
-		amfree(line);
-	    }
-	    if(line != NULL) {
-		dbprintf(_("%s\n"), line);
-	    }
-	    break;
-	}
+	dbprintf(_("estimate size for %s level %d: %lld KB\n"),
+		 qamdevice,
+		 level,
+		 (long long)size);
+	g_printf("%s %d SIZE %lld\n", est->qamname, level, (long long)size);
     }
     amfree(line);
 
-    dbprintf(".....\n");
-    dbprintf(_("estimate time for %s level %d: %s\n"), qamdevice, level,
-	      walltime_str(timessub(curclock(), start_time)));
-    if(size == (off_t)-1) {
-	*errmsg = vstrallocf(_("no size line match in %s output"), cmd);
-	dbprintf(_("%s for %s\n"), cmd, qdisk);
-	dbprintf(".....\n");
-    } else if(size == (off_t)0 && level == 0) {
-	dbprintf(_("possible %s problem -- is \"%s\" really empty?\n"),
-		  cmd, qdisk);
-	dbprintf(".....\n");
+    dumperr = fdopen(pipeerrfd[0],"r");
+    if (!dumperr) {
+	error(_("Can't fdopen: %s"), strerror(errno));
+	/*NOTREACHED*/
     }
-    dbprintf(_("estimate size for %s level %d: %lld KB\n"),
-	      qamdevice,
-	      level,
-	      (long long)size);
+
+    while ((line = agets(dumperr)) != NULL) {
+	    if (strlen(line) > 0) {
+	    char *err =  g_strdup_printf(_("Application '%s': %s"),
+					 dle->program, line);
+	    char *qerr = quote_string(err);
+	    for (j=0; j < nb_level; j++) {
+		fprintf(stdout, "%s %d ERROR %s\n",
+			est->qamname, levels[j], qerr);
+	    }
+	    dbprintf("ERROR %s", qerr);
+	    amfree(err);
+	    amfree(qerr);
+	}
+	amfree(line);
+    }
+
+    dbprintf(".....\n");
+    if (nb_level == 1) {
+	dbprintf(_("estimate time for %s level %d: %s\n"), qamdevice,
+		 levels[0], walltime_str(timessub(curclock(), start_time)));
+    } else {
+	dbprintf(_("estimate time for %s all level: %s\n"), qamdevice,
+		 walltime_str(timessub(curclock(), start_time)));
+    }
 
     kill(-dumppid, SIGTERM);
 
     dbprintf(_("waiting for %s \"%s\" child\n"), cmd, qdisk);
     waitpid(dumppid, &wait_status, 0);
     if (WIFSIGNALED(wait_status)) {
-	*errmsg = vstrallocf(_("%s terminated with signal %d: see %s"),
-			     cmd, WTERMSIG(wait_status), dbfn());
+	errmsg = vstrallocf(_("%s terminated with signal %d: see %s"),
+			    cmd, WTERMSIG(wait_status), dbfn());
     } else if (WIFEXITED(wait_status)) {
 	if (WEXITSTATUS(wait_status) != 0) {
-	    *errmsg = vstrallocf(_("%s exited with status %d: see %s"), cmd,
-				 WEXITSTATUS(wait_status), dbfn());
+	    errmsg = vstrallocf(_("%s exited with status %d: see %s"), cmd,
+				WEXITSTATUS(wait_status), dbfn());
 	} else {
 	    /* Normal exit */
 	}
     } else {
-	*errmsg = vstrallocf(_("%s got bad exit: see %s"),
-			     cmd, dbfn());
+	errmsg = vstrallocf(_("%s got bad exit: see %s"),
+			    cmd, dbfn());
     }
     dbprintf(_("after %s %s wait\n"), cmd, qdisk);
 
-    aclose(nullfd);
     afclose(dumpout);
+    afclose(dumperr);
 
 common_exit:
 
@@ -2282,6 +2441,15 @@ common_exit:
     amfree(newoptstr);
     amfree(qdisk);
     amfree(qamdevice);
+    if (errmsg) {
+	char *qerrmsg = quote_string(errmsg);
+	dbprintf(_("errmsg is %s\n"), errmsg);
+	for (j=0; j < nb_level; j++) {
+	    g_printf(_("%s %d ERROR %s\n"), est->qamname, levels[j], qerrmsg);
+	}
+	amfree(errmsg);
+	amfree(qerrmsg);
+    }
     return size;
 }
 

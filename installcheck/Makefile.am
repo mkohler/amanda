@@ -7,53 +7,103 @@ include $(top_srcdir)/config/automake/scripts.am
 # Add your tests here.
 
 common_tests = \
+	Amanda_Archive \
 	Amanda_Config \
-	Amanda_Types
+	Amanda_Debug \
+	Amanda_MainLoop \
+	Amanda_Types \
+	Amanda_Util \
+	amarchiver
 
 server_tests = \
 	Amanda_Changer \
+	Amanda_Changer_compat \
+	Amanda_Changer_disk \
+	Amanda_Changer_single \
 	Amanda_Cmdline \
+	Amanda_DB_Catalog \
+	Amanda_Device \
 	Amanda_Logfile \
-	amcheckdump \
-	amdevcheck \
-	amgetconf
+	Amanda_Tapelist \
+	Amanda_Process \
+	Amanda_Xfer \
+	bigint \
+	amgetconf \
+	amtapetype
 
+full_tests = \
+	amdevcheck \
+	amcheckdump \
+	amdump \
+	amservice \
+	amstatus \
+	pp-scripts
+
+restore_tests = \
+	amfetchdump
+
+# tests requiring neither client nor server
 tests = $(common_tests)
+
+# tests requiring server
 if WANT_SERVER
 tests += $(server_tests)
 endif
 
-# Add any common files (that should not be run as tests) here:
-test_utils = Amconfig.pm
+# tests requiring a client and a server (any tests that run amdump)
+if WANT_SERVER
+if WANT_CLIENT
+tests += $(full_tests)
+endif
+endif
 
-SCRIPTS_PERL = $(common_tests) $(server_tests) $(test_utils)
+# tests requiring a client and a server AND restore facilities (any tests that run amdump)
+if WANT_SERVER
+if WANT_CLIENT
+if WANT_RESTORE
+tests += $(restore_tests)
+endif
+endif
+endif
+
+# Add any common files (that should not be run as tests, and that do not
+# require configure-variable substitution) here:
+test_utils = Installcheck/Config.pm Installcheck/Run.pm
+EXTRA_DIST += $(test_utils)
+
+CHECK_PERL_FLAGS=-I$(top_srcdir)/installcheck
+
+SCRIPTS_PERL = $(tests)
 
 # we don't need to syntax check the test scripts..
 CHECK_PERL =
 
 .PHONY: clobber_my_config_is_ok
 clobber_my_config_is_ok:
-	@if test "$(CLOBBER_MY_CONFIG)" != "OK"; then \
+	@if test "$(CONFIG_CLOBBER_MY_CONFIG)" != "OK" -a \
+                 "$(CLOBBER_MY_CONFIG)" != "OK"; then \
 		echo ""; \
 		echo "'make installcheck' is a dangerous tool.  It will overwrite your"; \
-		echo "amanda-client.conf and amandates, and (if it"; \
-		echo "triggers an as-yet undetected bug) may do other unexpected things.  You are"; \
-		echo "strongly encouraged"; \
+		echo "amanda-client.conf and amandates, and (if it triggers an as-yet undetected"; \
+		echo "bug) may do other unexpected things.  You are strongly encouraged"; \
  		echo "  - not to run installchecks on a production install"; \
  		echo "  - not to run installchecks as root"; \
 		echo "See http://wiki.zmanda.com/index.php/Testing for instructions on setting up a"; \
-		echo "test environment in which"; \
-		echo "potential damage is limited by your filesystem's permissions.  To actually run"; \
-		echo "the installchecks, invoke make"; \
-		echo "as follows:"; \
+		echo "test environment in which potential damage is limited by your filesystem's"; \
+		echo "permissions.  To actually run the installchecks, invoke make as follows:"; \
   		echo "  $(MAKE) CLOBBER_MY_CONFIG=OK installcheck"; \
 		exit 1; \
 	fi
 
 installcheck-local: clobber_my_config_is_ok $(SCRIPTS_PERL)
-	$(mkdir_p) $(AMANDA_TMPDIR)
-	$(PERL) -I$(srcdir) -I$(builddir) -e 'use Test::Harness qw(&runtests); runtests(@ARGV);' $(tests)
+	@$(mkdir_p) $(AMANDA_TMPDIR)
+	@if test -f "$(CONFIG_DIR)/amanda-client.conf" -a ! -f "$(CONFIG_DIR)/amanda-client.conf.install-backup"; then \
+	    cp "$(CONFIG_DIR)/amanda-client.conf" "$(CONFIG_DIR)/amanda-client.conf.install-backup"; \
+	fi 
+	$(PERL) -I$(srcdir) -I. -e 'use Test::Harness qw(&runtests); runtests(@ARGV);' $(tests)
 	rm -rf "$(CONFIG_DIR)/TESTCONF"
-	rm -rf "$(CONFIG_DIR)/amanda-client.conf"
-	rm -rf "$(DEFAULT_AMANDATES_FILE)"
-	rm -rf "$(GNUTAR_LISTED_INCREMENTAL_DIR)"
+	@if test -f "$(CONFIG_DIR)/amanda-client.conf.install-backup"; then \
+	    mv -f "$(CONFIG_DIR)/amanda-client.conf.install-backup" "$(CONFIG_DIR)/amanda-client.conf"; \
+	fi
+	rm -rf "$(AMANDA_TMPDIR)/TESTCONF/amandates"
+	rm -rf "$(AMANDA_TMPDIR)/TESTCONF/gnutar_listdir"

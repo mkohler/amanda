@@ -24,7 +24,7 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: genversion.c 698 2008-01-11 00:42:49Z martinea $
+ * $Id: genversion.c 1168 2008-07-03 14:15:21Z djmitche $
  *
  * dump the current Amanda version info
  */
@@ -362,20 +362,17 @@ main(
     prstr("HAVE_SYSVSHM");
 #endif
 
-#ifdef USE_POSIX_FCNTL
-    prstr("LOCKING=POSIX_FCNTL");
+#ifdef WANT_AMFLOCK_POSIX
+    prstr("AMFLOCK_POSIX");
 #endif
-#ifdef USE_FLOCK
-    prstr("LOCKING=FLOCK");
+#ifdef WANT_AMFLOCK_FLOCK
+    prstr("AMFLOCK_FLOCK");
 #endif
-#ifdef USE_LOCKF
-    prstr("LOCKING=LOCKF");
+#ifdef WANT_AMFLOCK_LOCKF
+    prstr("AMFLOCK_LOCKF");
 #endif
-#ifdef USE_LNLOCK
-    prstr("LOCKING=LNLOCK");
-#endif
-#if !defined(USE_POSIX_FCNTL) && !defined(USE_FLOCK) && !defined(USE_LOCK) && !defined(USE_LNLOCK)
-    prstr("LOCKING=**NONE**");
+#ifdef WANT_AMFLOCK_LNLOCK
+    prstr("AMFLOCK_LNLOCK");
 #endif
 
 #ifdef STATFS_BSD

@@ -21,8 +21,9 @@ LINTFLAGS=$(AMLINTFLAGS)
 amlib_LTLIBRARIES = 	libamserver.la
 
 sbin_PROGRAMS =		amadmin		amcheck		\
-			amflush		amgetconf	amlabel		\
-			amtape		amreport
+			amflush		amlabel		\
+			amservice	amtape		\
+			amreport
 
 noinst_PROGRAMS = taper_source_test
 
@@ -36,31 +37,28 @@ CHECK_PERL = \
 	    amaddclient \
 	    amoverview \
 	    amserverconfig \
-	    amstatus \
-	    amtoc
-SCRIPTS_PERL =  \
-	    $(CHECK_PERL) \
+	    amtoc \
 	    amdevcheck \
-	    amcheckdump
-
+	    amcheckdump \
+	    amcleanup \
+	    amvault \
+	    amstatus
+SCRIPTS_PERL = $(CHECK_PERL)
 SCRIPTS_SHELL = \
 	    amcheckdb \
-	    amcleanup \
 	    amdump \
-	    amrmtape \
-	    amverify \
-	    amverifyrun
+	    amrmtape
 
 sbin_SCRIPTS = $(SCRIPTS_PERL) $(SCRIPTS_SHELL)
 
 INSTALLPERMS_exec = \
 	dest=$(sbindir) chown=amanda chmod= \
 		$(sbin_PROGRAMS) \
-	chown=root chmod=u+s,o-rwx \
-		amcheck \
+	chown=root chmod=04750 \
+		amcheck amservice \
 	dest=$(amlibexecdir) chown=amanda chmod= \
 		$(amlibexec_PROGRAMS) \
-	chown=root chmod=u+s,o-rwx \
+	chown=root chmod=04750 \
 		dumper planner
 
 INSTALLPERMS_data = \
@@ -80,7 +78,6 @@ LDADD = ../common-src/libamanda.la   \
 	libamserver.la               \
 	../device-src/libamdevice.la     \
 	../common-src/libamanda.la   \
-	../gnulib/libgnu.la          \
         $(READLINE_LIBS)
 
 libamserver_la_SOURCES=	amindex.c	changer.c			\
@@ -128,8 +125,6 @@ amindexd_SOURCES =	disk_history.h	list_dir.h	$(amindexd_CSRC)
 
 amreport_SOURCES =	reporter.c
 
-amgetconf_SOURCES =	getconf.c
-
 noinst_HEADERS = 	amindex.h	changer.h	cmdline.h	\
 			diskfile.h	driverio.h	\
 			holding.h	infofile.h	logfile.h	\
@@ -140,20 +135,17 @@ noinst_HEADERS = 	amindex.h	changer.h	cmdline.h	\
 
 lint:
 	@ for p in $(amlibexec_PROGRAMS) $(sbin_PROGRAMS); do			\
+		p=`basename $$p $(EXEEXT)`;					\
 		if [ $$p = "amindexd" ]; then					\
 			s="$(amindexd_CSRC)";					\
 		elif [ $$p = "amreport" ]; then					\
 			s="$(amreport_SOURCES)";				\
-		elif [ $$p = "amgetconf" ]; then				\
-			s="$(getconf_SOURCES)";					\
 		else								\
 			s=$$p.c;						\
 		fi; 								\
 		f="$$s $(libamserver_la_SOURCES)";				\
 		(cd ../common-src; make listlibsrc);				\
 		f="$$f "`cat ../common-src/listlibsrc.output`;			\
-		(cd ../tape-src; make listlibsrc);				\
-		f="$$f "`cat ../tape-src/listlibsrc.output`;			\
 		echo $(LINT) $$f;						\
 		$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I$(top_builddir)/config	\
 		    $(INCLUDES) $$f;						\

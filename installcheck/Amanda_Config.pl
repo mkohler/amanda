@@ -1,4 +1,4 @@
-# Copyright (c) 2006 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -13,51 +13,136 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 505 N Mathlida Ave, Suite 120
-# Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More qw(no_plan);
-use Amconfig;
+use Test::More tests => 113;
 use strict;
 
 use lib "@amperldir@";
+use Installcheck::Config;
 use Amanda::Paths;
+use Amanda::Tests;
 use Amanda::Config qw( :init :getconf );
+use Amanda::Debug;
 
 my $testconf;
+my $config_overwrites;
+
+Amanda::Debug::dbopen("installcheck");
+
+# utility function
+
+sub diag_config_errors {
+    my ($level, @errors) = Amanda::Config::config_errors();
+    for my $errmsg (@errors) {
+	diag $errmsg;
+    }
+}
 
 ##
 # Try starting with no configuration at all
-ok(config_init(0, ''), "Initialize with no configuration");
+
+is(config_init(0, ''), $CFGERR_OK,
+    "Initialize with no configuration")
+    or diag_config_errors();
+
+is(config_init(0, undef), $CFGERR_OK,
+    "Initialize with no configuration, passing a NULL config name")
+    or diag_config_errors();
+
+$config_overwrites = new_config_overwrites(1);
+add_config_overwrite($config_overwrites, "tapedev", "null:TEST");
+apply_config_overwrites($config_overwrites);
+
+is(getconf($CNF_TAPEDEV), "null:TEST",
+    "config overwrites work with null config");
+
+##
+# Check out error handling
+
+$testconf = Installcheck::Config->new();
+$testconf->add_param('rawtapedev', '"/dev/medium-rare-please"'); # a deprecated keyword -> warning
+$testconf->write();
+
+{
+    is(config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF"), $CFGERR_WARNINGS,
+	"Deprecated keyword generates a warning");
+    my ($error_level, @errors) = Amanda::Config::config_errors();
+    like($errors[0], qr/is deprecated/, 
+	"config_get_errors returns the warning string");
+
+    Amanda::Config::config_clear_errors();
+    ($error_level, @errors) = Amanda::Config::config_errors();
+    is(scalar(@errors), 0, "config_clear_errors clears error list");
+}
+
+$testconf = Installcheck::Config->new();
+$testconf->add_param('invalid-param', 'random-value'); # a deprecated keyword -> warning
+$testconf->write();
+
+is(config_init($CONFIG_INIT_EXPLICIT_NAME, "NO-SUCH-CONFIGURATION"), $CFGERR_ERRORS,
+    "Non-existent config generates an error");
+
+is(config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF"), $CFGERR_ERRORS,
+    "Invalid keyword generates an error");
+
+##
+# try a client configuration
+
+$testconf = Installcheck::Config->new();
+$testconf->add_client_param('property', '"client-prop" "yep"');
+$testconf->add_client_param('property', 'priority "client-prop1" "foo"');
+$testconf->add_client_param('property', 'append "client-prop" "bar"');
+$testconf->write();
+
+my $cfg_result = config_init($CONFIG_INIT_CLIENT, undef);
+is($cfg_result, $CFGERR_OK,
+    "Load test client configuration")
+    or diag_config_errors();
+
+is_deeply(getconf($CNF_PROPERTY), { "client-prop1" => { priority => 1,
+							append   => 0,
+							values => [ "foo" ]},
+				    "client-prop" => { priority => 0,
+						       append   => 1,
+						       values => [ "yep", "bar" ] }},
+    "Client PROPERTY parameter parsed correctly");
 
 ##
 # Parse up a basic configuration
 
-# invent "large" values for CONFTYPE_AM64 and CONFTYPE_SIZE
-my $am64_num = '171801575472'; # 0xA000B000C000 / 1024
-my $size_t_num = '2147483647'; # 0x7fffffff
+# invent a "large" unsigned number, and make $size_t_num 
+# depend on the length of size_t
+my $int64_num = '171801575472'; # 0xA000B000C000 / 1024
+my $size_t_num;
+if (Amanda::Tests::sizeof_size_t() > 4) {
+    $size_t_num = $int64_num;
+} else {
+    $size_t_num = '2147483647'; # 0x7fffffff
+}
 
-$testconf = Amconfig->new();
+$testconf = Installcheck::Config->new();
 $testconf->add_param('reserve', '75');
 $testconf->add_param('autoflush', 'yes');
 $testconf->add_param('tapedev', '"/dev/foo"');
-$testconf->add_param('bumpsize', $am64_num);
+$testconf->add_param('bumpsize', $int64_num);
 $testconf->add_param('bumpmult', '1.4');
-$testconf->add_param('reserved-udp-port', '100,200');
+$testconf->add_param('reserved_udp-port', '100,200'); # note use of '-' and '_'
 $testconf->add_param('device_output_buffer_size', $size_t_num);
 $testconf->add_param('taperalgo', 'last');
 $testconf->add_param('device_property', '"foo" "bar"');
-$testconf->add_param('device_property', '"blue" "car"');
+$testconf->add_param('device_property', '"blue" "car" "tar"');
 $testconf->add_param('displayunit', '"m"');
 $testconf->add_param('debug_auth', '1');
 $testconf->add_tapetype('mytapetype', [
     'comment' => '"mine"',
     'length' => '128 M',
 ]);
-$testconf->add_dumptype('mydumptype', [
+$testconf->add_dumptype('mydump-type', [    # note dash
     'comment' => '"mine"',
     'priority' => 'high',  # == 2
-    'bumpsize' => $am64_num,
+    'bumpsize' => $int64_num,
     'bumpmult' => 1.75,
     'starttime' => 1829,
     'holdingdisk' => 'required',
@@ -71,12 +156,22 @@ $testconf->add_dumptype('mydumptype', [
     'include list' => '"bing" "ting"',
     'include list append' => '"string" "fling"',
     'include file optional' => '"rhyme"',
+    'property' => '"prop" "erty"',
+    'property' => '"drop" "qwerty" "asdfg"',
 ]);
-$testconf->add_interface('inyoface', [
+$testconf->add_dumptype('second_dumptype', [ # note underscore
+    '' => 'mydump-type',
+    'comment' => '"refers to mydump-type with a dash"',
+]);
+$testconf->add_dumptype('third_dumptype', [
+    '' => 'second_dumptype',
+    'comment' => '"refers to second_dumptype with an underscore"',
+]);
+$testconf->add_interface('ethernet', [
     'comment' => '"mine"',
     'use' => '100',
 ]);
-$testconf->add_interface('inherface', [
+$testconf->add_interface('nic', [
     'comment' => '"empty"',
 ]);
 $testconf->add_holdingdisk('hd1', [
@@ -88,13 +183,38 @@ $testconf->add_holdingdisk('hd1', [
 $testconf->add_holdingdisk('hd2', [
     'comment' => '"empty"',
 ]);
+$testconf->add_application('my_app', [
+    'comment' => '"my_app_comment"',
+    'plugin' => '"amgtar"',
+]);
+$testconf->add_script('my_script', [
+  'comment' => '"my_script_comment"',
+  'plugin' => '"script-email"',
+  'execute-on' => 'pre-host-backup, post-host-backup',
+  'execute-where' => 'client',
+  'property' => '"mailto" "amandabackup" "amanda"',
+]);
+$testconf->add_device('my_device', [
+  'comment' => '"my device is mine, not yours"',
+  'tapedev' => '"tape:/dev/nst0"',
+  'device_property' => '"BLOCK_SIZE" "128k"',
+]);
+$testconf->add_changer('my_changer', [
+  'comment' => '"my changer is mine, not yours"',
+  'tpchanger' => '"chg-foo"',
+  'changerdev' => '"/dev/sg0"',
+  'changerfile' => '"chg.state"',
+]);
+
 $testconf->write();
 
-my $cfg_ok = config_init($CONFIG_INIT_EXPLICIT_NAME, 'TESTCONF');
-ok($cfg_ok, "Load test configuration");
+$cfg_result = config_init($CONFIG_INIT_EXPLICIT_NAME, 'TESTCONF');
+is($cfg_result, $CFGERR_OK,
+    "Load test configuration")
+    or diag_config_errors();
 
 SKIP: {
-    skip "error loading config", unless $cfg_ok;
+    skip "error loading config", 3 unless $cfg_result == $CFGERR_OK;
 
     is(Amanda::Config::get_config_name(), "TESTCONF", 
 	"config_name set");
@@ -106,12 +226,12 @@ SKIP: {
 }
 
 SKIP: { # global parameters
-    skip "error loading config", unless $cfg_ok;
+    skip "error loading config", 11 unless $cfg_result == $CFGERR_OK;
 
     is(getconf($CNF_RESERVE), 75,
 	"integer global confparm");
-    is(getconf($CNF_BUMPSIZE), $am64_num+0,
-	"am64 global confparm");
+    is(getconf($CNF_BUMPSIZE), $int64_num+0,
+	"int64 global confparm");
     is(getconf($CNF_TAPEDEV), "/dev/foo",
 	"string global confparm");
     is(getconf($CNF_DEVICE_OUTPUT_BUFFER_SIZE), $size_t_num+0,
@@ -125,17 +245,18 @@ SKIP: { # global parameters
     is(getconf($CNF_DISPLAYUNIT), "M",
 	"displayunit is correctly uppercased");
     is_deeply(getconf($CNF_DEVICE_PROPERTY),
-	      { "foo" => "bar", "blue" => "car" },
+	      { "foo" => { priority => 0, append => 0, values => ["bar"]},
+		"blue" => { priority => 0, append => 0,
+			    values => ["car", "tar"]} },
 	    "proplist global confparm");
-
     ok(getconf_seen($CNF_TAPEDEV),
 	"'tapedev' parm was seen");
-    ok(!getconf_seen($CNF_NETUSAGE),
-	"'netusage' parm was not seen");
+    ok(!getconf_seen($CNF_CHANGERFILE),
+	"'changerfile' parm was not seen");
 }
 
 SKIP: { # derived values
-    skip "error loading config", unless $cfg_ok;
+    skip "error loading config", 3 unless $cfg_result == $CFGERR_OK;
 
     is(Amanda::Config::getconf_unit_divisor(), 1024, 
 	"correct unit divisor (from displayunit -> KB)");
@@ -146,7 +267,7 @@ SKIP: { # derived values
 }
 
 SKIP: { # tapetypes
-    skip "error loading config", unless $cfg_ok;
+    skip "error loading config", 6 unless $cfg_result == $CFGERR_OK;
     my $ttyp = lookup_tapetype("mytapetype");
     ok($ttyp, "found mytapetype");
     is(tapetype_getconf($ttyp, $TAPETYPE_COMMENT), 'mine', 
@@ -165,15 +286,15 @@ SKIP: { # tapetypes
 }
 
 SKIP: { # dumptypes
-    skip "error loading config", unless $cfg_ok;
+    skip "error loading config", 17 unless $cfg_result == $CFGERR_OK;
 
-    my $dtyp = lookup_dumptype("mydumptype");
-    ok($dtyp, "found mydumptype");
+    my $dtyp = lookup_dumptype("mydump-type");
+    ok($dtyp, "found mydump-type");
     is(dumptype_getconf($dtyp, $DUMPTYPE_COMMENT), 'mine', 
 	"dumptype string");
     is(dumptype_getconf($dtyp, $DUMPTYPE_PRIORITY), 2, 
 	"dumptype priority");
-    is(dumptype_getconf($dtyp, $DUMPTYPE_BUMPSIZE), $am64_num+0,
+    is(dumptype_getconf($dtyp, $DUMPTYPE_BUMPSIZE), $int64_num+0,
 	"dumptype size");
     is(dumptype_getconf($dtyp, $DUMPTYPE_BUMPMULT), 1.75,
 	"dumptype real");
@@ -199,6 +320,11 @@ SKIP: { # dumptypes
 	  'list' => [ 'foo', 'bar', 'true', 'star' ],
 	  'optional' => 0 },
 	"dumptype exclude list");
+    is_deeply(dumptype_getconf($dtyp, $DUMPTYPE_PROPERTY),
+	      { "prop" => { priority => 0, append => 0, values => ["erty"]},
+		"drop" => { priority => 0, append => 0,
+			    values => ["qwerty", "asdfg"] }},
+	    "dumptype proplist");
 
     ok(dumptype_seen($dtyp, $DUMPTYPE_EXCLUDE),
 	"'exclude' parm was seen");
@@ -207,7 +333,7 @@ SKIP: { # dumptypes
 
     is_deeply([ sort(+getconf_list("dumptype")) ],
 	      [ sort(qw(
-	        mydumptype
+	        mydump-type second_dumptype third_dumptype 
 	        NO-COMPRESS COMPRESS-FAST COMPRESS-BEST COMPRESS-CUST
 		SRVCOMPRESS BSD-AUTH KRB4-AUTH NO-RECORD NO-HOLD
 		NO-FULL
@@ -216,30 +342,30 @@ SKIP: { # dumptypes
 }
 
 SKIP: { # interfaces
-    skip "error loading config" unless $cfg_ok;
-    my $iface = lookup_interface("inyoface");
-    ok($iface, "found inyoface");
-    is(interface_name($iface), "inyoface",
+    skip "error loading config", 8 unless $cfg_result == $CFGERR_OK;
+    my $iface = lookup_interface("ethernet");
+    ok($iface, "found ethernet");
+    is(interface_name($iface), "ethernet",
 	"interface knows its name");
     is(interface_getconf($iface, $INTER_COMMENT), 'mine', 
 	"interface comment");
     is(interface_getconf($iface, $INTER_MAXUSAGE), 100, 
 	"interface maxusage");
 
-    $iface = lookup_interface("inherface");
-    ok($iface, "found inherface");
+    $iface = lookup_interface("nic");
+    ok($iface, "found nic");
     ok(interface_seen($iface, $INTER_COMMENT),
 	"seen set for parameters that appeared");
     ok(!interface_seen($iface, $INTER_MAXUSAGE),
 	"seen not set for parameters that did not appear");
 
     is_deeply([ sort(+getconf_list("interface")) ],
-	      [ sort('inyoface', 'inherface', 'default') ],
+	      [ sort('ethernet', 'nic', 'default') ],
 	"getconf_list lists all interfaces (in any order)");
 }
 
 SKIP: { # holdingdisks
-    skip "error loading config" unless $cfg_ok;
+    skip "error loading config", 13 unless $cfg_result == $CFGERR_OK;
     my $hdisk = lookup_holdingdisk("hd1");
     ok($hdisk, "found hd1");
     is(holdingdisk_name($hdisk), "hd1",
@@ -276,6 +402,101 @@ SKIP: { # holdingdisks
 	"getconf_list lists all holdingdisks (in any order)");
 }
 
+SKIP: { # application
+    skip "error loading config", 5 unless $cfg_result == $CFGERR_OK;
+    my $app = lookup_application("my_app");
+    ok($app, "found my_app");
+    is(application_name($app), "my_app",
+	"my_app knows its name");
+    is(application_getconf($app, $APPLICATION_COMMENT), 'my_app_comment', 
+	"application comment");
+    is(application_getconf($app, $APPLICATION_PLUGIN), 'amgtar',
+	"application plugin (amgtar)");
+
+    is_deeply([ sort(+getconf_list("application-tool")) ],
+	      [ sort("my_app") ],
+	"getconf_list lists all application-tool");
+}
+
+SKIP: { # script
+    skip "error loading config", 7 unless $cfg_result == $CFGERR_OK;
+    my $sc = lookup_pp_script("my_script");
+    ok($sc, "found my_script");
+    is(pp_script_name($sc), "my_script",
+	"my_script knows its name");
+    is(pp_script_getconf($sc, $PP_SCRIPT_COMMENT), 'my_script_comment', 
+	"script comment");
+    is(pp_script_getconf($sc, $PP_SCRIPT_PLUGIN), 'script-email',
+	"script plugin (script-email)");
+    is(pp_script_getconf($sc, $PP_SCRIPT_EXECUTE_WHERE), $ES_CLIENT,
+	"script execute_where (client)");
+    is(pp_script_getconf($sc, $PP_SCRIPT_EXECUTE_ON),
+	$EXECUTE_ON_PRE_HOST_BACKUP|$EXECUTE_ON_POST_HOST_BACKUP,
+	"script execute_on");
+
+    is_deeply([ sort(+getconf_list("script-tool")) ],
+	      [ sort("my_script") ],
+	"getconf_list lists all script-tool");
+}
+
+SKIP: { # device
+    skip "error loading config", 7 unless $cfg_result == $CFGERR_OK;
+    my $dc = lookup_device_config("my_device");
+    ok($dc, "found my_device");
+    is(device_config_name($dc), "my_device",
+	"my_device knows its name");
+    is(device_config_getconf($dc, $DEVICE_CONFIG_COMMENT), 'my device is mine, not yours',
+	"device comment");
+    is(device_config_getconf($dc, $DEVICE_CONFIG_TAPEDEV), 'tape:/dev/nst0',
+	"device tapedev");
+    # TODO do we really need all of this equipment for device properties?
+    is_deeply(device_config_getconf($dc, $DEVICE_CONFIG_DEVICE_PROPERTY),
+          { "BLOCK_SIZE" => { 'priority' => 0, 'values' => ["128k"], 'append' => 0 }, },
+        "device config proplist");
+
+    is_deeply([ sort(+getconf_list("device")) ],
+	      [ sort("my_device") ],
+	"getconf_list lists all devices");
+}
+
+SKIP: { # changer
+    skip "error loading config", 7 unless $cfg_result == $CFGERR_OK;
+    my $dc = lookup_changer_config("my_changer");
+    ok($dc, "found my_changer");
+    is(changer_config_name($dc), "my_changer",
+	"my_changer knows its name");
+    is(changer_config_getconf($dc, $CHANGER_CONFIG_COMMENT), 'my changer is mine, not yours',
+	"changer comment");
+    is(changer_config_getconf($dc, $CHANGER_CONFIG_CHANGERDEV), '/dev/sg0',
+	"changer tapedev");
+
+    is_deeply([ sort(+getconf_list("changer")) ],
+	      [ sort("my_changer") ],
+	"getconf_list lists all changers");
+}
+
+##
+# Test config overwrites (using the config from above)
+
+$config_overwrites = new_config_overwrites(1); # note estimate is too small
+add_config_overwrite($config_overwrites, "tapedev", "null:TEST");
+add_config_overwrite($config_overwrites, "tpchanger", "chg-test");
+add_config_overwrite_opt($config_overwrites, "org=KAOS");
+apply_config_overwrites($config_overwrites);
+
+is(getconf($CNF_TAPEDEV), "null:TEST",
+    "config overwrites work with real config");
+is(getconf($CNF_ORG), "KAOS",
+    "add_config_overwrite_opt parsed correctly");
+
+# introduce an error
+$config_overwrites = new_config_overwrites(1);
+add_config_overwrite($config_overwrites, "bogusparam", "foo");
+apply_config_overwrites($config_overwrites);
+
+my ($error_level, @errors) = Amanda::Config::config_errors();
+is($error_level, $CFGERR_ERRORS, "bogus config overwrite flagged as an error");
+
 ##
 # Test configuration dumping
 
@@ -288,11 +509,17 @@ if (!$pid) {
     Amanda::Config::dump_configuration();
     exit 1;
 }
-my $dump = join'', <$kid>;
+my $dump_first_line = <$kid>;
+my $dump = join'', $dump_first_line, <$kid>;
 close $kid;
+waitpid $pid, 0;
 
 my $fn = Amanda::Config::get_config_filename();
-like($dump, qr/AMANDA CONFIGURATION FROM FILE "$fn"/,
+my $dump_filename = $dump_first_line;
+chomp $dump_filename;
+$dump_filename =~ s/^# AMANDA CONFIGURATION FROM FILE "//g;
+$dump_filename =~ s/":$//g;
+is($dump_filename, $fn, 
     "config filename is included correctly");
 
 like($dump, qr/DEVICE_PROPERTY\s+"foo" "bar"\n/i,
@@ -319,43 +546,63 @@ like($dump, qr/INCLUDE\s+FILE OPTIONAL "rhyme"/i,
 # We may want to change this, but we should do so intentionally.
 # This is also tested by the 'amgetconf' installcheck.
 
-$testconf = Amconfig->new();
-$testconf->add_dumptype('mydumptype', [
+$testconf = Installcheck::Config->new();
+$testconf->add_dumptype('mydump-type', [
     'exclude list' => '"foo" "bar"',
     'exclude list optional append' => '"true" "star"',
     'exclude list append' => '"true" "star"',
 ]);
 $testconf->write();
 
-$cfg_ok = config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF");
+$cfg_result = config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF");
+is($cfg_result, $CFGERR_OK, 
+    "first exinclude parsing config loaded")
+    or diag_config_errors();
 SKIP: {
-    skip "error loading config", unless $cfg_ok;
+    skip "error loading config", 2 unless $cfg_result == $CFGERR_OK;
 
-    my $dtyp = lookup_dumptype("mydumptype");
-    ok($dtyp, "found mydumptype");
+    my $dtyp = lookup_dumptype("mydump-type");
+    ok($dtyp, "found mydump-type");
     is(dumptype_getconf($dtyp, $DUMPTYPE_EXCLUDE)->{'optional'}, 0,
 	"'optional' has no effect when not on the last occurrence");
 }
 
-$testconf = Amconfig->new();
-$testconf->add_dumptype('mydumptype', [
-    'exclude file' => '"foo" "bar"',
-    'exclude file optional append' => '"true" "star"',
-    'exclude list append' => '"true" "star"',
+##
+# Check out where quoting is and is not required.
+
+$testconf = Installcheck::Config->new();
+
+# make sure an unquoted tapetype is OK
+$testconf->add_param('tapetype', 'TEST-TAPE'); # unquoted (Installcheck::Config uses quoted)
+
+# strings can optionally be quoted
+$testconf->add_param('org', '"MyOrg"');
+
+# enumerations (e.g., taperalgo) must not be quoted; implicitly tested above
+
+# definitions
+$testconf->add_dumptype('"parent"', [ # note quotes
+    'bumpsize' => '10240',
+]);
+$testconf->add_dumptype('child', [
+    '' => '"parent"', # note quotes
+]);
+$testconf->add_dumptype('child2', [
+    '' => 'parent',
 ]);
 $testconf->write();
 
-$cfg_ok = config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF");
+$cfg_result = config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF");
+is($cfg_result, $CFGERR_OK,
+    "parsed config to test strings vs. identifiers")
+    or diag_config_errors();
 SKIP: {
-    skip "error loading config", unless $cfg_ok;
+    skip "error loading config", 3 unless $cfg_result == $CFGERR_OK;
 
-    my $dtyp = lookup_dumptype("mydumptype");
-    ok($dtyp, "found mydumptype");
-    is(dumptype_getconf($dtyp, $DUMPTYPE_EXCLUDE)->{'optional'}, 0,
-	"'optional' has no effect when not on the last occurrence of 'file'");
+    my $dtyp = lookup_dumptype("parent");
+    ok($dtyp, "found parent");
+    $dtyp = lookup_dumptype("child");
+    ok($dtyp, "found child");
+    is(dumptype_getconf($dtyp, $DUMPTYPE_BUMPSIZE), 10240,
+	"child dumptype correctly inherited bumpsize");
 }
-
-# TODO:
-# overwrites
-# inheritance
-# more init
