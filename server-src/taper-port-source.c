@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 2006 Zmanda Inc.
+ * Copyright (c) 2005-2008 Zmanda Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -53,7 +53,7 @@ taper_port_source_get_type (void)
             NULL
         };
         
-        type = g_type_register_static (TAPER_TYPE_SOURCE, "TaperPortSource",
+        type = g_type_register_static (TAPER_SOURCE_TYPE, "TaperPortSource",
                                        &info, (GTypeFlags)0);
     }
     
@@ -73,7 +73,7 @@ static void taper_port_source_class_init (TaperPortSourceClass * c) {
     TaperSourceClass *taper_source_class = (TaperSourceClass *)c;
     GObjectClass *g_object_class = (GObjectClass*)c;
     
-    parent_class = g_type_class_ref (TAPER_TYPE_SOURCE);
+    parent_class = g_type_class_ref (TAPER_SOURCE_TYPE);
 
     taper_source_class->read = taper_port_source_read;
     taper_source_class->is_partial = taper_port_source_is_partial;
@@ -87,14 +87,14 @@ static void taper_port_source_class_init (TaperPortSourceClass * c) {
 static void check_first_header(TaperPortSource * self) {
     TaperSource * pself = (TaperSource*)self;
     char buf[DISK_BLOCK_BYTES];
-    int result;
+    size_t result;
     dumpfile_t * rval;
     
     if (G_LIKELY(pself->first_header != NULL)) {
         return;
     }
     
-    result = fullread(self->socket_fd, buf, DISK_BLOCK_BYTES);
+    result = full_read(self->socket_fd, buf, DISK_BLOCK_BYTES);
     if (result != DISK_BLOCK_BYTES) {
         return;
     }
@@ -175,22 +175,25 @@ static ssize_t taper_port_source_read (TaperSource * pself, void * buf,
 
 static gboolean
 taper_port_source_is_partial(TaperSource * pself) {
-    cmd_t cmd;
-    struct cmdargs cmdargs;
+    struct cmdargs *cmdargs;
+    gboolean result;
     TaperPortSource * self = (TaperPortSource*)pself;
 
     g_return_val_if_fail(self->socket_fd < 0, FALSE);
 
     /* Query DRIVER about partial dump. */
     putresult(DUMPER_STATUS, "%s\n", pself->driver_handle);
-    cmd = getcmd(&cmdargs);
-    if (cmd == FAILED) {
-        return TRUE;
-    } else if (cmd == DONE) {
-        return FALSE;
+    cmdargs = getcmd();
+    if (cmdargs->cmd == FAILED) {
+        result = TRUE;
+    } else if (cmdargs->cmd == DONE) {
+        result = FALSE;
     } else {
         error("Driver gave invalid response "
               "to query DUMPER-STATUS.\n");
         g_assert_not_reached();
     }
+
+    free_cmdargs(cmdargs);
+    return result;
 }

@@ -37,28 +37,7 @@
 #include "sl.h"
 #include "util.h"		/* for bstrncmp() */
 #include "amandad.h"		/* for g_option_t */
-
-typedef struct option_s {
-    char *str;
-    int compress;
-    int encrypt;
-    char *srvcompprog;
-    char *clntcompprog;
-    char *srv_encrypt;
-    char *clnt_encrypt;
-    char *srv_decrypt_opt;
-    char *clnt_decrypt_opt;
-    int no_record;
-    int createindex;
-    char *auth;
-    sl_t *exclude_file;
-    sl_t *exclude_list;
-    sl_t *include_file;
-    sl_t *include_list;
-    int exclude_optional;
-    int include_optional;
-    int kencrypt;
-} option_t;
+#include "amxml.h"		/* for dle_t	  */
 
 typedef struct backup_support_option_s {
     int config;
@@ -77,21 +56,79 @@ typedef struct backup_support_option_s {
     int exclude_list;
     int exclude_optional;
     int collection;
+    int calcsize;
+    int multi_estimate;
+    int smb_recover_mode;
 } backup_support_option_t;
 
-char *build_exclude(char *disk, char *device, option_t *options, int verbose);
-char *build_include(char *disk, char *device, option_t *options, int verbose);
-void init_options(option_t *options);
-option_t *parse_options(char *str,
-			   char *disk,
-			   char *device,
-			   am_feature_t *features,
-			   int verbose);
-void output_tool_property(FILE *tool, option_t *options);
+typedef struct client_script_result_s {
+    int exit_code;
+    proplist_t proplist;
+    GPtrArray *output;
+    GPtrArray *err;
+} client_script_result_t;
+
+char *build_exclude(dle_t *dle, int verbose);
+char *build_include(dle_t *dle, int verbose);
+void parse_options(char *str,
+		   dle_t *dle,
+		   am_feature_t *features,
+		   int verbose);
+
+/* Count the size of an ARGV to store all properties of an application for
+ * a dle. include/exclude options are converted to properties.
+ *
+ * @param dle: the dle
+ * @returns: size of an ARGV needed.
+ */
+int application_property_argv_size(dle_t *dle);
+
+/* Add all properties of an application for a dle to an ARGV.
+ * include/exclude options are converted to properties.
+ *
+ * @param argvchild: the ARGV where to store properties.
+ * @param dle: the dle.
+ * @returns: Number of argument added to ARGV.
+ */
+int application_property_add_to_argv(char **argvchild,
+				     dle_t *dle,
+				     backup_support_option_t *bsu);
+
 char *fixup_relative(char *name, char *device);
 backup_support_option_t *backup_support_option(char *program,
 					       g_option_t *g_options,
 					       char *disk,
-					       char *amdevice);
+					       char *amdevice,
+					       GPtrArray **errarray);
+
+void run_client_script(script_t     *script,
+		       execute_on_t  execute_on,
+		       g_option_t   *g_options,
+		       dle_t        *dle);
+
+void run_client_scripts(execute_on_t  execute_on,
+			g_option_t   *g_options,
+			dle_t        *dle,
+			FILE         *streamout);
+
+void run_calcsize(char *config, char *program, char *disk,
+                  char *dirname, GSList *levels,
+                  char *file_exclude, char *file_include);
+
+void check_access(char *filename, int mode);
+void check_file(char *filename, int mode);
+void check_dir(char *dirname, int mode);
+void check_suid(char *filename);
+double the_num(char * str, int pos);
+
+/* Convert a GSList returned from config_errors into an "ERROR "
+ * line suitable for inclusion in a NAK or REP packet.  Because we only
+ * get one ERROR line per packet, this includes only the first 
+ * error, with an indication that there are more to follow.
+ *
+ * @param errlist: the list of errors from config_errors
+ * @returns: newly allocated string containing the error messages
+ */
+char *config_errors_to_error_string(GSList *errlist);
 
 #endif

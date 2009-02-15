@@ -75,6 +75,7 @@ struct tcp_conn {
     char *		errmsg;			/* error passed up */
     int			refcnt;			/* number of handles using */
     int			handle;			/* last proto handle read */
+    int			event_id;		/* event ID fired when token read */
     void		(*accept_fn)(security_handle_t *, pkt_t *);
     sockaddr_union	peer;
     TAILQ_ENTRY(tcp_conn) tq;			/* queue handle */
@@ -275,7 +276,6 @@ char *	check_user_amandahosts(const char *host,
 				const char *user,
 				const char *service);
 
-ssize_t	net_writev(int, struct iovec *, int);
 ssize_t	net_read(int, void *, size_t, int);
 ssize_t net_read_fillbuf(int, int, void *, size_t);
 void	show_stat_info(char *a, char *b);

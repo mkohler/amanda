@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
  * 
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 2.1 as 
@@ -14,8 +14,8 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  * 
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 #ifndef DEVICE_PROPERTY_H
@@ -23,6 +23,7 @@
 
 #include <glib.h>
 #include <glib-object.h>
+#include "queueing.h" /* for StreamingRequirement */
 
 /* The properties interface defines define capabilities and other interesting
  * properties. */
@@ -37,7 +38,7 @@ typedef enum {
 } PropertyPhaseFlags;
 
 #define PROPERTY_PHASE_MASK (PROPERTY_PHASE_MAX-1)
-#define PROPERTY_PHASE_SHIFT (PROPERTY_PHASE_MASK/2)
+#define PROPERTY_PHASE_SHIFT 8
 
 typedef enum {
     PROPERTY_ACCESS_GET_BEFORE_START = (PROPERTY_PHASE_BEFORE_START),
@@ -63,13 +64,37 @@ typedef enum {
 #define PROPERTY_ACCESS_GET_MASK (PROPERTY_PHASE_MASK)
 #define PROPERTY_ACCESS_SET_MASK (PROPERTY_PHASE_MASK << PROPERTY_PHASE_SHIFT)
 
+/* Some properties can only be occasionally (or unreliably) detected, so
+ * this enum allows the user to override the detected or default
+ * setting.  Surety indicates a level of confidence in the value, while
+ * source describes how we found out about it. */
+typedef enum {
+    /* Support is not based on conclusive evidence. */
+    PROPERTY_SURETY_BAD,
+    /* Support is based on conclusive evidence. */
+    PROPERTY_SURETY_GOOD,
+} PropertySurety;
 
-/* This structure is usually statically allocated.
- * It holds information about a property that is common to all devices of
- * a given type. */
+typedef enum {
+    /* property is from default setting. */
+    PROPERTY_SOURCE_DEFAULT,
+    /* property is from device query. */
+    PROPERTY_SOURCE_DETECTED,
+    /* property is from user override (configuration). */
+    PROPERTY_SOURCE_USER,
+} PropertySource;
 
-typedef int DevicePropertyId;
+/*****
+ * Initialization
+ */
 
+/* This should be called exactly once from device_api_init(). */
+extern void device_property_init(void);
+
+/* This structure is usually statically allocated.  It holds information about
+ * a property that is common across all devices.
+ */
+typedef guint DevicePropertyId;
 typedef struct {
     DevicePropertyId ID; /* Set by device_property_register() */
     GType type;
@@ -77,24 +102,55 @@ typedef struct {
     const char *description;
 } DevicePropertyBase;
 
-/* This structure is usually held inside a Device object. It holds
- * information about a property that is specific to the device/medium
- * in question. */
-typedef struct {
-    const DevicePropertyBase *base;
-    PropertyAccessFlags access;
-} DeviceProperty;
-
 /* Registers a new property and returns its ID. This function takes ownership
- * of its argument; it must not be freed later. */
+ * of its argument; it must not be freed later.  It should be called from a
+ * device driver's registration function. */
 extern DevicePropertyId device_property_register(DevicePropertyBase*);
 
-/* This should be called exactly once from device_api_init(). */
-extern void device_property_init(void);
+/* Does the same thing, but fills in a new DevicePropertyBase with the given
+ * values first, and does not return the ID.  This is more convenient for
+ * device-specific properties. */
+extern void device_property_fill_and_register(
+    DevicePropertyBase * base,
+    GType type,
+    const char * name,
+    const char * desc);
 
 /* Gets a DevicePropertyBase from its ID. */
-extern const DevicePropertyBase* device_property_get_by_id(DevicePropertyId);
-extern const DevicePropertyBase* device_property_get_by_name(const char*);
+DevicePropertyBase* device_property_get_by_id(DevicePropertyId);
+DevicePropertyBase* device_property_get_by_name(const char*);
+
+/*****
+ * Class-level Property Information
+ */
+
+/* This structure is held inside a Device object. It holds information about a
+ * property that is specific to the device driver, but not to a specific
+ * instance of the driver. */
+struct Device; /* forward declaration */
+typedef gboolean (*PropertySetFn)(
+    struct Device *self,
+    DevicePropertyBase *base,
+    GValue *val,
+    PropertySurety surety,
+    PropertySource source);
+typedef gboolean (*PropertyGetFn)(
+    struct Device *self,
+    DevicePropertyBase *base,
+    GValue *val,
+    PropertySurety *surety,
+    PropertySource *source);
+
+typedef struct {
+    DevicePropertyBase *base;
+    PropertyAccessFlags access;
+    PropertySetFn setter;
+    PropertyGetFn getter;
+} DeviceProperty;
+
+/*****
+ * Property-specific Types, etc.
+ */
 
 /* Standard property value types here.
  * Important: see property.c for the other half of type declarations.*/
@@ -106,11 +162,6 @@ typedef enum {
 #define CONCURRENCY_PARADIGM_TYPE concurrency_paradigm_get_type()
 GType concurrency_paradigm_get_type (void);
 
-typedef enum {
-    STREAMING_REQUIREMENT_NONE,
-    STREAMING_REQUIREMENT_DESIRED,
-    STREAMING_REQUIREMENT_REQUIRED
-} StreamingRequirement;
 #define STREAMING_REQUIREMENT_TYPE streaming_requirement_get_type()
 GType streaming_requirement_get_type (void);
 
@@ -138,46 +189,6 @@ typedef struct {
 #define QUALIFIED_SIZE_TYPE qualified_size_get_type()
 GType qualified_size_get_type (void);
 
-/* Some features can only be occasionally (or unreliably) detected, so
-   this enum allows the user to override the detected or default
-   setting. */
-typedef enum {
-    /* Feature support status. (exactly one of these is set) */
-        /* Feature is supported & will be used */
-        FEATURE_STATUS_ENABLED   = (1 << 0),
-        /* Features will not be used. */
-        FEATURE_STATUS_DISABLED  = (1 << 1),
-
-    /* Feature support confidence. (exactly one of these is set). */
-        /* Support is not based on conclusive evidence. */
-        FEATURE_SURETY_BAD       = (1 << 2),
-        /* Support is based on conclusive evidence. */
-        FEATURE_SURETY_GOOD      = (1 << 3),
-
-   /* Source of this information. (exactly one of these is set). */
-        /* Source of status is from default setting. */
-        FEATURE_SOURCE_DEFAULT   = (1 << 4),
-        /* Source of status is from device query. */
-        FEATURE_SOURCE_DETECTED  = (1 << 5),
-        /* Source of status is from user override. */
-        FEATURE_SOURCE_USER      = (1 << 6),
-
-    FEATURE_SUPPORT_FLAGS_MAX = (1 << 7)
-} FeatureSupportFlags;
-
-#define FEATURE_SUPPORT_FLAGS_MASK (FEATURE_SUPPORT_FLAGS_MAX-1)
-#define FEATURE_SUPPORT_FLAGS_STATUS_MASK (FEATURE_STATUS_ENABLED |  \
-                                           FEATURE_STATUS_DISABLED)
-#define FEATURE_SUPPORT_FLAGS_SURETY_MASK (FEATURE_SURETY_BAD |      \
-                                           FEATURE_SURETY_GOOD)
-#define FEATURE_SUPPORT_FLAGS_SOURCE_MASK (FEATURE_SOURCE_DEFAULT |  \
-                                           FEATURE_SOURCE_DETECTED | \
-                                           FEATURE_SOURCE_USER)
-/* Checks that mutually exclusive flags are not set. */
-gboolean feature_support_flags_is_valid(FeatureSupportFlags);
-#define FEATURE_SUPPORT_FLAGS_TYPE feature_support_get_type()
-GType feature_support_get_type (void);    
-
 /* Standard property definitions follow. See also property.c. */
 
 /* Value is a ConcurrencyParadigm */
@@ -197,15 +208,21 @@ extern DevicePropertyBase device_property_compression;
 extern DevicePropertyBase device_property_compression_rate;
 #define PROPERTY_COMPRESSION_RATE (device_property_compression_rate.ID)
 
-/* Value is a gint, where a negative number indicates variable block size. */
+/* Value is a gint; gives the write block size. */
 extern DevicePropertyBase device_property_block_size;
 #define PROPERTY_BLOCK_SIZE (device_property_block_size.ID)
 
-/* Value is a guint. */
+/* Read-only.  Value is a guint. */
 extern DevicePropertyBase device_property_min_block_size;
 extern DevicePropertyBase device_property_max_block_size;
 #define PROPERTY_MIN_BLOCK_SIZE (device_property_min_block_size.ID)
 #define PROPERTY_MAX_BLOCK_SIZE (device_property_max_block_size.ID)
+
+/* Value is a guint; gives the minimum buffer size for reads. Only
+ * the tape device implements this, but it corresponds to the tapetype
+ * readblocksize parameter, so it's a global property*/
+extern DevicePropertyBase device_property_read_buffer_size;
+#define PROPERTY_READ_BUFFER_SIZE (device_property_read_buffer_size.ID)
 
 /* Value is a gboolean. */
 extern DevicePropertyBase device_property_appendable;
@@ -217,7 +234,7 @@ extern DevicePropertyBase device_property_canonical_name;
 
 /* Value is MediaAccessMode. */
 extern DevicePropertyBase device_property_medium_access_type;
-#define PROPERTY_MEDIUM_TYPE (device_property_medium_access_type.ID)
+#define PROPERTY_MEDIUM_ACCESS_TYPE (device_property_medium_access_type.ID)
 
 /* Value is a gboolean. */
 extern DevicePropertyBase device_property_partial_deletion;
@@ -234,53 +251,8 @@ extern DevicePropertyBase device_property_free_space;
 extern DevicePropertyBase device_property_max_volume_usage;
 #define PROPERTY_MAX_VOLUME_USAGE (device_property_max_volume_usage.ID)
 
-/* Tape device properties. These properties do not exist on non-linear
-   devices. All of them have a value type of FeatureSupportFlags. */
-extern DevicePropertyBase device_property_fsf;
-#define PROPERTY_FSF (device_property_fsf.ID)
-
-extern DevicePropertyBase device_property_bsf;
-#define PROPERTY_BSF (device_property_bsf.ID)
-
-extern DevicePropertyBase device_property_fsr;
-#define PROPERTY_FSR (device_property_fsr.ID)
-
-extern DevicePropertyBase device_property_bsr;
-#define PROPERTY_BSR (device_property_bsr.ID)
-
-/* Is EOM supported? Must be able to read file number afterwards as
-   well. */
-extern DevicePropertyBase device_property_eom;
-#define PROPERTY_EOM (device_property_eom.ID)
-
-/* Is it necessary to perform a BSF after EOM? */
-extern DevicePropertyBase device_property_bsf_after_eom;
-#define PROPERTY_BSF_AFTER_EOM (device_property_bsf_after_eom.ID)
-
-/* How many filemarks to write at EOD? (Default is 2).
- * This property is a G_TYPE_UINT, but can only really be set to 1 or 2. */
-extern DevicePropertyBase device_property_final_filemarks;
-#define PROPERTY_FINAL_FILEMARKS (device_property_final_filemarks.ID)
-
-/* What buffer size is used for reading? */
-extern DevicePropertyBase device_property_read_buffer_size;
-#define PROPERTY_READ_BUFFER_SIZE (device_property_read_buffer_size.ID)
-
-/* Authentication information for Amazon S3. Both of these are strings. */
-extern DevicePropertyBase device_property_s3_secret_key;
-extern DevicePropertyBase device_property_s3_access_key;
-#define PROPERTY_S3_SECRET_KEY (device_property_s3_secret_key.ID)
-#define PROPERTY_S3_ACCESS_KEY (device_property_s3_access_key.ID)
-
-#ifdef WANT_DEVPAY
-/* Same, but for S3 with DevPay. This directory can be relative to the
- * config director, or absolute. */
-extern DevicePropertyBase device_property_s3_user_token;
-#define PROPERTY_S3_USER_TOKEN (device_property_s3_user_token.ID)
-#endif
-
 /* Should the device produce verbose output?  Value is a gboolean.  Not
- * recognized by all devices. */
+ * present in all devices. */
 extern DevicePropertyBase device_property_verbose;
 #define PROPERTY_VERBOSE (device_property_verbose.ID)
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
  * 
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 2.1 as 
@@ -14,11 +14,12 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  * 
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 #include <amanda.h>
+#include "glib-util.h"
 #include "tape-ops.h"
 
 /* Tape operations for AIX systems. Most of this stuff is based on
@@ -75,7 +76,7 @@ gboolean tape_bsr(int fd, guint count) {
     return 0 == ioctl(fd, STIOCTOP, &st);
 }
 
-gint tape_eod(int fd) {
+gint tape_eod(int fd G_GNUC_UNUSED) {
     g_assert_not_reached();
     return TAPE_OP_ERROR;
 }
@@ -87,55 +88,27 @@ gboolean tape_weof(int fd, guint8 count) {
     return 0 == ioctl(fd, STIOCTOP, &st);
 }
 
-gboolean tape_setcompression(int fd, gboolean on) {
+gboolean tape_setcompression(int fd G_GNUC_UNUSED, gboolean on G_GNUC_UNUSED) {
     return FALSE;
 }
 
-ReadLabelStatusFlags tape_is_tape_device(int fd) {
-    /* AIX doesn't have a no-op. */
-    return READ_LABEL_STATUS_SUCCESS;
+DeviceStatusFlags tape_is_tape_device(int fd G_GNUC_UNUSED) {
+    /* AIX doesn't have a no-op, so we'll just assume this is a tape device */
+    return DEVICE_STATUS_SUCCESS;
 }
 
-TapeCheckResult tape_is_ready(int fd) {
-    return TAPE_CHECK_UNKNOWN;
+DeviceStatusFlags tape_is_ready(int fd G_GNUC_UNUSED, TapeDevice *t_self G_GNUC_UNUSED) {
+    return DEVICE_STATUS_SUCCESS;
 }
 
-void tape_device_discover_capabilities(TapeDevice * t_self) {
-    Device * self;
-    GValue val;
-
-    self = DEVICE(t_self);
-    g_return_if_fail(self != NULL);
-
-    bzero(&val, sizeof(val));
-    g_value_init(&val, FEATURE_SUPPORT_FLAGS_TYPE);
-
-    g_value_set_flags(&val,
-                      FEATURE_STATUS_ENABLED | FEATURE_SURETY_BAD |
-                      FEATURE_SOURCE_DEFAULT);
-    device_property_set(self, PROPERTY_FSF, &val);
-    
-    g_value_set_flags(&val,
-                      FEATURE_STATUS_ENABLED | FEATURE_SURETY_BAD |
-                      FEATURE_SOURCE_DEFAULT);
-    device_property_set(self, PROPERTY_BSF, &val);
-    
-    g_value_set_flags(&val,
-                      FEATURE_STATUS_ENABLED | FEATURE_SURETY_BAD |
-                      FEATURE_SOURCE_DEFAULT);
-    device_property_set(self, PROPERTY_FSR, &val);
-    
-    g_value_set_flags(&val,
-                      FEATURE_STATUS_ENABLED | FEATURE_SURETY_BAD |
-                      FEATURE_SOURCE_DEFAULT);
-    device_property_set(self, PROPERTY_BSR, &val);
-    
-    g_value_set_flags(&val,
-                      FEATURE_STATUS_DISABLED | FEATURE_SURETY_GOOD |
-                      FEATURE_SOURCE_DEFAULT);
-    device_property_set(self, PROPERTY_EOM, &val);
-
-    g_value_unset_init(&val, G_TYPE_UINT);
-    g_value_set_uint(&val, 2);
-    device_property_set(self, PROPERTY_FINAL_FILEMARKS, &val);
+void tape_device_detect_capabilities(TapeDevice * t_self) {
+    tape_device_set_capabilities(t_self,
+	TRUE,  PROPERTY_SURETY_BAD,  PROPERTY_SOURCE_DEFAULT, /* fsf*/
+	TRUE,  PROPERTY_SURETY_BAD,  PROPERTY_SOURCE_DEFAULT, /* bsf*/
+	TRUE,  PROPERTY_SURETY_BAD,  PROPERTY_SOURCE_DEFAULT, /* fsr*/
+	TRUE,  PROPERTY_SURETY_BAD,  PROPERTY_SOURCE_DEFAULT, /* bsr*/
+	FALSE, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DEFAULT, /* eom*/
+	FALSE, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DEFAULT, /* bsf_after_eom*/
+	2,     PROPERTY_SURETY_BAD,  PROPERTY_SOURCE_DEFAULT  /* final_filemarks*/
+	);
 }

@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 2006 Zmanda Inc.
+ * Copyright (c) 2005-2008 Zmanda Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -37,11 +37,11 @@
 /*
  * Type checking and casting macros
  */
-#define TAPER_TYPE_SOURCE	(taper_source_get_type())
+#define TAPER_SOURCE_TYPE	(taper_source_get_type())
 #define TAPER_SOURCE(obj)	G_TYPE_CHECK_INSTANCE_CAST((obj), taper_source_get_type(), TaperSource)
 #define TAPER_SOURCE_CONST(obj)	G_TYPE_CHECK_INSTANCE_CAST((obj), taper_source_get_type(), TaperSource const)
 #define TAPER_SOURCE_CLASS(klass)	G_TYPE_CHECK_CLASS_CAST((klass), taper_source_get_type(), TaperSourceClass)
-#define TAPER_IS_SOURCE(obj)	G_TYPE_CHECK_INSTANCE_TYPE((obj), taper_source_get_type ())
+#define IS_TAPER_SOURCE(obj)	G_TYPE_CHECK_INSTANCE_TYPE((obj), taper_source_get_type ())
 
 #define TAPER_SOURCE_GET_CLASS(obj)	G_TYPE_INSTANCE_GET_CLASS((obj), taper_source_get_type(), TaperSourceClass)
 
@@ -60,6 +60,7 @@ struct _TaperSource {
     guint64 max_part_size; /* protected */
     dumpfile_t * first_header;
     char * driver_handle;
+    char * errmsg;
 };
 
 /*
@@ -75,6 +76,7 @@ struct _TaperSourceClass {
     gboolean (* get_end_of_data)(TaperSource * self);
     gboolean (* get_end_of_part)(TaperSource * self);
     dumpfile_t * (* get_first_header)(TaperSource * self);
+    char * (* get_errmsg)(TaperSource * self);
     int (* predict_parts)(TaperSource * self);
 };
 
@@ -89,6 +91,7 @@ ssize_t 	taper_source_read	(TaperSource * self,
 gboolean 	taper_source_get_end_of_data	(TaperSource * self);
 gboolean 	taper_source_get_end_of_part	(TaperSource * self);
 dumpfile_t *    taper_source_get_first_header   (TaperSource * self);
+char *          taper_source_get_errmsg         (TaperSource * self);
 /* Returns -1 for an unknown number of splits, or a positive integer if the
  * number of splits is exactly known. Should never return zero. */
 int             taper_source_predict_parts      (TaperSource * self);
@@ -117,6 +120,6 @@ TaperSource * taper_source_new(char * handle,
    device-src/queueing.h. */
 producer_result_t taper_source_producer(gpointer taper_source,
                                         queue_buffer_t * buffer,
-                                        int hint_size);
+                                        size_t hint_size);
 
 #endif

@@ -13,11 +13,18 @@
 <refmeta>
 <refentrytitle>amtape</refentrytitle>
 <manvolnum>8</manvolnum>
+&rmi.source;
+&rmi.version;
+&rmi.manual.8;
 </refmeta>
 <refnamediv>
 <refname>amtape</refname>
 <refpurpose>user interface to &A; tape changer controls</refpurpose>
 </refnamediv>
+<refentryinfo>
+&author.jds;
+&author.sgw.xml;
+</refentryinfo>
 <!-- body begins here -->
 <refsynopsisdiv>
 <cmdsynopsis>
@@ -148,14 +155,6 @@ then load the tape from the current slot.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
-  <term><emphasis remap='B'>slot prev</emphasis></term>
-  <listitem>
-<para>Eject any tape in the drive and put it away,
-then load the tape from the previous slot and reset
-<emphasis remap='I'>current</emphasis>.</para>
-  </listitem>
-  </varlistentry>
-  <varlistentry>
   <term><emphasis remap='B'>slot next</emphasis></term>
   <listitem>
 <para>Eject any tape in the drive and put it away,
@@ -172,20 +171,9 @@ then load the tape from the first slot and reset
   </listitem>
   </varlistentry>
   <varlistentry>
-  <term><emphasis remap='B'>slot last</emphasis></term>
-  <listitem>
-<para>Eject any tape in the drive and put it away,
-then load the tape from the last slot and reset
-<emphasis remap='I'>current</emphasis>.</para>
-  </listitem>
-  </varlistentry>
-  <varlistentry>
   <term><emphasis remap='B'>slot advance</emphasis></term>
   <listitem>
-<para>Eject any tape in the drive and put it away.
-Advance
-<emphasis remap='I'>current</emphasis>
-to the next tape, but do not load it.</para>
+<para>Synonym for <emphasis remap='B'>slot next</emphasis>.</para>
   </listitem>
   </varlistentry>
 
@@ -215,11 +203,6 @@ does an unnecessary mount.</para>
 <para>Note: most changers optimize the
 <emphasis remap='B'>slot</emphasis>
 commands to not eject the loaded tape if it is the one being requested.</para>
-</refsect1>
-
-<refsect1><title>AUTHOR</title>
-<para>James da Silva, &email.jds; : Original text</para>
-<para>&maintainer.sgw;: XML-conversion</para>
 </refsect1>
 
 <refsect1><title>SEE ALSO</title>

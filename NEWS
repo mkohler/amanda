@@ -1,18 +1,40 @@
-Changes in release 2.6.0p2
+Changes in release 2.6.1
 
-   * Bugs fix only:
-         o Various device-api fix
-         o Compilation on various platform
-         o others small fixes.
-
-Changes in release 2.6.0p1
-
-   * Bugs fix only:
-	 o amfetchdump -p
-	 o amtapetype crash
-	 o Fix DS_INCRONLY and FORCE_FULL
-	 o planner crash 
-	 o others small bugs
+   * Application API: Allow to easily write wrappers around any backup program,
+     See the 'amanda-applications' man page.
+      o amgtar: Use GNU tar, it is a lot more configurable than the GNUTAR
+        program. See 'amgtar' man page.
+      o amstar: Use star to do a backup, it work only on a partition. See
+        'amstar' man page.
+      o amsamba: Use smbclient to backup a cifs share, see amsamba man page.
+      o amzfs-sendrecv: Do a backup of a ZFS filesystem with 'zfs send'.
+   * Script API: Allow to run script before and after amanda process, see the
+     'amanda-scripts' man page.
+      o amzfs-snapshot: Do a snapshot of a ZFS filesystem, then 'amgtar'
+        application will backup the snapshot. See 'amzfs-snapshot' man page.
+      o script-email: Simple script to send email. see 'script-email' man page.
+   * Changer API v2.0: perl-based changer interface supporting concurrent
+     use of multiple devices and changers.
+      o currently operating in "compatibility mode," calling old changer
+        shell scripts.
+      o under active development.
+   * Xfer API: generic library to move and filter data with maximal efficiency
+      o can read from and write to arbitrary devices, files, etc.
+      o only used in some applications.
+   * Amanda archive format: A simple archive format that an application can
+     use to create backup image.
+   * 'amarchiver' program to manipulate file in amanda archive format.
+   * Many improvements to report better error message to user.
+   * amtape subcommands 'slot prev' and 'slot last' are removed.
+   * Dozens more perl libraries, with more stable interfaces.
+   * Many bugs fixed and improvement.
+   * amgetconf '--client' option to retrieve config from
+     amanda-client.conf on a client.
+   * Amanda configuration file changes
+       o new application-tool section
+       o new script-tool section
+       o new device section
+       o new changer section
 
 Changes in release 2.6.0
 
@@ -24,18 +46,14 @@ Changes in release 2.6.0
    * 'amdd' and 'ammt' are deprecated.
    * Some Amanda files are now installed in new "amanda/" subdirectories:
      libraries are now installed in $libdir/amanda and internal programs
-     are now installed in $libexecdir/amanda. You can set --with-amlibdir
-     and --with-amlibexecdir if you don't want the amanda suffix.
-     If you mix 2.6.0 and earlier version with rsh/ssh auth, you need to
-     add an 'amandad_path' to the dumptype and to amanda-client.conf
+     are now installed in $libexecdir/amanda.
    * The amandates file, previously at /etc/amandates, is now at
      $localstatedir/amanda/amandates.  You may want to move your existing
      /etc/amandates when you upgrade Amanda.
    * New 'amcryptsimple', 'amgpgcrypt' - encryption plugins based on gpg.
    * New 'amserverconfig', 'amaddclient' - Initial Amanda configuration tools
      these tools make assumptions, please see man page.
-   * Many bugs fixed and code rewrite/cleanup.
-     Speedup in 'amrecover find' and starting amrecover.
+   * Many bugs fixed and code rewrite/cleanup
    * glib is required to compile and run amanda.
    * Device API: pluggable interface to storage devices, supporting tapes,
      vtapes, RAIT, and Amazon S3

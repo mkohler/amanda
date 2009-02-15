@@ -5,17 +5,18 @@
 # OVERVIEW
 #
 #   Handle configuration for SSH security, implementing the --with-ssh-security
-#   option and checking for the relevant programs and options.
+#   option and checking for the relevant programs and options.  Defines and substitutes
+#   SSH_SECURITY, searches for and defines SSH, and defines SSH_OPTIONS.
 #
 AC_DEFUN([AMANDA_SSH_SECURITY],
 [
-    SSH_SECURITY=no
+    SSH_SECURITY=yes
     AC_ARG_WITH(ssh-security,
         AS_HELP_STRING([--with-ssh-security], 
                 [include SSH authentication]),
         [
             case "$withval" in
-                n | no) : ;;
+                n | no) SSH_SECURITY=no ;;
                 y |  ye | yes) SSH_SECURITY=yes ;;
                 *) AC_MSG_ERROR([*** You must not supply an argument to --with-ssh-security.])
               ;;
@@ -68,4 +69,7 @@ AC_DEFUN([AMANDA_SSH_SECURITY],
                 [Arguments to ssh])
     fi
     AM_CONDITIONAL(WANT_SSH_SECURITY, test x"$SSH_SECURITY" = x"yes")
+
+    AC_SUBST(SSH_SECURITY)
+    # (note -- don't just substitute SSH_OPTIONS -- shell quoting will break)
 ])

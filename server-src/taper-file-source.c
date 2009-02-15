@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 2006 Zmanda Inc.
+ * Copyright (c) 2005-2008 Zmanda Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -74,7 +74,7 @@ GType taper_file_source_get_type (void) {
             NULL
         };
         
-        type = g_type_register_static (TAPER_TYPE_SOURCE, "TaperFileSource",
+        type = g_type_register_static (TAPER_SOURCE_TYPE, "TaperFileSource",
                                        &info, (GTypeFlags)0);
     }
     
@@ -94,6 +94,9 @@ taper_file_source_finalize(GObject *obj_self)
     if(self->_priv->current_chunk_fd >= 0) {
         close (self->_priv->current_chunk_fd);
     }
+    dumpfile_free_data(&(self->_priv->part_start_chunk_header));
+    dumpfile_free_data(&(self->_priv->current_chunk_header));
+    amfree(self->_priv);
 }
 
 static void 
@@ -103,6 +106,8 @@ taper_file_source_init (TaperFileSource * o G_GNUC_UNUSED)
     o->_priv->part_start_chunk_fd = -1;
     o->_priv->current_chunk_fd = -1;
     o->_priv->predicted_splits = -1;
+    fh_init(&o->_priv->part_start_chunk_header);
+    fh_init(&o->_priv->current_chunk_header);
     o->holding_disk_file = NULL;
 }
 
@@ -110,7 +115,7 @@ static void  taper_file_source_class_init (TaperFileSourceClass * c) {
     GObjectClass *g_object_class = (GObjectClass*) c;
     TaperSourceClass *taper_source_class = (TaperSourceClass *)c;
 
-    parent_class = g_type_class_ref (TAPER_TYPE_SOURCE);
+    parent_class = g_type_class_ref (TAPER_SOURCE_TYPE);
 
     taper_source_class->read = taper_file_source_read;
     taper_source_class->seek_to_part_start =
@@ -182,9 +187,9 @@ static dumpfile_t * taper_file_source_get_first_header(TaperSource * pself) {
    everything went OK. Writes the fd into fd_pointer and the header
    into header_pointer. Both must be non-NULL. */
 static gboolean open_holding_file(char * filename, int * fd_pointer,
-                                  dumpfile_t * header_pointer) {
+                                  dumpfile_t * header_pointer, char **errmsg) {
     int fd;
-    int read_result;
+    size_t read_result;
     char * header_buffer;
 
     g_return_val_if_fail(filename != NULL, FALSE);
@@ -193,27 +198,37 @@ static gboolean open_holding_file(char * filename, int * fd_pointer,
 
     fd = robust_open(filename, O_NOCTTY | O_RDONLY, 0);
     if (fd < 0) {
-        g_fprintf(stderr, "Could not open holding disk file %s: %s\n",
+	*errmsg = newvstrallocf(*errmsg,
+		"Could not open holding disk file \"%s\": %s",
                 filename, strerror(errno));
         return FALSE;
     }
 
     header_buffer = malloc(DISK_BLOCK_BYTES);
-    read_result = fullread(fd, header_buffer, DISK_BLOCK_BYTES);
+    read_result = full_read(fd, header_buffer, DISK_BLOCK_BYTES);
     if (read_result < DISK_BLOCK_BYTES) {
-        g_fprintf(stderr,
-                "Could not read header from holding disk file %s: %s\n",
-                filename, strerror(errno));
+	if (errno != 0) {
+	    *errmsg = newvstrallocf(*errmsg,
+		    "Could not read header from holding disk file %s: %s",
+		    filename, strerror(errno));
+	} else {
+	    *errmsg = newvstrallocf(*errmsg,
+		    "Could not read header from holding disk file %s: got EOF",
+		    filename);
+	}
         aclose(fd);
+	amfree(header_buffer);
         return FALSE;
     }
-    
+
+    dumpfile_free_data(header_pointer);
     parse_file_header(header_buffer, header_pointer, DISK_BLOCK_BYTES);
     amfree(header_buffer);
     
     if (!(header_pointer->type == F_DUMPFILE ||
           header_pointer->type == F_CONT_DUMPFILE)) {
-        g_fprintf(stderr, "Got strange header from file %s.\n",
+	*errmsg = newvstrallocf(*errmsg,
+        	"Got strange header from file %s",
                 filename);
         aclose(fd);
         return FALSE;
@@ -227,7 +242,8 @@ static gboolean open_holding_file(char * filename, int * fd_pointer,
    chunk. Returns FALSE if an error occurs (unlikely). */
 static gboolean copy_chunk_data(int * from_fd, int* to_fd,
                                 dumpfile_t * from_header,
-                                dumpfile_t * to_header) {
+                                dumpfile_t * to_header,
+				char **errmsg) {
     g_return_val_if_fail(from_fd != NULL, FALSE);
     g_return_val_if_fail(to_fd != NULL, FALSE);
     g_return_val_if_fail(from_header != NULL, FALSE);
@@ -236,11 +252,12 @@ static gboolean copy_chunk_data(int * from_fd, int* to_fd,
     
     *to_fd = dup(*from_fd);
     if (*to_fd < 0) {
-        g_fprintf(stderr, "dup(%d) failed!\n", *from_fd);
+	*errmsg = newvstrallocf(*errmsg, "dup(%d) failed!", *from_fd);
         return FALSE;
     }
 
-    memcpy(to_header, from_header, sizeof(*to_header));
+    dumpfile_free_data(to_header);
+    dumpfile_copy_in_place(to_header, from_header);
 
     return TRUE;
 }
@@ -257,7 +274,8 @@ static gboolean first_time_setup(TaperFileSource * self) {
 
     if (!open_holding_file(self->holding_disk_file, 
                            &(selfp->part_start_chunk_fd),
-                           &(selfp->part_start_chunk_header))) {
+                           &(selfp->part_start_chunk_header),
+			   &(pself->errmsg))) {
         return FALSE;
     }
 
@@ -266,13 +284,14 @@ static gboolean first_time_setup(TaperFileSource * self) {
     if (!copy_chunk_data(&(selfp->part_start_chunk_fd),
                          &(selfp->current_chunk_fd),
                          &(selfp->part_start_chunk_header),
-                         &(selfp->current_chunk_header))) {
+                         &(selfp->current_chunk_header),
+			 &(pself->errmsg))) {
         aclose(selfp->part_start_chunk_fd);
         return FALSE;
     }
 
-    pself->first_header = g_memdup(&(selfp->part_start_chunk_header),
-                                   sizeof(dumpfile_t));
+    dumpfile_free(pself->first_header);
+    pself->first_header = dumpfile_copy(&(selfp->part_start_chunk_header));
 
     /* Should not be necessary. You never know! */
     selfp->current_part_pos = selfp->part_start_chunk_offset =
@@ -312,6 +331,7 @@ static int retry_read(int fd, void * buf, size_t count) {
    occurs. */
 static gboolean get_next_chunk(TaperFileSource * self) {
     char * cont_filename = NULL;
+    TaperSource * pself = (TaperSource*)self;
 
     if (selfp->current_chunk_header.cont_filename[0] != '\0') {
         cont_filename =
@@ -319,6 +339,7 @@ static gboolean get_next_chunk(TaperFileSource * self) {
     } else {
         /* No more data. */
         aclose(selfp->current_chunk_fd);
+	dumpfile_free_data(&(selfp->current_chunk_header));
         bzero(&(selfp->current_chunk_header),
               sizeof(selfp->current_chunk_header));
         return TRUE;
@@ -330,8 +351,10 @@ static gboolean get_next_chunk(TaperFileSource * self) {
 
     if (!open_holding_file(cont_filename,
                            &(selfp->current_chunk_fd),
-                           &(selfp->current_chunk_header))) {
+                           &(selfp->current_chunk_header),
+			   &(pself->errmsg))) {
         amfree(cont_filename);
+	dumpfile_free_data(&(selfp->current_chunk_header));
         bzero(&(selfp->current_chunk_header),
               sizeof(selfp->current_chunk_header));
         aclose(selfp->current_chunk_fd);
@@ -366,11 +389,14 @@ taper_file_source_read (TaperSource * pself, void * buf, size_t count) {
         return 0;
     }
 
-    /* We don't use fullread, because we would rather return a partial
+    /* We don't use full_read, because we would rather return a partial
      * read ASAP. */
     read_result = retry_read(selfp->current_chunk_fd, buf, count);
     if (read_result < 0) {
         /* Nothing we can do. */
+	pself->errmsg = newvstrallocf(pself->errmsg,
+		"Error reading holding disk '%s': %s'",
+		 self->holding_disk_file, strerror(errno));
         return read_result;
     } else if (read_result == 0) {
         if (!get_next_chunk(self)) {
@@ -403,7 +429,8 @@ static gboolean taper_file_source_seek_to_part_start (TaperSource * pself) {
     if (!copy_chunk_data(&(selfp->part_start_chunk_fd),
                          &(selfp->current_chunk_fd),
                          &(selfp->part_start_chunk_header),
-                         &(selfp->current_chunk_header))) {
+                         &(selfp->current_chunk_header),
+			 &(pself->errmsg))) {
         return FALSE;
     }
 
@@ -413,7 +440,8 @@ static gboolean taper_file_source_seek_to_part_start (TaperSource * pself) {
                          DISK_BLOCK_BYTES + selfp->current_chunk_position,
                          SEEK_SET);
     if (lseek_result < 0) {
-        g_fprintf(stderr, "Could not seek holding disk file: %s\n",
+	pself->errmsg = newvstrallocf(pself->errmsg,
+        	"Could not seek holding disk file: %s\n",
                 strerror(errno));
         return FALSE;
     }
@@ -435,7 +463,8 @@ static void taper_file_source_start_new_part (TaperSource * pself) {
     if (!copy_chunk_data(&(selfp->current_chunk_fd),
                          &(selfp->part_start_chunk_fd),
                          &(selfp->current_chunk_header),
-                         &(selfp->part_start_chunk_header))) {
+                         &(selfp->part_start_chunk_header),
+			 &(pself->errmsg))) {
         /* We can't return FALSE. :-( Instead, we set things up so
            they will fail on the next read(). */
         aclose(selfp->current_chunk_fd);

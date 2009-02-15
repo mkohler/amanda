@@ -14,8 +14,8 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  *
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 %module "Amanda::Debug"
@@ -34,15 +34,14 @@ Amanda::Debug - support for debugging Amanda applications
 
 =head1 SYNOPSIS
 
-  use Amanda::Debug qw( :init :logging );
+  use Amanda::Util qw( :constants );
 
-  # (note: dbopen and such are usually handled by 
-  #  Amanda::Util::setup_applicaton)
-  dbopen("server");
+  Amanda::Util::setup_application("amcooltool", "server", $CONTEXT_CMDLINE);
 
   debug("this is a debug message");
+  die("Unable to frobnicate the ergonator");
 
-See C<debug.h> for a more in-depth description of the functionality of
+See C<debug.h> for a more in-depth description of the logging functionality of
 this module.
 
 =head1 API STATUS
@@ -51,7 +50,7 @@ Stable
 
 =head1 DEBUG LOGGING
 
-Several debug logging messages, each taking a single string, are
+Several debug logging functions, each taking a single string, are
 available:
 
 =over
@@ -70,7 +69,10 @@ available:
 
 =back
 
-ALl of the debug logging functions are available via the export tag
+Perl's built-in C<die> and C<warn> functions are patched to call C<critical>
+and C<warning>, respectively. 
+
+All of the debug logging functions are available via the export tag
 C<:logging>.
 
 =head1 ADVANCED USAGE
@@ -115,10 +117,11 @@ applications which may produce error output.
  */
 
 amglue_export_tag(init,
-    dbopen dbreopen dbrename dbclose
+    debug_init dbopen dbreopen dbrename dbclose
     $erroutput_type $error_exit_status
 );
 
+void	debug_init(void);
 void	dbopen(char *subdir);
 void	dbreopen(char *file, char *notation);
 void	dbrename(char *config, char *subdir);
@@ -132,6 +135,38 @@ amglue_copy_tag_to(erroutput_type_t, init);
 
 erroutput_type_t erroutput_type;
 int error_exit_status;
+
+/*
+ * Override die() and warn()
+ */
+%perlcode %{
+sub _my_die {
+    # $^S is set if we're in an eval { .. }, in which case we want
+    # to use the default Perl semantics.
+    if ($^S) {
+	die(@_);
+    } else {
+	my ($msg) = @_;
+	chomp $msg;
+	critical(@_);
+    }
+};
+$SIG{__DIE__} = \&my_die;
+
+sub _my_warn {
+    my ($msg) = @_;
+    chomp $msg;
+    warning(@_);
+};
+$SIG{__WARN__} = \&my_warn;
+
+# utility function for test scripts, which want to use the regular
+# perl mechanisms
+sub disable_die_override {
+    delete $SIG{__DIE__};
+    delete $SIG{__WARN__};
+}
+%}
 
 /*
  * Logging

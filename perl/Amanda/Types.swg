@@ -14,8 +14,8 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  *
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 %module "Amanda::Types"
@@ -43,50 +43,92 @@ New structures may be added, but existing types are stable.
 =head1 dumpfile_t
 
 An in-memory representation of an Amanda header, with keys
+
 =over
+
 =item C<type>;
+
 =item C<datestamp>;
+
 =item C<dumplevel>;
+
 =item C<compressed>;
+
 =item C<encrypted>;
+
 =item C<comp_suffix>;
+
 =item C<encrypt_suffix>;
+
 =item C<name> -- hostname or label;
+
 =item C<disk>;
+
 =item C<program>;
-=item C<dumper>;
+
+=item C<application>;
+
 =item C<srvcompprog>;
+
 =item C<clntcompprog>;
+
 =item C<srv_encrypt>;
+
 =item C<clnt_encrypt>;
+
 =item C<recover_cmd>;
+
 =item C<uncompress_cmd>;
+
 =item C<encrypt_cmd>;
+
 =item C<decrypt_cmd>;
+
 =item C<srv_decrypt_opt>;
+
 =item C<clnt_decrypt_opt>;
+
 =item C<cont_filename>;
+
+=itme C<dle_str>;
+
 =item C<is_partial>;
+
 =item C<partnum>;
+
 =item C<totalparts> (-1 == UNKNOWN); and
-=item blocksize.
+
+=item C<blocksize>.
+
 =back
 
 where C<type> is one of the following constants, which are availble
 for import in the tag C<:filetype_t>:
+
 =over
+
 =item C<F_UNKNOWN>;
+
 =item C<F_WEIRD>;
+
 =item C<F_TAPESTART>;
+
 =item C<F_TAPEEND>;
+
 =item C<F_DUMPFILE>;
+
 =item C<F_CONT_DUMPFILE>;
+
 =item C<F_SPLIT_DUMPFILE>; or
+
 =item C<F_EMPTY>.
+
 =back
 
 NOTE: no methods are currently defined on C<dumpfile_t>; interfaces
-can be written as needed.
+can be written as needed.  A new dumpfile is created with
+
+    my $hdr = Amanda::Types::dumpfile_t->new();
 
 =cut
 %}
@@ -120,7 +162,7 @@ typedef struct {
     string_t name;	/* hostname or label */
     string_t disk;
     string_t program;
-    string_t dumper;
+    string_t application;
     string_t srvcompprog;
     string_t clntcompprog;
     string_t srv_encrypt;
@@ -132,6 +174,7 @@ typedef struct {
     string_t srv_decrypt_opt;
     string_t clnt_decrypt_opt;
     string_t cont_filename;
+    char *dle_str;
     int is_partial;
     int partnum;
     int totalparts; /* -1 == UNKNOWN */

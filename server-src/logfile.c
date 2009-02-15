@@ -52,7 +52,7 @@ char *logtype_str[] = {
 
 char *program_str[] = {
     "UNKNOWN", "planner", "driver", "amreport", "dumper", "chunker",
-    "taper", "amflush"
+    "taper", "amflush", "amdump", "amidxtaped", "amfetchdump", "amcheckdump"
 };
 
 int curlinenum;
@@ -129,7 +129,8 @@ printf_arglist_function1(void log_add, logtype_t, typ, char *, format)
     }
 
     arglist_start(argp, format);
-    g_vsnprintf(linebuf, SIZEOF(linebuf)-1, xlated_fmt, argp);
+    /* use sizeof(linebuf)-2 to save space for a trailing newline */
+    g_vsnprintf(linebuf, SIZEOF(linebuf)-2, xlated_fmt, argp);
 						/* -1 to allow for '\n' */
     arglist_end(argp);
 
@@ -142,18 +143,19 @@ printf_arglist_function1(void log_add, logtype_t, typ, char *, format)
 
     if(multiline == -1) open_log();
 
-    if (fullwrite(logfd, leader, strlen(leader)) < 0) {
+    if (full_write(logfd, leader, strlen(leader)) < strlen(leader)) {
 	error(_("log file write error: %s"), strerror(errno));
 	/*NOTREACHED*/
     }
 
     amfree(leader);
 
+    /* add a newline if necessary */
     n = strlen(linebuf);
     if(n == 0 || linebuf[n-1] != '\n') linebuf[n++] = '\n';
     linebuf[n] = '\0';
 
-    if (fullwrite(logfd, linebuf, n) < 0) {
+    if (full_write(logfd, linebuf, n) < n) {
 	error(_("log file write error: %s"), strerror(errno));
 	/*NOTREACHED*/
     }

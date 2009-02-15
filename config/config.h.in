@@ -1,5 +1,8 @@
 /* config/config.h.in.  Generated from configure.in by autoheader.  */
 
+/* Define if building universal (internal helper macro) */
+#undef AC_APPLE_UNIVERSAL_BUILD
+
 /* Is DUMP the AIX program 'backup'? */
 #undef AIX_BACKUP
 
@@ -14,6 +17,9 @@
 
 /* The directory in which Amanda should create temporary files. */
 #undef AMANDA_TMPDIR
+
+/* Directory in which dumper interfaces should be installed and searched. */
+#undef APPLICATION_DIR
 
 /* Define if you want assertion checking. */
 #undef ASSERTIONS
@@ -95,6 +101,9 @@
 /* This is the default Amanda configuration. */
 #undef DEFAULT_CONFIG
 
+/* A program that understands -s "subject" user < message_file */
+#undef DEFAULT_MAILER
+
 /* This is the default Amanda index server. */
 #undef DEFAULT_SERVER
 
@@ -109,9 +118,6 @@
 
 /* Define the location of the ufsdump, backup, or dump program. */
 #undef DUMP
-
-/* Directory in which dumper interfaces should be installed and searched. */
-#undef DUMPER_DIR
 
 /* Define if dumper should buffer the sockets for faster throughput. */
 #undef DUMPER_SOCKET_BUFFERING
@@ -154,6 +160,9 @@
 /* Define to 1 if you have <alloca.h> and it should be used (not on Ultrix).
    */
 #undef HAVE_ALLOCA_H
+
+/* Define to 1 if you have the "amanda.h" header file. */
+#undef HAVE_AMANDA_H
 
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #undef HAVE_ARPA_INET_H
@@ -244,6 +253,10 @@
 /* Define to 1 if you have the declaration of `getaddrinfo', and to 0 if you
    don't. */
 #undef HAVE_DECL_GETADDRINFO
+
+/* Define to 1 if you have the declaration of `getenv', and to 0 if you don't.
+   */
+#undef HAVE_DECL_GETENV
 
 /* Define to 1 if you have the declaration of `getnameinfo', and to 0 if you
    don't. */
@@ -358,9 +371,6 @@
 /* Define if fwrite is declared. */
 #undef HAVE_FWRITE_DECL
 
-/* Define to 1 if you have the `getaddrinfo' function. */
-#undef HAVE_GETADDRINFO
-
 /* Define to 1 if you have the `getgrgid_r' function. */
 #undef HAVE_GETGRGID_R
 
@@ -378,6 +388,12 @@
 
 /* Define if getopt is declared. */
 #undef HAVE_GETOPT_DECL
+
+/* Define to 1 if you have the <getopt.h> header file. */
+#undef HAVE_GETOPT_H
+
+/* Define to 1 if you have the `getopt_long_only' function. */
+#undef HAVE_GETOPT_LONG_ONLY
 
 /* Define to 1 if you have the `getpagesize' function. */
 #undef HAVE_GETPAGESIZE
@@ -533,9 +549,6 @@
 /* Define if listen is declared. */
 #undef HAVE_LISTEN_DECL
 
-/* Define if you have the 'long long' type. */
-#undef HAVE_LONG_LONG
-
 /* Define to 1 if the system has the type `long long int'. */
 #undef HAVE_LONG_LONG_INT
 
@@ -671,9 +684,6 @@
 /* Define if the POSIX multithreading library has read/write locks. */
 #undef HAVE_PTHREAD_RWLOCK
 
-/* Define to 1 if the system has the type `ptrdiff_t'. */
-#undef HAVE_PTRDIFF_T
-
 /* Define to 1 if you have the `putenv' function. */
 #undef HAVE_PUTENV
 
@@ -706,6 +716,9 @@
 
 /* Define if recvfrom is declared. */
 #undef HAVE_RECVFROM_DECL
+
+/* Define to 1 if you have the <regex.h> header file. */
+#undef HAVE_REGEX_H
 
 /* Define to 1 if you have the `remove' function. */
 #undef HAVE_REMOVE
@@ -818,9 +831,6 @@
 /* Define if shmget is declared. */
 #undef HAVE_SHMGET_DECL
 
-/* Define to 1 if you have the `shquote' function. */
-#undef HAVE_SHQUOTE
-
 /* Define to 1 if you have the `sigaction' function. */
 #undef HAVE_SIGACTION
 
@@ -845,7 +855,7 @@
 /* Define if snprintf is declared. */
 #undef HAVE_SNPRINTF_DECL
 
-/* if struct sockaddr_storage exists */
+/* struct sockaddr_storage exists */
 #undef HAVE_SOCKADDR_STORAGE
 
 /* Define to 1 if you have the `socket' function. */
@@ -1097,6 +1107,9 @@
 /* Define if time is declared. */
 #undef HAVE_TIME_DECL
 
+/* Define to 1 if you have the <time.h> header file. */
+#undef HAVE_TIME_H
+
 /* Define to 1 if you have the `tolower' function. */
 #undef HAVE_TOLOWER
 
@@ -1120,6 +1133,9 @@
 
 /* Define to 1 if the system has the type `unsigned long long int'. */
 #undef HAVE_UNSIGNED_LONG_LONG_INT
+
+/* Define to 1 if you have the "util.h" header file. */
+#undef HAVE_UTIL_H
 
 /* Define to 1 if you have the `vasnprintf' function. */
 #undef HAVE_VASNPRINTF
@@ -1259,12 +1275,6 @@
 
 /* LPRCMD switch for specifying a printer name. */
 #undef LPRFLAG
-
-/* A program that understands -s "subject" user < message_file */
-#undef MAILER
-
-/* Maximum size of a tape block in KBytes. */
-#undef MAX_TAPE_BLOCK_KB
 
 /* The switch to be used when invoking mt to specify the * tape device. */
 #undef MT_FILE_FLAG
@@ -1470,6 +1480,9 @@
 /* Define for backups being done on a multiple networks and FQDNs are used. */
 #undef USE_FQDN
 
+/* Define to 1 if files will be processed with gettextize */
+#undef USE_GETTEXT
+
 /* Define if the POSIX multithreading library can be used. */
 #undef USE_POSIX_THREADS
 
@@ -1539,9 +1552,6 @@
 /* Define to use POSIX (fcntl()) for file locking */
 #undef WANT_AMFLOCK_POSIX
 
-/* Compile Amazon DevPay support */
-#undef WANT_DEVPAY
-
 /* Compile Amazon S3 driver */
 #undef WANT_S3_DEVICE
 
@@ -1568,9 +1578,17 @@
    'wint_t'. */
 #undef WINT_T_SUFFIX
 
-/* Define to 1 if your processor stores words with the most significant byte
-   first (like Motorola and SPARC, unlike Intel and VAX). */
-#undef WORDS_BIGENDIAN
+/* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
+   significant byte first (like Motorola and SPARC, unlike Intel). */
+#if defined AC_APPLE_UNIVERSAL_BUILD
+# if defined __BIG_ENDIAN__
+#  define WORDS_BIGENDIAN 1
+# endif
+#else
+# ifndef WORDS_BIGENDIAN
+#  undef WORDS_BIGENDIAN
+# endif
+#endif
 
 /* Target system has functional IPv6 support */
 #undef WORKING_IPV6
@@ -1587,11 +1605,6 @@
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 #undef _FILE_OFFSET_BITS
-
-/* Enable GNU extensions on systems that have them.  */
-#ifndef _GNU_SOURCE
-# undef _GNU_SOURCE
-#endif
 
 /* Define for large files, on AIX-style hosts. */
 #undef _LARGE_FILES
@@ -1627,6 +1640,13 @@
 # undef __EXTENSIONS__
 #endif
 
+
+/* Define to rpl_ if the getopt replacement functions and variables should be
+   used. */
+#undef __GETOPT_PREFIX
+
+/* Directory in which amanda's templates and examples are installed. */
+#undef amdatadir
 
 /* Directory in which Amanda header files should be installed */
 #undef amincludedir
@@ -1685,9 +1705,22 @@
 /* Define to `int' if <sys/types.h> does not define. */
 #undef pid_t
 
-/* Define to equivalent of C99 restrict keyword, or to nothing if this is not
-   supported. Do not define if restrict is supported directly. */
+/* Define as the type of the result of subtracting two pointers, if the system
+   doesn't define it. */
+#undef ptrdiff_t
+
+/* Define to the equivalent of the C99 'restrict' keyword, or to
+   nothing if this is not supported.  Do not define if restrict is
+   supported directly.  */
 #undef restrict
+/* Work around a bug in Sun C++: it does not support _Restrict, even
+   though the corresponding Sun C compiler does, which causes
+   "#define restrict _Restrict" in the previous line.  Perhaps some future
+   version of Sun C++ will work with _Restrict; if so, it'll probably
+   define __RESTRICT, just as Sun C does.  */
+#if defined __SUNPRO_CC && !defined __RESTRICT
+# define _Restrict
+#endif
 
 /* Type for sa_family_t, if it is not defined by the system */
 #undef sa_family_t

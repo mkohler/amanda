@@ -42,7 +42,6 @@
 #include "clock.h"
 #include "version.h"
 #include "amindex.h"
-#include "token.h"
 #include "taperscan.h"
 #include "server_util.h"
 #include "pipespawn.h"
@@ -50,6 +49,8 @@
 #include "device.h"
 #include "property.h"
 #include "timestamp.h"
+#include "amxml.h"
+#include "physmem.h"
 
 #define BUFFER_SIZE	32768
 
@@ -94,7 +95,7 @@ main(
     int do_localchk, do_tapechk, server_probs;
     pid_t clientchk_pid, serverchk_pid;
     int opt, tempfd, mainfd;
-    ssize_t size;
+    size_t size;
     amwait_t retstat;
     pid_t pid;
     extern int optind;
@@ -109,6 +110,7 @@ main(
     uid_t uid_me;
     char *errstr;
     config_overwrites_t *cfg_ovr;
+    char *mailer;
 
     /*
      * Configure program for internationalization:
@@ -154,32 +156,22 @@ main(
     cfg_ovr = new_config_overwrites(argc/2);
     while((opt = getopt(argc, argv, "M:mawsclto:")) != EOF) {
 	switch(opt) {
-	case 'M':	mailto=stralloc(optarg);
+	case 'M':	if (mailto) {
+			    g_printf(_("Multiple -M options\n"));
+			    exit(1);
+			}
+			mailto=stralloc(optarg);
 			if(!validate_mailto(mailto)){
 			   g_printf(_("Invalid characters in mail address\n"));
 			   exit(1);
 			}
 			/*FALLTHROUGH*/
 	case 'm':	
-#ifdef MAILER
 			mailout = 1;
-#else
-			g_printf(_("You can't use -%c because configure didn't "
-				 "find a mailer./usr/bin/mail not found\n"),
-				opt);
-			exit(1);
-#endif
 			break;
 	case 'a':	
-#ifdef MAILER
 			mailout = 1;
 			alwaysmail = 1;
-#else
-			g_printf(_("You can't use -%c because configure didn't "
-				 "find a mailer./usr/bin/mail not found\n"),
-				opt);
-			exit(1);
-#endif
 			break;
 	case 's':	do_localchk = do_tapechk = 1;
 			break;
@@ -210,11 +202,30 @@ main(
     if(overwrite)
 	do_tapechk = 1;
 
-    config_init(CONFIG_INIT_EXPLICIT_NAME|CONFIG_INIT_FATAL,
-		argv[0]);
+    config_init(CONFIG_INIT_EXPLICIT_NAME, argv[0]);
     apply_config_overwrites(cfg_ovr);
-    dbrename(config_name, DBG_SUBDIR_SERVER);
+    dbrename(get_config_name(), DBG_SUBDIR_SERVER);
 
+    conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
+    read_diskfile(conf_diskfile, &origq);
+    amfree(conf_diskfile);
+
+    if (config_errors(NULL) >= CFGERR_WARNINGS) {
+	config_print_errors();
+	if (config_errors(NULL) >= CFGERR_ERRORS) {
+	    g_critical(_("errors processing config file"));
+	}
+    }
+
+    mailer = getconf_str(CNF_MAILER);
+    if ((!mailer || *mailer == '\0') && mailout == 1) {
+	if (alwaysmail == 1) {
+	    g_printf(_("You can't use -a because a mailer is not defined\n"));
+	} else {
+	    g_printf(_("You can't use -m because a mailer is not defined\n"));
+	}
+	exit(1);
+    }
     if(mailout && !mailto && 
        (getconf_seen(CNF_MAILTO)==0 || strlen(getconf_str(CNF_MAILTO)) == 0)) {
 	g_printf(_("\nWARNING:No mail address configured in  amanda.conf.\n"));
@@ -248,17 +259,11 @@ main(
 
     conf_ctimeout = (time_t)getconf_int(CNF_CTIMEOUT);
 
-    conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
-    if(read_diskfile(conf_diskfile, &origq) < 0) {
-	error(_("could not load disklist %s. Make sure it exists and has correct permissions"), conf_diskfile);
-	/*NOTREACHED*/
-    }
     errstr = match_disklist(&origq, argc-1, argv+1);
     if (errstr) {
 	g_printf(_("%s"),errstr);
 	amfree(errstr);
     }
-    amfree(conf_diskfile);
 
     /*
      * Make sure we are running as the dump user.  Don't use
@@ -352,7 +357,7 @@ main(
 	    char *wait_msg = NULL;
 
 	    wait_msg = vstrallocf(_("parent: reaped bogus pid %ld\n"), (long)pid);
-	    if (fullwrite(mainfd, wait_msg, strlen(wait_msg)) < 0) {
+	    if (full_write(mainfd, wait_msg, strlen(wait_msg)) < strlen(wait_msg)) {
 		error(_("write main file: %s"), strerror(errno));
 		/*NOTREACHED*/
 	    }
@@ -368,13 +373,13 @@ main(
 	    /*NOTREACHED*/
 	}
 
-	while((size = fullread(tempfd, buffer, SIZEOF(buffer))) > 0) {
-	    if (fullwrite(mainfd, buffer, (size_t)size) < 0) {
+	while((size = full_read(tempfd, buffer, SIZEOF(buffer))) > 0) {
+	    if (full_write(mainfd, buffer, size) < size) {
 		error(_("write main file: %s"), strerror(errno));
 		/*NOTREACHED*/
 	    }
 	}
-	if(size < 0) {
+	if(errno != 0) {
 	    error(_("read temp file: %s"), strerror(errno));
 	    /*NOTREACHED*/
 	}
@@ -382,7 +387,7 @@ main(
     }
 
     version_string = vstrallocf(_("\n(brought to you by Amanda %s)\n"), version());
-    if (fullwrite(mainfd, version_string, strlen(version_string)) < 0) {
+    if (full_write(mainfd, version_string, strlen(version_string)) < strlen(version_string)) {
 	error(_("write main file: %s"), strerror(errno));
 	/*NOTREACHED*/
     }
@@ -392,9 +397,6 @@ main(
     our_features = NULL;
 
     /* send mail if requested, but only if there were problems */
-#ifdef MAILER
-
-#define	MAILTO_LIMIT	10
 
     if((server_probs || client_probs || alwaysmail) && mailout) {
 	int mailfd;
@@ -402,10 +404,11 @@ main(
 	int errfd;
 	FILE *ferr;
 	char *subject;
-	char **a;
+	char **a, **b;
+	GPtrArray *pipeargs;
 	amwait_t retstat;
-	ssize_t r;
-	ssize_t w;
+	size_t r;
+	size_t w;
 	char *err = NULL;
 	char *extra_info = NULL;
 	char *line = NULL;
@@ -424,35 +427,38 @@ main(
 			_("%s AMANDA PROBLEM: FIX BEFORE RUN, IF POSSIBLE"),
 			getconf_str(CNF_ORG));
 	}
-	/*
-	 * Variable arg lists are hard to deal with when we do not know
-	 * ourself how many args are involved.  Split the address list
-	 * and hope there are not more than 9 entries.
-	 *
-	 * Remember that split() returns the original input string in
-	 * argv[0], so we have to skip over that.
-	 */
-	a = (char **) alloc((MAILTO_LIMIT + 1) * SIZEOF(char *));
-	memset(a, 0, (MAILTO_LIMIT + 1) * SIZEOF(char *));
 	if(mailto) {
-	    a[1] = mailto;
+	    a = (char **) g_new0(char *, 2);
+	    a[1] = stralloc(mailto);
 	    a[2] = NULL;
 	} else {
-	    r = (ssize_t)split(getconf_str(CNF_MAILTO), a, MAILTO_LIMIT, " ");
-	    a[r + 1] = NULL;
+	    /* (note that validate_mailto doesn't allow any quotes, so this
+	     * is really just splitting regular old strings) */
+	    a = split_quoted_strings(getconf_str(CNF_MAILTO));
 	}
 	if((nullfd = open("/dev/null", O_RDWR)) < 0) {
 	    error("nullfd: /dev/null: %s", strerror(errno));
 	    /*NOTREACHED*/
 	}
-	pipespawn(MAILER, STDIN_PIPE | STDERR_PIPE,
-			    &mailfd, &nullfd, &errfd,
-			    MAILER,
-			    "-s", subject,
-			          a[1], a[2], a[3], a[4],
-			    a[5], a[6], a[7], a[8], a[9],
-			    NULL);
+
+	/* assemble the command line for the mailer */
+	pipeargs = g_ptr_array_sized_new(4);
+	g_ptr_array_add(pipeargs, mailer);
+	g_ptr_array_add(pipeargs, "-s");
+	g_ptr_array_add(pipeargs, subject);
+	for (b = a; *b; b++)
+	    g_ptr_array_add(pipeargs, *b);
+	g_ptr_array_add(pipeargs, NULL);
+
+	pipespawnv(mailer, STDIN_PIPE | STDERR_PIPE, 0,
+		   &mailfd, &nullfd, &errfd,
+		   (char **)pipeargs->pdata);
+
+	g_ptr_array_free(pipeargs, FALSE);
 	amfree(subject);
+	amfree(mailto);
+	g_strfreev(a);
+
 	/*
 	 * There is the potential for a deadlock here since we are writing
 	 * to the process and then reading stderr, but in the normal case,
@@ -460,12 +466,12 @@ main(
 	 * cases, the pipe will break and we will exit out of the loop.
 	 */
 	signal(SIGPIPE, SIG_IGN);
-	while((r = fullread(mainfd, buffer, SIZEOF(buffer))) > 0) {
-	    if((w = fullwrite(mailfd, buffer, (size_t)r)) != (ssize_t)r) {
-		if(w < 0 && errno == EPIPE) {
+	while((r = full_read(mainfd, buffer, SIZEOF(buffer))) > 0) {
+	    if((w = full_write(mailfd, buffer, r)) != r) {
+		if(errno == EPIPE) {
 		    strappend(extra_info, _("EPIPE writing to mail process\n"));
 		    break;
-		} else if(w < 0) {
+		} else if(errno != 0) {
 		    error(_("mailfd write: %s"), strerror(errno));
 		    /*NOTREACHED*/
 		} else {
@@ -503,11 +509,11 @@ main(
 		fputs(extra_info, stderr);
 		amfree(extra_info);
 	    }
-	    error(_("error running mailer %s: %s"), MAILER, err?err:"(unknown)");
+	    error(_("error running mailer %s: %s"), mailer, err?err:"(unknown)");
 	    /*NOTREACHED*/
 	}
     }
-#endif
+
     dbclose();
     return (server_probs || client_probs);
 }
@@ -599,7 +605,7 @@ static gboolean test_tape_status(FILE * outf) {
     GValue property_value;
     char * label = NULL;
     char * tapename = NULL;
-    ReadLabelStatusFlags label_status;
+    DeviceStatusFlags device_status;
 
     bzero(&property_value, sizeof(property_value));
     
@@ -629,31 +635,34 @@ static gboolean test_tape_status(FILE * outf) {
     }
 
     device = device_open(tapename);
+    g_assert(device != NULL);
 
-    if (device == NULL) {
-        g_fprintf(outf, "ERROR: Could not open tape device.\n");
+    if (device->status != DEVICE_STATUS_SUCCESS) {
+        g_fprintf(outf, "ERROR: Could not open tape device: %s.\n",
+		  device_error(device));
         amfree(label);
         return FALSE;
     }
-    
-    device_set_startup_properties_from_config(device);
-    label_status = device_read_label(device);
+
+    if (!device_configure(device, TRUE)) {
+        g_fprintf(outf, "ERROR: Could not configure device: %s.\n",
+		  device_error_or_status(device));
+        amfree(label);
+        return FALSE;
+    }
+
+    device_status = device_read_label(device);
 
     if (tape_status == 3 && 
-        !(label_status & READ_LABEL_STATUS_VOLUME_UNLABELED)) {
-        if (label_status == READ_LABEL_STATUS_SUCCESS) {
+        !(device_status & DEVICE_STATUS_VOLUME_UNLABELED)) {
+        if (device_status == DEVICE_STATUS_SUCCESS) {
             g_fprintf(outf, "WARNING: Volume was unlabeled, but now "
                     "is labeled \"%s\".\n", device->volume_label);
         }
-    } else if (label_status != READ_LABEL_STATUS_SUCCESS && tape_status != 3) {
-        char * errstr = 
-            g_english_strjoinv_and_free
-                (g_flags_nick_to_strv(label_status &
-                                       (~READ_LABEL_STATUS_VOLUME_UNLABELED),
-                                       READ_LABEL_STATUS_FLAGS_TYPE), "or");
-        g_fprintf(outf, "WARNING: Reading label the second time failed: "
-                "One of %s.\n", errstr);
-        g_free(errstr);
+    } else if (device_status != DEVICE_STATUS_SUCCESS && tape_status != 3) {
+        g_fprintf(outf,
+		  _("WARNING: Reading label the second time failed: %s.\n"),
+                  device_error_or_status(device));
     } else if (tape_status != 3 &&
                (device->volume_label == NULL || label == NULL ||
                 strcmp(device->volume_label, label) != 0)) {
@@ -664,12 +673,12 @@ static gboolean test_tape_status(FILE * outf) {
     /* If we can't get this property, it's not an error. Maybe the device
      * doesn't support this property, or needs an actual volume to know
      * for sure. */
-    if (device_property_get(device, PROPERTY_MEDIUM_TYPE, &property_value)) {
+    if (device_property_get(device, PROPERTY_MEDIUM_ACCESS_TYPE, &property_value)) {
         g_assert(G_VALUE_TYPE(&property_value) == MEDIA_ACCESS_MODE_TYPE);
         if (g_value_get_enum(&property_value) ==
             MEDIA_ACCESS_MODE_WRITE_ONLY) {
-            g_fprintf(outf, "WARNING: Media access mode is WRITE_ONLY, "
-                    "dumps will be thrown away.\n");
+            g_fprintf(outf, "WARNING: Media access mode is WRITE_ONLY; "
+                    "dumps may not be recoverable.\n");
         }
     }
     
@@ -677,12 +686,13 @@ static gboolean test_tape_status(FILE * outf) {
 	char *timestamp = get_undef_timestamp();
         if (!device_start(device, ACCESS_WRITE, label, timestamp)) {
             if (tape_status == 3) {
-                g_fprintf(outf, "ERROR: Could not label brand new tape.\n");
+                g_fprintf(outf, "ERROR: Could not label brand new tape");
             } else {
                 g_fprintf(outf,
-                        "ERROR: tape %s label ok, but is not writable.\n",
+                        "ERROR: tape %s label ok, but is not writable",
                         label);
             }
+	    g_fprintf(outf, ": %s.\n", device_error(device));
 	    amfree(timestamp);
             amfree(label);
             g_object_unref(device);
@@ -727,6 +737,7 @@ start_server_check(
     char *quoted;
     int res;
     intmax_t kb_avail;
+    off_t tape_size;
 
     switch(pid = fork()) {
     case -1:
@@ -906,14 +917,17 @@ start_server_check(
 	    amfree(quoted);
 	}
 	else if(stat(tapefile, &statbuf) == -1) {
-	    quoted = quote_string(tape_dir);
-	    g_fprintf(outf, _("ERROR: tapelist %s (%s), "
-		    "you must create an empty file.\n"),
-		    quoted, strerror(errno));
-	    tapebad = 1;
-	    amfree(quoted);
-	}
-	else {
+	    if (errno != ENOENT) {
+		quoted = quote_string(tape_dir);
+		g_fprintf(outf, _("ERROR: tapelist %s (%s), "
+			"you must create an empty file.\n"),
+			quoted, strerror(errno));
+		tapebad = 1;
+		amfree(quoted);
+	    } else {
+		g_fprintf(outf, _("NOTE: tapelist will be created on the next run.\n"));
+	    }
+	} else {
 	    tapebad |= check_tapefile(outf, tapefile);
 	    if (tapebad == 0 && read_tapelist(tapefile)) {
 		quoted = quote_string(tapefile);
@@ -1403,6 +1417,26 @@ start_server_check(
 		  }
 		}
 
+		/* check tape_splitsize */
+		tape_size = tapetype_get_length(tp);
+		if (dp->tape_splitsize > tape_size) {
+		    g_fprintf(outf,
+			      _("ERROR: %s %s: tape_splitsize > tape size\n"),
+			      hostp->hostname, dp->name);
+		    pgmbad = 1;
+		}
+		if (dp->fallback_splitsize * 1024 > physmem_total()) {
+		    g_fprintf(outf,
+			      _("ERROR: %s %s: fallback_splitsize > total available memory\n"),
+			      hostp->hostname, dp->name);
+		    pgmbad = 1;
+		}
+		if (dp->fallback_splitsize > tape_size) {
+		    g_fprintf(outf,
+			      _("ERROR: %s %s: fallback_splitsize > tape size\n"),
+			      hostp->hostname, dp->name);
+		    pgmbad = 1;
+		}
 		amfree(disk);
 		remove_disk(&origq, dp);
 	    }
@@ -1543,7 +1577,7 @@ start_host(
 			has_hostname ? hostp->hostname : "",
 			has_hostname ? ";" : "",
 			has_config   ? "config=" : "",
-			has_config   ? config_name : "",
+			has_config   ? get_config_name() : "",
 			has_config   ? ";" : "",
 			"\n",
 			NULL);
@@ -1556,19 +1590,25 @@ start_host(
 	    size_t l_len;
 	    char *o;
 	    char *calcsize;
-	    char *qname;
-	    char *qdevice;
+	    char *qname, *b64disk;
+	    char *qdevice, *b64device = NULL;
 
 	    if(dp->up != DISK_READY || dp->todo != 1) {
 		continue;
 	    }
-	    o = optionstr(dp, hostp->features, outf);
+	    if (am_has_feature(hostp->features, fe_req_xml))
+		o = xml_optionstr(dp, hostp->features, outf, 0);
+	    else
+		o = optionstr(dp, hostp->features, outf);
 	    if (o == NULL) {
 	        remote_errors++;
 		continue;
 	    }
-	    qname = quote_string(dp->name); 
+	    qname = quote_string(dp->name);
+	    b64disk = amxml_format_tag("disk", dp->name);
 	    qdevice = quote_string(dp->device); 
+	    if (dp->device)
+		b64device = amxml_format_tag("diskdevice", dp->device);
 	    if ((dp->name && qname[0] == '"') || 
 		(dp->device && qdevice[0] == '"')) {
 		if(!am_has_feature(hostp->features, fe_interface_quoted_text)) {
@@ -1607,8 +1647,9 @@ start_host(
 				    " or don't specify a diskdevice in the disklist.\n"));	
 		}
 	    }
-	    if(strcmp(dp->program,"DUMP") == 0 || 
-	       strcmp(dp->program,"GNUTAR") == 0) {
+	    if (dp->program &&
+	        (strcmp(dp->program,"DUMP") == 0 || 
+	         strcmp(dp->program,"GNUTAR") == 0)) {
 		if(strcmp(dp->program, "DUMP") == 0 &&
 		   !am_has_feature(hostp->features, fe_program_dump)) {
 		    g_fprintf(outf, _("ERROR: %s:%s does not support DUMP.\n"),
@@ -1665,52 +1706,64 @@ start_host(
 		    remote_errors++;
 		  } 
 		}
-		if(dp->device) {
-		    l = vstralloc(calcsize,
-				  dp->program, " ",
-				  qname, " ",
-				  qdevice,
-				  " 0 OPTIONS |",
-				  o,
-				  "\n",
-				  NULL);
-		}
-		else {
-		    l = vstralloc(calcsize,
-				  dp->program, " ",
-				  qname,
-				  " 0 OPTIONS |",
-				  o,
-				  "\n",
-				  NULL);
+		if (am_has_feature(hostp->features, fe_req_xml)) {
+		    l = vstralloc("<dle>\n"
+				  "  <program>",
+				  dp->program,
+				  "</program>\n", NULL);
+                    if (strlen(calcsize) > 0)
+			vstrextend(&l, "  <calcsize>YES</calcsize>\n", NULL);
+		    vstrextend(&l, "  ", b64disk, "\n", NULL);
+		    if (dp->device)
+			vstrextend(&l, "  ", b64device, "\n", NULL);
+		    vstrextend(&l, o, "</dle>\n", NULL);
+		} else {
+		    if (dp->device) {
+			l = vstralloc(calcsize,
+				      dp->program, " ",
+				      qname, " ",
+				      qdevice,
+				      " 0 OPTIONS |",
+				      o,
+				      "\n",
+				      NULL);
+		    } else {
+			l = vstralloc(calcsize,
+				      dp->program, " ",
+				      qname,
+				      " 0 OPTIONS |",
+				      o,
+				      "\n",
+				      NULL);
+		    }
 		}
 	    } else {
-		if(!am_has_feature(hostp->features, fe_program_backup_api)) {
-		    g_fprintf(outf, _("ERROR: %s:%s does not support BACKUP-API.\n"),
+		if (!am_has_feature(hostp->features, fe_program_application_api) ||
+		    !am_has_feature(hostp->features, fe_req_xml)) {
+		    g_fprintf(outf, _("ERROR: %s:%s does not support APPLICATION-API.\n"),
 			    hostp->hostname, qname);
 		    g_fprintf(outf, _("Dumptype configuration is not GNUTAR or DUMP."
 				    " It is case sensitive\n"));
-		}
-		if(dp->device) {
-		    l = vstralloc("BACKUP ",
-			          dp->program, 
-			          " ",
-			          qname,
-			          " ",
-			          qdevice,
-			          " 0 OPTIONS |",
-			          o,
-			          "\n",
-			          NULL);
 		} else {
-		    l = vstralloc("BACKUP ",
-			          dp->program, 
-			          " ",
-			          qname,
-			          " 0 OPTIONS |",
-			          o,
-			          "\n",
-			          NULL);
+		    l = vstralloc("<dle>\n"
+				  "  <program>APPLICATION</program>\n", NULL);
+		    if (dp->application) {
+			char *xml_app = xml_application(dp->application,
+							hostp->features);
+			vstrextend(&l, xml_app, NULL);
+			amfree(xml_app);
+		    }
+		    if (dp->pp_scriptlist) {
+			if (!am_has_feature(hostp->features, fe_pp_script)) {
+			    g_fprintf(outf,
+			      _("ERROR: %s:%s does not support SCRIPT-API.\n"),
+			      hostp->hostname, qname);
+			}
+		    }
+		    vstrextend(&l, "  ", b64disk, "\n", NULL);
+		    if (dp->device)
+			vstrextend(&l, "  ", b64device, "\n", NULL);
+		    vstrextend(&l, o, "</dle>\n", NULL);
 		}
 	    }
 	    amfree(qname);
@@ -1764,7 +1817,7 @@ start_client_checks(
     int		fd)
 {
     am_host_t *hostp;
-    disk_t *dp;
+    disk_t *dp, *dp1;
     int hostcount;
     pid_t pid;
     int userbad = 0;
@@ -1804,6 +1857,14 @@ start_client_checks(
     for(dp = origq.head; dp != NULL; dp = dp->next) {
 	hostp = dp->host;
 	if(hostp->up == HOST_READY && dp->todo == 1) {
+	    for(dp1 = hostp->disks; dp1 != NULL; dp1 = dp1->hostnext) {
+		run_server_scripts(EXECUTE_ON_PRE_HOST_AMCHECK,
+				   get_config_name(), dp1, -1);
+	    }
+	    for(dp1 = hostp->disks; dp1 != NULL; dp1 = dp1->hostnext) {
+		run_server_scripts(EXECUTE_ON_PRE_DLE_AMCHECK,
+				   get_config_name(), dp1, -1);
+	    }
 	    start_host(hostp);
 	    hostcount++;
 	    protocol_check();
@@ -1869,7 +1930,7 @@ handle_result(
 	if(strncmp_const(line, "OPTIONS ") == 0) {
 
 	    t = strstr(line, "features=");
-	    if(t != NULL && (isspace((int)t[-1]) || t[-1] == ';')) {
+	    if(t != NULL && (g_ascii_isspace((int)t[-1]) || t[-1] == ';')) {
 		t += SIZEOF("features=")-1;
 		am_release_feature_set(hostp->features);
 		if((hostp->features = am_string_to_feature(t)) == NULL) {
@@ -1926,8 +1987,17 @@ handle_result(
 	}
     }
     start_host(hostp);
-    if(hostp->up == HOST_DONE)
+    if(hostp->up == HOST_DONE) {
 	security_close_connection(sech, hostp->hostname);
+	for(dp = hostp->disks; dp != NULL; dp = dp->hostnext) {
+	    run_server_scripts(EXECUTE_ON_POST_DLE_AMCHECK,
+			       get_config_name(), dp, -1);
+	}
+	for(dp = hostp->disks; dp != NULL; dp = dp->hostnext) {
+	    run_server_scripts(EXECUTE_ON_POST_HOST_AMCHECK,
+			       get_config_name(), dp, -1);
+	}
+    }
     /* try to clean up any defunct processes, since Amanda doesn't wait() for
        them explicitly */
     while(waitpid(-1, NULL, WNOHANG)> 0);

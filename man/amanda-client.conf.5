@@ -1,296 +1,556 @@
 .\"     Title: amanda-client.conf
-.\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 08/22/2008
-.\"    Manual: 
-.\"    Source: 
+.\"    Author: James da Silva <jds@amanda.org>
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 01/22/2009
+.\"    Manual: File formats and conventions
+.\"    Source: Amanda 2.6.1
+.\"  Language: English
 .\"
-.TH "AMANDA\-CLIENT\.CONF" "5" "08/22/2008" "" ""
+.TH "AMANDA\-CLIENT\&.CON" "5" "01/22/2009" "Amanda 2\&.6\&.1" "File formats and conventions"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
-.SH "NAME"
-amanda-client.conf - Client configuration file for Amanda, the Advanced Maryland Automatic Network Disk Archiver
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "Name"
+amanda-client.conf \- Client configuration file for \fIAmanda\fR, the Advanced Maryland Automatic Network Disk Archiver
 .SH "DESCRIPTION"
 .PP
-\fIamanda\-client\.conf\fR
+\fBamanda-client.conf\fR(5)
 is the client configuration file for
-\fIAmanda\fR\. This manpage lists the relevant sections and parameters of this file for quick reference\.
+\fIAmanda\fR\&. This manpage lists the relevant sections and parameters of this file for quick reference\&.
 .PP
 The files
-\fB<CONFIG_DIR>/amanda\-client\.conf\fR
+\fB<CONFIG_DIR>/amanda\-client\&.conf\fR
 and
-\fB<CONFIG_DIR>/<config>/amanda\-client\.conf\fR
-are loaded\.
-.SH "PARAMETERS"
-.PP
-There are a number of configuration parameters that control the behavior of the
-\fIAmanda\fR
-programs\. All have default values, so you need not specify the parameter in
-\fBamanda\-client\.conf\fR
-if the default is suitable\.
-.PP
-Lines starting with # are ignored, as are blank lines\. Comments may be placed on a line with a directive by starting the comment with a #\. The remainder of the line is ignored\.
-.PP
-Keywords are case insensitive, i\.e\.
-\fBauth\fR
-and
-\fBAuth\fR
-are treated the same\.
-.PP
-Integer arguments may have one of the following (case insensitive) suffixes, some of which have a multiplier effect:
-.SS "POSSIBLE SUFFIXES"
-.PP
-\fBb byte bytes\fR
-.RS 4
-Some number of bytes\.
-.RE
-.PP
-\fBbps\fR
-.RS 4
-Some number of bytes per second\.
-.RE
-.PP
-\fBk kb kbyte kbytes kilobyte kilobytes\fR
-.RS 4
-Some number of kilobytes (bytes*1024)\.
-.RE
-.PP
-\fBkps kbps\fR
-.RS 4
-Some number of kilobytes per second (bytes*1024)\.
-.RE
-.PP
-\fBm mb meg mbyte mbytes megabyte megabytes\fR
-.RS 4
-Some number of megabytes (bytes*1024*1024)\.
-.RE
-.PP
-\fBmps mbps\fR
-.RS 4
-Some number of megabytes per second (bytes*1024*1024)\.
-.RE
-.PP
-\fBg gb gbyte gbytes gigabyte gigabytes\fR
-.RS 4
-Some number of gigabytes (bytes*1024*1024*1024)\.
-.RE
-.PP
-\fBtape tapes\fR
-.RS 4
-Some number of tapes\.
-.RE
-.PP
-\fBday days\fR
-.RS 4
-Some number of days\.
-.RE
-.PP
-\fBweek weeks\fR
-.RS 4
-Some number of weeks (days*7)\.
-.sp
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-Note
-The value
-\fBinf\fR
-may be used in most places where an integer is expected to mean an infinite amount\.
-.sp
-Boolean arguments may have any of the values
-\fBy\fR,
-\fByes\fR,
-\fBt\fR,
-\fBtrue\fR
-or
-\fBon\fR
-to indicate a true state, or
-\fBn\fR,
-\fBno\fR,
-\fBf\fR,
-\fBfalse\fR
-or
-\fBoff\fR
-to indicate a false state\. If no argument is given,
-\fBtrue\fR
-is assumed\.
-.RE
-.SS "PARAMETERS"
+\fB<CONFIG_DIR>/<config>/amanda\-client\&.conf\fR
+are loaded\&.
+.SH "SYNTAX"
+
+
+The syntax of \fBamanda-client.conf\fR(5) is identical to that for
+\fBamanda.conf\fR(5)\&.
+.SH "GLOBAL PARAMETERS"
 .PP
 \fBconf\fR \fI string\fR
 .RS 4
 Default:
-\fISet by configure\fR\. The conf use by amrecover\.
+\fISet by configure\fR\&. The conf use by amrecover\&.
+.RE
+.PP
+\fBclient_username\fR \fI string\fR
+.RS 4
+Default:
+\fICLIENT_LOGIN\fR\&. Similar to the parameter of the same name in
+\fBamanda.conf\fR(5), this specifies the username that
+\fBamrecover\fR
+should send when connecting to the server\&. It should match the username specified in
+\FC\&.amandahosts\F[]
+on the server\&.
 .RE
 .PP
 \fBindex_server\fR \fI string\fR
 .RS 4
 Default:
-\fISet by configure\fR\. The amindexd server amrecover will connect to\.
+\fISet by configure\fR\&. The amindexd server amrecover will connect to\&.
 .RE
 .PP
 \fBtape_server\fR \fI string\fR
 .RS 4
 Default:
-\fISet by configure\fR\. The amidxtaped server amrecover will connect to\.
+\fISet by configure\fR\&. The amidxtaped server amrecover will connect to\&.
 .RE
 .PP
 \fBtapedev\fR \fI string\fR
 .RS 4
 Default:
-\fISet by configure\fR\. The tapedev amrecover will use\.
+\fISet by configure\fR\&. The tapedev amrecover will use\&.
 .RE
 .PP
 \fBauth\fR \fI string\fR
 .RS 4
 Default:
-\fIbsd\fR\. Type of authorization to perform between tape server and backup client hosts\.
+\fIbsd\fR\&. Type of authorization to perform between tape server and backup client hosts\&.
 .sp
-\fBbsd\fR, bsd authorization with udp initial connection and one tcp connection by data stream\.
+\fBbsd\fR, bsd authorization with udp initial connection and one tcp connection by data stream\&.
 .sp
-\fBbsdtcp\fR, bsd authorization but use only one tcp connection\.
+\fBbsdtcp\fR, bsd authorization but use only one tcp connection\&.
 .sp
-\fBbsdudp\fR, like bsd, but will use only one tcp connection for all data stream\.
+\fBbsdudp\fR, like bsd, but will use only one tcp connection for all data stream\&.
 .sp
 \fBkrb4\fR
-to use Kerberos\-IV authorization\.
+to use Kerberos\-IV authorization\&.
 .sp
 \fBkrb5\fR
-to use Kerberos\-V authorization\.
+to use Kerberos\-V authorization\&.
 .sp
-\fBlocal\fR, if the client is the server, it doesn\'t require authencation setup\.
+\fBlocal\fR, if the client is the server, it doesn\'t require authencation setup\&.
 .sp
 \fBrsh\fR
-to use rsh authorization\.
+to use rsh authorization\&.
 .sp
 \fBssh\fR
-to use OpenSSH authorization\.
+to use OpenSSH authorization\&.
 .RE
 .PP
 \fBssh_keys\fR \fI string\fR
 .RS 4
 Default:
-\fINo default\fR\. The key file the ssh auth will use, it must be the private key\. If this parameter is not specified, then the deafult ssh key will be used\.
+\fINo default\fR\&. The key file the ssh auth will use, it must be the private key\&. If this parameter is not specified, then the deafult ssh key will be used\&.
 .RE
 .PP
 \fBgnutar_list_dir\fR \fI string\fR
 .RS 4
 Default from configure
-\fI\-\-with\-gnutar\-listdir=DIR\fR\. The directory where gnutar keep its state file\.
+\fI\-\-with\-gnutar\-listdir=DIR\fR\&. The directory where gnutar keep its state file\&.
+.RE
+.PP
+\fBmailer\fR \fI string\fR
+.RS 4
+Default found by configure\&. A mail program that can send mail with \'\fIMAILER \-s "subject" user < message_file\fR\'\&.
 .RE
 .PP
 \fBamandates\fR \fI string\fR
 .RS 4
 Default:
-\fI/etc/amandates\fR\. The file where amanda keep the last date of each dumplevel\.
+\fI/etc/amandates\fR\&. The file where amanda keep the last date of each dumplevel\&.
 .RE
 .PP
 \fBconnect_tries\fR int
 .RS 4
 Default:
-\fI3\fR\. How many times the server will try a connection\.
+\fI3\fR\&. How many times the server will try a connection\&.
 .RE
 .PP
 \fBrep_tries\fR int
 .RS 4
 Default:
-\fI5\fR\. How many times amandad will resend a REP packet if it doesn\'t get the ACK packet\.
+\fI5\fR\&. How many times amandad will resend a REP packet if it doesn\'t get the ACK packet\&.
 .RE
 .PP
 \fBdebug_amandad\fR int
 .RS 4
 Default:
-\fI0\fR\. Debug level of the amandad process
+\fI0\fR\&. Debug level of the amandad process
 .RE
 .PP
 \fBdebug_amidxtaped\fR int
 .RS 4
 Default:
-\fI0\fR\. Debug level of the amidxtaped process
+\fI0\fR\&. Debug level of the amidxtaped process
 .RE
 .PP
 \fBdebug_amindexd\fR int
 .RS 4
 Default:
-\fI0\fR\. Debug level of the amindexd process
+\fI0\fR\&. Debug level of the amindexd process
 .RE
 .PP
 \fBdebug_amrecover\fR int
 .RS 4
 Default:
-\fI0\fR\. Debug level of the amrecover process
+\fI0\fR\&. Debug level of the amrecover process
 .RE
 .PP
 \fBdebug_auth\fR int
 .RS 4
 Default:
-\fI0\fR\. Debug level of the auth module
+\fI0\fR\&. Debug level of the auth module
 .RE
 .PP
 \fBdebug_event\fR int
 .RS 4
 Default:
-\fI0\fR\. Debug level of the event module
+\fI0\fR\&. Debug level of the event module
 .RE
 .PP
 \fBdebug_holding\fR int
 .RS 4
 Default:
-\fI0\fR\. Debug level of the holdingdisk module
+\fI0\fR\&. Debug level of the holdingdisk module
 .RE
 .PP
 \fBdebug_protocol\fR int
 .RS 4
 Default:
-\fI0\fR\. Debug level of the protocol module
+\fI0\fR\&. Debug level of the protocol module
 .RE
 .PP
 \fBdebug_selfcheck\fR int
 .RS 4
 Default:
-\fI0\fR\. Debug level of the selfcheck process
+\fI0\fR\&. Debug level of the selfcheck process
 .RE
 .PP
 \fBdebug_sendsize\fR int
 .RS 4
 Default:
-\fI0\fR\. Debug level of the sendsize process
+\fI0\fR\&. Debug level of the sendsize process
 .RE
 .PP
 \fBdebug_sendbackup\fR int
 .RS 4
 Default:
-\fI0\fR\. Debug level of the sendbackup process
+\fI0\fR\&. Debug level of the sendbackup process
 .RE
 .PP
 \fBreserved\-udp\-port\fR int,int
 .RS 4
 Default: \-\-with\-udpportrange or
-\fI512,1023\fR\. Reserved udp port that will be used (amrecover with bsd or bsdudp)
+\fI512,1023\fR\&. Reserved udp port that will be used (amrecover with bsd or bsdudp)
 .RE
 .PP
 \fBreserved\-tcp\-port\fR int,int
 .RS 4
 Default: \-\-with\-low\-tcpportrange or
-\fI512,1023\fR\. Reserved tcp port that will be used (amrecover with bsdtcp)
+\fI512,1023\fR\&. Reserved tcp port that will be used (amrecover with bsdtcp)
 .RE
 .PP
 \fBunreserved\-tcp\-port\fR int,int
 .RS 4
 Default: \-\-with\-tcpportrange or
-\fI1025,65536\fR\. Unreserved tcp port that will be used (bsd, bsdudp)
+\fI1025,65536\fR\&. Unreserved tcp port that will be used (bsd, bsdudp)
 .RE
-.SH "AUTHOR"
 .PP
-James da Silva,
-<jds@amanda\.org>: Original text
+\fBproperty\fR "name" "value"
+.RS 4
+Adds a global property for this client host, useful for e\&.g\&., Application API plugins\&.
+.RE
+.SH "APPLICATION SECTION"
 .PP
-Stefan G\. Weichinger,
-<sgw@amanda\.org>, maintainer of the
-\fIAmanda\fR\-documentation: XML\-conversion, major update, splitting
+The
+\fBamanda\&.conf\fR
+file may define multiple types of application\&. The information is entered in a
+\fBapplication\-tool\fR
+section, which looks like this:
+.nf
+define application\-tool "\fIname\fR" {
+    \fIapplication\-option\fR \fIappli
+cation\-value\fR
+    \FC\&.\&.\&.\F[]
+}
+.fi
+.PP
+\fIname\fR
+is the name of this type of application\&. It is referenced from the
+\fIdumptype\fR
+.PP
+The application\-tool options and values are:
+.PP
+\fBcomment\fR \fIstring\fR
+.RS 4
+Default:
+\fInone\fR\&. A comment string describing this application\&.
+.RE
+.PP
+\fBplugin\fR \fIstring\fR
+.RS 4
+No default\&. Must be set to the name of the program\&. This program must be in the
+\fI$libexecdir/amanda/application\fR
+directory on the client\&.
+.RE
+.PP
+\fBproperty\fR [append] [priority] \fIstring\fR \fIstring\fR+
+.RS 4
+No default\&. You can set property for the application, each application have a different set of property\&. Both strings are quoted; the first string contains the name of the property to set, and the others contains its values\&.
+\fBappend\fR
+keyword append the values to the list of values for that property\&.
+\fBpriority\fR
+keyword disallow the setting of that property on the server\&.
+.RE
+.SH "SCRIPT SECTION"
+.PP
+The
+\fBamanda\&.conf\fR
+file may define multiple types of script\&. The information is entered in a
+\fBscript\-tool\fR
+section, which looks like this:
+.nf
+define script\-tool "\fIname\fR" {
+    \fIscript\-option\fR \fIscript\-value\fR
+    \FC\&.\&.\&.\F[]
+}
+.fi
+.PP
+\fIname\fR
+is the name of this type of script\&. It is referenced from the
+\fIdumptype\fR
+.PP
+The script\-tool options and values are:
+.PP
+\fBcomment\fR \fIstring\fR
+.RS 4
+Default:
+\fInone\fR\&. A comment string describing this script\&.
+.RE
+.PP
+\fBplugin\fR \fIstring\fR
+.RS 4
+No default\&. Must be set to the name of the program\&. This program must be in the
+\fI$libdir/amanda/application\fR
+directory on the client and/or server\&.
+.RE
+.PP
+\fBexecute_where\fR [client|server]
+.RS 4
+Default:
+\fIclient\fR\&. Where the script must be executed, on the client or server\&. Only
+\fIclient\fR
+is valid\&.
+.RE
+.PP
+\fBexecute_on\fR \fIexecute_on\fR[,\fIexecute_on\fR]*
+.RS 4
+No default\&. When the script must be executed, you can specify many of them:
+.PP
+\fBpre\-dle\-amcheck\fR
+.RS 4
+Execute before the amcheck command for the dle\&.
+.RE
+.PP
+\fBpre\-host\-amcheck\fR
+.RS 4
+Execute before the amcheck command for all dle for the client\&.
+.RE
+.PP
+\fBpost\-dle\-amcheck\fR
+.RS 4
+Execute after the amcheck command for the dle\&.
+.RE
+.PP
+\fBpost\-host\-amcheck\fR
+.RS 4
+Execute after the amcheck command for all dle for the client\&.
+.RE
+.PP
+\fBpre\-dle\-estimate\fR
+.RS 4
+Execute before the estimate command for the dle\&.
+.RE
+.PP
+\fBpre\-host\-estimate\fR
+.RS 4
+Execute before the estimate command for all dle for the client\&.
+.RE
+.PP
+\fBpost\-dle\-estimate\fR
+.RS 4
+Execute after the estimate command for the dle\&.
+.RE
+.PP
+\fBpost\-host\-estimate\fR
+.RS 4
+Execute after the estimate command for all dle for the client\&.
+.RE
+.PP
+\fBpre\-dle\-backup\fR
+.RS 4
+Execute before the backup command for the dle\&.
+.RE
+.PP
+\fBpre\-host\-backup\fR
+.RS 4
+Execute before the backup command for all dle for the client\&.
+.RE
+.PP
+\fBpost\-dle\-backup\fR
+.RS 4
+Execute after the backup command for the dle\&.
+.RE
+.PP
+\fBpost\-host\-backup\fR
+.RS 4
+Execute after the backup command for all dle for the client\&.
+.RE
+.PP
+\fBpre\-recover\fR
+.RS 4
+Execute before any level is recovered\&.
+.RE
+.PP
+\fBpost\-recover\fR
+.RS 4
+Execute after all levels are recovered\&.
+.RE
+.PP
+\fBpre\-level\-recover\fR
+.RS 4
+Execute before each level recovery\&.
+.RE
+.PP
+\fBpost\-level\-recover\fR
+.RS 4
+Execute after each level recovery\&.
+.RE
+.PP
+\fBinter\-level\-recover\fR
+.RS 4
+Execute between two levels of recovery\&.
+.RE
+.RE
+.PP
+\fBproperty\fR [append] [priority] \fIstring\fR \fIstring\fR+
+.RS 4
+No default\&. You can set property for the script, each script have a different set of property\&. Both strings are quoted; the first string contains the name of the property to set, and the others contains its values\&.
+\fBappend\fR
+keyword append the values to the list of values for that property\&.
+\fBpriority\fR
+keyword disallow the setting of that property on the server\&.
+.RE
 .SH "SEE ALSO"
 .PP
 
@@ -299,3 +559,8 @@ Stefan G\. Weichinger,
 \fBamcrypt\fR(8),
 \fBaespipe\fR(1),
 : http://wiki.zmanda.com
+.SH "Authors"
+.PP
+\fBJames da Silva\fR <\&jds@amanda\&.org\&>
+.PP
+\fBStefan G\&. Weichinger\fR <\&sgw@amanda\&.org\&>

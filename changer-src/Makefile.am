@@ -7,7 +7,7 @@ include $(top_srcdir)/config/automake/precompile.am
 
 INCLUDES =	-I$(top_builddir)/common-src \
 		-I$(top_srcdir)/common-src   \
-		-I$(top_srcdir)/tape-src     \
+		-I$(top_srcdir)/device-src   \
 		-I$(top_srcdir)/gnulib
 
 AM_CFLAGS = $(AMANDA_WARNING_CFLAGS)
@@ -28,6 +28,7 @@ amlibexec_PROGRAMS =	$(CHG_SCSI)
 EXTRA_PROGRAMS =	$(CHIO_SCSI)
 
 CHECK_PERL = \
+		chg-glue \
 		chg-chio \
 		chg-iomega \
 		chg-rth
@@ -48,7 +49,6 @@ SCRIPTS_SHELL = \
 
 SCRIPTS_INCLUDE = \
 		chg-lib.sh
-
 EXTRA_DIST += chg-lib.sh.in
 
 amlibexec_SCRIPTS = $(SCRIPTS_PERL) $(SCRIPTS_SHELL)
@@ -62,8 +62,8 @@ amlibexec_DATA = $(SCRIPTS_INCLUDE)
 ###
 
 LDADD = ../common-src/libamanda.la \
-	../tape-src/libamtape.la \
 	../common-src/libamanda.la \
+	../device-src/libamdevice.la \
 	../gnulib/libgnu.la \
 	$(READLINE_LIBS)
 
@@ -115,13 +115,12 @@ INSTALLPERMS_data = \
 
 lint:
 	@ for p in $(amlibexec_PROGRAMS) $(EXTRA_PROGRAMS); do			\
+		p=`basename $$p $(EXEEXT)`;					\
 		f="$$p.c $(libamandad_la_SOURCES)";				\
 		(cd ../common-src; make listlibsrc);				\
 		f="$$f "`cat ../common-src/listlibsrc.output`;			\
 		(cd ../server-src; make listlibsrc);				\
 		f="$$f "`cat ../server-src/listlibsrc.output`;			\
-		(cd ../tape-src; make listlibsrc);				\
-		f="$$f "`cat ../tape-src/listlibsrc.output`;			\
 		echo $(LINT) $$f;						\
 		$(LINT) $(LINTFLAGS) $(CPPFLAGS) $(DEFS) -I. -I$(top_builddir)/config	\
 		    $(INCLUDES) $$f;						\

@@ -1,20 +1,178 @@
 .\"     Title: amrestore
-.\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 08/22/2008
-.\"    Manual: 
-.\"    Source: 
+.\"    Author: James da Silva <jds@amanda.org>
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 01/22/2009
+.\"    Manual: System Administration Commands
+.\"    Source: Amanda 2.6.1
+.\"  Language: English
 .\"
-.TH "AMRESTORE" "8" "08/22/2008" "" ""
+.TH "AMRESTORE" "8" "01/22/2009" "Amanda 2\&.6\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
-.SH "NAME"
-amrestore - extract backup images from an Amanda tape
-.SH "SYNOPSIS"
-.HP 10
-\fBamrestore\fR [\-r | \-c | \-C] [\-b | \fIblocksize\fR] [\-f | \fIfileno\fR] [\-l | \fIlabel\fR] [\-p] [\-h] \fItapedevice\fR|\ \fIholdingfile\fR  [\fIhostname\fR [\fIdiskname\fR [\fIdatestamp\fR [\fIhostname\fR [\fIdiskname\fR [\fIdatestamp\fR | \.\.\.]]]]]]
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "Name"
+amrestore \- extract backup images from an \fIAmanda\fR tape
+.SH "Synopsis"
+.fam C
+.HP \w'\fBamrestore\fR\ 'u
+\fBamrestore\fR [\-r | \-c | \-C] [\-b | \fIblocksize\fR] [\-f | \fIfileno\fR] [\-l | \fIlabel\fR] [\-p] [\-h] \fItapedevice\fR|\ \fIholdingfile\fR  [\fIhostname\fR [\fIdiskname\fR [\fIdatestamp\fR [\fIhostname\fR [\fIdiskname\fR [\fIdatestamp\fR | \&.\&.\&.]]]]]]
+.fam
 .SH "DESCRIPTION"
 .PP
 \fBAmrestore\fR
@@ -27,70 +185,70 @@ that match
 \fIdiskname\fR
 and
 \fIdatestamp\fR
-patterns given on the command line\. The tape or holding file must be in a format written by the
+patterns given on the command line\&. The tape or holding file must be in a format written by the
 \fBamdump\fR
 or
 \fBamflush\fR
-program\.
+program\&.
 .PP
 If
 \fIdiskname\fR
 is not specified, all backups on the tape for the previous
 \fIhostname\fR
-are candidates\. If
+are candidates\&. If
 \fIdatestamp\fR
 is not specified, all backups on the tape for the previous
 \fIhostname\fR
 and
 \fIdiskname\fR
-are candidates\. If no
+are candidates\&. If no
 \fIhostname\fR,
 \fIdiskname\fR
 or
 \fIdatestamp\fR
-are specified, every backup on the tape is a candidate\.
+are specified, every backup on the tape is a candidate\&.
 .PP
 \fIHostname\fR
 and
 \fIdiskname\fR
 are special expressions described in the "HOST & DISK EXPRESSION" section of
-\fBamanda\fR(8)\.
+\fBamanda\fR(8)\&.
 \fIDatestamp\fR
 are special expression described in the "DATESTAMP EXPRESSION" section of
-\fBamanda\fR(8)\. For example, if
+\fBamanda\fR(8)\&. For example, if
 \fIdiskname\fR
 is "rz[23]a", it would match disks
 \fBrz2a\fR
 and
-\fBrz3a\fR\.
+\fBrz3a\fR\&.
 .PP
 \fIDatestamp\fR
 is useful if
 \fBamflush\fR
-writes multiple backup runs to a single tape\.
+writes multiple backup runs to a single tape\&.
 .PP
 Unless
 \fB\-p\fR
 is used, candidate backup images are extracted to files in the current directory named:
 .PP
-\fIhostname\.diskname\.datestamp\.dumplevel\fR
+\fIhostname\&.diskname\&.datestamp\&.dumplevel\fR
 .PP
 Amrestore doesn\'t use a changer, it restore from the tape already loaded in the
-\fItapedevice\.\fR
+\fItapedevice\&.\fR
 .SH "OPTIONS"
 .PP
 \fB\-b\fR
 .RS 4
-Set the blocksize used to read the tape or holding file\. All holding files must be read with a blocksize of 32 KBytes\.
+Set the blocksize used to read the tape or holding file\&. All holding files must be read with a blocksize of 32 KBytes\&.
 \fBAmrestore\fR
-should normally be able to determine the blocksize for tapes on its own and not need this parameter\.
+should normally be able to determine the blocksize for tapes on its own and not need this parameter\&.
 .RE
 .PP
-The default is 32 KBytes\.
+The default is 32 KBytes\&.
 .PP
 \fB\-f\fR
 .RS 4
-Do a rewind followed by a fsf <fileno> before trying to restore an image\.
+Do a rewind followed by a fsf <fileno> before trying to restore an image\&.
 .RE
 .PP
 \fB\-l\fR
@@ -101,109 +259,145 @@ Check if we restoring from the tape with the right
 .PP
 \fB\-p\fR
 .RS 4
-Pipe output\. The first matching backup image is sent to standard output, which is normally a pipe to
+Pipe output\&. The first matching backup image is sent to standard output, which is normally a pipe to
 \fBrestore\fR
 or
 \fBtar\fR, then
 \fBamrestore\fR
-quits\. It may be run again to continue selecting backups to process\. Make sure you specify the no\-rewind
+quits\&. It may be run again to continue selecting backups to process\&. Make sure you specify the no\-rewind
 \fItapedevice\fR
-when doing this\.
+when doing this\&.
 .RE
 .PP
 Note:
 \fBrestore\fR
-may report "short read" errors when reading from a pipe\. Most versions of
+may report "short read" errors when reading from a pipe\&. Most versions of
 \fBrestore\fR
-support a blocking factor option to let you set the read block size, and you should set it to 2\. See the example below\.
+support a blocking factor option to let you set the read block size, and you should set it to 2\&. See the example below\&.
 .PP
 \fB\-c\fR
 .RS 4
-Compress output using the fastest method the compression program provides\.
+Compress output using the fastest method the compression program provides\&.
 \fBAmrestore\fR
 normally writes output files in a format understood by
 \fBrestore\fR
 or
-\fBtar\fR, even if the backups on the tape are compressed\. With the
+\fBtar\fR, even if the backups on the tape are compressed\&. With the
 \fB\-c\fR
 or
 \fB\-C\fR
 option,
 \fBamrestore\fR
-writes all files in compressed format, even if the backups on the tape are not compressed\. Output file names will have a
-\fB\.Z\fR
+writes all files in compressed format, even if the backups on the tape are not compressed\&. Output file names will have a
+\fB\&.Z\fR
 or
-\fB\.gz\fR
+\fB\&.gz\fR
 extension depending on whether
 \fBcompress\fR
 or
 \fBgzip\fR
-is the preferred compression program\. This option is useful when the current directory disk is small\.
+is the preferred compression program\&. This option is useful when the current directory disk is small\&.
 .RE
 .PP
 \fB\-C\fR
 .RS 4
-Compress output using the best method the compression program provides (may be very CPU intensive)\. See the notes above about the
+Compress output using the best method the compression program provides (may be very CPU intensive)\&. See the notes above about the
 \fB\-c\fR
-option\.
+option\&.
 .RE
 .PP
 \fB\-r\fR
 .RS 4
-Raw output\. Backup images are output exactly as they are on the tape, including the
+Raw output\&. Backup images are output exactly as they are on the tape, including the
 \fBamdump\fR
-headers\. Output file names will have a
-\fB\.RAW\fR
-extension\. This option is only useful for debugging and other strange circumstances\.
+headers\&. Output file names will have a
+\fB\&.RAW\fR
+extension\&. This option is only useful for debugging and other strange circumstances\&.
 .RE
 .PP
 \fB\-h\fR
 .RS 4
-Header output\. The tape header block is output at the beginning of each file\. This is like
+Header output\&. The tape header block is output at the beginning of each file\&. This is like
 \fB\-r\fR
 except
 \fB\-c\fR
 or
 \fB\-C\fR
-may also be used to compress the result\.
+may also be used to compress the result\&.
 \fBAmrecover\fR
-uses the header to determine the restore program to use\.
+uses the header to determine the restore program to use\&.
 .RE
 .PP
-If a header is written (\-r or \-h), only 32 KBytes are output regardless of the tape blocksize\. This makes the resulting image usable as a holding file\.
+If a header is written (\-r or \-h), only 32 KBytes are output regardless of the tape blocksize\&. This makes the resulting image usable as a holding file\&.
 .PP
 \fB\-o\fR \fIconfigoption\fR
 .RS 4
 See the "\fBCONFIGURATION OVERRIDE\fR" section in
-\fBamanda\fR(8)\.
+\fBamanda\fR(8)\&.
 .RE
 .SH "EXAMPLES"
 .PP
 The following does an interactive restore of disk
 \fIrz3g\fR
 from host
-\fIseine\fR, to restore particular files\. Note the use of the
+\fIseine\fR, to restore particular files\&. Note the use of the
 \fBb\fR
 option to
-\fBrestore\fR, which causes it to read in units of two 512\-byte blocks (1 Kbyte) at a time\. This helps keep it from complaining about short reads\.
+\fBrestore\fR, which causes it to read in units of two 512\-byte blocks (1 Kbyte) at a time\&. This helps keep it from complaining about short reads\&.
 .sp
+.if n \{\
 .RS 4
+.\}
+.fam C
+.ps -1
 .nf
+.if t \{\
+.sp -1
+.\}
+.BB lightgray adjust-for-leading-newline
+.sp -1
+
 % amrestore \-p /dev/nrmt9 seine rz3g | restore \-ivbf 2 \-
+.EB lightgray adjust-for-leading-newline
+.if t \{\
+.sp 1
+.\}
 .fi
+.fam
+.ps +1
+.if n \{\
 .RE
+.\}
 .PP
 The next example extracts all backup images for host
-\fIseine\fR\. This is the usual way to extract all data for a host after a disk crash\.
+\fIseine\fR\&. This is the usual way to extract all data for a host after a disk crash\&.
 .sp
+.if n \{\
 .RS 4
+.\}
+.fam C
+.ps -1
 .nf
+.if t \{\
+.sp -1
+.\}
+.BB lightgray adjust-for-leading-newline
+.sp -1
+
 % amrestore /dev/nrmt9 seine
+.EB lightgray adjust-for-leading-newline
+.if t \{\
+.sp 1
+.\}
 .fi
+.fam
+.ps +1
+.if n \{\
 .RE
+.\}
 .PP
 If the backup datestamp in the above example is
-19910125
+\FC19910125\F[]
 and
 \fIseine\fR
 has level 0 backups of disks
@@ -212,49 +406,95 @@ and
 \fIrz1g\fR
 on the tape, these files will be created in the current directory:
 .sp
+.if n \{\
 .RS 4
+.\}
+.fam C
+.ps -1
 .nf
-seine\.rz1a\.19910125\.0
-seine\.rz1g\.19910125\.0
+.if t \{\
+.sp -1
+.\}
+.BB lightgray adjust-for-leading-newline
+.sp -1
+
+seine\&.rz1a\&.19910125\&.0
+seine\&.rz1g\&.19910125\&.0
+.EB lightgray adjust-for-leading-newline
+.if t \{\
+.sp 1
+.\}
 .fi
+.fam
+.ps +1
+.if n \{\
 .RE
+.\}
 .PP
 You may also use
 \fBamrestore\fR
 to extract a backup image from a holding disk file that has not yet been flushed to tape:
 .sp
+.if n \{\
 .RS 4
+.\}
+.fam C
+.ps -1
 .nf
-% amrestore \-p /amanda/20001119/seine\.rz1a\.2 | restore \-ivbf 2 \-
+.if t \{\
+.sp -1
+.\}
+.BB lightgray adjust-for-leading-newline
+.sp -1
+
+% amrestore \-p /amanda/20001119/seine\&.rz1a\&.2 | restore \-ivbf 2 \-
+.EB lightgray adjust-for-leading-newline
+.if t \{\
+.sp 1
+.\}
 .fi
+.fam
+.ps +1
+.if n \{\
 .RE
+.\}
 .PP
 \fBAmrestore\fR
 may be used to generate a listing of images on a tape:
 .sp
+.if n \{\
 .RS 4
+.\}
+.fam C
+.ps -1
 .nf
+.if t \{\
+.sp -1
+.\}
+.BB lightgray adjust-for-leading-newline
+.sp -1
+
 % mt \-f /dev/nrmt9 rewind
 % amrestore \-p /dev/nrmt9 no\-such\-host > /dev/null
+.EB lightgray adjust-for-leading-newline
+.if t \{\
+.sp 1
+.\}
 .fi
+.fam
+.ps +1
+.if n \{\
 .RE
+.\}
 .PP
 This asks
 \fBamrestore\fR
 to find images for host
-\fBno\-such\-host\fR\. It will not find any entries that match, but along the way will report each image it skips\.
+\fBno\-such\-host\fR\&. It will not find any entries that match, but along the way will report each image it skips\&.
 .SH "CAVEATS"
 .PP
 \fBGNU\-tar\fR
-must be used to restore files from backup images created with the GNUTAR dumptype\. Vendor tar programs sometimes fail to read GNU tar images\.
-.SH "AUTHOR"
-.PP
-James da Silva,
-<jds@amanda\.org>, University of Maryland, College Park: Original text
-.PP
-Stefan G\. Weichinger,
-<sgw@amanda\.org>, maintainer of the
-\fIAmanda\fR\-documentation: XML\-conversion
+must be used to restore files from backup images created with the GNUTAR dumptype\&. Vendor tar programs sometimes fail to read GNU tar images\&.
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
@@ -263,3 +503,8 @@ Stefan G\. Weichinger,
 \fBtar\fR(1),
 \fBrestore\fR(8),
 : http://wiki.zmanda.com
+.SH "Authors"
+.PP
+\fBJames da Silva\fR <\&jds@amanda\&.org\&>
+.PP
+\fBStefan G\&. Weichinger\fR <\&sgw@amanda\&.org\&>

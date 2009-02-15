@@ -31,11 +31,14 @@
 #include "amanda.h"
 #include "server_util.h"
 #include "arglist.h"
-#include "token.h"
 #include "logfile.h"
 #include "util.h"
 #include "conffile.h"
 #include "diskfile.h"
+#include "pipespawn.h"
+#include "version.h"
+#include "conffile.h"
+#include "sys/wait.h"
 
 const char *cmdstr[] = {
     "BOGUS", "QUIT", "QUITTING", "DONE", "PARTIAL", 
@@ -52,14 +55,12 @@ const char *cmdstr[] = {
 };
 
 
-cmd_t
-getcmd(
-    struct cmdargs *	cmdargs)
+struct cmdargs *
+getcmd(void)
 {
     char *line;
     cmd_t cmd_i;
-
-    assert(cmdargs != NULL);
+    struct cmdargs *cmdargs = g_new0(struct cmdargs, 1);
 
     if (isatty(0)) {
 	g_printf("%s> ", get_pname());
@@ -72,29 +73,56 @@ getcmd(
 	line = stralloc("QUIT");
     }
 
-    cmdargs->argc = split(line, cmdargs->argv,
-	(int)(sizeof(cmdargs->argv) / sizeof(cmdargs->argv[0])), " ");
     dbprintf(_("getcmd: %s\n"), line);
+
+    cmdargs->argv = split_quoted_strings(line);
+    cmdargs->argc = g_strv_length(cmdargs->argv);
+    cmdargs->cmd = BOGUS;
+
     amfree(line);
 
-#if DEBUG
-    {
-	int i;
-	g_fprintf(stderr,_("argc = %d\n"), cmdargs->argc);
-	for (i = 0; i < cmdargs->argc+1; i++)
-	    g_fprintf(stderr,_("argv[%d] = \"%s\"\n"), i, cmdargs->argv[i]);
+    if (cmdargs->argc < 1) {
+	return cmdargs;
     }
-#endif
-
-    if (cmdargs->argc < 1)
-	return (BOGUS);
 
     for(cmd_i=BOGUS; cmdstr[cmd_i] != NULL; cmd_i++)
-	if(strcmp(cmdargs->argv[1], cmdstr[cmd_i]) == 0)
-	    return (cmd_i);
-    return (BOGUS);
+	if(strcmp(cmdargs->argv[0], cmdstr[cmd_i]) == 0) {
+	    cmdargs->cmd = cmd_i;
+	    return cmdargs;
+	}
+    return cmdargs;
 }
 
+struct cmdargs *
+get_pending_cmd(void)
+{
+    SELECT_ARG_TYPE ready;
+    struct timeval  to;
+    int             nfound;
+
+    FD_ZERO(&ready);
+    FD_SET(0, &ready);
+    to.tv_sec = 0;
+    to.tv_usec = 0;
+
+    nfound = select(1, &ready, NULL, NULL, &to);
+    if (nfound && FD_ISSET(0, &ready)) {
+        return getcmd();
+    } else {
+	return NULL;
+    }
+}
+
+void
+free_cmdargs(
+    struct cmdargs *cmdargs)
+{
+    if (!cmdargs)
+	return;
+    if (cmdargs->argv)
+	g_strfreev(cmdargs->argv);
+    g_free(cmdargs);
+}
 
 printf_arglist_function1(void putresult, cmd_t, result, const char *, format)
 {
@@ -177,7 +205,7 @@ int check_infofile(
 		}
 		if (other_dle_match == 0) {
 		    if(mkpdir(infofile, (mode_t)0755, (uid_t)-1,
-			      (gid_t)-1) == -1)  {
+			      (gid_t)-1) == -1) {
 			*errmsg = vstralloc("Can't create directory for ",
 					    infofile, NULL);
 			return -1;
@@ -192,4 +220,191 @@ int check_infofile(
 	amfree(infofile);
     }
     return 0;
+}
+
+void
+run_server_script(
+    pp_script_t  *pp_script,
+    execute_on_t  execute_on,
+    char         *config,
+    disk_t	 *dp,
+    int           level)
+{
+    pid_t   scriptpid;
+    int     scriptin, scriptout, scripterr;
+    char   *cmd;
+    char  **argvchild;
+    int     i, k;
+    FILE   *streamout;
+    char   *line;
+    char   *plugin;
+    char    level_number[NUM_STR_SIZE];
+
+    if ((pp_script_get_execute_on(pp_script) & execute_on) == 0)
+	return;
+    if (pp_script_get_execute_where(pp_script) != ES_SERVER)
+	return;
+
+    plugin = pp_script_get_plugin(pp_script);
+    k = property_argv_size(pp_script_get_property(pp_script));
+    argvchild = g_new0(char *, 16+k);
+    cmd = vstralloc(APPLICATION_DIR, "/", plugin, NULL);
+    i = 0;
+    argvchild[i++] = plugin;
+
+    switch (execute_on) {
+    case EXECUTE_ON_PRE_DLE_AMCHECK:
+	argvchild[i++] = "PRE-DLE-AMCHECK"; break;
+    case EXECUTE_ON_PRE_HOST_AMCHECK:
+	argvchild[i++] = "PRE-HOST-AMCHECK"; break;
+    case EXECUTE_ON_POST_DLE_AMCHECK:
+	argvchild[i++] = "POST-DLE-AMCHECK"; break;
+    case EXECUTE_ON_POST_HOST_AMCHECK:
+	argvchild[i++] = "POST-HOST-AMCHECK"; break;
+    case EXECUTE_ON_PRE_DLE_ESTIMATE:
+	argvchild[i++] = "PRE-DLE-ESTIMATE"; break;
+    case EXECUTE_ON_PRE_HOST_ESTIMATE:
+	argvchild[i++] = "PRE-HOST-ESTIMATE"; break;
+    case EXECUTE_ON_POST_DLE_ESTIMATE:
+	argvchild[i++] = "POST-DLE-ESTIMATE"; break;
+    case EXECUTE_ON_POST_HOST_ESTIMATE:
+	argvchild[i++] = "POST-HOST-ESTIMATE"; break;
+    case EXECUTE_ON_PRE_DLE_BACKUP:
+	argvchild[i++] = "PRE-DLE-BACKUP"; break;
+    case EXECUTE_ON_PRE_HOST_BACKUP:
+	argvchild[i++] = "PRE-HOST-BACKUP"; break;
+    case EXECUTE_ON_POST_DLE_BACKUP:
+	argvchild[i++] = "POST-DLE-BACKUP"; break;
+    case EXECUTE_ON_POST_HOST_BACKUP:
+	argvchild[i++] = "POST-HOST-BACKUP"; break;
+    case EXECUTE_ON_PRE_RECOVER:
+    case EXECUTE_ON_POST_RECOVER:
+    case EXECUTE_ON_PRE_LEVEL_RECOVER:
+    case EXECUTE_ON_POST_LEVEL_RECOVER:
+    case EXECUTE_ON_INTER_LEVEL_RECOVER:
+	{
+	     // ERROR these script can't be executed on server.
+	     return;
+	}
+    }
+
+    argvchild[i++] = "--execute-where";
+    argvchild[i++] = "server";
+
+    if (config) {
+	argvchild[i++] = "--config";
+	argvchild[i++] = config;
+    }
+    if (dp->host->hostname) {
+	argvchild[i++] = "--host";
+	argvchild[i++] = dp->host->hostname;
+    }
+    if (dp->name) {
+	argvchild[i++] = "--disk";
+	argvchild[i++] = dp->name;
+    }
+    if (dp->device) {
+	argvchild[i++] = "--device";
+	argvchild[i++] = dp->device;
+    }
+    if (level >= 0) {
+	g_snprintf(level_number, SIZEOF(level_number), "%d", level);
+	argvchild[i++] = "--level";
+	argvchild[i++] = level_number;
+    }
+
+    i += property_add_to_argv(&argvchild[i], pp_script_get_property(pp_script));
+    argvchild[i++] = NULL;
+
+    scripterr = fileno(stderr);
+    scriptpid = pipespawnv(cmd, STDIN_PIPE|STDOUT_PIPE, 0, &scriptin,
+			   &scriptout, &scripterr, argvchild);
+    close(scriptin);
+
+    streamout = fdopen(scriptout, "r");
+    if (streamout) {
+	while((line = agets(streamout)) != NULL) {
+	    dbprintf("script: %s\n", line);
+	}
+    }
+    fclose(streamout);
+    waitpid(scriptpid, NULL, 0);
+}
+
+
+void
+run_server_scripts(
+    execute_on_t  execute_on,
+    char         *config,
+    disk_t	 *dp,
+    int           level)
+{
+    GSList   *pp_scriptlist;
+
+    for (pp_scriptlist = dp->pp_scriptlist; pp_scriptlist != NULL;
+	 pp_scriptlist = pp_scriptlist->next) {
+	run_server_script(pp_scriptlist->data, execute_on, config, dp, level);
+    }
+}
+
+void
+run_amcleanup(
+    char *config_name)
+{
+    pid_t amcleanup_pid;
+    char *amcleanup_program;
+    char *amcleanup_options[4];
+
+    switch(amcleanup_pid = fork()) {
+	case -1:
+	    return;
+	    break;
+	case  0: /* child process */
+	    amcleanup_program = vstralloc(sbindir, "/", "amcleanup", versionsuffix(), NULL);
+	    amcleanup_options[0] = amcleanup_program;
+	    amcleanup_options[1] = "-p";
+	    amcleanup_options[2] = config_name;
+	    amcleanup_options[3] = NULL;
+	    execve(amcleanup_program, amcleanup_options, safe_env());
+	    error("exec %s: %s", amcleanup_program, strerror(errno));
+	    /*NOTREACHED*/
+	default:
+	    break;
+    }
+    waitpid(amcleanup_pid, NULL, 0);
+}
+
+char *
+get_master_process(
+    char *logfile)
+{
+    FILE *log;
+    char line[1024];
+    char *s, ch;
+    char *process_name;
+
+    log = fopen(logfile, "r");
+    if (!log)
+	return stralloc("UNKNOWN");
+
+    while(fgets(line, 1024, log)) {
+	if (strncmp_const(line, "INFO ") == 0) {
+	    s = line+5;
+	    ch = *s++;
+	    process_name = s-1;
+	    skip_non_whitespace(s, ch);
+	    s[-1] = '\0';
+	    skip_whitespace(s, ch);
+	    skip_non_whitespace(s, ch);
+	    s[-1] = '\0';
+	    skip_whitespace(s, ch);
+	    if (strncmp_const(s-1, "pid ") == 0) {
+		process_name = stralloc(process_name);
+		fclose(log);
+		return process_name;
+	    }
+	}
+    }
+    fclose(log);
+    return stralloc("UNKNOWN");
 }

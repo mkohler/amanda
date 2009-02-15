@@ -16,6 +16,10 @@
 #
 AC_DEFUN([AMANDA_SETUP_DEFAULTS],
 [
+    #allow configure CONFIG_CLOBBER_MY_CONFIG= to be used by make.
+    CONFIG_CLOBBER_MY_CONFIG=$CLOBBER_MY_CONFIG
+    AC_SUBST(CONFIG_CLOBBER_MY_CONFIG)
+
     AC_ARG_WITH(index-server,
 	AS_HELP_STRING([--with-index-server=HOST],
 	    [default amanda index server (default: `uname -n`)]),

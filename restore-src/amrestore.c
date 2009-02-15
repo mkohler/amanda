@@ -96,7 +96,7 @@ static void handle_holding_disk_restore(char * filename, rst_flags_t * flags,
 static void handle_tape_restore(char * device_name, rst_flags_t * flags,
                                 GSList * dumpspecs, char * check_label) {
     Device * device;
-    ReadLabelStatusFlags read_label_status;
+    DeviceStatusFlags device_status;
 
     dumpfile_t first_restored_file;
 
@@ -105,24 +105,24 @@ static void handle_tape_restore(char * device_name, rst_flags_t * flags,
     fh_init(&first_restored_file);
     
     device = device_open(device_name);
-    if (device == NULL) {
-        error("Could not open device.\n");
+    g_assert(device != NULL);
+    if (device->status != DEVICE_STATUS_SUCCESS) {
+        error("Could not open device %s: %s.\n", device_name, device_error(device));
     }
     
-    device_set_startup_properties_from_config(device);
-    read_label_status = device_read_label(device);
-    if (read_label_status != READ_LABEL_STATUS_SUCCESS) {
-        char * errstr =
-            g_english_strjoinv_and_free
-                (g_flags_nick_to_strv(read_label_status,
-                                      READ_LABEL_STATUS_FLAGS_TYPE), "or");
-        error("Error reading volume label: %s.\n", errstr);
+    if (!set_restore_device_read_buffer_size(device, flags)) {
+        error("Error setting read block size: %s.\n", device_error_or_status(device));
+    }
+    device_status = device_read_label(device);
+    if (device_status != DEVICE_STATUS_SUCCESS) {
+        error("Error reading volume label: %s.\n", device_error_or_status(device));
     }
 
     g_assert(device->volume_label != NULL);
 
     if (!device_start(device, ACCESS_READ, NULL, NULL)) {
-        error("Could not open device %s for reading.\n", device_name);
+        error("Could not open device %s for reading: %s.\n", device_name,
+	      device_error(device));
     }
 
     if (check_label != NULL && strcmp(check_label,
@@ -195,10 +195,6 @@ main(
 		error(_("invalid blocksize value \"%s\""), optarg);
 		/*NOTREACHED*/
 	    }
-	    if(rst_flags->blocksize < DISK_BLOCK_BYTES) {
-		error(_("minimum block size is %dk"), DISK_BLOCK_BYTES / 1024);
-		/*NOTREACHED*/
-	    }
 	    break;
 	case 'c': rst_flags->compress = 1; break;
 	case 'o':
@@ -220,6 +216,9 @@ main(
 	    /*@end@*/
 	    break;
 	case 'l':
+            if (label) {
+                error(_("Cannot specify multiple labels.\n"));
+            }
 	    label = stralloc(optarg);
 	    break;
 	default:
@@ -228,8 +227,15 @@ main(
     }
 
     /* initialize a generic configuration without reading anything */
-    config_init(CONFIG_INIT_CLIENT, NULL);
+    config_init(0, NULL);
     apply_config_overwrites(cfg_ovr);
+
+    if (config_errors(NULL) >= CFGERR_WARNINGS) {
+	config_print_errors();
+	if (config_errors(NULL) >= CFGERR_ERRORS) {
+	    g_critical(_("errors processing config file"));
+	}
+    }
 
     if(rst_flags->compress && rst_flags->raw) {
 	g_fprintf(stderr,

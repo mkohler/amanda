@@ -1,20 +1,178 @@
 .\"     Title: amgpgcrypt
-.\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 08/22/2008
-.\"    Manual: 
-.\"    Source: 
+.\"    Author: Kevin Till <kevin.till@zmanda.com>
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 01/22/2009
+.\"    Manual: System Administration Commands
+.\"    Source: Amanda 2.6.1
+.\"  Language: English
 .\"
-.TH "AMGPGCRYPT" "8" "08/22/2008" "" ""
+.TH "AMGPGCRYPT" "8" "01/22/2009" "Amanda 2\&.6\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
-.SH "NAME"
-amgpgcrypt - reference crypt program for Amanda public-key data encryption
-.SH "SYNOPSIS"
-.HP 11
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "Name"
+amgpgcrypt \- reference crypt program for \fIAmanda\fR public\-key data encryption
+.SH "Synopsis"
+.fam C
+.HP \w'\fBamgpgcrypt\fR\ 'u
 \fBamgpgcrypt\fR  to be called by \fIAmanda\fR only 
+.fam
 .SH "DESCRIPTION"
 .PP
 
@@ -23,59 +181,59 @@ calls
 \fBgpg\fR
 to perform public\-key data encryption on
 \fIAmanda\fR
-backup\.
+backup\&.
 \fBamgpgcrypt\fR
 will search for the gpg program in the following directories: /usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
 .PP
 
 \fBamgpgcrypt\fR
-sets GNUPGHOME to $AMANDA_HOME/\.gnupg where gpg will look for the gpg keys\.
+sets GNUPGHOME to $AMANDA_HOME/\&.gnupg where gpg will look for the gpg keys\&.
 \fBamgpgcrypt\fR
 uses the public key to encrypt the
 \fIAmanda\fR
 data and uses the private key to decrypt the
 \fIAmanda\fR
-backup data\. Thus, passphrase is only required at the time of data restore\.
-.SH "KEY AND PASSPHRASE"
+backup data\&. Thus, passphrase is only required at the time of data restore\&.
+.SH "Key and Passphrase"
 .PP
 
 \fBamgpgcrypt\fR
 uses the private key to decrypt
 \fIAmanda\fR
-backup data\.
+backup data\&.
 
 It is very important to store, manage and  protect the key and the passphrase
-properly\. Encrypted backup data can \fBonly\fR be recovered with the correct key and
-passphrase\.
-.SH "HOW TO CREATE ENCRYPTION KEYS AND PASSPHRASE FOR AMGPGCRYPT"
+properly\&. Encrypted backup data can \fBonly\fR be recovered with the correct key and
+passphrase\&.
+.SH "How to create encryption keys and Passphrase for amgpgcrypt"
 .PP
 Store the passphrase that you used in following "gpg \-\-gen\-key" command inside the home\-directory of the AMANDA\-user($amanda_user) and protect it with proper permissions:
 
-   echo my_secret_passphrase > ~$amanda_user/\.am_passphrase
-   chown $amanda_user:disk ~$amanda_user/\.am_passphrase
-   chmod 700 ~$amanda_user/\.am_passphrase
+   echo my_secret_passphrase > ~$amanda_user/\&.am_passphrase
+   chown $amanda_user:disk ~$amanda_user/\&.am_passphrase
+   chmod 700 ~$amanda_user/\&.am_passphrase
 .PP
-Run "gpg \-\-gen\-key"\. Below is an example:
+Run "gpg \-\-gen\-key"\&. Below is an example:
 .nf
 $ gpg \-\-gen\-key
-gpg (GnuPG) 1\.2\.6; Copyright (C) 2004 Free Software Foundation, Inc\.
-This program comes with ABSOLUTELY NO WARRANTY\.
+gpg (GnuPG) 1\&.2\&.6; Copyright (C) 2004 Free Software Foundation, Inc\&.
+This program comes with ABSOLUTELY NO WARRANTY\&.
 This is free software, and you are welcome to redistribute it
-under certain conditions\. See the file COPYING for details\.
+under certain conditions\&. See the file COPYING for details\&.
 
 Please select what kind of key you want:
    (1) DSA and ElGamal (default)
    (2) DSA (sign only)
    (4) RSA (sign only)
 Your selection? 1
-DSA keypair will have 1024 bits\.
-About to generate a new ELG\-E keypair\.
+DSA keypair will have 1024 bits\&.
+About to generate a new ELG\-E keypair\&.
               minimum keysize is  768 bits
               default keysize is 1024 bits
     highest suggested keysize is 2048 bits
 What keysize do you want? (1024)
 Requested keysize is 1024 bits
-Please specify how long the key should be valid\.
+Please specify how long the key should be valid\&.
          0 = key does not expire
       (n)  = key expires in n days
       (n)w = key expires in n weeks
@@ -87,7 +245,7 @@ Is this correct (y/n)? y
 
 You need a User\-ID to identify your key; the software constructs the user id
 from Real Name, Comment and Email Address in this form:
-    "Heinrich Heine (Der Dichter) (heinrichh@duesseldorf\.de)"
+    "Heinrich Heine (Der Dichter) (heinrichh@duesseldorf\&.de)"
 
 Real name: amandabackup
 Email address:
@@ -96,52 +254,49 @@ You selected this USER\-ID:
     "amandabackup (gpg keys for amandabackup)"
 
 Change (N)ame, (C)omment, (E)mail or (O)kay/(Q)uit? o
-You need a Passphrase to protect your secret key\.
+You need a Passphrase to protect your secret key\&.
 
-We need to generate a lot of random bytes\. It is a good idea to perform
+We need to generate a lot of random bytes\&. It is a good idea to perform
 some other action (type on the keyboard, move the mouse, utilize the
 disks) during the prime generation; this gives the random number
-generator a better chance to gain enough entropy\.
+generator a better chance to gain enough entropy\&.
 
-We need to generate a lot of random bytes\. It is a good idea to perform
+We need to generate a lot of random bytes\&. It is a good idea to perform
 some other action (type on the keyboard, move the mouse, utilize the
 disks) during the prime generation; this gives the random number
-generator a better chance to gain enough entropy\.
+generator a better chance to gain enough entropy\&.
 
-public and secret key created and signed\.
-key marked as ultimately trusted\.
+public and secret key created and signed\&.
+key marked as ultimately trusted\&.
 
 pub  1024D/4417A8CB 2006\-02\-07 amandabackup (gpg keys for amandabackup)
      Key fingerprint = 139C 6369 44FC 7F1A 655C  E5E9 7EAA 515A 4417 A8CB
 sub  1024g/8C3A6A78 2006\-02\-07 [expires: 2006\-08\-06]
 .fi
-.SH "FILES"
+.SH "Files"
 .PP
-\fB$AMANDA_HOME/\.gnupg/pubring\.gpg\fR
+\fB$AMANDA_HOME/\&.gnupg/pubring\&.gpg\fR
 .RS 4
-The public key\.
+The public key\&.
 \fBamgpgcrypt\fR
-encrypt data with this public key along with the cipher algorithm\.
+encrypt data with this public key along with the cipher algorithm\&.
 .RE
 .PP
-\fB$AMANDA_HOME/\.gnupg/secring\.gpg\fR
+\fB$AMANDA_HOME/\&.gnupg/secring\&.gpg\fR
 .RS 4
-The private/secret key\. It\'s only needed during amrecover/amrestore\. Store and protect it properly during other time\.
+The private/secret key\&. It\'s only needed during amrecover/amrestore\&. Store and protect it properly during other time\&.
 .RE
 .PP
-\fB$AMANDA_HOME/\.am_passphrase\fR
+\fB$AMANDA_HOME/\&.am_passphrase\fR
 .RS 4
-The passphrase\. It\'s only needed during amrecover/amrestore\. Store and protect it properly during other time\.
+The passphrase\&. It\'s only needed during amrecover/amrestore\&. Store and protect it properly during other time\&.
 .RE
 .SH "BUGS"
 .PP
 \fIAmanda\fR
-has problem with gpg mdc(modification detection code) in the binary mode\.
+has problem with gpg mdc(modification detection code) in the binary mode\&.
 \fBamgpgcrypt\fR
 calls gpg with mdc disabled
-.SH "AUTHOR"
-.PP
-The tool and its documentation was written by Zmanda, Inc (http://www\.zmanda\.com/)\.
 .SH "SEE ALSO"
 .PP
 
@@ -151,3 +306,9 @@ The tool and its documentation was written by Zmanda, Inc (http://www\.zmanda\.c
 \fBamrestore\fR(8),
 \fBgpg\fR(1),
 : http://wiki.zmanda.com
+.SH "Author"
+.PP
+\fBKevin Till\fR <\&kevin\&.till@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (\FChttp://www\&.zmanda\&.com\F[])
+.RE

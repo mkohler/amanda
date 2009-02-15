@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 2006 Zmanda Inc.
+ * Copyright (c) 2005-2008 Zmanda Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -34,6 +34,7 @@ static gboolean default_taper_source_seek_to_part_start(TaperSource * self);
 static gboolean default_taper_source_get_end_of_data(TaperSource * self);
 static gboolean default_taper_source_get_end_of_part(TaperSource * self);
 static dumpfile_t * default_taper_source_get_first_header(TaperSource * self);
+static char* default_taper_source_get_errmsg(TaperSource * self);
 
 /* pointer to the class of our parent */
 static GObjectClass *parent_class = NULL;
@@ -70,11 +71,9 @@ static void taper_source_finalize(GObject * obj_self) {
     if (G_OBJECT_CLASS(parent_class)->finalize)
         G_OBJECT_CLASS(parent_class)->finalize(obj_self);
 
-    if (self->first_header)
-        amfree(self->first_header);
-
-    if (self->driver_handle)
-        amfree(self->driver_handle);
+    dumpfile_free(self->first_header);
+    amfree(self->driver_handle);
+    amfree(self->errmsg);
 }
 
 static void 
@@ -83,6 +82,7 @@ taper_source_init (TaperSource * o) {
     o->end_of_part = FALSE;
     o->max_part_size = G_MAXUINT64;
     o->first_header = NULL;
+    o->errmsg = NULL;
 }
 
 static void 
@@ -98,6 +98,7 @@ taper_source_class_init (TaperSourceClass * c) {
     c->get_end_of_data = default_taper_source_get_end_of_data;
     c->get_end_of_part = default_taper_source_get_end_of_part;
     c->get_first_header = default_taper_source_get_first_header;
+    c->get_errmsg = default_taper_source_get_errmsg;
     c->predict_parts = NULL;
 
     g_object_class->finalize = taper_source_finalize;
@@ -212,6 +213,10 @@ static dumpfile_t* default_taper_source_get_first_header(TaperSource * self) {
     return dumpfile_copy(self->first_header);
 }
 
+static char* default_taper_source_get_errmsg(TaperSource * self) {
+    return self->errmsg;
+}
+
 /* The rest of these functions are vtable dispatch stubs. */
 
 ssize_t 
@@ -219,7 +224,7 @@ taper_source_read (TaperSource * self, void * buf, size_t count)
 {
     TaperSourceClass *klass;
     g_return_val_if_fail (self != NULL, (ssize_t )-1);
-    g_return_val_if_fail (TAPER_IS_SOURCE (self), (ssize_t )-1);
+    g_return_val_if_fail (IS_TAPER_SOURCE (self), (ssize_t )-1);
     g_return_val_if_fail (buf != NULL, (ssize_t )-1);
     g_return_val_if_fail (count > 0, (ssize_t )-1);
 
@@ -240,7 +245,7 @@ taper_source_get_end_of_data (TaperSource * self)
 {
     TaperSourceClass *klass;
     g_return_val_if_fail (self != NULL, TRUE);
-    g_return_val_if_fail (TAPER_IS_SOURCE (self), TRUE);
+    g_return_val_if_fail (IS_TAPER_SOURCE (self), TRUE);
 
     klass = TAPER_SOURCE_GET_CLASS(self);
     
@@ -254,7 +259,7 @@ taper_source_get_end_of_part (TaperSource * self)
 {
     TaperSourceClass *klass;
     g_return_val_if_fail (self != NULL, TRUE);
-    g_return_val_if_fail (TAPER_IS_SOURCE (self), TRUE);
+    g_return_val_if_fail (IS_TAPER_SOURCE (self), TRUE);
 
     klass = TAPER_SOURCE_GET_CLASS(self);
     
@@ -268,7 +273,7 @@ taper_source_get_first_header (TaperSource * self)
 {
     TaperSourceClass *klass;
     g_return_val_if_fail (self != NULL, NULL);
-    g_return_val_if_fail (TAPER_IS_SOURCE (self), NULL);
+    g_return_val_if_fail (IS_TAPER_SOURCE (self), NULL);
 
     klass = TAPER_SOURCE_GET_CLASS(self);
     
@@ -277,10 +282,24 @@ taper_source_get_first_header (TaperSource * self)
     return (*klass->get_first_header)(self);
 }
 
+char *
+taper_source_get_errmsg (TaperSource * self)
+{
+    TaperSourceClass *klass;
+    g_return_val_if_fail (self != NULL, NULL);
+    g_return_val_if_fail (IS_TAPER_SOURCE (self), NULL);
+
+    klass = TAPER_SOURCE_GET_CLASS(self);
+    
+    g_return_val_if_fail(klass->get_errmsg != NULL, NULL);
+
+    return (*klass->get_errmsg)(self);
+}
+
 int taper_source_predict_parts(TaperSource * self) {
     TaperSourceClass *klass;
     g_return_val_if_fail (self != NULL, -1);
-    g_return_val_if_fail (TAPER_IS_SOURCE (self), -1);
+    g_return_val_if_fail (IS_TAPER_SOURCE (self), -1);
 
     klass = TAPER_SOURCE_GET_CLASS(self);
     
@@ -296,7 +315,7 @@ taper_source_seek_to_part_start (TaperSource * self)
 {
     TaperSourceClass *klass;
     g_return_val_if_fail (self != NULL, (gboolean )0);
-    g_return_val_if_fail (TAPER_IS_SOURCE (self), (gboolean )0);
+    g_return_val_if_fail (IS_TAPER_SOURCE (self), (gboolean )0);
     klass = TAPER_SOURCE_GET_CLASS(self);
     
     if(klass->seek_to_part_start)
@@ -310,7 +329,7 @@ taper_source_start_new_part (TaperSource * self)
 {
     TaperSourceClass *klass;
     g_return_if_fail (self != NULL);
-    g_return_if_fail (TAPER_IS_SOURCE (self));
+    g_return_if_fail (IS_TAPER_SOURCE (self));
     klass = TAPER_SOURCE_GET_CLASS(self);
     
     if(klass->start_new_part)
@@ -322,7 +341,7 @@ taper_source_is_partial (TaperSource * self)
 {
     TaperSourceClass *klass;
     g_return_val_if_fail (self != NULL, FALSE);
-    g_return_val_if_fail (TAPER_IS_SOURCE (self), FALSE);
+    g_return_val_if_fail (IS_TAPER_SOURCE (self), FALSE);
     g_return_val_if_fail (taper_source_get_end_of_data(self), FALSE);
     klass = TAPER_SOURCE_GET_CLASS(self);
     
@@ -334,12 +353,12 @@ taper_source_is_partial (TaperSource * self)
 
 producer_result_t taper_source_producer(gpointer data,
                                         queue_buffer_t * buffer,
-                                        int hint_size) {
+                                        size_t hint_size) {
     TaperSource * source;
-    int result;
+    ssize_t result;
 
     source = data;
-    g_assert(TAPER_IS_SOURCE(source));
+    g_assert(IS_TAPER_SOURCE(source));
 
     buffer->offset = 0;
     if (buffer->data == NULL) {

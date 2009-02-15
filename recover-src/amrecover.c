@@ -62,6 +62,7 @@ char *server_line = NULL;
 char *dump_datestamp = NULL;		/* date we are restoring */
 char *dump_hostname;			/* which machine we are restoring */
 char *disk_name = NULL;			/* disk we are restoring */
+dle_t *dump_dle = NULL;
 char *mount_point = NULL;		/* where disk was mounted */
 char *disk_path = NULL;			/* path relative to mount point */
 char dump_date[STR_SIZE];		/* date on which we are restoring */
@@ -135,6 +136,7 @@ get_line(void)
     server_line = newstralloc(server_line, mesg_buffer);
     amfree(mesg_buffer);
     mesg_buffer = newbuf;
+    amrecover_debug(1, "get: %s\n", mesg_buffer);
     return 0;
 }
 
@@ -346,6 +348,13 @@ main(
     /* load the base client configuration */
     config_init(CONFIG_INIT_CLIENT, NULL);
 
+    if (config_errors(NULL) >= CFGERR_WARNINGS) {
+	config_print_errors();
+	if (config_errors(NULL) >= CFGERR_ERRORS) {
+	    g_critical(_("errors processing config file"));
+	}
+    }
+
     /* treat amrecover-specific command line options as the equivalent
      * -o command-line options to set configuration values */
     cfg_ovr = new_config_overwrites(argc/2);
@@ -402,7 +411,7 @@ main(
 
     check_running_as(RUNNING_AS_ROOT);
 
-    dbrename(config_name, DBG_SUBDIR_CLIENT);
+    dbrename(get_config_name(), DBG_SUBDIR_CLIENT);
 
     our_features = am_init_feature_set();
     our_features_string = am_feature_to_string(our_features);
@@ -553,7 +562,7 @@ main(
     }
     amfree(line);
 
-    line = vstrallocf("SCNF %s", config_name);
+    line = vstrallocf("SCNF %s", get_config_name());
     if (converse(line) == -1) {
         aclose(server_socket);
 	exit(1);

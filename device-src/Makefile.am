@@ -1,7 +1,7 @@
 # Makefile for Amanda tape library.
 
-SUBDIRS = . tests
-
+include $(top_srcdir)/config/automake/vars.am
+include $(top_srcdir)/config/automake/scripts.am
 include $(top_srcdir)/config/automake/precompile.am
 
 INCLUDES =	-I$(top_builddir)/common-src \
@@ -13,11 +13,15 @@ AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
 
 sbin_PROGRAMS =
 
+CHECK_PERL = amtapetype
+SCRIPTS_PERL = $(CHECK_PERL)
+sbin_SCRIPTS = $(SCRIPTS_PERL)
+
 ## libamdevice.la
 
 amlib_LTLIBRARIES = 	libamdevice.la
 libamdevice_la_LDFLAGS = -release $(VERSION) 
-libamdevice_la_SOURCES = property.c device.c queueing.c semaphore.c \
+libamdevice_la_SOURCES = property.c device.c device-queueing.c \
 	null-device.c rait-device.c vfs-device.c 
 libamdevice_la_LIBADD = ../common-src/libamanda.la
 
@@ -44,21 +48,35 @@ endif
 endif
 
 if WANT_S3_DEVICE
-libamdevice_la_SOURCES += s3-device.c s3.c
+libamdevice_la_SOURCES += s3-device.c s3.c s3-util.c
 endif
+
+## automake-style tests
+
+TESTS = vfs-test
+noinst_PROGRAMS = $(TESTS)
+
+vfs_test_SOURCES = vfs-test.c
+vfs_test_LDADD = \
+	../common-src/libtestutils.la \
+	libamdevice.la
 
 ## activate-devpay
 
-if WANT_DEVPAY
+if WANT_S3_DEVICE
 sbin_PROGRAMS += activate-devpay
 activate_devpay_SOURCES = activate-devpay.c
 endif
 
 ## headers
 
-noinst_HEADERS = null-device.h semaphore.h \
-	tape-ops.h property.h rait-device.h s3.h \
-	s3-device.h tape-device.h vfs-device.h \
-	device.h queueing.h
+noinst_HEADERS = \
+	device-queueing.h \
+	device.h \
+	property.h \
+	s3.h \
+	s3-util.h \
+	tape-device.h \
+	tape-ops.h
 	
 aminclude_HEADERS = 

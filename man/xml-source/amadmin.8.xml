@@ -10,14 +10,22 @@
 <!-- lifted from troff+man by doclifter -->
 <refentry id='amadmin.8'>
 
+
 <refmeta>
 <refentrytitle>amadmin</refentrytitle>
 <manvolnum>8</manvolnum>
+&rmi.source;
+&rmi.version;
+&rmi.manual.8;
 </refmeta>
 <refnamediv>
 <refname>amadmin</refname>
 <refpurpose>administrative interface to control &A; backups</refpurpose>
 </refnamediv>
+<refentryinfo>
+&author.jds;
+&author.sgw.xml;
+</refentryinfo>
 <!-- body begins here -->
 <refsynopsisdiv>
 <cmdsynopsis>
@@ -43,10 +51,10 @@ man page for more details about &A;.</para>
 
 <refsect1><title>COMMANDS</title>
 <para>Commands that take a <emphasis remap='I'>hostname</emphasis> [ <emphasis remap='I'>disks</emphasis> ]
-parameter pair operate on all disks in the <emphasis remap='I'>disklist</emphasis> for that
+parameter pair operate on all disks in the &disklist; for that
 <emphasis remap='I'>hostname</emphasis> if no disks are specified.  Where
 <emphasis remap='I'>hostname</emphasis> is also marked as being optional,
-the command operates on all hosts and disks in the <emphasis remap='I'>disklist</emphasis>.
+the command operates on all hosts and disks in the &disklist;.
 Both <emphasis remap='I'>hostname</emphasis> and <emphasis remap='I'>disks</emphasis>
 are special expressions; see the &quot;HOST &amp; DISK EXPRESSION&quot; section
 of <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
@@ -144,7 +152,7 @@ security to be sure amanda will not overwrite them.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
-  <term><emphasis remap='B'>find</emphasis> [ <option>--sort</option> <replaceable>hkdlpb</replaceable> ]<emphasis remap='B'></emphasis> [ <emphasis remap='I'>hostname</emphasis> [ <emphasis remap='I'>disks</emphasis> ]* ]*</term>
+  <term><emphasis remap='B'>find</emphasis> [ <option>--sort</option> <replaceable>hkdlpbfw</replaceable> ]<emphasis remap='B'></emphasis> [ <emphasis remap='I'>hostname</emphasis> [ <emphasis remap='I'>disks</emphasis> ]* ]*</term>
   <listitem>
 <para>Display all backups currently on tape or in the holding disk.
 The tape label or holding disk filename,
@@ -154,14 +162,16 @@ and status are displayed.</para>
 <programlisting>
 <emphasis>h</emphasis>: host name
 <emphasis>k</emphasis>: disk name
-<emphasis>d</emphasis>: dump date
+<emphasis>d</emphasis>: dump timestamp
 <emphasis>l</emphasis>: backup level
 <emphasis>p</emphasis>: dump part
 <emphasis>b</emphasis>: tape label
+<emphasis>f</emphasis>: filenum on tape
+<emphasis>w</emphasis>: write timestamp
 </programlisting></para>
 
 <para>An uppercase letter reverses the sort order for that key.
-The default sort order is <emphasis remap='B'>hkdlpb</emphasis>.</para>
+The default sort order is <emphasis remap='B'>hkdlpbfw</emphasis>.</para>
 </listitem>
 </varlistentry>
 
@@ -204,8 +214,7 @@ The default sort order is <emphasis remap='B'>hkdlpb</emphasis>.</para>
 on
 <emphasis remap='I'>hostname</emphasis>
 from the &A; database.</para>
-<note><para>If you do not also remove the disk from the
-<emphasis remap='I'>disklist</emphasis>
+<note><para>If you do not also remove the disk from the &disklist;
 file, &A; will treat it as a new disk during the next run.</para>
 </note>
   </listitem>
@@ -252,8 +261,7 @@ and insert them into the database on this machine.</para>
   <varlistentry>
   <term><emphasis remap='B'>disklist</emphasis> [ <emphasis remap='I'>hostname</emphasis> [ <emphasis remap='I'>disks</emphasis> ]* ]*</term>
   <listitem>
-<para>Display the
-<emphasis remap='I'>disklist</emphasis>
+<para>Display the &disklist;
 information for each of the
 <emphasis remap='I'>disks</emphasis>
 on
@@ -361,14 +369,13 @@ date        host      disk lv tape or file                 file part  status
 <filename>/workspace</filename>
 disk on
 <emphasis remap='I'>machine-d</emphasis>.
-If you do not also remove the disk from the
-<emphasis remap='I'>disklist</emphasis>
+If you do not also remove the disk from the &disklist;
 file, &A; will treat it as a new disk during the next run.</para>
 
 <programlisting remap='.nf'>
 $ amadmin daily delete machine-d /workspace
 amadmin: machine-d:/workspace deleted from database.
-amadmin: NOTE: you'll have to remove these from the disklist yourself.
+amadmin: NOTE: you'll have to remove these from the &disklist; yourself.
 </programlisting>
 
 <para>Find the next tape &A; will use (in this case, <literal>123456</literal>).</para>
@@ -427,11 +434,6 @@ TOTAL      241  12412187   7316312   731631  (estimated 8 runs per dumpcycle)
 
 <refsect1><title>FILES</title>
 <para>/usr/local/etc/amanda/<emphasis remap='I'>config</emphasis>/amanda.conf</para>
-</refsect1>
-
-<refsect1><title>AUTHOR</title>
-<para>James da Silva, &email.jds; : Original text</para>
-<para>&maintainer.sgw;: XML-conversion</para>
 </refsect1>
 
 <refsect1><title>SEE ALSO</title>

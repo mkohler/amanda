@@ -1,20 +1,178 @@
 .\"     Title: amcheck
-.\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 08/22/2008
-.\"    Manual: 
-.\"    Source: 
+.\"    Author: James da Silva <jds@amanda.org>
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 01/22/2009
+.\"    Manual: System Administration Commands
+.\"    Source: Amanda 2.6.1
+.\"  Language: English
 .\"
-.TH "AMCHECK" "8" "08/22/2008" "" ""
+.TH "AMCHECK" "8" "01/22/2009" "Amanda 2\&.6\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
-.SH "NAME"
-amcheck - run Amanda self-checks
-.SH "SYNOPSIS"
-.HP 8
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "Name"
+amcheck \- run \fIAmanda\fR self\-checks
+.SH "Synopsis"
+.fam C
+.HP \w'\fBamcheck\fR\ 'u
 \fBamcheck\fR [\-am] [\-w] [\-sclt] [\-M\ \fIaddress\fR] \fIconfig\fR [\fIhost\fR\ [\fIdisk\fR...]...] [\-o\ \fIconfigoption\fR]...
+.fam
 .SH "DESCRIPTION"
 .PP
 \fBAmcheck\fR
@@ -22,71 +180,71 @@ runs a number of self\-checks on both the
 \fIAmanda\fR
 tape server host and the
 \fIAmanda\fR
-client hosts\.
+client hosts\&.
 .PP
 On the tape server host,
 \fBamcheck\fR
 can go through the same tape checking used at the start of the nightly
 \fBamdump\fR
-run to verify the correct tape for the next run is mounted\.
+run to verify the correct tape for the next run is mounted\&.
 .PP
 \fBAmcheck\fR
-can also do a self\-check on all client hosts to make sure each host is running and that permissions on filesystems to be backed up are correct\.
+can also do a self\-check on all client hosts to make sure each host is running and that permissions on filesystems to be backed up are correct\&.
 .PP
-You can specify many host/disk expressions, only disks that match an expression will be checked\. All disks are checked if no expressions are given\.
+You can specify many host/disk expressions, only disks that match an expression will be checked\&. All disks are checked if no expressions are given\&.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR\.
+\fIAmanda\fR\&.
 .SH "OPTIONS"
 .PP
 \fB\-s\fR
 .RS 4
 Run the tape server local and tape checks (same as
-\fB\-lt\fR)\.
+\fB\-lt\fR)\&.
 .RE
 .PP
 \fB\-c\fR
 .RS 4
-Run the client host checks\. Multiple specific clients can be checked by specifying the client name\.
+Run the client host checks\&. Multiple specific clients can be checked by specifying the client name\&.
 .RE
 .PP
 \fB\-l\fR
 .RS 4
-Run the local tests (e\.g\. permissions) on the server host\.
+Run the local tests (e\&.g\&. permissions) on the server host\&.
 .RE
 .PP
 \fB\-t\fR
 .RS 4
-Run the tape tests on the server host\.
+Run the tape tests on the server host\&.
 .RE
 .PP
 \fB\-w\fR
 .RS 4
 Enables a DESTRUCTIVE check for write\-protection on the tape (which would otherwise cause the subsequent
 \fBamdump\fR
-to fail)\. If the tape is writable, this check causes all data after the tape label to be erased\. If the label_new_tapes option is enabled, this check may ERASE any non\-Amanda tape in the drive or changer\. The check enable the tape tests on the server host and is only made if the tape is otherwise correct\.
+to fail)\&. If the tape is writable, this check causes all data after the tape label to be erased\&. If the label_new_tapes option is enabled, this check may ERASE any non\-Amanda tape in the drive or changer\&. The check enable the tape tests on the server host and is only made if the tape is otherwise correct\&.
 .RE
 .PP
 \fB\-m\fR
 .RS 4
-Nothing is printed, but mail is sent if any errors are detected\. The mail goes to the
+Nothing is printed, but mail is sent if any errors are detected\&. The mail goes to the
 \fBmailto\fR
 address specified in the
-\fIamanda\.conf\fR
+\fIamanda\&.conf\fR
 file or the
 \fIaddress\fR
 value if
 \fB\-M\fR
-is set\.
+is set\&.
 .RE
 .PP
 \fB\-a\fR
 .RS 4
 Like
 \fB\-m\fR
-but the mail is always sent\.
+but the mail is always sent\&.
 .RE
 .PP
 \fB\-M\fR \fIaddress\fR
@@ -96,51 +254,51 @@ Mail the report to
 instead of the
 \fBmailto\fR
 value from
-\fIamanda\.conf\fR\. Implies
-\fB\-m\fR\.
+\fIamanda\&.conf\fR\&. Implies
+\fB\-m\fR\&.
 .RE
 .PP
 \fIhost\fR [\fIdisk\fR]*
 .RS 4
-Specify the host and disk on which the command will work\.
+Specify the host and disk on which the command will work\&.
 .RE
 .PP
 \fB\-o\fR \fIconfigoption\fR
 .RS 4
 See the "\fBCONFIGURATION OVERRIDE\fR" section in
-\fBamanda\fR(8)\.
+\fBamanda\fR(8)\&.
 .RE
 .PP
 The default is
-\fB\-cs\fR\.
+\fB\-cs\fR\&.
 .SH "EXAMPLES"
 .PP
-In this example, both the tape server and client tests are run\. The results are displayed on standard output\.
+In this example, both the tape server and client tests are run\&. The results are displayed on standard output\&.
 .nf
 % amcheck daily
 \fIAmanda\fR Tape Server Host Check
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
-/amanda2/amanda/work: 911475 KB disk space available, that\'s plenty\.
-NOTE: skipping tape\-writable test\.
-Tape VOL10 label ok\.
-Server check took 34\.966 seconds\.
+/amanda2/amanda/work: 911475 KB disk space available, that\'s plenty\&.
+NOTE: skipping tape\-writable test\&.
+Tape VOL10 label ok\&.
+Server check took 34\&.966 seconds\&.
 
 \fIAmanda\fR Backup Client Hosts Check
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
-WARNING: northstar: selfcheck request timed out\.  Host down?
-WARNING: drinkme: selfcheck request timed out\.  Host down?
-WARNING: scruffy: selfcheck request timed out\.  Host down?
-Client check: 136 hosts checked in 51\.945 seconds, 3 problems found\.
+WARNING: northstar: selfcheck request timed out\&.  Host down?
+WARNING: drinkme: selfcheck request timed out\&.  Host down?
+WARNING: scruffy: selfcheck request timed out\&.  Host down?
+Client check: 136 hosts checked in 51\&.945 seconds, 3 problems found\&.
 
-(brought to you by \fIAmanda\fR 2\.5\.0) 
+(brought to you by \fIAmanda\fR 2\&.5\&.0) 
 .fi
 .PP
 In this example, if the line
 \fBmailto csd\-amanda\fR
 is in
-\fIamanda\.conf\fR, mail will be sent to
+\fIamanda\&.conf\fR, mail will be sent to
 \fBcsd\-amanda\fR
-if the server check returns an error\.
+if the server check returns an error\&.
 .nf
 % amcheck \-s \-m daily 
 .fi
@@ -149,13 +307,13 @@ if the server check returns an error\.
 fatal slot \fIslot\fR: \fIerror message\fR
 .RS 4
 (error) The tape changer detected some kind of fatal error while trying to load slot
-\fIslot\fR\.
+\fIslot\fR\&.
 .RE
 .PP
 slot \fIslot\fR: \fIerror message\fR
 .RS 4
-(warning) The tape changer detected some kind of non\-fatal error (e\.g\. an empty slot was detected) while trying to load slot
-\fIslot\fR, or an error was detected trying to read the tape label\.
+(warning) The tape changer detected some kind of non\-fatal error (e\&.g\&. an empty slot was detected) while trying to load slot
+\fIslot\fR, or an error was detected trying to read the tape label\&.
 .RE
 .PP
 slot \fIslot\fR: date \fIYYYYMMDD\fR label \fIlabel\fR (\fIresult\fR)
@@ -165,14 +323,14 @@ slot \fIslot\fR: date \fIYYYYMMDD\fR label \fIlabel\fR (\fIresult\fR)
 in slot
 \fIslot\fR
 was loaded and found to have been last written on
-\fIYYYYMMDD\fR\. If the tape is new, the date field will be an
-\fIX\fR\. The
+\fIYYYYMMDD\fR\&. If the tape is new, the date field will be an
+\fIX\fR\&. The
 \fIresult\fR
 may be one of:
 .PP
 exact label match
 .RS 4
-This is the expected tape\.
+This is the expected tape\&.
 .RE
 .PP
 no match
@@ -180,12 +338,12 @@ no match
 This label does not match the
 \fBlabelstr\fR
 pattern in
-\fIamanda\.conf\fR\. Tape scanning will continue\.
+\fIamanda\&.conf\fR\&. Tape scanning will continue\&.
 .RE
 .PP
 active tape
 .RS 4
-This tape is still active and cannot be overwritten\. Tape scanning will continue\.
+This tape is still active and cannot be overwritten\&. Tape scanning will continue\&.
 .RE
 .PP
 first labelstr match
@@ -193,7 +351,7 @@ first labelstr match
 This tape is the first one that matches the
 \fBlabelstr\fR
 pattern in
-\fIamanda\.conf\fR\. Tape scanning will continue if necessary\.
+\fIamanda\&.conf\fR\&. Tape scanning will continue if necessary\&.
 .RE
 .PP
 labelstr match
@@ -201,7 +359,7 @@ labelstr match
 This tape is the next one that matches the
 \fBlabelstr\fR
 pattern in
-\fIamanda\.conf\fR\. Tape scanning will continue\.
+\fIamanda\&.conf\fR\&. Tape scanning will continue\&.
 .RE
 .sp
 .RE
@@ -211,8 +369,8 @@ ERROR: cannot look up dump user \fIuser\fR
 (error) Dump user
 \fIuser\fR
 from
-\fIamanda\.conf\fR
-could not be found in the system password information\.
+\fIamanda\&.conf\fR
+could not be found in the system password information\&.
 .RE
 .PP
 ERROR: cannot look up my own uid (\fIuid\fR)
@@ -221,7 +379,7 @@ ERROR: cannot look up my own uid (\fIuid\fR)
 \fIuid\fR
 running
 \fBamcheck\fR
-could not be found in the system password information\.
+could not be found in the system password information\&.
 .RE
 .PP
 ERROR: running as user \fIrunuser\fR instead of \fIdumpuser\fR
@@ -231,9 +389,9 @@ ERROR: running as user \fIrunuser\fR instead of \fIdumpuser\fR
 should be run as the dump user
 \fIdumpuser\fR
 from
-\fIamanda\.conf\fR
+\fIamanda\&.conf\fR
 instead of
-\fIrunuser\fR\.
+\fIrunuser\fR\&.
 .RE
 .PP
 ERROR: program dir \fIdirectory\fR: not accessible
@@ -241,42 +399,42 @@ ERROR: program dir \fIdirectory\fR: not accessible
 (error) The directory
 \fIAmanda\fR
 expects to find its auxiliary programs in,
-\fIdirectory\fR, is not accessible\.
+\fIdirectory\fR, is not accessible\&.
 .RE
 .PP
 ERROR: program \fIprogram\fR: does not exist
 .RS 4
 (error) Program
 \fIprogram\fR
-needed on the tape server could not be found\.
+needed on the tape server could not be found\&.
 .RE
 .PP
 ERROR: program \fIprogram\fR: not a file
 .RS 4
 (error) Program
 \fIprogram\fR
-needed on the tape server exists but is not a file\.
+needed on the tape server exists but is not a file\&.
 .RE
 .PP
 ERROR: program \fIprogram\fR: not executable
 .RS 4
 (error) Program
 \fIprogram\fR
-needed on the tape server exists but is not executable\.
+needed on the tape server exists but is not executable\&.
 .RE
 .PP
 WARNING: program \fIprogram\fR: not setuid\-root
 .RS 4
 (warning) Program
 \fIprogram\fR
-needed on the tape server exists but should be owned by user "root" and setuid\.
+needed on the tape server exists but should be owned by user "root" and setuid\&.
 .RE
 .PP
 ERROR: \fIXXX\fR dir \fIdirectory\fR: not writable
 .RS 4
 (error) Directory
 \fIdirectory\fR
-is either not writable, i\.e\. the dump user will not be able to create or remove files, or cannot be accessed, perhaps because a parent directory does not allow search permission\. The
+is either not writable, i\&.e\&. the dump user will not be able to create or remove files, or cannot be accessed, perhaps because a parent directory does not allow search permission\&. The
 \fIXXX\fR
 may be:
 .PP
@@ -287,7 +445,7 @@ for the
 log directory (see
 \fBlogdir\fR
 in
-\fBamanda\.conf\fR)
+\fBamanda\&.conf\fR)
 .RE
 .PP
 oldlog
@@ -295,7 +453,7 @@ oldlog
 for the directory that holds the old log files (see
 \fBlogdir\fR
 in
-\fBamanda\.conf\fR)
+\fBamanda\&.conf\fR)
 .RE
 .PP
 info
@@ -305,7 +463,7 @@ for an
 database information directory (see
 \fBcurinfo\fR
 in
-\fBamanda\.conf\fR) or
+\fBamanda\&.conf\fR) or
 .RE
 .PP
 index
@@ -315,29 +473,25 @@ for an
 index directory (see
 \fBindexdir\fR
 in
-\fBamanda\.conf\fR)
+\fBamanda\&.conf\fR)
 .RE
 .PP
 tapelist
 .RS 4
 for the
-\fIAmanda\fR
-tapelist directory (see
-\fBtapelist\fR
-in
-\fBamanda\.conf\fR)
+\fBtapelist\fR(5)
 .RE
 .sp
 .RE
 .PP
 NOTE: \fIXXX\fR dir \fIdirectory\fR: does not exist
 .RS 4
-(info) A database (info) or index directory does not exist or cannot be accessed\. This might just mean this is a new client or disk, but if that is not the case, this should be treated as an error\.
+(info) A database (info) or index directory does not exist or cannot be accessed\&. This might just mean this is a new client or disk, but if that is not the case, this should be treated as an error\&.
 .RE
 .PP
 NOTE: it will be created on the next run
 .RS 4
-(info) This indicates the info directory listed in the previous message will be created on the next run\.
+(info) This indicates the info directory listed in the previous message will be created on the next run\&.
 .RE
 .PP
 ERROR: \fIXXX\fR dir \fIname\fR: not a directory
@@ -346,33 +500,33 @@ ERROR: \fIXXX\fR dir \fIname\fR: not a directory
 \fBAmcheck\fR
 expected
 \fIname\fR
-to be a directory, but it is something else (e\.g\. file)\.
+to be a directory, but it is something else (e\&.g\&. file)\&.
 .RE
 .PP
-WARNING: info file \fIfile\fR: does not exist
+WARNING: info file \FCfile\F[]: does not exist
 .RS 4
 (warning) File
 \fIfile\fR
-does not exist in the text format database\. Since the parent directories do exist, the file should already have been created\.
+does not exist in the text format database\&. Since the parent directories do exist, the file should already have been created\&.
 .RE
 .PP
-ERROR: info file \fIname\fR: not a file
+ERROR: info file \FCname\F[]: not a file
 .RS 4
 (error)
 \fBAmcheck\fR
 expected
 \fIname\fR
-to be a file, but it is something else (e\.g\. file)\.
+to be a file, but it is something else (e\&.g\&. file)\&.
 .RE
 .PP
-ERROR: info file \fIfile\fR: not readable
+ERROR: info file \FCfile\F[]: not readable
 .RS 4
 (error) The text format database file
 \fIfile\fR
-is not readable\.
+is not readable\&.
 .RE
 .PP
-ERROR: log file \fIfile\fR: not writable
+ERROR: log file \FCfile\F[]: not writable
 .RS 4
 (error) Log file
 \fIfile\fR
@@ -381,31 +535,21 @@ ERROR: log file \fIfile\fR: not writable
 in
 \fBlogdir\fR
 from
-\fBamanda\.conf\fR) is either not writable, or cannot be accessed, perhaps because a parent directory does not allow search permission\.
+\fBamanda\&.conf\fR) is either not writable, or cannot be accessed, perhaps because a parent directory does not allow search permission\&.
 .RE
 .PP
 ERROR: tape list \fItapelist\fR: not writable
 .RS 4
 (error)
-\fIAmanda\fR
-tape list file
-\fItapelist\fR
-(see
-\fBtapelist\fR
-in
-\fBamanda\.conf\fR) is not writable or was not found\.
+\fBtapelist\fR(5)
+is not writable or was not found\&.
 .RE
 .PP
 ERROR: tape list \fItapelist\fR: parse error
 .RS 4
 (error)
-\fIAmanda\fR
-tape list file
-\fItapelist\fR
-(see
-\fBtapelist\fR
-in
-\fBamanda\.conf\fR) could not be read or parsed\.
+\fBtapelist\fR(5)
+could not be read or parsed\&.
 .RE
 .PP
 WARNING: tapedev is /dev/null, dumps will be thrown away
@@ -413,21 +557,21 @@ WARNING: tapedev is /dev/null, dumps will be thrown away
 (warning) The
 \fBtapedev\fR
 parameter in
-\fBamanda\.conf\fR
+\fBamanda\&.conf\fR
 is set to
-\fI/dev/null\fR
+\FC/dev/null\F[]
 and
 \fIAmanda\fR
-uses that when debugging to throw all the dump images away\.
+uses that when debugging to throw all the dump images away\&.
 .RE
 .PP
-WARNING: hold file \fIfile\fR exists
+WARNING: hold file \FCfile\F[] exists
 .RS 4
 (info) Hold file
 \fIfile\fR
 exists and will cause
 \fBamdump\fR
-to pause at the beginning until it is removed\.
+to pause at the beginning until it is removed\&.
 .RE
 .PP
 ERROR: holding disk \fIdisk\fR: statfs: \fIerror message\fR
@@ -436,16 +580,16 @@ ERROR: holding disk \fIdisk\fR: statfs: \fIerror message\fR
 \fIstatfs\fR
 system call on holding disk
 \fIdisk\fR
-(maybe because it does not exist)\.
+(maybe because it does not exist)\&.
 .RE
 .PP
 ERROR: holding disk \fIdisk\fR: not writable
 .RS 4
 (error) Holding disk
-\fIdisk\fR, is not writable, probably because the caller does not have write permission or a parent directory does not allow search permission\.
+\fIdisk\fR, is not writable, probably because the caller does not have write permission or a parent directory does not allow search permission\&.
 .RE
 .PP
-WARNING: holding disk \fIdisk\fR: available space unknown \fIN\fR KB requested\.
+WARNING: holding disk \fIdisk\fR: available space unknown \fIN\fR KB requested\&.
 .RS 4
 (warning)
 \fBAmcheck\fR
@@ -453,37 +597,47 @@ could not determine the amount of available space on holding disk
 \fIdisk\fR
 to see if there were at least
 \fIN\fR
-KBytes available\.
+KBytes available\&.
 .RE
 .PP
-WARNING: holding disk \fIdisk\fR: only \fIF\fR KB free (\fIR\fR KB requested)\.
+WARNING: holding disk \fIdisk\fR: only \fIF\fR KB free (\fIR\fR KB requested)\&.
 .RS 4
 (warning)
-\fIamanda\.conf\fR
+\fIamanda\&.conf\fR
 requested
 \fIR\fR
 KBytes of free space on holding disk
 \fIdisk\fR, but only
 \fIF\fR
-KBytes were available\. 10 MBytes is subtracted for each backup process (see the
+KBytes were available\&. 10 MBytes is subtracted for each backup process (see the
 \fBinparallel\fR
-\fIamanda\.conf\fR
-option) to allow for unexpected overruns\.
+\fIamanda\&.conf\fR
+option) to allow for unexpected overruns\&.
+.if n \{\
 .sp
+.\}
+.RS 4
+.BM yellow
 .it 1 an-trap
 .nr an-no-space-flag 1
 .nr an-break-flag 1
 .br
-Note
+.ps +1
+\fBNote\fR
+.ps -1
+.br
 Even though this message is listed as a warning, it causes
 \fBamcheck\fR
-to exit with a non\-zero status\.
+to exit with a non\-zero status\&.
+.sp .5v
+.EM yellow
+.RE
 .RE
 .PP
-Holding disk \fIdisk\fR: \fIN\fR KB disk space available, that\'s plenty\.
+Holding disk \fIdisk\fR: \fIN\fR KB disk space available, that\'s plenty\&.
 .RS 4
 (info) There was sufficient free space on holding disk
-\fIdisk\fR\.
+\fIdisk\fR\&.
 .RE
 .PP
 WARNING: holding disk \fIdisk\fR: only \fIF\fR KB free, using nothing
@@ -493,7 +647,7 @@ WARNING: holding disk \fIdisk\fR: only \fIF\fR KB free, using nothing
 has
 \fIF\fR
 KBytes of free space, but that is not enough for what is requested in
-\fIamanda\.conf\fR\.
+\fIamanda\&.conf\fR\&.
 .RE
 .PP
 Holding disk \fIdisk\fR: \fIF\fR KB disk space available, using \fIU\fR KB
@@ -506,78 +660,78 @@ KBytes of free space and
 \fIAmanda\fR
 will be using up to
 \fIU\fR
-Kbytes\.
+Kbytes\&.
 .RE
 .PP
-WARNING: if a tape changer is not available, runtapes must be set to 1\.
+WARNING: if a tape changer is not available, runtapes must be set to 1\&.
 .RS 4
 (warning) The
 \fBruntapes\fR
-\fIamanda\.conf\fR
+\fIamanda\&.conf\fR
 option must be set to 1 if the
 \fBtpchanger\fR
-\fIamanda\.conf\fR
-option is not set\.
+\fIamanda\&.conf\fR
+option is not set\&.
 .RE
 .PP
-ERROR: \fIerror message\fR\.
+ERROR: \fIerror message\fR\&.
 .RS 4
-(error) An error was detected while initializing the tape changer\.
+(error) An error was detected while initializing the tape changer\&.
 .RE
 .PP
-ERROR: \fItape device\fR: \fIerror message\fR\.
+ERROR: \fItape device\fR: \fIerror message\fR\&.
 .RS 4
-(error) An error was detected while processing the tape label\.
+(error) An error was detected while processing the tape label\&.
 .RE
 .PP
-ERROR: cannot overwrite active tape \fIlabel\fR\.
+ERROR: cannot overwrite active tape \fIlabel\fR\&.
 .RS 4
 (error) Tape
 \fIlabel\fR
-is still active and cannot be used\.
+is still active and cannot be used\&.
 .RE
 .PP
-ERROR: label \fIlabel\fR doesn\'t match labelstr \fIpattern\fR \.
+ERROR: label \fIlabel\fR doesn\'t match labelstr \fIpattern\fR \&.
 .RS 4
 (error) The label on tape
 \fIlabel\fR
 does not match the
 \fBlabelstr\fR
-\fIamanda\.conf\fR
-option\.
+\fIamanda\&.conf\fR
+option\&.
 .RE
 .PP
 (expecting a new tape)
 .RS 4
-(info) The tape is not OK and a new tape was expected\.
+(info) The tape is not OK and a new tape was expected\&.
 .RE
 .PP
 (expecting tape \fIlabel\fR or a new tape)
 .RS 4
 (info) The tape is not OK and either tape
 \fIlabel\fR
-or a new tape was expected\.
+or a new tape was expected\&.
 .RE
 .PP
-ERROR: tape \fIlabel\fR label ok, but is not writable\.
+ERROR: tape \fIlabel\fR label ok, but is not writable\&.
 .RS 4
 (error) Tape
 \fIlabel\fR
-is OK, but the write enable test failed\.
+is OK, but the write enable test failed\&.
 .RE
 .PP
-Tape \fIlabel\fR is writable\.
+Tape \fIlabel\fR is writable\&.
 .RS 4
 (info) Tape
 \fIlabel\fR
-is OK and the write enable test succeeded\.
+is OK and the write enable test succeeded\&.
 .RE
 .PP
-NOTE: skipping tape\-writable test\.
+NOTE: skipping tape\-writable test\&.
 .RS 4
 (info) The tape write test (see the
 \fB\-w\fR
-option) was not enabled\.
+option) was not enabled\&.
 .RE
 .PP
 WARNING: skipping tape test because amdump or amflush seem to be running, WARNING: if they are not, you must run amcleanup
@@ -588,54 +742,54 @@ like either
 \fBamdump\fR
 or
 \fBamflush\fR
-were running because a log file or amdump file exists\. If they are not running, you probably need to run
+were running because a log file or amdump file exists\&. If they are not running, you probably need to run
 \fBamcleanup\fR
-to clear up a previous failure\. Otherwise, you need to wait until they complete before running
-\fBamcheck\fR\.
+to clear up a previous failure\&. Otherwise, you need to wait until they complete before running
+\fBamcheck\fR\FC\&.\F[]
 .RE
 .PP
 NOTE: skipping tape checks
 .RS 4
 (info) The tape tests are being skipped because you used the
 \fB\-t\fR
-command line option\.
+command line option\&.
 .RE
 .PP
 WARNING: \fIcompress\fR is not executable, server\-compression and indexing will not work
 .RS 4
 (warning) Compression program
 \fIcompress\fR
-is not executable, so compression on the tape server host and creating index files will not work\.
+is not executable, so compression on the tape server host and creating index files will not work\&.
 .RE
 .PP
-Tape \fIlabel\fR label ok\.
+Tape \fIlabel\fR label ok\&.
 .RS 4
 (info) Tape
 \fIlabel\fR
-is OK for the next run\.
+is OK for the next run\&.
 .RE
 .PP
-Server check took \fIS\fR seconds\.
+Server check took \fIS\fR seconds\&.
 .RS 4
-(info) Reports how long the tape server host checks took\.
+(info) Reports how long the tape server host checks took\&.
 .RE
 .PP
 ERROR: \fIhost\fR: could not resolve hostname
 .RS 4
 (error) Could not look up client hostname
-\fIhost\fR\.
+\fIhost\fR\&.
 .RE
 .PP
-Client check: \fIH\fR hosts checked in \fIS\fR seconds, \fIN\fR problems found\.
+Client check: \fIH\fR hosts checked in \fIS\fR seconds, \fIN\fR problems found\&.
 .RS 4
-(info) Reports the number of client hosts checked, how long it took and the number of errors detected\.
+(info) Reports the number of client hosts checked, how long it took and the number of errors detected\&.
 .RE
 .PP
-WARNING: \fIhost\fR: selfcheck request timed out\. Host down?
+WARNING: \fIhost\fR: selfcheck request timed out\&. Host down?
 .RS 4
 (warning) There was no response from
 \fIhost\fR
-when trying to do the client checks\. The host might really be down or it might not be configured properly\.
+when trying to do the client checks\&. The host might really be down or it might not be configured properly\&.
 .RE
 .PP
 ERROR: \fIhost\fR NAK: \fImessage\fR
@@ -644,7 +798,7 @@ ERROR: \fIhost\fR NAK: \fImessage\fR
 \fIHost\fR
 reported a negative acknowledgment error of
 \fImessage\fR
-to the status check request\.
+to the status check request\&.
 .RE
 .PP
 ERROR: \fIhost\fR NAK: [NAK parse failed]
@@ -652,18 +806,18 @@ ERROR: \fIhost\fR NAK: [NAK parse failed]
 (error)
 \fBAmcheck\fR
 could not parse the negative acknowledgment error from
-\fIhost\fR\. There might be an
+\fIhost\fR\&. There might be an
 \fIAmanda\fR
 version mismatch between the host running
 \fBamcheck\fR
 and
-\fIhost\fR\.
+\fIhost\fR\&.
 .RE
 .PP
 ERROR: \fIhost\fR [mutual\-authentication failed]
 .RS 4
 (error) Kerberos authentication failed while contacting
-\fIhost\fR\.
+\fIhost\fR\&.
 .RE
 .PP
 ERROR: \fIhost\fR: \fImessage\fR
@@ -671,7 +825,7 @@ ERROR: \fIhost\fR: \fImessage\fR
 (error) Error
 \fImessage\fR
 was reported by the status check on
-\fIhost\fR\.
+\fIhost\fR\&.
 .RE
 .SH "EXIT CODE"
 
@@ -680,17 +834,13 @@ The exit code of \fBamcheck\fR is one of:
  0  = success
  1  = error
 .fi
-.SH "AUTHOR"
-.PP
-James da Silva,
-<jds@amanda\.org>
-: Original text
-.PP
-Stefan G\. Weichinger,
-<sgw@amanda\.org>, maintainer of the
-\fIAmanda\fR\-documentation: XML\-conversion
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
 \fBamdump\fR(8),
 : http://wiki.zmanda.com
+.SH "Authors"
+.PP
+\fBJames da Silva\fR <\&jds@amanda\&.org\&>
+.PP
+\fBStefan G\&. Weichinger\fR <\&sgw@amanda\&.org\&>

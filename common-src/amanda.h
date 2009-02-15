@@ -31,15 +31,15 @@
 #ifndef AMANDA_H
 #define AMANDA_H
 
-#include <glib.h>
-#include <glib/gprintf.h>
-
-#include "amflock.h"
-
 #ifdef HAVE_CONFIG_H
 /* use a relative path here to avoid conflicting with Perl's config.h. */
 #include "../config/config.h"
 #endif
+
+#include <glib.h>
+#include <glib/gprintf.h>
+
+#include "amflock.h"
 
 /*
  * Force large file source even if configure guesses wrong.
@@ -71,9 +71,6 @@
  * Also, some systems put key files in different places, so by including 
  * everything here the rest of the system is isolated from such things.
  */
-#ifdef HAVE_ALLOCA_H
-#  include <alloca.h>
-#endif
 
 /* from the autoconf documentation */
 #ifdef HAVE_DIRENT_H
@@ -404,11 +401,6 @@ extern int errno;
 #define DISK_BLOCK_KB		32
 #define DISK_BLOCK_BYTES	(DISK_BLOCK_KB * 1024)
 
-/* Maximum size of a tape block */
-/* MAX_TAPE_BLOCK_KB is defined in config.h */
-/* by configure --with-maxtapeblocksize     */
-#define MAX_TAPE_BLOCK_BYTES (MAX_TAPE_BLOCK_KB*1024)
-
 /* Maximum length of tape label, plus one for null-terminator. */
 #define MAX_TAPE_LABEL_LEN (10240)
 #define MAX_TAPE_LABEL_BUF (MAX_TAPE_LABEL_LEN+1)
@@ -494,6 +486,7 @@ char *	validate_regexp(const char *regex);
 char *	validate_glob(const char *glob);
 char *	clean_regex(const char *regex);
 int	match(const char *regex, const char *str);
+int	match_no_newline(const char *regex, const char *str);
 int	match_glob(const char *glob, const char *str);
 char *	glob_to_regex(const char *glob);
 int	match_tar(const char *glob, const char *str);
@@ -625,15 +618,15 @@ time_t	unctime(char *timestr);
 #define	NUM_STR_SIZE	128		/* a generic number buffer size */
 
 #define	skip_whitespace(ptr,c) do {					\
-    while((c) != '\n' && isspace((int)c)) (c) = *(ptr)++;		\
+    while((c) != '\n' && g_ascii_isspace((int)c)) (c) = *(ptr)++;		\
 } while(0)
 
 #define	skip_non_whitespace(ptr,c) do {					\
-    while((c) != '\0' && !isspace((int)c)) (c) = *(ptr)++;		\
+    while((c) != '\0' && !g_ascii_isspace((int)c)) (c) = *(ptr)++;		\
 } while(0)
 
 #define	skip_non_whitespace_cs(ptr,c) do {				\
-    while((c) != '\0' && (c) != '#' && !isspace((int)c)) (c) = *(ptr)++;\
+    while((c) != '\0' && (c) != '#' && !g_ascii_isspace((int)c)) (c) = *(ptr)++;\
 } while(0)
 
 #define	skip_non_integer(ptr,c) do {					\
@@ -647,11 +640,12 @@ time_t	unctime(char *timestr);
 
 #define skip_quoted_string(ptr, c) do {					\
     int	iq = 0;								\
-    while (((c) != '\0') && !((iq == 0) && isspace((int)c))) {		\
+    while (((c) != '\0') && !((iq == 0) && g_ascii_isspace((int)c))) {		\
 	if ((c) == '"') {						\
 	    iq = !iq;							\
-	} else if (((c) == '\\') && (*(ptr) == '"')) {			\
-	    (ptr)++;							\
+	} else if ((c) == '\\') {					\
+	    if (*ptr)	/* not last character */			\
+		(ptr)++;						\
 	}								\
 	(c) = *(ptr)++;							\
     }									\
@@ -677,7 +671,7 @@ time_t	unctime(char *timestr);
 
 #define	copy_string(ptr,c,f,l,fp) do {					\
     (fp) = (f);								\
-    while((c) != '\0' && !isspace((int)c)) {				\
+    while((c) != '\0' && !g_ascii_isspace((int)c)) {				\
 	if((fp) >= (f) + (l) - 1) {					\
 	    *(fp) = '\0';						\
 	    (fp) = NULL;						\
@@ -693,7 +687,7 @@ time_t	unctime(char *timestr);
 
 #define	copy_string_cs(ptr,c,f,l,fp) do {				\
     (fp) = (f);								\
-    while((c) != '\0' && (c) != '#' && !isspace((int)c)) {		\
+    while((c) != '\0' && (c) != '#' && !g_ascii_isspace((int)c)) {		\
 	if((fp) >= (f) + (l) - 1) {					\
 	    *(fp) = '\0';						\
 	    (fp) = NULL;						\
@@ -1076,6 +1070,9 @@ extern int vprintf(const char *format, va_list ap);
 /* gnulib-only includes (hence "" instead of <>) */
 #include "getaddrinfo.h"
 #include "inet_ntop.h"
+#include "safe-read.h"
+#include "full-read.h"
+#include "full-write.h"
 
 #if !defined(S_ISCHR) && defined(_S_IFCHR) && defined(_S_IFMT)
 #define S_ISCHR(mode) (((mode) & _S_IFMT) == _S_IFCHR)
@@ -1181,68 +1178,6 @@ extern ssize_t writev(int fd, const struct iovec *iov, int iovcnt);
 #  endif
 #endif
 
-#if SIZEOF_OFF_T == 8
-#  ifdef OFF_MAX
-#    define AM64_MAX (off_t)(OFF_MAX)
-#  else
-#    define AM64_MAX (off_t)(9223372036854775807LL)
-#  endif
-#  ifdef OFF_MIN
-#    define AM64_MIN (off_t)(OFF_MIN)
-#  else
-#    define AM64_MIN (off_t)(-9223372036854775807LL -1LL)
-#  endif
-#else
-#if SIZEOF_LONG == 8
-#  ifdef LONG_MAX
-#    define AM64_MAX (off_t)(LONG_MAX)
-#  else
-#    define AM64_MAX (off_t)9223372036854775807L
-#  endif
-#  ifdef LONG_MIN
-#    define AM64_MIN (off_t)(LONG_MIN)
-#  else
-#    define AM64_MIN (off_t)(-9223372036854775807L -1L)
-#  endif
-#else
-#if SIZEOF_LONG_LONG == 8
-#  ifdef LONG_LONG_MAX
-#    define AM64_MAX (off_t)(LONG_LONG_MAX)
-#  else
-#    define AM64_MAX (off_t)9223372036854775807LL
-#  endif
-#  ifdef LONG_LONG_MIN
-#    define AM64_MIN (off_t)(LONG_LONG_MIN)
-#  else
-#    define AM64_MIN (off_t)(-9223372036854775807LL -1LL)
-#  endif
-#else
-#if SIZEOF_INTMAX_T == 8
-#  ifdef INTMAX_MAX
-#    define AM64_MAX (off_t)(INTMAX_MAX)
-#  else
-#    define AM64_MAX (off_t)9223372036854775807LL
-#  endif
-#  ifdef INTMAX_MIN
-#    define AM64_MIN (off_t)(INTMAX_MIN)
-#  else
-#    define AM64_MIN (off_t)(-9223372036854775807LL -1LL)
-#  endif
-#else  /* no 64 bits type found, use long. */
-#  ifdef LONG_MAX
-#    define AM64_MAX (off_t)(LONG_MAX)
-#  else
-#    define AM64_MAX (off_t)2147483647
-#  endif
-#  ifdef LONG_MIN
-#    define AM64_MIN (off_t)(LONG_MIN)
-#  else
-#    define AM64_MIN (off_t)(-2147483647 -1)
-#  endif
-#endif
-#endif
-#endif
-#endif
 
 #define BIND_CYCLE_RETRIES	120		/* Total of 30 minutes */
 

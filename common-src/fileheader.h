@@ -53,7 +53,7 @@ typedef struct file_s {
     string_t name;	/* hostname or label */
     string_t disk;
     string_t program;
-    string_t dumper;
+    string_t application;
     string_t srvcompprog;
     string_t clntcompprog;
     string_t srv_encrypt;
@@ -65,6 +65,7 @@ typedef struct file_s {
     string_t srv_decrypt_opt;
     string_t clnt_decrypt_opt;
     string_t cont_filename;
+    char     *dle_str;
     int is_partial;
     int partnum;
     int totalparts; /* -1 == UNKNOWN */
@@ -91,5 +92,12 @@ gboolean headers_are_equal(dumpfile_t * a, dumpfile_t * b);
 
 /* Returns an allocated duplicate header. */
 dumpfile_t * dumpfile_copy(dumpfile_t* from);
+void dumpfile_copy_in_place(dumpfile_t *dest, dumpfile_t* source);
+
+/* Frees associated storage */
+void dumpfile_free_data(dumpfile_t* info);
+
+/* Frees the header and associated storage */
+void dumpfile_free(dumpfile_t* info);
 
 #endif /* !FILEHEADER_H */

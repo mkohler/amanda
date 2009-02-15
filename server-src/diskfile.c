@@ -34,6 +34,7 @@
 #include "conffile.h"
 #include "diskfile.h"
 #include "util.h"
+#include "amxml.h"
 
 static am_host_t *hostlist;
 static netif_t *all_netifs;
@@ -45,22 +46,29 @@ static void disk_parserror(const char *, int, const char *, ...)
 			    G_GNUC_PRINTF(3, 4);
 
 
-int
+cfgerr_level_t
 read_diskfile(
     const char *filename,
     disklist_t *lst)
 {
     FILE *diskf;
     int line_num;
-    char *line;
+    char *line = NULL;
 
     /* initialize */
     hostlist = NULL;
     lst->head = lst->tail = NULL;
     line_num = 0;
 
+    /* if we already have config errors, then don't bother */
+    if (config_errors(NULL) >= CFGERR_ERRORS) {
+	return config_errors(NULL);
+    }
+
     if ((diskf = fopen(filename, "r")) == NULL) {
-	return -1;
+	config_add_error(CFGERR_ERRORS,
+	    vstrallocf(_("Could not open '%s': %s"), filename, strerror(errno)));
+	goto end;
         /*NOTREACHED*/
     }
 
@@ -68,16 +76,16 @@ read_diskfile(
 	line_num++;
 	if (line[0] != '\0') {
 	    if (parse_diskline(lst, filename, diskf, &line_num, &line) < 0) {
-		amfree(line);
-		afclose(diskf);
-		return (-1);
+		goto end;
 	    }
 	}
 	amfree(line);
     }
 
+end:
+    amfree(line);
     afclose(diskf);
-    return (0);
+    return config_errors(NULL);
 }
 
 am_host_t *
@@ -187,6 +195,7 @@ add_disk(
     am_host_t *host;
 
     disk = alloc(SIZEOF(disk_t));
+    bzero(disk, SIZEOF(disk_t));
     disk->line = 0;
     disk->tape_splitsize = (off_t)0;
     disk->split_diskbuffer = NULL;
@@ -205,6 +214,8 @@ add_disk(
     disk->exclude_file = NULL;
     disk->include_list = NULL;
     disk->include_file = NULL;
+    disk->application = NULL;
+    disk->pp_scriptlist = NULL;
 
     host = lookup_host(hostname);
     if(host == NULL) {
@@ -220,6 +231,8 @@ add_disk(
 	host->start_t = 0;
 	host->up = NULL;
 	host->features = NULL;
+	host->pre_script = 0;
+	host->post_script = 0;
     }
     enqueue_disk(list, disk);
 
@@ -433,7 +446,11 @@ parse_diskline(
     skip_quoted_string(s, ch);
     s[-1] = '\0';
     diskname = unquote_string(fp);
-
+    if (strlen(diskname) == 0) {
+	disk_parserror(filename, line_num, _("invalid empty diskname"));
+	amfree(hostname);
+	return (-1);
+    }
     skip_whitespace(s, ch);
     if(ch == '\0' || ch == '#') {
 	disk_parserror(filename, line_num, _("disk dumptype expected"));
@@ -450,6 +467,11 @@ parse_diskline(
     diskdevice = NULL;
     if(fp[0] != '{') {
 	dumptype = unquote_string(fp);
+	if (strlen(dumptype) == 0) {
+	    disk_parserror(filename, line_num, _("invalid empty diskdevice"));
+	    amfree(hostname);
+	    return (-1);
+	}
 	if ((dtype = lookup_dumptype(dumptype)) == NULL) {
 	    diskdevice = dumptype;
 	    skip_whitespace(s, ch);
@@ -479,12 +501,17 @@ parse_diskline(
 	} else {
 	    disk = host->disks;
 	    do {
-		if (match_disk(diskname, disk->name) &&
-		    match_disk(disk->name, diskname)) {
+		char *a1, *a2;
+		a1 = clean_regex(diskname);
+		a2 = clean_regex(disk->name);
+
+		if (match_disk(a1, disk->name) && match_disk(a2, diskname)) {
 		    dup = 1;
 		} else {
 		    disk = disk->hostnext;
 		}
+		amfree(a1);
+		amfree(a2);
 	    }
 	    while (dup == 0 && disk != NULL);
 	}
@@ -503,11 +530,13 @@ parse_diskline(
 	disk->spindle = -1;
 	disk->up = NULL;
 	disk->inprogress = 0;
+	disk->application = NULL;
+	disk->pp_scriptlist = NULL;
     }
 
     if (host) {
 	sdisk = sanitise_filename(diskname);
-	for (dp = host->disks; dp != NULL; dp = dp->next) {
+	for (dp = host->disks; dp != NULL; dp = dp->hostnext) {
 	    char *sdiskp = sanitise_filename(dp->name);
 	    if (strcmp(diskname, dp->name) != 0 &&
 		 strcmp(sdisk, sdiskp) == 0) {
@@ -546,7 +575,8 @@ parse_diskline(
 	    return (-1);
 	}
 	dtype = read_dumptype(vstralloc("custom(", hostname,
-					":", disk->name, ")", NULL),
+					":", disk->name, ")",
+					".", anonymous_value(), NULL),
 			      diskf, (char*)filename, line_num_p);
 	if (dtype == NULL || dup) {
 	    disk_parserror(filename, line_num,
@@ -592,6 +622,8 @@ parse_diskline(
     }
 
     if (dup) {
+	/* disk_parserror already called, above */
+	g_assert(config_errors(NULL) != CFGERR_OK);
 	amfree(hostname);
 	amfree(diskdevice);
 	amfree(diskname);
@@ -620,6 +652,8 @@ parse_diskline(
     disk->bumpdays	     = dumptype_get_bumpdays(dtype);
     disk->bumpmult	     = dumptype_get_bumpmult(dtype);
     disk->starttime          = dumptype_get_starttime(dtype);
+    disk->application        = dumptype_get_application(dtype);
+    disk->pp_scriptlist      = dumptype_get_pp_scriptlist(dtype);
     disk->start_t = 0;
     if (disk->starttime > 0) {
 	st = time(NULL);
@@ -724,6 +758,18 @@ parse_diskline(
 	disk_parserror(filename, line_num, _("end of line expected"));
     }
 
+    if (disk->program && disk->application &&
+	strcmp(disk->program,"APPLICATION")) {
+	disk_parserror(filename, line_num,
+		       _("Both program and application set"));
+    }
+
+    if (disk->program && strcmp(disk->program,"APPLICATION")==0 &&
+	!disk->application) {
+	disk_parserror(filename, line_num,
+		       _("program set to APPLICATION but no application set"));
+    }
+
     if(dumptype_get_ignore(dtype) || dumptype_get_strategy(dtype) == DS_SKIP) {
 	disk->todo = 0;
     }
@@ -744,6 +790,8 @@ parse_diskline(
 	host->start_t = 0;
 	host->up = NULL;
 	host->features = NULL;
+	host->pre_script = 0;
+	host->post_script = 0;
     } else {
 	amfree(hostname);
     }
@@ -765,15 +813,18 @@ printf_arglist_function2(void disk_parserror, const char *, filename,
     int, line_num, const char *, format)
 {
     va_list argp;
-    const char *xlated_fmt = gettext(format);
+    char * msg;
+    char * errstr;
 
-    /* print error message */
+    /* format the error message and hand it off to conffile */
 
-    g_fprintf(stderr, "\"%s\", line %d: ", filename, line_num);
     arglist_start(argp, format);
-    g_vfprintf(stderr, xlated_fmt, argp);
+    msg = g_strdup_vprintf(format, argp);
+    errstr = g_strdup_printf("\"%s\", line %d: %s", filename, line_num, msg);
+    amfree(msg);
     arglist_end(argp);
-    fputc('\n', stderr);
+
+    config_add_error(CFGERR_ERRORS, errstr);
 }
 
 
@@ -993,7 +1044,7 @@ optionstr(
 		      _("ERROR: %s:%s No encryption program specified in dumptypes\n"),
 		      dp->host->hostname, qdpname);
 	      g_fprintf(fdout, _("Change the dumptype in the disklist or mention "
-			       "the ecnryption program to use in the dumptypes file"));
+			       "the ecnryption program to use in the dumptypes file\n"));
 
 	    }
 	    err++;
@@ -1005,14 +1056,14 @@ optionstr(
 	   }
 	   else if(fdout) {
 	    g_fprintf(fdout,
-		    _("WARNING: %s:%s does not support server decrypt option\n"),
+		    _("WARNING: %s:%s client version does not support server data decryption\n"),
 		    dp->host->hostname, qdpname);
 	   }
 	 }
       }
       else if(fdout) {
 	    g_fprintf(fdout,
-		    _("WARNING: %s:%s does not support server data encryption\n"),
+		    _("WARNING: %s:%s client version does not support server data encryption\n"),
 		    dp->host->hostname, qdpname);
       }
 	 break;
@@ -1216,6 +1267,630 @@ optionstr(
 
  
 char *
+xml_optionstr(
+    disk_t *		dp,
+    am_feature_t *	their_features,
+    FILE *		fdout,
+    int                 to_server)
+{
+    char *auth_opt = stralloc("");
+    char *kencrypt_opt = stralloc("");
+    char *compress_opt = stralloc("");
+    char *encrypt_opt = stralloc("");
+    char *decrypt_opt = stralloc("");
+    char *record_opt = stralloc("");
+    char *index_opt = stralloc("");
+    char *exclude = stralloc("");
+    char *exclude_file = NULL;
+    char *exclude_list = NULL;
+    char *include = stralloc("");
+    char *include_file = NULL;
+    char *include_list = NULL;
+    char *excl_opt = "";
+    char *incl_opt = "";
+    char *exc = NULL;
+    char *script_opt;
+    char *result = NULL;
+    sle_t *excl;
+    int nb_exclude_file;
+    int nb_include_file;
+    char *qdpname;
+    char *q64name;
+    int err=0;
+
+    assert(dp != NULL);
+    assert(dp->host != NULL);
+
+    qdpname = quote_string(dp->name);
+    if(am_has_feature(dp->host->features, fe_options_auth)) {
+	auth_opt = vstralloc("  <auth>", dp->security_driver, "</auth>\n", NULL);
+    } else if(fdout) {
+	fprintf(fdout,
+		_("WARNING: %s:%s does not support auth\n"),
+		dp->host->hostname, qdpname);
+    }
+
+    switch(dp->compress) {
+    case COMP_FAST:
+	if(am_has_feature(their_features, fe_options_compress_fast)) {
+	    compress_opt = "  <compress>FAST</compress>\n";
+	}
+	else if(fdout) {
+	    fprintf(fdout,
+		    _("WARNING: %s:%s does not support fast compression\n"),
+		    dp->host->hostname, qdpname);
+	}
+	break;
+    case COMP_BEST:
+	if(am_has_feature(their_features, fe_options_compress_best)) {
+	    compress_opt = "  <compress>BEST</compress>\n";
+	}
+	else if(fdout) {
+	    fprintf(fdout,
+		    _("WARNING: %s:%s does not support best compression\n"),
+		    dp->host->hostname, qdpname);
+	}
+	break;
+    case COMP_CUST:
+        if(am_has_feature(their_features, fe_options_compress_cust)) {
+	    if (dp->clntcompprog == NULL) {
+		if(fdout) {
+		    fprintf(fdout,
+			    _("ERROR: %s:%s client custom compression with no compression program specified\n"),
+			    dp->host->hostname, qdpname);
+		    }
+		err++;
+	    } else {
+
+		compress_opt = vstralloc("  <compress>CUSTOM"
+					 "<custom-compress-program>",
+					 dp->clntcompprog,
+					 "</custom-compress-program>\n"
+					 "  </compress>\n", NULL);
+	    }
+	}
+	else if(fdout) {
+	    fprintf(fdout,
+		    _("WARNING: %s:%s does not support client custom compression\n"),
+		    dp->host->hostname, qdpname);
+	}
+	break;
+    case COMP_SERVER_FAST:
+	compress_opt = "  <compress>SERVER-FAST</compress>\n";
+	break;
+    case COMP_SERVER_BEST:
+	compress_opt = "  <compress>SERVER-BEST</compress>\n";
+	break;
+    case COMP_SERVER_CUST:
+	compress_opt = "  <compress>SERVER-CUSTOM</compress>\n";
+	if (dp->srvcompprog == NULL) {
+	    if(fdout) {
+		fprintf(fdout,
+			_("ERROR: %s:%s server custom compression with no compression program specified\n"),
+			dp->host->hostname, qdpname);
+	    }
+	    err++;
+	} else {
+	    compress_opt = vstralloc("  <compress>SERVER-CUSTOM"
+				     "<custom-compress-program>",
+				     dp->srvcompprog,
+				     "</custom-compress-program>\n"
+				     "  </compress>\n", NULL);
+	}
+	break;
+    }
+
+    switch(dp->encrypt) {
+    case ENCRYPT_CUST:
+	if(am_has_feature(their_features, fe_options_encrypt_cust)) {
+	    if(dp->clnt_decrypt_opt) {
+		if(am_has_feature(their_features, fe_options_client_decrypt_option)) {
+		    decrypt_opt = newvstralloc(decrypt_opt,
+					       "    <decrypt-option>",
+					       dp->clnt_decrypt_opt,
+					       "</decrypt-option>\n", NULL);
+		} else if(fdout) {
+		    fprintf(fdout,
+			    _("WARNING: %s:%s does not support client decrypt option\n"),
+			    dp->host->hostname, qdpname);
+		}
+	    }
+	    if (dp->clnt_encrypt == NULL) {
+		if(fdout) {
+		    fprintf(fdout,
+			    _("ERROR: %s:%s encrypt client with no encryption program specified\n"),
+			    dp->host->hostname, qdpname);
+		}
+		err++;
+	    } else if (decrypt_opt) {
+		 encrypt_opt = newvstralloc(encrypt_opt,
+					    "  <encrypt>CUSTOM"
+					    "<custom-encrypt-program>",
+					    dp->clnt_encrypt,
+					    "</custom-encrypt-program>\n",
+					    decrypt_opt,
+					    "  </encrypt>\n", NULL);
+	    }
+	    if (dp->compress == COMP_SERVER_FAST || 
+		dp->compress == COMP_SERVER_BEST ||
+		dp->compress == COMP_SERVER_CUST ) {
+		if(fdout) {
+		    fprintf(fdout,
+			    _("ERROR: %s:Client encryption with server compression is "
+			    "not supported. See amanda.conf(5) for detail.\n"),
+			    dp->host->hostname);
+		}
+		err++;
+	    }
+	} else if(fdout) {
+	    fprintf(fdout,
+		    _("WARNING: %s:%s does not support client data encryption\n"),
+		    dp->host->hostname, qdpname);
+	}
+	break;
+    case ENCRYPT_SERV_CUST:
+	if (dp->srv_encrypt != NULL && to_server) {
+	    decrypt_opt =  newvstralloc(decrypt_opt,
+					"    <decrypt-option>",
+					dp->srv_decrypt_opt, 
+					"</decrypt-option>\n", NULL);
+	    encrypt_opt = newvstralloc(encrypt_opt,
+				       "  <encrypt>SERVER-CUSTOM"
+				       "<custom-encrypt-program>",
+				       dp->srv_encrypt,
+				       "</custom-encrypt-program>\n",
+				       decrypt_opt,
+				       "  </encrypt>\n", NULL);
+	} else if (dp->srv_encrypt == NULL) {
+	    if(fdout) {
+		fprintf(fdout,
+			_("ERROR: %s:%s No encryption program specified in dumptypes\n"),
+			dp->host->hostname, qdpname);
+		fprintf(fdout,
+			 _("Change the dumptype in the disklist or mention "
+			"the encryption program to use in the dumptypes file\n"));
+	    }
+	    err++;
+	}
+	break;
+    }
+    
+    if(!dp->record) {
+	if(am_has_feature(their_features, fe_options_no_record)) {
+	    record_opt = "  <record>NO</record>\n";
+	}
+	else if(fdout) {
+	    fprintf(fdout, _("WARNING: %s:%s does not support no record\n"),
+		    dp->host->hostname, qdpname);
+	}
+    } else {
+	record_opt = "  <record>YES</record>\n";
+    }
+
+    if(dp->index) {
+	if(am_has_feature(their_features, fe_options_index)) {
+	    index_opt = "  <index>YES</index>\n";
+	}
+	else if(fdout) {
+	    fprintf(fdout, _("WARNING: %s:%s does not support index\n"),
+		    dp->host->hostname, qdpname);
+	}
+    }
+
+    if(dp->kencrypt) {
+	if(am_has_feature(their_features, fe_options_kencrypt)) {
+	    kencrypt_opt = "  <kencrypt>YES</kencrypt>\n";
+	}
+	else if(fdout) {
+	    fprintf(fdout, _("WARNING: %s:%s does not support kencrypt\n"),
+		    dp->host->hostname, qdpname);
+	}
+    }
+
+    exclude_file = stralloc("");
+    nb_exclude_file = 0;
+    if(dp->exclude_file != NULL && dp->exclude_file->nb_element > 0) {
+	nb_exclude_file = dp->exclude_file->nb_element;
+	if(am_has_feature(their_features, fe_options_exclude_file)) {
+	    if(am_has_feature(their_features, fe_options_multiple_exclude) ||
+	       dp->exclude_file->nb_element == 1) {
+		for(excl = dp->exclude_file->first; excl != NULL;
+						    excl = excl->next) {
+		    q64name = amxml_format_tag("file", excl->name);
+		    exc = newvstralloc( exc, "    ", q64name, "\n", NULL);
+		    strappend(exclude_file, exc);
+		    amfree(q64name);
+		}
+	    } else {
+		q64name = amxml_format_tag("file", dp->exclude_file->last->name);
+		exc = newvstralloc(exc, "    ", q64name, "\n", NULL);
+		strappend(exclude_file, exc);
+		if(fdout) {
+		    fprintf(fdout,
+		       _("WARNING: %s:%s does not support multiple exclude\n"),
+		       dp->host->hostname, qdpname);
+		}
+		amfree(q64name);
+	    }
+	} else if(fdout) {
+	    fprintf(fdout, _("WARNING: %s:%s does not support exclude file\n"),
+		    dp->host->hostname, qdpname);
+	}
+    }
+    exclude_list = stralloc("");
+    if(dp->exclude_list != NULL && dp->exclude_list->nb_element > 0) {
+	if(am_has_feature(their_features, fe_options_exclude_list)) {
+	    if(am_has_feature(their_features, fe_options_multiple_exclude) ||
+	       (dp->exclude_list->nb_element == 1 && nb_exclude_file == 0)) {
+		for(excl = dp->exclude_list->first; excl != NULL;
+						    excl = excl->next) {
+		    q64name = amxml_format_tag("list", excl->name);
+		    exc = newvstralloc(exc, "    ", q64name, "\n", NULL);
+		    strappend(exclude_list, exc);
+		    amfree(q64name);
+		}
+	    } else {
+		q64name = amxml_format_tag("list", dp->exclude_list->last->name);
+		exc = newvstralloc(exc, "    ", q64name, "\n", NULL);
+		strappend(exclude_list, exc);
+		if(fdout) {
+			fprintf(fdout,
+			 _("WARNING: %s:%s does not support multiple exclude\n"),
+			 dp->host->hostname, qdpname);
+		}
+		amfree(q64name);
+	    }
+	} else if(fdout) {
+	    fprintf(fdout, _("WARNING: %s:%s does not support exclude list\n"),
+		    dp->host->hostname, qdpname);
+	}
+    }
+
+    include_file = stralloc("");
+    nb_include_file = 0;
+    if(dp->include_file != NULL && dp->include_file->nb_element > 0) {
+	nb_include_file = dp->include_file->nb_element;
+	if(am_has_feature(their_features, fe_options_include_file)) {
+	    if(am_has_feature(their_features, fe_options_multiple_include) ||
+	       dp->include_file->nb_element == 1) {
+		for(excl = dp->include_file->first; excl != NULL;
+						    excl = excl->next) {
+		    q64name = amxml_format_tag("file", excl->name);
+		    exc = newvstralloc( exc, "    ", q64name, "\n", NULL);
+		    strappend(include_file, exc);
+		    amfree(q64name);
+		}
+	    } else {
+		q64name = amxml_format_tag("file", dp->include_file->last->name);
+		exc = newvstralloc(exc, "    ", q64name, "\n", NULL);
+		strappend(include_file, exc);
+		if(fdout) {
+		    fprintf(fdout,
+			 _("WARNING: %s:%s does not support multiple include\n"),
+			 dp->host->hostname, qdpname);
+		}
+		amfree(q64name);
+	    }
+	} else if(fdout) {
+	    fprintf(fdout, _("WARNING: %s:%s does not support include file\n"),
+		    dp->host->hostname, qdpname);
+	}
+    }
+    include_list = stralloc("");
+    if(dp->include_list != NULL && dp->include_list->nb_element > 0) {
+	if(am_has_feature(their_features, fe_options_include_list)) {
+	    if(am_has_feature(their_features, fe_options_multiple_include) ||
+	       (dp->include_list->nb_element == 1 && nb_include_file == 0)) {
+		for(excl = dp->include_list->first; excl != NULL;
+						    excl = excl->next) {
+		    q64name = amxml_format_tag("list", excl->name);
+		    exc = newvstralloc( exc, "    ", q64name, "\n", NULL);
+		    strappend(include_list, exc);
+		    amfree(q64name);
+		}
+	    } else {
+		q64name = amxml_format_tag("list", dp->include_list->last->name);
+		exc = newvstralloc(exc, "    ", q64name, "\n", NULL);
+		strappend(include_list, exc);
+		if(fdout) {
+			fprintf(fdout,
+			 _("WARNING: %s:%s does not support multiple include\n"),
+			 dp->host->hostname, qdpname);
+		}
+		amfree(q64name);
+	    }
+	} else if(fdout) {
+	    fprintf(fdout, _("WARNING: %s:%s does not support include list\n"),
+		    dp->host->hostname, qdpname);
+	}
+    }
+
+    if(dp->exclude_optional) {
+	if(am_has_feature(their_features, fe_options_optional_exclude)) {
+	    excl_opt = "    <optional>YES</optional>\n";
+	}
+	else if(fdout) {
+	    fprintf(fdout,
+		    _("WARNING: %s:%s does not support optional exclude\n"),
+		    dp->host->hostname, qdpname);
+	}
+    }
+    if(dp->include_optional) {
+	if(am_has_feature(their_features, fe_options_optional_include)) {
+	    incl_opt = "    <optional>YES</optional>\n";
+	}
+	else if(fdout) {
+	    fprintf(fdout,
+		    _("WARNING: %s:%s does not support optional include\n"),
+		    dp->host->hostname, qdpname);
+	}
+    }
+
+    if (dp->exclude_file || dp->exclude_list)
+	exclude = newvstralloc(exclude,
+			       "  <exclude>\n",
+			       exclude_file,
+			       exclude_list,
+			       excl_opt,
+			       "  </exclude>\n", NULL);
+    if (dp->include_file || dp->include_list)
+	include = newvstralloc(include,
+			       "  <include>\n",
+			       include_file,
+			       include_list,
+			       incl_opt,
+			       "  </include>\n", NULL);
+    script_opt = xml_scripts(dp->pp_scriptlist, their_features);
+    result = vstralloc(auth_opt,
+		       kencrypt_opt,
+		       compress_opt,
+		       encrypt_opt,
+		       record_opt,
+		       index_opt,
+		       exclude,
+		       include,
+		       script_opt,
+		       NULL);
+
+    amfree(qdpname);
+    amfree(auth_opt);
+    amfree(exclude);
+    amfree(exclude_list);
+    amfree(exclude_file);
+    amfree(include);
+    amfree(include_file);
+    amfree(include_list);
+    amfree(exc);
+    amfree(decrypt_opt);
+    amfree(encrypt_opt);
+
+    /* result contains at least 'auth=...' */
+    if ( err ) {
+	amfree(result);
+	return NULL;
+    } else {
+	return result;
+    }
+}
+
+char *
+clean_dle_str_for_client(
+    char *dle_str)
+{
+    char *rval_dle_str;
+    char *hack1, *hack2;
+
+    if (!dle_str)
+	return NULL;
+
+    rval_dle_str = stralloc(dle_str);
+
+    /* Remove everything between "  <encrypt>SERVER-CUSTOM" and "</encrypt>\n"
+     */
+#define SC "</encrypt>\n"
+#define SC_LEN strlen(SC)
+    hack1 = strstr(rval_dle_str, "  <encrypt>SERVER-CUSTOM");
+    if (hack1) {
+	hack2 = strstr(hack1, SC);
+	/* +1 is to also move the trailing '\0' */
+	memmove(hack1, hack2 + SC_LEN, strlen(hack2 + SC_LEN) + 1);
+    }
+#undef SC
+#undef SC_LEN
+
+    return rval_dle_str;
+}
+
+typedef struct {
+    am_feature_t  *features;
+    char          *result;
+} xml_app_t;
+
+/* A GHFunc (callback for g_hash_table_foreach) */
+static void xml_property(
+    gpointer key_p,
+    gpointer value_p,
+    gpointer user_data_p)
+{
+    char       *property_s = key_p;
+    char       *b64property;
+    property_t *property = value_p;
+    char       *b64value_data;
+    xml_app_t  *xml_app = user_data_p;
+    GSList     *value;
+
+    b64property = amxml_format_tag("name", property_s);
+    vstrextend(&xml_app->result, "    <property>\n",
+				"      ", b64property, "\n", NULL);
+    // TODO if client have fe_xml_property_priority
+    if (property->priority &&
+	am_has_feature(xml_app->features, fe_xml_property_priority)) {
+	vstrextend(&xml_app->result, "      <priority>yes</priority>\n", NULL);
+    }
+    for(value = property->values; value != NULL; value = value->next) {
+	b64value_data = amxml_format_tag("value", value->data);
+	vstrextend(&xml_app->result, "      ", b64value_data, "\n", NULL);
+	amfree(b64value_data);
+    }
+    vstrextend(&xml_app->result, "    </property>\n", NULL);
+
+    amfree(b64property);
+}
+
+char *
+xml_application(
+    application_t *application,
+    am_feature_t  *their_features)
+{
+    char       *plugin;
+    char       *b64plugin;
+    xml_app_t   xml_app;
+    proplist_t  proplist;
+
+    xml_app.features = their_features;
+    xml_app.result   = NULL;
+    plugin = application_get_plugin(application);
+    b64plugin = amxml_format_tag("plugin", plugin);
+    xml_app.result = vstralloc("  <backup-program>\n",
+		        "    ", b64plugin, "\n",
+			NULL);
+    proplist = application_get_property(application);
+    g_hash_table_foreach(proplist, xml_property, &xml_app);
+    vstrextend(&xml_app.result, "  </backup-program>\n", NULL);
+
+    amfree(b64plugin);
+
+    return xml_app.result;
+}
+
+ 
+char *
+xml_scripts(
+    pp_scriptlist_t pp_scriptlist,
+    am_feature_t  *their_features)
+{
+    char       *plugin;
+    char       *b64plugin;
+    char       *xml_scr;
+    char       *xml_scr1;
+    char       *str = "";
+    char       *sep;
+    char       *eo_str;
+    execute_on_t execute_on;
+    int          execute_where;
+    proplist_t  proplist;
+    pp_scriptlist_t pp_scriptlist1;
+    pp_script_t *pp_script;
+    xml_app_t   xml_app;
+
+    xml_app.features = their_features;
+    xml_app.result   = stralloc("");
+
+    xml_scr = stralloc("");
+    for (pp_scriptlist1=pp_scriptlist; pp_scriptlist1 != NULL;
+	 pp_scriptlist1 = pp_scriptlist1->next) {
+	pp_script = pp_scriptlist1->data;
+	plugin = pp_script_get_plugin(pp_script);
+	b64plugin = amxml_format_tag("plugin", plugin);
+	xml_scr1 = vstralloc("  <script>\n",
+                             "    ", b64plugin, "\n",
+			     NULL);
+
+	execute_where = pp_script_get_execute_where(pp_script);
+	switch (execute_where) {
+	    case ES_CLIENT: str = "CLIENT"; break;
+	    case ES_SERVER: str = "SERVER"; break;
+	}
+	xml_scr1 = vstrextend(&xml_scr1, "    <execute_where>",
+			      str, "</execute_where>\n", NULL);
+
+	execute_on = pp_script_get_execute_on(pp_script);
+	sep = "";
+	eo_str = NULL;
+	if (execute_on & EXECUTE_ON_PRE_DLE_AMCHECK) {
+	    eo_str = vstrextend(&eo_str, sep, "PRE-DLE-AMCHECK", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_PRE_HOST_AMCHECK) {
+	    eo_str = vstrextend(&eo_str, sep, "PRE-HOST-AMCHECK", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_POST_DLE_AMCHECK) {
+	    eo_str = vstrextend(&eo_str, sep, "POST-DLE-AMCHECK", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_POST_HOST_AMCHECK) {
+	    eo_str = vstrextend(&eo_str, sep, "POST-HOST-AMCHECK", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_PRE_DLE_ESTIMATE) {
+	    eo_str = vstrextend(&eo_str, sep, "PRE-DLE-ESTIMATE", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_PRE_HOST_ESTIMATE) {
+	    eo_str = vstrextend(&eo_str, sep, "PRE-HOST-ESTIMATE", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_POST_DLE_ESTIMATE) {
+	    eo_str = vstrextend(&eo_str, sep, "POST-DLE-ESTIMATE", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_POST_HOST_ESTIMATE) {
+	    eo_str = vstrextend(&eo_str, sep, "POST-HOST-ESTIMATE", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_PRE_DLE_BACKUP) {
+	    eo_str = vstrextend(&eo_str, sep, "PRE-DLE-BACKUP", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_PRE_HOST_BACKUP) {
+	    eo_str = vstrextend(&eo_str, sep, "PRE-HOST-BACKUP", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_POST_DLE_BACKUP) {
+	    eo_str = vstrextend(&eo_str, sep, "POST-DLE-BACKUP", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_POST_HOST_BACKUP) {
+	    eo_str = vstrextend(&eo_str, sep, "POST-HOST-BACKUP", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_PRE_RECOVER) {
+	    eo_str = vstrextend(&eo_str, sep, "PRE-RECOVER", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_POST_RECOVER) {
+	    eo_str = vstrextend(&eo_str, sep, "POST-RECOVER", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_PRE_LEVEL_RECOVER) {
+	    eo_str = vstrextend(&eo_str, sep, "PRE-LEVEL-RECOVER", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_POST_LEVEL_RECOVER) {
+	    eo_str = vstrextend(&eo_str, sep, "POST-LEVEL-RECOVER", NULL);
+	    sep = ",";
+	}
+	if (execute_on & EXECUTE_ON_INTER_LEVEL_RECOVER) {
+	    eo_str = vstrextend(&eo_str, sep, "INTER-LEVEL-RECOVER", NULL);
+	    sep = ",";
+	}
+	if (execute_on != 0)
+	    xml_scr1 = vstrextend(&xml_scr1,
+				  "    <execute_on>", eo_str,
+				  "</execute_on>\n", NULL);
+	amfree(eo_str);
+	proplist = pp_script_get_property(pp_script);
+	g_hash_table_foreach(proplist, xml_property, &xml_app);
+	xml_scr = vstrextend(&xml_scr, xml_scr1, xml_app.result, "  </script>\n", NULL);
+	amfree(b64plugin);
+	amfree(xml_app.result);
+    }
+    return xml_scr;
+}
+
+ 
+char *
 match_disklist(
     disklist_t *origqp,
     int		sargc,
@@ -1389,25 +2064,26 @@ main(
   signal(SIGPIPE, SIG_IGN);
 
   if (argc>1) {
-    config_name = argv[1];
-    if (strchr(config_name, '/') != NULL) {
-      config_dir = stralloc2(argv[1], "/");
-      config_name = strrchr(config_name, '/') + 1;
-    } else {
-      config_dir = vstralloc(CONFIG_DIR, "/", config_name, "/", NULL);
-    }
+    config_init(CONFIG_INIT_EXPLICIT_NAME, argv[1]);
   } else {
-    config_dir = stralloc("");
+    config_init(CONFIG_INIT_USE_CWD, NULL)
   }
-  conffile = stralloc2(config_dir, CONFFILE_NAME);
-  if((result = read_conffile(conffile)) == 0) {
-    conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
-    result = read_diskfile(conf_diskfile, &lst);
-    if(result == 0) {
-      dump_disklist(&lst);
+
+  if (config_errors(NULL) >= CFGERR_WARNINGS) {
+    config_print_errors();
+    if (config_errors(NULL) >= CFGERR_ERRORS) {
+      g_critical(_("errors processing config file"));
     }
-    amfree(conf_diskfile);
   }
+
+  conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
+  result = read_diskfile(conf_diskfile, &lst);
+  if(result == CFGERR_OK) {
+    dump_disklist(&lst);
+  } else {
+    config_print_errors();
+  }
+  amfree(conf_diskfile);
   amfree(conffile);
   amfree(config_dir);
 

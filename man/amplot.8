@@ -1,22 +1,180 @@
 .\"     Title: amplot
-.\"    Author: 
-.\" Generator: DocBook XSL Stylesheets v1.73.2 <http://docbook.sf.net/>
-.\"      Date: 08/22/2008
-.\"    Manual: 
-.\"    Source: 
+.\"    Author: Olafur Gudmundsson <ogud@tis.com>
+.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
+.\"      Date: 01/22/2009
+.\"    Manual: System Administration Commands
+.\"    Source: Amanda 2.6.1
+.\"  Language: English
 .\"
-.TH "AMPLOT" "8" "08/22/2008" "" ""
+.TH "AMPLOT" "8" "01/22/2009" "Amanda 2\&.6\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * (re)Define some macros
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" toupper - uppercase a string (locale-aware)
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de toupper
+.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
+\\$*
+.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH-xref - format a cross-reference to an SH section
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de SH-xref
+.ie n \{\
+.\}
+.toupper \\$*
+.el \{\
+\\$*
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SH - level-one heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SH
+.\" put an extra blank line of space above the head in non-TTY output
+.if t \{\
+.sp 1
+.\}
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[an-margin]u
+.ti 0
+.HTML-TAG ".NH \\n[an-level]"
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+\." make the size of the head bigger
+.ps +3
+.ft B
+.ne (2v + 1u)
+.ie n \{\
+.\" if n (TTY output), use uppercase
+.toupper \\$*
+.\}
+.el \{\
+.nr an-break-flag 0
+.\" if not n (not TTY), use normal case (not uppercase)
+\\$1
+.in \\n[an-margin]u
+.ti 0
+.\" if not n (not TTY), put a border/line under subheading
+.sp -.6
+\l'\n(.lu'
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" SS - level-two heading that works better for non-TTY output
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de1 SS
+.sp \\n[PD]u
+.nr an-level 1
+.set-an-margin
+.nr an-prevailing-indent \\n[IN]
+.fi
+.in \\n[IN]u
+.ti \\n[SN]u
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.ps \\n[PS-SS]u
+\." make the size of the head bigger
+.ps +2
+.ft B
+.ne (2v + 1u)
+.if \\n[.$] \&\\$*
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BB/BE - put background/screen (filled box) around block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BB
+.if t \{\
+.sp -.5
+.br
+.in +2n
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EB
+.if t \{\
+.if "\\$2"adjust-for-leading-newline" \{\
+.sp -1
+.\}
+.br
+.di
+.in
+.ll
+.gcolor
+.nr BW \\n(.lu-\\n(.i
+.nr BH \\n(dn+.5v
+.ne \\n(BHu+.5v
+.ie "\\$2"adjust-for-leading-newline" \{\
+\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.el \{\
+\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
+.\}
+.in 0
+.sp -.5v
+.nf
+.BX
+.in
+.sp .5v
+.fi
+.\}
+..
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" BM/EM - put colored marker in margin next to block of text
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.de BM
+.if t \{\
+.br
+.ll -2n
+.gcolor red
+.di BX
+.\}
+..
+.de EM
+.if t \{\
+.br
+.di
+.ll
+.gcolor
+.nr BH \\n(dn
+.ne \\n(BHu
+\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
+.in 0
+.nf
+.BX
+.in
+.fi
+.\}
+..
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
 .ad l
-.SH "NAME"
-amplot - visualize the behavior of Amanda
-.SH "SYNOPSIS"
-.HP 7
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "Name"
+amplot \- visualize the behavior of \fIAmanda\fR
+.SH "Synopsis"
+.fam C
+.HP \w'\fBamplot\fR\ 'u
 \fBamplot\fR [\-b] [\-c] [\-e] [\-g] [\-l] [\-p] [\-t\ \fIT\fR] \fIamdump_files\fR
 .br
 
+.fam
 .SH "DESCRIPTION"
 .PP
 \fBAmplot\fR
@@ -24,85 +182,85 @@ reads an
 \fBamdump\fR
 output file that
 \fIAmanda\fR
-generates each run (e\.g\.
-\fIamdump\.1\fR) and translates the information into a picture format that may be used to determine how your installation is doing and if any parameters need to be changed\.
+generates each run (e\&.g\&.
+\fIamdump\&.1\fR) and translates the information into a picture format that may be used to determine how your installation is doing and if any parameters need to be changed\&.
 \fBAmplot\fR
 also prints out
 \fBamdump\fR
-lines that it either does not understand or knows to be warning or error lines and a summary of the start, end and total time for each backup image\.
+lines that it either does not understand or knows to be warning or error lines and a summary of the start, end and total time for each backup image\&.
 .PP
 \fBAmplot\fR
 is a shell script that executes an
 \fBawk\fR
 program
-(\fIamplot\.awk\fR) to scan the
+(\fIamplot\&.awk\fR) to scan the
 \fBamdump\fR
-output file\. It then executes a
+output file\&. It then executes a
 \fBgnuplot\fR
 program
-(\fIamplot\.g\fR) to generate the graph\. The
+(\fIamplot\&.g\fR) to generate the graph\&. The
 \fBawk\fR
 program is written in an enhanced version of awk, such as GNU awk
 (\fIgawk\fR
-version 2\.15 or later) or
-\fBnawk\fR\.
+version 2\&.15 or later) or
+\fBnawk\fR\&.
 .PP
 During execution,
 \fBamplot\fR
 generates a few temporary files that
 \fBgnuplot\fR
-uses\. These files are deleted at the end of execution\.
+uses\&. These files are deleted at the end of execution\&.
 .PP
 See the
 \fBamanda\fR(8)
 man page for more details about
-\fIAmanda\fR\.
+\fIAmanda\fR\&.
 .SH "OPTIONS"
 .PP
 \fB\-b\fR
 .RS 4
 Generate b/w postscript file (need
-\fB\-p\fR)\.
+\fB\-p\fR)\&.
 .RE
 .PP
 \fB\-c\fR
 .RS 4
 Compress
 \fIamdump_files\fR
-after plotting\.
+after plotting\&.
 .RE
 .PP
 \fB\-e\fR
 .RS 4
-Extend the X (time) axis if needed\.
+Extend the X (time) axis if needed\&.
 .RE
 .PP
 \fB\-g\fR
 .RS 4
 Direct
 \fIgnuplot\fR
-output directly to the X11 display (default)\.
+output directly to the X11 display (default)\&.
 .RE
 .PP
 \fB\-p\fR
 .RS 4
 Direct postscript output to file
-\fIYYYYMMDD\fR\fI\.ps\fR
+\fIYYYYMMDD\fR\fI\&.ps\fR
 (opposite of
-\fB\-g\fR)\.
+\fB\-g\fR)\&.
 .RE
 .PP
 \fB\-l\fR
 .RS 4
 Generate landscape oriented output (needs
-\fB\-p\fR)\.
+\fB\-p\fR)\&.
 .RE
 .PP
 \fB\-t \fR\fIT\fR
 .RS 4
 Set the right edge of the plot to be
 \fIT\fR
-hours\.
+hours\&.
 .RE
 .PP
 The
@@ -111,43 +269,35 @@ may be in various compressed formats
 (\fIcompress\fR,
 \fBgzip\fR,
 \fBpact\fR,
-\fBcompact\fR)\.
+\fBcompact\fR)\&.
 .SH "INTERPRETATION"
 .PP
-The figure is divided into a number of regions\. There are titles on the top that show important statistical information about the configuration and from this execution of
-\fBamdump\fR\. In the figure, the X axis is time, with 0 being the moment
+The figure is divided into a number of regions\&. There are titles on the top that show important statistical information about the configuration and from this execution of
+\fBamdump\fR\&. In the figure, the X axis is time, with 0 being the moment
 \fBamdump\fR
-was started\. The Y axis is divided into 5 regions:
+was started\&. The Y axis is divided into 5 regions:
 .PP
 \fIQUEUES:\fR
-How many backups have not been started, how many are waiting on space in the holding disk and how many have been transferred successfully to tape\.
+How many backups have not been started, how many are waiting on space in the holding disk and how many have been transferred successfully to tape\&.
 .PP
 \fI%BANDWIDTH:\fR
-Percentage of allowed network bandwidth in use\.
+Percentage of allowed network bandwidth in use\&.
 .PP
 \fIHOLDING DISK:\fR
-The higher line depicts space allocated on the holding disk to backups in progress and completed backups waiting to be written to tape\. The lower line depicts the fraction of the holding disk containing completed backups waiting to be written to tape including the file currently being written to tape\. The scale is percentage of the holding disk\.
+The higher line depicts space allocated on the holding disk to backups in progress and completed backups waiting to be written to tape\&. The lower line depicts the fraction of the holding disk containing completed backups waiting to be written to tape including the file currently being written to tape\&. The scale is percentage of the holding disk\&.
 .PP
 \fITAPE:\fR
-Tape drive usage\.
+Tape drive usage\&.
 .PP
 \fI%DUMPERS:\fR
-Percentage of active dumpers\.
+Percentage of active dumpers\&.
 .PP
 The idle period at the left of the graph is time
 \fBamdump\fR
-is asking the machines how much data they are going to dump\. This process can take a while if hosts are down or it takes them a long time to generate estimates\.
-.SH "AUTHOR"
-.PP
-Olafur Gudmundsson
-<ogud@tis\.com>, Trusted Information Systems, formerly at University of Maryland, College Park: Original text
-.PP
-Stefan G\. Weichinger,
-<sgw@amanda\.org>, maintainer of the
-\fIAmanda\fR\-documentation: XML\-conversion
+is asking the machines how much data they are going to dump\&. This process can take a while if hosts are down or it takes them a long time to generate estimates\&.
 .SH "BUGS"
 .PP
-Reports lines it does not recognize, mainly error cases but some are legitimate lines the program needs to be taught about\.
+Reports lines it does not recognize, mainly error cases but some are legitimate lines the program needs to be taught about\&.
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
@@ -160,3 +310,11 @@ Reports lines it does not recognize, mainly error cases but some are legitimate 
 \fBcompress\fR(1),
 \fBgzip\fR(1),
 : http://wiki.zmanda.com
+.SH "Authors"
+.PP
+\fBOlafur Gudmundsson\fR <\&ogud@tis\&.com\&>
+.RS 4
+Trusted Information Systems
+.RE
+.PP
+\fBStefan G\&. Weichinger\fR <\&sgw@amanda\&.org\&>

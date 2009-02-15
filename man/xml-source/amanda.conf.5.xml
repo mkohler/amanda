@@ -12,11 +12,18 @@
 <refmeta>
 <refentrytitle>amanda.conf</refentrytitle>
 <manvolnum>5</manvolnum>
+&rmi.source;
+&rmi.version;
+&rmi.manual.5;
 </refmeta>
 <refnamediv>
 <refname>amanda.conf</refname>
 <refpurpose>Main configuration file for &A;, the Advanced Maryland Automatic Network Disk Archiver</refpurpose>
 </refnamediv>
+<refentryinfo>
+&author.jds;
+&author.sgw.xml;
+</refentryinfo>
 <!-- body begins here -->
 
 <refsect1><title>DESCRIPTION</title>
@@ -25,7 +32,7 @@ relevant sections and parameters of this file for quick reference.</para>
 <para> The file <emphasis remap='B'>&lt;CONFIG_DIR&gt;/&lt;config&gt;/amanda.conf</emphasis> is loaded.</para>
 </refsect1>
 
-<refsect1><title>PARAMETERS</title>
+<refsect1><title>SYNTAX</title>
 
 <para>There are a number of configuration parameters that control the
 behavior of the &A; programs.
@@ -34,21 +41,67 @@ so you need not specify the parameter in
 <emphasis remap='B'>amanda.conf</emphasis>
 if the default is suitable.</para>
 
+<refsect2><title>COMMENTS</title>
+
 <para>Lines starting with # are ignored, as are blank lines.
 Comments may be placed on a line with a directive by starting
 the comment with a #.
 The remainder of the line is ignored.</para>
+</refsect2>
+
+<refsect2><title>KEYWORDS AND IDENTIFIERS</title>
 
 <para>Keywords are case insensitive, i.e.
 <emphasis remap='B'>mailto</emphasis>
 and
 <emphasis remap='B'>MailTo</emphasis>
-are treated the same.</para>
+are treated the same.  Also, the characters
+<emphasis remap='B'>'-'</emphasis>
+and
+<emphasis remap='B'>'_'</emphasis>
+are interchangeable in all predefined &A; keywords:
+<emphasis remap='B'>device_property</emphasis>
+and
+<emphasis remap='B'>device-property</emphasis>
+have the same meaning.</para>
+
+<para>Identifiers are names which are defined in the configuration itself, such
+as dumptypes or interfaces.  Identifiers are are case-insensitive, but
+sensitive to
+<emphasis remap='B'>'-'</emphasis>
+vs.
+<emphasis remap='B'>'_'</emphasis>.
+Identifiers should be quoted in the configuration file, although For historical
+reasons, the quotes are optional.</para>
+
+<para>Strings are always quoted with double quotes ("), and any double quotes
+or backslashes within the string are escaped with a backslash:
+<programlisting>
+tapelist "/path/to/tapelist"
+property "escaped-string" "escaping: \\ (backslash) and \" (double-quote)"
+</programlisting>
+</para>
+
+<para>To summarize, then:
+<programlisting>
+                          # QUOTES        CASE            -/_
+logdir "logs"             # required      sensitive       sensitive
+send-amreport-on strange  # prohibited    insensitive     insensitive
+tapetype "EXABYTE"        # optional      insensitive     sensitive
+
+define dumptype "dt" {    # optional      insensitive     sensitive
+  "dumptype-common"       # optional      insensitive     sensitive
+  strategy noincr         # prohibited    insensitive     insensitive
+}
+</programlisting>
+</para>
+
+</refsect2>
+
+<refsect2><title>VALUE SUFFIXES</title>
 
 <para>Integer arguments may have one of the following (case insensitive) suffixes,
 some of which have a multiplier effect:</para>
-
-<refsect2><title>POSSIBLE SUFFIXES</title>
 
 <variablelist remap='TP'>
   <varlistentry>
@@ -73,6 +126,7 @@ some of which have a multiplier effect:</para>
   <term><emphasis remap='B'>kps kbps</emphasis></term>
   <listitem>
 <para>Some number of kilobytes per second (bytes*1024).</para>
+<para>It is the default multiplier for all size options.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -140,8 +194,46 @@ is assumed.
 </variablelist>
 </refsect2>
 
-<refsect2>
-<title>PARAMETERS</title>
+<refsect2><title>PARAMETER ORDER</title>
+
+<para>In general, the order in which parameters occur in the configuration file
+does not matter, with the exception of subsection inheritance.  For example, if
+dumptype "normal-encrypt" which inherits from dumptype "normal", then "normal"
+must appear first in the configuration file.</para>
+
+</refsect2>
+
+<refsect2><title>STRINGS</title>
+<para>Quoted strings in Amanda follow a common, C-like syntax.  Printable
+characters and whitespace are kept as-is, except that the backslash character
+(\) is used as an escape character, and a double-quote ends the string.  The allowed
+escape sequences are
+<programlisting>
+    ESCAPE SEQUENCE     BECOMES
+    \\                  \
+    \"                  "
+    \n                  (newline)
+    \t                  (tab)
+    \r                  (carriage return)
+    \f                  (form-feed)
+    \1 - \7
+    \01 - \77
+    \001 - \377         (character specified in octal)
+</programlisting>
+Illegally quoted strings are handled on a "best-effort" basis, which may lead to
+unexpected results.
+</para>
+<para>Examples:
+<programlisting>
+finserver "/data/finance/XYZ Corp's \"real\" finances" finance-high eth0 -1
+property "syspath" "C:\\WINDOWS\\SYSTEM"
+</programlisting>
+</para>
+</refsect2>
+</refsect1>
+
+<refsect1>
+<title>GLOBAL PARAMETERS</title>
 
 <variablelist remap='TP'>
   <varlistentry>
@@ -156,11 +248,52 @@ mail reports distinct.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
+  <term><emphasis remap='B'>mailer</emphasis> <emphasis remap='I'> string</emphasis></term>
+  <listitem>
+<para>Default found by configure. A mail program that can send mail with '<emphasis remap='I'>MAILER -s "subject" user &lt; message_file</emphasis>'.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
   <term><emphasis remap='B'>mailto</emphasis> <emphasis remap='I'> string</emphasis></term>
   <listitem>
 <para>Default:
 <emphasis remap='I'>operators</emphasis>.
 A space separated list of recipients for mail reports.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>send-amreport-on</emphasis> [all|strange|error|never]</term>
+  <listitem>
+<para>Default:
+<emphasis remap='B'>all</emphasis>.
+Specify which types of messages will trigger an email from amreport. amreport is used by amdump and amflush.</para>
+  <!-- .RS -->
+    <variablelist remap='TP'>
+      <varlistentry>
+      <term><emphasis remap='B'>all</emphasis></term>
+      <listitem>
+<para>Send an email on any message.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>strange</emphasis></term>
+      <listitem>
+<para>Send an email on strange or error message. A strange message occurs when the dump succeeded, but returned one or more errors unknown to &A;.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>error</emphasis></term>
+      <listitem>
+<para>Send an email only on error messages.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>never</emphasis></term>
+      <listitem>
+<para>Never send an email.</para>
+      </listitem>
+      </varlistentry>
+    </variablelist>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -195,9 +328,7 @@ The number of amdump runs in
 days.
 A value of 0 means the same value as 
 <emphasis remap='B'>dumpcycle</emphasis>.
-A value of -1 means guess the number of runs from the
-<emphasis remap='I'>tapelist</emphasis>
-file, 
+A value of -1 means guess the number of runs from the &tapelist; file,
 which is the number of tapes used in the last 
 <emphasis remap='B'>dumpcycle</emphasis>
 days / 
@@ -289,24 +420,17 @@ option.</para>
   <listitem>
 <para>Default:
 <filename>null:</filename>.
-The path name of the non-rewinding tape device.
-Non-rewinding tape device names often have an 'n' in the name,
-e.g.
-<filename>/dev/rmt/0mn</filename>,
-however this is operating system specific and you should consult
-that documentation for detailed naming information.</para>
+The device name, referencing the name of a "device" section in the configuration file.  See
+<citerefentry><refentrytitle>amanda-devices</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+for more information on device names.</para>
 
 <para>If a tape changer is configured
 (see the
 <emphasis remap='B'>tpchanger</emphasis>
 option), this option might not be used.</para>
 
-<para>If the
-<emphasis remap='B'>null</emphasis>
-output driver is selected
-(see the section OUTPUT DRIVERS in the 
-<citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry> 
-manpage for more information),
+<para>If <emphasis remap='B'>tapedev</emphasis> is
+<emphasis remap='B'>null:</emphasis>,
 programs such as
 &amdump;
 will run normally but all images will be thrown away.
@@ -321,22 +445,28 @@ option set to
   <varlistentry>
   <term><emphasis remap='B'>device_property</emphasis> string string</term>
   <listitem>
-<para>These options can set various device properties, including block size,
-maximum volume usage, authentication information, hardware feature support,
-and more.Specifics of how properties are used are device-dependent, though
-some common properties are supported across multiple device drivers.</para>
-
-<para> Both strings are quoted; the first string contains the name of
+<para>These options can set various device properties.  See
+<citerefentry><refentrytitle>amanda-devices</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+for more information on device properties and their syntax.
+Both strings are always quoted; the first string contains the name of
 the property to set, and the second contains its value. For example, to set
-a fixed block size of 128k, do:</para><programlisting>device_property "BLOCK_SIZE" "131072"</programlisting>
-<para></para>
-<para>The order in which device properties are set is as follows:
-<orderedlist><listitem><para>Tapetype parameters, including length, blocksize,
-readblocksize, file-pad, are translated into device properties and set
-accordingly.</para></listitem>
-<listitem><para>Device properties from any device_property configuration directives
-are set, in the order they appear in the configuration file.</para></listitem>
-</orderedlist></para>
+a fixed block size of 128k, write:</para>
+<programlisting>
+device_property "BLOCK_SIZE" "128k"
+</programlisting>
+
+  </listitem>
+  </varlistentry>
+
+  <varlistentry>
+  <term><emphasis remap='B'>property</emphasis> [append] string string+</term>
+  <listitem>
+<para>These options can set various properties, they can be used by third
+ party software to store information in the configuration file.
+Both strings are quoted; the first string contains the name of
+the property to set, and the others contains its values.
+<emphasis remap='B'>append</emphasis> keyword append the values to the list of values for that property.
+</para>
   </listitem>
   </varlistentry>
 
@@ -400,6 +530,7 @@ the backup image &A; was processing starts over again on the next tape.</para>
 <para>Default:
 <emphasis remap='I'>runtapes</emphasis>*<emphasis remap='I'>tape_length</emphasis>.
 Maximum number of bytes the planner will schedule for a run.</para>
+<para>The default unit is Kbytes if it is not specified.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -467,10 +598,10 @@ to avoid overwriting each other's tapes.</para>
 </listitem>
 </varlistentry>
   <varlistentry>
-  <term><emphasis remap='B'>tapetype</emphasis> <emphasis remap='I'> string</emphasis></term>
+  <term><emphasis remap='B'>tapetype</emphasis> <emphasis remap='I'> identifier</emphasis></term>
   <listitem>
 <para>Default:
-<emphasis remap='I'>EXABYTE</emphasis>.
+<emphasis remap='I'>"EXABYTE"</emphasis>.
 The type of tape drive associated with
 <emphasis remap='B'>tapedev</emphasis>
 or
@@ -483,8 +614,6 @@ like the
 size, and
 <emphasis remap='B'>speed</emphasis>
 of the tape media and device.</para>
-<para>First character of a <emphasis remap='B'>tapetype</emphasis> string must
-be an alphabetic character</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -634,6 +763,7 @@ it will do the next level.
 The value of this parameter is used only if the parameter 
 <emphasis>bumppercent</emphasis> is set to 0.
 </para>
+<para>The default unit is Kbytes if it is not specified.</para>
 <para>
 The global setting of this parameter can be overwritten inside of a  
 dumptype-definition.  
@@ -767,9 +897,7 @@ option enabled.</para>
   <listitem>
 <para>Default:
 <emphasis remap='I'>tapelist</emphasis>.
-The file name for the active
-<emphasis remap='I'>tapelist</emphasis>
-file.
+The file name for the active &tapelist;.
 &A; maintains this file with information about the active set of tapes.</para>
   </listitem>
   </varlistentry>
@@ -777,11 +905,12 @@ file.
   <term><emphasis remap='B'>device_output_buffer_size</emphasis> <emphasis remap='I'> int</emphasis></term>
   <listitem>
 <para>Default:
-<literal>640k</literal>.
+<literal>1280k</literal>.
 Controls the amount of memory used by &A;
 to hold data as it is read from the network or disk before it is written to
 the output device. Higher values may be
 useful on fast tape drives and optical media.</para>
+<para>The default unit is bytes if it is not specified.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -855,7 +984,7 @@ These three parts specify:</para>
   <listitem>
       <para>the name of the column, which may be:</para>
 
-	<programlisting>
+<programlisting>
 	Compress (compression ratio)
 	Disk (client disk name)
 	DumpRate (dump rate in KBytes/sec)
@@ -866,7 +995,7 @@ These three parts specify:</para>
 	OutKB (output image size in KBytes)
 	TapeRate (tape writing rate in KBytes/sec)
 	TapeTime (total tape time in hours:minutes)
-	</programlisting>
+</programlisting>
 
   </listitem>
 
@@ -992,12 +1121,13 @@ Debug level of the taper process</para>
   &A; will not begin writing data to a new volume until the amount of
   data on the holding disk is at least this percentage of the volume
   size. In other words, &A; will not begin until the
-  inequality <inlineequation><mathphrase>h &lt; t &#215;
+  inequality <inlineequation><mathphrase>h &gt; t &#215;
   d</mathphrase></inlineequation> is satisfied,
   where <mathphrase>h</mathphrase> is the amount of data on the
   holding disk, <mathphrase>t</mathphrase> is the capacity of a
   volume, and <mathphrase>d</mathphrase> is this parameter, expressed as a
-  percentage.</para>
+  percentage.  This parameter may be larger than 100%, for example to keep
+  more recent dumps on the holding disk for faster recovery.</para>
 <para> Needless to say, your holding disk must be big enough
   that this criterion could be satisfied. If the holding disk cannot
   be used for a particular dump (because, for example, there is no
@@ -1019,14 +1149,14 @@ Debug level of the taper process</para>
   amount of data on the holding disk and the estimated amount of data
   remaining to be dumped during this run is at least this percentage
   of the volume size. In other words, &A; will not begin until the
-  inequality <inlineequation><mathphrase>h + s &lt; t &#215;
+  inequality <inlineequation><mathphrase>h + s &gt; t &#215;
   d</mathphrase></inlineequation> is satisfied,
   where <mathphrase>h</mathphrase> is the amount of data on the
   holding disk, <mathphrase>s</mathphrase> is the total amount of
   data scheduled for this run but not dumped
   yet, <mathphrase>t</mathphrase> is the capacity of a volume,
   and <mathphrase>d</mathphrase> is this parameter, expressed as a
-  percentage.</para>
+  percentage.  This parameter may be larger than 100%.</para>
 <para>  Needless to say, your holding disk must be big enough
   that this criterion could be satisfied. If the holding disk cannot
   be used for a particular dump (because, for example, there is no
@@ -1052,13 +1182,13 @@ Debug level of the taper process</para>
   the capacity of a single
   volume. In other words, at the end of a run, &A; will begin
   a new tape if the 
-  inequality <inlineequation><mathphrase>h &lt; t &#215;
+  inequality <inlineequation><mathphrase>h &gt; t &#215;
   f</mathphrase></inlineequation> is satisfied,
   where <mathphrase>h</mathphrase> is the amount of data remaining on the
   holding disk from this or previous runs, <mathphrase>t</mathphrase>
   is the capacity of a volume,
   and <mathphrase>f</mathphrase> is this parameter, expressed as a
-  percentage.</para>
+  percentage.  This parameter may be greater than 100%.</para>
 <para> The value of this parameter may not exceed that of
   the <emphasis remap='B'>flush-threshold-scheduled</emphasis>
   parameter.; <emphasis remap='B'>autoflush</emphasis> must be set to 'yes' if
@@ -1097,7 +1227,6 @@ Range is inclusive.</para>
   </varlistentry>
 
 </variablelist>
-</refsect2>
 </refsect1>
 
 <refsect1><title>HOLDINGDISK SECTION</title>
@@ -1158,6 +1287,7 @@ holding disk files. The size of each chunk will not exceed the specified value.
 However, even though dump images are split in the holding disk, they are concatenated as 
 they are written to tape, so each dump image still corresponds to a single continuous 
 tape section.</para>
+<para>The default unit is Kbytes if it is not specified.</para>
 
 <para>If 0 is specified, &A; will create holding disk chunks as large as
 ((INT_MAX/1024)-64) Kbytes.</para>
@@ -1189,7 +1319,7 @@ another set for file systems that should always get a full backup and so on.</pa
 section, which looks like this:</para>
 
 <programlisting>
-define dumptype <emphasis remap='I'>name</emphasis> {
+define dumptype "<emphasis remap='I'>name</emphasis>" {
     <emphasis remap='I'>dumptype-option</emphasis> <emphasis remap='I'>dumptype-value</emphasis>
     <literal>...</literal>
 }
@@ -1223,24 +1353,7 @@ are defined.</para>
   <listitem>
 <para>Default:
 <emphasis remap='I'>bsd</emphasis>.
-Type of authorization to perform between tape server and backup client hosts.</para>
-<para><emphasis remap='B'>bsd</emphasis>, bsd authorization with udp initial
-connection and one tcp connection by data stream.</para>
-<para><emphasis remap='B'>bsdtcp</emphasis>, bsd authorization but use only
-one tcp connection.</para> 
-<para><emphasis remap='B'>bsdudp</emphasis>, like bsd, but will use only one
-tcp connection for all data stream.</para>
-<para><emphasis remap='B'>krb4</emphasis> to use Kerberos-IV
-authorization.</para>
-<para><emphasis remap='B'>krb5</emphasis> to use Kerberos-V
-authorization.</para>
-<para><emphasis remap='B'>local</emphasis>, if the client is the server, it 
-doesn't require authencation setup.</para>
-<para><emphasis remap='B'>rsh</emphasis> to use rsh
-authorization.</para>
-<para><emphasis remap='B'>ssh</emphasis> to use OpenSSH
-authorization.</para>
-
+Type of authorization to perform between tape server and backup client hosts.  See <citerefentry><refentrytitle>amanda-auth</refentrytitle><manvolnum>7</manvolnum></citerefentry> for more detail.</para>
   </listitem>
   </varlistentry>
 
@@ -1279,6 +1392,7 @@ it will do the next level.
 The value of this parameter is used only if the parameter 
 <emphasis>bumppercent</emphasis> is set to 0.
 </para>
+<para>The default unit is Kbytes if it is not specified.</para>
 <para>
 See also the options 
 <emphasis remap='B'>bumppercent</emphasis>,
@@ -1453,7 +1567,7 @@ server host as it goes from the network into the holding disk or to tape.</para>
       <para>PROG must not contain white space.</para>
       <para>Specify client_decrypt_option &quot;decryption-parameter&quot; Default: &quot;-d&quot;</para>
       <para>decryption-parameter must not contain white space.</para>
-      <para>(See dumptype server-encrypt-fast in example/amanda.conf for reference)</para>
+      <para>(See dumptype client-encrypt-nocomp in example/amanda.conf for reference)</para>
     </listitem>
   </varlistentry>
   <varlistentry>
@@ -1463,7 +1577,7 @@ server host as it goes from the network into the holding disk or to tape.</para>
       <para>PROG must not contain white space.</para>
       <para>Specify server_decrypt_option &quot;decryption-parameter&quot; Default: &quot;-d&quot;</para>
       <para>decryption-parameter must not contain white space.</para>
-      <para>(See dumptype client-encrypt-nocomp in example/amanda.conf for reference)</para>
+      <para>(See dumptype server-encrypt-fast in example/amanda.conf for reference)</para>
     </listitem>
   </varlistentry>
 </variablelist>
@@ -1701,17 +1815,58 @@ high (2), medium (1), low (0) or a number of your choice.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
-  <term><emphasis remap='B'>program</emphasis> <emphasis remap='I'> string</emphasis></term>
+  <term><emphasis remap='B'>program</emphasis> [DUMP|GNUTAR|APPLICATION]</term>
   <listitem>
 <para>Default:
 <emphasis remap='I'>DUMP</emphasis>.
-The type of backup to perform. Valid values are
-<emphasis remap='B'>DUMP</emphasis>
-for the native operating system backup program, and
-<emphasis remap='B'>GNUTAR</emphasis>
-to use &gnutar; or to do PC backups using Samba.</para>
+The type of backup to perform. Valid values are:</para>
+  <!-- .RS -->
+    <variablelist remap='TP'>
+      <varlistentry>
+      <term><emphasis remap='B'>DUMP</emphasis></term>
+      <listitem>
+<para>The native operating system backup program.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>GNUTAR</emphasis></term>
+      <listitem>
+<para>To use GNU-tar or to do PC backups using Samba.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>APPLICATION</emphasis></term>
+      <listitem>
+<para>To use an application-tool, see the <emphasis>application</emphasis> option.</para>
+      </listitem>
+      </varlistentry>
+    </variablelist>
   </listitem>
   </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>application</emphasis> <emphasis remap='I'> string</emphasis></term>
+  <listitem>
+<para>No default. Must be the name of an application-tool if <emphasis>program</emphasis> is set to <emphasis remap='I'>APPLICATION</emphasis>. See APPLICATION SECTION below.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>script</emphasis> <emphasis remap='I'> string</emphasis></term>
+  <listitem>
+<para>No default. Must be the name of a script-tool. You can have many script. See SCRIPT SECTION below.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>property</emphasis> [append] <emphasis remap='I'>string</emphasis> <emphasis remap='I'>string</emphasis>+</term>
+  <listitem>
+<para>These options can set various properties, they can be used by third
+ party software to store information in the configuration file.
+Both strings are quoted; the first string contains the name of
+the property to set, and the others contains its values.
+<emphasis remap='B'>append</emphasis> keyword append the values to the list of values for that property.
+</para>
+  </listitem>
+  </varlistentry>
+
   <varlistentry>
   <term><emphasis remap='B'>record</emphasis> <emphasis remap='I'> boolean</emphasis></term>
   <listitem>
@@ -1805,6 +1960,7 @@ average dump being split), substantial tape space can be wasted.
 If too small, large dumps will be split into innumerable tiny dumpfiles,
 adding to restoration complexity.
 A good rule of thumb, usually, is 1/10 of the size of your tape.</para>
+<para>The default unit is Kbytes if it is not specified.</para>
   </listitem>
   </varlistentry>
 
@@ -1832,6 +1988,7 @@ The size of this buffer can be changed from its (very conservative) default
 to a value reflecting the amount of memory that each taper process on
 the dump server may reasonably consume.
 </para>
+<para>The default unit is Kbytes if it is not specified.</para>
   </listitem>
   </varlistentry>
 </variablelist>
@@ -1839,31 +1996,31 @@ the dump server may reasonably consume.
 <para>The following <emphasis remap='B'>dumptype</emphasis> entries are predefined by &A;:</para>
 
 <programlisting remap='.nf'>
-define dumptype no-compress {
+define dumptype "no-compress" {
     compress none
 }
-define dumptype compress-fast {
+define dumptype "compress-fast" {
     compress client fast
 }
-define dumptype compress-best {
+define dumptype "compress-best" {
     compress client best
 }
-define dumptype srvcompress {
+define dumptype "srvcompress" {
     compress server fast
 }
-define dumptype bsd-auth {
+define dumptype "bsd-auth" {
     auth bsd
 }
-define dumptype krb4-auth {
+define dumptype "krb4-auth" {
     auth krb4
 }
-define dumptype no-record {
+define dumptype "no-record" {
     record no
 }
-define dumptype no-hold {
+define dumptype "no-hold" {
     holdingdisk no
 }
-define dumptype no-full {
+define dumptype "no-full" {
     skip-full yes
 } 
 </programlisting>
@@ -1872,7 +2029,7 @@ define dumptype no-full {
 <emphasis remap='B'>dumptype</emphasis>
 section, one or more other
 <emphasis remap='B'>dumptype</emphasis>
-names may be entered, which make this
+names may be supplied as identifiers, which make this
 <emphasis remap='B'>dumptype</emphasis>
 inherit options from other previously defined
 <emphasis remap='B'>dumptype</emphasis>s.
@@ -1880,15 +2037,15 @@ For instance, two sections might be the same except for the
 <emphasis remap='B'>record</emphasis> option:</para>
 
 <programlisting remap='.nf'>
-define dumptype normal {
+define dumptype "normal" {
     comment &quot;Normal backup, no compression, do indexing&quot;
     no-compress
     index yes
     maxdumps 2
 }
-define dumptype testing {
+define dumptype "testing" {
     comment &quot;Test backup, no compression, do indexing, no recording&quot;
-    normal
+    "normal"
     record no
 }
 </programlisting>
@@ -1914,7 +2071,7 @@ The information is entered in a
 section, which looks like this in the config file:</para>
 
 <programlisting>
-define tapetype <emphasis remap='I'>name</emphasis> {
+define tapetype "<emphasis remap='I'>name</emphasis>" {
     <emphasis remap='I'>tapetype-option</emphasis> <emphasis remap='I'>tapetype-value</emphasis>
     <literal>...</literal>
 }
@@ -1958,7 +2115,9 @@ regardless of what value is entered for <emphasis remap='B'>length</emphasis>
 (but see the section OUTPUT DRIVERS in the 
 <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry> 
 manpage for exceptions).
- </para> </listitem>
+ </para>
+<para>The default unit is bytes if it is not specified.</para>
+  </listitem>
   </varlistentry>
 
 <varlistentry>
@@ -1966,45 +2125,22 @@ manpage for exceptions).
 <listitem>
 <para>Default:
 <emphasis remap='I'>32 kbytes</emphasis>.
-How much data will be written in each tape record expressed in KiloBytes.
-The tape record size (= blocksize) can not be reduced below the default 32 KBytes.
-The parameter blocksize can only be raised if &A; was compiled with the configure option
---with-maxtapeblocksize=N set with &quot;N&quot; greater than 32 during
-&configure;.
+How much data will be written in each tape record.  This is equivalent to the <emphasis remap="I">BLOCK_SIZE</emphasis> device property.
 </para>
+<para>The default unit is Kbytes if it is not specified.</para>
   </listitem>
   </varlistentry>
 <varlistentry>
 <term><emphasis remap='B'>readblocksize</emphasis> <emphasis remap='I'> int</emphasis></term>
 <listitem>
-<para>Default:
-(<emphasis remap='I'>from configure --with-maxtapeblocksize</emphasis>).
-How much data will be read in each tape record expressed in KiloBytes.
-Some hardware require a value not too large, and some require it to be equal to the blocksize.
-It is useful if you configured amanda with a big --with-maxtapeblocksize and your 
-hardware don't work with a value that big.
+<para>Default: <emphasis remap="I">32 kytes</emphasis>
+How much data will be read in each tape record.  This can be used to override a
+device's block size for reads only.  This may be useful, for example, in
+reading a tape written with a 256k block size when Amanda is configured to use
+128k blocks.  This unusual feature is not supported by all operating systems and
+tape devices.
 </para>
-  </listitem>
-  </varlistentry>
-  <varlistentry>
-  <term><emphasis remap='B'>file-pad</emphasis> <emphasis remap='I'> boolean</emphasis></term>
-  <listitem>
-<para>Default:
-<emphasis remap='I'>true</emphasis>.
-If true, every record, including the last one in the file, will have the same length.
-This matches the way &A; wrote tapes prior to the availability of this parameter.
-It may also be useful on devices that only support a fixed blocksize.</para>
-
-<para>Note that the last record on the tape probably includes trailing
-null byte padding, which will be passed back to
-<emphasis remap='B'>gzip</emphasis>,
-<emphasis remap='B'>compress</emphasis>
-or the restore program. Most programs just ignore this (although possibly with a warning).</para>
-
-<para>If this parameter is false, the last record in a file may be shorter
-than the block size. The file will contain the same amount of data the dump program generated,
-without trailing null byte padding. When read, the same amount of data that was written 
-will be returned.</para>
+<para>The default unit is Kbytes if it is not specified.</para>
   </listitem>
   </varlistentry>
   
@@ -2033,7 +2169,7 @@ man page for more information.</para>
 
 <para>In addition to options, another
 <emphasis remap='B'>tapetype</emphasis>
-name may be entered, which makes this
+name may be supplie as an identifier, which makes this
 <emphasis remap='B'>tapetype</emphasis>
 inherit options from another
 <emphasis remap='B'>tapetype</emphasis>.
@@ -2042,14 +2178,14 @@ Compact-III tapes and one using Compact-IV tapes is the length of the tape.
 So they could be entered as:</para>
 
 <programlisting remap='.nf'>
-define tapetype DLT4000-III {
+define tapetype "DLT4000-III" {
     comment &quot;DLT4000 tape drives with Compact-III tapes&quot;
     length 12500 mbytes         # 10 Gig tapes with some compression
     filemark 2000 kbytes
     speed 1536 kps
 }
-define tapetype DLT4000-IV {
-    DLT4000-III
+define tapetype "DLT4000-IV" {
+    "DLT4000-III"
     comment &quot;DLT4000 tape drives with Compact-IV tapes&quot;
     length 25000 mbytes         # 20 Gig tapes with some compression
 }
@@ -2070,7 +2206,7 @@ The information is entered in an <emphasis remap='B'>interface</emphasis>
 section, which looks like this:</para>
 
 <programlisting>
-define interface <emphasis remap='I'>name</emphasis> {
+define interface "<emphasis remap='I'>name</emphasis>" {
     <emphasis remap='I'>interface-option</emphasis> <emphasis remap='I'>interface-value</emphasis>
     <literal>...</literal>
 }
@@ -2111,16 +2247,290 @@ The speed of the interface in Kbytes per second.</para>
 
 <para>In addition to options, another
 <emphasis remap='B'>interface</emphasis>
-name may be entered, which makes this
+name may be supplied as an identifier, which makes this
 <emphasis remap='B'>interface</emphasis>
 inherit options from another
 <emphasis remap='B'>interface</emphasis>.
 At the moment, this is of little use.</para>
 </refsect1>
 
-<refsect1><title>AUTHOR</title>
-<para>James da Silva, &email.jds;: Original text</para>
-<para>&maintainer.sgw;: XML-conversion, major update, splitting</para>
+<refsect1><title>APPLICATION SECTION</title>
+<para>The
+<emphasis remap='B'>amanda.conf</emphasis>
+file may define multiple types of application.
+The information is entered in a <emphasis remap='B'>application-tool</emphasis>
+section, which looks like this:</para>
+
+<programlisting>
+define application-tool "<emphasis remap='I'>name</emphasis>" {
+    <emphasis remap='I'>application-option</emphasis> <emphasis remap='I'>application-value</emphasis>
+    <literal>...</literal>
+}
+</programlisting>
+
+<para><emphasis remap='I'>name</emphasis>
+is the name of this type of application. It is referenced from the
+<emphasis remap='I'>dumptype</emphasis></para>
+
+<para>The application-tool options and values are:</para>
+<variablelist remap='TP'>
+  <varlistentry>
+  <term><emphasis remap='B'>comment</emphasis> <emphasis remap='I'>string</emphasis></term>
+  <listitem>
+<para>Default:
+<emphasis remap='I'>none</emphasis>.
+A comment string describing this application.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>plugin</emphasis> <emphasis remap='I'>string</emphasis></term>
+  <listitem>
+<para>No default. Must be set to the name of the program. This program must be in the <emphasis remap='I'>$libexecdir/amanda/application</emphasis> directory on the client.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>property</emphasis> [append] [priority] <emphasis remap='I'>string</emphasis> <emphasis remap='I'>string</emphasis>+</term>
+  <listitem>
+<para>No default. You can set property for the application, each application have a different set of property. Both strings are quoted; the first string contains the name of
+the property to set, and the others contains its values.
+<emphasis remap='B'>append</emphasis> keyword append the values to the list of values for that property.
+<emphasis remap='B'>priority</emphasis> keyword disallow the setting of that property on the client.
+</para>
+  </listitem>
+  </varlistentry>
+</variablelist>
+</refsect1>
+
+<refsect1><title>SCRIPT SECTION</title>
+<para>The
+<emphasis remap='B'>amanda.conf</emphasis>
+file may define multiple types of script. 
+The information is entered in a <emphasis remap='B'>script-tool</emphasis>
+section, which looks like this:</para>
+
+<programlisting>
+define script-tool "<emphasis remap='I'>name</emphasis>" {
+    <emphasis remap='I'>script-option</emphasis> <emphasis remap='I'>script-value</emphasis>
+    <literal>...</literal>
+}
+</programlisting>
+
+<para><emphasis remap='I'>name</emphasis>
+is the name of this type of script. It is referenced from the
+<emphasis remap='I'>dumptype</emphasis></para>
+
+<para>The script-tool options and values are:</para>
+<variablelist remap='TP'>
+  <varlistentry>
+  <term><emphasis remap='B'>comment</emphasis> <emphasis remap='I'>string</emphasis></term>
+  <listitem>
+<para>Default:
+<emphasis remap='I'>none</emphasis>.
+A comment string describing this script.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>plugin</emphasis> <emphasis remap='I'>string</emphasis></term>
+  <listitem>
+<para>No default. Must be set to the name of the program. This program must be in the <emphasis remap='I'>$libexecdir/amanda/application</emphasis> directory on the client and/or server.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>execute_where</emphasis> [client|server]</term>
+  <listitem>
+<para>Default: <emphasis remap='I'>client</emphasis>. Where the script must be executed, on the client or server.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>execute_on</emphasis> <emphasis remap='I'>execute_on</emphasis>[,<emphasis remap='I'>execute_on</emphasis>]*</term>
+  <listitem>
+<para>No default. When the script must be executed, you can specify many of them:</para>
+    <!-- .RS -->
+    <variablelist remap='TP'>
+      <varlistentry>
+      <term><emphasis remap='B'>pre-dle-amcheck</emphasis></term>
+      <listitem>
+<para>Execute before the amcheck command for the dle.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>pre-host-amcheck</emphasis></term>
+      <listitem>
+<para>Execute before the amcheck command for all dle for the client.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>post-dle-amcheck</emphasis></term>
+      <listitem>
+<para>Execute after the amcheck command for the dle.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>post-host-amcheck</emphasis></term>
+      <listitem>
+<para>Execute after the amcheck command for all dle for the client.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>pre-dle-estimate</emphasis></term>
+      <listitem>
+<para>Execute before the estimate command for the dle.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>pre-host-estimate</emphasis></term>
+      <listitem>
+<para>Execute before the estimate command for all dle for the client.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>post-dle-estimate</emphasis></term>
+      <listitem>
+<para>Execute after the estimate command for the dle.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>post-host-estimate</emphasis></term>
+      <listitem>
+<para>Execute after the estimate command for all dle for the client.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>pre-dle-backup</emphasis></term>
+      <listitem>
+<para>Execute before the backup command for the dle.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>pre-host-backup</emphasis></term>
+      <listitem>
+<para>Execute before the backup command for all dle for the client.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>post-dle-backup</emphasis></term>
+      <listitem>
+<para>Execute after the backup command for the dle.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>post-host-backup</emphasis></term>
+      <listitem>
+<para>Execute after the backup command for all dle for the client.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>pre-recover</emphasis></term>
+      <listitem>
+<para>Execute before any level is recovered.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>post-recover</emphasis></term>
+      <listitem>
+<para>Execute after all levels are recovered.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>pre-level-recover</emphasis></term>
+      <listitem>
+<para>Execute before each level recovery.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>post-level-recover</emphasis></term>
+      <listitem>
+<para>Execute after each level recovery.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><emphasis remap='B'>inter-level-recover</emphasis></term>
+      <listitem>
+<para>Execute between two levels of recovery.</para>
+      </listitem>
+      </varlistentry>
+    </variablelist>
+    <para>If you recover level 0 and 2 of the disk /usr with amrecover, it will execute:</para>
+<programlisting>
+script --pre-recover
+script --pre-level-recover --level 0
+#recovering level 0
+script --post-level-recover --level 0
+script --inter-level-recover --level 0 --level 2
+script --pre-level-recover --level 2
+#recovering level 2
+script --post-level-recover --level 2
+script --post-recover
+</programlisting>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>property</emphasis> [append] [priority] <emphasis remap='I'>string</emphasis> <emphasis remap='I'>string</emphasis>+</term>
+  <listitem>
+<para>No default. You can set property for the script, each script have a different set of property. Both strings are quoted; the first string contains the name of
+the property to set, and the others contains its values.
+<emphasis remap='B'>append</emphasis> keyword append the values to the list of values for that property.
+<emphasis remap='B'>priority</emphasis> keyword disallow the setting of that property on the client.
+</para>
+  </listitem>
+  </varlistentry>
+</variablelist>
+</refsect1>
+
+<refsect1><title>DEVICE SECTION</title>
+<para>Backend storage devices are specified in
+<emphasis remap='B'>amanda.conf</emphasis>
+in the form of "device" sections, which look like this:</para>
+
+<programlisting>
+define device <emphasis remap='I'>name</emphasis> {
+    commend "<emphasis remap='I'>comment (optional)</emphasis>"
+    tapedev "<emphasis remap='I'>device-specifier</emphasis>"
+    device_property "<emphasis remap='I'>prop-name</emphasis>" "<emphasis remap='I'>prop-value</emphasis>"
+    <literal>...</literal>
+}
+</programlisting>
+
+<para><emphasis remap='I'>name</emphasis> is the user-specified name of
+this device. It is referenced from the global <emphasis
+remap='I'>tapedev</emphasis> parameter.  The <emphasis
+remap='I'>device-specifier</emphasis> specifies the device name to use;
+see <citerefentry><refentrytitle>amanda-devices</refentrytitle><manvolnum>7</manvolnum></citerefentry>.
+As with most sections, the <emphasis remap='I'>comment</emphasis>
+parmeter is optional and only for the user's convenience.</para>
+
+<para>An arbitrary number of <emphasis
+remap='I'>device_property</emphasis> parameters can be specified.
+Again, see
+<citerefentry><refentrytitle>amanda-devices</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+for information on device properties.</para>
+
+</refsect1>
+
+<refsect1><title>CHANGER SECTION</title>
+<para>Changers are described in
+<emphasis remap='B'>amanda.conf</emphasis>
+in the form of "changer" sections, which look like this:</para>
+
+<programlisting>
+define changer <emphasis remap='I'>name</emphasis> {
+    comment "<emphasis remap='I'>comment (optional)</emphasis>"
+    tapedev "<emphasis remap='I'>tape-device</emphasis>"
+    tpchanger "<emphasis remap='I'>changer-type</emphasis>"
+    changerdev "<emphasis remap='I'>device-name</emphasis>"
+    changerfile "<emphasis remap='I'>state-file</emphasis>"
+    <literal>...</literal>
+}
+</programlisting>
+
+<para><emphasis remap='I'>name</emphasis> is the user-specified name of this
+device. The remaining parameters are specific to the changer type selected.
+</para>
+
+<para>
+TODO: more detail here once it's known
+</para>
+
 </refsect1>
 
 <refsect1><title>SEE ALSO</title>

@@ -97,21 +97,8 @@ if test -f hold; then
 fi
 
 if test -f $errfile || test -f $logdir/log; then
-	echo `_ '%s: amdump or amflush is already running, or you must run amcleanup' "$0"` 1>&2
-	exit 1
+	amcleanup$SUF -p $conf
 fi
-
-umask 077
-
-exit_code=0
-# Plan and drive the dumps.
-#exec </dev/null >$errfile 2>&1
-touch $errfile
-exit_code=$?
-[ $exit_code -ne 0 ] && exit_status=$exit_code
-exec </dev/null 2>>$errfile 1>&2
-exit_code=$?
-[ $exit_code -ne 0 ] && exit_status=$exit_code
 
 gdate=`date +'%a %b %e %H:%M:%S %Z %YAAAAA%Y%m%dBBBBB%Y%m%d%H%M%SCCCCC%Y-%m-%d %H:%M:%S %Z'`
 
@@ -127,12 +114,57 @@ date_starttime=`echo $gdate |sed -e "s/^.*BBBBB//;s/CCCCC.*$//"`
 #date_locale_independent=%Y-%m-%d %H:%M:%S %Z
 date_locale_independent=`echo $gdate |sed -e "s/^.*CCCCC//"`
 
+if test -f $errfile || test -f $logdir/log; then
+	process_name=`grep "^INFO .* .* pid " $logdir/log | head -n 1 | awk '{print $2}'`
+	echo `_ '%s: %s is already running, or you must run amcleanup' "$0" "${process_name}"` 1>&2
+	echo "INFO amdump amdump pid $$" > $logdir/log.$$
+	echo "START driver date $date_starttime" >> $logdir/log.$$
+	echo "ERROR amdump " `_ '%s is already running, or you must run amcleanup' "${process_name}"` >> $logdir/log.$$
+	$sbindir/amreport$SUF $conf -l $logdir/log.$$ "$@"
+	rm -f $logdir/log.$$
+	exit 1;
+fi
+
+umask 077
+
+echo "INFO amdump amdump pid $$" > $logdir/log
+exit_code=0
+# Plan and drive the dumps.
+#exec </dev/null >$errfile 2>&1
+touch $errfile
+exit_code=$?
+[ $exit_code -ne 0 ] && exit_status=$exit_code
+exec </dev/null 2>>$errfile 1>&2
+exit_code=$?
+[ $exit_code -ne 0 ] && exit_status=$exit_code
+
 printf '%s: start at %s\n' "amdump" "$date"
 printf '%s: datestamp %s\n' "amdump" "$date_datestamp"
 printf '%s: starttime %s\n' "amdump" "$date_starttime"
 printf '%s: starttime-locale-independent %s\n' "amdump" "$date_locale_independent"
 
-$amlibexecdir/planner$SUF $conf --starttime $date_starttime "$@" | $amlibexecdir/driver$SUF $conf "$@"
+# shells don't do well with handling exit values from pipelines, so we emulate
+# a pipeline in perl, in such a way that we can combine both exit statuses in a
+# kind of logical "OR".
+@PERL@ - $amlibexecdir/planner$SUF $amlibexecdir/driver$SUF $conf $date_starttime "$@" <<'EOPERL'
+use IPC::Open3;
+use POSIX qw(WIFEXITED WEXITSTATUS);
+my ($planner, $driver, $conf, $date_starttime, @args) = @ARGV;
+
+open3("</dev/null", \*PIPE, ">&STDERR", $planner, $conf, '--starttime', $date_starttime, @args)
+    or die "Could not exec $planner: $!";
+open3("<&PIPE", ">&STDOUT", ">&STDERR", $driver, $conf, @args)
+    or die "Could not exec $driver: $!";
+
+my $first_bad_exit = 0;
+for (my $i = 0; $i < 2; $i++) {
+    my $dead = wait();
+    die("Error waiting: $!") if ($dead <= 0);
+    my $exit = WIFEXITED($?)? WEXITSTATUS($?) : 1;
+    $first_bad_exit = $exit if ($exit && !$first_bad_exit)
+}
+exit $first_bad_exit;
+EOPERL
 exit_code=$?
 [ $exit_code -ne 0 ] && exit_status=$exit_code
 printf '%s: end at %s\n' "amdump" "`date`"
@@ -170,7 +202,6 @@ while [ $days -ge 2 ]; do
 	ndays=`expr $days - 1`
 	mv $errfile.$ndays $errfile.$days
 	exit_code=$?
-	echo $exit_code
 	[ $exit_code -ne 0 ] && exit_status=$exit_code
 	days=$ndays
 done

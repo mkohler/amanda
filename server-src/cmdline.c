@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Zmanda Inc.  All Rights Reserved.
+ * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -14,8 +14,8 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  * 
- * Contact information: Zmanda Inc, 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  *
  * Author: Dustin J. Mitchell <dustin@zmanda.com>
  */
@@ -39,8 +39,7 @@ dumpspec_new(
 {
     dumpspec_t *rv;
 
-    rv = calloc(1, sizeof(*rv));
-    if (!rv) return NULL;
+    rv = g_new0(dumpspec_t, 1);
     if (host) rv->host = stralloc(host);
     if (disk) rv->disk = stralloc(disk);
     if (datestamp) rv->datestamp = stralloc(datestamp);
@@ -241,7 +240,10 @@ cmdline_match_holding(
     for (hi = holding_files; hi != NULL; hi = hi->next) {
 	/* TODO add level */
 	if (!holding_file_get_dumpfile((char *)hi->data, &file)) continue;
-        if (file.type != F_DUMPFILE) continue;
+        if (file.type != F_DUMPFILE) {
+	    dumpfile_free_data(&file);
+	    continue;
+	}
         for (li = dumpspec_list; li != NULL; li = li->next) {
 	    de = (dumpspec_t *)(li->data);
             if (de->host && de->host[0] && !match_host(de->host, file.name)) continue;
@@ -250,6 +252,7 @@ cmdline_match_holding(
             matching_files = g_slist_append(matching_files, g_strdup((char *)hi->data));
             break;
         }
+	dumpfile_free_data(&file);
     }
 
     g_slist_free_full(holding_files);

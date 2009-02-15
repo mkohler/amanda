@@ -19,6 +19,7 @@ libamanda_la_SOURCES =		\
 	alloc.c			\
 	amfeatures.c		\
 	amflock.c		\
+	amxml.c			\
 	clock.c			\
 	columnar.c		\
 	conffile.c		\
@@ -32,14 +33,16 @@ libamanda_la_SOURCES =		\
 	packet.c		\
 	pipespawn.c		\
 	protocol.c		\
+	queueing.c		\
+	semaphore.c		\
 	security.c		\
 	security-util.c		\
+	simpleprng.c		\
 	sl.c			\
 	sockaddr-util.c		\
 	stream.c		\
 	tapelist.c		\
 	timestamp.c		\
-	token.c			\
 	util.c			\
 	versuff.c
 # version.c is generated; see below
@@ -94,6 +97,7 @@ libamanda_la_LDFLAGS =  -release $(VERSION)
 noinst_HEADERS =		\
 	amanda.h		\
 	amfeatures.h		\
+	amxml.h			\
 	arglist.h		\
 	clock.h			\
 	columnar.h		\
@@ -109,14 +113,16 @@ noinst_HEADERS =		\
 	pipespawn.h		\
 	protocol.h		\
 	queue.h			\
+	queueing.h		\
+	semaphore.h		\
 	security.h		\
 	security-util.h		\
+	simpleprng.h		\
 	sl.h			\
 	sockaddr-util.h		\
 	stream.h		\
 	tapelist.h		\
 	timestamp.h		\
-	token.h			\
 	util.h			\
 	version.h
 
@@ -150,7 +156,7 @@ version.c: genversion$(EXEEXT)
 BUILT_SOURCES += genversion.h version.c
 
 # these are used for testing only:
-TEST_PROGS = token file bsdsecurity amfeatures
+TEST_PROGS = file bsdsecurity amfeatures
 
 CLEANFILES += *.test.c
 DISTCLEANFILES += version.c genversion genversion.h
@@ -168,9 +174,6 @@ STANDARD_COMMON_STUFF_NOT_FILE = \
 STANDARD_COMMON_STUFF = \
 	$(STANDARD_COMMON_STUFF_NOT_FILE) \
 	file.lo
-
-token_SOURCES = token.test.c
-token_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF)
 
 file_SOURCES = file.test.c
 file_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF_NOT_FILE)
@@ -191,20 +194,52 @@ bsdsecurity_LDADD = $(libamanda_a_LIBADD) \
 amfeatures_SOURCES = amfeatures.test.c
 amfeatures_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF)
 
+# libtestutils.la
+#
+# Convenience library (never installed) for 'make check'-based tests.
+
+noinst_LTLIBRARIES = libtestutils.la
+libtestutils_la_SOURCES = \
+	testutils.c \
+	testutils.h
+
 # automake-style tests
 
-TESTS = amflock-test
+# automake-style tests
+
+TESTS = amflock-test event-test semaphore-test queueing-test quoting-test
 noinst_PROGRAMS = $(TESTS)
 
 amflock_test_SOURCES = amflock-test.c
-amflock_test_LDADD = libamanda.la
+amflock_test_LDADD = libamanda.la libtestutils.la
+
+event_test_SOURCES = event-test.c
+event_test_LDADD = libamanda.la libtestutils.la
+
+semaphore_test_SOURCES = semaphore-test.c
+semaphore_test_LDADD = libamanda.la libtestutils.la
+
+queueing_test_SOURCES = queueing-test.c
+queueing_test_LDADD = libamanda.la libtestutils.la
+
+quoting_test_SOURCES = quoting-test.c
+quoting_test_LDADD = libamanda.la libtestutils.la
 
 # scripts
 
-# divide scripts up both by language and by destination directory.
-sbin_SCRIPTS_PERL = \
+# divide scripts up both by language, by destination directory, and by whether they
+# should get checked (stuff in *_SCRIPTS_* isn't syntax checked; this is necessary
+# for perl scripts that use Amanda::* packages)
+sbin_CHECK_PERL = \
 	    amgpgcrypt \
-	    amcryptsimple
+	    amcryptsimple \
+	    amgetconf
+sbin_SCRIPTS_PERL = \
+	    $(sbin_CHECK_PERL)
+
+amlibexec_CHECK_PERL =
+amlibexec_SCRIPTS_PERL = \
+	    $(amlibexec_CHECK_PERL)
 
 sbin_SCRIPTS_SHELL = \
 	    amcrypt \
@@ -212,16 +247,17 @@ sbin_SCRIPTS_SHELL = \
 	    amcrypt-ossl \
 	    amcrypt-ossl-asym
 
-amlibexec_SCRIPTS_PERL = 
+amlibexec_SCRIPTS_SHELL = 
 
 SCRIPTS_INCLUDE = \
 	    amanda-sh-lib.sh
 
 EXTRA_DIST += amanda-sh-lib.sh.in
 
-CHECK_PERL = $(sbin_SCRIPTS_PERL) $(amlibexec_SCRIPTS_PERL)
-SCRIPTS_PERL = $(CHECK_PERL)
+CHECK_PERL = $(sbin_CHECK_PERL) $(amlibexec_CHECK_PERL)
+SCRIPTS_PERL = $(sbin_SCRIPTS_PERL) $(amlibexec_SCRIPTS_PERL)
 SCRIPTS_SHELL = $(sbin_SCRIPTS_SHELL) $(amlibexec_SCRIPTS_SHELL)
+
 amlibexec_DATA = $(SCRIPTS_INCLUDE)
 amlibexec_SCRIPTS = $(amlibexec_SCRIPTS_PERL) $(amlibexec_SCRIPTS_SHELL)
 sbin_SCRIPTS = $(sbin_SCRIPTS_PERL) $(sbin_SCRIPTS_SHELL)
@@ -246,3 +282,7 @@ listlibsrc:
 %.test.c: $(srcdir)/%.c
 	echo '#define TEST' >$@
 	echo '#include "$<"' >>$@
+
+distclean-local:
+	if test `cd $(srcdir) && pwd` != `pwd`; then rm -f svn-info.h; fi
+MAINTAINERCLEANFILES+=svn-info.h

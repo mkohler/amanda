@@ -69,11 +69,13 @@ stream_server(
     } else {
 	socket_family = family;
     }
+    g_debug("stream_server opening socket with family %d (requested family was %d)", socket_family, family);
     server_socket = socket(socket_family, SOCK_STREAM, 0);
-    
+
 #ifdef WORKING_IPV6
     /* if that address family actually isn't supported, just try AF_INET */
     if (server_socket == -1 && errno == EAFNOSUPPORT) {
+	g_debug("stream_server retrying socket with AF_INET");
 	socket_family = AF_INET;
 	server_socket = socket(AF_INET, SOCK_STREAM, 0);
     }
@@ -202,10 +204,10 @@ stream_client_internal(
     int priv)
 {
     sockaddr_union svaddr, claddr;
-    int save_errno;
+    int save_errno = 0;
     char *f;
-    int client_socket;
-    int *portrange;
+    int client_socket = 0;
+    int *portrange = NULL;
     int result;
     struct addrinfo *res, *res_addr;
 
@@ -347,7 +349,7 @@ stream_accept(
 			        _("stream_accept: timeout after %d seconds\n"),
 			       timeout),
 			 timeout);
-		errno = ENOENT;			/* ??? */
+		errno = ETIMEDOUT;
 		return -1;
 	    } else if (!FD_ISSET(server_socket, &readset)) {
 		int i;

@@ -4,7 +4,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
+   the Free Software Foundation; either version 3, or (at your option)
    any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -31,13 +31,13 @@
 
 extern bool isbase64 (char ch);
 
-extern void base64_encode (const char *restrict in, size_t inlen,
-			   char *restrict out, size_t outlen);
+extern void base64_encode (const char *in, size_t inlen,
+			   char *out, size_t outlen);
 
 extern size_t base64_encode_alloc (const char *in, size_t inlen, char **out);
 
-extern bool base64_decode (const char *restrict in, size_t inlen,
-			   char *restrict out, size_t *outlen);
+extern bool base64_decode (const char *in, size_t inlen,
+			   char *out, size_t *outlen);
 
 extern bool base64_decode_alloc (const char *in, size_t inlen,
 				 char **out, size_t *outlen);

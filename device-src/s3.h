@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
  * 
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 2.1 as 
@@ -14,8 +14,8 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  * 
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 #ifndef __S3_H__
@@ -32,15 +32,85 @@
  * in different threads simultaneously. */
 typedef struct S3Handle S3Handle;
 
+/* Callback function to read data to upload
+ * 
+ * @note this is the same as CURLOPT_READFUNCTION
+ *
+ * @param data: The pointer to write data to
+ * @param size: The size of each "element" of the data buffer in bytes
+ * @param nmemb: The number of elements in the data buffer.
+ * So, the buffer's size is size*nmemb bytes.
+ * @param stream: The read_data (an opaque pointer)
+ *
+ * @return The number of bytes written to the buffer,
+ * CURL_READFUNC_PAUSE to pause, or CURL_READFUNC_ABORT to abort.
+ * Return 0 only if there's no more data to be uploaded.
+ */
+typedef size_t (*s3_read_func)(void *data, size_t size, size_t nmemb, void *stream);
+
+/* This function is called to get size of the upload data
+ *
+ * @param data: The write_data (opaque pointer)
+ *
+ * @return The number of bytes of data, negative for error
+ */
+typedef size_t (*s3_size_func)(void *data);
+
+/* This function is called to get MD5 hash of the upload data
+ *
+ * @param data: The write_data (opaque pointer)
+ *
+ * @return The MD5 hash, NULL on error
+ */
+typedef GByteArray* (*s3_md5_func)(void *data);
+
+/* This function is called to reset an upload or download data stream
+ * to the beginning
+ *
+ * @param data: The read_data or write_data (opaque pointer)
+ *
+ * @return The number of bytes of data, negative for error
+ */
+typedef void (*s3_reset_func)(void *data);
+
+/* Callback function to write data that's been downloaded
+ * 
+ * @note this is the same as CURLOPT_WRITEFUNCTION
+ *
+ * @param data: The pointer to read data from
+ * @param size: The size of each "element" of the data buffer in bytes
+ * @param nmemb: The number of elements in the data buffer.
+ * So, the buffer's size is size*nmemb bytes.
+ * @param stream: the write_data (an opaque pointer)
+ *
+ * @return The number of bytes written to the buffer or
+ * CURL_WRITEFUNC_PAUSE to pause.
+ * If it's the number of bytes written, it should match the buffer size
+ */
+typedef size_t (*s3_write_func)(void *data, size_t size, size_t nmemb, void *stream);
+
+/**
+ * Callback function to track progress
+ *
+ * @note this is the same as CURLOPT_PROGRESSFUNCTION
+ *
+ * @param data: The progress_data
+ * @param dltotal: The total number of bytes to downloaded
+ * @param dlnow: The current number of bytes downloaded
+ * @param ultotal: The total number of bytes to downloaded
+ * @param ulnow: The current number of bytes downloaded
+ *
+ * @return 0 to continue, non-zero to abort.
+ */
+typedef curl_progress_callback s3_progress_func;
+
 /*
  * Constants
  */
 
-#ifdef WANT_DEVPAY
 /* These are assumed to be already URL-escaped. */
-# define STS_BASE_URL "https://sts.amazonaws.com/"
+# define STS_BASE_URL "https://ls.amazonaws.com/"
 # define STS_PRODUCT_TOKEN "{ProductToken}AAAGQXBwVGtu4geoGybuwuk8VEEPzJ9ZANpu0yzbf9g4Gs5Iarzff9B7qaDBEEaWcAzWpcN7zmdMO765jOtEFc4DWTRNkpPSzUnTdkHbdYUamath73OreaZtB86jy/JF0gsHZfhxeKc/3aLr8HNT//DsX3r272zYHLDPWWUbFguOwqNjllnt6BshYREx59l8RrWABLSa37dyJeN+faGvz3uQxiDakZRn3LfInOE6d9+fTFl50LPoP08LCqI/SJfpouzWix7D/cep3Jq8yYNyM1rgAOTF7/wh7r8OuPDLJ/xZUDLfykePIAM="
-#endif
 
 /* This preprocessor magic will enumerate constants named S3_ERROR_XxxYyy for
  * each of the errors in parentheses.
@@ -56,6 +126,7 @@ typedef struct S3Handle S3Handle;
     S3_ERROR(OperationAborted), \
     S3_ERROR(BadDigest), \
     S3_ERROR(BucketAlreadyExists), \
+    S3_ERROR(BucketAlreadyOwnedByYou), \
     S3_ERROR(BucketNotEmpty), \
     S3_ERROR(CredentialsNotSupported), \
     S3_ERROR(EntityTooLarge), \
@@ -106,10 +177,37 @@ typedef enum {
  * Functions
  */
 
-/* Initialize S3 operation
+/* Does this install of curl support SSL?
  *
- * As a requirement of C{curl_global_init}, which this function calls,
- * s3_init I{must} be called before any other threads are started.
+ * @returns: boolean
+ */
+gboolean
+s3_curl_supports_ssl(void);
+
+/* Checks if the version of libcurl being used supports and checks
+ * wildcard certificates correctly (used for the subdomains required
+ * by location constraints).
+ *
+ * @returns: true if the version of libcurl is new enough
+ */
+gboolean
+s3_curl_location_compat(void);
+
+/* Checks if a bucket name is compatible with setting a location
+ * constraint.
+ *
+ * @note This doesn't guarantee that bucket name is entirely valid,
+ * just that using it as one (or more) subdomain(s) of s3.amazonaws.com
+ * won't fail; that would prevent the reporting of useful messages from 
+ * the service.
+ *
+ * @param bucket: the bucket name
+ * @returns: true if the bucket name is compatible
+ */
+gboolean
+s3_bucket_location_compat(const char *bucket);
+
+/* Initialize S3 operation
  *
  * If an error occurs in this function, diagnostic information is 
  * printed to stderr.
@@ -120,13 +218,19 @@ gboolean
 s3_init(void);
 
 /* Set up an S3Handle.
+ *
+ * The concept of a bucket is defined by the Amazon S3 API.
+ * See: "Components of Amazon S3" - API Version 2006-03-01 pg. 8
+ *
+ * @param access_key: the secret key for Amazon Web Services
+ * @param secret_key: the secret key for Amazon Web Services
+ * @param user_token: the user token for Amazon DevPay
+ * @param bucket_location: the location constraint for buckets
+ * @returns: the new S3Handle
  */
 S3Handle *
-s3_open(const char * access_key, const char *secret_key
-#ifdef WANT_DEVPAY
-        , const char * user_token
-#endif
-        );
+s3_open(const char * access_key, const char *secret_key, const char * user_token, 
+        const char * bucket_location);
 
 /* Deallocate an S3Handle
  *
@@ -178,7 +282,16 @@ s3_error(S3Handle *hdl,
  */
 void
 s3_verbose(S3Handle *hdl,
-	   gboolean verbose);
+       gboolean verbose);
+
+/* Control the use of SSL with HTTP transactions.
+ *
+ * @param hdl: the S3Handle object
+ * @param use_ssl: if true, use SSL (if curl supports it)
+ * @returns: true if the setting is valid
+ */
+gboolean
+s3_use_ssl(S3Handle *hdl, gboolean use_ssl);
 
 /* Get the error information from the last operation on this handle,
  * formatted as a string.
@@ -199,16 +312,27 @@ s3_strerror(S3Handle *hdl);
  * @param hdl: the S3Handle object
  * @param bucket: the bucket to which the upload should be made
  * @param key: the key to which the upload should be made
- * @param buffer: the data to be uploaded
- * @param buffer_len: the length of the data to upload
+ * @param read_func: the callback for reading data
+ * @param reset_func: the callback for to reset reading data
+ * @param size_func: the callback to get the number of bytes to upload
+ * @param md5_func: the callback to get the MD5 hash of the data to upload
+ * @param read_data: pointer to pass to the above functions
+ * @param progress_func: the callback for progress information
+ * @param progress_data: pointer to pass to C{progress_func}
+ *
  * @returns: false if an error ocurred
  */
 gboolean
 s3_upload(S3Handle *hdl,
           const char *bucket,
           const char *key, 
-          gpointer buffer,
-          guint buffer_len);
+          s3_read_func read_func,
+          s3_reset_func reset_func,
+          s3_size_func size_func,
+          s3_md5_func md5_func,
+          gpointer read_data,
+          s3_progress_func progress_func,
+          gpointer progress_data);
 
 /* List all of the files matching the pseudo-glob C{PREFIX*DELIMITER*}, 
  * returning only that portion which matches C{PREFIX*DELIMITER}.  S3 supports
@@ -229,26 +353,28 @@ s3_list_keys(S3Handle *hdl,
               const char *delimiter,
               GSList **list);
 
-/* Read an entire file.  The buffer returned is the responsibility of the caller.  A
- * buffer is only returned if no error occurred, and will be NULL otherwise.
+/* Read an entire file, passing the contents to write_func buffer
+ * by buffer.
  *
  * @param hdl: the S3Handle object
  * @param bucket: the bucket to read from
  * @param key: the key to read from
- * @param buf_ptr: (result) a pointer to a C{gpointer} which will contain a pointer to
- * the block read
- * @param buf_size: (result) a pointer to a C{guint} which will contain the size of the
- * block read
- * @param max_size: maximum size of the file
+ * @param write_func: the callback for writing data
+ * @param reset_func: the callback for to reset writing data
+ * @param write_data: pointer to pass to C{write_func}
+ * @param progress_func: the callback for progress information
+ * @param progress_data: pointer to pass to C{progress_func}
  * @returns: FALSE if an error occurs
  */
 gboolean
 s3_read(S3Handle *hdl,
         const char *bucket,
         const char *key,
-        gpointer *buf_ptr,
-        guint *buf_size,
-        guint max_size);
+        s3_write_func write_func,
+        s3_reset_func reset_func,
+        gpointer write_data,
+        s3_progress_func progress_func,
+        gpointer progress_data);
 
 /* Delete a file.
  *
@@ -286,13 +412,68 @@ typedef struct {
     guint max_buffer_size;
 } CurlBuffer;
 
+#define S3_BUFFER_READ_FUNCS s3_buffer_read_func, s3_buffer_reset_func, s3_buffer_size_func, s3_buffer_md5_func
+
+#define S3_BUFFER_WRITE_FUNCS s3_buffer_write_func, s3_buffer_reset_func
+
 /* a CURLOPT_READFUNCTION to read data from a buffer. */
-size_t buffer_readfunction(void *ptr, size_t size,
-                           size_t nmemb, void * stream);
+size_t
+s3_buffer_read_func(void *ptr, size_t size, size_t nmemb, void * stream);
+
+size_t
+s3_buffer_size_func(void *stream);
+
+GByteArray*
+s3_buffer_md5_func(void *stream);
+
+void
+s3_buffer_reset_func(void *stream);
+
+#define S3_EMPTY_READ_FUNCS s3_empty_read_func, NULL, s3_empty_size_func, s3_empty_md5_func
 
 /* a CURLOPT_WRITEFUNCTION to write data to a buffer. */
 size_t
-buffer_writefunction(void *ptr, size_t size, size_t nmemb, void *stream);
+s3_buffer_write_func(void *ptr, size_t size, size_t nmemb, void *stream);
+
+/* a CURLOPT_READFUNCTION that writes nothing. */
+size_t
+s3_empty_read_func(void *ptr, size_t size, size_t nmemb, void * stream);
+
+size_t
+s3_empty_size_func(void *stream);
+
+GByteArray*
+s3_empty_md5_func(void *stream);
+
+#define S3_COUNTER_WRITE_FUNCS s3_counter_write_func, s3_counter_reset_func
+
+/* a CURLOPT_WRITEFUNCTION to write data that just counts data.
+ * s3_write_data should be NULL or a pointer to an gint64.
+ */
+size_t
+s3_counter_write_func(void *ptr, size_t size, size_t nmemb, void *stream);
+
+void
+s3_counter_reset_func(void *stream);
+
+#ifdef _WIN32
+/* a CURLOPT_READFUNCTION to read data from a file. */
+size_t
+s3_file_read_func(void *ptr, size_t size, size_t nmemb, void * stream);
+
+size_t
+s3_file_size_func(void *stream);
+
+GByteArray*
+s3_file_md5_func(void *stream);
+
+size_t
+s3_file_reset_func(void *stream);
+
+/* a CURLOPT_WRITEFUNCTION to write data to a file. */
+size_t
+s3_file_write_func(void *ptr, size_t size, size_t nmemb, void *stream);
+#endif
 
 /* Adds a null termination to a buffer. */
 void terminate_buffer(CurlBuffer *);

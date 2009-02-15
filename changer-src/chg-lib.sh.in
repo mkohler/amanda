@@ -84,16 +84,22 @@ try_find_mt() {
 # This function strips the tape: from the front of device names.
 # Capture its output with ``.
 tape_device_filename() {
-    # Easy (?) to express this in Perl.
-    perl -e '$ARGV[0] =~ /^(?:([^:]+):)?(.*)$/;
-             print $2 if ($1 || "tape") eq "tape"' "$1"
+    if echo "$1"|grep '^tape:' >/dev/null; then
+	echo "$1" | sed 's/^tape://'
+    else
+	if echo "$1"|grep '^/' >/dev/null; then
+	    echo "$1"
+	fi
+    fi
 }
 
-# Runs amdevcheck to find out if a particular device is usable. Finds the
-# config name based on pwd, so run it from the config directory. The sole
-# argument should be the device name to check. Note that amdevcheck can FP
-# on device status, since some devices can't differentiate between device
-# problems and an unlabeled volume.
+# Invoke amdevcheck to determine whether the device is ready for use.
+#
+# @return 0 if a tape is loaded or error
+# @return 1 if a tape is tape offline or busy
+#
+# @side-effect: $amdevcheck_message is the contents of all MESSAGE lines from
+#               amdevcheck, suitable for use in higher-level error messages
 amdevcheck_status() {
     amdevcheck_message=
     local amdevcheck_config_dir=`pwd`
@@ -109,7 +115,7 @@ amdevcheck_status() {
     # Return 1 if it's possible that the device is offline or busy; if the device cannot
     # distinguish this state from an error condition, then our caller will just have to
     # time out
-    if echo "$amdevcheck_output" | $EGREP "VOLUME_MISSING" > /dev/null; then
+    if echo "$amdevcheck_output" | $EGREP "VOLUME_MISSING|DEVICE_BUSY" > /dev/null; then
 	return 1
     else
 	return 0
@@ -121,7 +127,7 @@ amdevcheck_status() {
 # be extended at some later time.
 
 try_eject_device() {
-    if echo "$1" | grep -e '^tape:' > /dev/null; then
+    if echo "$1" | grep '^tape:' > /dev/null; then
         try_eject_device_tape="`echo \"$1\" | cut -b6-`"
     elif echo "$1" | grep -v : > /dev/null; then
         try_eject_device_tape="$1"
@@ -131,7 +137,7 @@ try_eject_device() {
 
     if test -n "$try_eject_device_tape"; then
         if try_find_mt; then
-            $MT $MTF "$try_eject_device_tape" eject
+            $MT $MTF "$try_eject_device_tape" offline
         fi
     else
         # Technically we failed to eject the device, but we presume that's

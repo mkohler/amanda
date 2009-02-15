@@ -38,13 +38,13 @@
 #include "protocol.h"
 #include "security.h"
 #include "stream.h"
-#include "token.h"
 #include "version.h"
 #include "fileheader.h"
 #include "amfeatures.h"
 #include "server_util.h"
 #include "util.h"
 #include "timestamp.h"
+#include "amxml.h"
 
 #define dumper_debug(i,x) do {		\
 	if ((i) <= debug_dumper) {	\
@@ -95,19 +95,21 @@ static FILE *errf = NULL;
 static char *hostname = NULL;
 am_feature_t *their_features = NULL;
 static char *diskname = NULL;
-static char *qdiskname = NULL;
-static char *device = NULL;
+static char *qdiskname = NULL, *b64disk;
+static char *device = NULL, *b64device;
 static char *options = NULL;
 static char *progname = NULL;
 static char *amandad_path=NULL;
 static char *client_username=NULL;
 static char *ssh_keys=NULL;
+static char *auth=NULL;
 static int level;
 static char *dumpdate = NULL;
 static char *dumper_timestamp = NULL;
 static time_t conf_dtimeout;
 static int indexfderror;
 static int set_datafd;
+static char *dle_str = NULL;
 
 static dumpfile_t file;
 
@@ -127,10 +129,18 @@ static struct {
 static am_feature_t *our_features = NULL;
 static char *our_feature_string = NULL;
 
+/* buffer to keep partial line from the MESG stream */
+static struct {
+    char *buf;		/* buffer holding msg data */
+    size_t size;	/* size of alloced buffer */
+} msg = { NULL, 0 };
+
+
 /* local functions */
 int		main(int, char **);
 static int	do_dump(struct databuf *);
 static void	check_options(char *);
+static void     xml_check_options(char *optionstr);
 static void	finish_tapeheader(dumpfile_t *);
 static ssize_t	write_tapeheader(int, dumpfile_t *);
 static void	databuf_init(struct databuf *, int);
@@ -149,7 +159,8 @@ static int	runencrypt(int, pid_t *,  encrypt_t);
 static void	sendbackup_response(void *, pkt_t *, security_handle_t *);
 static int	startup_dump(const char *, const char *, const char *, int,
 			const char *, const char *, const char *,
-			const char *, const char *, const char *);
+			const char *, const char *, const char *,
+			const char *);
 static void	stop_dump(void);
 
 static void	read_indexfd(void *, void *, ssize_t);
@@ -170,7 +181,7 @@ check_options(
   char *decryptend = NULL;
 
     /* parse the compression option */
-  if (strstr(options, "srvcomp-best;") != NULL) 
+    if (strstr(options, "srvcomp-best;") != NULL) 
       srvcompress = COMP_BEST;
     else if (strstr(options, "srvcomp-fast;") != NULL)
       srvcompress = COMP_FAST;
@@ -241,14 +252,57 @@ check_options(
 }
 
 
+static void
+xml_check_options(
+    char *optionstr)
+{
+    char *o, *oo;
+    char *errmsg = NULL;
+    dle_t *dle;
+
+    char *uoptionstr = unquote_string(optionstr);
+    o = oo = vstralloc("<dle>", strchr(uoptionstr,'<'), "</dle>", NULL);
+  
+    dle = amxml_parse_node_CHAR(o, &errmsg);
+    if (dle == NULL) {
+	error("amxml_parse_node_CHAR failed: %s\n", errmsg);
+    }
+
+    if (dle->compress == COMP_SERVER_FAST) {
+	srvcompress = COMP_FAST;
+    } else if (dle->compress == COMP_SERVER_BEST) {
+	srvcompress = COMP_BEST;
+    } else if (dle->compress == COMP_SERVER_CUST) {
+	srvcompress = COMP_SERVER_CUST;
+	srvcompprog = dle->compprog;
+    } else if (dle->compress == COMP_CUST) {
+	srvcompress = COMP_CUST;
+	clntcompprog = dle->compprog;
+    } else {
+	srvcompress = COMP_NONE;
+    }
+
+    if (dle->encrypt == ENCRYPT_CUST) {
+	srvencrypt = ENCRYPT_CUST;
+	clnt_encrypt = dle->clnt_encrypt;
+	clnt_decrypt_opt = dle->clnt_decrypt_opt;
+    } else if (dle->encrypt == ENCRYPT_SERV_CUST) {
+	srvencrypt = ENCRYPT_SERV_CUST;
+	srv_encrypt = dle->clnt_encrypt;
+	srv_decrypt_opt = dle->clnt_decrypt_opt;
+    } else {
+	srvencrypt = ENCRYPT_NONE;
+    }
+}
+
+
 int
 main(
     int		argc,
     char **	argv)
 {
     static struct databuf db;
-    struct cmdargs cmdargs;
-    cmd_t cmd;
+    struct cmdargs *cmdargs = NULL;
     int outfd = -1;
     int rc;
     in_port_t taper_port;
@@ -257,6 +311,7 @@ main(
     int res;
     config_overwrites_t *cfg_ovr = NULL;
     char *cfg_opt = NULL;
+    int dumper_setuid;
 
     /*
      * Configure program for internationalization:
@@ -268,9 +323,7 @@ main(
     textdomain("amanda"); 
 
     /* drop root privileges */
-    if (!set_root_privs(0)) {
-	error(_("dumper must be run setuid root"));
-    }
+    dumper_setuid = set_root_privs(0);
 
     safe_fd(-1, 0);
 
@@ -287,19 +340,27 @@ main(
     cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
     if (argc > 1)
 	cfg_opt = argv[1];
-    config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_USE_CWD | CONFIG_INIT_FATAL,
-		cfg_opt);
+    config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_USE_CWD, cfg_opt);
     apply_config_overwrites(cfg_ovr);
+
+    if (!dumper_setuid) {
+	error(_("dumper must be run setuid root"));
+    }
+
+    if (config_errors(NULL) >= CFGERR_ERRORS) {
+	g_critical(_("errors processing config file"));
+    }
 
     safe_cd(); /* do this *after* config_init() */
 
     check_running_as(RUNNING_AS_DUMPUSER);
 
-    dbrename(config_name, DBG_SUBDIR_SERVER);
+    dbrename(get_config_name(), DBG_SUBDIR_SERVER);
 
     our_features = am_init_feature_set();
     our_feature_string = am_feature_to_string(our_features);
 
+    log_add(L_INFO, "%s pid %ld", get_pname(), (long)getpid());
     g_fprintf(stderr,
 	    _("%s: pid %ld executable %s version %s\n"),
 	    get_pname(), (long) getpid(),
@@ -315,13 +376,16 @@ main(
     protocol_init();
 
     do {
-	cmd = getcmd(&cmdargs);
+	if (cmdargs)
+	    free_cmdargs(cmdargs);
+	cmdargs = getcmd();
 
-	switch(cmd) {
+	amfree(errstr);
+	switch(cmdargs->cmd) {
 	case START:
-	    if(cmdargs.argc <  2)
+	    if(cmdargs->argc <  2)
 		error(_("error [dumper START: not enough args: timestamp]"));
-	    dumper_timestamp = newstralloc(dumper_timestamp, cmdargs.argv[2]);
+	    dumper_timestamp = newstralloc(dumper_timestamp, cmdargs->argv[1]);
 	    break;
 
 	case ABORT:
@@ -345,95 +409,102 @@ main(
 	     *   amandad_path
 	     *   client_username
 	     *   ssh_keys
+	     *   security_driver
 	     *   options
 	     */
-	    cmdargs.argc++;			/* true count of args */
-	    a = 2;
+	    a = 1; /* skip "PORT-DUMP" */
 
-	    if(a >= cmdargs.argc) {
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: handle]"));
 		/*NOTREACHED*/
 	    }
-	    handle = newstralloc(handle, cmdargs.argv[a++]);
+	    handle = newstralloc(handle, cmdargs->argv[a++]);
 
-	    if(a >= cmdargs.argc) {
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: port]"));
 		/*NOTREACHED*/
 	    }
-	    taper_port = (in_port_t)atoi(cmdargs.argv[a++]);
+	    taper_port = (in_port_t)atoi(cmdargs->argv[a++]);
 
-	    if(a >= cmdargs.argc) {
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: hostname]"));
 		/*NOTREACHED*/
 	    }
-	    hostname = newstralloc(hostname, cmdargs.argv[a++]);
+	    hostname = newstralloc(hostname, cmdargs->argv[a++]);
 
-	    if(a >= cmdargs.argc) {
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: features]"));
 		/*NOTREACHED*/
 	    }
 	    am_release_feature_set(their_features);
-	    their_features = am_string_to_feature(cmdargs.argv[a++]);
+	    their_features = am_string_to_feature(cmdargs->argv[a++]);
 
-	    if(a >= cmdargs.argc) {
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: diskname]"));
 		/*NOTREACHED*/
 	    }
-	    qdiskname = newstralloc(qdiskname, cmdargs.argv[a++]);
-	    if (diskname != NULL)
-		amfree(diskname);
-	    diskname = unquote_string(qdiskname);
+	    diskname = newstralloc(diskname, cmdargs->argv[a++]);
+	    if (qdiskname != NULL)
+		amfree(qdiskname);
+	    qdiskname = quote_string(diskname);
+	    b64disk = amxml_format_tag("disk", diskname);
 
-	    if(a >= cmdargs.argc) {
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: device]"));
 		/*NOTREACHED*/
 	    }
-	    device = newstralloc(device, cmdargs.argv[a++]);
+	    device = newstralloc(device, cmdargs->argv[a++]);
+	    b64device = amxml_format_tag("diskdevice", device);
 	    if(strcmp(device,"NODEVICE") == 0)
 		amfree(device);
 
-	    if(a >= cmdargs.argc) {
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: level]"));
 		/*NOTREACHED*/
 	    }
-	    level = atoi(cmdargs.argv[a++]);
+	    level = atoi(cmdargs->argv[a++]);
 
-	    if(a >= cmdargs.argc) {
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: dumpdate]"));
 		/*NOTREACHED*/
 	    }
-	    dumpdate = newstralloc(dumpdate, cmdargs.argv[a++]);
+	    dumpdate = newstralloc(dumpdate, cmdargs->argv[a++]);
 
-	    if(a >= cmdargs.argc) {
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: program]"));
 		/*NOTREACHED*/
 	    }
-	    progname = newstralloc(progname, cmdargs.argv[a++]);
+	    progname = newstralloc(progname, cmdargs->argv[a++]);
 
-	    if(a >= cmdargs.argc) {
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: amandad_path]"));
 		/*NOTREACHED*/
 	    }
-	    amandad_path = newstralloc(amandad_path, cmdargs.argv[a++]);
+	    amandad_path = newstralloc(amandad_path, cmdargs->argv[a++]);
 
-	    if(a >= cmdargs.argc) {
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: client_username]"));
 	    }
-	    client_username = newstralloc(client_username, cmdargs.argv[a++]);
+	    client_username = newstralloc(client_username, cmdargs->argv[a++]);
 
-	    if(a >= cmdargs.argc) {
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: ssh_keys]"));
 	    }
-	    ssh_keys = newstralloc(ssh_keys, cmdargs.argv[a++]);
+	    ssh_keys = newstralloc(ssh_keys, cmdargs->argv[a++]);
 
-	    if(a >= cmdargs.argc) {
+	    if(a >= cmdargs->argc) {
+		error(_("error [dumper PORT-DUMP: not enough args: auth]"));
+	    }
+	    auth = newstralloc(auth, cmdargs->argv[a++]);
+
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: options]"));
 	    }
-	    options = newstralloc(options, cmdargs.argv[a++]);
+	    options = newstralloc(options, cmdargs->argv[a++]);
 
-	    if(a != cmdargs.argc) {
+	    if(a != cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: too many args: %d != %d]"),
-		      cmdargs.argc, a);
+		      cmdargs->argc, a);
 	        /*NOTREACHED*/
 	    }
 
@@ -442,7 +513,7 @@ main(
 		errstr = newvstrallocf(errstr,
 				     _("could not resolve localhost: %s"),
 				     gai_strerror(res));
-		q = squotef(errstr);
+		q = quote_string(errstr);
 		putresult(FAILED, "%s %s\n", handle, q);
 		log_add(L_FAIL, "%s %s %s %d [%s]", hostname, qdiskname,
 			dumper_timestamp, level, errstr);
@@ -458,7 +529,7 @@ main(
 		
 		errstr = newvstrallocf(errstr, _("port open: %s"),
 				      strerror(errno));
-		q = squotef(errstr);
+		q = quote_string(errstr);
 		putresult(FAILED, "%s %s\n", handle, q);
 		log_add(L_FAIL, "%s %s %s %d [%s]", hostname, qdiskname,
 			dumper_timestamp, level, errstr);
@@ -467,7 +538,10 @@ main(
 	    }
 	    databuf_init(&db, outfd);
 
-	    check_options(options);
+	    if (am_has_feature(their_features, fe_req_xml))
+		xml_check_options(options);
+	    else
+		check_options(options);
 
 	    rc = startup_dump(hostname,
 			      diskname,
@@ -478,9 +552,10 @@ main(
 			      amandad_path,
 			      client_username,
 			      ssh_keys,
+			      auth,
 			      options);
 	    if (rc != 0) {
-		q = squote(errstr);
+		q = quote_string(errstr);
 		putresult(rc == 2? FAILED : TRYAGAIN, "%s %s\n",
 		    handle, q);
 		if (rc == 2)
@@ -500,10 +575,8 @@ main(
 	    break;
 
 	default:
-	    if(cmdargs.argc >= 1) {
-		q = squote(cmdargs.argv[1]);
-	    } else if(cmdargs.argc >= 0) {
-		q = squote(cmdargs.argv[0]);
+	    if(cmdargs->argc >= 1) {
+		q = quote_string(cmdargs->argv[0]);
 	    } else {
 		q = stralloc(_("(no input?)"));
 	    }
@@ -514,7 +587,10 @@ main(
 
 	if (outfd != -1)
 	    aclose(outfd);
-    } while(cmd != QUIT);
+    } while(cmdargs->cmd != QUIT);
+    free_cmdargs(cmdargs);
+
+    log_add(L_INFO, "pid-done %ld", (long)getpid());
 
     am_release_feature_set(our_features);
     amfree(our_feature_string);
@@ -581,7 +657,8 @@ static int
 databuf_flush(
     struct databuf *	db)
 {
-    ssize_t written;
+    size_t written;
+    char *m;
 
     /*
      * If there's no data, do nothing.
@@ -593,7 +670,7 @@ databuf_flush(
     /*
      * Write out the buffer
      */
-    written = fullwrite(db->fd, db->dataout,
+    written = full_write(db->fd, db->dataout,
 			(size_t)(db->datain - db->dataout));
     if (written > 0) {
 	db->dataout += written;
@@ -603,8 +680,10 @@ databuf_flush(
 	dumpsize += (dumpbytes / (off_t)1024);
 	dumpbytes %= (off_t)1024;
     }
-    if (written < 0) {
-	errstr = squotef(_("data write: %s"), strerror(errno));
+    if (written == 0) {
+	m = vstrallocf(_("data write: %s"), strerror(errno));
+	errstr = quote_string(m);
+	amfree(m);
 	return -1;
     }
     db->datain = db->dataout = db->buf;
@@ -661,7 +740,7 @@ parse_info_line(
 	size_t len;
     } fields[] = {
 	{ "BACKUP", file.program, SIZEOF(file.program) },
-	{ "DUMPER", file.dumper, SIZEOF(file.dumper) },
+	{ "APPLICATION", file.application, SIZEOF(file.application) },
 	{ "RECOVER_CMD", file.recover_cmd, SIZEOF(file.recover_cmd) },
 	{ "COMPRESS_SUFFIX", file.comp_suffix, SIZEOF(file.comp_suffix) },
 	{ "SERVER_CUSTOM_COMPRESS", file.srvcompprog, SIZEOF(file.srvcompprog) },
@@ -749,15 +828,18 @@ process_dumpline(
 	    dump_result = max(dump_result, 2);
 
 	    tok = strtok(NULL, "");
-	    if (tok == NULL || *tok != '[') {
-		errstr = newvstrallocf(errstr, _("bad remote error: %s"), str);
-	    } else {
-		char *enderr;
+	    if (!errstr) { /* report first error line */
+		if (tok == NULL || *tok != '[') {
+		    errstr = newvstrallocf(errstr, _("bad remote error: %s"),
+					   str);
+		} else {
+		    char *enderr;
 
-		tok++;	/* skip over '[' */
-		if ((enderr = strchr(tok, ']')) != NULL)
-		    *enderr = '\0';
-		errstr = newstralloc(errstr, tok);
+		    tok++;	/* skip over '[' */
+		    if ((enderr = strchr(tok, ']')) != NULL)
+			*enderr = '\0';
+		    errstr = newstralloc(errstr, tok);
+		}
 	    }
 	    break;
 	}
@@ -785,10 +867,6 @@ add_msg_data(
     const char *	str,
     size_t		len)
 {
-    static struct {
-	char *buf;	/* buffer holding msg data */
-	size_t size;	/* size of alloced buffer */
-    } msg = { NULL, 0 };
     char *line, *ch;
     size_t buflen;
 
@@ -905,6 +983,7 @@ finish_tapeheader(
     strncpy(file->name, hostname, SIZEOF(file->name) - 1);
     strncpy(file->disk, diskname, SIZEOF(file->disk) - 1);
     file->dumplevel = level;
+    file->blocksize = DISK_BLOCK_BYTES;
 
     /*
      * If we're doing the compression here, we need to override what
@@ -977,6 +1056,10 @@ finish_tapeheader(
 	file->encrypted= 1;
       }
     }
+    if (dle_str)
+	file->dle_str = stralloc(dle_str);
+    else
+	file->dle_str = NULL;
 }
 
 /*
@@ -988,16 +1071,14 @@ write_tapeheader(
     dumpfile_t *file)
 {
     char * buffer;
-    ssize_t written;
+    size_t written;
 
     buffer = build_header(file, DISK_BLOCK_BYTES);
 
-    written = fullwrite(outfd, buffer, DISK_BLOCK_BYTES);
+    written = full_write(outfd, buffer, DISK_BLOCK_BYTES);
     amfree(buffer);
     if(written == DISK_BLOCK_BYTES)
         return 0;
-    if(written < 0)
-        return written;
 
     return -1;
 }
@@ -1016,9 +1097,11 @@ do_dump(
     char *errfname = NULL;
     int indexout;
     pid_t indexpid = -1;
+    char *m;
 
     startclock();
 
+    if (msg.buf) msg.buf[0] = '\0';	/* reset msg buffer */
     status = 0;
     dump_result = 0;
     dumpbytes = dumpsize = headersize = origsize = (off_t)0;
@@ -1104,6 +1187,16 @@ do_dump(
 	if (!errstr) errstr = stralloc(_("got no data"));
     }
 
+    if (!ISSET(status, HEADER_DONE)) {
+	dump_result = max(dump_result, 2);
+	if (!errstr) errstr = stralloc(_("got no header information"));
+    }
+
+    if (dumpsize == 0) {
+	dump_result = max(dump_result, 2);
+	if (!errstr) errstr = stralloc(_("got no data"));
+    }
+
     if (dump_result > 1)
 	goto failed;
 
@@ -1117,7 +1210,9 @@ do_dump(
 	(long long)dumpsize,
 	(isnormal(dumptime) ? ((double)dumpsize / (double)dumptime) : 0.0),
 	(long long)origsize);
-    q = squotef("[%s]", errstr);
+    m = vstrallocf("[%s]", errstr);
+    q = quote_string(m);
+    amfree(m);
     putresult(DONE, _("%s %lld %lld %lu %s\n"), handle,
     		(long long)origsize,
 		(long long)dumpsize,
@@ -1147,6 +1242,7 @@ do_dump(
 
 	/*@i@*/ aclose(indexout);
 	waitpid(indexpid,&index_status,0);
+	log_add(L_INFO, "pid-done %ld", (long)indexpid);
 	if (rename(indexfile_tmp, indexfile_real) != 0) {
 	    log_add(L_WARNING, _("could not rename \"%s\" to \"%s\": %s"),
 		    indexfile_tmp, indexfile_real, strerror(errno));
@@ -1157,55 +1253,72 @@ do_dump(
 
     if(db->compresspid != -1) {
 	waitpid(db->compresspid,NULL,0);
+	log_add(L_INFO, "pid-done %ld", (long)db->compresspid);
     }
     if(db->encryptpid != -1) {
 	waitpid(db->encryptpid,NULL,0);
+	log_add(L_INFO, "pid-done %ld", (long)db->encryptpid);
     }
 
     amfree(errstr);
+    dumpfile_free_data(&file);
 
     return 1;
 
 failed:
-    q = squotef("[%s]", errstr);
+    m = vstrallocf("[%s]", errstr);
+    q = quote_string(m);
     putresult(FAILED, "%s %s\n", handle, q);
     amfree(q);
+    amfree(m);
 
     aclose(db->fd);
     /* kill all child process */
     if (db->compresspid != -1) {
 	g_fprintf(stderr,_("%s: kill compress command\n"),get_pname());
 	if (kill(db->compresspid, SIGTERM) < 0) {
-	    if (errno != ESRCH)
+	    if (errno != ESRCH) {
 		g_fprintf(stderr,_("%s: can't kill compress command: %s\n"), 
 		    get_pname(), strerror(errno));
+	    } else {
+		log_add(L_INFO, "pid-done %ld", (long)db->compresspid);
+	    }
 	}
 	else {
 	    waitpid(db->compresspid,NULL,0);
+	    log_add(L_INFO, "pid-done %ld", (long)db->compresspid);
 	}
     }
 
     if (db->encryptpid != -1) {
 	g_fprintf(stderr,_("%s: kill encrypt command\n"),get_pname());
 	if (kill(db->encryptpid, SIGTERM) < 0) {
-	    if (errno != ESRCH)
+	    if (errno != ESRCH) {
 		g_fprintf(stderr,_("%s: can't kill encrypt command: %s\n"), 
 		    get_pname(), strerror(errno));
+	    } else {
+		log_add(L_INFO, "pid-done %ld", (long)db->encryptpid);
+	    }
 	}
 	else {
 	    waitpid(db->encryptpid,NULL,0);
+	    log_add(L_INFO, "pid-done %ld", (long)db->encryptpid);
 	}
     }
 
     if (indexpid != -1) {
 	g_fprintf(stderr,_("%s: kill index command\n"),get_pname());
 	if (kill(indexpid, SIGTERM) < 0) {
-	    if (errno != ESRCH)
+	    if (errno != ESRCH) {
 		g_fprintf(stderr,_("%s: can't kill index command: %s\n"), 
 		    get_pname(),strerror(errno));
+	    } else {
+		log_add(L_INFO, "pid-done %ld", (long)indexpid);
+	    }
 	}
 	else {
 	    waitpid(indexpid,NULL,0);
+	    log_add(L_INFO, "pid-done %ld", (long)indexpid);
 	}
     }
 
@@ -1420,7 +1533,7 @@ read_indexfd(
     /*
      * We ignore error while writing to the index file.
      */
-    if (fullwrite(fd, buf, (size_t)size) < 0) {
+    if (full_write(fd, buf, (size_t)size) < (size_t)size) {
 	/* Ignore error, but schedule another read. */
 	if(indexfderror == 0) {
 	    indexfderror = 1;
@@ -1478,7 +1591,18 @@ timeout_callback(
 static void
 stop_dump(void)
 {
-    int i;
+    int             i;
+    struct cmdargs *cmdargs = NULL;
+
+    /* Check if I have a pending ABORT command */
+    cmdargs = get_pending_cmd();
+    if (cmdargs) {
+	if (cmdargs->cmd != ABORT) {
+	    error(_("beurk"));
+	}
+	errstr = stralloc(cmdargs->argv[1]);
+	free_cmdargs(cmdargs);
+    }
 
     for (i = 0; i < NSTREAMS; i++) {
 	if (streams[i].fd != NULL) {
@@ -1535,13 +1659,20 @@ runcompress(
 	    error(_("err dup2 out: %s"), strerror(errno));
 	    /*NOTREACHED*/
 	}
-	safe_fd(-1, 0);
 	if (comptype != COMP_SERVER_CUST) {
+	    char *base = stralloc(COMPRESS_PATH);
+	    log_add(L_INFO, "%s pid %ld", basename(base), (long)getpid());
+	    amfree(base);
+	    safe_fd(-1, 0);
 	    execlp(COMPRESS_PATH, COMPRESS_PATH, (  comptype == COMP_BEST ?
 		COMPRESS_BEST_OPT : COMPRESS_FAST_OPT), (char *)NULL);
 	    error(_("error: couldn't exec %s: %s"), COMPRESS_PATH, strerror(errno));
 	    /*NOTREACHED*/
 	} else if (*srvcompprog) {
+	    char *base = stralloc(srvcompprog);
+	    log_add(L_INFO, "%s pid %ld", basename(base), (long)getpid());
+	    amfree(base);
+	    safe_fd(-1, 0);
 	    execlp(srvcompprog, srvcompprog, (char *)0);
 	    error(_("error: couldn't exec server custom filter%s.\n"), srvcompprog);
 	    /*NOTREACHED*/
@@ -1587,7 +1718,8 @@ runencrypt(
 	aclose(outpipe[1]);
 	aclose(outpipe[0]);
 	return (rval);
-    case 0:
+    case 0: {
+	char *base;
 	if (dup2(outpipe[0], 0) < 0) {
 	    error(_("err dup2 in: %s"), strerror(errno));
 	    /*NOTREACHED*/
@@ -1596,11 +1728,15 @@ runencrypt(
 	    error(_("err dup2 out: %s"), strerror(errno));
 	    /*NOTREACHED*/
 	}
+	base = stralloc(srv_encrypt);
+	log_add(L_INFO, "%s pid %ld", basename(base), (long)getpid());
+	amfree(base);
 	safe_fd(-1, 0);
 	if ((encrypttype == ENCRYPT_SERV_CUST) && *srv_encrypt) {
 	    execlp(srv_encrypt, srv_encrypt, (char *)0);
 	    error(_("error: couldn't exec server encryption%s.\n"), srv_encrypt);
 	    /*NOTREACHED*/
+	}
 	}
     }
     /*NOTREACHED*/
@@ -1624,14 +1760,14 @@ sendbackup_response(
     assert(response_error != NULL);
     assert(sech != NULL);
 
+    security_close_connection(sech, hostname);
+
     if (pkt == NULL) {
 	errstr = newvstrallocf(errstr, _("[request failed: %s]"),
 	    security_geterror(sech));
 	*response_error = 1;
 	return;
     }
-
-    security_close_connection(sech, hostname);
 
     extra = NULL;
     memset(ports, 0, SIZEOF(ports));
@@ -1857,14 +1993,15 @@ startup_dump(
     const char *amandad_path,
     const char *client_username,
     const char *ssh_keys,
+    const char *auth,
     const char *options)
 {
     char level_string[NUM_STR_SIZE];
     char *req = NULL;
-    char *authopt, *endauthopt, authoptbuf[80];
+    char *authopt;
     int response_error;
     const security_driver_t *secdrv;
-    char *backup_api;
+    char *application_api;
     int has_features;
     int has_hostname;
     int has_device;
@@ -1874,6 +2011,7 @@ startup_dump(
     (void)amandad_path;		/* Quiet unused parameter warning */
     (void)client_username;	/* Quiet unused parameter warning */
     (void)ssh_keys;		/* Quiet unused parameter warning */
+    (void)auth;			/* Quiet unused parameter warning */
 
     has_features = am_has_feature(their_features, fe_req_options_features);
     has_hostname = am_has_feature(their_features, fe_req_options_hostname);
@@ -1886,28 +2024,13 @@ startup_dump(
      * Options really need to be pre-parsed into some sort of structure
      * much earlier, and then flattened out again before transmission.
      */
-    authopt = strstr(options, "auth=");
-    if (authopt == NULL) {
-	authopt = "BSD";
-    } else {
-	endauthopt = strchr(authopt, ';');
-	if ((endauthopt == NULL) ||
-	  ((sizeof(authoptbuf) - 1) < (size_t)(endauthopt - authopt))) {
-	    authopt = "BSD";
-	} else {
-	    authopt += strlen("auth=");
-	    strncpy(authoptbuf, authopt, (size_t)(endauthopt - authopt));
-	    authoptbuf[endauthopt - authopt] = '\0';
-	    authopt = authoptbuf;
-	}
-    }
 
     g_snprintf(level_string, SIZEOF(level_string), "%d", level);
     if(strcmp(progname, "DUMP") == 0
        || strcmp(progname, "GNUTAR") == 0) {
-	backup_api = "";
+	application_api = "";
     } else {
-	backup_api = "BACKUP ";
+	application_api = "BACKUP ";
     }
     req = vstralloc("SERVICE sendbackup\n",
 		    "OPTIONS ",
@@ -1918,25 +2041,62 @@ startup_dump(
 		    has_hostname ? hostname : "",
 		    has_hostname ? ";" : "",
 		    has_config   ? "config=" : "",
-		    has_config   ? config_name : "",
+		    has_config   ? get_config_name() : "",
 		    has_config   ? ";" : "",
-		    "\n",
-		    backup_api, progname,
-		    " ", qdiskname,
-		    " ", device && has_device ? device : "",
-		    " ", level_string,
-		    " ", dumpdate,
-		    " OPTIONS ", options,
-		    /* compat: if auth=krb4, send krb4-auth */
-		    (strcasecmp(authopt, "krb4") ? "" : "krb4-auth"),
 		    "\n",
 		    NULL);
 
+    amfree(dle_str);
+    if (am_has_feature(their_features, fe_req_xml)) {
+	char *o, *p = NULL;
+	char *pclean;
+	o = unquote_string(options+1);
+	vstrextend(&p, "<dle>\n", NULL);
+	if (*application_api != '\0') {
+	    vstrextend(&p, "  <program>APPLICATION</program>\n", NULL);
+	} else {
+	    vstrextend(&p, "  <program>", progname, "</program>\n", NULL);
+	}
+	vstrextend(&p, "  ", b64disk, "\n", NULL);
+	if (device && has_device) {
+	    vstrextend(&p, "  ", b64device, "\n",
+		       NULL);
+	}
+	vstrextend(&p, "  <level>", level_string, "</level>\n", NULL);
+	vstrextend(&p, o, "</dle>\n", NULL);
+	amfree(o);
+	pclean = clean_dle_str_for_client(p);
+	vstrextend(&req, pclean, NULL);
+	amfree(pclean);
+	dle_str = p;
+    } else if (*application_api != '\0') {
+	errstr = newvstrallocf(errstr,
+		_("[does not support application-api]"));
+	amfree(req);
+	return 2;
+    } else {
+	authopt = strstr(options, "auth=");
+	if (auth == NULL) {
+	    auth = "BSD";
+	}
+	vstrextend(&req,
+		   progname,
+		   " ", qdiskname,
+		   " ", device && has_device ? device : "",
+		   " ", level_string,
+		   " ", dumpdate,
+		   " OPTIONS ", options,
+		   /* compat: if authopt=krb4, send krb4-auth */
+		   (strcasecmp(authopt, "krb4") ? "" : "krb4-auth"),
+		   "\n",
+		   NULL);
+    }
+
     dbprintf(_("send request:\n----\n%s\n----\n\n"), req);
-    secdrv = security_getdriver(authopt);
+    secdrv = security_getdriver(auth);
     if (secdrv == NULL) {
 	errstr = newvstrallocf(errstr,
-		_("[could not find security driver '%s']"), authopt);
+		_("[could not find security driver '%s']"), auth);
 	amfree(req);
 	return 2;
     }

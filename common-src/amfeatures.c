@@ -72,7 +72,7 @@ am_init_feature_set(void)
 
 	am_add_feature(f, fe_program_dump);
 	am_add_feature(f, fe_program_gnutar);
-	am_add_feature(f, fe_program_backup_api);
+	am_add_feature(f, fe_program_application_api);
 
 	am_add_feature(f, fe_options_compress_fast);
 	am_add_feature(f, fe_options_compress_best);
@@ -147,6 +147,13 @@ am_init_feature_set(void)
 	am_add_feature(f, fe_req_options_config);
 
 	am_add_feature(f, fe_rep_sendsize_quoted_error);
+	am_add_feature(f, fe_req_xml);
+	am_add_feature(f, fe_pp_script);
+	am_add_feature(f, fe_amindexd_DLE);
+	am_add_feature(f, fe_amrecover_dle_in_header);
+	am_add_feature(f, fe_xml_estimate);
+	am_add_feature(f, fe_xml_property_priority);
+	am_add_feature(f, fe_sendsize_rep_warning);
     }
     return f;
 }
@@ -426,7 +433,7 @@ am_string_to_feature(
 		ch2 -= 'a';
 		ch2 += 10;
 	    } else {
-		amfree(f);				/* bad conversion */
+		am_release_feature_set(f); /* bad conversion */
 		break;
 	    }
 	    f->bytes[i] = (unsigned char)((ch1 << 4) | ch2);

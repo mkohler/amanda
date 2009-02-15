@@ -70,12 +70,13 @@ INSTALLPERMS_data = chown=amanda \
 	dest=$(amlibexecdir) $(amlibexec_SCRIPTS)
 
 if WANT_SETUID_CLIENT
-INSTALLPERMS_exec += dest=$(amlibexecdir) chown=root chmod=u+s,o-rwx \
+INSTALLPERMS_exec += dest=$(amlibexecdir) chown=root chmod=04750 \
 		calcsize killpgrp rundump runtar
 endif
 
 lint:
 	@ for p in $(amlibexec_PROGRAMS); do					\
+		p=`basename $$p $(EXEEXT)`;					\
 		f="$$p.c $(libamclient_la_SOURCES)";				\
 		(cd ../common-src; make listlibsrc);				\
 		f="$$f "`cat ../common-src/listlibsrc.output`;			\

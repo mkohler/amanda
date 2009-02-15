@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
  * 
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 2.1 as 
@@ -14,8 +14,8 @@
  * along with this library; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
  * 
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
- * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+ * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
 #include <string.h> /* memset() */
@@ -34,6 +34,8 @@ struct TapeDevicePrivate_s {
     /* This holds the total number of bytes written to the device,
        modulus RESETOFS_THRESHOLD. */
     int write_count;
+    char * device_filename;
+    gsize read_buffer_size;
 };
 
 /* Possible (abstracted) results from a system I/O operation. */
@@ -49,24 +51,49 @@ typedef enum {
     RESULT_MAX
 } IoResult;
 
+/*
+ * Our device-specific properties.  These are not static because they are
+ * accessed from the OS-specific tape-*.c files.
+ */
+DevicePropertyBase device_property_broken_gmt_online;
+DevicePropertyBase device_property_fsf;
+DevicePropertyBase device_property_bsf;
+DevicePropertyBase device_property_fsr;
+DevicePropertyBase device_property_bsr;
+DevicePropertyBase device_property_eom;
+DevicePropertyBase device_property_bsf_after_eom;
+DevicePropertyBase device_property_final_filemarks;
+
+void tape_device_register(void);
+
+#define tape_device_read_size(self) \
+    (((TapeDevice *)(self))->private->read_buffer_size? \
+	((TapeDevice *)(self))->private->read_buffer_size : ((Device *)(self))->block_size)
+
 /* here are local prototypes */
 static void tape_device_init (TapeDevice * o);
 static void tape_device_class_init (TapeDeviceClass * c);
-static gboolean tape_device_open_device (Device * self, char * device_name);
-static ReadLabelStatusFlags tape_device_read_label(Device * self);
-static gboolean tape_device_write_block(Device * self, guint size,
-                                        gpointer data, gboolean short_block);
+static void tape_device_base_init (TapeDeviceClass * c);
+static gboolean tape_device_set_feature_property_fn(Device *p_self, DevicePropertyBase *base,
+				    GValue *val, PropertySurety surety, PropertySource source);
+static gboolean tape_device_set_final_filemarks_fn(Device *p_self, DevicePropertyBase *base,
+				    GValue *val, PropertySurety surety, PropertySource source);
+static gboolean tape_device_set_compression_fn(Device *p_self, DevicePropertyBase *base,
+				    GValue *val, PropertySurety surety, PropertySource source);
+static gboolean tape_device_set_read_buffer_size_fn(Device *p_self, DevicePropertyBase *base,
+				    GValue *val, PropertySurety surety, PropertySource source);
+static void tape_device_open_device (Device * self, char * device_name, char * device_type, char * device_node);
+static Device * tape_device_factory (char * device_name, char * device_type, char * device_node);
+static DeviceStatusFlags tape_device_read_label(Device * self);
+static gboolean tape_device_write_block(Device * self, guint size, gpointer data);
 static int tape_device_read_block(Device * self,  gpointer buf,
                                        int * size_req);
 static gboolean tape_device_start (Device * self, DeviceAccessMode mode,
                                    char * label, char * timestamp);
-static gboolean tape_device_start_file (Device * self, const dumpfile_t * ji);
+static gboolean tape_device_start_file (Device * self, dumpfile_t * ji);
+static gboolean tape_device_finish_file (Device * self);
 static dumpfile_t * tape_device_seek_file (Device * self, guint file);
 static gboolean tape_device_seek_block (Device * self, guint64 block);
-static gboolean tape_device_property_get (Device * self, DevicePropertyId id,
-                                          GValue * val);
-static gboolean tape_device_property_set (Device * self, DevicePropertyId id,
-                                          GValue * val);
 static gboolean tape_device_finish (Device * self);
 static IoResult tape_device_robust_read (TapeDevice * self, void * buf,
                                                int * count);
@@ -87,7 +114,7 @@ GType tape_device_get_type (void)
     if G_UNLIKELY(type == 0) {
         static const GTypeInfo info = {
             sizeof (TapeDeviceClass),
-            (GBaseInitFunc) NULL,
+            (GBaseInitFunc) tape_device_base_init,
             (GBaseFinalizeFunc) NULL,
             (GClassInitFunc) tape_device_class_init,
             (GClassFinalizeFunc) NULL,
@@ -107,86 +134,96 @@ GType tape_device_get_type (void)
 
 static void 
 tape_device_init (TapeDevice * self) {
-    Device * device_self;
-    DeviceProperty prop;
+    Device * d_self;
     GValue response;
 
-    device_self = (Device*)self;
+    d_self = DEVICE(self);
     bzero(&response, sizeof(response));
 
-    self->private = malloc(sizeof(TapeDevicePrivate));
+    self->private = g_new0(TapeDevicePrivate, 1);
 
     /* Clear all fields. */
-    self->min_block_size = self->fixed_block_size = 32768;
-    self->max_block_size = self->read_block_size = MAX_TAPE_BLOCK_BYTES;
+    d_self->block_size = 32768;
+    d_self->min_block_size = 32768;
+    d_self->max_block_size = LARGEST_BLOCK_ESTIMATE;
+    self->broken_gmt_online = FALSE;
 
     self->fd = -1;
-    
-    self->fsf = self->bsf = self->fsr = self->bsr = self->eom =
-        self->bsf_after_eom = self->compression = self->first_file = 0;
+
+    /* set all of the feature properties to an unsure default of FALSE */
+    self->broken_gmt_online = FALSE;
+    self->fsf = FALSE;
+    self->bsf = FALSE;
+    self->fsr = FALSE;
+    self->bsr = FALSE;
+    self->eom = FALSE;
+    self->bsf_after_eom = FALSE;
+
+    g_value_init(&response, G_TYPE_BOOLEAN);
+    g_value_set_boolean(&response, FALSE);
+    device_set_simple_property(d_self, PROPERTY_BROKEN_GMT_ONLINE,
+	    &response, PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT);
+    device_set_simple_property(d_self, PROPERTY_FSF,
+	    &response, PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT);
+    device_set_simple_property(d_self, PROPERTY_BSF,
+	    &response, PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT);
+    device_set_simple_property(d_self, PROPERTY_FSR,
+	    &response, PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT);
+    device_set_simple_property(d_self, PROPERTY_BSR,
+	    &response, PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT);
+    device_set_simple_property(d_self, PROPERTY_EOM,
+	    &response, PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT);
+    device_set_simple_property(d_self, PROPERTY_BSF_AFTER_EOM,
+	    &response, PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT);
+    g_value_unset(&response);
+
     self->final_filemarks = 2;
+    g_value_init(&response, G_TYPE_UINT);
+    g_value_set_uint(&response, self->final_filemarks);
+    device_set_simple_property(d_self, PROPERTY_FINAL_FILEMARKS,
+	    &response, PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT);
+    g_value_unset(&response);
+
+    self->private->read_buffer_size = 0;
+    g_value_init(&response, G_TYPE_UINT);
+    g_value_set_uint(&response, self->private->read_buffer_size);
+    device_set_simple_property(d_self, PROPERTY_READ_BUFFER_SIZE,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DEFAULT);
+    g_value_unset(&response);
 
     self->private->write_count = 0;
+    self->private->device_filename = NULL;
 
-    /* Register properites */
-    prop.base = &device_property_concurrency;
-    prop.access = PROPERTY_ACCESS_GET_MASK;
+    /* Static properites */
     g_value_init(&response, CONCURRENCY_PARADIGM_TYPE);
     g_value_set_enum(&response, CONCURRENCY_PARADIGM_EXCLUSIVE);
-    device_add_property(device_self, &prop, &response);
+    device_set_simple_property(d_self, PROPERTY_CONCURRENCY,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
     g_value_unset(&response);
 
-    prop.base = &device_property_streaming;
     g_value_init(&response, STREAMING_REQUIREMENT_TYPE);
     g_value_set_enum(&response, STREAMING_REQUIREMENT_DESIRED);
-    device_add_property(device_self, &prop, &response);
+    device_set_simple_property(d_self, PROPERTY_STREAMING,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
     g_value_unset(&response);
 
-    prop.base = &device_property_appendable;
     g_value_init(&response, G_TYPE_BOOLEAN);
-    g_value_set_boolean(&response, TRUE);
-    device_add_property(device_self, &prop, &response);
-
-    prop.base = &device_property_partial_deletion;
     g_value_set_boolean(&response, FALSE);
-    device_add_property(device_self, &prop, &response);
+    device_set_simple_property(d_self, PROPERTY_APPENDABLE,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
     g_value_unset(&response);
 
-    prop.base = &device_property_medium_access_type;
+    g_value_init(&response, G_TYPE_BOOLEAN);
+    g_value_set_boolean(&response, FALSE);
+    device_set_simple_property(d_self, PROPERTY_PARTIAL_DELETION,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
+    g_value_unset(&response);
+
     g_value_init(&response, MEDIA_ACCESS_MODE_TYPE);
     g_value_set_enum(&response, MEDIA_ACCESS_MODE_READ_WRITE);
-    device_add_property(device_self, &prop, &response);
+    device_set_simple_property(d_self, PROPERTY_MEDIUM_ACCESS_TYPE,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
     g_value_unset(&response);
-
-    prop.access = PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_MASK;
-    prop.base = &device_property_compression;
-    device_add_property(device_self, &prop, NULL);
-
-    prop.access = PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START;
-    prop.base = &device_property_min_block_size;
-    device_add_property(device_self, &prop, NULL);
-    prop.base = &device_property_max_block_size;
-    device_add_property(device_self, &prop, NULL);
-    prop.base = &device_property_block_size;
-    device_add_property(device_self, &prop, NULL);
-    prop.base = &device_property_fsf;
-    device_add_property(device_self, &prop, NULL);
-    prop.base = &device_property_bsf;
-    device_add_property(device_self, &prop, NULL);
-    prop.base = &device_property_fsr;
-    device_add_property(device_self, &prop, NULL);
-    prop.base = &device_property_bsr;
-    device_add_property(device_self, &prop, NULL);
-    prop.base = &device_property_eom;
-    device_add_property(device_self, &prop, NULL);
-    prop.base = &device_property_bsf_after_eom;
-    device_add_property(device_self, &prop, NULL);
-    prop.base = &device_property_final_filemarks;
-    device_add_property(device_self, &prop, NULL);
-    
-    prop.access = PROPERTY_ACCESS_GET_MASK;
-    prop.base = &device_property_canonical_name;
-    device_add_property(device_self, &prop, NULL);
 }
 
 static void tape_device_finalize(GObject * obj_self) {
@@ -197,6 +234,7 @@ static void tape_device_finalize(GObject * obj_self) {
 
     robust_close(self->fd);
     self->fd = -1;
+    amfree(self->private->device_filename);
     amfree(self->private);
 }
 
@@ -214,160 +252,421 @@ tape_device_class_init (TapeDeviceClass * c)
     device_class->read_block = tape_device_read_block;
     device_class->start = tape_device_start;
     device_class->start_file = tape_device_start_file;
+    device_class->finish_file = tape_device_finish_file;
     device_class->seek_file = tape_device_seek_file;
     device_class->seek_block = tape_device_seek_block;
-    device_class->property_get = tape_device_property_get;
-    device_class->property_set = tape_device_property_set;
     device_class->finish = tape_device_finish;
     
     g_object_class->finalize = tape_device_finalize;
 }
 
+static void
+tape_device_base_init (TapeDeviceClass * c)
+{
+    DeviceClass *device_class = (DeviceClass *)c;
+
+    device_class_register_property(device_class, PROPERTY_BROKEN_GMT_ONLINE,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    tape_device_set_feature_property_fn);
+
+    device_class_register_property(device_class, PROPERTY_FSF,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    tape_device_set_feature_property_fn);
+
+    device_class_register_property(device_class, PROPERTY_BSF,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    tape_device_set_feature_property_fn);
+
+    device_class_register_property(device_class, PROPERTY_FSR,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    tape_device_set_feature_property_fn);
+
+    device_class_register_property(device_class, PROPERTY_BSR,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    tape_device_set_feature_property_fn);
+
+    device_class_register_property(device_class, PROPERTY_EOM,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    tape_device_set_feature_property_fn);
+
+    device_class_register_property(device_class, PROPERTY_BSF_AFTER_EOM,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    tape_device_set_feature_property_fn);
+
+    device_class_register_property(device_class, PROPERTY_FINAL_FILEMARKS,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    tape_device_set_final_filemarks_fn);
+
+    /* We don't (yet?) support reading the device's compression state, so not
+     * gettable. */
+    device_class_register_property(device_class, PROPERTY_COMPRESSION,
+	    PROPERTY_ACCESS_SET_MASK,
+	    NULL,
+	    tape_device_set_compression_fn);
+
+    device_class_register_property(device_class, PROPERTY_READ_BUFFER_SIZE,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    device_simple_property_get_fn,
+	    tape_device_set_read_buffer_size_fn);
+}
+
+static gboolean
+tape_device_set_feature_property_fn(Device *p_self, DevicePropertyBase *base,
+    GValue *val, PropertySurety surety, PropertySource source)
+{
+    TapeDevice *self = TAPE_DEVICE(p_self);
+    GValue old_val;
+    gboolean old_bool, new_bool;
+    PropertySurety old_surety;
+    PropertySource old_source;
+
+    new_bool = g_value_get_boolean(val);
+
+    /* get the old source and surety and see if we're willing to make this change */
+    bzero(&old_val, sizeof(old_val));
+    if (device_get_simple_property(p_self, base->ID, &old_val, &old_surety, &old_source)) {
+	old_bool = g_value_get_boolean(&old_val);
+
+	if (old_surety == PROPERTY_SURETY_GOOD && old_source == PROPERTY_SOURCE_DETECTED) {
+	    if (new_bool != old_bool) {
+		device_set_error(p_self, vstrallocf(_(
+			   "Value for property '%s' was autodetected and cannot be changed"),
+			   base->name),
+		    DEVICE_STATUS_DEVICE_ERROR);
+		return FALSE;
+	    } else {
+		/* pretend we set it, but don't change surety/source */
+		return TRUE;
+	    }
+	}
+    }
+
+    /* (note: PROPERTY_* are not constants, so we can't use switch) */
+    if (base->ID == PROPERTY_BROKEN_GMT_ONLINE)
+	self->broken_gmt_online = new_bool;
+    else if (base->ID == PROPERTY_FSF)
+	self->fsf = new_bool;
+    else if (base->ID == PROPERTY_BSF)
+	self->bsf = new_bool;
+    else if (base->ID == PROPERTY_FSR)
+	self->fsr = new_bool;
+    else if (base->ID == PROPERTY_BSR)
+	self->bsr = new_bool;
+    else if (base->ID == PROPERTY_EOM)
+	self->eom = new_bool;
+    else if (base->ID == PROPERTY_BSF_AFTER_EOM)
+	self->bsf_after_eom = new_bool;
+    else
+	return FALSE; /* shouldn't happen */
+
+    return device_simple_property_set_fn(p_self, base, val, surety, source);
+}
+
+static gboolean
+tape_device_set_final_filemarks_fn(Device *p_self, DevicePropertyBase *base,
+    GValue *val, PropertySurety surety, PropertySource source)
+{
+    TapeDevice *self = TAPE_DEVICE(p_self);
+    GValue old_val;
+    gboolean old_int, new_int;
+    PropertySurety old_surety;
+    PropertySource old_source;
+
+    new_int = g_value_get_uint(val);
+
+    /* get the old source and surety and see if we're willing to make this change */
+    bzero(&old_val, sizeof(old_val));
+    if (device_get_simple_property(p_self, base->ID, &old_val, &old_surety, &old_source)) {
+	old_int = g_value_get_uint(&old_val);
+
+	if (old_surety == PROPERTY_SURETY_GOOD && old_source == PROPERTY_SOURCE_DETECTED) {
+	    if (new_int != old_int) {
+		device_set_error(p_self, vstrallocf(_(
+			   "Value for property '%s' was autodetected and cannot be changed"),
+			   base->name),
+		    DEVICE_STATUS_DEVICE_ERROR);
+		return FALSE;
+	    } else {
+		/* pretend we set it, but don't change surety/source */
+		return TRUE;
+	    }
+	}
+    }
+
+    self->final_filemarks = new_int;
+
+    return device_simple_property_set_fn(p_self, base, val, surety, source);
+}
+
+static gboolean
+tape_device_set_compression_fn(Device *p_self, DevicePropertyBase *base,
+    GValue *val, PropertySurety surety, PropertySource source)
+{
+    TapeDevice *self = TAPE_DEVICE(p_self);
+    gboolean request = g_value_get_boolean(val);
+
+    /* We allow this property to be set at any time. This is mostly
+     * because setting compression is a hit-and-miss proposition
+     * at any time; some drives accept the mode setting but don't
+     * actually support compression, while others do support
+     * compression but do it via density settings or some other
+     * way. Set this property whenever you want, but all we'll do
+     * is report whether or not the ioctl succeeded. */
+    if (tape_setcompression(self->fd, request)) {
+	/* looks good .. let's start the device over, though */
+	device_clear_volume_details(p_self);
+    } else {
+	return FALSE;
+    }
+
+    return device_simple_property_set_fn(p_self, base, val, surety, source);
+}
+
+static gboolean
+tape_device_set_read_buffer_size_fn(Device *p_self, DevicePropertyBase *base,
+    GValue *val, PropertySurety surety, PropertySource source)
+{
+    TapeDevice *self = TAPE_DEVICE(p_self);
+    guint buffer_size = g_value_get_uint(val);
+
+    if (buffer_size != 0 &&
+	    ((gsize)buffer_size < p_self->block_size ||
+	     (gsize)buffer_size > p_self->max_block_size))
+	return FALSE;
+
+    self->private->read_buffer_size = buffer_size;
+
+    return device_simple_property_set_fn(p_self, base, val, surety, source);
+}
+
 void tape_device_register(void) {
     static const char * device_prefix_list[] = { "tape", NULL };
+
+    /* First register tape-specific properties */
+    device_property_fill_and_register(&device_property_broken_gmt_online,
+                                      G_TYPE_BOOLEAN, "broken_gmt_online",
+      "Does this drive support the GMT_ONLINE macro?");
+
+    device_property_fill_and_register(&device_property_fsf,
+                                      G_TYPE_BOOLEAN, "fsf",
+      "Does this drive support the MTFSF command?");
+
+    device_property_fill_and_register(&device_property_bsf,
+                                      G_TYPE_BOOLEAN, "bsf",
+      "Does this drive support the MTBSF command?" );
+
+    device_property_fill_and_register(&device_property_fsr,
+                                      G_TYPE_BOOLEAN, "fsr",
+      "Does this drive support the MTFSR command?");
+
+    device_property_fill_and_register(&device_property_bsr,
+                                      G_TYPE_BOOLEAN, "bsr",
+      "Does this drive support the MTBSR command?");
+
+    /* FIXME: Is this feature even useful? */
+    device_property_fill_and_register(&device_property_eom,
+                                      G_TYPE_BOOLEAN, "eom",
+      "Does this drive support the MTEOM command?");
+
+    device_property_fill_and_register(&device_property_bsf_after_eom,
+                                      G_TYPE_BOOLEAN,
+                                      "bsf_after_eom",
+      "Does this drive require an MTBSF after MTEOM in order to append?" );
+
+    device_property_fill_and_register(&device_property_final_filemarks,
+                                      G_TYPE_UINT, "final_filemarks",
+      "How many filemarks to write after the last tape file?" );
+
+    /* Then the device itself */
     register_device(tape_device_factory, device_prefix_list);
 }
 
-/* Open the tape device, trying various combinations of O_RDWR and
-   O_NONBLOCK.  Returns -1 and sets status_result for errors */
-static int try_open_tape_device(TapeDevice * self, char * device_filename,
-	ReadLabelStatusFlags *status_result) {
+static int try_open_tape_device(TapeDevice * self, char * device_filename) {
     int fd;
     int save_errno;
-    ReadLabelStatusFlags new_status;
-    TapeCheckResult tcr;
-    *status_result = READ_LABEL_STATUS_SUCCESS;
+    DeviceStatusFlags new_status;
 
-#ifdef O_NONBLOCK
-    fd  = robust_open(device_filename, O_RDWR | O_NONBLOCK, 0);
+    fd = robust_open(device_filename, O_RDWR,0);
     save_errno = errno;
-    if (fd < 0 && (save_errno == EWOULDBLOCK || save_errno == EINVAL)) {
-        /* Maybe we don't support O_NONBLOCK for tape devices. */
-        fd = robust_open(device_filename, O_RDWR, 0);
-	save_errno = errno;
-    }
-#else
-    fd = robust_open(device_filename, O_RDWR);
-    save_errno = errno;
-#endif
     if (fd >= 0) {
         self->write_open_errno = 0;
     } else {
         if (errno == EACCES || errno == EPERM) {
             /* Device is write-protected. */
             self->write_open_errno = errno;
-#ifdef O_NONBLOCK
-            fd = robust_open(device_filename, O_RDONLY | O_NONBLOCK, 0);
+            fd = robust_open(device_filename, O_RDONLY,0);
 	    save_errno = errno;
-            if (fd < 0 && (save_errno == EWOULDBLOCK || save_errno == EINVAL)) {
-                fd = robust_open(device_filename, O_RDONLY, 0);
-		save_errno = errno;
-            }
-#else
-            fd = robust_open(device_filename, O_RDONLY);
-	    save_errno = errno;
-#endif
         }
     }
-#ifdef O_NONBLOCK
-    /* Clear O_NONBLOCK for operations from now on. */
-    if (fd >= 0)
-	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) & ~O_NONBLOCK);
-    errno = save_errno;
-    /* function continues after #endif */
-
-#endif /* O_NONBLOCK */
 
     if (fd < 0) {
-	g_fprintf(stderr, _("Can't open tape device %s: %s\n"),
-	    DEVICE(self)->device_name, strerror(errno));
-	*status_result = READ_LABEL_STATUS_DEVICE_ERROR;
+	DeviceStatusFlags status_flag = 0;
+	if (errno == EBUSY)
+	    status_flag = DEVICE_STATUS_DEVICE_BUSY;
+	else
+	    status_flag = DEVICE_STATUS_DEVICE_ERROR;
+	device_set_error(DEVICE(self),
+	    vstrallocf(_("Can't open tape device %s: %s"), self->private->device_filename, strerror(errno)),
+	    status_flag);
         return -1;
     }
 
     /* Check that this is actually a tape device. */
     new_status = tape_is_tape_device(fd);
-    if (new_status & (READ_LABEL_STATUS_DEVICE_ERROR | READ_LABEL_STATUS_VOLUME_MISSING)) {
-	g_fprintf(stderr, _("File %s is not a tape device\n"),
-	    DEVICE(self)->device_name);
+    if (new_status & DEVICE_STATUS_DEVICE_ERROR) {
+	device_set_error(DEVICE(self),
+	    vstrallocf(_("File %s is not a tape device"), self->private->device_filename),
+	    new_status);
         robust_close(fd);
-	*status_result = new_status;
+        return -1;
+    }
+    if (new_status & DEVICE_STATUS_VOLUME_MISSING) {
+	device_set_error(DEVICE(self),
+	    vstrallocf(_("Tape device %s is not ready or is empty"), self->private->device_filename),
+	    new_status);
+        robust_close(fd);
         return -1;
     }
 
-    tcr = tape_is_ready(fd);
-    if (new_status == TAPE_CHECK_FAILURE) {
-	g_fprintf(stderr, _("Tape device %s is not ready or is empty\n"),
-	    DEVICE(self)->device_name);
+    new_status = tape_is_ready(fd, self);
+    if (new_status & DEVICE_STATUS_VOLUME_MISSING) {
+	device_set_error(DEVICE(self),
+	    vstrallocf(_("Tape device %s is empty"), self->private->device_filename),
+	    new_status);
         robust_close(fd);
-	*status_result = READ_LABEL_STATUS_DEVICE_ERROR;
+        return -1;
+    }
+    if (new_status != DEVICE_STATUS_SUCCESS) {
+	device_set_error(DEVICE(self),
+	    vstrallocf(_("Tape device %s is not ready or is empty"), self->private->device_filename),
+	    new_status);
+        robust_close(fd);
         return -1;
     }
 
     return fd;
 }
 
-static gboolean 
-tape_device_open_device (Device * d_self, char * device_name) {
+static void
+tape_device_open_device (Device * d_self, char * device_name G_GNUC_UNUSED,
+			char * device_type G_GNUC_UNUSED, char * device_node) {
     TapeDevice * self;
 
     self = TAPE_DEVICE(d_self);
-    g_return_val_if_fail (self != NULL, FALSE);
-    g_return_val_if_fail (device_name != NULL, FALSE);
+
+    self->fd = -1;
+    self->private->device_filename = stralloc(device_node);
 
     /* Get tape drive/OS info */
-    tape_device_discover_capabilities(self);
-
-    /* And verify the above. */
-    g_assert(feature_support_flags_is_valid(self->fsf));
-    g_assert(feature_support_flags_is_valid(self->bsf));
-    g_assert(feature_support_flags_is_valid(self->fsr));
-    g_assert(feature_support_flags_is_valid(self->bsr));
-    g_assert(feature_support_flags_is_valid(self->eom));
-    g_assert(feature_support_flags_is_valid(self->bsf_after_eom));
-    g_assert(self->final_filemarks == 1 ||
-             self->final_filemarks == 2);
+    tape_device_detect_capabilities(self);
 
     /* Chain up */
     if (parent_class->open_device) {
-        if (!(parent_class->open_device)(d_self, device_name)) {
-            robust_close(self->fd);
-            return FALSE;
-        }
+        parent_class->open_device(d_self, device_node, device_type, device_node);
     }
-
-    return TRUE;
 }
 
-static ReadLabelStatusFlags tape_device_read_label(Device * dself) {
+void
+tape_device_set_capabilities(TapeDevice *self,
+	gboolean fsf, PropertySurety fsf_surety, PropertySource fsf_source,
+	gboolean bsf, PropertySurety bsf_surety, PropertySource bsf_source,
+	gboolean fsr, PropertySurety fsr_surety, PropertySource fsr_source,
+	gboolean bsr, PropertySurety bsr_surety, PropertySource bsr_source,
+	gboolean eom, PropertySurety eom_surety, PropertySource eom_source,
+	gboolean bsf_after_eom, PropertySurety bae_surety, PropertySource bae_source,
+	guint final_filemarks, PropertySurety ff_surety, PropertySource ff_source)
+{
+    Device *dself = DEVICE(self);
+    GValue val;
+
+    /* this function is called by tape_device_detect_capabilities, and basically
+     * exists to take care of the GValue mechanics in one place */
+
+    g_assert(final_filemarks == 1 || final_filemarks == 2);
+
+    bzero(&val, sizeof(val));
+    g_value_init(&val, G_TYPE_BOOLEAN);
+
+    self->fsf = fsf;
+    g_value_set_boolean(&val, fsf);
+    device_set_simple_property(dself, PROPERTY_FSF, &val, fsf_surety, fsf_source);
+
+    self->bsf = bsf;
+    g_value_set_boolean(&val, bsf);
+    device_set_simple_property(dself, PROPERTY_BSF, &val, bsf_surety, bsf_source);
+
+    self->fsr = fsr;
+    g_value_set_boolean(&val, fsr);
+    device_set_simple_property(dself, PROPERTY_FSR, &val, fsr_surety, fsr_source);
+
+    self->bsr = bsr;
+    g_value_set_boolean(&val, bsr);
+    device_set_simple_property(dself, PROPERTY_BSR, &val, bsr_surety, bsr_source);
+
+    self->eom = eom;
+    g_value_set_boolean(&val, eom);
+    device_set_simple_property(dself, PROPERTY_EOM, &val, eom_surety, eom_source);
+
+    self->bsf_after_eom = bsf_after_eom;
+    g_value_set_boolean(&val, bsf_after_eom);
+    device_set_simple_property(dself, PROPERTY_BSF_AFTER_EOM, &val, bae_surety, bae_source);
+
+    g_value_unset(&val);
+    g_value_init(&val, G_TYPE_UINT);
+
+    self->final_filemarks = final_filemarks;
+    g_value_set_uint(&val, final_filemarks);
+    device_set_simple_property(dself, PROPERTY_FINAL_FILEMARKS, &val, ff_surety, ff_source);
+
+    g_value_unset(&val);
+}
+
+static DeviceStatusFlags tape_device_read_label(Device * dself) {
     TapeDevice * self;
     char * header_buffer;
     int buffer_len;
     IoResult result;
-    dumpfile_t header;
+    dumpfile_t *header;
+    DeviceStatusFlags new_status;
 
     self = TAPE_DEVICE(dself);
-    g_return_val_if_fail(self != NULL, FALSE);
 
     amfree(dself->volume_label);
     amfree(dself->volume_time);
+    amfree(dself->volume_header);
+
+    if (device_in_error(self)) return dself->status;
+
+    header = dself->volume_header = g_new(dumpfile_t, 1);
+    fh_init(header);
 
     if (self->fd == -1) {
-	ReadLabelStatusFlags status;
-        self->fd = try_open_tape_device(self, dself->device_name, &status);
+        self->fd = try_open_tape_device(self, self->private->device_filename);
+	/* if the open failed, then try_open_tape_device already set the
+	 * approppriate error status */
 	if (self->fd == -1)
-	    return status;
+	    return dself->status;
     }
 
     /* Rewind it. */
     if (!tape_rewind(self->fd)) {
-        g_fprintf(stderr, "Error rewinding device %s\n",
-                dself->device_name);
-        return (READ_LABEL_STATUS_DEVICE_ERROR |
-                READ_LABEL_STATUS_VOLUME_ERROR);
-    }   
+	device_set_error(dself,
+	    vstrallocf(_("Error rewinding device %s"), self->private->device_filename),
+	      DEVICE_STATUS_DEVICE_ERROR
+	    | DEVICE_STATUS_VOLUME_ERROR);
+        robust_close(self->fd);
+        return dself->status;
+    }
 
-    buffer_len = self->read_block_size;
+    buffer_len = tape_device_read_size(self);
     header_buffer = malloc(buffer_len);
     result = tape_device_robust_read(self, header_buffer, &buffer_len);
 
@@ -375,66 +674,83 @@ static ReadLabelStatusFlags tape_device_read_label(Device * dself) {
         free(header_buffer);
         tape_rewind(self->fd);
         /* I/O error. */
-        g_fprintf(stderr, "Error reading Amanda header.\n");
         if (result == RESULT_NO_DATA) {
-            return (READ_LABEL_STATUS_VOLUME_ERROR |
-                    READ_LABEL_STATUS_VOLUME_UNLABELED);
+            new_status = (DEVICE_STATUS_VOLUME_ERROR |
+	                  DEVICE_STATUS_VOLUME_UNLABELED);
         } else {
-            return (READ_LABEL_STATUS_DEVICE_ERROR |
-                    READ_LABEL_STATUS_VOLUME_ERROR |
-                    READ_LABEL_STATUS_VOLUME_UNLABELED);
+            new_status = (DEVICE_STATUS_DEVICE_ERROR |
+	                  DEVICE_STATUS_VOLUME_ERROR |
+	                  DEVICE_STATUS_VOLUME_UNLABELED);
         }
+	device_set_error(dself, stralloc(_("Error reading Amanda header")), new_status);
+	return dself->status;
     }
 
-    parse_file_header(header_buffer, &header, buffer_len);
+    parse_file_header(header_buffer, header, buffer_len);
     amfree(header_buffer);
-    if (header.type != F_TAPESTART) {
-        return READ_LABEL_STATUS_VOLUME_UNLABELED;
+    if (header->type != F_TAPESTART) {
+	device_set_error(dself,
+		stralloc(_("No tapestart header -- unlabeled device?")),
+		DEVICE_STATUS_VOLUME_UNLABELED);
+        return dself->status;
     }
-     
-    dself->volume_label = g_strdup(header.name);
-    dself->volume_time = g_strdup(header.datestamp);
-   
-    if (parent_class->read_label) {
-        return parent_class->read_label(dself);
-    } else {
-        return READ_LABEL_STATUS_SUCCESS;
-    }
+
+    dself->volume_label = g_strdup(header->name);
+    dself->volume_time = g_strdup(header->datestamp);
+    /* dself->volume_header is already set */
+
+    device_set_error(dself, NULL, DEVICE_STATUS_SUCCESS);
+
+    return dself->status;
 }
 
 static gboolean
-tape_device_write_block(Device * pself, guint size,
-                        gpointer data, gboolean short_block) {
+tape_device_write_block(Device * pself, guint size, gpointer data) {
     TapeDevice * self;
     char *replacement_buffer = NULL;
     IoResult result;
 
     self = TAPE_DEVICE(pself);
-    g_return_val_if_fail (self != NULL, FALSE);
-    g_return_val_if_fail (self->fd >= 0, FALSE);
-   
-    if (short_block && self->min_block_size > size) {
-        replacement_buffer = malloc(self->min_block_size);
+
+    g_assert(self->fd >= 0);
+    if (device_in_error(self)) return FALSE;
+
+    /* zero out to the end of a short block -- tape devices only write
+     * whole blocks. */
+    if (size < pself->block_size) {
+        replacement_buffer = malloc(pself->block_size);
         memcpy(replacement_buffer, data, size);
-        bzero(replacement_buffer+size, self->min_block_size-size);
-        
+        bzero(replacement_buffer+size, pself->block_size-size);
+
         data = replacement_buffer;
-        size = self->min_block_size;
+        size = pself->block_size;
     }
 
     result = tape_device_robust_write(self, data, size);
-    if (result == RESULT_SUCCESS) {
-        if (parent_class->write_block) {
-            (parent_class->write_block)(pself, size, data, short_block);
-        }
-        amfree(replacement_buffer);
-        return TRUE;
-    } else {
-        amfree(replacement_buffer);
-        return FALSE;
+    amfree(replacement_buffer);
+
+    switch (result) {
+	case RESULT_SUCCESS:
+	    break;
+
+	case RESULT_NO_SPACE:
+	    device_set_error(pself,
+		stralloc(_("No space left on device")),
+		DEVICE_STATUS_VOLUME_ERROR);
+	    pself->is_eof = TRUE;
+	    return FALSE;
+
+	default:
+	case RESULT_ERROR:
+	    device_set_error(pself,
+		vstrallocf(_("Error writing block: %s"), strerror(errno)),
+		DEVICE_STATUS_DEVICE_ERROR);
+	    return FALSE;
     }
-    
-    g_assert_not_reached();
+
+    pself->block++;
+
+    return TRUE;
 }
 
 static int tape_device_read_block (Device * pself, gpointer buf,
@@ -442,13 +758,17 @@ static int tape_device_read_block (Device * pself, gpointer buf,
     TapeDevice * self;
     int size;
     IoResult result;
+    gssize read_block_size = tape_device_read_size(pself);
     
     self = TAPE_DEVICE(pself);
-    g_return_val_if_fail (self != NULL, -1);
 
-    if (buf == NULL || *size_req < (int)self->read_block_size) {
+    g_assert(self->fd >= 0);
+    if (device_in_error(self)) return -1;
+
+    g_assert(read_block_size < INT_MAX); /* data type mismatch */
+    if (buf == NULL || *size_req < (int)read_block_size) {
         /* Just a size query. */
-        *size_req = self->read_block_size;
+        *size_req = (int)read_block_size;
         return 0;
     }
 
@@ -457,32 +777,51 @@ static int tape_device_read_block (Device * pself, gpointer buf,
     switch (result) {
     case RESULT_SUCCESS:
         *size_req = size;
+        pself->block++;
         return size;
     case RESULT_SMALL_BUFFER: {
-        int new_size;
+        gsize new_size;
+	GValue newval;
+
         /* If this happens, it means that we have:
          *     (next block size) > (buffer size) >= (read_block_size)
          * The solution is to ask for an even bigger buffer. We also play
          * some games to refrain from reading above the SCSI limit or from
-         * integer overflow. */
+         * integer overflow.  Note that not all devices will tell us about
+	 * this problem -- some will just discard the "extra" data. */
         new_size = MIN(INT_MAX/2 - 1, *size_req) * 2;
         if (new_size > LARGEST_BLOCK_ESTIMATE &&
             *size_req < LARGEST_BLOCK_ESTIMATE) {
             new_size = LARGEST_BLOCK_ESTIMATE;
         }
-        if (new_size <= *size_req) {
-            return -1;
-        } else {
-            *size_req = new_size;
-            return 0;
-        }
+        g_assert (new_size > (gsize)*size_req);
+
+	g_warning("Device %s indicated blocksize %zd was too small; using %zd.",
+	    pself->device_name, (gsize)*size_req, new_size);
+	*size_req = (int)new_size;
+	self->private->read_buffer_size = new_size;
+
+	bzero(&newval, sizeof(newval));
+	g_value_init(&newval, G_TYPE_UINT);
+	g_value_set_uint(&newval, self->private->read_buffer_size);
+	device_set_simple_property(pself, PROPERTY_READ_BUFFER_SIZE,
+		&newval, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
+	g_value_unset(&newval);
+
+	return 0;
     }
     case RESULT_NO_DATA:
         pself->is_eof = TRUE;
 	pself->in_file = FALSE;
+	device_set_error(pself,
+	    stralloc(_("EOF")),
+	    DEVICE_STATUS_SUCCESS);
         return -1;
 
     default:
+	device_set_error(pself,
+	    vstrallocf(_("Error reading from tape device: %s"), strerror(errno)),
+	    DEVICE_STATUS_VOLUME_ERROR | DEVICE_STATUS_DEVICE_ERROR);
         return -1;
     }
 
@@ -506,17 +845,37 @@ static gboolean write_tapestart_header(TapeDevice * self, char * label,
                                              &header_fits);
      amfree(header);
      g_assert(header_buf != NULL);
-                                             
+
      if (!header_fits) {
          amfree(header_buf);
-         g_fprintf(stderr, "Tapestart header won't fit in a single block!\n");
+	 device_set_error(d_self,
+	    stralloc(_("Tapestart header won't fit in a single block!")),
+	    DEVICE_STATUS_DEVICE_ERROR);
          return FALSE;
      }
 
-     g_assert(header_size >= (int)self->min_block_size);
+     g_assert(header_size >= (int)d_self->min_block_size);
      result = tape_device_robust_write(self, header_buf, header_size);
+     if (result != RESULT_SUCCESS) {
+	 device_set_error(d_self,
+	    vstrallocf(_("Error writing tapestart header: %s"), strerror(errno)),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	amfree(header_buf);
+	return FALSE;
+     }
+
      amfree(header_buf);
-     return (result == RESULT_SUCCESS);
+
+     if (!tape_weof(self->fd, 1)) {
+	device_set_error(d_self,
+			 vstrallocf(_("Error writing filemark: %s"),
+				    strerror(errno)),
+			 DEVICE_STATUS_DEVICE_ERROR|DEVICE_STATUS_VOLUME_ERROR);
+	return FALSE;
+     }
+
+     return TRUE;
+
 }
 
 static gboolean 
@@ -525,18 +884,20 @@ tape_device_start (Device * d_self, DeviceAccessMode mode, char * label,
     TapeDevice * self;
 
     self = TAPE_DEVICE(d_self);
-    g_return_val_if_fail(self != NULL, FALSE);
+
+    if (device_in_error(self)) return FALSE;
 
     if (self->fd == -1) {
-	ReadLabelStatusFlags status;
-        self->fd = try_open_tape_device(self, d_self->device_name, &status);
+        self->fd = try_open_tape_device(self, self->private->device_filename);
+	/* if the open failed, then try_open_tape_device already set the
+	 * approppriate error status */
 	if (self->fd == -1)
-	    return FALSE;   /* can't do anything with status here */
+	    return FALSE;
     }
 
     if (mode != ACCESS_WRITE && d_self->volume_label == NULL) {
 	/* we need a labeled volume for APPEND and READ */
-	if (tape_device_read_label(d_self) != READ_LABEL_STATUS_SUCCESS)
+	if (tape_device_read_label(d_self) != DEVICE_STATUS_SUCCESS)
 	    return FALSE;
     }
 
@@ -546,27 +907,45 @@ tape_device_start (Device * d_self, DeviceAccessMode mode, char * label,
     if (IS_WRITABLE_ACCESS_MODE(mode)) {
         if (self->write_open_errno != 0) {
             /* We tried and failed to open the device in write mode. */
-            g_fprintf(stderr, "Can't open tape device %s for writing: %s\n",
-                    d_self->device_name, strerror(self->write_open_errno));
+	    device_set_error(d_self,
+		vstrallocf(_("Can't open tape device %s for writing: %s"),
+			    self->private->device_filename, strerror(self->write_open_errno)),
+		DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
             return FALSE;
         } else if (!tape_rewind(self->fd)) {
-            g_fprintf(stderr, "Couldn't rewind device: %s\n",
-                    strerror(errno));
+	    device_set_error(d_self,
+		vstrallocf(_("Couldn't rewind device: %s"), strerror(errno)),
+		DEVICE_STATUS_DEVICE_ERROR);
+	    return FALSE;
         }
     }
 
     /* Position the tape */
     switch (mode) {
     case ACCESS_APPEND:
-        if (!tape_device_eod(self))
+	if (d_self->volume_label == NULL && device_read_label(d_self) != DEVICE_STATUS_SUCCESS) {
+	    /* device_read_label already set our error message */
             return FALSE;
-        self->first_file = TRUE;
+	}
+
+        if (!tape_device_eod(self)) {
+	    device_set_error(d_self,
+		vstrallocf(_("Couldn't seek to end of tape: %s"), strerror(errno)),
+		DEVICE_STATUS_DEVICE_ERROR);
+            return FALSE;
+	}
         break;
         
     case ACCESS_READ:
+	if (d_self->volume_label == NULL && device_read_label(d_self) != DEVICE_STATUS_SUCCESS) {
+	    /* device_read_label already set our error message */
+            return FALSE;
+	}
+
         if (!tape_rewind(self->fd)) {
-            g_fprintf(stderr, "Error rewinding device %s\n",
-                    d_self->device_name);
+	    device_set_error(d_self,
+		vstrallocf(_("Couldn't rewind device: %s"), strerror(errno)),
+		DEVICE_STATUS_DEVICE_ERROR);
             return FALSE;
         }
         d_self->file = 0;
@@ -574,24 +953,27 @@ tape_device_start (Device * d_self, DeviceAccessMode mode, char * label,
 
     case ACCESS_WRITE:
         if (!write_tapestart_header(self, label, timestamp)) {
+	    /* write_tapestart_header already set the error status */
             return FALSE;
         }
-        self->first_file = TRUE;
+
+        d_self->volume_label = newstralloc(d_self->volume_label, label);
+        d_self->volume_time = newstralloc(d_self->volume_time, timestamp);
+
+	/* unset the VOLUME_UNLABELED flag, if it was set */
+	device_set_error(d_self, NULL, DEVICE_STATUS_SUCCESS);
+        d_self->file = 0;
         break;
 
     default:
         g_assert_not_reached();
     }
 
-    if (parent_class->start) {
-        return parent_class->start(d_self, mode, label, timestamp);
-    } else {
-        return TRUE;
-    }
+    return TRUE;
 }
 
 static gboolean tape_device_start_file(Device * d_self,
-                                       const dumpfile_t * info) {
+                                       dumpfile_t * info) {
     TapeDevice * self;
     IoResult result;
     char * amanda_header;
@@ -599,35 +981,57 @@ static gboolean tape_device_start_file(Device * d_self,
     gboolean header_fits;
 
     self = TAPE_DEVICE(d_self);
-    g_return_val_if_fail(self != NULL, FALSE);
-    g_return_val_if_fail (self->fd >= 0, FALSE);
 
-    if (!(d_self->access_mode == ACCESS_APPEND && self->first_file)) {
-        if (!tape_weof(self->fd, 1)) {
-            g_fprintf(stderr, "Error writing filemark: %s\n", strerror(errno));
-            return FALSE;
-        }
-    }
+    g_assert(self->fd >= 0);
+    if (device_in_error(self)) return FALSE;
 
-    self->first_file = FALSE;
+    /* set the blocksize in the header properly */
+    info->blocksize = d_self->block_size;
 
     /* Make the Amanda header suitable for writing to the device. */
     /* Then write the damn thing. */
     amanda_header = device_build_amanda_header(d_self, info,
                                                &header_size, &header_fits);
-    g_return_val_if_fail(amanda_header != NULL, FALSE);
-    g_return_val_if_fail(header_fits, FALSE);
+    if (!header_fits) {
+	device_set_error(d_self,
+	    stralloc(_("Amanda file header won't fit in a single block!")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
     result = tape_device_robust_write(self, amanda_header, header_size);
-    amfree(amanda_header);
-    if (result == RESULT_SUCCESS) {
-        /* Chain up. */
-        if (parent_class->start_file) {
-            parent_class->start_file(d_self, info);
-        }
-        return TRUE;
-    } else {
+    if (result != RESULT_SUCCESS) {
+	device_set_error(d_self,
+	    vstrallocf(_("Error writing file header: %s"), strerror(errno)),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	amfree(amanda_header);
         return FALSE;
     }
+    amfree(amanda_header);
+
+    /* arrange the file numbers correctly */
+    d_self->in_file = TRUE;
+    d_self->block = 0;
+    if (d_self->file >= 0)
+        d_self->file ++;
+    return TRUE;
+}
+
+static gboolean
+tape_device_finish_file (Device * d_self) {
+    TapeDevice * self;
+
+    self = TAPE_DEVICE(d_self);
+    if (device_in_error(d_self)) return FALSE;
+
+    if (!tape_weof(self->fd, 1)) {
+	device_set_error(d_self,
+		vstrallocf(_("Error writing filemark: %s"), strerror(errno)),
+		DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
+        return FALSE;
+    }
+
+    d_self->in_file = FALSE;
+    return TRUE;
 }
 
 static dumpfile_t * 
@@ -640,9 +1044,8 @@ tape_device_seek_file (Device * d_self, guint file) {
     IoResult result;
 
     self = TAPE_DEVICE(d_self);
-    g_return_val_if_fail(d_self != NULL, NULL);
 
-    d_self->in_file = FALSE;
+    if (device_in_error(self)) return NULL;
 
     difference = file - d_self->file;
 
@@ -651,21 +1054,31 @@ tape_device_seek_file (Device * d_self, guint file) {
         difference --;
     }
 
+    d_self->in_file = FALSE;
+    d_self->is_eof = FALSE;
+    d_self->block = 0;
+
     if (difference > 0) {
         /* Seeking forwards */
         if (!tape_device_fsf(self, difference)) {
             tape_rewind(self->fd);
+	    device_set_error(d_self,
+		vstrallocf(_("Could not seek forward to file %d"), file),
+		DEVICE_STATUS_VOLUME_ERROR | DEVICE_STATUS_DEVICE_ERROR);
             return NULL;
         }
     } else if (difference < 0) {
         /* Seeking backwards */
         if (!tape_device_bsf(self, -difference, d_self->file)) {
             tape_rewind(self->fd);
+	    device_set_error(d_self,
+		vstrallocf(_("Could not seek backward to file %d"), file),
+		DEVICE_STATUS_VOLUME_ERROR | DEVICE_STATUS_DEVICE_ERROR);
             return NULL;
         }
     }
 
-    buffer_len = self->read_block_size;
+    buffer_len = tape_device_read_size(d_self);
     header_buffer = malloc(buffer_len);
     d_self->is_eof = FALSE;
     result = tape_device_robust_read(self, header_buffer, &buffer_len);
@@ -678,28 +1091,38 @@ tape_device_seek_file (Device * d_self, guint file) {
              * filemark, which indicates end of tape. This should
              * work even with QIC tapes on operating systems with
              * proper support. */
+	    d_self->file = file; /* other attributes are already correct */
             return make_tapeend_header();
         }
         /* I/O error. */
-        g_fprintf(stderr, "Error reading Amanda header.\n");
-        return FALSE;
+	device_set_error(d_self,
+	    stralloc(_("Error reading Amanda header")),
+	    DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
+        return NULL;
     }
         
-    rval = malloc(sizeof(*rval));
+    rval = g_new(dumpfile_t, 1);
     parse_file_header(header_buffer, rval, buffer_len);
     amfree(header_buffer);
     switch (rval->type) {
     case F_DUMPFILE:
     case F_CONT_DUMPFILE:
     case F_SPLIT_DUMPFILE:
-        d_self->in_file = TRUE;
-        d_self->file = file;
-        return rval;
+        break;
+
     default:
         tape_rewind(self->fd);
+	device_set_error(d_self,
+	    stralloc(_("Invalid amanda header while reading file header")),
+	    DEVICE_STATUS_VOLUME_ERROR);
         amfree(rval);
         return NULL;
     }
+
+    d_self->in_file = TRUE;
+    d_self->file = file;
+
+    return rval;
 }
 
 static gboolean 
@@ -708,238 +1131,29 @@ tape_device_seek_block (Device * d_self, guint64 block) {
     int difference;
 
     self = TAPE_DEVICE(d_self);
-    g_return_val_if_fail(d_self != NULL, FALSE);
+
+    if (device_in_error(self)) return FALSE;
 
     difference = block - d_self->block;
     
     if (difference > 0) {
-        if (!tape_device_fsr(self, difference))
+        if (!tape_device_fsr(self, difference)) {
+	    device_set_error(d_self,
+		vstrallocf(_("Could not seek forward to block %ju"), (uintmax_t)block),
+		DEVICE_STATUS_VOLUME_ERROR | DEVICE_STATUS_DEVICE_ERROR);
             return FALSE;
+	}
     } else if (difference < 0) {
-        if (!tape_device_bsr(self, difference, d_self->file, d_self->block))
+        if (!tape_device_bsr(self, difference, d_self->file, d_self->block)) {
+	    device_set_error(d_self,
+		vstrallocf(_("Could not seek backward to block %ju"), (uintmax_t)block),
+		DEVICE_STATUS_VOLUME_ERROR | DEVICE_STATUS_DEVICE_ERROR);
             return FALSE;
+	}
     }
 
-    if (parent_class->seek_block) {
-        return (parent_class->seek_block)(d_self, block);
-    } else {
-        return TRUE;
-    }
-}
-
-/* Just checks that the flag is valid before setting it. */
-static gboolean get_feature_flag(GValue * val, FeatureSupportFlags f) {
-    if (feature_support_flags_is_valid(f)) {
-        g_value_set_flags(val, f);
-        return TRUE;
-    } else {
-        return FALSE;
-    }
-}
-
-static gboolean 
-tape_device_property_get (Device * d_self, DevicePropertyId id, GValue * val) {
-    TapeDevice * self;
-    const DevicePropertyBase * base;
-
-    self = TAPE_DEVICE(d_self);
-    g_return_val_if_fail(self != NULL, FALSE);
-
-    base = device_property_get_by_id(id);
-    g_return_val_if_fail(self != NULL, FALSE);
-
-    g_value_unset_init(val, base->type);
-
-    if (id == PROPERTY_COMPRESSION) {
-        g_value_set_boolean(val, self->compression);
-        return TRUE;
-    } else if (id == PROPERTY_MIN_BLOCK_SIZE) {
-        g_value_set_uint(val, self->min_block_size);
-        return TRUE;
-    } else if (id == PROPERTY_MAX_BLOCK_SIZE) {
-        g_value_set_uint(val, self->max_block_size);
-        return TRUE;
-    } else if (id == PROPERTY_BLOCK_SIZE) {
-        if (self->fixed_block_size == 0) {
-            g_value_set_int(val, -1);
-        } else {
-            g_value_set_int(val, self->fixed_block_size);
-        }
-        return TRUE;
-    } else if (id == PROPERTY_FSF) {
-        return get_feature_flag(val, self->fsf);
-    } else if (id == PROPERTY_BSF) {
-        return get_feature_flag(val, self->bsf);
-    } else if (id == PROPERTY_FSR) {
-        return get_feature_flag(val, self->fsr);
-    } else if (id == PROPERTY_BSR) {
-        return get_feature_flag(val, self->bsr);
-    } else if (id == PROPERTY_EOM) {
-        return get_feature_flag(val, self->eom);
-    } else if (id == PROPERTY_BSF_AFTER_EOM) {
-        return get_feature_flag(val, self->bsf_after_eom);
-    } else if (id == PROPERTY_FINAL_FILEMARKS) {
-        g_value_set_uint(val, self->final_filemarks);
-        return TRUE;
-    } else {
-        /* Chain up */
-        if (parent_class->property_get) {
-            return (parent_class->property_get)(d_self, id, val);
-        } else {
-            return FALSE;
-        }
-    }
-
-    g_assert_not_reached();
-}
-
-/* We don't allow overriding of flags with _GOOD surety. That way, if
-   e.g., a feature has no matching IOCTL on a given platform, we don't
-   ever try to set it. */
-static gboolean flags_settable(FeatureSupportFlags request,
-                               FeatureSupportFlags existing) {
-    if (!feature_support_flags_is_valid(request))
-        return FALSE;
-    else if (!feature_support_flags_is_valid(existing))
-        return TRUE;
-    else if (request == existing)
-        return TRUE;
-    else if (existing & FEATURE_SURETY_GOOD)
-        return FALSE;
-    else
-        return TRUE;
-}
-
-/* If the access listed is NULL, and the provided flags can override the
-   existing ones, then do it and return TRUE. */
-static gboolean try_set_feature(DeviceAccessMode mode,
-                                FeatureSupportFlags request,
-                                FeatureSupportFlags * existing) {
-    if (mode != ACCESS_NULL) {
-        return FALSE;
-    } else if (flags_settable(request, *existing)) {
-        *existing = request;
-        return TRUE;
-    } else {
-        return FALSE;
-    }
-}
- 
-static gboolean 
-tape_device_property_set (Device * d_self, DevicePropertyId id, GValue * val) {
-    TapeDevice * self;
-    FeatureSupportFlags feature_request_flags = 0;
-    const DevicePropertyBase * base;
-
-    self = TAPE_DEVICE(d_self);
-    g_return_val_if_fail(self != NULL, FALSE);
-
-    base = device_property_get_by_id(id);
-    g_return_val_if_fail(self != NULL, FALSE);
-
-    g_return_val_if_fail(G_VALUE_HOLDS(val, base->type), FALSE);
-
-    if (base->type == FEATURE_SUPPORT_FLAGS_TYPE) {
-        feature_request_flags = g_value_get_flags(val);
-        g_return_val_if_fail(
-            feature_support_flags_is_valid(feature_request_flags), FALSE);
-    }
-
-    if (id == PROPERTY_COMPRESSION) {
-        /* We allow this property to be set at any time. This is mostly
-         * because setting compression is a hit-and-miss proposition
-         * at any time; some drives accept the mode setting but don't
-         * actually support compression, while others do support
-         * compression but do it via density settings or some other
-         * way. Set this property whenever you want, but all we'll do
-         * is report whether or not the ioctl succeeded. */
-        gboolean request = g_value_get_boolean(val);
-        if (tape_setcompression(self->fd, request)) {
-            self->compression = request;
-            device_clear_volume_details(d_self);
-            return TRUE;
-        } else {
-            return FALSE;
-        }
-    } else if (id == PROPERTY_MIN_BLOCK_SIZE) {
-        if (d_self->access_mode != ACCESS_NULL)
-            return FALSE;
-        self->min_block_size = g_value_get_uint(val);
-        device_clear_volume_details(d_self);
-        return TRUE;
-    } else if (id == PROPERTY_MAX_BLOCK_SIZE) {
-        if (d_self->access_mode != ACCESS_NULL)
-            return FALSE;
-        self->max_block_size = g_value_get_uint(val);
-        device_clear_volume_details(d_self);
-        return TRUE;
-    } else if (id == PROPERTY_BLOCK_SIZE) {
-        if (d_self->access_mode != ACCESS_NULL)
-            return FALSE;
-
-        self->fixed_block_size = g_value_get_int(val);
-        device_clear_volume_details(d_self);
-        return TRUE;
-    } else if (id == PROPERTY_READ_BUFFER_SIZE) {
-        if (d_self->access_mode != ACCESS_NULL)
-            return FALSE;
-        self->read_block_size = g_value_get_uint(val);
-        device_clear_volume_details(d_self);
-        return TRUE;
-    } else if (id == PROPERTY_FSF) {
-        return try_set_feature(d_self->access_mode,
-                               feature_request_flags,
-                               &(self->fsf));
-    } else if (id == PROPERTY_BSF) {
-        return try_set_feature(d_self->access_mode,
-                               feature_request_flags,
-                               &(self->bsf));
-    } else if (id == PROPERTY_FSR) {
-        return try_set_feature(d_self->access_mode,
-                               feature_request_flags,
-                               &(self->fsr));
-    } else if (id == PROPERTY_BSR) {
-        return try_set_feature(d_self->access_mode,
-                               feature_request_flags,
-                               &(self->bsr));
-    } else if (id == PROPERTY_EOM) {
-        /* Setting this to disabled also clears BSF after EOM. */
-        if (try_set_feature(d_self->access_mode,
-                            feature_request_flags,
-                            &(self->eom))) {
-            feature_request_flags &= ~FEATURE_SUPPORT_FLAGS_STATUS_MASK;
-            feature_request_flags |= FEATURE_STATUS_DISABLED;
-            self->bsf_after_eom = feature_request_flags;
-            return TRUE;
-        } else {
-            return FALSE;
-        }
-    } else if (id == PROPERTY_BSF_AFTER_EOM) {
-        /* You can only set this if EOM is enabled. */
-        if (self->bsf | FEATURE_STATUS_DISABLED)
-            return FALSE;
-        else
-            return try_set_feature(d_self->access_mode,
-                                   feature_request_flags,
-                                   &(self->bsf_after_eom));
-    } else if (id == PROPERTY_FINAL_FILEMARKS) {
-        guint request = g_value_get_uint(val);
-        if (request == 1 || request == 2) {
-            self->final_filemarks = request;
-            return TRUE;
-        } else {
-            return FALSE;
-        }
-    } else {
-        /* Chain up */
-        if (parent_class->property_set) {
-            return (parent_class->property_set)(d_self, id, val);
-        } else {
-            return FALSE;
-        }
-    }
-
-    g_assert_not_reached();
+    d_self->block = block;
+    return TRUE;
 }
 
 static gboolean 
@@ -947,7 +1161,11 @@ tape_device_finish (Device * d_self) {
     TapeDevice * self;
 
     self = TAPE_DEVICE(d_self);
-    g_return_val_if_fail(self != NULL, FALSE);
+
+    if (device_in_error(self)) return FALSE;
+
+    if (d_self->access_mode == ACCESS_NULL)
+	return TRUE;
 
     /* Polish off this file, if relevant. */
     if (d_self->in_file && IS_WRITABLE_ACCESS_MODE(d_self->access_mode)) {
@@ -957,29 +1175,30 @@ tape_device_finish (Device * d_self) {
 
     /* Write an extra filemark, if needed. The OS will give us one for
        sure. */
+    /* device_finish_file already wrote one for us */
+    /*
     if (self->final_filemarks > 1 &&
         IS_WRITABLE_ACCESS_MODE(d_self->access_mode)) {
         if (!tape_weof(self->fd, 1)) {
-            g_fprintf(stderr, "Error writing final filemark: %s\n",
-                    strerror(errno));
+	device_set_error(d_self,
+	    vstrallocf(_("Error writing final filemark: %s"), strerror(errno)),
+	    DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
             return FALSE;
         }
     }
+    */
 
     /* Rewind. */
     if (!tape_rewind(self->fd)) {
-        g_fprintf(stderr, "Error rewinding tape: %s\n", strerror(errno));
+	device_set_error(d_self,
+	    vstrallocf(_("Couldn't rewind device: %s"), strerror(errno)),
+	    DEVICE_STATUS_DEVICE_ERROR);
         return FALSE;
     }
 
     d_self->access_mode = ACCESS_NULL;
 
-    if (parent_class->finish) {
-        return (parent_class->finish)(d_self);
-    } else {
-        return TRUE;
-    }
-
+    return TRUE;
 }
 
 /* Works just like read(), except for the following:
@@ -992,10 +1211,9 @@ tape_device_robust_read (TapeDevice * self, void * buf, int * count) {
     int result;
 
     d_self = (Device*)self;
-    g_return_val_if_fail(self != NULL, RESULT_ERROR);
-    g_return_val_if_fail(*count >= 0, RESULT_ERROR);
+
     /* Callers should ensure this. */
-    g_assert((guint)(*count) <= self->read_block_size);
+    g_assert(*count >= 0);
 
     for (;;) {
         result = read(self->fd, buf, *count);
@@ -1019,8 +1237,7 @@ tape_device_robust_read (TapeDevice * self, void * buf, int * count) {
                 ) {
                 /* Interrupted system call */
                 continue;
-            } else if ((self->fixed_block_size == 0) &&
-                       (0
+            } else if ((0
 #ifdef ENOMEM
                         || errno == ENOMEM /* bad user-space buffer */
 #endif
@@ -1034,8 +1251,10 @@ tape_device_robust_read (TapeDevice * self, void * buf, int * count) {
                 /* Buffer too small. */
                 return RESULT_SMALL_BUFFER;
             } else {
-                g_fprintf(stderr, "Error reading %d bytes from %s: %s\n",
-                        *count, d_self->device_name, strerror(errno));
+		device_set_error(d_self,
+		    vstrallocf(_("Error reading %d bytes from %s: %s"),
+				*count, self->private->device_filename, strerror(errno)),
+		    DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
                 return RESULT_ERROR;
             }
         }
@@ -1051,7 +1270,10 @@ tape_device_robust_read (TapeDevice * self, void * buf, int * count) {
 static void check_resetofs(TapeDevice * self G_GNUC_UNUSED,
                            int count G_GNUC_UNUSED) {
 #ifdef NEED_RESETOFS
+    Device * d_self;
     int result;
+
+    d_self = (Device*)self;
 
     self->private->write_count += count;
     if (self->private->write_count < RESETOFS_THRESHOLD) {
@@ -1060,8 +1282,8 @@ static void check_resetofs(TapeDevice * self G_GNUC_UNUSED,
 
     result = lseek(self->fd, 0, SEEK_SET);
     if (result < 0) {
-        g_fprintf(stderr,
-                "Warning: lseek() failed during kernel 2GB workaround.\n");
+	g_warning(_("lseek() failed during kernel 2GB workaround: %s"),
+	       strerror(errno));
     }
 #endif
 }
@@ -1071,7 +1293,6 @@ tape_device_robust_write (TapeDevice * self, void * buf, int count) {
     Device * d_self;
     int result;
 
-    g_return_val_if_fail(self != NULL, RESULT_ERROR);
     d_self = (Device*)self;
     
     check_resetofs(self, count);
@@ -1086,9 +1307,10 @@ tape_device_robust_write (TapeDevice * self, void * buf, int count) {
             return RESULT_SUCCESS;
         } else if (result >= 0) {
             /* write() returned a short count. This should not happen. */
-            g_fprintf(stderr,
-                  "Mysterious short write on tape device: Tried %d, got %d.\n",
-                    count, result);
+	    device_set_error(d_self,
+		     vstrallocf(_("Mysterious short write on tape device: Tried %d, got %d"),
+				count, result),
+		    DEVICE_STATUS_DEVICE_ERROR);
             return RESULT_ERROR;
         } else if (0
 #ifdef EAGAIN
@@ -1114,16 +1336,17 @@ tape_device_robust_write (TapeDevice * self, void * buf, int count) {
             /* Probably EOT. Print a message if we got EIO. */
 #ifdef EIO
             if (errno == EIO) {
-                g_fprintf(stderr, "Got EIO on %s, assuming end of tape.\n",
-                        d_self->device_name);
+		g_warning(_("Got EIO on %s, assuming end of tape"),
+			self->private->device_filename);
             }
 #endif
             return RESULT_NO_SPACE;
         } else {
             /* WTF */
-            g_fprintf(stderr,
-     "Kernel gave unexpected write() result of \"%s\" on device %s.\n",
-                    strerror(errno), d_self->device_name);
+	    device_set_error(d_self,
+		    vstrallocf(_("Kernel gave unexpected write() result of \"%s\" on device %s"),
+					strerror(errno), self->private->device_filename),
+		    DEVICE_STATUS_DEVICE_ERROR);
             return RESULT_ERROR;
         }
     }
@@ -1138,10 +1361,10 @@ tape_device_robust_write (TapeDevice * self, void * buf, int count) {
    actually read. */
 static int drain_tape_blocks(TapeDevice * self, int count) {
     char * buffer;
-    int buffer_size;
+    gsize buffer_size;
     int i;
 
-    buffer_size = self->read_block_size;
+    buffer_size = tape_device_read_size(self);
 
     buffer = malloc(sizeof(buffer_size));
 
@@ -1153,7 +1376,7 @@ static int drain_tape_blocks(TapeDevice * self, int count) {
             i ++;
             continue;
         } else if (result == 0) {
-            free(buffer);
+            amfree(buffer);
             return i;
         } else {
             /* First check for interrupted system call. */
@@ -1187,7 +1410,7 @@ static int drain_tape_blocks(TapeDevice * self, int count) {
                 buffer_size *= 2;
 
                 if (buffer_size > 32*1024*1024) {
-                    free(buffer);
+                    amfree(buffer);
                     return -1;
                 } else {
                     buffer = realloc(buffer, buffer_size);
@@ -1197,6 +1420,7 @@ static int drain_tape_blocks(TapeDevice * self, int count) {
         }
     }
     
+    amfree(buffer);
     return count;
 }
 
@@ -1205,10 +1429,7 @@ static int drain_tape_blocks(TapeDevice * self, int count) {
 
 static gboolean 
 tape_device_fsf (TapeDevice * self, guint count) {
-    g_return_val_if_fail (self != NULL, (gboolean )0);
-    g_return_val_if_fail (IS_TAPE_DEVICE (self), (gboolean )0);
-    
-    if (self->fsf & FEATURE_STATUS_ENABLED) {
+    if (self->fsf) {
         return tape_fsf(self->fd, count);
     } else {
         guint i;
@@ -1223,10 +1444,7 @@ tape_device_fsf (TapeDevice * self, guint count) {
 /* Seek back over count + 1 filemarks to the start of the given file. */
 static gboolean 
 tape_device_bsf (TapeDevice * self, guint count, guint file) {
-    g_return_val_if_fail (self != NULL, (gboolean )0);
-    g_return_val_if_fail (IS_TAPE_DEVICE (self), (gboolean )0);
-
-    if (self->bsf & FEATURE_STATUS_ENABLED) {
+    if (self->bsf) {
         /* The BSF operation is not very smart; it includes the
            filemark of the present file as part of the count, and seeks
            to the wrong (BOT) side of the filemark. We compensate for
@@ -1251,10 +1469,7 @@ tape_device_bsf (TapeDevice * self, guint count, guint file) {
 
 static gboolean 
 tape_device_fsr (TapeDevice * self, guint count) {
-    g_return_val_if_fail (self != NULL, (gboolean )0);
-    g_return_val_if_fail (IS_TAPE_DEVICE (self), (gboolean )0);
-
-    if (self->fsr & FEATURE_STATUS_ENABLED) {
+    if (self->fsr) {
         return tape_fsr(self->fd, count);
     } else {
         int result = drain_tape_blocks(self, count);
@@ -1267,13 +1482,7 @@ tape_device_fsr (TapeDevice * self, guint count) {
 
 static gboolean 
 tape_device_bsr (TapeDevice * self, guint count, guint file, guint block) {
-    g_return_val_if_fail (self != NULL, (gboolean )0);
-    g_return_val_if_fail (IS_TAPE_DEVICE (self), (gboolean )0);
-    
-    g_return_val_if_fail (self != NULL, (gboolean )0);
-    g_return_val_if_fail (IS_TAPE_DEVICE (self), (gboolean )0);
-
-    if (self->bsr & FEATURE_STATUS_ENABLED) {
+    if (self->bsr) {
         return tape_bsr(self->fd, count);
     } else {
         /* We BSF, then FSR. */
@@ -1290,11 +1499,9 @@ tape_device_bsr (TapeDevice * self, guint count, guint file, guint block) {
 static gboolean 
 tape_device_eod (TapeDevice * self) {
     Device * d_self;
-    g_return_val_if_fail (self != NULL, (gboolean )0);
-    g_return_val_if_fail (IS_TAPE_DEVICE (self), (gboolean )0);
     d_self = (Device*)self;
 
-    if (self->eom & FEATURE_STATUS_ENABLED) {
+    if (self->eom) {
         int result;
         result = tape_eod(self->fd); 
         if (result == TAPE_OP_ERROR) {
@@ -1333,15 +1540,11 @@ tape_device_eod (TapeDevice * self) {
     }
 }
 
-Device *
-tape_device_factory (char * device_type, char * device_name) {
+static Device *
+tape_device_factory (char * device_name, char * device_type, char * device_node) {
     Device * rval;
     g_assert(0 == strcmp(device_type, "tape"));
     rval = DEVICE(g_object_new(TYPE_TAPE_DEVICE, NULL));
-    if (!device_open_device(rval, device_name)) {
-        g_object_unref(rval);
-        return NULL;
-    } else {
-        return rval;
-    }
+    device_open_device(rval, device_name, device_type, device_node);
+    return rval;
 }

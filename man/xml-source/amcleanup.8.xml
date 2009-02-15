@@ -13,16 +13,24 @@
 <refmeta>
 <refentrytitle>amcleanup</refentrytitle>
 <manvolnum>8</manvolnum>
+&rmi.source;
+&rmi.version;
+&rmi.manual.8;
 </refmeta>
 <refnamediv>
 <refname>amcleanup</refname>
 <refpurpose>run the &A; cleanup process after a failure</refpurpose>
 </refnamediv>
+<refentryinfo>
+&author.jds;
+&author.sgw.xml;
+</refentryinfo>
 <!-- body begins here -->
 <refsynopsisdiv>
 <cmdsynopsis>
   <command>amcleanup</command>    
     <arg choice='opt'><option>-k</option></arg>
+    <arg choice='opt'><option>-p</option></arg>
     <arg choice='opt'><option>-v</option></arg>
     <arg choice='plain'><replaceable>config</replaceable></arg>
 </cmdsynopsis>
@@ -52,7 +60,13 @@ man page for more details about &A;.</para>
   <varlistentry>
   <term><option>-k</option></term>
   <listitem>
-   <para>Kill all Amanda processes.</para>
+   <para>Kill all process listed in the log file are their child. if there is no log file, then kill all amdump and amflush process and their child.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><option>-p</option></term>
+  <listitem>
+   <para>Do the cleanup only if all process listed in the log file are already terminated.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -88,11 +102,6 @@ exits normally with the message:</para>
 <programlisting>
 amcleanup: no unprocessed logfile to clean up.
 </programlisting>
-</refsect1>
-
-<refsect1><title>AUTHOR</title>
-<para>James da Silva, &email.jds;: Original text</para>
-<para>&maintainer.sgw;: XML-conversion</para>
 </refsect1>
 
 <refsect1><title>SEE ALSO</title>

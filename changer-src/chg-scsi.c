@@ -69,7 +69,6 @@ static char rcsid[] = "$Id: chg-scsi.c,v 1.52 2006/07/25 18:18:46 martinea Exp $
 #include "conffile.h"
 #include "libscsi.h"
 #include "scsi-defs.h"
-#include "tapeio.h"
 
 char *tapestatfile = NULL;
 FILE *debug_file = NULL;
@@ -370,6 +369,11 @@ read_config(
           chg->emubarcode = 1;
           break;
         case DEBUGLEVEL:
+          if (chg->debuglevel != NULL) {
+              g_fprintf(stderr,_("Error: debuglevel is specified twice "
+                                 "(%s then %s).\n"), chg->debuglevel, value);
+              amfree(chg->debuglevel);
+          }
           chg->debuglevel = stralloc(value);
           break;
         case EJECT:
@@ -382,9 +386,19 @@ read_config(
           chg->sleep = (unsigned)atoi(value);
           break;
         case LABELFILE:
+          if (chg->labelfile != NULL) {
+              g_fprintf(stderr,_("Error: labelfile is specified twice "
+                                 "(%s then %s).\n"), chg->labelfile, value);
+              amfree(chg->labelfile);
+          }
           chg->labelfile = stralloc(value);
           break;
         case CHANGERDEV:
+          if (chg->device != NULL) {
+              g_fprintf(stderr,_("Error: changerdev is specified twice "
+                                 "(%s then %s).\n"), chg->device, value);
+              amfree(chg->device);
+          }
           chg->device = stralloc(value);
           break;
         case SCSITAPEDEV:
@@ -1082,6 +1096,7 @@ clean_tape(
     char *usagetime)
 {
   int counter;
+  char *mailer;
 
   if (cleancart == -1 ){
     return;
@@ -1089,6 +1104,7 @@ clean_tape(
 
   /* Now we should increment the counter */
   if (cnt_file != NULL){
+    mailer = getconf_str(CNF_MAILER);
     counter = get_current_slot(cnt_file);
     counter++;
     if (counter>=maxclean){
@@ -1096,29 +1112,29 @@ clean_tape(
       char *mail_cmd = NULL;
       FILE *mailf = NULL;
       int mail_pipe_opened = 1;
-#ifdef MAILER
-      if(getconf_seen(CNF_MAILTO) && strlen(getconf_str(CNF_MAILTO)) > 0 &&
-         validate_mailto(getconf_str(CNF_MAILTO))) {
-      	 mail_cmd = vstralloc(MAILER,
-                           " -s", " \"", _("AMANDA PROBLEM: PLEASE FIX"), "\"",
-                           " ", getconf_str(CNF_MAILTO),
-                           NULL);
-      	 if((mailf = popen(mail_cmd, "w")) == NULL){
-        	g_printf(_("Mail failed\n"));
-        	error(_("could not open pipe to \"%s\": %s"),
+      if (mailer && *mailer != '\0') {
+        if (getconf_seen(CNF_MAILTO) && strlen(getconf_str(CNF_MAILTO)) > 0 &&
+           validate_mailto(getconf_str(CNF_MAILTO))) {
+      	   mail_cmd = vstralloc(mailer,
+                             " -s", " \"", _("AMANDA PROBLEM: PLEASE FIX"), "\"",
+                             " ", getconf_str(CNF_MAILTO),
+                             NULL);
+      	   if ((mailf = popen(mail_cmd, "w")) == NULL) {
+        	  g_printf(_("Mail failed\n"));
+        	  error(_("could not open pipe to \"%s\": %s"),
 			mail_cmd, strerror(errno));
-        	/*NOTREACHED*/
-      	}
+        	  /*NOTREACHED*/
+      	   }
+        } else {
+	  mail_pipe_opened = 0;
+          mailf = stderr;
+          g_fprintf(mailf, _("\nNo mail recipient specified, output redirected to stderr"));
+        }
       } else {
-	mail_pipe_opened = 0;
+        mail_pipe_opened = 0;
         mailf = stderr;
-        g_fprintf(mailf, _("\nNo mail recipient specified, output redirected to stderr"));
-      }   
-#else
-      mail_pipe_opened = 0;
-      mailf = stderr;
-      g_fprintf(mailf, _("\nNo mailer specified; output redirected to stderr"));
-#endif
+        g_fprintf(mailf, _("\nNo mailer specified; output redirected to stderr"));
+      }
       g_fprintf(mailf,_("\nThe usage count of your cleaning tape in slot %d"),
               cleancart);
       g_fprintf(mailf,_("\nis more than %d. (cleanmax)"),maxclean);
@@ -1254,7 +1270,14 @@ main(
       break;
     }
 
-  config_init(CONFIG_INIT_USE_CWD | CONFIG_INIT_FATAL, NULL);
+  config_init(CONFIG_INIT_USE_CWD, NULL);
+
+  if (config_errors(NULL) >= CFGERR_WARNINGS) {
+    config_print_errors();
+    if (config_errors(NULL) >= CFGERR_ERRORS) {
+      g_critical(_("errors processing config file"));
+    }
+  }
 
   chg_scsi_conf = getconf_str(CNF_CHANGERFILE);
   tape_device = getconf_str(CNF_TAPEDEV);

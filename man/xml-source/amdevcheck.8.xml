@@ -12,11 +12,17 @@
   <refmeta>
     <refentrytitle>amdevcheck</refentrytitle>
     <manvolnum>8</manvolnum>
+    &rmi.source;
+    &rmi.version;
+    &rmi.manual.8;
   </refmeta>
   <refnamediv>
     <refname>amdevcheck</refname>
     <refpurpose>Validate an &A; device and volume.</refpurpose>
   </refnamediv>
+  <refentryinfo>
+    &author.ian;
+  </refentryinfo>
   <!-- body begins here -->
   <refsynopsisdiv>
     <cmdsynopsis>
@@ -42,12 +48,9 @@
     
     <para>See the
       <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
-      man page for more details about &A;.
-      See the
-      <emphasis remap='B'>OUTPUT DRIVERS</emphasis>
-      section of
-      <emphasis remap='I'>amanda(8)</emphasis>
-      for more information on the &A; output drivers.
+      man page for more details about &A;.  See
+      <citerefentry><refentrytitle>amanda-devices</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+      for more information on devices.
   </para>
   </refsect1>
 
@@ -84,11 +87,42 @@
     </variablelist>
   </refsect1>
 
-  <refsect1><title>AUTHOR</title>
-    <para>
-      Ian Turner <email>ian@zmanda.com</email> and others. Authorship of this
-      tool and its documentation was funded by Zmanda, Inc.
-    </para>
+  <refsect1><title>OUTPUT</title>
+    <emphasis remap='B'>Amdevcheck</emphasis> returns one or more of the following lines. If multiple lines appear, then at least one, but not necessarily all of
+the messages apply.  This situation can occur when working with hardware or
+operating systems which cannot distinguish, for example, between a
+malfunctioning drive and a functional but unloaded drive.
+<!-- .RS -->
+      <variablelist remap='TP'>
+        <varlistentry>
+   	  <term><emphasis remap='B'>SUCCESS</emphasis></term>
+	    <listitem><para>A tape is ready.</para></listitem>
+	</varlistentry>
+        <varlistentry>
+	  <term><emphasis remap='B'>DEVICE_ERROR</emphasis></term>
+	    <listitem><para>A device error has occurred.</para></listitem>
+	</varlistentry>
+        <varlistentry>
+          <term><emphasis remap='B'>DEVICE_BUSY</emphasis></term>
+	    <listitem><para>The device is busy.</para></listitem>
+	</varlistentry>
+        <varlistentry>
+          <term><emphasis remap='B'>VOLUME_MISSING</emphasis></term>
+	    <listitem><para>No tape is loaded in the drive.</para></listitem>
+	</varlistentry>
+        <varlistentry>
+          <term><emphasis remap='B'>VOLUME_UNLABELED</emphasis></term>
+	    <listitem><para>The tape in the drive is unlabeled.</para></listitem>
+	</varlistentry>
+        <varlistentry>
+	  <term><emphasis remap='B'>VOLUME_ERROR</emphasis></term>
+	    <listitem><para>A volume error has occurred.</para></listitem>
+	</varlistentry>
+        <varlistentry>
+	  <term><emphasis remap='B'>MESSAGE</emphasis> <emphasis remap='I'>text</emphasis></term>
+	    <listitem><para>Where text provides a human-readable description of the problem.</para></listitem>
+	</varlistentry>
+       </variablelist>
   </refsect1>
 
   <refsect1><title>SEE ALSO</title>
