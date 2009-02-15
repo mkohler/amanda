@@ -12,9 +12,12 @@ r=$(shell pwd)/debian/amanda-common
 s=$(shell pwd)/debian/amanda-server
 c=$(shell pwd)/debian/amanda-client
 
-build: build-stamp 
-build-stamp: /sbin/dump /usr/bin/smbclient debian/po/templates.pot
+configure: configure-stamp
+configure-stamp:
 	dh_testdir
+	# pick up latest config files provided by autotools-dev
+	cp -f /usr/share/misc/config.sub config/config.sub
+	cp -f /usr/share/misc/config.guess config/config.guess
 #	automake --foreign
 #	autoconf -l config
 	MAILER=/usr/bin/mail \
@@ -33,6 +36,11 @@ build-stamp: /sbin/dump /usr/bin/smbclient debian/po/templates.pot
 		--with-ssh-security \
 		--with-bsdtcp-security --with-bsdudp-security
 	touch missing
+	touch configure-stamp
+
+build: build-stamp 
+build-stamp: configure-stamp
+	dh_testdir
 	MAILER=/usr/bin/mail make CFLAGS="-O2 -g -Wall \
 		-DAMANDATES_FILE='\"/var/lib/amanda/amandates\"' \
 		-DIGNORE_TAR_ERRORS "
@@ -43,14 +51,8 @@ clean:
 	dh_testroot
 	[ ! -f Makefile ] || make clean
 	[ ! -f Makefile ] || make distclean
-	-rm -f build-stamp missing config/config.h common-src/genversion
+	-rm -f build-stamp configure-stamp missing config/config.h common-src/genversion
 	-find . -type d -name .deps -exec rm -rf {} \;
-
-	-test -r /usr/share/misc/config.sub && \
-		cp -f /usr/share/misc/config.sub config/config.sub
-	-test -r /usr/share/misc/config.guess && \
-		cp -f /usr/share/misc/config.guess config/config.guess
-
 	dh_clean
 
 # call this before packaging for upload when updating template English text
@@ -58,10 +60,8 @@ updatepo:
 	-rm -f debian/po/templates.pot
 	debconf-updatepo
 	
-# Build architecture-independent files here.
 binary-indep: build
 
-# Build architecture-dependent files here.
 binary-arch: build
 	dh_testdir
 	dh_testroot
@@ -129,9 +129,6 @@ binary-arch: build
 
 source diff:                                                                  
 	@echo >&2 'source and diff are obsolete - use dpkg-source -b'; false
-
-debian/po/templates.pot:	debian/templates
-	@debconf-updatepo
 
 binary: binary-indep binary-arch
 .PHONY: build clean binary-indep binary-arch binary
