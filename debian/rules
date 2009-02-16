@@ -22,7 +22,7 @@ configure-stamp:
 #	autoconf -l config
 	MAILER=/usr/bin/mail \
 	./configure --prefix=/usr --bindir=/usr/sbin --mandir=/usr/share/man \
-		--libexecdir=/usr/lib/amanda --enable-shared\
+		--enable-shared\
 		--sysconfdir=/etc --localstatedir=/var/lib \
 		--with-gnutar-listdir=/var/lib/amanda/gnutar-lists \
 		--with-index-server=localhost \
