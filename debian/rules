@@ -1,9 +1,6 @@
 #!/usr/bin/make -f
-# debian/rules for amanda using debhelper. GNU copyright 1998 by Bdale Garbee.
-# requires automake 1.2d (from experimental tree)
-
-#	Warning - do *not* use -j on an SMP machine, or the build gets
-#		confused... some sort of race condition in the makefiles?
+# debian/rules for amanda using debhelper
+# Copyright 1998-2009 by Bdale Garbee.  License GPL v2
 
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
@@ -18,21 +15,31 @@ configure-stamp:
 	# pick up latest config files provided by autotools-dev
 	cp -f /usr/share/misc/config.sub config/config.sub
 	cp -f /usr/share/misc/config.guess config/config.guess
-#	automake --foreign
-#	autoconf -l config
 	MAILER=/usr/bin/mail \
-	./configure --prefix=/usr --bindir=/usr/sbin --mandir=/usr/share/man \
-		--with-amlibexecdir=/usr/lib/amanda --enable-shared \
-		--sysconfdir=/etc --localstatedir=/var/lib \
-		--with-gnutar-listdir=/var/lib/amanda/gnutar-lists \
-		--with-index-server=localhost \
-		--with-user=backup --with-group=backup  \
-		--with-bsd-security --with-amandahosts \
-		--with-smbclient=/usr/bin/smbclient \
+
+	# do we need --{htmldir,dvidir,pdfdir,psdir} to force subdirectories?
+	# should we re-craft this to use --without-server and --without-client,
+	#	and lose the amanda-common package?
+	./configure \
+		--prefix=/usr \
+		--bindir=/usr/sbin \
+		--libexecdir=/usr/lib/amanda \
+		--sysconfdir=/etc \
+		--sharedstatedir=/var/lib \
+		--localstatedir=/var/lib \
+		--with-user=backup \
+		--with-group=backup  \
+		--with-tcpportrange=50000,50100 \
+		--with-udpportrange=840,860 \
 		--with-debugging=/var/log/amanda \
-		--with-tcpportrange=50000,50100 --with-udpportrange=840,860 \
+		--with-index-server=localhost \
+
+		--with-bsd-security \
+		--with-amandahosts \
+		--with-smbclient=/usr/bin/smbclient \
 		--with-ssh-security \
-		--with-bsdtcp-security --with-bsdudp-security
+		--with-bsdtcp-security \
+		--with-bsdudp-security
 	touch missing
 	touch configure-stamp
 
