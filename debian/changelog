@@ -1,3 +1,9 @@
+amanda (1:2.5.2p1-5) UNRELEASED; urgency=low
+
+  * see if adding --without-ipv6 makes things work again
+
+ -- Bdale Garbee <bdale@gag.com>  Thu, 26 Mar 2009 22:52:51 -0600
+
 amanda (1:2.5.2p1-4) unstable; urgency=high
 
   * high priority bug fixes intended for lenny release
