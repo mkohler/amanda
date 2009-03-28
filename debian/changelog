@@ -1,6 +1,7 @@
-amanda (1:2.5.2p1-5) UNRELEASED; urgency=low
+amanda (1:2.5.2p1-5) unstable; urgency=low
 
-  * see if adding --without-ipv6 makes things work again
+  * add --without-ipv6 as a short-term fix for amdump connectivity problems,
+    closes: #482754, #501281, #470202
 
  -- Bdale Garbee <bdale@gag.com>  Thu, 26 Mar 2009 22:52:51 -0600
 
