@@ -2,8 +2,10 @@ Source: amanda
 Section: utils
 Priority: optional
 Maintainer: Bdale Garbee <bdale@gag.com>
+Vcs-Git: git://git.gag.com/debian/amanda
+Vcs-Browser: http://git.gag.com/?p=debian/amanda
 Build-Depends: debhelper (>= 5), dump, gnuplot, libncurses5-dev, libreadline5-dev | libreadline-dev, libtool, flex, perl, smbclient, mailx, lpr, mtx, xfsdump, po-debconf, autotools-dev, libglib2.0-dev
-Standards-Version: 3.8.0
+Standards-Version: 3.8.1
 
 Package: amanda-common
 Architecture: any
