@@ -135,7 +135,7 @@ static void startaflush(void);
 static void start_degraded_mode(disklist_t *queuep);
 static void start_some_dumps(disklist_t *rq);
 static void continue_port_dumps(void);
-static void update_failed_dump_to_tape(disk_t *);
+static void update_failed_dump(disk_t *);
 
 typedef enum {
     TAPE_ACTION_NO_ACTION     = 0,
@@ -1691,7 +1691,7 @@ dumper_taper_result(
 		sched(dp)->est_kps);
 	amfree(qname);
     } else {
-	update_failed_dump_to_tape(dp);
+	update_failed_dump(dp);
     }
 
     is_partial = dumper->result != DONE || taper_result != DONE;
@@ -1767,6 +1767,8 @@ dumper_chunker_result(
                 (long long)sched(dp)->est_csize,
 		sched(dp)->est_kps);
 	amfree(qname);
+    } else {
+	update_failed_dump(dp);
     }
 
     deallocate_bandwidth(dp->host->netif, sched(dp)->est_kps);
@@ -2626,6 +2628,12 @@ read_schedule(
 	dp->up = (char *) sp;
 	if(dp->host->features == NULL) {
 	    dp->host->features = am_string_to_feature(features);
+	    if (!dp->host->features) {
+		log_add(L_WARNING,
+		    _("Invalid feature string from client '%s'"),
+		    features);
+		dp->host->features = am_set_default_feature_set();
+	    }
 	}
 	remove_disk(&waitq, dp);
 	if (dp->to_holdingdisk == HOLD_NEVER) {
@@ -3093,13 +3101,9 @@ holdingdisk_state(
 }
 
 static void
-update_failed_dump_to_tape(
+update_failed_dump(
     disk_t *	dp)
 {
-/* JLM
- * should simply set no_bump
- */
-
     time_t save_timestamp = sched(dp)->timestamp;
     /* setting timestamp to 0 removes the current level from the
      * database, so that we ensure that it will not be bumped to the

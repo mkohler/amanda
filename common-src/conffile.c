@@ -1424,7 +1424,7 @@ negative_number: /* look for goto negative_number below sign is set there */
 			break;
 		    escape = 0;
 		    buf--; /* Consume escape in buffer */
-		} else if (ch == '\\') {
+		} else if (ch == '\\' && !escape) {
 		    escape = 1;
 		} else {
 		    if (ch == '"') {
@@ -2117,8 +2117,8 @@ init_tapetype_defaults(void)
     conf_init_str(&tpcur.value[TAPETYPE_LBL_TEMPL]    , "");
     conf_init_size  (&tpcur.value[TAPETYPE_BLOCKSIZE]    , DISK_BLOCK_KB);
     conf_init_size  (&tpcur.value[TAPETYPE_READBLOCKSIZE], DISK_BLOCK_KB);
-    conf_init_int64 (&tpcur.value[TAPETYPE_LENGTH]       , ((gint64)2000 * 1024));
-    conf_init_int64 (&tpcur.value[TAPETYPE_FILEMARK]     , (gint64)1000);
+    conf_init_int64 (&tpcur.value[TAPETYPE_LENGTH]       , ((gint64)2000));
+    conf_init_int64 (&tpcur.value[TAPETYPE_FILEMARK]     , (gint64)1);
     conf_init_int   (&tpcur.value[TAPETYPE_SPEED]        , 200);
     conf_init_bool  (&tpcur.value[TAPETYPE_FILE_PAD]     , 1);
 }
@@ -5158,7 +5158,7 @@ add_config_overwrite_opt(
     char *value;
     assert(optarg != NULL);
 
-    value = index(optarg, '=');
+    value = strchr(optarg, '=');
     if (value == NULL) {
 	error(_("Must specify a value for %s."), optarg);
 	/* NOTREACHED */
@@ -5569,7 +5569,7 @@ copy_val_t(
 	    valdst->v.pp_scriptlist = NULL;
 	    if (valsrc->v.pp_scriptlist) {
 		g_slist_foreach(valsrc->v.pp_scriptlist, &copy_pp_scriptlist,
-				valdst->v.pp_scriptlist);
+				&valdst->v.pp_scriptlist);
 	    }
 	    break;
 
@@ -5608,9 +5608,9 @@ copy_pp_scriptlist(
     gpointer user_data_p)
 {
     pp_script_t *pp_script   = data_p;
-    pp_scriptlist_t pp_scriptlist = user_data_p;
+    pp_scriptlist_t *pp_scriptlist = user_data_p;
 
-    pp_scriptlist = g_slist_append(pp_scriptlist, pp_script);
+    *pp_scriptlist = g_slist_append(*pp_scriptlist, pp_script);
 }
 
 static void

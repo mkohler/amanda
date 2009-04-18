@@ -154,6 +154,7 @@ typedef struct {
     gpointer write_data;
 
     gboolean headers_done;
+    gboolean int_write_done;
     char *etag;
 } S3InternalData;
 
@@ -991,7 +992,7 @@ perform_request(S3Handle *hdl,
     CURLcode curl_code = CURLE_OK;
     char curl_error_buffer[CURL_ERROR_SIZE] = "";
     struct curl_slist *headers = NULL;
-    S3InternalData int_writedata = {{NULL, 0, 0, MAX_ERROR_RESPONSE_LEN}, NULL, NULL, NULL, FALSE, NULL};
+    S3InternalData int_writedata = {{NULL, 0, 0, MAX_ERROR_RESPONSE_LEN}, NULL, NULL, NULL, FALSE, FALSE, NULL};
     gboolean should_retry;
     guint retries = 0;
     gulong backoff = EXPONENTIAL_BACKOFF_START_USEC;
@@ -1203,7 +1204,16 @@ s3_internal_write_func(void *ptr, size_t size, size_t nmemb, void * stream)
     if (!data->headers_done)
         return size*nmemb;
 
-    bytes_saved = s3_buffer_write_func(ptr, size, nmemb, &data->resp_buf);
+    /* call write on internal buffer (if not full) */
+    if (data->int_write_done) {
+        bytes_saved = 0;
+    } else {
+        bytes_saved = s3_buffer_write_func(ptr, size, nmemb, &data->resp_buf);
+        if (!bytes_saved) {
+            data->int_write_done = TRUE;
+        }
+    }
+    /* call write on user buffer */
     if (data->write_func) {
         return data->write_func(ptr, size, nmemb, data->write_data);
     } else {
@@ -1218,6 +1228,7 @@ s3_internal_reset_func(void * stream)
 
     s3_buffer_reset_func(&data->resp_buf);
     data->headers_done = FALSE;
+    data->int_write_done = FALSE;
     data->etag = NULL;
     if (data->reset_func) {
         data->reset_func(data->write_data);
@@ -1475,7 +1486,7 @@ s3_strerror(S3Handle *hdl)
     s3_error(hdl, &message, &response_code, NULL, &s3_error_name, &curl_code, &num_retries);
 
     if (!message) 
-        message = "Unkonwn S3 error";
+        message = "Unknown S3 error";
     if (s3_error_name)
         g_snprintf(s3_info, sizeof(s3_info), " (%s)", s3_error_name);
     if (response_code)
@@ -1624,7 +1635,8 @@ list_fetch(S3Handle *hdl,
            const char *prefix, 
            const char *delimiter, 
            const char *marker,
-           const char *max_keys)
+           const char *max_keys,
+           CurlBuffer *buf)
 {
     s3_result_t result = S3_RESULT_FAIL;    
     static result_handling_t result_handling[] = {
@@ -1636,7 +1648,7 @@ list_fetch(S3Handle *hdl,
         {"prefix", prefix},
         {"delimiter", delimiter},
         {"marker", marker},
-        {"make-keys", max_keys},
+        {"max-keys", max_keys},
         {NULL, NULL}
         };
     char *esc_value;
@@ -1660,7 +1672,8 @@ list_fetch(S3Handle *hdl,
 
     /* and perform the request on that URI */
     result = perform_request(hdl, "GET", bucket, NULL, NULL, query->str,
-                             NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                             NULL, NULL, NULL, NULL, NULL,
+                             S3_BUFFER_WRITE_FUNCS, buf, NULL, NULL,
                              result_handling);
 
     if (query) g_string_free(query, TRUE);
@@ -1675,11 +1688,25 @@ s3_list_keys(S3Handle *hdl,
               const char *delimiter,
               GSList **list)
 {
+    /*
+     * max len of XML variables:
+     * bucket: 255 bytes (p12 API Version 2006-03-01)
+     * key: 1024 bytes (p15 API Version 2006-03-01)
+     * size per key: 5GB bytes (p6 API Version 2006-03-01)
+     * size of size 10 bytes (i.e. 10 decimal digits)
+     * etag: 44 (observed+assumed)
+     * owner ID: 64 (observed+assumed)
+     * owner DisplayName: 255 (assumed)
+     * StorageClass: const (p18 API Version 2006-03-01)
+     */
+    static const guint MAX_RESPONSE_LEN = 1000*2000;
+    static const char *MAX_KEYS = "1000";
     struct list_keys_thunk thunk;
     GMarkupParseContext *ctxt = NULL;
     static GMarkupParser parser = { list_start_element, list_end_element, list_text, NULL, NULL };
     GError *err = NULL;
     s3_result_t result = S3_RESULT_FAIL;
+    CurlBuffer buf = {NULL, 0, 0, MAX_RESPONSE_LEN};
 
     g_assert(list);
     *list = NULL;
@@ -1689,8 +1716,9 @@ s3_list_keys(S3Handle *hdl,
 
     /* Loop until S3 has given us the entire picture */
     do {
+        s3_buffer_reset_func(&buf);
         /* get some data from S3 */
-        result = list_fetch(hdl, bucket, prefix, delimiter, thunk.next_marker, NULL);
+        result = list_fetch(hdl, bucket, prefix, delimiter, thunk.next_marker, MAX_KEYS, &buf);
         if (result != S3_RESULT_OK) goto cleanup;
 
         /* run the parser over it */
@@ -1701,8 +1729,7 @@ s3_list_keys(S3Handle *hdl,
 
         ctxt = g_markup_parse_context_new(&parser, 0, (gpointer)&thunk, NULL);
 
-        if (!g_markup_parse_context_parse(ctxt, hdl->last_response_body, 
-                                          hdl->last_response_body_size, &err)) {
+        if (!g_markup_parse_context_parse(ctxt, buf.buffer, buf.buffer_pos, &err)) {
             if (hdl->last_message) g_free(hdl->last_message);
             hdl->last_message = g_strdup(err->message);
             result = S3_RESULT_FAIL;
@@ -1725,6 +1752,7 @@ cleanup:
     if (thunk.text) g_free(thunk.text);
     if (thunk.next_marker) g_free(thunk.next_marker);
     if (ctxt) g_markup_parse_context_free(ctxt);
+    if (buf.buffer) g_free(buf.buffer);
 
     if (result != S3_RESULT_OK) {
         g_slist_free(thunk.filename_list);
@@ -1804,11 +1832,11 @@ s3_make_bucket(S3Handle *hdl,
 
     g_assert(hdl != NULL);
     
-    if (hdl->bucket_location) {
+    if (hdl->bucket_location && hdl->bucket_location[0]) {
         if (s3_bucket_location_compat(bucket)) {
             ptr = &buf;
             buf.buffer = g_strdup_printf(AMAZON_BUCKET_CONF_TEMPLATE, hdl->bucket_location);
-            buf.buffer_len = (guint) strlen(body);
+            buf.buffer_len = (guint) strlen(buf.buffer);
             buf.buffer_pos = 0;
             buf.max_buffer_size = buf.buffer_len;
             read_func = s3_buffer_read_func;
@@ -1847,7 +1875,10 @@ s3_make_bucket(S3Handle *hdl,
             if (body) g_free(body);
             /* use strndup to get a null-terminated string */
             body = g_strndup(hdl->last_response_body, hdl->last_response_body_size);
-            if (!body) goto cleanup;
+            if (!body) {
+                hdl->last_message = g_strdup(_("No body received for location request"));
+                goto cleanup;
+            }
             
             if (!s3_regexec_wrap(&location_con_regex, body, 4, pmatch, 0)) {
                 loc_end_open = find_regex_substring(body, pmatch[1]);
@@ -1858,18 +1889,18 @@ s3_make_bucket(S3Handle *hdl,
                  */
                 if ('\0' == hdl->bucket_location[0] &&
                     '/' != loc_end_open[0] && '\0' != hdl->bucket_location[0])
-                    hdl->last_message = _("An empty location constraint is "
-                        "configured, but the bucket has a non-empty location constraint");
+                    hdl->last_message = g_strdup(_("An empty location constraint is "
+                        "configured, but the bucket has a non-empty location constraint"));
                 else if (strncmp(loc_content, hdl->bucket_location, strlen(hdl->bucket_location)))
-                    hdl->last_message = _("The location constraint configured "
-                        "does not match the constraint currently on the bucket");
+                    hdl->last_message = g_strdup(_("The location constraint configured "
+                        "does not match the constraint currently on the bucket"));
                 else
                     result = S3_RESULT_OK;
-      } else {
-              hdl->last_message = _("Unexpected location response from Amazon S3");
-          }
-      }
-    }
+            } else {
+                hdl->last_message = g_strdup(_("Unexpected location response from Amazon S3"));
+            }
+        }
+   }
 
 cleanup:
     if (body) g_free(body);

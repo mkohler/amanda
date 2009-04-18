@@ -708,7 +708,7 @@ setup_estimate(
 
     if(get_info(dp->host->hostname, dp->name, &info)) {
 	/* no record for this disk, make a note of it */
-	log_add(L_INFO, _("Adding new disk %s:%s."), dp->host->hostname, dp->name);
+	log_add(L_INFO, _("Adding new disk %s:%s."), dp->host->hostname, qname);
     }
 
     /* setup working data struct for disk */
@@ -1822,6 +1822,9 @@ static void handle_result(
 	if(strncmp_const(line, "OPTIONS ") == 0) {
 	    t = strstr(line, "features=");
 	    if(t != NULL && (g_ascii_isspace((int)t[-1]) || t[-1] == ';')) {
+		char *u = strchr(t, ';');
+		if (u)
+		   *u = '\0';
 		t += SIZEOF("features=")-1;
 		am_release_feature_set(hostp->features);
 		if((hostp->features = am_string_to_feature(t)) == NULL) {
@@ -1829,6 +1832,8 @@ static void handle_result(
 				       _(": bad features value: %s\n"), line);
 		    goto error_return;
 		}
+		if (u)
+		   *u = ';';
 	    }
 	    skip_quoted_line(s, ch);
 	    continue;
@@ -1855,7 +1860,7 @@ static void handle_result(
 		skip_quoted_line(s, ch);
 		continue;
 	    }
-	    t = index(t,'\n');
+	    t = strchr(t,'\n');
 	    if (t) /* truncate after the first line */
 		 *t = '\0';
 	    errbuf = vstralloc(hostp->hostname,

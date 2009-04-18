@@ -667,15 +667,17 @@ main(
 	    /*NOTREACHED*/
 	}
 
+	result = 0;
 	while ((line = agets(dumperr)) != NULL) {
 	    if (strlen(line) > 0) {
 		fdprintf(mesgfd, "sendbackup: error [%s]\n", line);
 		dbprintf("error: %s\n", line);
+		result = 1;
 	    }
 	    amfree(line);
 	}
 
-	result = check_result(mesgfd);
+	result |= check_result(mesgfd);
 	if (result == 0) {
 	    char *amandates_file;
 

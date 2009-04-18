@@ -408,6 +408,7 @@ am_string_to_feature(
     am_feature_t		*f = NULL;
     size_t			i;
     int				ch1, ch2;
+    char *			orig = s;
 
     if (s != NULL && strcmp(s,"UNKNOWNFEATURE") != 0) {
 	f = am_allocate_feature_set();
@@ -418,10 +419,10 @@ am_string_to_feature(
 		ch1 -= 'a';
 		ch1 += 10;
 	    } else if (ch1 >= 'A' && ch1 <= 'F') {
-		ch1 -= 'a';
+		ch1 -= 'A';
 		ch1 += 10;
 	    } else {
-		break;
+		goto bad;
 	    }
 	    ch2 = *s++;
 	    if (isdigit(ch2)) {
@@ -430,16 +431,23 @@ am_string_to_feature(
 		ch2 -= 'a';
 		ch2 += 10;
 	    } else if (ch2 >= 'A' && ch2 <= 'F') {
-		ch2 -= 'a';
+		ch2 -= 'A';
 		ch2 += 10;
-	    } else {
-		am_release_feature_set(f); /* bad conversion */
+	    } else if (ch2 == '\0') {
+		g_warning("odd number of digits in amfeature string; truncating");
 		break;
+	    } else {
+		goto bad;
 	    }
 	    f->bytes[i] = (unsigned char)((ch1 << 4) | ch2);
 	}
     }
     return f;
+
+bad:
+    g_warning("Bad feature string '%s'", orig);
+    am_release_feature_set(f);
+    return NULL;
 }
 
 #if defined(TEST)
