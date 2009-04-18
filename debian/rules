@@ -15,11 +15,11 @@ configure-stamp:
 	# pick up latest config files provided by autotools-dev
 	cp -f /usr/share/misc/config.sub config/config.sub
 	cp -f /usr/share/misc/config.guess config/config.guess
-	MAILER=/usr/bin/mail \
-
 	# do we need --{htmldir,dvidir,pdfdir,psdir} to force subdirectories?
 	# should we re-craft this to use --without-server and --without-client,
 	#	and lose the amanda-common package?
+	MAILER=/usr/bin/mail \
+	SSH=/usr/bin/ssh \
 	./configure \
 		--prefix=/usr \
 		--bindir=/usr/sbin \

@@ -1,14 +1,9 @@
 amanda (1:2.6.1-1) UNRELEASED; urgency=low
 
   * New Upstream Version
+  * tweak configure to ensure ssh support is enabled, closes: #524618
 
- -- Bdale Garbee <bdale@gag.com>  Sun, 15 Feb 2009 12:41:34 -0700
-
-amanda (1:2.6.0p2-1) unstable; urgency=low
-
-  * new upstream version
-
- -- Bdale Garbee <bdale@gag.com>  Wed, 22 Oct 2008 18:13:38 +0200
+ -- Bdale Garbee <bdale@gag.com>  Sat, 18 Apr 2009 12:03:17 -0600
 
 amanda (1:2.5.2p1-4) unstable; urgency=high
 
