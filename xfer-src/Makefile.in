@@ -315,6 +315,9 @@ am_libamxfer_la_OBJECTS = dest-device.lo dest-fd.lo dest-null.lo \
 	source-random.lo source-fd.lo source-pattern.lo \
 	xfer-element.lo xfer.lo xmsg.lo
 libamxfer_la_OBJECTS = $(am_libamxfer_la_OBJECTS)
+libamxfer_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(libamxfer_la_LDFLAGS) $(LDFLAGS) -o $@
 am__EXEEXT_1 = xfer-test$(EXEEXT)
 PROGRAMS = $(noinst_PROGRAMS)
 am_xfer_test_OBJECTS = xfer-test.$(OBJEXT)
@@ -865,6 +868,7 @@ libamxfer_la_SOURCES = \
 	xfer.c \
 	xmsg.c
 
+libamxfer_la_LDFLAGS = -release $(VERSION)
 libamxfer_la_LIBADD = \
 	../device-src/libamdevice.la \
 	../common-src/libamanda.la
@@ -943,7 +947,7 @@ clean-amlibLTLIBRARIES:
 	  rm -f "$${dir}/so_locations"; \
 	done
 libamxfer.la: $(libamxfer_la_OBJECTS) $(libamxfer_la_DEPENDENCIES) 
-	$(LINK) -rpath $(amlibdir) $(libamxfer_la_OBJECTS) $(libamxfer_la_LIBADD) $(LIBS)
+	$(libamxfer_la_LINK) -rpath $(amlibdir) $(libamxfer_la_OBJECTS) $(libamxfer_la_LIBADD) $(LIBS)
 
 clean-noinstPROGRAMS:
 	@list='$(noinst_PROGRAMS)'; for p in $$list; do \

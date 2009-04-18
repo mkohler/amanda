@@ -1,161 +1,13 @@
+'\" t
 .\"     Title: amanda-changers
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 01/22/2009
+.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
+.\"      Date: 04/10/2009
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 2.6.1
+.\"    Source: Amanda 2.6.1p1
 .\"  Language: English
 .\"
-.TH "AMANDA\-CHANGERS" "7" "01/22/2009" "Amanda 2\&.6\&.1" "Miscellanea"
-.\" -----------------------------------------------------------------
-.\" * (re)Define some macros
-.\" -----------------------------------------------------------------
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" toupper - uppercase a string (locale-aware)
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de toupper
-.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
-\\$*
-.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH-xref - format a cross-reference to an SH section
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de SH-xref
-.ie n \{\
-.\}
-.toupper \\$*
-.el \{\
-\\$*
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH - level-one heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SH
-.\" put an extra blank line of space above the head in non-TTY output
-.if t \{\
-.sp 1
-.\}
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[an-margin]u
-.ti 0
-.HTML-TAG ".NH \\n[an-level]"
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-\." make the size of the head bigger
-.ps +3
-.ft B
-.ne (2v + 1u)
-.ie n \{\
-.\" if n (TTY output), use uppercase
-.toupper \\$*
-.\}
-.el \{\
-.nr an-break-flag 0
-.\" if not n (not TTY), use normal case (not uppercase)
-\\$1
-.in \\n[an-margin]u
-.ti 0
-.\" if not n (not TTY), put a border/line under subheading
-.sp -.6
-\l'\n(.lu'
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SS - level-two heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SS
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[IN]u
-.ti \\n[SN]u
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.ps \\n[PS-SS]u
-\." make the size of the head bigger
-.ps +2
-.ft B
-.ne (2v + 1u)
-.if \\n[.$] \&\\$*
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BB/BE - put background/screen (filled box) around block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BB
-.if t \{\
-.sp -.5
-.br
-.in +2n
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EB
-.if t \{\
-.if "\\$2"adjust-for-leading-newline" \{\
-.sp -1
-.\}
-.br
-.di
-.in
-.ll
-.gcolor
-.nr BW \\n(.lu-\\n(.i
-.nr BH \\n(dn+.5v
-.ne \\n(BHu+.5v
-.ie "\\$2"adjust-for-leading-newline" \{\
-\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.el \{\
-\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.in 0
-.sp -.5v
-.nf
-.BX
-.in
-.sp .5v
-.fi
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BM/EM - put colored marker in margin next to block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BM
-.if t \{\
-.br
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EM
-.if t \{\
-.br
-.di
-.ll
-.gcolor
-.nr BH \\n(dn
-.ne \\n(BHu
-\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
-.in 0
-.nf
-.BX
-.in
-.fi
-.\}
-..
+.TH "AMANDA\-CHANGERS" "7" "04/10/2009" "Amanda 2\&.6\&.1p1" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -166,7 +18,7 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.SH "Name"
+.SH "NAME"
 amanda-changers \- Configuring and Using Amanda Changers
 .SH "DESCRIPTION"
 .PP
@@ -180,17 +32,17 @@ The Amanda Changer API is in transition from version 1\&.0 \- driven by shell sc
 .SH "SPECIFYING CHANGERS"
 .PP
 Changer specifications are strings like
-\FCchg\-disk:/my/vtapes\F[]\&. The
-\FCchg\-\F[]
+chg\-disk:/my/vtapes\&. The
+chg\-
 prefix serves to differentiate changers from devices (see
-\fBamanda-devices\fR(7))\&. The next portion (\FCdisk\F[], in this case) identifies the particular changer driver to use, and everything that follows the
-\FC:\F[]
+\fBamanda-devices\fR(7))\&. The next portion (disk, in this case) identifies the particular changer driver to use, and everything that follows the
+:
 is interpreted by the driver\&.
 .PP
 A name which does not match this pattern, but which matches an old changer script (e\&.g\&.,
-\FCchg\-zd\-mtx\F[]), invokes the backward\-compatibility changer driver as
-\FCchg\-compat:chg\-zd\-mtx\F[]\&. If the name does not match an old changer, then it is treated as an Amanda device, and is wrapped by the single\-device changer, e\&.g\&.,
-\FCchg\-single:tape:/dev/rmt/0\F[]\&.
+chg\-zd\-mtx), invokes the backward\-compatibility changer driver as
+chg\-compat:chg\-zd\-mtx\&. If the name does not match an old changer, then it is treated as an Amanda device, and is wrapped by the single\-device changer, e\&.g\&.,
+chg\-single:tape:/dev/rmt/0\&.
 .PP
 Changers which require additional parameters can also be described in
 \fBamanda.conf\fR(5)
@@ -217,9 +69,9 @@ tpchanger "chg\-disk:/u01/vtapes"
 .PP
 This changer driver replaces the old
 \fBchg\-disk\fR, supporting parallel access to vtapes stored in directories named
-\FCslotN\F[]
+slotN
 in the directory specified after
-\FCchg\-disk:\F[]\&. It does so by creating numbered "drives" so that simultaneous processes can access distinct slots\&.
+chg\-disk:\&. It does so by creating numbered "drives" so that simultaneous processes can access distinct slots\&.
 .SS "chg\-disk (old)"
 .nf
 tapedev "file:/u01/vtapes"
@@ -227,7 +79,7 @@ tpchanger "chg\-disk"
 .fi
 .PP
 This changer script supports sequential access to vtapes stored in directories named
-\FCslotN\F[]
+slotN
 in the directory specified by the
 \fItapedev\fR
 parameter\&.
@@ -298,11 +150,11 @@ changerfile "chg\-rait\&.conf"
 .fi
 .PP
 This changer script constructs RAIT devices out of the devices provided by several "sub\-changers"\&. The configuration file specifies
-\FCnchangers\F[], the number of subchangers, and then provides
-\FCtpchanger\F[],
-\FCchangerdev_N\F[],
-\FCchangerfile_N\F[], and
-\FCtpchanger_N\F[]
+nchangers, the number of subchangers, and then provides
+tpchanger,
+changerdev_N,
+changerfile_N, and
+tpchanger_N
 for each sub\-changer, 1 through N\&.
 .SS "chg\-null"
 .nf
@@ -314,7 +166,7 @@ This changer always provides the device "null:"\&. It is sometimes useful in con
 .SS "Unmaintained Changers"
 .PP
 Amanda has many other changer scripts and programs beyond those described here (see the
-\FCchanger\-src/\F[]
+changer\-src/
 in the source directory), but most of these scripts are unmaintained and undocumented, and will be removed when the new changer API is fully implemented\&.
 .SH "SEE ALSO"
 .PP
@@ -322,9 +174,9 @@ in the source directory), but most of these scripts are unmaintained and undocum
 \fBamanda\fR(8),
 \fBamanda.conf\fR(5),
 \fBamanda-devices\fR(7),
-.SH "Author"
+.SH "AUTHOR"
 .PP
 \fBDustin J\&. Mitchell\fR <\&dustin@zmanda\&.com\&>
 .RS 4
-Zmanda, Inc\&. (\FChttp://www\&.zmanda\&.com\F[])
+Zmanda, Inc\&. (http://www\&.zmanda\&.com)
 .RE

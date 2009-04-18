@@ -1,161 +1,13 @@
+'\" t
 .\"     Title: amanda
 .\"    Author: James da Silva <jds@amanda.org>
-.\" Generator: DocBook XSL Stylesheets v1.74.0 <http://docbook.sf.net/>
-.\"      Date: 01/22/2009
+.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
+.\"      Date: 04/10/2009
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1
+.\"    Source: Amanda 2.6.1p1
 .\"  Language: English
 .\"
-.TH "AMANDA" "8" "01/22/2009" "Amanda 2\&.6\&.1" "System Administration Commands"
-.\" -----------------------------------------------------------------
-.\" * (re)Define some macros
-.\" -----------------------------------------------------------------
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" toupper - uppercase a string (locale-aware)
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de toupper
-.tr aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ
-\\$*
-.tr aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH-xref - format a cross-reference to an SH section
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de SH-xref
-.ie n \{\
-.\}
-.toupper \\$*
-.el \{\
-\\$*
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SH - level-one heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SH
-.\" put an extra blank line of space above the head in non-TTY output
-.if t \{\
-.sp 1
-.\}
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[an-margin]u
-.ti 0
-.HTML-TAG ".NH \\n[an-level]"
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-\." make the size of the head bigger
-.ps +3
-.ft B
-.ne (2v + 1u)
-.ie n \{\
-.\" if n (TTY output), use uppercase
-.toupper \\$*
-.\}
-.el \{\
-.nr an-break-flag 0
-.\" if not n (not TTY), use normal case (not uppercase)
-\\$1
-.in \\n[an-margin]u
-.ti 0
-.\" if not n (not TTY), put a border/line under subheading
-.sp -.6
-\l'\n(.lu'
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" SS - level-two heading that works better for non-TTY output
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de1 SS
-.sp \\n[PD]u
-.nr an-level 1
-.set-an-margin
-.nr an-prevailing-indent \\n[IN]
-.fi
-.in \\n[IN]u
-.ti \\n[SN]u
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.ps \\n[PS-SS]u
-\." make the size of the head bigger
-.ps +2
-.ft B
-.ne (2v + 1u)
-.if \\n[.$] \&\\$*
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BB/BE - put background/screen (filled box) around block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BB
-.if t \{\
-.sp -.5
-.br
-.in +2n
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EB
-.if t \{\
-.if "\\$2"adjust-for-leading-newline" \{\
-.sp -1
-.\}
-.br
-.di
-.in
-.ll
-.gcolor
-.nr BW \\n(.lu-\\n(.i
-.nr BH \\n(dn+.5v
-.ne \\n(BHu+.5v
-.ie "\\$2"adjust-for-leading-newline" \{\
-\M[\\$1]\h'1n'\v'+.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.el \{\
-\M[\\$1]\h'1n'\v'-.5v'\D'P \\n(BWu 0 0 \\n(BHu -\\n(BWu 0 0 -\\n(BHu'\M[]
-.\}
-.in 0
-.sp -.5v
-.nf
-.BX
-.in
-.sp .5v
-.fi
-.\}
-..
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" BM/EM - put colored marker in margin next to block of text
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.de BM
-.if t \{\
-.br
-.ll -2n
-.gcolor red
-.di BX
-.\}
-..
-.de EM
-.if t \{\
-.br
-.di
-.ll
-.gcolor
-.nr BH \\n(dn
-.ne \\n(BHu
-\M[\\$1]\D'P -.75n 0 0 \\n(BHu -(\\n[.i]u - \\n(INu - .75n) 0 0 -\\n(BHu'\M[]
-.in 0
-.nf
-.BX
-.in
-.fi
-.\}
-..
+.TH "AMANDA" "8" "04/10/2009" "Amanda 2\&.6\&.1p1" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -166,7 +18,7 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.SH "Name"
+.SH "NAME"
 amanda \- The Open Source Backup Platform
 .SH "DESCRIPTION"
 .PP
@@ -741,14 +593,14 @@ Last is the seldom\-edited
 file, which lists tapes that are currently active\&. These files are described in more detail in the following sections\&.
 .PP
 All files are stored in individual configuration directories, usually under
-\FC/etc/amanda/\F[]\&. A site will often have more than one configuration\&. For example, it might have a
+/etc/amanda/\&. A site will often have more than one configuration\&. For example, it might have a
 \fInormal\fR
 configuration for everyday backups and an
 \fIarchive\fR
 configuration for infrequent full archival backups\&. The configuration files would be stored under directories
-\FC/etc/amanda/normal/\F[]
+/etc/amanda/normal/
 and
-\FC/etc/amanda/archive/\F[], respectively\&. Part of the job of an
+/etc/amanda/archive/, respectively\&. Part of the job of an
 \fIAmanda\fR
 administrator is to create, populate and maintain these directories\&.
 .SH "LOG FILES"
@@ -757,10 +609,10 @@ All log and database files generated by
 \fIAmanda\fR
 go in corresponding directories somewhere\&. The exact location is controlled by entries in
 \fBamanda.conf\fR(5)\&. A typical location would be under
-\FC/var/adm/amanda\F[]\&. For the above example, the files might go in
-\FC/var/adm/amanda/normal/\F[]
+/var/adm/amanda\&. For the above example, the files might go in
+/var/adm/amanda/normal/
 and
-\FC/var/adm/amanda/archive/\F[]\&.
+/var/adm/amanda/archive/\&.
 .PP
 As log files are no longer needed (no longer contain relevant information),
 \fIAmanda\fR
@@ -802,12 +654,12 @@ administrator to remove them from this directory when desired\&.
 Index (backup image catalogue) files older than the full dump matching the oldest backup image for a given client and disk are removed by
 \fBamdump\fR
 at the end of each run\&.
-.SH "Using Samba"
+.SH "USING SAMBA"
 .PP
 For Samba access,
 \fIAmanda\fR
 needs a file on the Samba server (which may or may not also be the tape server) named
-\FC/etc/amandapass\F[]
+/etc/amandapass
 with share names, (clear text) passwords and (optional) domain names, in that order, one per line, whitespace separated\&. By default, the user used to connect to the PC is the same for all PC\'s and is compiled into
 \fIAmanda\fR\&. It may be changed on a host by host basis by listing it first in the password field followed by a percent sign and then the password\&. For instance:
 .nf
@@ -863,99 +715,99 @@ Some examples:
 hosta
 .RS 4
 Will match
-\FChosta\F[],
-\FCfoo\&.hosta\&.org\F[], and
-\FChoSTA\&.dOMAIna\&.ORG\F[]
+hosta,
+foo\&.hosta\&.org, and
+hoSTA\&.dOMAIna\&.ORG
 but not
-\FChostb\F[]\&.
+hostb\&.
 .RE
 .PP
 host
 .RS 4
 Will match
-\FChost\F[]
+host
 but not
-\FChosta\F[]\&.
+hosta\&.
 .RE
 .PP
 host?
 .RS 4
 Will match
-\FChosta\F[]
+hosta
 and
-\FChostb\F[], but not
-\FChost\F[]\&.
+hostb, but not
+host\&.
 .RE
 .PP
 ho*na
 .RS 4
 Will match
-\FChoina\F[]
+hoina
 but not
-\FCho\&.aina\&.org\F[]\&.
+ho\&.aina\&.org\&.
 .RE
 .PP
 ho**na
 .RS 4
 Will match
-\FChoina\F[]
+hoina
 and
-\FCho\&.aina\&.org\F[]\&.
+ho\&.aina\&.org\&.
 .RE
 .PP
 ^hosta
 .RS 4
 Will match
-\FChosta\F[]
+hosta
 but not
-\FCfoo\&.hosta\&.org\F[]\&.
+foo\&.hosta\&.org\&.
 .RE
 .PP
 sda*
 .RS 4
 Will match
-\FC/dev/sda1\F[]
+/dev/sda1
 and
-\FC/dev/sda12\F[]\&.
+/dev/sda12\&.
 .RE
 .PP
 /opt
 .RS 4
 Will match the disk
-\FCopt\F[]
+opt
 but not the host
-\FCopt\F[]\&.
+opt\&.
 .RE
 .PP
 (note dots:) \&.opt\&.
 .RS 4
 Will match the host
-\FCopt\F[]
+opt
 but not the disk
-\FCopt\F[]\&.
+opt\&.
 .RE
 .PP
 /
 .RS 4
 Will match the disk
-\FC/\F[]
+/
 but no other disk\&.
 .RE
 .PP
 /usr
 .RS 4
 Will match the disks
-\FC/usr\F[]
+/usr
 and
-\FC/usr/local\F[]\&.
+/usr/local\&.
 .RE
 .PP
 /usr$
 .RS 4
 Will match the disks
-\FC/usr\F[]
+/usr
 but not
-\FC/usr/local\F[]\&.
+/usr/local\&.
 .RE
 .SH "DATESTAMP EXPRESSION"
 .PP
@@ -1071,7 +923,7 @@ Note that configuration overrides are not effective for tape changers, which sup
 .nf
 amdump \-otapedev=/dev/nst1 \-otpchanger=\'\'
 .fi
-.SH "Authors"
+.SH "AUTHORS"
 .PP
 \fBJames da Silva\fR <\&jds@amanda\&.org\&>
 .PP

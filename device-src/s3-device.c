@@ -860,7 +860,7 @@ s3_device_open_device(Device *pself, char *device_name,
 
     /* Device name may be bucket/prefix, to support multiple volumes in a
      * single bucket. */
-    name_colon = index(device_node, '/');
+    name_colon = strchr(device_node, '/');
     if (name_colon == NULL) {
         self->bucket = g_strdup(device_node);
         self->prefix = g_strdup("");
@@ -916,12 +916,27 @@ static void s3_device_finalize(GObject * obj_self) {
 static gboolean setup_handle(S3Device * self) {
     Device *d_self = DEVICE(self);
     if (self->s3 == NULL) {
-        if (self->access_key == NULL)
+
+        if (self->access_key == NULL || self->access_key[0] == '\0') {
+	    device_set_error(d_self,
+		stralloc(_("No Amazon access key specified")),
+		DEVICE_STATUS_DEVICE_ERROR);
             return FALSE;
-	if (self->secret_key == NULL)
+	}
+
+	if (self->secret_key == NULL || self->secret_key[0] == '\0') {
+	    device_set_error(d_self,
+		stralloc(_("No Amazon secret key specified")),
+		DEVICE_STATUS_DEVICE_ERROR);
             return FALSE;
-	if (self->is_devpay && self->user_token == NULL)
+	}
+
+	if (self->is_devpay && self->user_token == NULL) {
+	    device_set_error(d_self,
+		stralloc(_("No Amazon user token specified")),
+		DEVICE_STATUS_DEVICE_ERROR);
             return FALSE;
+	}
 
         self->s3 = s3_open(self->access_key, self->secret_key, self->user_token,
             self->bucket_location);
@@ -963,7 +978,7 @@ s3_device_read_label(Device *pself) {
     if (device_in_error(self)) return pself->status;
 
     if (!setup_handle(self)) {
-	device_set_error(pself, stralloc(_("Error setting up S3 interface")), DEVICE_STATUS_DEVICE_ERROR);
+        /* setup_handle already set our error message */
 	return pself->status;
     }
 
@@ -1024,9 +1039,7 @@ s3_device_start (Device * pself, DeviceAccessMode mode,
     if (device_in_error(self)) return FALSE;
 
     if (!setup_handle(self)) {
-	device_set_error(pself,
-	    stralloc(_("Error setting up S3 interface")),
-	    DEVICE_STATUS_DEVICE_ERROR);
+        /* setup_handle already set our error message */
 	return FALSE;
     }
 

@@ -241,7 +241,7 @@ uncompress_file(
 	/* clean the data with clean_backslash */
 	while (fgets(line, STR_SIZE, pipe_stream) != NULL) {
 	    if (line[0] != '\0') {
-		if (index(line,'/')) {
+		if (strchr(line,'/')) {
 		    clean_backslash(line);
 		    full_write(pipe_to_sort,line,strlen(line));
 		}
@@ -1552,6 +1552,10 @@ main(
 	    our_feature_string = am_feature_to_string(our_features);
 	    their_feature_string = newstralloc(their_feature_string, arg);
 	    their_features = am_string_to_feature(their_feature_string);
+	    if (!their_features) {
+		g_warning("Invalid client feature set '%s'", their_feature_string);
+		their_features = am_set_default_feature_set();
+	    }
 	    reply(200, "FEATURES %s", our_feature_string);
 	    amfree(our_feature_string);
 	    amfree(their_feature_string);

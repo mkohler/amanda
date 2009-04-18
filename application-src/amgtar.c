@@ -483,7 +483,7 @@ main(
     if (exit_handling) {
 	char *s = exit_handling;
 	while (s) {
-	    char *r = index(s, '=');
+	    char *r = strchr(s, '=');
 	    if (r) {
 		int j = atoi(s);
 		if (j >= 0 && j < 256) {
@@ -491,9 +491,9 @@ main(
 		    if (strncasecmp(r, "GOOD", 4) == 0) {
 			exit_value[j] = 0;
 		    }
-		    s = index(s, ' ');
 		}
 	    }
+	    s = strchr(s+1, ' ');
 	}
     }
 
@@ -909,7 +909,7 @@ amgtar_backup(
 	g_fprintf(mesgstream, "sendbackup: error [%s]\n", errmsg);
     }
 
-    if (incrname && strlen(incrname) > 4) {
+    if (!errmsg && incrname && strlen(incrname) > 4) {
 	char *nodotnew;
 	nodotnew = stralloc(incrname);
 	nodotnew[strlen(nodotnew)-4] = '\0';
