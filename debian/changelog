@@ -4,6 +4,8 @@ amanda (1:2.6.1p1-1) UNRELEASED; urgency=low
   * tweak configure to ensure ssh support is enabled, closes: #524618
   * update debian/control to include my git packaging repo location
 
+	TODO:  update postinst inetd clauses to use stream tcp by default
+
  -- Bdale Garbee <bdale@gag.com>  Sat, 18 Apr 2009 12:16:08 -0600
 
 amanda (1:2.5.2p1-4) unstable; urgency=high
