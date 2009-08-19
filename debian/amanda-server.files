@@ -8,12 +8,12 @@ usr/lib/amanda/amtrmlog
 usr/lib/amanda/chg-*
 usr/lib/amanda/driver
 usr/lib/amanda/dumper
-usr/lib/amanda/amidxtaped
 usr/lib/amanda/planner
 usr/lib/amanda/taper
 usr/sbin/amadmin
 usr/sbin/amcheck
 usr/sbin/amcheckdb
+usr/sbin/amcheckdump
 usr/sbin/amcleanup
 usr/sbin/amdump
 usr/sbin/amflush
@@ -31,6 +31,7 @@ usr/share/man/man8/amadmin.8.gz
 usr/share/man/man8/amanda.8.gz
 usr/share/man/man8/amcheck.8.gz
 usr/share/man/man8/amcheckdb.8.gz
+usr/share/man/man8/amcheckdump.8.gz
 usr/share/man/man8/amcleanup.8.gz
 usr/share/man/man8/amdump.8.gz
 usr/share/man/man8/amflush.8.gz

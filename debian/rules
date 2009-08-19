@@ -24,6 +24,7 @@ configure-stamp:
 		--prefix=/usr \
 		--bindir=/usr/sbin \
 		--libexecdir=/usr/lib/amanda \
+		--without-amlibexecdir \
 		--sysconfdir=/etc \
 		--sharedstatedir=/var/lib \
 		--localstatedir=/var/lib \
@@ -32,14 +33,15 @@ configure-stamp:
 		--with-tcpportrange=50000,50100 \
 		--with-udpportrange=840,860 \
 		--with-debugging=/var/log/amanda \
+		--with-gnutar-listdir=/var/lib/amanda/gnutar-lists \
 		--with-index-server=localhost \
-
 		--with-bsd-security \
-		--with-amandahosts \
 		--with-smbclient=/usr/bin/smbclient \
+		--with-amandahosts \
 		--with-ssh-security \
 		--with-bsdtcp-security \
 		--with-bsdudp-security
+
 	touch missing
 	touch configure-stamp
 
