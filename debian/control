@@ -9,7 +9,7 @@ Standards-Version: 3.8.3
 
 Package: amanda-common
 Architecture: any
-Depends: ${shlibs:Depends}, update-inetd, tar (>=1.12), perl5, mailx, debconf | debconf-2.0, adduser, openbsd-inetd | inet-superserver
+Depends: ${misc:Depends}, ${shlibs:Depends}, update-inetd, tar (>=1.12), perl5, mailx, debconf | debconf-2.0, adduser, openbsd-inetd | inet-superserver
 Suggests: amanda-server (= ${binary:Version}) | amanda-client (= ${binary:Version})
 Conflicts: amanda
 Replaces: amanda, amanda-client
@@ -19,7 +19,7 @@ Description: Advanced Maryland Automatic Network Disk Archiver (Libs)
 
 Package: amanda-server
 Architecture: any
-Depends: ${shlibs:Depends}, amanda-common (= ${binary:Version}), mailx
+Depends: ${misc:Depends}, ${shlibs:Depends}, amanda-common (= ${binary:Version}), mailx
 Suggests: perl5, gnuplot, amanda-client (= ${binary:Version}), cpio | mt-st
 Conflicts: amanda, amanda-common (<< 1:2.5.2p1-3)
 Replaces: amanda-common (<< 1:2.5.2p1-3)
@@ -67,7 +67,7 @@ Description: Advanced Maryland Automatic Network Disk Archiver (Server)
 
 Package: amanda-client
 Architecture: any
-Depends: ${shlibs:Depends}, amanda-common (= ${binary:Version})
+Depends: ${misc:Depends}, ${shlibs:Depends}, amanda-common (= ${binary:Version})
 Suggests: gnuplot, dump, smbclient
 Conflicts: amanda, amanda-common (<< 1:2.5.2p1-3)
 Replaces: amanda-common (<< 1:2.5.2p1-3)

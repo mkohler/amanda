@@ -25,6 +25,7 @@ configure-stamp:
 		--bindir=/usr/sbin \
 		--libexecdir=/usr/lib/amanda \
 		--without-amlibexecdir \
+		--with-amperldir=/usr/share/perl
 		--sysconfdir=/etc \
 		--sharedstatedir=/var/lib \
 		--localstatedir=/var/lib \

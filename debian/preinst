@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -e
 
 # if a .amandahosts exists and is not a symlink, move it to /etc
 if [ ! -L ~backup/.amandahosts ]

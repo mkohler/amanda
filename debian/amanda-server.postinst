@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -e
 
 update-inetd --group "OTHER" --add "amandaidx stream tcp nowait backup /usr/sbin/tcpd /usr/lib/amanda/amindexd amindexd -auth=bsd amdump amindexd amidxtaped"
 update-inetd --group "OTHER" --add "amidxtape stream tcp nowait backup /usr/sbin/tcpd /usr/lib/amanda/amidxtaped amidxtaped -auth=bsd amdump amindexd amidxtaped"

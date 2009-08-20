@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -e
 
 update-inetd --group "OTHER" --add "amanda dgram udp wait backup /usr/sbin/tcpd /usr/lib/amanda/amandad -auth=bsd amdump amindexd amidxtaped"
 
