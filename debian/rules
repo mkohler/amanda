@@ -25,7 +25,7 @@ configure-stamp:
 		--bindir=/usr/sbin \
 		--libexecdir=/usr/lib/amanda \
 		--without-amlibexecdir \
-		--with-amperldir=/usr/share/perl \
+		--without-amperldir \
 		--sysconfdir=/etc \
 		--sharedstatedir=/var/lib \
 		--localstatedir=/var/lib \
@@ -123,7 +123,7 @@ binary-arch: build
 		$(r)/usr/share/lintian/overrides/amanda-common
 	install -o root -g root -m 0644 debian/amanda-server.lintian \
 		$(s)/usr/share/lintian/overrides/amanda-server
-	dh_makeshlibs -a
+	dh_makeshlibs -pamanda-common
 	dh_installdeb -a
 	dh_shlibdeps -a -l"debian/amanda-common/usr/lib:debian/amanda-client/usr/lib:debian/amanda-server/usr/lib"
 	# strip out the non-versioned amanda-common references, we need
