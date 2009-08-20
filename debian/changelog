@@ -7,6 +7,13 @@ amanda (1:2.6.1p1-1) UNRELEASED; urgency=low
 
  -- Bdale Garbee <bdale@gag.com>  Thu, 20 Aug 2009 00:08:24 -0600
 
+amanda (1:2.5.2p1-5) unstable; urgency=low
+
+  * add --without-ipv6 as a short-term fix for amdump connectivity problems,
+    closes: #482754, #501281, #470202
+
+ -- Bdale Garbee <bdale@gag.com>  Thu, 26 Mar 2009 22:52:51 -0600
+
 amanda (1:2.5.2p1-4) unstable; urgency=high
 
   * high priority bug fixes intended for lenny release

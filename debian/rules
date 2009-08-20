@@ -40,7 +40,8 @@ configure-stamp:
 		--with-amandahosts \
 		--with-ssh-security \
 		--with-bsdtcp-security \
-		--with-bsdudp-security
+		--with-bsdudp-security \
+		--without-ipv6
 
 	touch missing
 	touch configure-stamp
