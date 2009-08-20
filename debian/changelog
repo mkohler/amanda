@@ -3,6 +3,7 @@ amanda (1:2.6.1p1-1) UNRELEASED; urgency=low
   * New Upstream Version
   * tweak configure to ensure ssh support is enabled, closes: #524618
   * update debian/control to include my git packaging repo location
+  * resolve possible bashisms, closes: #530041
   * TODO:  update postinst inetd clauses to use stream tcp by default
 
  -- Bdale Garbee <bdale@gag.com>  Thu, 20 Aug 2009 00:08:24 -0600

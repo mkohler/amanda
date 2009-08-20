@@ -271,7 +271,9 @@ current=`cat $currentslot`
 
 
 # Start logging to $logfile
-echo "\n\n==== `date` ====" >> $logfile
+echo >> $logfile
+echo >> $logfile
+echo "==== `date` ====" >> $logfile
 echo `_ 'Command Line ->'` $myname $@ >> $logfile
 
 
