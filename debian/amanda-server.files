@@ -1,5 +1,6 @@
 usr/lib/amanda/amcat.awk
 usr/lib/amanda/amcleanupdisk
+usr/lib/amanda/amidxtaped
 usr/lib/amanda/amindexd
 usr/lib/amanda/amlogroll
 usr/lib/amanda/amplot.*
