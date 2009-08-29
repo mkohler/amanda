@@ -75,7 +75,7 @@
 <!ENTITY tapelist '<citerefentry><refentrytitle>tapelist</refentrytitle><manvolnum>5</manvolnum></citerefentry>'>
 
 <!-- IDs for files used by AMANDA-->
-<!ENTITY dumpdates '<filename>/etc/dumpdates</filename>'>
+<!ENTITY dumpdates '<filename>/var/lib/dumpdates</filename>'>
 
 <!-- IDs for AMANDA commands-->
 <!ENTITY amadmin ' <command>amadmin</command>'>

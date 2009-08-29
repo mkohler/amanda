@@ -138,7 +138,7 @@
 #			host.  This type of operation normally requires that
 #			the CLIENT_LOGIN be in some group that has read
 #			permissions on the raw disk devices, and read/write
-#			permissions on /etc/dumpdates.
+#			permissions on /var/lib/dumpdates.
 # FORCE_USERID=no
 
 

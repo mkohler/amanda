@@ -1077,8 +1077,8 @@ check_overall(void)
 	check_file(COMPRESS_PATH, X_OK);
 
     if (need_dump || need_xfsdump ) {
-	if (check_file_exist("/etc/dumpdates")) {
-	    check_file("/etc/dumpdates",
+	if (check_file_exist("/var/lib/dumpdates")) {
+	    check_file("/var/lib/dumpdates",
 #ifdef USE_RUNDUMP
 		       F_OK
 #else
@@ -1088,15 +1088,15 @@ check_overall(void)
 	} else {
 #ifndef USE_RUNDUMP
 	    if (access("/etc", R_OK|W_OK) == -1) {
-		g_printf(_("ERROR [dump will not be able to create the /etc/dumpdates file: %s]\n"), strerror(errno));
+		g_printf(_("ERROR [dump will not be able to create the /var/lib/dumpdates file: %s]\n"), strerror(errno));
 	    }
 #endif
 	}
     }
 
     if (need_vdump) {
-	if (check_file_exist("/etc/vdumpdates")) {
-            check_file("/etc/vdumpdates", F_OK);
+	if (check_file_exist("/var/lib/vdumpdates")) {
+            check_file("/var/lib/vdumpdates", F_OK);
 	}
     }
 
@@ -1107,7 +1107,7 @@ check_overall(void)
     check_space(AMANDA_DBGDIR, (off_t)64);	/* for amandad i/o */
 #endif
 
-    check_space("/etc", (off_t)64);		/* for /etc/dumpdates writing */
+    check_space("/var/lib", (off_t)64);		/* for /var/lib/dumpdates writing */
 }
 
 static void

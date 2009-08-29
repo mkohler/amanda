@@ -105,7 +105,7 @@ typedef struct disk_s {
     char	*clnt_decrypt_opt;	/* client-side decryption option parameter to use */
     double	comprate[2];		/* default compression rates */
     /* flag options */
-    int		record;			/* record dump in /etc/dumpdates ? */
+    int		record;			/* record dump in /var/lib/dumpdates ? */
     int		skip_incr;		/* incs done externally ? */
     int		skip_full;		/* fulls done externally ? */
     int		to_holdingdisk;		/* use holding disk ? */
