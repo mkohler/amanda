@@ -5,9 +5,8 @@ amanda (1:2.6.1p1-1) UNRELEASED; urgency=low
   * update debian/control to include my git packaging repo location
   * resolve possible bashisms, closes: #530041
   * freshen to latest policy version, etc
-  * TODO:  update postinst inetd clauses to use stream tcp by default
 
- -- Bdale Garbee <bdale@gag.com>  Thu, 20 Aug 2009 00:08:24 -0600
+ -- Bdale Garbee <bdale@gag.com>  Sat, 29 Aug 2009 00:55:57 -0600
 
 amanda (1:2.5.2p1-5) unstable; urgency=low
 

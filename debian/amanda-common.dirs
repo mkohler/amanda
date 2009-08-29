@@ -1,4 +1,3 @@
 etc/xinetd.d
 usr/lib
 usr/share/doc/amanda-common/examples
-usr/share/lintian/overrides
