@@ -1,12 +1,11 @@
-amanda (1:2.6.1p1-1) UNRELEASED; urgency=low
+amanda (1:2.6.1p1-1) unstable; urgency=low
 
   * new upstream version, closes: #527090, #527489, #486405, #488713
   * tweak configure to ensure ssh support is enabled, closes: #524618, #492352
   * update debian/control to include my git packaging repo location
   * resolve possible bashisms, closes: #530041
-  * freshen to latest policy version, etc
 
- -- Bdale Garbee <bdale@gag.com>  Sat, 29 Aug 2009 00:55:57 -0600
+ -- Bdale Garbee <bdale@gag.com>  Tue, 08 Sep 2009 11:40:42 -0600
 
 amanda (1:2.5.2p1-5) unstable; urgency=low
 
