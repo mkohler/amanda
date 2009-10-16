@@ -1,3 +1,9 @@
+amanda (1:2.6.1p1-2) UNRELEASED; urgency=low
+
+  * calcsize needs to be setuid, closes: #551156
+
+ -- Bdale Garbee <bdale@gag.com>  Fri, 16 Oct 2009 01:41:44 -0600
+
 amanda (1:2.6.1p1-1) unstable; urgency=low
 
   * new upstream version, closes: #527090, #527489, #486405, #488713
