@@ -124,3 +124,26 @@ info on this issue see:
 
 	http://forums.zmanda.com/archive/index.php/t-591.html
 
+- - - - -
+
+If you see things like this in dmesg:
+
+    INFO: task ammt:9839 blocked for more than 120 seconds.
+    "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+
+This information from Marc Schaefer may relevant:
+
+> AFAIK it's because mtio operations are done in D state (uninterruptible
+> sleep).
+> 
+> And except for mtio operations which may last more than two minutes,
+> nothing in the usual kernel operation will last that long.
+> 
+> Solutions:
+>	- either fix mtio to be interruptible (which may well cause problems
+>	  because e.g. SCSI reselection might happen later)
+>	- use the proposed work-around
+>	- ignore those messages in your logcheck.
+
+
+

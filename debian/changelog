@@ -1,8 +1,13 @@
-amanda (1:2.6.1p1-2) UNRELEASED; urgency=low
+amanda (1:2.6.1p1-2) unstable; urgency=low
 
   * calcsize needs to be setuid, closes: #551156
+  * patch from upstream to fix init of xml_app.result in diskfile.c, 
+    closes: #550098
+  * add note to server package README.Debian regarding mtio operations that
+    take too long putting noise in dmesg, closes: #506397
+  * merge Finnish translation of the debconf templates, closes: #535214
 
- -- Bdale Garbee <bdale@gag.com>  Fri, 16 Oct 2009 01:41:44 -0600
+ -- Bdale Garbee <bdale@gag.com>  Fri, 16 Oct 2009 02:10:52 -0600
 
 amanda (1:2.6.1p1-1) unstable; urgency=low
 
