@@ -101,6 +101,9 @@
 /* This is the default Amanda configuration. */
 #undef DEFAULT_CONFIG
 
+/* Define if a FSF is needed on filemark. */
+#undef DEFAULT_FSF_AFTER_FILEMARK
+
 /* A program that understands -s "subject" user < message_file */
 #undef DEFAULT_MAILER
 
@@ -109,6 +112,9 @@
 
 /* This is the default no-rewinding tape device. */
 #undef DEFAULT_TAPE_DEVICE
+
+/* Define if open of tape device require O_NONBLOCK */
+#undef DEFAULT_TAPE_NON_BLOCKING_OPEN
 
 /* This is the default restoring Amanda tape server. */
 #undef DEFAULT_TAPE_SERVER

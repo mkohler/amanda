@@ -2,12 +2,12 @@
 .\"     Title: amtapetype
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 04/10/2009
+.\"      Date: 11/05/2009
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p1
+.\"    Source: Amanda 2.6.1p2
 .\"  Language: English
 .\"
-.TH "AMTAPETYPE" "8" "04/10/2009" "Amanda 2\&.6\&.1p1" "System Administration Commands"
+.TH "AMTAPETYPE" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +22,7 @@
 amtapetype \- generate a tapetype definition by testing the device directly
 .SH "SYNOPSIS"
 .HP \w'\fBamtapetype\fR\ 'u
-\fBamtapetype\fR [\-h] [\-c] [\-f] [\-b\ \fIblocksize\fR] [\-t\ \fItypename\fR] [\-l\ \fIlabel\fR] [\-o\ \fIconfig_overwrite\fR] [\fIdevice\fR]
+\fBamtapetype\fR [\-h] [\-c] [\-f] [\-p] [\-b\ \fIblocksize\fR] [\-t\ \fItypename\fR] [\-l\ \fIlabel\fR] [\-o\ \fIconfig_overwrite\fR] [\fIdevice\fR]
 .SH "DESCRIPTION"
 .PP
 \fBamtapetype\fR
@@ -62,6 +62,11 @@ Run only the hardware compression detection heuristic test and stop\&. This take
 \fB\-f\fR
 .RS 4
 Run amtapetype even if the loaded volume is already in use or compression is enabled\&.
+.RE
+.PP
+\fB\-p\fR
+.RS 4
+Run only the device property discovery\&.
 .RE
 .PP
 \fB\-b\fR\fI blocksize\fR

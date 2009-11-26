@@ -447,7 +447,7 @@ check_options(
 #endif
 	{
 	    need_vxdump=1;
-	    if (dle->create-index)
+	    if (dle->create_index)
 		need_vxrestore=1;
 	}
 	else
@@ -841,6 +841,7 @@ check_disk(
 		    }
 		    amfree(line);
 		}
+		fclose(app_stderr);
 		if (waitpid(application_api_pid, &status, 0) < 0) {
 		    err = vstrallocf(_("waitpid failed: %s"),
 					 strerror(errno));
