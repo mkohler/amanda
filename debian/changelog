@@ -1,6 +1,7 @@
 amanda (1:2.6.1p2-1) UNRELEASED; urgency=low
 
   * new upstream version
+  * move more files out of amanda-common that really belong elsewhere
   * deliver /usr/lib/amanda/application/am[gs]tar setuid, closes: #558094
 
  -- Bdale Garbee <bdale@gag.com>  Thu, 26 Nov 2009 16:12:13 -0700

@@ -1,4 +1,5 @@
 usr/lib/amanda/amandad
+usr/lib/amanda/application/*
 usr/lib/amanda/calcsize
 usr/lib/amanda/killpgrp
 usr/lib/amanda/patch-system
@@ -8,14 +9,12 @@ usr/lib/amanda/selfcheck
 usr/lib/amanda/sendbackup
 usr/lib/amanda/sendsize
 usr/lib/amanda/versionsuffix
-usr/share/man/man8/amfetchdump.8.gz
-usr/share/man/man8/amrecover.8.gz
-usr/share/man/man8/amrestore.8.gz
 usr/sbin/amfetchdump
 usr/sbin/amoldrecover
 usr/sbin/amrecover
 usr/sbin/amrestore
 usr/share/man/man5/amanda-client.conf.5.gz
+usr/share/man/man7/amanda-applications.7
 usr/share/man/man8/amfetchdump.8.gz
 usr/share/man/man8/amrecover.8.gz
 usr/share/man/man8/amrestore.8.gz
