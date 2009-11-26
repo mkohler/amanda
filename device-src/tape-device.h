@@ -51,6 +51,7 @@ typedef struct _TapeDevice {
 
     /* characteristics of the device */
     gboolean fsf, bsf, fsr, bsr, eom, bsf_after_eom, broken_gmt_online;
+    gboolean nonblocking_open, fsf_after_filemark;
     int final_filemarks;
 
     /* 0 if we opened with O_RDWR; error otherwise. */
@@ -76,6 +77,9 @@ extern DevicePropertyBase device_property_broken_gmt_online;
 extern DevicePropertyBase device_property_fsf;
 #define PROPERTY_FSF (device_property_fsf.ID)
 
+extern DevicePropertyBase device_property_fsf_after_filemark;
+#define PROPERTY_FSF_AFTER_FILEMARK (device_property_fsf_after_filemark.ID)
+
 extern DevicePropertyBase device_property_bsf;
 #define PROPERTY_BSF (device_property_bsf.ID)
 
@@ -94,6 +98,10 @@ extern DevicePropertyBase device_property_eom;
 extern DevicePropertyBase device_property_bsf_after_eom;
 #define PROPERTY_BSF_AFTER_EOM (device_property_bsf_after_eom.ID)
 
+/* Should the device be opened with O_NONBLOCK */
+extern DevicePropertyBase device_property_nonblocking_open;
+#define PROPERTY_NONBLOCKING_OPEN (device_property_nonblocking_open.ID)
+
 /* How many filemarks to write at EOD? (Default is 2).
  * This property is a G_TYPE_UINT, but can only really be set to 1 or 2. */
 extern DevicePropertyBase device_property_final_filemarks;
@@ -102,6 +110,7 @@ extern DevicePropertyBase device_property_final_filemarks;
 /* useful callback for tape ops */
 void tape_device_set_capabilities(TapeDevice *self,
 	gboolean fsf, PropertySurety fsf_surety, PropertySource fsf_source,
+	gboolean fsf_after_filemark, PropertySurety faf_surety, PropertySource faf_source,
 	gboolean bsf, PropertySurety bsf_surety, PropertySource bsf_source,
 	gboolean fsr, PropertySurety fsr_surety, PropertySource fsr_source,
 	gboolean bsr, PropertySurety bsr_surety, PropertySource bsr_source,

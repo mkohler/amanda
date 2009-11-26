@@ -431,6 +431,10 @@ main(
     if(am_has_feature(g_options->features, fe_rep_options_hostname)) {
 	g_printf("hostname=%s;", g_options->hostname);
     }
+    if (!am_has_feature(g_options->features, fe_rep_options_features) &&
+	!am_has_feature(g_options->features, fe_rep_options_hostname)) {
+	g_printf(";");
+    }
     g_printf("\n");
     fflush(stdout);
     if (freopen("/dev/null", "w", stdout) == NULL) {
@@ -501,12 +505,11 @@ main(
 	    comppid = pipespawn(COMPRESS_PATH, STDIN_PIPE, 0,
 				&dumpout, &compout, &mesgfd,
 				COMPRESS_PATH, compopt, NULL);
-	    dbprintf(_("gnutar: pid %ld: %s"), (long)comppid, COMPRESS_PATH);
 	    if(compopt != skip_argument) {
-		dbprintf(_("pid %ld: %s %s\n"),
+		dbprintf(_("compress pid %ld: %s %s\n"),
 			 (long)comppid, COMPRESS_PATH, compopt);
 	    } else {
-		dbprintf(_("pid %ld: %s\n"), (long)comppid, COMPRESS_PATH);
+		dbprintf(_("compress pid %ld: %s\n"), (long)comppid, COMPRESS_PATH);
 	    }
 	} else if (dle->compress == COMP_CUST) {
 	    compopt = skip_argument;

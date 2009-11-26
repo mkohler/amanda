@@ -2,12 +2,12 @@
 .\"     Title: amanda-devices
 .\"    Author: Ian Turner <ian@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 04/10/2009
+.\"      Date: 11/05/2009
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 2.6.1p1
+.\"    Source: Amanda 2.6.1p2
 .\"  Language: English
 .\"
-.TH "AMANDA\-DEVICES" "7" "04/10/2009" "Amanda 2\&.6\&.1p1" "Miscellanea"
+.TH "AMANDA\-DEVICES" "7" "11/05/2009" "Amanda 2\&.6\&.1p2" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -392,10 +392,22 @@ FSF
  (read\-write) This boolean property specifies whether the device driver may use the MTFSF operation (forward seek file)\&.
 .RE
 .PP
+FSF_AFTER_FILEMARK
+.RS 4
+
+ (read\-write) This boolean property specifies whether the device driver needs a FSF to go the next file after the filemark is read\&. Default to "TRUE" on Solaris and "FALSE" on all others machines\&.
+.RE
+.PP
 FSR
 .RS 4
 
  (read\-write) This boolean property specifies whether the device driver may use the MTFSR operation (forward seek record)\&.
+.RE
+.PP
+NONBLOCKING_OPEN
+.RS 4
+
+ (read\-write) Set this boolean property to "true" if O_NONBLOCK must be used on the open call\&. Default to "true" on Linux and "false" on all others machines\&. Witout it, Linux wait for a few seconds if no tape are loaded\&. Solaris have strange error it is set to "yes"\&.
 .RE
 .PP
 READ_BUFFER_SIZE

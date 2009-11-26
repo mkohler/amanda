@@ -541,7 +541,7 @@ main(
     return 0;
  err:
     if (err_extra) {
-	g_printf(_("FORMAT ERROR IN REQUEST PACKET '%s'\n"), err_extra);
+	g_printf(_("ERROR FORMAT ERROR IN REQUEST PACKET '%s'\n"), err_extra);
 	dbprintf(_("REQ packet is bogus: %s\n"), err_extra);
 	amfree(err_extra);
     } else {
@@ -1308,10 +1308,6 @@ getsize_dump(
 #endif							/* } */
     {
 	name = stralloc(" (vdump)");
-	amfree(device);
-	amfree(qdevice);
-	device = amname_to_dirname(amdevice);
-	qdevice = quote_string(device);
 	dumpkeys = vstralloc(level_str, "b", "f", NULL);
 	dbprintf(_("running \"%s%s %s 60 - %s\"\n"),
 		  cmd, name, dumpkeys, qdevice);

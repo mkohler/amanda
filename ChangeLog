@@ -1,3 +1,143 @@
+2009-11-05  Jean-Louis Martineau <martineau@zmanda.com>
+        * client-src/sendbackup-dump.c, client-src/sendsize.c,
+          client-src/selfcheck.c:
+	  Fix compiler error if VXDUMP or VDUMP is defined.
+
+2009-11-05  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/client_util.c: close FILE instead of fd.
+	* client-src/selfcheck.c: fix fd leak with app_stderr.
+
+2009-10-29  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendsize.c: Fix error reporting.
+
+2009-10-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* packaging/deb/rules, packaging/deb/buildpkg,
+	  packaging/rpm/buildpkg,
+	  packaging/rpm/amanda.spec: Change version to 2.6.1p2.
+	* NEWS: Add news for 2.6.1p2.
+	* configure.in: Change version to 2.6.1p2.
+
+2009-10-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Application/Zfs.pm: Use diskname for the snapshot name.
+
+2009-10-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* device-src/tape-device.c: handle EROFS in open.
+
+2009-10-08  Dustin J. Mitchell <dustin@zmanda.com>
+	* device-src/tape-device.h: add missing field
+
+2009-10-07 Dan Locks <dwlocks@zmanda.com>
+	*  packaging/deb/control: add |gnuplot-nox
+
+2009-10-07  Dustin J. Mitchell <dustin@zmanda.com>
+	* man/xml-source/amanda-devices.7.xml: add NONBLOCKING_OPEN property
+	* config/amanda/tape.m4: use DEFAULT_TAPE_NON_BLOCKING_OPEN by default
+	  on Linux
+	* device-src/tape-device.c device-src/tape-device.h: conditionalize
+	  the use of a nonblocking open
+
+2009-10-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/diskfile.c: Fix initialization of xml_app.result.
+
+2009-08-31  Dustin J. Mitchell <dustin@zmanda.com>
+	* restore-src/amrestore.c: call device_configure
+
+2009-08-31 Dan Locks <dwlocks@zmanda.com>
+	* packaging/rpm/amanda.spec: add amstar and amgtar to suid section of
+	  %files for server.
+
+2009-08-13  Dustin J. Mitchell <dustin@zmanda.com>
+	* device-src/amtapetype.pl: fix bad merge of references to
+	  Amanda:Header
+
+2009-08-05 Dan Locks <dwlocks@zmanda.com>
+	* Thanks to Jim Barber for pointing out these bugs.
+	* packaging/deb/amanda-backup-client.postinst, packaging/deb/rules,
+	  packaging/deb/amanda-backup-server.postinst: replace all instances
+	  of AMHOMEDIR with AMANDAHOMEDIR, install .am_passphrase 0600.
+	* packaging/deb/control: add build-depends for libglib2.0-dev
+
+2009-07-24  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c: Fix fd allocation.
+
+2009-07-16  Jean-Louis Martineau <martineau@zmanda.com>
+	* changer-src/chg-lib.sh.in: Fix MESSAGE parsing for Solaris sed.
+
+2009-06-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/reporter.c: Use the filenum from the PART line.
+	                         Keep the filenum of the first part.
+
+2009-06-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c: Fix for configured with CLIENT_LOGIN=root
+	* man/xml-source/amanda-client.conf.5.xml: Typo.
+	* man/xml-source/amanda.conf.5.xml: Add ssh_keys.
+
+2009-05-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* restore-src/amfetchdump.c: Fix sort_needed_tapes_by_write_timestamp.
+
+2009-05-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendbackup.c: Compatibity with 2.4.2 server.
+
+2009-05-15  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: Fix crash in amflush.
+
+2009-05-15  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/debug.c: Fix memory leak.
+
+2009-05-07  Dustin J. Mitchell <dustin@zmanda.com>
+	    Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/debug.c: do not use a mutex in debug_printf
+	* common-src/pipespawn.c server-src/changer.c:
+	  do not call debug_printf after fork()
+
+2009-05-06  Dustin J. Mitchell <dustin@zmanda.com>
+	* server-src/taper.c: check for division by zero and don't print 'nan'
+	  for kbps
+	* installcheck/taper.pl: don't expect 'nan'
+
+2009-05-04  Dustin J. Mitchell <dustin@zmanda.com>
+	* server-src/taper-mem-port-source.c
+	  server-src/taper-disk-port-source.c: continue reading from the port
+	  after the cache is exhausted, instead of terminating the part abruptly
+	  (which can lead to insertion of spurious zeros into the dumpfile);
+	  also remove some unnecessary assertions (g_return_val_if_fail)
+	* server-src/taper-file-source.c: use correct unit on part size;
+	  correctly calculate estimated number of parts
+	* server-src/taper-port-source.c: replace assertion with 'if'
+
+2009-04-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/sendbackup.c: Fix dbprintf statements.
+
+2009-04-22  Sam Couter <sam@couter.id.au>
+	* changer-src/chg-glue.pl: return a helpful error message when
+	  Amanda::Changer->new() fails
+
+2009-04-21  Jean-Louis Martineau <martineau@zmanda.com>
+	* man/xml-source/amanda-devices.7.xml: Add 'FSF_AFTER_FILEMARK'
+	  property to 'tape:' driver.
+	* device-src/tape-device.c: Add code for new 'FSF_AFTER_FILEMARK'
+	  property, set is_eof to FLASE where needed.
+	* device-src/tape-device.h: Add fsf_after_filemark to _TapeDevice.
+	* device-src/tape-aix.c, device-src/tape-uware.c,
+	  device-src/tape-xenix.c, device-src/tape-posix.c: Set default value
+	  for FSF_AFTER_FILEMARK.
+	* config/amanda/defaults.m4: Find default value for 'FSF_AFTER_FILEMARK'
+	  property.
+	* xfer-src/dest-null.c: Remove bogus assert.
+	* device-src/amtapetype.pl: New -p option to discover driver properties,
+	  it can find value for the 'FSF_AFTER_FILEMARK' property.
+	* man/xml-source/amtapetype.8.xml: Document -p options
+
+2009-04-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* device-src/tape-device.c: handle EROFS in open.
+
+2009-04-17  Nikolas Coukouma <atrus@zmanda.com>
+	* device-src/device.c: fix error message for unparsable property
+
+2009-04-15  Dustin J. Mitchell <dustin@zmanda.com>
+	* restore-src/amfetchdump.c: keep the order of tapes within a
+	  particular run of Amanda
+
 2009-04-10  Dustin J. Mitchell <dustin@zmanda.com>
 	* common-src/conffile.c: fix handling of double-backslash in quoted
 	  strings
