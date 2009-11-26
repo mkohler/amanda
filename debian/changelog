@@ -1,3 +1,9 @@
+amanda (1:2.6.1p1-3) UNRELEASED; urgency=low
+
+  * deliver /usr/lib/amanda/application/am[gs]tar setuid, closes: #558094
+
+ -- Bdale Garbee <bdale@gag.com>  Thu, 26 Nov 2009 14:20:26 -0700
+
 amanda (1:2.6.1p1-2) unstable; urgency=low
 
   * calcsize needs to be setuid, closes: #551156

@@ -105,6 +105,8 @@ binary-arch: build
 	chmod -R u=rwX,g=rwX,o-rwx $(c)/var/lib/amanda/gnutar-lists
 	# .. setuid
 	chown root:backup \
+		$(c)/usr/lib/amanda/application/amgtar \
+		$(c)/usr/lib/amanda/application/amstar \
 		$(c)/usr/lib/amanda/calcsize \
 		$(c)/usr/lib/amanda/killpgrp \
 		$(c)/usr/lib/amanda/rundump \
@@ -113,6 +115,8 @@ binary-arch: build
 		$(s)/usr/lib/amanda/planner \
 		$(s)/usr/sbin/amcheck
 	chmod u=srwx,g=rx,o=r \
+		$(c)/usr/lib/amanda/application/amgtar \
+		$(c)/usr/lib/amanda/application/amstar \
 		$(c)/usr/lib/amanda/calcsize \
 		$(c)/usr/lib/amanda/killpgrp \
 		$(c)/usr/lib/amanda/rundump \
