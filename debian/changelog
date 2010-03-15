@@ -1,11 +1,11 @@
-amanda (1:2.6.1p2-1) UNRELEASED; urgency=low
+amanda (1:2.6.1p2-1) unstable; urgency=low
 
   * new upstream version
   * move more files out of amanda-common that really belong elsewhere
   * deliver /usr/lib/amanda/application/am[gs]tar setuid, closes: #558094
   * leave user backup groups alone on purge, closes: #572933
 
- -- Bdale Garbee <bdale@gag.com>  Sun, 07 Mar 2010 13:48:46 -0700
+ -- Bdale Garbee <bdale@gag.com>  Mon, 15 Mar 2010 15:23:20 -0600
 
 amanda (1:2.6.1p1-2) unstable; urgency=low
 
