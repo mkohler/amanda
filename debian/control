@@ -4,12 +4,12 @@ Priority: optional
 Maintainer: Bdale Garbee <bdale@gag.com>
 Vcs-Git: git://git.gag.com/debian/amanda
 Vcs-Browser: http://git.gag.com/?p=debian/amanda
-Build-Depends: debhelper (>= 5), dump, gnuplot, libncurses5-dev, libreadline-dev, libtool, flex, perl, smbclient, mailx, lpr, mtx, xfsdump, po-debconf, autotools-dev, libglib2.0-dev
-Standards-Version: 3.8.3
+Build-Depends: debhelper (>= 5), dump, gnuplot, libncurses5-dev, libreadline-dev, libtool, flex, perl, smbclient, bsd-mailx | mailx, lpr, mtx, xfsdump, po-debconf, autotools-dev, libglib2.0-dev
+Standards-Version: 3.8.4
 
 Package: amanda-common
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}, update-inetd, tar (>=1.12), perl5, mailx, debconf | debconf-2.0, adduser, openbsd-inetd | inet-superserver
+Depends: ${misc:Depends}, ${shlibs:Depends}, update-inetd, tar (>=1.12), perl5, bsd-mailx | mailx, debconf | debconf-2.0, adduser, openbsd-inetd | inet-superserver
 Suggests: amanda-server (= ${binary:Version}) | amanda-client (= ${binary:Version})
 Conflicts: amanda
 Replaces: amanda, amanda-client
@@ -19,7 +19,7 @@ Description: Advanced Maryland Automatic Network Disk Archiver (Libs)
 
 Package: amanda-server
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}, amanda-common (= ${binary:Version}), mailx
+Depends: ${misc:Depends}, ${shlibs:Depends}, amanda-common (= ${binary:Version}), bsd-mailx | mailx
 Suggests: perl5, gnuplot, amanda-client (= ${binary:Version}), cpio | mt-st
 Conflicts: amanda, amanda-common (<< 1:2.5.2p1-3)
 Replaces: amanda-common (<< 1:2.5.2p1-3)
