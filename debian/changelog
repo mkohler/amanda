@@ -1,3 +1,9 @@
+amanda (1:2.6.1p2-2) UNRELEASED; urgency=low
+
+  * add build depend on procps, closes: #552390
+
+ -- Bdale Garbee <bdale@gag.com>  Wed, 14 Apr 2010 15:13:22 -0700
+
 amanda (1:2.6.1p2-1) unstable; urgency=low
 
   * new upstream version
