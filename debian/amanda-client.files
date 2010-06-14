@@ -8,7 +8,6 @@ usr/lib/amanda/runtar
 usr/lib/amanda/selfcheck
 usr/lib/amanda/sendbackup
 usr/lib/amanda/sendsize
-usr/lib/amanda/versionsuffix
 usr/sbin/amfetchdump
 usr/sbin/amoldrecover
 usr/sbin/amrecover
