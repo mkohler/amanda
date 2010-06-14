@@ -1,4 +1,4 @@
-amanda (1:2.6.1p2-2) UNRELEASED; urgency=low
+amanda (1:2.6.1p2-2) unstable; urgency=low
 
   * add build depend on procps, closes: #552390
   * add dh_perl call to rules and ${perl:Depends} to amanda-common deps so
