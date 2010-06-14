@@ -50,9 +50,14 @@ configure-stamp:
 build: build-stamp 
 build-stamp: configure-stamp
 	dh_testdir
-	MAILER=/usr/bin/mail make CFLAGS="-O2 -g -Wall \
+	MAILER=/usr/bin/mail $(MAKE) CFLAGS="-O2 -g -Wall \
 		-DAMANDATES_FILE='\"/var/lib/amanda/amandates\"' \
 		-DIGNORE_TAR_ERRORS "
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+ifeq ($(DEB_BUILD_GNU_TYPE),$(DEB_HOST_GNU_TYPE))
+	$(MAKE) check
+endif
+endif
 	touch build-stamp
 
 clean:
