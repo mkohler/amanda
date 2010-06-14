@@ -1,4 +1,4 @@
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -13,23 +13,24 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More tests => 113;
+use Test::More tests => 176;
 use strict;
 
 use lib "@amperldir@";
 use Installcheck::Config;
 use Amanda::Paths;
 use Amanda::Tests;
-use Amanda::Config qw( :init :getconf );
+use Amanda::Config qw( :init :getconf string_to_boolean );
 use Amanda::Debug;
 
 my $testconf;
-my $config_overwrites;
+my $config_overrides;
 
 Amanda::Debug::dbopen("installcheck");
+Installcheck::log_test_output();
 
 # utility function
 
@@ -47,13 +48,14 @@ is(config_init(0, ''), $CFGERR_OK,
     "Initialize with no configuration")
     or diag_config_errors();
 
+config_uninit();
+$config_overrides = new_config_overrides(1);
+add_config_override($config_overrides, "tapedev", "null:TEST");
+set_config_overrides($config_overrides);
+
 is(config_init(0, undef), $CFGERR_OK,
     "Initialize with no configuration, passing a NULL config name")
     or diag_config_errors();
-
-$config_overwrites = new_config_overwrites(1);
-add_config_overwrite($config_overwrites, "tapedev", "null:TEST");
-apply_config_overwrites($config_overwrites);
 
 is(getconf($CNF_TAPEDEV), "null:TEST",
     "config overwrites work with null config");
@@ -62,7 +64,7 @@ is(getconf($CNF_TAPEDEV), "null:TEST",
 # Check out error handling
 
 $testconf = Installcheck::Config->new();
-$testconf->add_param('rawtapedev', '"/dev/medium-rare-please"'); # a deprecated keyword -> warning
+$testconf->add_param('tapebufs', '13'); # a deprecated keyword -> warning
 $testconf->write();
 
 {
@@ -90,10 +92,11 @@ is(config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF"), $CFGERR_ERRORS,
 ##
 # try a client configuration
 
+# (note use of uppercase letters to test lower-casing of property names)
 $testconf = Installcheck::Config->new();
 $testconf->add_client_param('property', '"client-prop" "yep"');
-$testconf->add_client_param('property', 'priority "client-prop1" "foo"');
-$testconf->add_client_param('property', 'append "client-prop" "bar"');
+$testconf->add_client_param('property', 'priority "clIent-prop1" "foo"');
+$testconf->add_client_param('property', 'append "clieNt-prop" "bar"');
 $testconf->write();
 
 my $cfg_result = config_init($CONFIG_INIT_CLIENT, undef);
@@ -125,6 +128,7 @@ if (Amanda::Tests::sizeof_size_t() > 4) {
 $testconf = Installcheck::Config->new();
 $testconf->add_param('reserve', '75');
 $testconf->add_param('autoflush', 'yes');
+$testconf->add_param('usetimestamps', '0');
 $testconf->add_param('tapedev', '"/dev/foo"');
 $testconf->add_param('bumpsize', $int64_num);
 $testconf->add_param('bumpmult', '1.4');
@@ -132,7 +136,8 @@ $testconf->add_param('reserved_udp-port', '100,200'); # note use of '-' and '_'
 $testconf->add_param('device_output_buffer_size', $size_t_num);
 $testconf->add_param('taperalgo', 'last');
 $testconf->add_param('device_property', '"foo" "bar"');
-$testconf->add_param('device_property', '"blue" "car" "tar"');
+$testconf->add_param('device_property', '"blUE" "car" "tar"');
+$testconf->add_param('autolabel', 'non-amanda empty');
 $testconf->add_param('displayunit', '"m"');
 $testconf->add_param('debug_auth', '1');
 $testconf->add_tapetype('mytapetype', [
@@ -157,7 +162,8 @@ $testconf->add_dumptype('mydump-type', [    # note dash
     'include list append' => '"string" "fling"',
     'include file optional' => '"rhyme"',
     'property' => '"prop" "erty"',
-    'property' => '"drop" "qwerty" "asdfg"',
+    'property' => '"DROP" "qwerty" "asdfg"',
+    'estimate' => 'server calcsize client'
 ]);
 $testconf->add_dumptype('second_dumptype', [ # note underscore
     '' => 'mydump-type',
@@ -204,6 +210,8 @@ $testconf->add_changer('my_changer', [
   'tpchanger' => '"chg-foo"',
   'changerdev' => '"/dev/sg0"',
   'changerfile' => '"chg.state"',
+  'property' => '"testprop" "testval"',
+  'device_property' => '"testdprop" "testdval"',
 ]);
 
 $testconf->write();
@@ -226,7 +234,7 @@ SKIP: {
 }
 
 SKIP: { # global parameters
-    skip "error loading config", 11 unless $cfg_result == $CFGERR_OK;
+    skip "error loading config", 13 unless $cfg_result == $CFGERR_OK;
 
     is(getconf($CNF_RESERVE), 75,
 	"integer global confparm");
@@ -238,6 +246,8 @@ SKIP: { # global parameters
 	"size global confparm");
     ok(getconf($CNF_AUTOFLUSH),
 	"boolean global confparm");
+    is(getconf($CNF_USETIMESTAMPS), 0,
+	"boolean global confparm, passing an integer (0)");
     is(getconf($CNF_TAPERALGO), $Amanda::Config::ALGO_LAST,
 	"taperalgo global confparam");
     is_deeply([getconf($CNF_RESERVED_UDP_PORT)], [100,200],
@@ -249,6 +259,10 @@ SKIP: { # global parameters
 		"blue" => { priority => 0, append => 0,
 			    values => ["car", "tar"]} },
 	    "proplist global confparm");
+    is_deeply(getconf($CNF_AUTOLABEL),
+	    { template => undef, other_config => '',
+	      non_amanda => 1, volume_error => '', empty => 1 },
+	    "'autolabel non-amanda empty' represented correctly");
     ok(getconf_seen($CNF_TAPEDEV),
 	"'tapedev' parm was seen");
     ok(!getconf_seen($CNF_CHANGERFILE),
@@ -286,7 +300,7 @@ SKIP: { # tapetypes
 }
 
 SKIP: { # dumptypes
-    skip "error loading config", 17 unless $cfg_result == $CFGERR_OK;
+    skip "error loading config", 18 unless $cfg_result == $CFGERR_OK;
 
     my $dtyp = lookup_dumptype("mydump-type");
     ok($dtyp, "found mydump-type");
@@ -320,6 +334,9 @@ SKIP: { # dumptypes
 	  'list' => [ 'foo', 'bar', 'true', 'star' ],
 	  'optional' => 0 },
 	"dumptype exclude list");
+    is_deeply(dumptype_getconf($dtyp, $DUMPTYPE_ESTIMATELIST),
+	      [ $ES_SERVER, $ES_CALCSIZE, $ES_CLIENT ],
+	"dumptype estimate list");
     is_deeply(dumptype_getconf($dtyp, $DUMPTYPE_PROPERTY),
 	      { "prop" => { priority => 0, append => 0, values => ["erty"]},
 		"drop" => { priority => 0, append => 0,
@@ -335,7 +352,7 @@ SKIP: { # dumptypes
 	      [ sort(qw(
 	        mydump-type second_dumptype third_dumptype 
 	        NO-COMPRESS COMPRESS-FAST COMPRESS-BEST COMPRESS-CUST
-		SRVCOMPRESS BSD-AUTH KRB4-AUTH NO-RECORD NO-HOLD
+		SRVCOMPRESS BSD-AUTH NO-RECORD NO-HOLD
 		NO-FULL
 		)) ],
 	"getconf_list lists all dumptypes (including defaults)");
@@ -388,13 +405,15 @@ SKIP: { # holdingdisks
 
     # only holdingdisks have this linked-list structure
     # exposed
-    $hdisk = getconf_holdingdisks();
+    my $hdisklist = getconf($CNF_HOLDINGDISK);
+    my $first_disk = @$hdisklist[0];
+    $hdisk = lookup_holdingdisk($first_disk);
     like(holdingdisk_name($hdisk), qr/hd[12]/,
 	"one disk is first in list of holdingdisks");
-    $hdisk = holdingdisk_next($hdisk);
+    $hdisk = lookup_holdingdisk(@$hdisklist[1]);
     like(holdingdisk_name($hdisk), qr/hd[12]/,
 	"another is second in list of holdingdisks");
-    ok(!holdingdisk_next($hdisk),
+    ok($#$hdisklist == 1,
 	"no third holding disk");
 
     is_deeply([ sort(+getconf_list("holdingdisk")) ],
@@ -415,7 +434,11 @@ SKIP: { # application
 
     is_deeply([ sort(+getconf_list("application-tool")) ],
 	      [ sort("my_app") ],
-	"getconf_list lists all application-tool");
+	"getconf_list lists all applications");
+    # test backward compatibility
+    is_deeply([ sort(+getconf_list("application")) ],
+	      [ sort("my_app") ],
+	"getconf_list works for 'application-tool', too");
 }
 
 SKIP: { # script
@@ -434,13 +457,17 @@ SKIP: { # script
 	$EXECUTE_ON_PRE_HOST_BACKUP|$EXECUTE_ON_POST_HOST_BACKUP,
 	"script execute_on");
 
+    is_deeply([ sort(+getconf_list("script")) ],
+	      [ sort("my_script") ],
+	"getconf_list lists all script");
+
     is_deeply([ sort(+getconf_list("script-tool")) ],
 	      [ sort("my_script") ],
-	"getconf_list lists all script-tool");
+	"getconf_list works for 'script-tool', too");
 }
 
 SKIP: { # device
-    skip "error loading config", 7 unless $cfg_result == $CFGERR_OK;
+    skip "error loading config", 6 unless $cfg_result == $CFGERR_OK;
     my $dc = lookup_device_config("my_device");
     ok($dc, "found my_device");
     is(device_config_name($dc), "my_device",
@@ -451,7 +478,7 @@ SKIP: { # device
 	"device tapedev");
     # TODO do we really need all of this equipment for device properties?
     is_deeply(device_config_getconf($dc, $DEVICE_CONFIG_DEVICE_PROPERTY),
-          { "BLOCK_SIZE" => { 'priority' => 0, 'values' => ["128k"], 'append' => 0 }, },
+          { "block_size" => { 'priority' => 0, 'values' => ["128k"], 'append' => 0 }, },
         "device config proplist");
 
     is_deeply([ sort(+getconf_list("device")) ],
@@ -469,6 +496,21 @@ SKIP: { # changer
 	"changer comment");
     is(changer_config_getconf($dc, $CHANGER_CONFIG_CHANGERDEV), '/dev/sg0',
 	"changer tapedev");
+    is_deeply(changer_config_getconf($dc, $CHANGER_CONFIG_PROPERTY),
+	{ 'testprop' => {
+		'priority' => 0,
+		'values' => [ 'testval' ],
+		'append' => 0,
+	    }
+        }, "changer properties represented correctly");
+
+    is_deeply(changer_config_getconf($dc, $CHANGER_CONFIG_DEVICE_PROPERTY),
+	{ 'testdprop' => {
+		'priority' => 0,
+		'values' => [ 'testdval' ],
+		'append' => 0,
+	    }
+        }, "changer device properties represented correctly");
 
     is_deeply([ sort(+getconf_list("changer")) ],
 	      [ sort("my_changer") ],
@@ -478,21 +520,25 @@ SKIP: { # changer
 ##
 # Test config overwrites (using the config from above)
 
-$config_overwrites = new_config_overwrites(1); # note estimate is too small
-add_config_overwrite($config_overwrites, "tapedev", "null:TEST");
-add_config_overwrite($config_overwrites, "tpchanger", "chg-test");
-add_config_overwrite_opt($config_overwrites, "org=KAOS");
-apply_config_overwrites($config_overwrites);
+config_uninit();
+$config_overrides = new_config_overrides(1); # note estimate is too small
+add_config_override($config_overrides, "tapedev", "null:TEST");
+add_config_override($config_overrides, "tpchanger", "chg-test");
+add_config_override_opt($config_overrides, "org=KAOS");
+set_config_overrides($config_overrides);
+config_init($CONFIG_INIT_EXPLICIT_NAME, 'TESTCONF');
 
 is(getconf($CNF_TAPEDEV), "null:TEST",
     "config overwrites work with real config");
 is(getconf($CNF_ORG), "KAOS",
-    "add_config_overwrite_opt parsed correctly");
+    "add_config_override_opt parsed correctly");
 
 # introduce an error
-$config_overwrites = new_config_overwrites(1);
-add_config_overwrite($config_overwrites, "bogusparam", "foo");
-apply_config_overwrites($config_overwrites);
+config_uninit();
+$config_overrides = new_config_overrides(1);
+add_config_override($config_overrides, "bogusparam", "foo");
+set_config_overrides($config_overrides);
+config_init($CONFIG_INIT_EXPLICIT_NAME, 'TESTCONF');
 
 my ($error_level, @errors) = Amanda::Config::config_errors();
 is($error_level, $CFGERR_ERRORS, "bogus config overwrite flagged as an error");
@@ -541,6 +587,54 @@ like($dump, qr/INCLUDE\s+FILE OPTIONAL "rhyme"/i,
     "INCLUDE FILE is in the dump");
 
 ##
+# Test nested definitions inside a dumptype
+
+$testconf = Installcheck::Config->new();
+$testconf->add_dumptype('nested_stuff', [
+    'comment' => '"contains a nested application, pp_script"',
+    'application' => '{
+	comment "my app"
+	plugin "amfun"
+}',
+    'script' => '{
+	comment "my script"
+	plugin "ppfun"
+}',
+]);
+
+$testconf->write();
+
+$cfg_result = config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF");
+is($cfg_result, $CFGERR_OK, 
+    "parsing nested config loaded")
+    or diag_config_errors();
+SKIP: {
+    skip "error loading config", 8 unless $cfg_result == $CFGERR_OK;
+
+    my $dtyp = lookup_dumptype("nested_stuff");
+    ok($dtyp, "found nested_stuff");
+
+    my $appname = dumptype_getconf($dtyp, $DUMPTYPE_APPLICATION);
+    like($appname, qr/^custom\(/,
+	"DUMPTYPE_APPLICATION is the generated name of an application subsection");
+
+    my $app = lookup_application($appname);
+    ok($app, ".. and that name leads to an application object");
+    is(application_getconf($app, $APPLICATION_COMMENT), "my app",
+	".. that has the right comment");
+
+    my $sc = dumptype_getconf($dtyp, $DUMPTYPE_SCRIPTLIST);
+    ok(ref($sc) eq 'ARRAY' && @$sc == 1, "DUMPTYPE_SCRIPTLIST returns a 1-element list");
+    like($sc->[0], qr/^custom\(/,
+	".. and the first element is the generated name of a script subsection");
+
+    $sc = lookup_pp_script($sc->[0]);
+    ok($sc, ".. and that name leads to a pp_script object");
+    is(pp_script_getconf($sc, $PP_SCRIPT_COMMENT), "my script",
+	".. that has the right comment");
+}
+
+##
 # Explore a quirk of exinclude parsing.  Only the last
 # exclude (or include) directive affects the 'optional' flag.
 # We may want to change this, but we should do so intentionally.
@@ -568,6 +662,25 @@ SKIP: {
 }
 
 ##
+# Try an autolabel with a template and 'any'
+
+$testconf = Installcheck::Config->new();
+$testconf->add_param('autolabel', '"FOO%%%BAR" any');
+$testconf->write();
+
+$cfg_result = config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF");
+is($cfg_result, $CFGERR_OK, 
+    "first exinclude parsing config loaded")
+    or diag_config_errors();
+SKIP: {
+    skip "error loading config", 1 unless $cfg_result == $CFGERR_OK;
+    is_deeply(getconf($CNF_AUTOLABEL),
+	    { template => "FOO%%%BAR", other_config => 1,
+	      non_amanda => 1, volume_error => 1, empty => 1 },
+	    "'autolabel \"FOO%%%BAR\" any' represented correctly");
+}
+
+##
 # Check out where quoting is and is not required.
 
 $testconf = Installcheck::Config->new();
@@ -576,7 +689,7 @@ $testconf = Installcheck::Config->new();
 $testconf->add_param('tapetype', 'TEST-TAPE'); # unquoted (Installcheck::Config uses quoted)
 
 # strings can optionally be quoted
-$testconf->add_param('org', '"MyOrg"');
+$testconf->add_param('dumporder', '"STSTST"');
 
 # enumerations (e.g., taperalgo) must not be quoted; implicitly tested above
 
@@ -605,4 +718,234 @@ SKIP: {
     ok($dtyp, "found child");
     is(dumptype_getconf($dtyp, $DUMPTYPE_BUMPSIZE), 10240,
 	"child dumptype correctly inherited bumpsize");
+}
+
+##
+# Explore a quirk of read_int_or_str parsing.
+
+$testconf = Installcheck::Config->new();
+$testconf->add_dumptype('mydump-type1', [
+    'client_port' => '12345',
+]);
+$testconf->add_dumptype('mydump-type2', [
+    'client_port' => '"newamanda"',
+]);
+$testconf->add_dumptype('mydump-type3', [
+    'client_port' => '"67890"',
+]);
+$testconf->write();
+
+$cfg_result = config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF");
+is($cfg_result, $CFGERR_OK, 
+    "read_int_or_str parsing config loaded")
+    or diag_config_errors();
+SKIP: {
+    skip "error loading config", 6 unless $cfg_result == $CFGERR_OK;
+
+    my $dtyp = lookup_dumptype("mydump-type1");
+    ok($dtyp, "found mydump-type1");
+    is(dumptype_getconf($dtyp, $DUMPTYPE_CLIENT_PORT), "12345",
+	"client_port set to 12345");
+
+    $dtyp = lookup_dumptype("mydump-type2");
+    ok($dtyp, "found mydump-type1");
+    is(dumptype_getconf($dtyp, $DUMPTYPE_CLIENT_PORT), "newamanda",
+	"client_port set to \"newamanda\"");
+
+    $dtyp = lookup_dumptype("mydump-type3");
+    ok($dtyp, "found mydump-type1");
+    is(dumptype_getconf($dtyp, $DUMPTYPE_CLIENT_PORT), "67890",
+	"client_port set to \"67890\"");
+}
+
+##
+# Check property inheritance
+
+$testconf = Installcheck::Config->new();
+$testconf->add_application('app1', [
+    'property' => '"prop1" "val1"'
+]);
+$testconf->add_application('app2', [
+    'property' => 'append "prop2" "val2"'
+]);
+$testconf->add_application('app3', [
+    'property' => '"prop3" "val3"'
+]);
+$testconf->add_application('app1a', [
+    'property' => '"prop4" "val4"',
+    'property' => '"prop1" "val1a"',
+    'app1' => undef
+]);
+$testconf->add_application('app2a', [
+    'property' => '"prop5" "val5"',
+    'property' => '"prop2" "val2a"',
+    'app2' => undef
+]);
+$testconf->add_application('app3a', [
+    'property' => '"prop6" "val6"',
+    'app3' => undef,
+    'property' => '"prop7" "val7"'
+]);
+$testconf->add_application('app1b', [
+    'property' => '"prop4" "val4"',
+    'property' => '"prop1" "val1a"',
+    'app1' => undef,
+    'property' => '"prop1" "val1b"',
+]);
+$testconf->add_application('app2b', [
+    'property' => '"prop5" "val5"',
+    'property' => '"prop2" "val2a"',
+    'app2' => undef,
+    'property' => 'append "prop2" "val2b"',
+]);
+$testconf->write();
+
+$cfg_result = config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF");
+is($cfg_result, $CFGERR_OK, 
+    "application properties inheritance")
+    or diag_config_errors();
+SKIP: {
+    skip "error loading config", 15 unless $cfg_result == $CFGERR_OK;
+
+    my $app = lookup_application("app1a");
+    ok($app, "found app1a");
+    is(application_name($app), "app1a",
+	"app1a knows its name");
+    my $prop = application_getconf($app, $APPLICATION_PROPERTY);
+    is_deeply($prop, { "prop4" => { priority => 0,
+				    append   => 0,
+				    values => [ "val4" ]},
+		       "prop1" => { priority => 0,
+				    append   => 0,
+				    values => [ "val1" ] }},
+    "PROPERTY parameter of app1a parsed correctly");
+
+    $app = lookup_application("app2a");
+    ok($app, "found app2a");
+    is(application_name($app), "app2a",
+	"app2a knows its name");
+    $prop = application_getconf($app, $APPLICATION_PROPERTY);
+    is_deeply($prop, { "prop5" => { priority => 0,
+				    append   => 0,
+				    values => [ "val5" ]},
+		       "prop2" => { priority => 0,
+				    append   => 0,
+				    values => [ "val2a", "val2" ] }},
+    "PROPERTY parameter of app2a parsed correctly");
+
+    $app = lookup_application("app3a");
+    ok($app, "found app3a");
+    is(application_name($app), "app3a",
+	"app3a knows its name");
+    $prop = application_getconf($app, $APPLICATION_PROPERTY);
+    is_deeply($prop, { "prop3" => { priority => 0,
+				    append   => 0,
+				    values => [ "val3" ]},
+		       "prop6" => { priority => 0,
+				    append   => 0,
+				    values => [ "val6" ] },
+		       "prop7" => { priority => 0,
+				    append   => 0,
+				    values => [ "val7" ] }},
+    "PROPERTY parameter of app3a parsed correctly");
+
+    $app = lookup_application("app1b");
+    ok($app, "found app1b");
+    is(application_name($app), "app1b",
+	"app1b knows its name");
+    $prop = application_getconf($app, $APPLICATION_PROPERTY);
+    is_deeply($prop, { "prop4" => { priority => 0,
+				    append   => 0,
+				    values => [ "val4" ]},
+		       "prop1" => { priority => 0,
+				    append   => 0,
+				    values => [ "val1b" ] }},
+    "PROPERTY parameter of app1b parsed correctly");
+
+    $app = lookup_application("app2b");
+    ok($app, "found app2b");
+    is(application_name($app), "app2b",
+	"app2b knows its name");
+    $prop = application_getconf($app, $APPLICATION_PROPERTY);
+    is_deeply($prop, { "prop5" => { priority => 0,
+				    append   => 0,
+				    values => [ "val5" ]},
+		       "prop2" => { priority => 0,
+				    append   => 1,
+				    values => [ "val2a", "val2", "val2b" ] }},
+    "PROPERTY parameter of app2b parsed correctly");
+}
+
+
+##
+# Check getconf_byname and getconf_byname_strs
+
+$testconf = Installcheck::Config->new();
+$testconf->add_param('tapedev', '"thats a funny name"');
+$testconf->add_application('app1', [
+    'comment' => '"one"',
+]);
+$testconf->add_script('scr1', [
+    'comment' => '"one"',
+]);
+# check old names, too
+$testconf->add_text(<<EOF);
+define application-tool "app2" {
+    comment "two"
+}
+EOF
+$testconf->add_text(<<EOF);
+define script-tool "scr2" {
+    comment "two"
+}
+EOF
+$testconf->write();
+
+$cfg_result = config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF");
+is($cfg_result, $CFGERR_OK,
+    "getconf_byname")
+    or diag_config_errors();
+SKIP: {
+    skip "error loading config", 7 unless $cfg_result == $CFGERR_OK;
+
+    is(getconf_byname("Tapedev"), "thats a funny name",
+	"getconf_byname for global param");
+    is_deeply([ getconf_byname_strs("Tapedev", 1) ],
+	[ "\"thats a funny name\"" ],
+	"getconf_byname_strs for global param with quotes");
+    is_deeply([ getconf_byname_strs("Tapedev", 0) ],
+	[ "thats a funny name" ],
+	"getconf_byname_strs for global param without quotes");
+
+    # test * and *-tool (the old name)
+    is(getconf_byname("application-tool:app1:comment"), "one",
+	"getconf_byname for appplication-tool param");
+    is(getconf_byname("application:app2:comment"), "two",
+	"getconf_byname for application param");
+    is(getconf_byname("script-tool:scr1:comment"), "one",
+	"getconf_byname for appplication-tool param");
+    is(getconf_byname("script:scr2:comment"), "two",
+	"getconf_byname for script param");
+}
+
+my @boolean_vals = (
+    {'val' => '1', 'expected' => 1},
+    {'val' => '0', 'expected' => 0},
+    {'val' => 't', 'expected' => 1},
+    {'val' => 'true', 'expected' => 1},
+    {'val' => 'f', 'expected' => 0},
+    {'val' => 'false', 'expected' => 0},
+    {'val' => 'y', 'expected' => 1},
+    {'val' => 'yes', 'expected' => 1},
+    {'val' => 'n', 'expected' => 0},
+    {'val' => 'no', 'expected' => 0},
+    {'val' => 'on', 'expected' => 1},
+    {'val' => 'off', 'expected' => 0},
+    {'val' => 'oFf', 'expected' => 0},
+    {'val' => 'foo', 'expected' => undef},
+    );
+
+for my $bv (@boolean_vals) {
+    is(string_to_boolean($bv->{'val'}), $bv->{'expected'},
+        "string_to_boolean('$bv->{'val'}') is right");
 }

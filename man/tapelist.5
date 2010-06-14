@@ -2,12 +2,12 @@
 .\"     Title: tapelist
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: File formats and conventions
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "TAPELIST" "5" "11/05/2009" "Amanda 2\&.6\&.1p2" "File formats and conventions"
+.TH "TAPELIST" "5" "06/01/2010" "Amanda 3\&.1\&.0" "File formats and conventions"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,13 +19,12 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-tapelist \- The list of \fIAmanda\fR volumes in use
+tapelist \- The list of Amanda volumes in use
 .SH "DESCRIPTION"
 .PP
 The
 \fItapelist\fR
-file contains the list of tapes in active use\&. This file is not ordinarily ordinarily edited or examined manually\&. Its format may change, or it may be removed altogether, in future versions of
-\fIAmanda\fR\&. It contains lines of the form:
+file contains the list of tapes in active use\&. This file is not ordinarily ordinarily edited or examined manually\&. Its format may change, or it may be removed altogether, in future versions of Amanda\&. It contains lines of the form:
 .PP
 .nf
 YYYYMMDD label flags [#comment]
@@ -39,14 +38,14 @@ is a label for the tape as written by
 \fBamlabel\fR
 and
 \fIflags\fR
-is one of "reuse" or "no\-reuse" and tells
-\fIAmanda\fR
-whether the tape may be reused\&. A non\-reusable tape will not be overwritten, even if it is older than
+is one of "reuse" or "no\-reuse" and tells Amanda whether the tape may be reused\&. A non\-reusable tape will not be overwritten, even if it is older than
 \fBdumpcycle\fR
 dumps\&. See the
 \fBreuse\fR
 options of
 \fBamadmin\fR(8)\&. The optional comment is prefixed with a \'#\' and continues to the end of the line\&. Amanda will maintain this comment until the tape is overwritten\&. Note that comments are not allowed on blank lines\&.
+.PP
+The file is sorted such that the most\-recently used tape appears on the first line, and the oldest tape appears on the last line\&.
 .PP
 \fBAmdump\fR
 and
@@ -56,6 +55,13 @@ will by default refuse to write to an unlabeled tape, or to a labeled tape that 
 option) than there are runs in the backup cycle (see the
 \fBdumpcycle\fR
 option) to prevent overwriting a backup image that would be needed to do a full recovery\&.
+.SH "SEE ALSO"
+.PP
+\fBamanda\fR(8),
+\fBamanda.conf\fR(5)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBJames da Silva\fR <\&jds@amanda\&.org\&>

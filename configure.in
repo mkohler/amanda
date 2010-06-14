@@ -1,12 +1,14 @@
 AC_INIT
 AC_CONFIG_SRCDIR([common-src/amanda.h])
 AC_CONFIG_AUX_DIR(config)
-AC_CANONICAL_TARGET([])
+AC_CONFIG_MACRO_DIR(config)
+AC_CANONICAL_HOST
 
 PACKAGE=amanda
 AC_SUBST(PACKAGE)
 
-AM_INIT_AUTOMAKE(amanda, "2.6.1p2")
+AMANDA_VERSION
+AM_INIT_AUTOMAKE(amanda, $VERSION)
 AC_CONFIG_HEADERS([config/config.h])
 
 dnl Minimum Autoconf version required.
@@ -62,6 +64,7 @@ AMANDA_WITH_DEBUG_DAYS
 AMANDA_WITH_TESTING
 AMANDA_WITH_SINGLE_USERID
 AMANDA_DISABLE_INSTALLPERMS
+AMANDA_DISABLE_SYNTAX_CHECKS
 
 dnl -------------------------------------------------------------------------
 
@@ -98,6 +101,8 @@ AM_GNU_GETTEXT([external])
 #
 AMANDA_S3_DEVICE
 AMANDA_TAPE_DEVICE
+AMANDA_DVDRW_DEVICE
+AMANDA_NDMP_DEVICE
 
 #
 # Security (authentication) mechansims
@@ -107,7 +112,6 @@ AMANDA_BSDTCP_SECURITY
 AMANDA_BSDUDP_SECURITY
 AMANDA_RSH_SECURITY
 AMANDA_SSH_SECURITY
-AMANDA_KRB4_SECURITY
 AMANDA_KRB5_SECURITY
 
 #
@@ -118,6 +122,7 @@ AMANDA_PROG_VXDUMP_VXRESTORE
 AMANDA_PROG_VDUMP_VRESTORE
 AMANDA_PROG_DUMP_RESTORE
 AMANDA_PROG_GNUTAR
+AMANDA_PROG_STAR
 AMANDA_PROG_SAMBA_CLIENT
 AMANDA_CHECK_USE_RUNDUMP
 
@@ -138,11 +143,12 @@ AMANDA_PROG_BASH
 AMANDA_PROG_SORT
 AMANDA_PROG_MAILER
 AMANDA_PROG_MT
-AMANDA_PROG_PRINT
+AMANDA_PROG_LPR
 AMANDA_PROG_PCAT
 AMANDA_PROG_PERL
 AMANDA_PROG_SWIG
 AMANDA_PS_ARGUMENT
+AMANDA_PROG_RPCGEN
 
 dnl -------------------------------------------------------------------------
 
@@ -175,7 +181,8 @@ AMANDA_ENABLE_GCC_WARNING([float-equal])
 AMANDA_ENABLE_GCC_WARNING([old-style-definition])
 AMANDA_DISABLE_GCC_WARNING([strict-aliasing])
 AMANDA_DISABLE_GCC_WARNING([unknown-pragmas])
-
+AMANDA_WERROR_FLAGS
+AMANDA_SWIG_ERROR
 
 #
 # Libtool
@@ -191,18 +198,17 @@ AC_HEADER_DIRENT
 AC_HEADER_STDC
 AC_HEADER_TIME
 AC_CHECK_HEADERS(
-	arpa/inet.h \
 	grp.h \
 	libc.h \
 	libgen.h \
 	limits.h \
 	math.h \
-	netdb.h \
 	netinet/in.h \
 	regex.h \
 	stdarg.h \
 	stdlib.h \
 	strings.h \
+	rpc/rpc.h \
 	sys/file.h \
 	sys/ioctl.h \
 	sys/ipc.h \
@@ -370,36 +376,22 @@ AC_CONFIG_FILES([
     changer-src/Makefile
     client-src/Makefile
     common-src/Makefile
-    common-src/versuff.c
     config/Makefile
     device-src/Makefile
     application-src/Makefile
     example/Makefile
-    example/amanda-client.conf
-    example/amanda.conf
-    example/xinetd.amandaclient
-    example/xinetd.amandaserver
-    example/inetd.conf.amandaclient
-    example/inetd.conf.amandaserver
-    example/chg-mcutil.conf
-    example/template.d/advanced.conf
-    example/template.d/amanda-S3.conf
-    example/template.d/amanda-harddisk.conf
-    example/template.d/amanda-single-tape.conf
-    example/template.d/amanda-tape-changer.conf
     gnulib/Makefile
     installcheck/Makefile
     man/Makefile
+    ndmp-src/Makefile
     oldrecover-src/Makefile
     packaging/Makefile
     perl/Makefile
     po/Makefile
     recover-src/Makefile
-    restore-src/Makefile
     server-src/Makefile
     xfer-src/Makefile
 ])
 
 AC_OUTPUT
-AMANDA_GET_SVN_INFO
 AMANDA_SHOW_SUMMARY

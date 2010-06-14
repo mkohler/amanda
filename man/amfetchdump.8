@@ -2,12 +2,12 @@
 .\"     Title: amfetchdump
 .\"    Author: John Stange <building@nap.edu>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMFETCHDUMP" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMFETCHDUMP" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,10 +19,10 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amfetchdump \- extract backup images from multiple \fIAmanda\fR tapes\&.
+amfetchdump \- extract backup images from multiple Amanda tapes\&.
 .SH "SYNOPSIS"
 .HP \w'\fBamfetchdump\fR\ 'u
-\fBamfetchdump\fR [\-pcClawns] [\-d\ \fIdevice\fR] [\-O\ \fIdirectory\fR] [\-b\ \fIblocksize\fR] \fIconfig\fR \fIhostname\fR [\fIdisk\fR\ [\ \fIdate\fR\ [\ \fIlevel\fR\ [\ \fIhostname\fR\ [\&.\&.\&.]\ ]\ ]\ ]] [\-o\ \fIconfigoption\fR]...
+\fBamfetchdump\fR [\-phcClawns] [\-d\ \fIdevice\fR] [\-O\ \fIdirectory\fR] [\-b\ \fIblocksize\fR] [\-\-header\-fd\ \fIfd\fR] [\-\-header\-file\ \fIfilename\fR] [\-o\ \fIconfigoption\fR]... \fIconfig\fR \fIhostname\fR [\fIdisk\fR\ [\ \fIdate\fR\ [\ \fIlevel\fR\ [\ \fIhostname\fR\ [\&.\&.\&.]\ ]\ ]\ ]]
 .SH "DESCRIPTION"
 .PP
 \fBAmfetchdump\fR
@@ -50,6 +50,10 @@ Unless
 \fB\-p\fR
 is used, backup images are extracted to files in the current directory named:
 .PP
+If a changer error occurs, or the
+\fB\-d\fR
+option is given, then amfetchdump prompts for each required volume\&.
+.PP
 \fIhostname\&.diskname\&.datestamp\&.dumplevel\fR
 .SH "OPTIONS"
 .PP
@@ -59,9 +63,24 @@ Pipe exactly one complete dump file to
 \fIstdout\fR, instead of writing the file to disk\&. This will restore only the first matching dumpfile (where "first" is determined by the dump log search facility)\&.
 .RE
 .PP
-\fB\-d\fR \fIdevice\fR
+\fB\-h\fR
 .RS 4
-Restore from this tape device instead of the default\&.
+Output the amanda header as a 32K block to same output as the image\&.
+.RE
+.PP
+\fB\-\-header\-fd\fR \fIfd\fR
+.RS 4
+Output the amanda header to the numbered file descriptor\&.
+.RE
+.PP
+\fB\-\-header\-file\fR \fIfilename\fR
+.RS 4
+Output the amanda header to the filename\&.
+.RE
+.PP
+\fB\-d\fR \fIdevice_or_changer\fR
+.RS 4
+Restore from this device or changer instead of the default, prompting for each volume\&.
 .RE
 .PP
 \fB\-O\fR \fIdirectory\fR
@@ -91,42 +110,9 @@ will automatically uncompress when restoring\&.
 Assume that all tapes are already available, via tape changer or otherwise, instead of prompting the operator to ensure that all tapes are loaded\&.
 .RE
 .PP
-\fB\-w\fR
-.RS 4
-Wait to put split dumps together until all chunks have been restored\&. Normally,
-\fBamfetchdump\fR
-will attempt to read pieces of a split file from tape in order, so that it can assemble them simply by appending each file to the first\&. This option disables the appending behavior, and instead restores each piece as an individual file and reassembles them only after all have been restored\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-This requires at least double the size of your dump in free disk space, in order to build the final assembled dumpfile\&.
-.sp .5v
-.RE
-This behavior is implicitly invoked in circumstances where knowing the location of all dumps on tape in advance is not possible, such as when you are restoring without log files\&.
-.RE
-.PP
 \fB\-n\fR
 .RS 4
 Do not reassemble split dump files at all, just restore each piece as an individual file\&.
-.RE
-.PP
-\fB\-s\fR
-.RS 4
-Do not fast\-forward straight to needed files on tape\&. This will slow down most restores substantially\&. Only use this option if your tape drive does not properly support the fast\-forward operation\&.
-.RE
-.PP
-\fB\-b\fR \fIblocksize\fR
-.RS 4
-Force a particular block size when reading from tapes\&. This value will usually be autodetected, and should not normally need to be set\&.
 .RE
 .PP
 \fB\-o\fR \fIconfigoption\fR
@@ -164,8 +150,10 @@ instead\&.
 \fBamadmin\fR(8),
 \fBamrestore\fR(8),
 \fBtar\fR(1),
-\fBrestore\fR(8),
-: http://wiki.zmanda.com
+\fBrestore\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBJohn Stange\fR <\&building@nap\&.edu\&>

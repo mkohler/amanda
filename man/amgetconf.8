@@ -2,12 +2,12 @@
 .\"     Title: amgetconf
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMGETCONF" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMGETCONF" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +22,7 @@
 amgetconf \- look up configuration parameters and manipulate debug logs
 .SH "SYNOPSIS"
 .HP \w'\fBamgetconf\fR\ 'u
-\fBamgetconf\fR [\fI\-l|\-\-list\fR] [\-o\ \fIconfigoption\fR]... [\fI\-\-client\fR] [\fI\-\-execute\-where\ client|server\fR] [\fIconfig\fR] \fIparameter\fR
+\fBamgetconf\fR [\fI\-l|\-\-list\fR] [\fI\-\-client\fR] [\fI\-\-execute\-where\ client|server\fR] [\fIconfig\fR] \fIparameter\fR [{\fB\-o\fR\ \fIconfigoption\fR}...]
 .SH "DESCRIPTION"
 .PP
 \fBAmgetconf\fR
@@ -120,13 +120,11 @@ Same as
 GNUTAR_LISTED_INCREMENTAL_DIR
 .RE
 .PP
-CC, VERSION, ASSERTIONS, LOCKING, USE_VERSION_SUFFIXES
+CC, VERSION, ASSERTIONS, LOCKING
 .RS 4
 Build information\&.
 ASSERTIONS
-is 1 or empty, while
-USE_VERSION_SUFFIXES
-is yes/no\&.
+is 1 or empty\&.
 .RE
 .PP
 DUMP, RESTORE, VDUMP, VRESTORE, XFSDUMP, XFSRESTORE, VXDUMP, VXRESTORE, SAMBA_CLIENT, GNUTAR, STAR, COMPRESS_PATH, UNCOMPRESS_PATH
@@ -148,7 +146,7 @@ DUMP
 return 1 on success? (empty or 1)
 .RE
 .PP
-BSD_SECURITY, BSDUDP_SECURITY, BSDTCP_SECURITY, KRB4_SECURITY, KRB5_SECURITY, SSH_SECURITY, RSH_SECURITY
+BSD_SECURITY, BSDUDP_SECURITY, BSDTCP_SECURITY, KRB5_SECURITY, SSH_SECURITY, RSH_SECURITY
 .RS 4
 Indicate which authentication mechanisms are available (yes or no)\&.
 .RE
@@ -210,15 +208,14 @@ Kerberos parameters\&.
 .ps -1
 .br
 That this application is responsible for debug logs is a
-historical quirk, but the functionality is widely used\&..sp .5v
+historical quirk, but the functionality is widely used\&.
+.sp .5v
 .RE
 .PP
 If
 \fIparameter\fR
 begins with
-\fIdbopen\&.\fR, the string following the period is a program name and an
-\fIAmanda\fR
-debug file will be created for the caller\&. The name of the logfile is returned\&.
+\fIdbopen\&.\fR, the string following the period is a program name and an Amanda debug file will be created for the caller\&. The name of the logfile is returned\&.
 .PP
 If
 \fIparameter\fR
@@ -287,9 +284,12 @@ keyword)\&.
 .RE
 .SH "SEE ALSO"
 .PP
-
 \fBamanda\fR(8),
-: http://wiki.zmanda.com
+\fBamanda.conf\fR(5),
+\fBamanda-client.conf\fR(5)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHOR"
 .PP
 \fBJean\-Louis Martineau\fR <\&martineau@zmanda\&.com\&>

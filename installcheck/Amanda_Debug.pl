@@ -1,4 +1,4 @@
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -13,7 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 use Test::More tests => 9;
@@ -21,7 +21,8 @@ use File::Path;
 use strict;
 
 use lib "@amperldir@";
-use Amanda::Debug;
+use Amanda::Debug qw( :logging );
+use Amanda::Config;
 
 ## most failures of the debug module will just kill the process, so
 ## the main goal of this test script is just to make it to the end :)
@@ -31,9 +32,14 @@ my $debug_text;
 my $pid;
 my $kid;
 
+# load default config
+Amanda::Config::config_init(0, undef);
+
 # set up debugging so debug output doesn't interfere with test results
 Amanda::Debug::dbopen("installcheck");
 Amanda::Debug::dbrename("TESTCONF", "installcheck");
+# note: we don't bother using Installcheck::log_test_output here because
+# sometimes the log files aren't open
 
 # and disable Debug's die() and warn() overrides
 Amanda::Debug::disable_die_override();
@@ -76,7 +82,7 @@ Amanda::Debug::dbreopen($debug_file, "I've still got more stuff to test");
 $pid = open($kid, "-|");
 die "Can't fork: $!" unless defined($pid);
 if (!$pid) {
-    $Amanda::Debug::erroutput_type = 0; # don't spew to stderr, too, please
+    add_amanda_log_handler($amanda_log_null); # don't spew to stderr, too, please
     Amanda::Debug::critical("morituri te salutamus");
     exit 1; # just in case
 }

@@ -1476,15 +1476,16 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 
 #define SWIGTYPE_p_FILE swig_types[0]
 #define SWIGTYPE_p_GSList swig_types[1]
-#define SWIGTYPE_p_char swig_types[2]
-#define SWIGTYPE_p_double swig_types[3]
-#define SWIGTYPE_p_dumpspec_t swig_types[4]
-#define SWIGTYPE_p_find_result_t swig_types[5]
-#define SWIGTYPE_p_float swig_types[6]
-#define SWIGTYPE_p_int swig_types[7]
-#define SWIGTYPE_p_unsigned_char swig_types[8]
-static swig_type_info *swig_types[10];
-static swig_module_info swig_module = {swig_types, 9, 0, 0, 0, 0};
+#define SWIGTYPE_p_amanda_log_handler_t swig_types[2]
+#define SWIGTYPE_p_char swig_types[3]
+#define SWIGTYPE_p_double swig_types[4]
+#define SWIGTYPE_p_dumpspec_t swig_types[5]
+#define SWIGTYPE_p_find_result_t swig_types[6]
+#define SWIGTYPE_p_float swig_types[7]
+#define SWIGTYPE_p_int swig_types[8]
+#define SWIGTYPE_p_unsigned_char swig_types[9]
+static swig_type_info *swig_types[11];
+static swig_module_info swig_module = {swig_types, 10, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1557,7 +1558,7 @@ SWIG_From_int  SWIG_PERL_DECL_ARGS_1(int value)
 /* open_ and close_logfile are both simple wrappers around fopen/fclose. */
 typedef FILE loghandle;
 
-loghandle *open_logfile(char *filename) {
+static loghandle *open_logfile(char *filename) {
     return fopen(filename, "r");
 }
 
@@ -1618,58 +1619,17 @@ SWIG_AsCharPtrAndSize(SV *obj, char** cptr, size_t* psize, int *alloc)
 
 
 
-void close_logfile(loghandle *logfile) {
+static void close_logfile(loghandle *logfile) {
     if (logfile) fclose(logfile);
 }
 
 
 typedef int LOGLINE_RETURN;
 
-SWIGINTERN void delete_find_result_t(find_result_t *self){
-	    find_result_t *selfp = self;
-	    free_find_result(&selfp);
-	}
 
-SWIGINTERNINLINE SV *
-SWIG_FromCharPtrAndSize(const char* carray, size_t size)
+static void log_add_(logtype_t typ, char *message)
 {
-  SV *obj = sv_newmortal();
-  if (carray) {
-    sv_setpvn(obj, carray, size);
-  } else {
-    sv_setsv(obj, &PL_sv_undef);
-  }
-  return obj;
-}
-
-
-SWIGINTERNINLINE SV * 
-SWIG_FromCharPtr(const char *cptr)
-{ 
-  return SWIG_FromCharPtrAndSize(cptr, (cptr ? strlen(cptr) : 0));
-}
-
-
-SWIGINTERNINLINE SV *
-SWIG_From_double  SWIG_PERL_DECL_ARGS_1(double value)
-{    
-  SV *obj = sv_newmortal();
-  sv_setnv(obj, value);
-  return obj;
-}
-
-
-find_result_t *search_logfile_wrap(char *label, char *datestamp, 
-				   char *logfile, int add_missing_disks) {
-    find_result_t *rv = NULL;
-
-    /* We use a static variable to collect any unrecognized disks */
-    static disklist_t unrecognized_disks = { NULL, NULL };
-
-    search_logfile(&rv, label, datestamp, logfile, 
-	add_missing_disks? &unrecognized_disks : NULL);
-
-    return rv;
+    log_add(typ, "%s", message);
 }
 
 
@@ -1800,6 +1760,61 @@ SWIG_AsVal_int SWIG_PERL_DECL_ARGS_2(SV * obj, int *val)
   return res;
 }
 
+SWIGINTERN void delete_find_result_t(find_result_t *self){
+	    find_result_t *selfp = self;
+	    free_find_result(&selfp);
+	}
+
+SWIGINTERNINLINE SV *
+SWIG_FromCharPtrAndSize(const char* carray, size_t size)
+{
+  SV *obj = sv_newmortal();
+  if (carray) {
+    sv_setpvn(obj, carray, size);
+  } else {
+    sv_setsv(obj, &PL_sv_undef);
+  }
+  return obj;
+}
+
+
+SWIGINTERNINLINE SV * 
+SWIG_FromCharPtr(const char *cptr)
+{ 
+  return SWIG_FromCharPtrAndSize(cptr, (cptr ? strlen(cptr) : 0));
+}
+
+
+SWIGINTERNINLINE SV *
+SWIG_From_double  SWIG_PERL_DECL_ARGS_1(double value)
+{    
+  SV *obj = sv_newmortal();
+  sv_setnv(obj, value);
+  return obj;
+}
+
+
+static find_result_t *search_logfile_wrap(char *label, char *datestamp,
+				   char *logfile, int add_missing_disks) {
+    find_result_t *rv = NULL;
+
+    /* We use a static variable to collect any unrecognized disks */
+    static disklist_t unrecognized_disks = { NULL, NULL };
+
+    search_logfile(&rv, label, datestamp, logfile, 
+	add_missing_disks? &unrecognized_disks : NULL);
+
+    return rv;
+}
+
+
+static find_result_t *search_holding_disk_wrap(void) {
+    find_result_t *rv = NULL;
+    static disklist_t unrecognized_disks = { NULL, NULL };
+    search_holding_disk(&rv, &unrecognized_disks);
+    return rv;
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -1816,6 +1831,13 @@ SWIGCLASS_STATIC int swig_magic_readonly(pTHX_ SV *SWIGUNUSEDPARM(sv), MAGIC *SW
     croak("Value is read-only.");
     return 0;
 }
+SWIGCLASS_STATIC int _wrap_amanda_log_trace_log_get(pTHX_ SV *sv, MAGIC *SWIGUNUSEDPARM(mg)) {
+  MAGIC_PPERL
+  sv_setiv(SvRV(sv),PTR2IV(amanda_log_trace_log));
+  return 1;
+}
+
+
 
 
 #ifdef PERL_OBJECT
@@ -1919,6 +1941,50 @@ XS(_wrap_get_logline) {
     XSRETURN(argvi);
   fail:
     
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_log_add) {
+  {
+    logtype_t arg1 ;
+    char *arg2 = (char *) 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: log_add(typ,message);");
+    }
+    {
+      if (sizeof(signed int) == 1) {
+        arg1 = amglue_SvI8(ST(0));
+      } else if (sizeof(signed int) == 2) {
+        arg1 = amglue_SvI16(ST(0));
+      } else if (sizeof(signed int) == 4) {
+        arg1 = amglue_SvI32(ST(0));
+      } else if (sizeof(signed int) == 8) {
+        arg1 = amglue_SvI64(ST(0));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "log_add" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    log_add_(arg1,arg2);
+    ST(argvi) = sv_newmortal();
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
     SWIG_croak_null();
   }
 }
@@ -2054,7 +2120,11 @@ XS(_wrap_find_result_t_level_get) {
     arg1 = (find_result_t *)(argp1);
     result = (int) ((arg1)->level);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     
@@ -2113,7 +2183,11 @@ XS(_wrap_find_result_t_filenum_get) {
     arg1 = (find_result_t *)(argp1);
     result =  ((arg1)->filenum);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVu64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     
@@ -2153,13 +2227,69 @@ XS(_wrap_find_result_t_status_get) {
 }
 
 
-XS(_wrap_find_result_t_partnum_get) {
+XS(_wrap_find_result_t_dump_status_get) {
   {
     find_result_t *arg1 = (find_result_t *) 0 ;
     void *argp1 = 0 ;
     int res1 = 0 ;
     int argvi = 0;
     char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: find_result_t_dump_status_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_find_result_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "find_result_t_dump_status_get" "', argument " "1"" of type '" "find_result_t *""'"); 
+    }
+    arg1 = (find_result_t *)(argp1);
+    result = (char *) ((arg1)->dump_status);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_find_result_t_message_get) {
+  {
+    find_result_t *arg1 = (find_result_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: find_result_t_message_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_find_result_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "find_result_t_message_get" "', argument " "1"" of type '" "find_result_t *""'"); 
+    }
+    arg1 = (find_result_t *)(argp1);
+    result = (char *) ((arg1)->message);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_find_result_t_partnum_get) {
+  {
+    find_result_t *arg1 = (find_result_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
     dXSARGS;
     
     if ((items < 1) || (items > 1)) {
@@ -2170,8 +2300,50 @@ XS(_wrap_find_result_t_partnum_get) {
       SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "find_result_t_partnum_get" "', argument " "1"" of type '" "find_result_t *""'"); 
     }
     arg1 = (find_result_t *)(argp1);
-    result = (char *) ((arg1)->partnum);
-    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    result = (int) ((arg1)->partnum);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_find_result_t_totalparts_get) {
+  {
+    find_result_t *arg1 = (find_result_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: find_result_t_totalparts_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_find_result_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "find_result_t_totalparts_get" "', argument " "1"" of type '" "find_result_t *""'"); 
+    }
+    arg1 = (find_result_t *)(argp1);
+    result = (int) ((arg1)->totalparts);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
     
     XSRETURN(argvi);
   fail:
@@ -2215,7 +2387,7 @@ XS(_wrap_find_result_t_kb_get) {
     void *argp1 = 0 ;
     int res1 = 0 ;
     int argvi = 0;
-    size_t result;
+    off_t result;
     dXSARGS;
     
     if ((items < 1) || (items > 1)) {
@@ -2228,7 +2400,46 @@ XS(_wrap_find_result_t_kb_get) {
     arg1 = (find_result_t *)(argp1);
     result =  ((arg1)->kb);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVu64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_find_result_t_orig_kb_get) {
+  {
+    find_result_t *arg1 = (find_result_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    off_t result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: find_result_t_orig_kb_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_find_result_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "find_result_t_orig_kb_get" "', argument " "1"" of type '" "find_result_t *""'"); 
+    }
+    arg1 = (find_result_t *)(argp1);
+    result =  ((arg1)->orig_kb);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     
@@ -2371,6 +2582,44 @@ XS(_wrap_search_logfile) {
     if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
     if (alloc3 == SWIG_NEWOBJ) free((char*)buf3);
     
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_search_holding_disk) {
+  {
+    int argvi = 0;
+    find_result_t *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 0) || (items > 0)) {
+      SWIG_croak("Usage: search_holding_disk();");
+    }
+    result = (find_result_t *)search_holding_disk_wrap();
+    {
+      find_result_t *iter;
+      int len;
+      
+      /* measure the list and make room on the perl stack */
+      for (len=0, iter=result; iter; iter=iter->next) len++;
+      EXTEND(SP, len);
+      
+      iter = result;
+      while (iter) {
+        find_result_t *next;
+        /* Let SWIG take ownership of the object */
+        ST(argvi) = SWIG_NewPointerObj(iter, SWIGTYPE_p_find_result_t, SWIG_OWNER | SWIG_SHADOW);
+        argvi++;
+        
+        /* null out the 'next' field */
+        next = iter->next;
+        iter->next = NULL;
+        iter = next;
+      }
+    }
+    XSRETURN(argvi);
+  fail:
     SWIG_croak_null();
   }
 }
@@ -2667,11 +2916,196 @@ XS(_wrap_dumps_match_dumpspecs) {
 }
 
 
+XS(_wrap_match_host) {
+  {
+    char *arg1 = (char *) 0 ;
+    char *arg2 = (char *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    gboolean result;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: match_host(pat,value);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "match_host" "', argument " "1"" of type '" "char *""'");
+    }
+    arg1 = (char *)(buf1);
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "match_host" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    result = (gboolean)match_host(arg1,arg2);
+    {
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
+      argvi++;
+    }
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_match_disk) {
+  {
+    char *arg1 = (char *) 0 ;
+    char *arg2 = (char *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    gboolean result;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: match_disk(pat,value);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "match_disk" "', argument " "1"" of type '" "char *""'");
+    }
+    arg1 = (char *)(buf1);
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "match_disk" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    result = (gboolean)match_disk(arg1,arg2);
+    {
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
+      argvi++;
+    }
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_match_datestamp) {
+  {
+    char *arg1 = (char *) 0 ;
+    char *arg2 = (char *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    gboolean result;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: match_datestamp(pat,value);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "match_datestamp" "', argument " "1"" of type '" "char *""'");
+    }
+    arg1 = (char *)(buf1);
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "match_datestamp" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    result = (gboolean)match_datestamp(arg1,arg2);
+    {
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
+      argvi++;
+    }
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_match_level) {
+  {
+    char *arg1 = (char *) 0 ;
+    char *arg2 = (char *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    gboolean result;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: match_level(pat,value);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "match_level" "', argument " "1"" of type '" "char *""'");
+    }
+    arg1 = (char *)(buf1);
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "match_level" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    result = (gboolean)match_level(arg1,arg2);
+    {
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
+      argvi++;
+    }
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
 
 /* -------- TYPE CONVERSION AND EQUIVALENCE RULES (BEGIN) -------- */
 
 static swig_type_info _swigt__p_FILE = {"_p_FILE", "FILE *|loghandle *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_GSList = {"_p_GSList", "amglue_dumpspec_list *|GSList *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_amanda_log_handler_t = {"_p_amanda_log_handler_t", "amanda_log_handler_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_char = {"_p_char", "gchar *|char *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_dumpspec_t = {"_p_dumpspec_t", "struct dumpspec_t *|dumpspec_t *", 0, 0, (void*)"Amanda::Cmdline::dumpspec_t", 0};
@@ -2683,6 +3117,7 @@ static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "guchar *|u
 static swig_type_info *swig_type_initial[] = {
   &_swigt__p_FILE,
   &_swigt__p_GSList,
+  &_swigt__p_amanda_log_handler_t,
   &_swigt__p_char,
   &_swigt__p_double,
   &_swigt__p_dumpspec_t,
@@ -2694,6 +3129,7 @@ static swig_type_info *swig_type_initial[] = {
 
 static swig_cast_info _swigc__p_FILE[] = {  {&_swigt__p_FILE, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_GSList[] = {  {&_swigt__p_GSList, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_amanda_log_handler_t[] = {  {&_swigt__p_amanda_log_handler_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_char[] = {  {&_swigt__p_char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_double[] = {  {&_swigt__p_double, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_dumpspec_t[] = {  {&_swigt__p_dumpspec_t, 0, 0, 0},{0, 0, 0, 0}};
@@ -2705,6 +3141,7 @@ static swig_cast_info _swigc__p_unsigned_char[] = {  {&_swigt__p_unsigned_char, 
 static swig_cast_info *swig_cast_initial[] = {
   _swigc__p_FILE,
   _swigc__p_GSList,
+  _swigc__p_amanda_log_handler_t,
   _swigc__p_char,
   _swigc__p_double,
   _swigc__p_dumpspec_t,
@@ -2724,12 +3161,14 @@ static swig_constant_info swig_constants[] = {
 }
 #endif
 static swig_variable_info swig_variables[] = {
+    { "Amanda::Logfilec::amanda_log_trace_log", MAGIC_CLASS swig_magic_readonly, MAGIC_CLASS _wrap_amanda_log_trace_log_get,&SWIGTYPE_p_amanda_log_handler_t },
 {0,0,0,0}
 };
 static swig_command_info swig_commands[] = {
 {"Amanda::Logfilec::open_logfile", _wrap_open_logfile},
 {"Amanda::Logfilec::close_logfile", _wrap_close_logfile},
 {"Amanda::Logfilec::get_logline", _wrap_get_logline},
+{"Amanda::Logfilec::log_add", _wrap_log_add},
 {"Amanda::Logfilec::delete_find_result_t", _wrap_delete_find_result_t},
 {"Amanda::Logfilec::find_result_t_timestamp_get", _wrap_find_result_t_timestamp_get},
 {"Amanda::Logfilec::find_result_t_hostname_get", _wrap_find_result_t_hostname_get},
@@ -2738,14 +3177,23 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Logfilec::find_result_t_label_get", _wrap_find_result_t_label_get},
 {"Amanda::Logfilec::find_result_t_filenum_get", _wrap_find_result_t_filenum_get},
 {"Amanda::Logfilec::find_result_t_status_get", _wrap_find_result_t_status_get},
+{"Amanda::Logfilec::find_result_t_dump_status_get", _wrap_find_result_t_dump_status_get},
+{"Amanda::Logfilec::find_result_t_message_get", _wrap_find_result_t_message_get},
 {"Amanda::Logfilec::find_result_t_partnum_get", _wrap_find_result_t_partnum_get},
+{"Amanda::Logfilec::find_result_t_totalparts_get", _wrap_find_result_t_totalparts_get},
 {"Amanda::Logfilec::find_result_t_sec_get", _wrap_find_result_t_sec_get},
 {"Amanda::Logfilec::find_result_t_kb_get", _wrap_find_result_t_kb_get},
+{"Amanda::Logfilec::find_result_t_orig_kb_get", _wrap_find_result_t_orig_kb_get},
 {"Amanda::Logfilec::new_find_result_t", _wrap_new_find_result_t},
 {"Amanda::Logfilec::find_log", _wrap_find_log},
 {"Amanda::Logfilec::search_logfile", _wrap_search_logfile},
+{"Amanda::Logfilec::search_holding_disk", _wrap_search_holding_disk},
 {"Amanda::Logfilec::dumps_match", _wrap_dumps_match},
 {"Amanda::Logfilec::dumps_match_dumpspecs", _wrap_dumps_match_dumpspecs},
+{"Amanda::Logfilec::match_host", _wrap_match_host},
+{"Amanda::Logfilec::match_disk", _wrap_match_disk},
+{"Amanda::Logfilec::match_datestamp", _wrap_match_datestamp},
+{"Amanda::Logfilec::match_level", _wrap_match_level},
 {0,0}
 };
 /* -----------------------------------------------------------------------------
@@ -3183,6 +3631,26 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "P_AMFLUSH", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(P_AMFLUSH)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "P_AMDUMP", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(P_AMDUMP)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "P_AMIDXTAPED", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(P_AMIDXTAPED)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "P_AMFETCHDUMP", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(P_AMFETCHDUMP)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "P_AMCHECKDUMP", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(P_AMCHECKDUMP)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   SWIG_TypeClientData(SWIGTYPE_p_find_result_t, (void*) "Amanda::Logfile::find_result_t");

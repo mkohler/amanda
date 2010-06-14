@@ -2,12 +2,12 @@
 .\"     Title: amanda-auth
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMANDA\-AUTH" "7" "11/05/2009" "Amanda 2\&.6\&.1p2" "Miscellanea"
+.TH "AMANDA\-AUTH" "7" "06/01/2010" "Amanda 3\&.1\&.0" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,11 +19,10 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amanda-auth \- Communication/Authentication methods between \fIAmanda\fR server and client
+amanda-auth \- Communication/Authentication methods between Amanda server and client
 .SH "DESCRIPTION"
 .PP
-\fIAmanda\fR
-offers 7 methods of communication between Amanda server (sometimes also called the tape server) and clients, each with its own authentication method\&. The desired communication method is specified by the
+Amanda offers 7 methods of communication between Amanda server (sometimes also called the tape server) and clients, each with its own authentication method\&. The desired communication method is specified by the
 \fIauth\fR
 parameter in the amanda\&.conf file (\fBamanda.conf\fR(5)) commonly as a dumptype\&. Valid values to the
 \fIauth\fR
@@ -41,7 +40,7 @@ will be removed in the next release\&. The authentication and communication meth
 \fBamdump\fR
 (amdump(8)) as well as the recovery process
 \fBamrecover\fR
-(amrecover(8))\&. For detailed information, please see http://wiki\&.zmanda\&.com/index\&.php/Server/Client_authentication\&.
+(amrecover(8))\&.
 .SH "COMPILATION AND GENERAL INFORMATION"
 .PP
 The communication method and thus type of authentication that will be used by the Amanda server is specified by the
@@ -62,16 +61,13 @@ On the client side, the Amanda daemon
 \fBamandad\fR
 validates the connection depending on the value of the
 \fBauth\fR
-argument passed to it (see
-\fIAmanda\fR(8))\&. Also, when it comes to recovery, the
+argument passed to it (see Amanda(8))\&. Also, when it comes to recovery, the
 \fBauth\fR
 parameter can be specified in the
 \fBamanda-client.conf\fR(5)
 file to specify the communication method to be used by the client to the server\&.
 .PP
-When
-\fIAmanda\fR
-is being built from source code, desired communication and thus authentication methods (shown as "Authentication") must be specified as configure options at compilation time\&.
+When Amanda is being built from source code, desired communication and thus authentication methods (shown as "Authentication") must be specified as configure options at compilation time\&.
 .sp
 .nf
 Authentication	  Configure option(s)
@@ -121,7 +117,7 @@ The
 parameter selects a communication/authentication method to use between the client and the backup server\&. These methods are described each in their own section below\&.
 .SH "BSD, BSDUDP, AND BSDTCP COMMUNICATION AND AUTHENTICATION"
 .PP
-For more detail, see http://wiki\&.zmanda\&.com/index\&.php/Configuring_bsd/bsdudp/bsdtcp_authentication\&.
+For additional information including example configurations, see http://wiki\&.zmanda\&.com/index\&.php/Configuring_bsd/bsdudp/bsdtcp_authentication\&.
 .PP
 The
 \fBbsd\fR,
@@ -133,10 +129,13 @@ In addition to compilation and general configuration (see
 \fBCOMPILATION AND GENERAL INFORMATION\fR
 above), the authentication method that the client is configured to receive is specified by the
 \fBauth\fR
-parameter in the network service configuration for
-\fIAmanda\fR\&. The authentication method used by an Amanda client to reach the server during recovery is the authentication method specified by the
+parameter in the network service configuration for Amanda\&. The authentication method used by an Amanda client to reach the server during recovery is the authentication method specified by the
 \fIauth\fR
 parameter in the client\'s Amanda network service configuration or in its amanda\-client\&.conf file (see amanda\-client\&.conf(5))\&.
+.PP
+By default, Amanda use the "amanda" service name and associated port set in /etc/services\&. It can be changed by setting the dumptype
+\fIclient_port\fR
+option to a different port number or a different service name\&. All examples are for the service name "amanda" that uses the default port 10080\&.
 .SS "\&.amandahosts file"
 .PP
 Servers and clients using the bsd, bsdudp, and bsdtcp authentication methods refer to the \&.amandahosts file to control access\&. Amanda should be compiled for this access control if one of these methods will be used and is the default compilation option for Amanda 2\&.6 (use \-\-with\-amandahosts when compiling pre\-2\&.6 versions of Amanda)\&.
@@ -172,6 +171,11 @@ is a space\-delimited list of services the client is authorized to execute:
 \fBamindexd\fR, and
 \fBamidxtaped\fR\&. The last two services are required on a server for clients to connect to it using
 \fBamrecover\fR\&.
+.PP
+If service is omitted, it defaults to
+\fBnoop selfcheck sendsize sendbackup\fR
+(which is equivalent to
+\fBamdump\fR)\&.
 .PP
 Example of the \&.amandahosts file on an Amanda client
 .sp
@@ -662,13 +666,15 @@ Besides user keys, SSH uses host keys to uniquely identify each host, to prevent
 As Amanda will not answer this question itself, you must manually make every connection (server to client and client to server) that you expect Amanda to make\&. Note that you must use the same username that Amanda will use (that is, ssh client and ssh client\&.domain\&.com are distinct)\&.
 .SH "SEE ALSO"
 .PP
-
+\fBamanda\fR(8),
 \fBamanda.conf\fR(5),
 \fBamanda-client.conf\fR(5),
 \fBdisklist\fR(5),
 \fBamdump\fR(8),
 \fBamrecover\fR(8)
-: http://wiki.zmanda.com
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBJean\-Louis Martineau\fR <\&martineau@zmanda\&.com\&>

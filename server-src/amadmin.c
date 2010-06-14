@@ -41,11 +41,14 @@
 #include "find.h"
 #include "util.h"
 #include "timestamp.h"
+#include "server_util.h"
 
 disklist_t diskq;
 
 int main(int argc, char **argv);
 void usage(void);
+static void estimate(int argc, char **argv);
+static void estimate_one(disk_t *dp);
 void force(int argc, char **argv);
 void force_one(disk_t *dp);
 void unforce(int argc, char **argv);
@@ -93,6 +96,8 @@ static const struct {
 	T_("\t\t\t\t\t# Show version info.") },
     { "config", show_config,
 	T_("\t\t\t\t\t# Show configuration.") },
+    { "estimate", estimate,
+	T_(" [<hostname> [<disks>]* ]*\t# Print server estimate.") },
     { "force", force,
 	T_(" [<hostname> [<disks>]* ]+\t\t# Force level 0 at next run.") },
     { "unforce", unforce,
@@ -140,7 +145,7 @@ main(
     int i;
     char *conf_diskfile;
     char *conf_infofile;
-    config_overwrites_t *cfg_ovr = NULL;
+    config_overrides_t *cfg_ovr = NULL;
 
     /*
      * Configure program for internationalization:
@@ -161,19 +166,19 @@ main(
 
     dbopen(DBG_SUBDIR_SERVER);
 
-    erroutput_type = ERR_INTERACTIVE;
+    add_amanda_log_handler(amanda_log_stderr);
 
-    cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
+    cfg_ovr = extract_commandline_config_overrides(&argc, &argv);
 
     if(argc < 3) usage();
+
+    set_config_overrides(cfg_ovr);
+    config_init(CONFIG_INIT_EXPLICIT_NAME, argv[1]);
 
     if(strcmp(argv[2],"version") == 0) {
 	show_version(argc, argv);
 	goto done;
     }
-
-    config_init(CONFIG_INIT_EXPLICIT_NAME, argv[1]);
-    apply_config_overwrites(cfg_ovr);
 
     conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
     read_diskfile(conf_diskfile, &diskq);
@@ -235,8 +240,8 @@ usage(void)
 {
     int i;
 
-    g_fprintf(stderr, _("\nUsage: %s%s <conf> <command> {<args>} [-o configoption]* ...\n"),
-	    get_pname(), versionsuffix());
+    g_fprintf(stderr, _("\nUsage: %s <conf> <command> {<args>} [-o configoption]* ...\n"),
+	    get_pname());
     g_fprintf(stderr, _("    Valid <command>s are:\n"));
     for (i = 0; i < NCMDS; i++)
 	g_fprintf(stderr, "\t%s%s\n", cmdtab[i].name, _(cmdtab[i].usage));
@@ -329,6 +334,64 @@ diskloop(
 	g_fprintf(stderr,_("%s: no disk matched\n"),get_pname());
     }
 }
+
+/* ----------------------------------------------- */
+
+
+static void
+estimate_one(
+    disk_t *	dp)
+{
+    char   *hostname = dp->host->hostname;
+    char   *diskname = dp->name;
+    char   *qhost = quote_string(hostname);
+    char   *qdisk = quote_string(diskname);
+    info_t  info;
+    int     stats;
+    gint64  size;
+
+    get_info(hostname, diskname, &info);
+
+    size = internal_server_estimate(dp, &info, 0, &stats);
+    if (stats) {
+	printf("%s %s %d %jd\n", qhost, qdisk, 0, (intmax_t)size);
+    }
+
+    if (info.last_level > 0) {
+	size = internal_server_estimate(dp, &info, info.last_level, &stats);
+	if (stats) {
+	    printf("%s %s %d %jd\n", qhost, qdisk, info.last_level,
+		   (intmax_t)size);
+	}
+    }
+
+    if (info.last_level > -1) {
+	size = internal_server_estimate(dp, &info, info.last_level+1, &stats);
+	if (stats) {
+	    printf("%s %s %d %jd\n", qhost, qdisk, info.last_level+1,
+		   (intmax_t)size);
+	}
+    }
+
+    amfree(qhost);
+    amfree(qdisk);
+}
+
+
+static void
+estimate(
+    int		argc,
+    char **	argv)
+{
+    disk_t *dp;
+
+    if(argc >= 4)
+	diskloop(argc, argv, "estimate", estimate_one);
+    else
+	for(dp = diskq.head; dp != NULL; dp = dp->next)
+	    estimate_one(dp);
+}
+
 
 /* ----------------------------------------------- */
 
@@ -1083,13 +1146,10 @@ find(
 	start_argc=4;
     }
     errstr = match_disklist(&diskq, argc-(start_argc-1), argv+(start_argc-1));
-    if (errstr) {
-	g_printf("%s", errstr);
-	amfree(errstr);
-    }
 
-    output_find = find_dump(&diskq);
+    output_find = find_dump(&diskq); /* Add deleted dump to diskq */
     if(argc-(start_argc-1) > 0) {
+	amfree(errstr);
 	free_find_result(&output_find);
 	errstr = match_disklist(&diskq, argc-(start_argc-1),
 					argv+(start_argc-1));
@@ -1098,6 +1158,9 @@ find(
 	    amfree(errstr);
 	}
 	output_find = find_dump(NULL);
+    } else if (errstr) {
+	g_printf("%s", errstr);
+	amfree(errstr);
     }
 
     sort_find_result(sort_order, &output_find);
@@ -1514,7 +1577,7 @@ export_db(
     char hostname[MAX_HOSTNAME_LENGTH+1];
     int i;
 
-    g_printf(_("CURINFO Version %s CONF %s\n"), version(), getconf_str(CNF_ORG));
+    g_printf(_("CURINFO Version %s CONF %s\n"), VERSION, getconf_str(CNF_ORG));
 
     curtime = time(0);
     if(gethostname(hostname, SIZEOF(hostname)-1) == -1) {
@@ -1989,7 +2052,8 @@ disklist_one(
     am_host_t *hp;
     netif_t *ip;
     sle_t *excl;
-    pp_scriptlist_t pp_scriptlist;
+    identlist_t pp_scriptlist;
+    estimatelist_t  estimates;
 
     hp = dp->host;
     ip = hp->netif;
@@ -2004,7 +2068,8 @@ disklist_one(
 
     g_printf("        program \"%s\"\n", dp->program);
     if (dp->application)
-	g_printf("        application \"%s\"\n", application_name(dp->application));
+	g_printf("        application \"%s\"\n", dp->application);
+    g_printf("        data-path %s\n", data_path_to_string(dp->data_path));
     if (dp->exclude_file != NULL && dp->exclude_file->nb_element > 0) {
 	g_printf("        exclude file");
 	for(excl = dp->exclude_file->first; excl != NULL; excl = excl->next) {
@@ -2072,17 +2137,26 @@ disklist_one(
     }
     g_printf("        ignore %s\n", (dp->ignore? "YES" : "NO"));
     g_printf("        estimate ");
-    switch(dp->estimate) {
-    case ES_CLIENT:
-	g_printf("CLIENT\n");
-	break;
-    case ES_SERVER:
-	g_printf("SERVER\n");
-	break;
-    case ES_CALCSIZE:
-	g_printf("CALCSIZE\n");
-	break;
+    estimates = dp->estimatelist;
+    while (estimates) {
+	switch((estimate_t)GPOINTER_TO_INT(estimates->data)) {
+	case ES_CLIENT:
+	    g_printf("CLIENT");
+	    break;
+	case ES_SERVER:
+	    g_printf("SERVER");
+	    break;
+	case ES_CALCSIZE:
+	    g_printf("CALCSIZE");
+	    break;
+	case ES_ES:
+	    break;
+	}
+	estimates = estimates->next;
+	if (estimates)
+	    g_printf(", ");
     }
+    g_printf("\n");
 
     g_printf("        compress ");
     switch(dp->compress) {
@@ -2095,11 +2169,21 @@ disklist_one(
     case COMP_BEST:
 	g_printf("CLIENT BEST\n");
 	break;
+    case COMP_CUST:
+	g_printf("CLIENT CUSTOM\n");
+	g_printf("        client_custom_compress \"%s\"\n",
+		    dp->clntcompprog? dp->clntcompprog : "");
+	break;
     case COMP_SERVER_FAST:
 	g_printf("SERVER FAST\n");
 	break;
     case COMP_SERVER_BEST:
 	g_printf("SERVER BEST\n");
+	break;
+    case COMP_SERVER_CUST:
+	g_printf("SERVER CUSTOM\n");
+	g_printf("        server_custom_compress \"%s\"\n",
+		    dp->srvcompprog? dp->srvcompprog : "");
 	break;
     }
     if(dp->compress != COMP_NONE) {
@@ -2114,17 +2198,26 @@ disklist_one(
 	break;
     case ENCRYPT_CUST:
 	g_printf("CLIENT\n");
+	g_printf("        client_encrypt \"%s\"\n",
+		    dp->clnt_encrypt? dp->clnt_encrypt : "");
+	g_printf("        client_decrypt_option \"%s\"\n",
+		    dp->clnt_decrypt_opt? dp->clnt_decrypt_opt : "");
 	break;
     case ENCRYPT_SERV_CUST:
 	g_printf("SERVER\n");
+	g_printf("        server_encrypt \"%s\"\n",
+		    dp->srv_encrypt? dp->srv_encrypt : "");
+	g_printf("        server_decrypt_option \"%s\"\n",
+		    dp->srv_decrypt_opt? dp->srv_decrypt_opt : "");
 	break;
     }
 
-    g_printf("        auth %s\n", dp->security_driver);
+    g_printf("        auth \"%s\"\n", dp->auth);
     g_printf("        kencrypt %s\n", (dp->kencrypt? "YES" : "NO"));
-    g_printf("        amandad_path %s\n", dp->amandad_path);
-    g_printf("        client_username %s\n", dp->client_username);
-    g_printf("        ssh_keys %s\n", dp->ssh_keys);
+    g_printf("        amandad_path \"%s\"\n", dp->amandad_path);
+    g_printf("        client_username \"%s\"\n", dp->client_username);
+    g_printf("        client_port \"%s\"\n", dp->client_port);
+    g_printf("        ssh_keys \"%s\"\n", dp->ssh_keys);
 
     g_printf("        holdingdisk ");
     switch(dp->to_holdingdisk) {
@@ -2158,7 +2251,7 @@ disklist_one(
     g_printf("        spindle %d\n", dp->spindle);
     pp_scriptlist = dp->pp_scriptlist;
     while (pp_scriptlist != NULL) {
-	g_printf("        script \"%s\"\n", (pp_script_name(pp_scriptlist->data)));
+	g_printf("        script \"%s\"\n", (char *)pp_scriptlist->data);
 	pp_scriptlist = pp_scriptlist->next;
     }
 

@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -18,7 +18,7 @@
 </refmeta>
 <refnamediv>
 <refname>amtoc</refname>
-<refpurpose>generate TOC (Table Of Contents) for an &A; run</refpurpose>
+<refpurpose>generate TOC (Table Of Contents) for an Amanda run</refpurpose>
 </refnamediv>
 <refentryinfo>
 &author.nm;
@@ -42,7 +42,7 @@
 
 <refsect1><title>DESCRIPTION</title>
 <para><emphasis remap='I'>Amtoc</emphasis>
-generates a table of contents for an &A; run.
+generates a table of contents for an Amanda run.
 It's a perl script (if you don't have perl, install it first!).</para>
 </refsect1>
 
@@ -156,16 +156,12 @@ after an
 <emphasis remap='I'>amflush</emphasis>.</para>
 </refsect1>
 
-<refsect1><title>SEE ALSO</title>
-<para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amdump</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amflush</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amgetconf</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-cron,
-perl,
-<ulink url="http://wiki.zmanda.com"/>
-</para>
-</refsect1>
+<seealso>
+<manref name="amdump" vol="8"/>,
+<manref name="amflush" vol="8"/>,
+<manref name="amgetconf" vol="8"/>
+</seealso>
+
 
 </refentry>
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -13,7 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 use Test::More tests => 11;
@@ -21,6 +21,7 @@ use File::Path;
 use strict;
 
 use lib "@amperldir@";
+use Installcheck;
 use Installcheck::Config;
 use Amanda::Paths;
 use Amanda::Debug;
@@ -29,6 +30,7 @@ use Amanda::Process;
 
 # set up debugging so debug output doesn't interfere with test results
 Amanda::Debug::dbopen("installcheck");
+Installcheck::log_test_output();
 
 # and disable Debug's die() and warn() overrides
 Amanda::Debug::disable_die_override();
@@ -37,10 +39,10 @@ my $Amanda_process = Amanda::Process->new(0);
 
 $Amanda_process->load_ps_table();
 
-like($Amanda_process->{pstable}->{$$}, qr/perl/,
-   "installcheck is a perl program");
+like($Amanda_process->{pstable}->{$$}, qr/(Amanda_Process|perl)/,
+   "find program name for perl script");
 is($Amanda_process->{ppid}->{$$}, getppid,
-   "load_ps_table get correct ppid for installcheck");
+   "load_ps_table get correct ppid for Amanda_Process");
 
 #override works done by load_ps_table, override pstable
 $Amanda_process->{pstable} = {
@@ -77,7 +79,7 @@ $Amanda_process->{ppid} = {
 };
 
 #create a log file
-my $log_filename = "$AMANDA_TMPDIR/Amanda_Logfile_test.log";
+my $log_filename = "$Installcheck::TMP/Amanda_Logfile_test.log";
 open my $logfile, ">", $log_filename or die("Could not create temporary log file '$log_filename': $!");
 print $logfile <<LOGFILE;
 INFO amdump amdump pid 30072

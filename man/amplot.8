@@ -2,12 +2,12 @@
 .\"     Title: amplot
 .\"    Author: Olafur Gudmundsson <ogud@tis.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMPLOT" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMPLOT" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,7 +19,7 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amplot \- visualize the behavior of \fIAmanda\fR
+amplot \- visualize the behavior of Amanda
 .SH "SYNOPSIS"
 .HP \w'\fBamplot\fR\ 'u
 \fBamplot\fR [\-b] [\-c] [\-e] [\-g] [\-l] [\-p] [\-t\ \fIT\fR] \fIamdump_files\fR
@@ -30,9 +30,7 @@ amplot \- visualize the behavior of \fIAmanda\fR
 \fBAmplot\fR
 reads an
 \fBamdump\fR
-output file that
-\fIAmanda\fR
-generates each run (e\&.g\&.
+output file that Amanda generates each run (e\&.g\&.
 \fIamdump\&.1\fR) and translates the information into a picture format that may be used to determine how your installation is doing and if any parameters need to be changed\&.
 \fBAmplot\fR
 also prints out
@@ -50,10 +48,9 @@ output file\&. It then executes a
 program
 (\fIamplot\&.g\fR) to generate the graph\&. The
 \fBawk\fR
-program is written in an enhanced version of awk, such as GNU awk
-(\fIgawk\fR
+program is written in an enhanced version of awk, such as GNU awk (\fBgawk\fR(1)
 version 2\&.15 or later) or
-\fBnawk\fR\&.
+\fBnawk\fR(1)\&.
 .PP
 During execution,
 \fBamplot\fR
@@ -63,8 +60,7 @@ uses\&. These files are deleted at the end of execution\&.
 .PP
 See the
 \fBamanda\fR(8)
-man page for more details about
-\fIAmanda\fR\&.
+man page for more details about Amanda\&.
 .SH "OPTIONS"
 .PP
 \fB\-b\fR
@@ -115,8 +111,7 @@ hours\&.
 .PP
 The
 \fIamdump_files\fR
-may be in various compressed formats
-(\fIcompress\fR,
+may be in various compressed formats (\fIcompress\fR,
 \fBgzip\fR,
 \fBpact\fR,
 \fBcompact\fR)\&.
@@ -152,14 +147,12 @@ Reports lines it does not recognize, mainly error cases but some are legitimate 
 .PP
 \fBamanda\fR(8),
 \fBamdump\fR(8),
-\fBgawk\fR(1),
-\fBnawk\fR(1),
-\fBawk\fR(1),
 \fBgnuplot\fR(1),
-\fBsh\fR(1),
 \fBcompress\fR(1),
-\fBgzip\fR(1),
-: http://wiki.zmanda.com
+\fBgzip\fR(1)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBOlafur Gudmundsson\fR <\&ogud@tis\&.com\&>

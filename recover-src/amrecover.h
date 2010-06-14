@@ -32,6 +32,7 @@
 #include "amanda.h"
 #include "amfeatures.h"
 #include "amxml.h"
+#include "conffile.h"
 
 #define STARTUP_TIMEOUT 60
 
@@ -65,6 +66,7 @@ extern char *our_features_string;
 extern am_feature_t *indexsrv_features;
 extern am_feature_t *tapesrv_features;
 extern pid_t extract_restore_child_pid;
+extern proplist_t proplist;
 
 extern void free_dir_item(DIR_ITEM *item);
 
@@ -84,16 +86,19 @@ extern void list_disk(char *amdevice);
 extern void set_host(const char *host);
 extern void list_host(void);
 extern int set_date(char *date);
-extern void set_directory(char *dir);
+extern int set_directory(char *dir, int verbose);
 extern void local_cd(char *dir);
-extern void cd_glob(char *dir);
-extern void cd_regex(char *dir);
-extern void cd_dir(char *dir, char *default_dir);
+extern int cd_glob(char *dir, int verbose);
+extern int cd_regex(char *dir, int verbose);
+extern int cd_dir(char *dir, char *default_dir, int verbose);
 extern void set_tape(char *tape);
 extern void set_device(char *host, char *device);
 extern void show_directory(void);
 extern void set_mode(int mode);
 extern void show_mode(void);
+extern void set_property_name(char *name, int append);
+extern void add_property_value(char *value);
+extern void list_property(void);
 
 extern void list_disk_history(void);
 extern void list_directory(void);

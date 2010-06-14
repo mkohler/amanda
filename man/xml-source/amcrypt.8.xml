@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -17,7 +17,7 @@
 </refmeta>
 <refnamediv>
 <refname>amcrypt</refname>
-<refpurpose>reference crypt program for &A; symmetric data encryption</refpurpose>
+<refpurpose>reference crypt program for Amanda symmetric data encryption</refpurpose>
 </refnamediv>
 <refentryinfo>
 &author.ktill;
@@ -71,14 +71,12 @@ properly. Encrypted backup data can <emphasis remap='B'>only</emphasis> be recov
 passphrase.</para>
 </refsect1>
 
-<refsect1><title>SEE ALSO</title>
-<para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amanda.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>aespipe</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amaespipe</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>gpg</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
-<ulink url="http://wiki.zmanda.com"/>
-</para>
-</refsect1>
+<seealso>
+<manref name="amanda.conf" vol="5"/>,
+<manref name="aespipe" vol="1"/>,
+<manref name="amaespipe" vol="8"/>,
+<manref name="gpg" vol="1"/>
+</seealso>
+
 </refentry>
 

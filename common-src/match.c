@@ -30,9 +30,11 @@
  */
 
 #include "amanda.h"
+#include "match.h"
 #include <regex.h>
 
 static int match_word(const char *glob, const char *word, const char separator);
+static char *tar_to_regex(const char *glob);
 
 char *
 validate_regexp(
@@ -55,18 +57,93 @@ validate_regexp(
 
 char *
 clean_regex(
-    const char *	regex)
+    const char *	str,
+    gboolean		anchor)
 {
     char *result;
     int j;
     size_t i;
-    result = alloc(2*strlen(regex)+1);
+    result = alloc(2*strlen(str)+3);
 
-    for(i=0,j=0;i<strlen(regex);i++) {
-	if(!isalnum((int)regex[i]))
+    j = 0;
+    if (anchor)
+	result[j++] = '^';
+    for(i=0;i<strlen(str);i++) {
+	if(!isalnum((int)str[i]))
 	    result[j++]='\\';
-	result[j++]=regex[i];
+	result[j++]=str[i];
     }
+    if (anchor)
+	result[j++] = '$';
+    result[j] = '\0';
+    return result;
+}
+
+char *
+make_exact_host_expression(
+    const char *	host)
+{
+    char *result;
+    int j;
+    size_t i;
+    result = alloc(2*strlen(host)+3);
+
+    j = 0;
+    result[j++] = '^';
+    for(i=0;i<strlen(host);i++) {
+	/* quote host expression metcharacters *except* '.'.  Note that
+	 * most of these are invalid in a DNS hostname anyway. */
+	switch (host[i]) {
+	    case '\\':
+	    case '/':
+	    case '^':
+	    case '$':
+	    case '?':
+	    case '*':
+	    case '[':
+	    case ']':
+	    result[j++]='\\';
+	    /* fall through */
+
+	    default:
+	    result[j++]=host[i];
+	}
+    }
+    result[j++] = '$';
+    result[j] = '\0';
+    return result;
+}
+
+char *
+make_exact_disk_expression(
+    const char *	disk)
+{
+    char *result;
+    int j;
+    size_t i;
+    result = alloc(2*strlen(disk)+3);
+
+    j = 0;
+    result[j++] = '^';
+    for(i=0;i<strlen(disk);i++) {
+	/* quote disk expression metcharacters *except* '/' */
+	switch (disk[i]) {
+	    case '\\':
+	    case '.':
+	    case '^':
+	    case '$':
+	    case '?':
+	    case '*':
+	    case '[':
+	    case ']':
+	    result[j++]='\\';
+	    /* fall through */
+
+	    default:
+	    result[j++]=disk[i];
+	}
+    }
+    result[j++] = '$';
     result[j] = '\0';
     return result;
 }
@@ -289,7 +366,7 @@ match_tar(
     return result == 0;
 }
 
-char *
+static char *
 tar_to_regex(
     const char *	glob)
 {
@@ -379,8 +456,8 @@ match_word(
     int  last_ch;
     int  next_ch;
     size_t  lenword;
-    char *nword;
-    char *nglob;
+    char  *mword, *nword;
+    char  *mglob, *nglob;
     char *g; 
     const char *w;
     int  i;
@@ -388,8 +465,42 @@ match_word(
     lenword = strlen(word);
     nword = (char *)alloc(lenword + 3);
 
+    if (separator == '/' && lenword > 2 && word[0] == '\\' && word[1] == '\\' && !strchr(word, '/')) {
+	/* Convert all "\" to '/' */
+	mword = (char *)alloc(lenword + 1);
+	r = mword;
+	w = word;
+	while (*w != '\0') {
+	    if (*w == '\\') {
+		*r++ = '/';
+		w += 1;
+	    } else {
+		*r++ = *w++;
+	    }
+	}
+	*r++ = '\0';
+	lenword = strlen(word);
+
+	/* Convert all "\\" to '/' */
+	mglob = (char *)alloc(strlen(glob) + 1);
+	r = mglob;
+	w = glob;
+	while (*w != '\0') {
+	    if (*w == '\\' && *(w+1) == '\\') {
+		*r++ = '/';
+		w += 2;
+	    } else {
+		*r++ = *w++;
+	    }
+	}
+	*r++ = '\0';
+    } else {
+	mword = stralloc(word);
+	mglob = stralloc(glob);
+    }
+
     r = nword;
-    w = word;
+    w = mword;
     if(lenword == 1 && *w == separator) {
 	*r++ = separator;
 	*r++ = separator;
@@ -408,10 +519,10 @@ match_word(
      * Allocate an area to convert into.  The worst case is a six to
      * one expansion.
      */
-    len = strlen(glob);
+    len = strlen(mglob);
     regex = (char *)alloc(1 + len * 6 + 1 + 1 + 2 + 2);
     r = regex;
-    nglob = stralloc(glob);
+    nglob = stralloc(mglob);
     g = nglob;
 
     if((len == 1 && nglob[0] == separator) ||
@@ -513,6 +624,8 @@ match_word(
 
     i = match(regex,nword);
 
+    amfree(mword);
+    amfree(mglob);
     amfree(nword);
     amfree(nglob);
     amfree(regex);
@@ -651,9 +764,7 @@ match_level(
     const char *	level)
 {
     char *dash;
-    size_t len, len_suffix;
-    size_t len_prefix;
-    char lowend[100], highend[100];
+    long int low, hi, level_i;
     char mylevelexp[100];
     int match_exact;
 
@@ -680,23 +791,24 @@ match_level(
 
     if((dash = strchr(mylevelexp,'-'))) {
 	if(match_exact == 1) {
-	    error(_("Illegal level expression %s"),levelexp);
-	    /*NOTREACHED*/
+            goto illegal;
 	}
-	len = (size_t)(dash - mylevelexp);
-	len_suffix = strlen(dash) - 1;
-	len_prefix = len - len_suffix;
 
-	dash++;
-	strncpy(lowend, mylevelexp, len);
-	lowend[len] = '\0';
-	strncpy(highend, mylevelexp, len_prefix);
-	strncpy(&(highend[len_prefix]), dash, len_suffix);
-	highend[len] = '\0';
-	return ((strncmp(level, lowend, strlen(lowend)) >= 0) &&
-		(strncmp(level, highend , strlen(highend))  <= 0));
+        *dash = '\0';
+        if (!alldigits(mylevelexp) || !alldigits(dash+1)) goto illegal;
+
+        errno = 0;
+        low = strtol(mylevelexp, (char **) NULL, 10);
+        if (errno) goto illegal;
+        hi = strtol(dash+1, (char **) NULL, 10);
+        if (errno) goto illegal;
+        level_i = strtol(level, (char **) NULL, 10);
+        if (errno) goto illegal;
+
+	return ((level_i >= low) && (level_i <= hi));
     }
     else {
+	if (!alldigits(mylevelexp)) goto illegal;
 	if(match_exact == 1) {
 	    return (strcmp(level, mylevelexp) == 0);
 	}
@@ -704,4 +816,7 @@ match_level(
 	    return (strncmp(level, mylevelexp, strlen(mylevelexp)) == 0);
 	}
     }
+illegal:
+    error(_("Illegal level expression %s"),levelexp);
+    /*NOTREACHED*/
 }

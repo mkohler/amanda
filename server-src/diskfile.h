@@ -49,7 +49,7 @@ typedef struct amhost_s {
     int inprogress;			/* # dumps in progress */
     int maxdumps;			/* maximum dumps in parallel */
     netif_t *netif;			/* network interface this host is on */
-    time_t start_t;			/* start dump after this time */
+    time_t start_t;			/* time last dump was started on this host */
     char *up;				/* generic user pointer */
     am_feature_t *features;		/* feature set */
     int	 pre_script;
@@ -66,7 +66,7 @@ typedef struct disk_s {
     char        *hostname;		/* hostname */
     char	*name;			/* label name for disk */
     char	*device;		/* device name for disk, eg "sd0g" */
-    char	*dtype_name;		/* name of dump type   XXX shouldn't need this */
+    char	*dtype_name;		/* name of dump type */
     char	*program;		/* dump program, eg DUMP, STAR, GNUTAR */
     char	*srvcompprog;		/* custom compression server filter */
     char	*clntcompprog;		/* custom compression client filter */
@@ -74,6 +74,7 @@ typedef struct disk_s {
     char	*clnt_encrypt;		/* custom encryption client filter */
     char	*amandad_path;		/* amandad path on the client */
     char	*client_username;	/* username to connect on the client */
+    char	*client_port;		/* port to connect on the client */
     char	*ssh_keys;		/* ssh_key file to use */
     sl_t	*exclude_file;		/* file exclude spec */
     sl_t	*exclude_list;		/* exclude list */
@@ -87,18 +88,18 @@ typedef struct disk_s {
     off_t	fallback_splitsize;	/* size for in-RAM PORT-WRITE buffers */
     int		dumpcycle;		/* days between fulls */
     long	frequency;		/* XXX - not used */
-    char	*security_driver;	/* type of authentication (per disk) */
+    char	*auth;			/* type of authentication (per disk) */
     int		maxdumps;		/* max number of parallel dumps (per system) */
     int		maxpromoteday;		/* maximum of promote day */
     int		bumppercent;
     off_t	bumpsize;
     int		bumpdays;
     double	bumpmult;
-    time_t	starttime;		/* start this dump after this time */
-    time_t	start_t;		/* start this dump after this time */
+    time_t	starttime;		/* start this dump after this time (integer: HHMM) */
+    time_t	start_t;		/* start this dump after this time (time_t) */
     int		strategy;		/* what dump strategy to use */
     int		ignore;			/* ignore */
-    int		estimate;		/* what estimate strategy to use */
+    estimatelist_t estimatelist;	/* what estimate strategy to use */
     int		compress;		/* type of compression to use */
     int		encrypt;		/* type of encryption to use */
     char	*srv_decrypt_opt;	/* server-side decryption option parameter to use */
@@ -111,11 +112,13 @@ typedef struct disk_s {
     int		to_holdingdisk;		/* use holding disk ? */
     int		kencrypt;
     int		index;			/* produce an index ? */
+    data_path_t	data_path;		/* defined data-path */
+    char       *dataport_list;		/* list of address to send data */
     int		spindle;		/* spindle # - for parallel dumps */
     int		inprogress;		/* being dumped now? */
     int		todo;
-    application_t *application;
-    pp_scriptlist_t pp_scriptlist;
+    char       *application;
+    identlist_t pp_scriptlist;
     void	*up;			/* generic user pointer */
 } disk_t;
 
@@ -144,19 +147,27 @@ void remove_disk(disklist_t *list, disk_t *disk);
 
 void dump_queue(char *str, disklist_t q, int npr, FILE *f);
 
-char *optionstr(disk_t *dp, am_feature_t *their_features, FILE *fdout);
+char *optionstr(disk_t *dp);
 
 /* xml_optionstr()
  * to_server must be set to 1 if the result is sent to another server
  *           application, eg. driver to dumper.
  *           It must be set to 0 if the result is sent to the client.
  */
-char *xml_optionstr(disk_t *dp, am_feature_t *their_features, FILE *fdout,
-		    int to_server);
+GPtrArray *validate_optionstr(disk_t *dp);
+char *xml_optionstr(disk_t *dp, int to_server);
+char *xml_estimate(estimatelist_t estimatelist, am_feature_t *their_features);
 char *clean_dle_str_for_client(char *dle_str);
-char *xml_application(application_t *application,
+char *xml_application(disk_t *dp, application_t *application,
 		      am_feature_t *their_features);
-char *xml_scripts(pp_scriptlist_t pp_scriptlist, am_feature_t *their_features);
+char *xml_scripts(identlist_t pp_scriptlist, am_feature_t *their_features);
+
+/* disable_skip_disk() set the db->todo flag to 0 for each dle with 'ignore'
+ * 'strategy skip'. It is useful for all programs that want to skip them,i
+ * eg. all amdump process.
+ * Program use for listing dump or index should not use it.
+ */
+void disable_skip_disk(disklist_t *origqp);
 
 char *match_disklist(disklist_t *origqp, int sargc, char **sargv);
 void free_disklist(disklist_t *dl);

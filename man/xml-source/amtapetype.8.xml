@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd" [
 
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 
 ]>
@@ -37,14 +37,17 @@
     <arg choice='opt'>-b <replaceable>blocksize</replaceable></arg>
     <arg choice='opt'>-t <replaceable>typename</replaceable></arg>
     <arg choice='opt'>-l <replaceable>label</replaceable></arg>
-    <arg choice='opt'>-o <replaceable>config_overwrite</replaceable></arg>
+    &configoverride.synopsis;
+    <group choice='opt'>
+      <arg choice='plain'><replaceable>config</replaceable></arg>
+    </group>
     <arg><replaceable>device</replaceable></arg>
 </cmdsynopsis>
 </refsynopsisdiv>
 
 <refsect1><title>DESCRIPTION</title>
 <para><emphasis remap='B'>amtapetype</emphasis>
-generates a tapetype entry for &A; by testing the device directly</para>
+generates a tapetype entry for Amanda by testing the device directly.</para>
 </refsect1>
 
 <refsect1><title>OPTIONS</title>
@@ -66,8 +69,7 @@ This takes a few minutes only.</para>
   <varlistentry>
   <term><option>-f</option></term>
   <listitem>
-<para>Run amtapetype even if the loaded volume is already in use or compression
-is enabled.</para>
+<para>Run amtapetype even if the loaded volume is already labeled.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -95,13 +97,18 @@ is enabled.</para>
 <para>Label to write on the tape (default is randomly generated).</para>
   </listitem>
   </varlistentry>
-  <varlistentry>
-  <term><option>-o</option> <replaceable>configoption</replaceable></term>
-  <listitem>
-<para>See the "<emphasis remap='B'>CONFIGURATION OVERRIDE</emphasis>" section in <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>.</para>
-  </listitem>
-  </varlistentry>
+
+  &configoverride.varlistentry;
+
 </variablelist>
+
+<para>
+If a configuration is specified, it is loaded and used to configure the device.
+Note that global configuration parameters are not applied to the device, so if
+you need to apply properties to a device to run amtapetype, you should supply
+those properties in a named <emphasis>device</emphasis> section.
+</para>
+
 </refsect1>
 
 <refsect1><title>EXAMPLE</title>
@@ -138,5 +145,9 @@ is, and it was just the measured capacity variation that caused &amtapetype;
 to think those extra file marks in pass 2 actually took up space.</para>
 
 </refsect1>
+
+<seealso>
+<manref name="amanda.conf" vol="5" />
+</seealso>
 
 </refentry>

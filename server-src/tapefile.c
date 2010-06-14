@@ -29,6 +29,7 @@
  * routines to read and write the amanda active tape list
  */
 #include "amanda.h"
+#include "match.h"
 #include "tapefile.h"
 #include "conffile.h"
 
@@ -133,7 +134,7 @@ clear_tapelist(void)
 
 tape_t *
 lookup_tapelabel(
-    char *label)
+    const char *label)
 {
     tape_t *tp;
 
@@ -180,6 +181,15 @@ lookup_nb_tape(void)
 	pos=tp->position;
     }
     return pos;
+}
+
+
+char *
+get_last_reusable_tape_label(
+     int skip)
+{
+    tape_t *tp = lookup_last_reusable_tape(skip);
+    return (tp != NULL) ? tp->label : NULL;
 }
 
 tape_t *
@@ -470,12 +480,12 @@ stamp2time(
     return mktime(tm);
 }
 
-void
-print_new_tapes(
-    FILE *output,
-    int   nb)
+char *
+list_new_tapes(
+    int nb)
 {
     tape_t *lasttp, *iter;
+    char *result = NULL;
 
     /* Find latest reusable new tape */
     lasttp = lookup_tapepos(lookup_nb_tape());
@@ -495,23 +505,36 @@ print_new_tapes(
 	}
 
 	if(c == 1) {
-	    g_fprintf(output,
-		      _("The next new tape already labelled is: %s.\n"),
-		      lasttp->label);
+	    result = g_strdup_printf(
+			_("The next new tape already labelled is: %s."),
+			lasttp->label);
 	} else {
-	    g_fprintf(output,
-		      _("The next %d new tapes already labelled are: %s"),
-		      c, lasttp->label);
+	    result = g_strdup_printf(
+			_("The next %d new tapes already labelled are: %s"),
+			c, lasttp->label);
 	    iter = lasttp->prev;
 	    c--;
 	    while(iter && c > 0 && strcmp(iter->datestamp,"0") == 0) {
 		if (iter->reuse) {
-		    g_fprintf(output, ", %s", iter->label);
+		    result = vstrextend(&result, ", ", iter->label, NULL);
 		    c--;
 		}
 		iter = iter->prev;
 	    }
-	    g_fprintf(output, ".\n");
 	}
+    }
+    return result;
+}
+
+void
+print_new_tapes(
+    FILE *output,
+    int   nb)
+{
+    char *result = list_new_tapes(nb);
+
+    if (result) {
+	g_fprintf(output,"%s\n", result);
+	amfree(result);
     }
 }

@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -17,7 +17,7 @@
 </refmeta>
 <refnamediv>
 <refname>amvault</refname>
-<refpurpose>Copy &A; dumps from one volume to another</refpurpose>
+<refpurpose>Copy Amanda dumps from one volume to another</refpurpose>
 </refnamediv>
 <refentryinfo>
 &author.dustin;
@@ -26,7 +26,8 @@
 <refsynopsisdiv>
 <cmdsynopsis>
   <command>amvault</command>
-    <arg choice='plain' rep='repeat'><group><arg choice='plain'>-o </arg><replaceable>configoption</replaceable></group></arg>
+    &configoverride.synopsis;
+    <arg choice='opt'>-q|--quiet</arg>
     <arg choice='plain'><replaceable>config</replaceable></arg>
     <arg choice='plain'><replaceable>src-run-timestamp</replaceable></arg>
     <arg choice='plain'><replaceable>dst-changer</replaceable></arg>
@@ -79,13 +80,22 @@ define changer vaulting_tape {
 }
 </programlisting></para>
 
-<para>The label template functions identically to the <emphasis
-remap='I'>label-new-tapes</emphasis> parameter in &amconf;.</para>
+<para>The <emphasis>--quiet</emphasis> option reduces the verbosity of the
+utility; this can be useful for volumes containing many split parts.  The
+<emphasis>--autolabel</emphasis> option defines which tertiary volumes
+amlabel will overwrite.  It can have any of the values defined for
+<amkeyword>autolabel</amkeyword> in <manref name="amanda.conf" vol="5" />,
+with the addition of "this_config", meaning volumes matching the labelstr
+for this configuration.  The option defaults to "empty".  Multiple
+values can be separated with commas.  The label template functions
+identically to the template for teh <amkeyword>autolabel</amkeyword>
+parameter.</para>
 
 </refsect1>
 
-<refsect1><title>SEE ALSO</title>
-<para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry></para>
-</refsect1>
+<seealso>
+<manref name="amanda-changers" vol="7"/>
+</seealso>
+
 </refentry>
 

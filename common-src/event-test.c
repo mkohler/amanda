@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008 Zmanda Inc.  All Rights Reserved.
+ * Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -14,7 +14,7 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  * 
- * Contact information: Zmanda Inc, 465 N Mathlida Ave, Suite 300
+ * Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
  * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  *
  * Author: Dustin J. Mitchell <dustin@zmanda.com>
@@ -632,16 +632,16 @@ int
 main(int argc, char **argv)
 {
     static TestUtilsTest tests[] = {
-	TU_TEST(test_ev_time, 10),
-	TU_TEST(test_ev_wait, 10),
-	TU_TEST(test_ev_wait_2, 10),
-	TU_TEST(test_ev_readfd, 60), /* runs slowly on old kernels */
-	TU_TEST(test_ev_writefd, 60),
-	TU_TEST(test_event_wait, 10),
-	TU_TEST(test_event_wait_2, 10),
-	TU_TEST(test_nonblock, 10),
-	TU_TEST(test_read_timeout, 10),
-	TU_TEST(test_child_watch_source, 5),
+	TU_TEST(test_ev_time, 90),
+	TU_TEST(test_ev_wait, 90),
+	TU_TEST(test_ev_wait_2, 90),
+	TU_TEST(test_ev_readfd, 120), /* runs slowly on old kernels */
+	TU_TEST(test_ev_writefd, 90),
+	TU_TEST(test_event_wait, 90),
+	TU_TEST(test_event_wait_2, 90),
+	TU_TEST(test_nonblock, 90),
+	TU_TEST(test_read_timeout, 90),
+	TU_TEST(test_child_watch_source, 90),
 	/* fdsource is used by ev_readfd/ev_writefd, and is sufficiently tested there */
 	TU_END()
     };

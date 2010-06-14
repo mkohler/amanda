@@ -2,12 +2,12 @@
 .\"     Title: amvault
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMVAULT" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMVAULT" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,10 +19,10 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amvault \- Copy \fIAmanda\fR dumps from one volume to another
+amvault \- Copy Amanda dumps from one volume to another
 .SH "SYNOPSIS"
 .HP \w'\fBamvault\fR\ 'u
-\fBamvault\fR [\-o\ \fIconfigoption\fR]... \fIconfig\fR \fIsrc\-run\-timestamp\fR \fIdst\-changer\fR \fIlabel\-template\fR
+\fBamvault\fR [{\fB\-o\fR\ \fIconfigoption\fR}...] [\-q|\-\-quiet] \fIconfig\fR \fIsrc\-run\-timestamp\fR \fIdst\-changer\fR \fIlabel\-template\fR
 .SH "WARNING"
 .PP
 This application is not yet in its final form, and is subject to major revision in subsequent versions of Amanda\&. Backward compatibility is not guaranteed\&.
@@ -57,13 +57,23 @@ define changer vaulting_tape {
 }
 .fi
 .PP
-The label template functions identically to the
-\fIlabel\-new\-tapes\fR
-parameter in
-\fBamanda.conf\fR(5)\&.
+The
+\fI\-\-quiet\fR
+option reduces the verbosity of the utility; this can be useful for volumes containing many split parts\&. The
+\fI\-\-autolabel\fR
+option defines which tertiary volumes amlabel will overwrite\&. It can have any of the values defined for
+\fBautolabel\fR
+in
+\fBamanda.conf\fR(5), with the addition of "this_config", meaning volumes matching the labelstr for this configuration\&. The option defaults to "empty"\&. Multiple values can be separated with commas\&. The label template functions identically to the template for teh
+\fBautolabel\fR
+parameter\&.
 .SH "SEE ALSO"
 .PP
-\fBamanda\fR(8)
+\fBamanda\fR(8),
+\fBamanda-changers\fR(7)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHOR"
 .PP
 \fBDustin J\&. Mitchell\fR <\&dustin@zmanda\&.com\&>

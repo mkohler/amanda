@@ -1474,22 +1474,21 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 
 /* -------- TYPES TABLE (BEGIN) -------- */
 
-#define SWIGTYPE_p_a_STRMAX__char swig_types[0]
-#define SWIGTYPE_p_char swig_types[1]
-#define SWIGTYPE_p_double swig_types[2]
-#define SWIGTYPE_p_float swig_types[3]
-#define SWIGTYPE_p_gint16 swig_types[4]
-#define SWIGTYPE_p_gint32 swig_types[5]
-#define SWIGTYPE_p_gint64 swig_types[6]
-#define SWIGTYPE_p_gint8 swig_types[7]
-#define SWIGTYPE_p_guint16 swig_types[8]
-#define SWIGTYPE_p_guint32 swig_types[9]
-#define SWIGTYPE_p_guint64 swig_types[10]
-#define SWIGTYPE_p_guint8 swig_types[11]
-#define SWIGTYPE_p_int swig_types[12]
-#define SWIGTYPE_p_unsigned_char swig_types[13]
-static swig_type_info *swig_types[15];
-static swig_module_info swig_module = {swig_types, 14, 0, 0, 0, 0};
+#define SWIGTYPE_p_char swig_types[0]
+#define SWIGTYPE_p_double swig_types[1]
+#define SWIGTYPE_p_float swig_types[2]
+#define SWIGTYPE_p_gint16 swig_types[3]
+#define SWIGTYPE_p_gint32 swig_types[4]
+#define SWIGTYPE_p_gint64 swig_types[5]
+#define SWIGTYPE_p_gint8 swig_types[6]
+#define SWIGTYPE_p_guint16 swig_types[7]
+#define SWIGTYPE_p_guint32 swig_types[8]
+#define SWIGTYPE_p_guint64 swig_types[9]
+#define SWIGTYPE_p_guint8 swig_types[10]
+#define SWIGTYPE_p_int swig_types[11]
+#define SWIGTYPE_p_unsigned_char swig_types[12]
+static swig_type_info *swig_types[14];
+static swig_module_info swig_module = {swig_types, 13, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1806,7 +1805,6 @@ error:
 }
 
 
-
 SWIGINTERN int
 SWIG_AsVal_double SWIG_PERL_DECL_ARGS_2(SV *obj, double *val)
 {
@@ -1987,6 +1985,29 @@ SWIG_AsVal_int SWIG_PERL_DECL_ARGS_2(SV * obj, int *val)
     }
   }  
   return res;
+}
+
+
+static gpointer
+thread_fn(gpointer data)
+{
+    guint *d = data;
+    *d = 1;
+    return NULL;
+}
+
+
+void
+try_threads(void)
+{
+    guint data = 0;
+    GThread *thd;
+
+    glib_init();
+
+    thd = g_thread_create(thread_fn, (gpointer)&data, TRUE, NULL);
+    g_thread_join(thd);
+    g_assert(data == 1);
 }
 
 #ifdef __cplusplus
@@ -2214,7 +2235,11 @@ XS(_wrap_give_guint64) {
     arg1 = (char *)(buf1);
     result = give_guint64(arg1);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVu64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -2246,7 +2271,11 @@ XS(_wrap_give_gint64) {
     arg1 = (char *)(buf1);
     result = give_gint64(arg1);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -2278,7 +2307,11 @@ XS(_wrap_give_guint32) {
     arg1 = (char *)(buf1);
     result = give_guint32(arg1);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVu64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -2310,7 +2343,11 @@ XS(_wrap_give_gint32) {
     arg1 = (char *)(buf1);
     result = give_gint32(arg1);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -2342,7 +2379,11 @@ XS(_wrap_give_guint16) {
     arg1 = (char *)(buf1);
     result = give_guint16(arg1);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVu64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -2374,7 +2415,11 @@ XS(_wrap_give_gint16) {
     arg1 = (char *)(buf1);
     result = give_gint16(arg1);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -2406,7 +2451,11 @@ XS(_wrap_give_guint8) {
     arg1 = (char *)(buf1);
     result = give_guint8(arg1);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVu64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -2438,7 +2487,11 @@ XS(_wrap_give_gint8) {
     arg1 = (char *)(buf1);
     result = give_gint8(arg1);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -2461,7 +2514,11 @@ XS(_wrap_sizeof_size_t) {
     }
     result = (int)sizeof_size_t();
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     XSRETURN(argvi);
@@ -2571,7 +2628,10 @@ XS(_wrap_verify_random_file) {
     }
     result = (gboolean)verify_random_file(arg1,arg2,arg3,arg4);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
       argvi++;
     }
     
@@ -2587,10 +2647,26 @@ XS(_wrap_verify_random_file) {
 }
 
 
+XS(_wrap_try_threads) {
+  {
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 0) || (items > 0)) {
+      SWIG_croak("Usage: try_threads();");
+    }
+    try_threads();
+    ST(argvi) = sv_newmortal();
+    XSRETURN(argvi);
+  fail:
+    SWIG_croak_null();
+  }
+}
+
+
 
 /* -------- TYPE CONVERSION AND EQUIVALENCE RULES (BEGIN) -------- */
 
-static swig_type_info _swigt__p_a_STRMAX__char = {"_p_a_STRMAX__char", "char (*)[STRMAX]|string_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_char = {"_p_char", "gchar *|char *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *|gfloat *", 0, 0, (void*)0, 0};
@@ -2602,11 +2678,10 @@ static swig_type_info _swigt__p_guint16 = {"_p_guint16", "guint16 *", 0, 0, (voi
 static swig_type_info _swigt__p_guint32 = {"_p_guint32", "guint32 *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_guint64 = {"_p_guint64", "guint64 *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_guint8 = {"_p_guint8", "guint8 *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_int = {"_p_int", "int *|filetype_t *|gboolean *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_int = {"_p_int", "int *|gboolean *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "guchar *|unsigned char *", 0, 0, (void*)0, 0};
 
 static swig_type_info *swig_type_initial[] = {
-  &_swigt__p_a_STRMAX__char,
   &_swigt__p_char,
   &_swigt__p_double,
   &_swigt__p_float,
@@ -2622,7 +2697,6 @@ static swig_type_info *swig_type_initial[] = {
   &_swigt__p_unsigned_char,
 };
 
-static swig_cast_info _swigc__p_a_STRMAX__char[] = {  {&_swigt__p_a_STRMAX__char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_char[] = {  {&_swigt__p_char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_double[] = {  {&_swigt__p_double, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_float[] = {  {&_swigt__p_float, 0, 0, 0},{0, 0, 0, 0}};
@@ -2638,7 +2712,6 @@ static swig_cast_info _swigc__p_int[] = {  {&_swigt__p_int, 0, 0, 0},{0, 0, 0, 0
 static swig_cast_info _swigc__p_unsigned_char[] = {  {&_swigt__p_unsigned_char, 0, 0, 0},{0, 0, 0, 0}};
 
 static swig_cast_info *swig_cast_initial[] = {
-  _swigc__p_a_STRMAX__char,
   _swigc__p_char,
   _swigc__p_double,
   _swigc__p_float,
@@ -2686,6 +2759,7 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Testsc::sizeof_size_t", _wrap_sizeof_size_t},
 {"Amanda::Testsc::write_random_file", _wrap_write_random_file},
 {"Amanda::Testsc::verify_random_file", _wrap_verify_random_file},
+{"Amanda::Testsc::try_threads", _wrap_try_threads},
 {0,0}
 };
 /* -----------------------------------------------------------------------------

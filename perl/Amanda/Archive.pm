@@ -67,6 +67,7 @@ package Amanda::Archive;
 @EXPORT_OK = ();
 %EXPORT_TAGS = ();
 
+
 =head1 NAME
 
 Amanda::Archive - Perl access to the  amanda archive library
@@ -75,12 +76,13 @@ Amanda::Archive - Perl access to the  amanda archive library
 
   use Amanda::Archive
 
-  # Write to the file descriptor $fd, and add /etc/hosts to it
+  # Write to the file descriptor or file handle $fd, and
+  # add /etc/hosts to it
   my $archive = Amanda::Archive->new($fd, ">");
   my $file = $archive->new_file("/etc/hosts");
   my $attr = $file->new_attr(16);
   open(my $fh, "<", "/etc/hosts");
-  $attr->add_data_fd(fileno($fh), 1);
+  $attr->add_data_fd($fh, 1);
   $file->close();
   $archive->close();
 
@@ -116,28 +118,28 @@ Amanda::Archive - Perl access to the  amanda archive library
 
 =head2 Amanda::Archive::Archive Objects
 
-Note that C<Amanda::Archive->new> and C<Amanda::Archive::Archive->new> are
-equivalent.
+Note that C<< Amanda::Archive->new >> and C<<
+Amanda::Archive::Archive->new >> are equivalent.
 
 =over
 
 =item C<new($fd, $mode)>
 
-Create a new archive for reading ("<") or writing (">") from or to file
-descriptor C<$fd>.
+Create a new archive for reading ("<") or writing (">") from or to
+file C<$fd> (a file handle or integer file descriptor).
 
 =item C<new_file($filename, $want_posn)>
 
-Create a new C<Amanda::Archive::File> object with the given filename (writing
-only).  Equivalent to
+Create a new C<Amanda::Archive::File> object with the given filename
+(writing only).  Equivalent to
 
   Amanda::Archive::File->new($archive, $filename, $want_posn);
 
 if C<$want_posn> is false, then this method returns a new
-C<Amanda::Archive::File> object.  If C<$want_posn> is true, then it returns
-C<($file, $posn)> where C<$file> is the object and C<$posn> is the offset into
-the datastream at which this file begins.  This offset can be stored in an
-index and used later to seek into the file.
+C<Amanda::Archive::File> object.  If C<$want_posn> is true, then it
+returns C<($file, $posn)> where C<$file> is the object and C<$posn> is
+the offset into the datastream at which this file begins.  This offset
+can be stored in an index and used later to seek into the file.
 
 =item C<read(..)>
 
@@ -145,7 +147,8 @@ See I<READING>, below.
 
 =item C<close()>
 
-Flush all buffers and close this archive. This does not close the file descriptor.
+Flush all buffers and close this archive. This does not close the file
+descriptor.
 
 =back
 
@@ -155,7 +158,8 @@ Flush all buffers and close this archive. This does not close the file descripto
 
 =item C<new($archive, $filename, $want_posn)>
 
-Create a new file in the given archive.  See C<Amanda::Archive::Archive::new_file>, above.
+Create a new file in the given archive.  See
+C<Amanda::Archive::Archive::new_file>, above.
 
 =item C<new_attr($attrid)>
 
@@ -175,32 +179,38 @@ Close this file, writing an EOF record.
 
 =item C<add_data($data, $eoa)>
 
-Add C<$data> to this attribute, adding an EOA (end-of-attribute) bit if C<$eoa> is true.
+Add C<$data> to this attribute, adding an EOA (end-of-attribute) bit
+if C<$eoa> is true.
 
-=item C<add_data_fd($fd, $eoa)>
+=item C<add_data_fd($fh, $eoa)>
 
-Copy data from C<$fd> to this attribute, adding an EOA (end-of-attribute) bit if C<$eoa> is true.
+Copy data from C<$fh> to this attribute, adding an EOA
+(end-of-attribute) bit if C<$eoa> is true.
 
 =item C<close()>
 
-Close this attribute, adding an EOA bit if none has been written already.
+Close this attribute, adding an EOA bit if none has been written
+already.
 
 =back
 
 =head1 READING
 
-The C<Amanda::Archive::Archive> method C<read()> handles reading archives via a callback mechanism.  It takes its arguments in hash form, with the following keys:
+The C<Amanda::Archive::Archive> method C<read()> handles reading
+archives via a callback mechanism.  It takes its arguments in hash
+form, with the following keys:
 
     file_start => sub {
 	my ($user_data, $filenum, $filename) = @_;
 	# ..
     },
 
-C<file_start> gives a sub which is called for every file in the archive.  It
-can return an arbitrary value which will become the C<$file_data> for
-subsequent callbacks in this file, or the string "IGNORE" which will cause the
-reader to ignore all data for this file.  In this case, no other callbacks will
-be made for the file (not even C<file_finish>).
+C<file_start> gives a sub which is called for every file in the
+archive.  It can return an arbitrary value which will become the
+C<$file_data> for subsequent callbacks in this file, or the string
+"IGNORE" which will cause the reader to ignore all data for this file.
+In this case, no other callbacks will be made for the file (not even
+C<file_finish>).
 
     file_finish => sub {
 	my ($user_data, $file_data, $filenum, $truncated) = @_;
@@ -208,13 +218,14 @@ be made for the file (not even C<file_finish>).
     },
 
 C<file_finish> gives a sub which is called when an EOF record appears.
-C<$file_data> comes from the return value of the C<file_start> callback.
-C<$truncated> is true if the file may be missing data (e.g., when an early EOF
-is detected).
+C<$file_data> comes from the return value of the C<file_start>
+callback.  C<$truncated> is true if the file may be missing data
+(e.g., when an early EOF is detected).
 
     user_data => $my_object,
 
-C<user_data> gives an arbitrary value which is passed to each callback as C<$user_data>.
+C<user_data> gives an arbitrary value which is passed to each callback
+as C<$user_data>.
 
     13 => sub {
 	my ($user_data, $filenum, $file_data, $attrid,
@@ -223,19 +234,19 @@ C<user_data> gives an arbitrary value which is passed to each callback as C<$use
     },
     19 => [ 10240, sub { ... } ],
 
-Any numeric key is treated as an attribute ID, and specifies the handling for
-that attribute.  Attribute ID zero is treated as a wildcard, and will match any
-attribute without an explicit handler.  The handler can be specified as a sub
-(as for attribute ID 13 in the example above) or as an arrayref C<[$minsize,
-$sub]>.  In the latter case, the sub is only called when at least C<$minsize>
-bytes of data are available for the attribute, or at the end of the attribute
-data.
+Any numeric key is treated as an attribute ID, and specifies the
+handling for that attribute.  Attribute ID zero is treated as a
+wildcard, and will match any attribute without an explicit handler.
+The handler can be specified as a sub (as for attribute ID 13 in the
+example above) or as an arrayref C<[$minsize, $sub]>.  In the latter
+case, the sub is only called when at least C<$minsize> bytes of data
+are available for the attribute, or at the end of the attribute data.
 
-The parameters to the callback include C<$file_data>, the value returned from
-C<file_start>, and C<$attr_data>, which is the return value of the last
-invocation of this sub for this attribute.  If this is the last fragment of
-data for this attribute, then C<$eoa> is true.  The meaning of C<$truncated>
-is similar to that in C<file_finish>.
+The parameters to the callback include C<$file_data>, the value
+returned from C<file_start>, and C<$attr_data>, which is the return
+value of the last invocation of this sub for this attribute.  If this
+is the last fragment of data for this attribute, then C<$eoa> is true.
+The meaning of C<$truncated> is similar to that in C<file_finish>.
 
 =head2 EXAMPLE
 
@@ -268,6 +279,8 @@ is similar to that in C<file_finish>.
     }
 
 =cut
+
+
 
 package Amanda::Archive;
 

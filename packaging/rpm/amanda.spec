@@ -15,7 +15,7 @@
 #  with this program; if not, write to the Free Software Foundation, Inc.,
 #  59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 # 
-#  Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+#  Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 #  Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 #
 
@@ -118,7 +118,7 @@
     # If dist is undefined, we didn't detect.
     %{!?dist:%define dist unknown}
 %endif
-# Detect Suse variants.  
+# Detect Suse variants. 
 %if %{_vendor} == "suse"
     %define dist SuSE
     %define disttag %(awk '$1=="SUSE" {$3=="Enterprise" ? TAG="sles" : TAG="suse" ; print TAG}' /etc/SuSE-release)
@@ -146,8 +146,9 @@
 
 # --- Definitions ---
 
-# Define amanda_version if it is not already defined.
-%{!?amanda_version: %define amanda_version 2.6.1p2}
+# Define amanda_version from configure.in if it is not already defined.
+
+%{!?amanda_version: %define amanda_version %(eval %{__cat} FULL_VERSION) }
 %{!?amanda_release: %define amanda_release 1}
 %define amanda_version_info "Amanda Community Edition - version %{amanda_version}"
 %define amanda_user amandabackup
@@ -178,9 +179,9 @@ BuildRequires: bison
 BuildRequires: flex
 BuildRequires: gcc
 BuildRequires: glibc >= 2.2.0
+BuildRequires: readline
 # Note: newer distros have changed most *-devel to lib*-devel, and added a
 # provides tag for backwards compat.
-BuildRequires: readline
 BuildRequires: readline-devel
 BuildRequires: curl >= 7.10.0
 BuildRequires: curl-devel >= 7.10.0
@@ -228,7 +229,9 @@ Requires: readline
 Provides: amanda-backup_client = %{amanda_version}
 Provides: libamclient-%{version}.so = %{amanda_version}
 Provides: libamanda-%{version}.so = %{amanda_version}
-Conflicts: amanda-backup_server 
+Conflicts: amanda-backup_server
+# Native package names
+Obsoletes: amanda, amanda-client, amanda-server
 
 %package backup_server
 Summary: The Amanda Backup and Archiving Server
@@ -245,13 +248,15 @@ Requires: xinetd
 Requires: perl >= 5.6.0
 Requires: tar >= %{tarver}
 Provides: amanda-backup_server = %{amanda_version}
+Provides: amanda-backup_client = %{amanda_version}
 Provides: libamclient-%{version}.so = %{amanda_version}
 Provides: libamanda-%{version}.so = %{amanda_version}
 Provides: libamserver-%{version}.so = %{amanda_version}
-Provides: librestore-%{version}.so = %{amanda_version}
 Provides: libamtape-%{version}.so = %{amanda_version}
 Provides: libamdevice-%{version}.so = %{amanda_version}
-
+Conflicts: amanda-backup_client
+# Native package names
+Obsoletes: amanda, amanda-client, amanda-server
 # --- Package descriptions ---
 
 %description
@@ -343,7 +348,7 @@ Amanda Documentation is available at: http://wiki.zmanda.com/
 # without_ipv6 should only be defined on rhel3.
 ./configure \
         %{?PKG_CONFIG_PATH: PKG_CONFIG_PATH=%PKG_CONFIG_PATH} \
-        CFLAGS="%{optflags} -g" CXXFLAGS="%{optflags}" \
+        CFLAGS="%{optflags} -g -pipe" CXXFLAGS="%{optflags}" \
         --quiet \
         --prefix=%{PREFIX} \
         --sysconfdir=%{SYSCONFDIR} \
@@ -351,6 +356,7 @@ Amanda Documentation is available at: http://wiki.zmanda.com/
         --localstatedir=%{LOCALSTATEDIR} \
         --libdir=%{LIBDIR} \
         --includedir=%{INCLUDEDIR} \
+	--mandir=%{MANDIR} \
 	--with-amdatadir=%{AMDATADIR} \
         --with-gnuplot=/usr/bin/gnuplot \
         --with-gnutar=/bin/tar \
@@ -373,7 +379,7 @@ Amanda Documentation is available at: http://wiki.zmanda.com/
         --disable-installperms \
         %{?without_ipv6}
 
-make
+make -s LIBTOOLFLAGS=--silent
 
 # --- Install to buildroot ---
 
@@ -387,9 +393,8 @@ else
         exit -1
 fi
 
-make -j1 DESTDIR=%{buildroot} install
+make -s -j1 LIBTOOLFLAGS=--silent DESTDIR=%{buildroot} install
 
-rm -rf %{ROOT_DATADIR}/amanda
 rm -f %{ROOT_AMANDAHOMEDIR}/example/inetd.conf.amandaclient
 mkdir %{buildroot}/{etc,var/log}
 mkdir %{ROOT_LOCALSTATEDIR}/amanda 
@@ -1516,17 +1521,26 @@ echo "Amanda installation log can be found in '${INSTALL_LOG}' and errors (if an
 %{AMLIBEXECDIR}/killpgrp
 %{AMLIBEXECDIR}/rundump
 %{AMLIBEXECDIR}/runtar
-%defattr(0750,%{amanda_user},%{amanda_group})
+%defattr(0750,%{amanda_user},%{amanda_group},0750)
 %{LOGDIR}
 %{SBINDIR}/amaespipe
 %{SBINDIR}/amcryp*
 %{SBINDIR}/amgpgcrypt
 %{SBINDIR}/amoldrecover
 %{SBINDIR}/amrecover
+%{SYSCONFDIR}/amanda
 %defattr(0644,%{amanda_user},%{amanda_group},0755)
 %{LOCALSTATEDIR}/amanda
 %{PERLSITELIB}/Amanda
-%{SYSCONFDIR}/amanda
+%{AMLIBEXECDIR}/amcat.awk
+%{AMANDAHOMEDIR}/gnutar-lists
+%doc %{AMANDAHOMEDIR}/amanda-release
+%doc %{AMANDAHOMEDIR}/example/xinetd.amandaclient
+%doc %{AMANDAHOMEDIR}/example/xinetd.amandaserver
+%doc %{AMANDAHOMEDIR}/example/amanda-client.conf
+%doc %{AMANDAHOMEDIR}/template.d/README
+%doc %{AMANDAHOMEDIR}/template.d/dumptypes
+%defattr(0644,root,root,0755)
 %docdir %{MANDIR}
 %{MANDIR}/man5/amanda.conf.5.gz
 %{MANDIR}/man5/amanda-client.conf.5.gz
@@ -1539,18 +1553,10 @@ echo "Amanda installation log can be found in '${INSTALL_LOG}' and errors (if an
 %{MANDIR}/man8/amcrypt*
 %{MANDIR}/man8/amgpgcrypt.8.gz
 %{MANDIR}/man8/amrecover.8.gz
-%{AMLIBEXECDIR}/amcat.awk
-%{AMANDAHOMEDIR}/gnutar-lists
-%doc %{AMANDAHOMEDIR}/amanda-release
-%doc %{AMANDAHOMEDIR}/example/xinetd.amandaclient
-%doc %{AMANDAHOMEDIR}/example/xinetd.amandaserver
-%doc %{AMANDAHOMEDIR}/example/amanda-client.conf
-%doc %{AMANDAHOMEDIR}/template.d/README
-%doc %{AMANDAHOMEDIR}/template.d/dumptypes
+%doc %{DATADIR}/amanda
 
 %files backup_server
 %defattr(0755,%{amanda_user},%{amanda_group})
-%{SYSCONFDIR}/amanda
 %{AMLIBEXECDIR}
 %{AMLIBDIR}
 %{PERLSITELIB}/Amanda
@@ -1568,11 +1574,16 @@ echo "Amanda installation log can be found in '${INSTALL_LOG}' and errors (if an
 %{AMLIBEXECDIR}/dumper
 %{AMLIBEXECDIR}/planner
 %{SBINDIR}/amcheck
-%defattr(0750,%{amanda_user},%{amanda_group})
+%defattr(0750,%{amanda_user},%{amanda_group},0750)
 %{LOGDIR}
+%{SYSCONFDIR}/amanda
+# Files in standard dirs must be listed explicitly
 %{SBINDIR}/activate-devpay
 %{SBINDIR}/amaespipe
-%{SBINDIR}/amcrypt*
+%{SBINDIR}/amcrypt
+%{SBINDIR}/amcrypt-ossl
+%{SBINDIR}/amcrypt-ossl-asym
+%{SBINDIR}/amcryptsimple
 %{SBINDIR}/amgpgcrypt
 %{SBINDIR}/amoldrecover
 %{SBINDIR}/amrecover
@@ -1581,6 +1592,10 @@ echo "Amanda installation log can be found in '${INSTALL_LOG}' and errors (if an
 %{AMLIBEXECDIR}/amplot.awk
 %{AMLIBEXECDIR}/amplot.g
 %{AMLIBEXECDIR}/amplot.gp
+%doc %{AMANDAHOMEDIR}/amanda-release
+%docdir %{AMANDAHOMEDIR}/example
+%docdir %{AMANDAHOMEDIR}/template.d
+%defattr(0644,root,root,0755)
 %docdir %{MANDIR}
 %{MANDIR}/man5/am*
 %{MANDIR}/man5/disklist.5.gz
@@ -1588,9 +1603,7 @@ echo "Amanda installation log can be found in '${INSTALL_LOG}' and errors (if an
 %{MANDIR}/man7/am*
 %{MANDIR}/man8/am*
 %{MANDIR}/man8/script-email.8.gz
-%doc %{AMANDAHOMEDIR}/amanda-release
-%docdir %{AMANDAHOMEDIR}/example
-%docdir %{AMANDAHOMEDIR}/template.d
+%doc %{DATADIR}/amanda
 
 # --- ChangeLog
 

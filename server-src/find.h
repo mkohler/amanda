@@ -11,12 +11,16 @@ typedef struct find_result_s {
     char *hostname;
     char *diskname;
     int level;
-    char *label;
+    char *label;	/* holding filename for holding files */
     off_t filenum;
-    char *status;
-    char *partnum;
+    char *status;	/* status of the part */
+    char *dump_status;	/* status of the dump; should be identical for all parts in dump */
+    char *message;	/* reason for dump_status; should be identical for all parts in dump */
+    int partnum;	/* -1 for holding files */
+    int totalparts;	/* -1 for holding files */
     double sec;		/* may be 0.0 for older log files or holding files */
-    size_t kb;		/* may be 0 for older log files or holding files */
+    off_t kb;		/* may be 0 for older log files, can be compressed */
+    off_t orig_kb;      /* native size */
     void *user_ptr;
 } find_result_t;
 
@@ -62,4 +66,17 @@ find_result_t *dumps_match_dumpspecs(find_result_t *output_find,
 gboolean search_logfile(find_result_t **output_find, const char *volume_label,
                         const char *log_datestamp, const char *logfile,
                         disklist_t * dynamic_disklist);
+
+/* return all dumps on holding disk; not really a search at all.
+ *
+ * * output_find      : Put found dumps here.
+ * * dynamic_disklist : If not NULL, adds disks not already in the global
+ *                      disklist to the given disklist (and the global one).
+ *                      If dynamic_disklist is NULL, skips disks not in the
+ *                      global disklist.
+ */
+void search_holding_disk(
+	find_result_t **output_find,
+	disklist_t * dynamic_disklist);
+
 #endif	/* !FIND_H */

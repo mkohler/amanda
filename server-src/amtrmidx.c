@@ -37,7 +37,6 @@
 #include "diskfile.h"
 #include "tapefile.h"
 #include "find.h"
-#include "version.h"
 #include "util.h"
 
 static int sort_by_name_reversed(const void *a, const void *b);
@@ -69,7 +68,7 @@ main(
     find_result_t *output_find;
     time_t tmp_time;
     int amtrmidx_debug = 0;
-    config_overwrites_t *cfg_ovr = NULL;
+    config_overrides_t *cfg_ovr = NULL;
 
     /*
      * Configure program for internationalization:
@@ -89,9 +88,9 @@ main(
     signal(SIGPIPE, SIG_IGN);
 
     dbopen(DBG_SUBDIR_SERVER);
-    dbprintf(_("%s: version %s\n"), argv[0], version());
+    dbprintf(_("%s: version %s\n"), argv[0], VERSION);
 
-    cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
+    cfg_ovr = extract_commandline_config_overrides(&argc, &argv);
 
     if (argc > 1 && strcmp(argv[1], "-t") == 0) {
 	amtrmidx_debug = 1;
@@ -104,8 +103,8 @@ main(
 	return 1;
     }
 
+    set_config_overrides(cfg_ovr);
     config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_USE_CWD, argv[1]);
-    apply_config_overwrites(cfg_ovr);
 
     conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
     read_diskfile(conf_diskfile, &diskl);
@@ -149,7 +148,8 @@ main(
 	    char *host;
 	    char *disk, *qdisk;
 	    size_t len_date;
-
+	    disk_t *dp;
+	    GSList *matching_dp = NULL;
 
 	    /* get listing of indices, newest first */
 	    host = sanitise_filename(diskp->host->hostname);
@@ -160,6 +160,18 @@ main(
 				 disk, "/",
 				 NULL);
 	    qindexdir = quote_string(indexdir);
+
+	    /* find all dles that use the same indexdir */
+	    for (dp = diskl.head; dp != NULL; dp = dp->next) {
+		char *dp_host, *dp_disk;
+
+		dp_host = sanitise_filename(dp->host->hostname);
+		dp_disk = sanitise_filename(dp->name);
+		if (strcmp(host, dp_host) == 0 &&
+		    strcmp(disk, dp_disk) == 0) {
+		    matching_dp = g_slist_append(matching_dp, dp);
+		}
+	    }
 
 	    dbprintf("%s %s -> %s\n", diskp->host->hostname,
 			qdisk, qindexdir);
@@ -240,6 +252,8 @@ main(
 		char *datestamp;
 		int level;
 		size_t len_date;
+		int matching = 0;
+		GSList *mdp;
 
 		for(len_date = 0; len_date < SIZEOF("YYYYMMDDHHMMSS")-1; len_date++) {
                     if(! isdigit((int)(names[i][len_date]))) {
@@ -249,9 +263,16 @@ main(
 
 		datestamp = stralloc(names[i]);
 		datestamp[len_date] = '\0';
-		level = names[i][len_date+1] - '0';
-		if(!dump_exist(output_find, diskp->host->hostname,
-				diskp->name, datestamp, level)) {
+		if (sscanf(&names[i][len_date+1], "%d", &level) != 1)
+		    level = 0;
+		for (mdp = matching_dp; mdp != NULL; mdp = mdp->next) {
+		    dp = mdp->data;
+		    if (dump_exist(output_find, dp->host->hostname,
+				   dp->name, datestamp, level)) {
+			matching = 1;
+		    }
+		}
+		if (!matching) {
 		    char *path, *qpath;
 		    path = stralloc2(indexdir, names[i]);
 		    qpath = quote_string(path);

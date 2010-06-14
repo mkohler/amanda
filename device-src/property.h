@@ -1,21 +1,21 @@
 /*
- * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
- * 
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1 as 
- * published by the Free Software Foundation.
- * 
- * This library is distributed in the hope that it will be useful, but
+ * Copyright (c) 2007,2008,2009 Zmanda, Inc.  All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
- * 
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 #ifndef DEVICE_PROPERTY_H
@@ -221,8 +221,8 @@ extern DevicePropertyBase device_property_max_block_size;
 /* Value is a guint; gives the minimum buffer size for reads. Only
  * the tape device implements this, but it corresponds to the tapetype
  * readblocksize parameter, so it's a global property*/
-extern DevicePropertyBase device_property_read_buffer_size;
-#define PROPERTY_READ_BUFFER_SIZE (device_property_read_buffer_size.ID)
+extern DevicePropertyBase device_property_read_block_size;
+#define PROPERTY_READ_BLOCK_SIZE (device_property_read_block_size.ID)
 
 /* Value is a gboolean. */
 extern DevicePropertyBase device_property_appendable;
@@ -240,6 +240,10 @@ extern DevicePropertyBase device_property_medium_access_type;
 extern DevicePropertyBase device_property_partial_deletion;
 #define PROPERTY_PARTIAL_DELETION (device_property_partial_deletion.ID)
 
+/* Value is a gboolean. */
+extern DevicePropertyBase device_property_full_deletion;
+#define PROPERTY_FULL_DELETION (device_property_full_deletion.ID)
+
 /* Value is a QualifiedSize, though the accuracy may be SIZE_ACCURACY_NONE. */
 extern DevicePropertyBase device_property_free_space;
 #define PROPERTY_FREE_SPACE (device_property_free_space.ID)
@@ -255,5 +259,9 @@ extern DevicePropertyBase device_property_max_volume_usage;
  * present in all devices. */
 extern DevicePropertyBase device_property_verbose;
 #define PROPERTY_VERBOSE (device_property_verbose.ID)
+
+/* A comment for the use of the user. */
+extern DevicePropertyBase device_property_comment;
+#define PROPERTY_COMMENT (device_property_comment.ID)
 
 #endif

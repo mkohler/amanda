@@ -1525,6 +1525,154 @@ SWIGEXPORT void SWIG_init (CV *cv, CPerlObj *);
 #include "tapefile.h"
 
 
+#include <limits.h>
+#if !defined(SWIG_NO_LLONG_MAX)
+# if !defined(LLONG_MAX) && defined(__GNUC__) && defined (__LONG_LONG_MAX__)
+#   define LLONG_MAX __LONG_LONG_MAX__
+#   define LLONG_MIN (-LLONG_MAX - 1LL)
+#   define ULLONG_MAX (LLONG_MAX * 2ULL + 1ULL)
+# endif
+#endif
+
+
+SWIGINTERN int
+SWIG_AsVal_double SWIG_PERL_DECL_ARGS_2(SV *obj, double *val)
+{
+  if (SvNIOK(obj)) {
+    if (val) *val = SvNV(obj);
+    return SWIG_OK;
+  } else if (SvIOK(obj)) {
+    if (val) *val = (double) SvIV(obj);
+    return SWIG_AddCast(SWIG_OK);
+  } else {
+    const char *nptr = SvPV_nolen(obj);
+    if (nptr) {
+      char *endptr;
+      double v = strtod(nptr, &endptr);
+      if (errno == ERANGE) {
+	errno = 0;
+	return SWIG_OverflowError;
+      } else {
+	if (*endptr == '\0') {
+	  if (val) *val = v;
+	  return SWIG_Str2NumCast(SWIG_OK);
+	}
+      }
+    }
+  }
+  return SWIG_TypeError;
+}
+
+
+#include <float.h>
+
+
+#include <math.h>
+
+
+SWIGINTERNINLINE int
+SWIG_CanCastAsInteger(double *d, double min, double max) {
+  double x = *d;
+  if ((min <= x && x <= max)) {
+   double fx = floor(x);
+   double cx = ceil(x);
+   double rd =  ((x - fx) < 0.5) ? fx : cx; /* simple rint */
+   if ((errno == EDOM) || (errno == ERANGE)) {
+     errno = 0;
+   } else {
+     double summ, reps, diff;
+     if (rd < x) {
+       diff = x - rd;
+     } else if (rd > x) {
+       diff = rd - x;
+     } else {
+       return 1;
+     }
+     summ = rd + x;
+     reps = diff/summ;
+     if (reps < 8*DBL_EPSILON) {
+       *d = rd;
+       return 1;
+     }
+   }
+  }
+  return 0;
+}
+
+
+SWIGINTERN int
+SWIG_AsVal_long SWIG_PERL_DECL_ARGS_2(SV *obj, long* val)
+{
+  if (SvIOK(obj)) {
+    if (val) *val = SvIV(obj);
+    return SWIG_OK;
+  } else {
+    int dispatch = 0;
+    const char *nptr = SvPV_nolen(obj);
+    if (nptr) {
+      char *endptr;
+      long v;
+      errno = 0;
+      v = strtol(nptr, &endptr,0);
+      if (errno == ERANGE) {
+	errno = 0;
+	return SWIG_OverflowError;
+      } else {
+	if (*endptr == '\0') {
+	  if (val) *val = v;
+	  return SWIG_Str2NumCast(SWIG_OK);
+	}
+      }
+    }
+    if (!dispatch) {
+      double d;
+      int res = SWIG_AddCast(SWIG_AsVal_double SWIG_PERL_CALL_ARGS_2(obj,&d));
+      if (SWIG_IsOK(res) && SWIG_CanCastAsInteger(&d, LONG_MIN, LONG_MAX)) {
+	if (val) *val = (long)(d);
+	return res;
+      }
+    }
+  }
+  return SWIG_TypeError;
+}
+
+
+SWIGINTERN int
+SWIG_AsVal_int SWIG_PERL_DECL_ARGS_2(SV * obj, int *val)
+{
+  long v;
+  int res = SWIG_AsVal_long SWIG_PERL_CALL_ARGS_2(obj, &v);
+  if (SWIG_IsOK(res)) {
+    if ((v < INT_MIN || v > INT_MAX)) {
+      return SWIG_OverflowError;
+    } else {
+      if (val) *val = (int)(v);
+    }
+  }  
+  return res;
+}
+
+
+SWIGINTERNINLINE SV *
+SWIG_FromCharPtrAndSize(const char* carray, size_t size)
+{
+  SV *obj = sv_newmortal();
+  if (carray) {
+    sv_setpvn(obj, carray, size);
+  } else {
+    sv_setsv(obj, &PL_sv_undef);
+  }
+  return obj;
+}
+
+
+SWIGINTERNINLINE SV * 
+SWIG_FromCharPtr(const char *cptr)
+{ 
+  return SWIG_FromCharPtrAndSize(cptr, (cptr ? strlen(cptr) : 0));
+}
+
+
 SWIGINTERN swig_type_info*
 SWIG_pchar_descriptor(void)
 {
@@ -1609,6 +1757,74 @@ SWIGCLASS_STATIC int swig_magic_readonly(pTHX_ SV *SWIGUNUSEDPARM(sv), MAGIC *SW
 #ifdef __cplusplus
 extern "C" {
 #endif
+XS(_wrap_get_last_reusable_tape_label) {
+  {
+    int arg1 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: get_last_reusable_tape_label(skip);");
+    }
+    {
+      if (sizeof(signed int) == 1) {
+        arg1 = amglue_SvI8(ST(0));
+      } else if (sizeof(signed int) == 2) {
+        arg1 = amglue_SvI16(ST(0));
+      } else if (sizeof(signed int) == 4) {
+        arg1 = amglue_SvI32(ST(0));
+      } else if (sizeof(signed int) == 8) {
+        arg1 = amglue_SvI64(ST(0));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    result = (char *)get_last_reusable_tape_label(arg1);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_list_new_tapes) {
+  {
+    int arg1 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: list_new_tapes(nb);");
+    }
+    {
+      if (sizeof(signed int) == 1) {
+        arg1 = amglue_SvI8(ST(0));
+      } else if (sizeof(signed int) == 2) {
+        arg1 = amglue_SvI16(ST(0));
+      } else if (sizeof(signed int) == 4) {
+        arg1 = amglue_SvI32(ST(0));
+      } else if (sizeof(signed int) == 8) {
+        arg1 = amglue_SvI64(ST(0));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    result = (char *)list_new_tapes(arg1);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_C_read_tapelist) {
   {
     char *arg1 = (char *) 0 ;
@@ -1629,7 +1845,11 @@ XS(_wrap_C_read_tapelist) {
     arg1 = (char *)(buf1);
     result = (int)read_tapelist(arg1);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -1702,6 +1922,8 @@ static swig_variable_info swig_variables[] = {
 {0,0,0,0}
 };
 static swig_command_info swig_commands[] = {
+{"Amanda::Tapelistc::get_last_reusable_tape_label", _wrap_get_last_reusable_tape_label},
+{"Amanda::Tapelistc::list_new_tapes", _wrap_list_new_tapes},
 {"Amanda::Tapelistc::C_read_tapelist", _wrap_C_read_tapelist},
 {"Amanda::Tapelistc::C_clear_tapelist", _wrap_C_clear_tapelist},
 {0,0}

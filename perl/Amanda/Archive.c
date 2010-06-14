@@ -1533,6 +1533,8 @@ SWIGEXPORT void SWIG_init (CV *cv, CPerlObj *);
 
 /* Support code (not directly available from perl) */
 
+#define AMANDA_ARCHIVE_ERROR_DOMAIN "Amanda archive"
+
 /* A C object to contain all of the relevant callbacks and other state during a
  * read operation; this becomes the user_data during the read */
 typedef struct perl_read_data_s {
@@ -1697,16 +1699,6 @@ read_frag_cb(
     return TRUE;
 }
 
-static void
-croak_gerror(GError **error)
-{
-    static char *errstr = NULL;
-    if (errstr) g_free(errstr);
-    errstr = g_strdup((*error)->message);
-    g_clear_error(error);
-    croak("Amanda archive: %s", errstr);
-}
-
 /* generic function to recognize when a string+len represents a number and
  * incidentally return the resulting value.  Note that this does not handle
  * negative numbers. */
@@ -1751,14 +1743,14 @@ amar_t *amar_new_(int fd, char *modestr) {
 	return rv;
     }
 
-    croak_gerror(&error);
+    croak_gerror(AMANDA_ARCHIVE_ERROR_DOMAIN, &error);
     return NULL;
 }
 
 void amar_close_(amar_t *arch) {
     GError *error = NULL;
     if (!amar_close(arch, &error))
-	croak_gerror(&error);
+	croak_gerror(AMANDA_ARCHIVE_ERROR_DOMAIN, &error);
 }
 
 amar_file_t *
@@ -1771,14 +1763,14 @@ amar_new_file_(amar_t *arch, char *filename, gsize filename_len, off_t *want_pos
     if (file)
 	return file;
 
-    croak_gerror(&error);
+    croak_gerror(AMANDA_ARCHIVE_ERROR_DOMAIN, &error);
     return NULL;
 }
 
 void amar_file_close_(amar_file_t *file) {
     GError *error = NULL;
     if (!amar_file_close(file, &error))
-	croak_gerror(&error);
+	croak_gerror(AMANDA_ARCHIVE_ERROR_DOMAIN, &error);
 }
 
 amar_attr_t *
@@ -1792,20 +1784,20 @@ amar_new_attr_(amar_file_t *file, guint16 attrid) {
     if (attr)
 	return attr;
 
-    croak_gerror(&error);
+    croak_gerror(AMANDA_ARCHIVE_ERROR_DOMAIN, &error);
     return NULL;
 }
 
 void amar_attr_close_(amar_attr_t *attr) {
     GError *error = NULL;
     if (!amar_attr_close(attr, &error))
-	croak_gerror(&error);
+	croak_gerror(AMANDA_ARCHIVE_ERROR_DOMAIN, &error);
 }
 
 void amar_attr_add_data_buffer_(amar_attr_t *attr, char *buffer, gsize size, gboolean eoa) {
     GError *error = NULL;
     if (!amar_attr_add_data_buffer(attr, buffer, size, eoa, &error))
-	croak_gerror(&error);
+	croak_gerror(AMANDA_ARCHIVE_ERROR_DOMAIN, &error);
 }
 
 size_t
@@ -1813,7 +1805,7 @@ amar_attr_add_data_fd_(amar_attr_t *attr, int fd, gboolean eoa) {
     GError *error = NULL;
     size_t rv = amar_attr_add_data_fd(attr, fd, eoa, &error);
     if (rv < 0)
-	croak_gerror(&error);
+	croak_gerror(AMANDA_ARCHIVE_ERROR_DOMAIN, &error);
     return rv;
 }
 
@@ -1957,7 +1949,7 @@ void amar_read_(amar_t *archive, SV *params_hashref) {
      * is still set */
     if (!success) {
 	if (error)
-	    croak_gerror(&error);
+	    croak_gerror(AMANDA_ARCHIVE_ERROR_DOMAIN, &error);
 	else
 	    croak(NULL);
     }
@@ -2192,16 +2184,30 @@ XS(_wrap_amar_new) {
       SWIG_croak("Usage: amar_new(fd,modestr);");
     }
     {
-      if (sizeof(signed int) == 1) {
-        arg1 = amglue_SvI8(ST(0));
-      } else if (sizeof(signed int) == 2) {
-        arg1 = amglue_SvI16(ST(0));
-      } else if (sizeof(signed int) == 4) {
-        arg1 = amglue_SvI32(ST(0));
-      } else if (sizeof(signed int) == 8) {
-        arg1 = amglue_SvI64(ST(0));
+      IO *io = NULL;
+      PerlIO *pio = NULL;
+      int fd = -1;
+      
+      if (SvIOK(ST(0))) {
+        /* plain old integer */
+        arg1 = SvIV(ST(0));
       } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+        /* try extracting as filehandle */
+        
+        /* note: sv_2io may call die() */
+        io = sv_2io(ST(0));
+        if (io) {
+          pio = IoIFP(io);
+        }
+        if (pio) {
+          fd = PerlIO_fileno(pio);
+        }
+        if (fd >= 0) {
+          arg1 = fd;
+        } else {
+          SWIG_exception(SWIG_TypeError, "Expected integer file descriptor "
+            "or file handle for argument 1");
+        }
       }
     }
     res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
@@ -2294,8 +2300,9 @@ XS(_wrap_amar_new_file) {
     ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_amar_file_t, 0 | 0); argvi++ ;
     {
       if (arg4) {
-        ST(argvi) = amglue_newSVi64(*arg4);
-        argvi++;
+        SP += argvi; PUTBACK;
+        ST(argvi) = sv_2mortal(amglue_newSVi64(*arg4));
+        SPAGAIN; SP -= argvi; argvi++;
       }
     }
     
@@ -2474,16 +2481,30 @@ XS(_wrap_amar_attr_add_data_fd) {
     }
     arg1 = (amar_attr_t *)(argp1);
     {
-      if (sizeof(signed int) == 1) {
-        arg2 = amglue_SvI8(ST(1));
-      } else if (sizeof(signed int) == 2) {
-        arg2 = amglue_SvI16(ST(1));
-      } else if (sizeof(signed int) == 4) {
-        arg2 = amglue_SvI32(ST(1));
-      } else if (sizeof(signed int) == 8) {
-        arg2 = amglue_SvI64(ST(1));
+      IO *io = NULL;
+      PerlIO *pio = NULL;
+      int fd = -1;
+      
+      if (SvIOK(ST(1))) {
+        /* plain old integer */
+        arg2 = SvIV(ST(1));
       } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+        /* try extracting as filehandle */
+        
+        /* note: sv_2io may call die() */
+        io = sv_2io(ST(1));
+        if (io) {
+          pio = IoIFP(io);
+        }
+        if (pio) {
+          fd = PerlIO_fileno(pio);
+        }
+        if (fd >= 0) {
+          arg2 = fd;
+        } else {
+          SWIG_exception(SWIG_TypeError, "Expected integer file descriptor "
+            "or file handle for argument 2");
+        }
       }
     }
     {
@@ -2501,7 +2522,11 @@ XS(_wrap_amar_attr_add_data_fd) {
     }
     result = amar_attr_add_data_fd_(arg1,arg2,arg3);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVu64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     

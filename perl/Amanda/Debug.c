@@ -1474,13 +1474,14 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 
 /* -------- TYPES TABLE (BEGIN) -------- */
 
-#define SWIGTYPE_p_char swig_types[0]
-#define SWIGTYPE_p_double swig_types[1]
-#define SWIGTYPE_p_float swig_types[2]
-#define SWIGTYPE_p_int swig_types[3]
-#define SWIGTYPE_p_unsigned_char swig_types[4]
-static swig_type_info *swig_types[6];
-static swig_module_info swig_module = {swig_types, 5, 0, 0, 0, 0};
+#define SWIGTYPE_p_amanda_log_handler_t swig_types[0]
+#define SWIGTYPE_p_char swig_types[1]
+#define SWIGTYPE_p_double swig_types[2]
+#define SWIGTYPE_p_float swig_types[3]
+#define SWIGTYPE_p_int swig_types[4]
+#define SWIGTYPE_p_unsigned_char swig_types[5]
+static swig_type_info *swig_types[7];
+static swig_module_info swig_module = {swig_types, 6, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1580,22 +1581,6 @@ SWIG_AsCharPtrAndSize(SV *obj, char** cptr, size_t* psize, int *alloc)
 
 
 
-
-
-SWIGINTERNINLINE SV *
-SWIG_From_long  SWIG_PERL_DECL_ARGS_1(long value)
-{    
-  SV *obj = sv_newmortal();
-  sv_setiv(obj, (IV) value);
-  return obj;
-}
-
-
-SWIGINTERNINLINE SV *
-SWIG_From_int  SWIG_PERL_DECL_ARGS_1(int value)
-{    
-  return SWIG_From_long  SWIG_PERL_CALL_ARGS_1(value);
-}
 
 
 #include <limits.h>
@@ -1726,6 +1711,22 @@ SWIG_AsVal_int SWIG_PERL_DECL_ARGS_2(SV * obj, int *val)
 }
 
 
+SWIGINTERNINLINE SV *
+SWIG_From_long  SWIG_PERL_DECL_ARGS_1(long value)
+{    
+  SV *obj = sv_newmortal();
+  sv_setiv(obj, (IV) value);
+  return obj;
+}
+
+
+SWIGINTERNINLINE SV *
+SWIG_From_int  SWIG_PERL_DECL_ARGS_1(int value)
+{    
+  return SWIG_From_long  SWIG_PERL_CALL_ARGS_1(value);
+}
+
+
 void error__(char *msg) { g_error("%s", msg); }
 void critical(char *msg) { g_critical("%s", msg); }
 void warning(char *msg) { g_warning("%s", msg); }
@@ -1769,28 +1770,6 @@ SWIGCLASS_STATIC int swig_magic_readonly(pTHX_ SV *SWIGUNUSEDPARM(sv), MAGIC *SW
     croak("Value is read-only.");
     return 0;
 }
-SWIGCLASS_STATIC int _wrap_erroutput_type_set(pTHX_ SV* sv, MAGIC * SWIGUNUSEDPARM(mg)) {
-  MAGIC_PPERL
-  {
-    int val;
-    int res = SWIG_AsVal_int SWIG_PERL_CALL_ARGS_2(sv, &val);
-    if (!SWIG_IsOK(res)) {
-      SWIG_exception_fail(SWIG_ArgError(res), "in variable '""erroutput_type""' of type '""erroutput_type_t""'");
-    }
-    erroutput_type = (erroutput_type_t)(val);
-  }
-fail:
-  return 1;
-}
-
-
-SWIGCLASS_STATIC int _wrap_erroutput_type_get(pTHX_ SV *sv, MAGIC *SWIGUNUSEDPARM(mg)) {
-  MAGIC_PPERL
-  sv_setsv(sv,SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(erroutput_type)))  ;
-  return 1;
-}
-
-
 SWIGCLASS_STATIC int _wrap_error_exit_status_set(pTHX_ SV* sv, MAGIC * SWIGUNUSEDPARM(mg)) {
   MAGIC_PPERL
   {
@@ -1809,6 +1788,27 @@ fail:
 SWIGCLASS_STATIC int _wrap_error_exit_status_get(pTHX_ SV *sv, MAGIC *SWIGUNUSEDPARM(mg)) {
   MAGIC_PPERL
   sv_setsv(sv,SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(error_exit_status)))  ;
+  return 1;
+}
+
+
+SWIGCLASS_STATIC int _wrap_amanda_log_stderr_get(pTHX_ SV *sv, MAGIC *SWIGUNUSEDPARM(mg)) {
+  MAGIC_PPERL
+  sv_setiv(SvRV(sv),PTR2IV(amanda_log_stderr));
+  return 1;
+}
+
+
+SWIGCLASS_STATIC int _wrap_amanda_log_syslog_get(pTHX_ SV *sv, MAGIC *SWIGUNUSEDPARM(mg)) {
+  MAGIC_PPERL
+  sv_setiv(SvRV(sv),PTR2IV(amanda_log_syslog));
+  return 1;
+}
+
+
+SWIGCLASS_STATIC int _wrap_amanda_log_null_get(pTHX_ SV *sv, MAGIC *SWIGUNUSEDPARM(mg)) {
+  MAGIC_PPERL
+  sv_setiv(SvRV(sv),PTR2IV(amanda_log_null));
   return 1;
 }
 
@@ -2134,6 +2134,50 @@ XS(_wrap_debug) {
 }
 
 
+XS(_wrap_add_amanda_log_handler) {
+  {
+    amanda_log_handler_t *arg1 = (amanda_log_handler_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: add_amanda_log_handler(handler);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_amanda_log_handler_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "add_amanda_log_handler" "', argument " "1"" of type '" "amanda_log_handler_t *""'"); 
+    }
+    arg1 = (amanda_log_handler_t *)(argp1);
+    add_amanda_log_handler(arg1);
+    ST(argvi) = sv_newmortal();
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_suppress_error_traceback) {
+  {
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 0) || (items > 0)) {
+      SWIG_croak("Usage: suppress_error_traceback();");
+    }
+    suppress_error_traceback();
+    ST(argvi) = sv_newmortal();
+    XSRETURN(argvi);
+  fail:
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_dbfd) {
   {
     int argvi = 0;
@@ -2145,7 +2189,11 @@ XS(_wrap_dbfd) {
     }
     result = (int)dbfd();
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     XSRETURN(argvi);
@@ -2193,13 +2241,15 @@ XS(_wrap_debug_dup_stderr_to_debug) {
 
 /* -------- TYPE CONVERSION AND EQUIVALENCE RULES (BEGIN) -------- */
 
+static swig_type_info _swigt__p_amanda_log_handler_t = {"_p_amanda_log_handler_t", "amanda_log_handler_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_char = {"_p_char", "gchar *|char *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *|gfloat *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_int = {"_p_int", "int *|erroutput_type_t *|gboolean *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_int = {"_p_int", "int *|gboolean *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "guchar *|unsigned char *", 0, 0, (void*)0, 0};
 
 static swig_type_info *swig_type_initial[] = {
+  &_swigt__p_amanda_log_handler_t,
   &_swigt__p_char,
   &_swigt__p_double,
   &_swigt__p_float,
@@ -2207,6 +2257,7 @@ static swig_type_info *swig_type_initial[] = {
   &_swigt__p_unsigned_char,
 };
 
+static swig_cast_info _swigc__p_amanda_log_handler_t[] = {  {&_swigt__p_amanda_log_handler_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_char[] = {  {&_swigt__p_char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_double[] = {  {&_swigt__p_double, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_float[] = {  {&_swigt__p_float, 0, 0, 0},{0, 0, 0, 0}};
@@ -2214,6 +2265,7 @@ static swig_cast_info _swigc__p_int[] = {  {&_swigt__p_int, 0, 0, 0},{0, 0, 0, 0
 static swig_cast_info _swigc__p_unsigned_char[] = {  {&_swigt__p_unsigned_char, 0, 0, 0},{0, 0, 0, 0}};
 
 static swig_cast_info *swig_cast_initial[] = {
+  _swigc__p_amanda_log_handler_t,
   _swigc__p_char,
   _swigc__p_double,
   _swigc__p_float,
@@ -2231,8 +2283,10 @@ static swig_constant_info swig_constants[] = {
 }
 #endif
 static swig_variable_info swig_variables[] = {
-    { "Amanda::Debugc::erroutput_type", MAGIC_CLASS _wrap_erroutput_type_set, MAGIC_CLASS _wrap_erroutput_type_get,0 },
     { "Amanda::Debugc::error_exit_status", MAGIC_CLASS _wrap_error_exit_status_set, MAGIC_CLASS _wrap_error_exit_status_get,0 },
+    { "Amanda::Debugc::amanda_log_stderr", MAGIC_CLASS swig_magic_readonly, MAGIC_CLASS _wrap_amanda_log_stderr_get,&SWIGTYPE_p_amanda_log_handler_t },
+    { "Amanda::Debugc::amanda_log_syslog", MAGIC_CLASS swig_magic_readonly, MAGIC_CLASS _wrap_amanda_log_syslog_get,&SWIGTYPE_p_amanda_log_handler_t },
+    { "Amanda::Debugc::amanda_log_null", MAGIC_CLASS swig_magic_readonly, MAGIC_CLASS _wrap_amanda_log_null_get,&SWIGTYPE_p_amanda_log_handler_t },
 {0,0,0,0}
 };
 static swig_command_info swig_commands[] = {
@@ -2247,6 +2301,8 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Debugc::message", _wrap_message},
 {"Amanda::Debugc::info", _wrap_info},
 {"Amanda::Debugc::debug", _wrap_debug},
+{"Amanda::Debugc::add_amanda_log_handler", _wrap_add_amanda_log_handler},
+{"Amanda::Debugc::suppress_error_traceback", _wrap_suppress_error_traceback},
 {"Amanda::Debugc::dbfd", _wrap_dbfd},
 {"Amanda::Debugc::dbfn", _wrap_dbfn},
 {"Amanda::Debugc::debug_dup_stderr_to_debug", _wrap_debug_dup_stderr_to_debug},
@@ -2544,21 +2600,6 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   }
   
-  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
-    SV *sv = get_sv((char*) SWIG_prefix "ERR_INTERACTIVE", TRUE | 0x2 | GV_ADDMULTI);
-    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(ERR_INTERACTIVE)));
-    SvREADONLY_on(sv);
-  } while(0) /*@SWIG@*/;
-  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
-    SV *sv = get_sv((char*) SWIG_prefix "ERR_SYSLOG", TRUE | 0x2 | GV_ADDMULTI);
-    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(ERR_SYSLOG)));
-    SvREADONLY_on(sv);
-  } while(0) /*@SWIG@*/;
-  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
-    SV *sv = get_sv((char*) SWIG_prefix "ERR_AMANDALOG", TRUE | 0x2 | GV_ADDMULTI);
-    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(ERR_AMANDALOG)));
-    SvREADONLY_on(sv);
-  } while(0) /*@SWIG@*/;
   ST(0) = &PL_sv_yes;
   XSRETURN(1);
 }

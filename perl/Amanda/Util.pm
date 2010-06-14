@@ -50,14 +50,72 @@ sub this {
 package Amanda::Util;
 
 *get_original_cwd = *Amanda::Utilc::get_original_cwd;
+*hexencode = *Amanda::Utilc::hexencode;
+*hexdecode = *Amanda::Utilc::hexdecode;
 *sanitise_filename = *Amanda::Utilc::sanitise_filename;
 *quote_string = *Amanda::Utilc::quote_string;
 *unquote_string = *Amanda::Utilc::unquote_string;
+*expand_braced_alternates = *Amanda::Utilc::expand_braced_alternates;
+*collapse_braced_alternates = *Amanda::Utilc::collapse_braced_alternates;
+*split_quoted_strings = *Amanda::Utilc::split_quoted_strings;
+*get_fs_usage = *Amanda::Utilc::get_fs_usage;
+*fsync = *Amanda::Utilc::fsync;
+*set_blocking = *Amanda::Utilc::set_blocking;
+*weaken_ref = *Amanda::Utilc::weaken_ref;
+*gettimeofday = *Amanda::Utilc::gettimeofday;
+*openbsd_fd_inform = *Amanda::Utilc::openbsd_fd_inform;
+*stream_server = *Amanda::Utilc::stream_server;
+*stream_accept = *Amanda::Utilc::stream_accept;
+*check_security = *Amanda::Utilc::check_security;
 *set_pname = *Amanda::Utilc::set_pname;
+*get_pname = *Amanda::Utilc::get_pname;
 *set_ptype = *Amanda::Utilc::set_ptype;
+*get_ptype = *Amanda::Utilc::get_ptype;
 *set_pcontext = *Amanda::Utilc::set_pcontext;
+*get_pcontext = *Amanda::Utilc::get_pcontext;
 *safe_cd = *Amanda::Utilc::safe_cd;
 *check_running_as = *Amanda::Utilc::check_running_as;
+
+############# Class : Amanda::Util::file_lock ##############
+
+package Amanda::Util::file_lock;
+use vars qw(@ISA %OWNER %ITERATORS %BLESSEDMEMBERS);
+@ISA = qw( Amanda::Util );
+%OWNER = ();
+%ITERATORS = ();
+sub new {
+    my $pkg = shift;
+    my $self = Amanda::Utilc::new_file_lock(@_);
+    bless $self, $pkg if defined($self);
+}
+
+*lock = *Amanda::Utilc::file_lock_lock;
+*unlock = *Amanda::Utilc::file_lock_unlock;
+*write = *Amanda::Utilc::file_lock_write;
+*data = *Amanda::Utilc::file_lock_data;
+sub DESTROY {
+    return unless $_[0]->isa('HASH');
+    my $self = tied(%{$_[0]});
+    return unless defined $self;
+    delete $ITERATORS{$self};
+    if (exists $OWNER{$self}) {
+        Amanda::Utilc::delete_file_lock($self);
+        delete $OWNER{$self};
+    }
+}
+
+sub DISOWN {
+    my $self = shift;
+    my $ptr = tied(%$self);
+    delete $OWNER{$ptr};
+}
+
+sub ACQUIRE {
+    my $self = shift;
+    my $ptr = tied(%$self);
+    $OWNER{$ptr} = 1;
+}
+
 
 # ------- VARIABLE STUBS --------
 
@@ -73,14 +131,12 @@ package Amanda::Util;
 *CONTEXT_CMDLINE = *Amanda::Utilc::CONTEXT_CMDLINE;
 *CONTEXT_DAEMON = *Amanda::Utilc::CONTEXT_DAEMON;
 *CONTEXT_SCRIPTUTIL = *Amanda::Utilc::CONTEXT_SCRIPTUTIL;
+*AF_INET = *Amanda::Utilc::AF_INET;
+*STREAM_BUFSIZE = *Amanda::Utilc::STREAM_BUFSIZE;
 
 @EXPORT_OK = ();
 %EXPORT_TAGS = ();
 
-use Amanda::Debug qw(:init);
-use Amanda::Config qw(:getconf);
-use Carp;
-use POSIX qw( :fcntl_h strftime );
 
 =head1 NAME
 
@@ -98,22 +154,25 @@ Application initialization generally looks like this:
   # .. command-line processing ..
   Amanda::Config::config_init(...);
   Amanda::Util::finish_setup($RUNNING_AS_DUMPUSER);
+  # ..
+  Amanda::Util::finish_application();
 
 =over
 
-=item C<setup_application($name, $type, $context)>
+=item setup_application($name, $type, $context)
 
-Set up the operating environment for an application, without requiring any
-configuration.
+Set up the operating environment for an application, without requiring
+any configuration.
 
-C<$name> is the name of the application, used in log messages, etc.  C<$type>
-is usualy one of "server" or "client".  It specifies the subdirectory in which
-debug logfiles will be created.  C<$context> indicates the usual manner in
-which this application is invoked; one of C<$CONTEXT_CMDLINE> for a
-user-invoked command-line utility (e.g., C<amadmin>) which should send
-human-readable error messages to stderr; C<$CONTEXT_DAEMON> for a program
-started by C<amandad>, e.g., C<sendbackup>; or C<$CONTEXT_SCRIPTUTIL> for a
-small program used from shell scripts, e.g., C<amgetconf>
+C<$name> is the name of the application, used in log messages, etc.
+C<$type> is usualy one of "server" or "client".  It specifies the
+subdirectory in which debug logfiles will be created.  C<$context>
+indicates the usual manner in which this application is invoked; one
+of C<$CONTEXT_CMDLINE> for a user-invoked command-line utility (e.g.,
+C<amadmin>) which should send human-readable error messages to stderr;
+C<$CONTEXT_DAEMON> for a program started by C<amandad>, e.g.,
+C<sendbackup>; or C<$CONTEXT_SCRIPTUTIL> for a small program used from
+shell scripts, e.g., C<amgetconf>
 
 Based on C<$type> and C<$context>, this function does the following:
 
@@ -133,7 +192,8 @@ sets the umask;
 
 =item *
 
-sets the current working directory to the debug or temporary directory;
+sets the current working directory to the debug or temporary
+directory;
 
 =item *
 
@@ -149,7 +209,321 @@ sets the appropriate target for error messages.
 
 =back
 
+=item finish_setup($running_as_flags)
+
+Perform final initialization tasks that require a loaded
+configuration.  Specifically, move the debug log into a
+configuration-specific subdirectory, and check that the current userid
+is appropriate for this applciation.
+
+The user is specified by one of the following flags, which are
+available in export tag C<:check_running_as_flags>:
+
+  $RUNNING_AS_ANY                 # any user is OK
+  $RUNNING_AS_ROOT                # root
+  $RUNNING_AS_DUMPUSER            # dumpuser, from configuration
+  $RUNNING_AS_DUMPUSER_PREFERRED  # dumpuser, but client_login is OK too
+  $RUNNING_AS_CLIENT_LOGIN        # client_login (--with-user at build time)
+
+If the flag C<$RUNNING_AS_UID_ONLY> is bit-or'd into
+C<$running_as_flags>, then the euid is ignored; this is used for
+programs that expect to be setuid-root.
+
+=item finish_application()
+
+Remove old debug files.
+All applications should call this before exiting.
+
+=item get_original_cwd()
+
+Return the original current directory with C<get_original_cwd>.
+
+=item version_opt()
+
+Print the version and exit.  This is intended to be used in C<GetOptions> invocations, e.g.,
+
+  GetOptions(
+    # ...
+    'version' => \&Amanda::Util::version_opt,
+  );
+
+=back
+
+=head1 File Handling
+
+These functions read and write the entire requested size to a file
+descriptor, even if the underlying syscall returns early.  Note that
+they do not operate on Perl file handles.
+
+If fewer than C<$size> bytes are written, C<full_write> returns the
+number of bytes actually written and sets C<$!> appropriately.  When
+reading, if fewer than C<$size> bytes are read due to a normal EOF,
+then C<$!> is zero; otherwise, it contains the appropriate error
+message.
+
+Unlike C<POSIX::read>, C<full_read> returns a scalar containing the
+bytes it read from the file descriptor.
+
+=over
+
+=item full_read($fd, $size)
+
+=item full_write($fd, $buf, $size)
+
+=back
+
+=head1 Miscellaneous Utilities
+
+=over
+
+=item safe_env()
+
+Return a "safe" environment hash.  For non-setuid programs, this means
+filtering out any localization variables.
+
+=item get_fs_usage(file, disk)
+
+This is a wrapper around the Gnulib function of the same name.  On success, it returns
+a hash with keys:
+
+  blocksize           Size of a block
+  blocks              Total blocks on disk
+  bfree               Free blocks available to superuser
+  bavail              Free blocks available to non-superuser
+  bavail_top_bit_set  1 if fsu_bavail represents a value < 0
+  files               Total file nodes
+  ffree               Free file nodes
+
+On failure, it returns nothing, and C<$!> should be set.  If C<$!> is 0, then
+this is a system which cannot measure usage without a C<disk> argument, which
+this wrapper does not support.
+
+=item is_pid_alive(pid)
+
+Return 1 is the process with that pid is still alive.
+
+=item weaken_ref($ref)
+
+This is exactly the same as C<Scalar::Util::weaken>, but available in all
+supported versions of perl.
+
+=item gettimeofday()
+
+Return the number of microseconds since the UNIX epoch.
+
+=item fsync($fd)
+
+Invoke the C<fsync> syscall.
+
+=item set_blocking($fd, $blocking)
+
+Set or clear the C<O_NONBLOCK> fd flag on $fd; returns a negative value on
+failure, or 0 on success.
+
+=item openbsd_fd_inform()
+
+Due to a particularly poor user-space implementation of threading on OpenBSD,
+executables that are run with nonstandard file descriptors open (fd > 2) find
+those descriptors to be in a nonblocking state.  This particularly affects
+amandad services, which begin with several file descriptors in the 50's open.
+
+This function "informs" the C library about these descriptors by making an
+C<fcntl(fd, F_GETFL)> call.  This is otherwise harmless, and is only perfomed
+on OpenBSD.
+
+=item built_with_component($comp)
+
+Returns true if Amanda was built with the given component.  Component names are
+in C<config/amanda/components.m4>.
+
+=back
+
+=head1 TCP Utilities
+
+These are thin wrappers over functions in C<common-src/stream.h> and other related
+functions.
+
+=over
+
+=item stream_server
+
+    my $family = $Amanda::Util::AF_INET;
+    my $bufsize = $Amanda::Util::STREAM_BUFSIZE;
+    my ($listensock, $port) = Amanda::Util::stream_server(
+	    $family, $bufsize, $bufsize, $priv);
+
+This function creates a new socket and binds it to a port, returning both the
+socket and port.  If the socket is -1, then an error occurred and is available
+in C<$!>.  The constants C<$AF_INET> and C<$STREAM_BUFSIZE> are universally
+used when calling this function.  If the final argument, C<$priv>, is true,
+then a the function opens a privileged port (below 1024).
+
+=item stream_accept
+
+    my $sock = Amanda::Util::stream_accept(
+	    $listen_sock, $timeout, $bufsize, $bufsize);
+
+This function accepts a connection on a listening socket.  If the connection is
+not made within C<$timeout> seconds, or some other error occurs, then the
+function returns -1.  The bufsize arguments are applied to the new socket.
+
+=item check_security
+
+    my $ok = Amanda::Util::check_security($socket, $userstr);
+
+This function takes a socket descriptor and a string of the form C<"USER foo">
+and performs BSD-style checks on that descriptor.  These include verifying
+round-trip DNS sanity; check that the user is in C<.rhosts> or C<.amandahosts>,
+and checking that the remote port is reserved.  Returns an error string on
+error, or C<undef> on success.
+
+=back
+
+=head1 String Utilities
+
+=over
+
+=item quote_string($str)
+
+Quote a string using Amanda's quoting algorithm.  Strings with no
+whitespace, control, or quote characters are returned unchanged.  An
+empty string is represented as the two-character string C<"">.
+Otherwise, tab, newline, carriage return, form-feed, backslash, and
+double-quote (C<">) characters are escaped with a backslash and the
+string is surrounded by double quotes.
+
+=item unquote_string($str)
+
+Unquote a string as quoted with C<quote_string>.
+
+=item skip_quoted_string($str)
+
+my($q, $remaider) = skip_quoted_string($str)
+
+Return the first quoted string and the remainder of the string.
+
+=item C<split_quoted_strings($str)>
+
+Split string on unquoted whitespace.  Multiple consecutive spaces are not
+collapsed into a single space: C<"x  y"> (with two spaces) parses as C<( "x",
+"", "y")>.  The strings are unquoted before they are returned.  An empty string
+is split into C<( "" )>.
+
+All of these quoting-related functions are available under the export
+tag C<:quoting>.
+
+=item hexencode($str)
+
+Encode a string using URI-style hexadecimal encoding.
+Non-alphanumeric characters will be replaced with "%xx"
+where "xx" is the two-digit hexadecimal representation of the character.
+
+=item hexdecode($str)
+
+Decode a string using URI-style hexadecimal encoding.
+
+Both C<hexencode> and C<hexdecode> are available under the export tag C<:encoding>
+
+=item expand_braced_alternates($str)
+=item collapse_braced_alternates(\@list)
+
+These two functions handle "braced alternates", which is a syntax
+borrowed, partially, from shells.  Comma-separated strings enclosed in
+curly braces expand into multiple alternatives for the entire string.
+For example:
+
+  "{foo,bar,bat}"   [ "foo", "bar", "bat" ]
+  "foo{1,2}bar"     [ "foo1bar", "foo2bar" ]
+  "foo{1\,2,3}bar"  [ "foo1,2bar", "foo3bar" ]
+  "{a,b}-{1,2}"     [ "a-1", "a-2", "b-1", "b-2" ]
+
+Note that nested braces are not processed.  Braces, commas, and
+backslashes may be escaped with backslashes.  On error,
+C<expand_braced_altnerates> returns undef.  These two functions are
+available in the export tag C<:alternates>.
+
+=item generate_timestamp()
+
+Generate a timestamp from the current time, obeying the
+'USETIMESTAMPS' config parameter.  The Amanda configuration must
+already be loaded.
+
+=item sanitise_filename($fn)
+
+"Santitises" a filename by replacing any characters that might have special
+meaning to a filesystem with underscores.  This operation is I<not> reversible,
+and distinct input filenames I<may> produce identical output filenames.
+
+=item unmarshal_tapespec($tapespec)
+=item marshal_tapespec($filelist)
+
+These functions convert between a tapespec -- formerly, and confusingly, called
+a "tapelist" -- and a perl data structure like
+
+    [	$label1 => [ $filenum1, $filenum2, .. ],
+	$label2 => [ $filenum1, $filenum2, .. ],
+    ]
+
+Note that a non-tapespec C<$string> will be unmarshalled as C<[ $string, [] ]>.
+
+=back
+
+=head1 Locking Files
+
+Amanda provides a basic mechanism to lock a file and read its contents.  This
+uses operating-system facilities to acquire an advisory lock, so non-Amanda
+applications are not prevented from modifying the file while it is locked.
+
+To create a lock object, call the C<file_lock> constructor, passing the
+filename to lock:
+
+  my $fl = Amanda::Util::file_lock->new($filename)
+
+then, lock the file:
+
+  $fl->lock();
+
+which also reads the contents of the file into memory, accessible via
+
+  my $state = $fl->data();
+
+to change the file contents, call C<write>:
+
+  $fl->write($new_contents);
+
+and unlock the lock with
+
+  $fl->unlock();
+
+Note that the file will be automatically unlocked if the C<file_lock> object is
+garbage-collected.
+
+=head1 Simple File Reading & Writing
+
+For reading small files directly into memory with little code
+overhead, we can use C<slurp>.
+
+  my $data = slurp $filename;
+
+After processing the data, we can write it back to file with C<burp>.  This
+function always completely overwrites the file.
+
+  burp $filename, $header;
+
+These functions can (and should) be exported to the main namespace
+  
 =cut
+
+
+
+use Amanda::Debug qw(:init);
+use Amanda::Config qw(:getconf);
+use warnings;
+use Carp;
+use POSIX qw( :fcntl_h :errno_h );
+use POSIX qw( strftime );
+use Amanda::Constants;
+use Amanda::Process;
 
 # private package variables
 my $_pname;
@@ -184,27 +558,6 @@ sub setup_application {
     $SIG{'PIPE'} = 'IGNORE';
 }
 
-=item C<finish_setup($running_as_flags)>
-
-Perform final initialization tasks that require a loaded configuration.
-Specifically, move the debug log into a configuration-specific
-subdirectory, and check that the current userid is appropriate for
-this applciation.
-
-The user is specified by one of the following flags, which are
-available in export tag C<:check_running_as_flags>:
-
-  $RUNNING_AS_ANY                 # any user is OK
-  $RUNNING_AS_ROOT                # root
-  $RUNNING_AS_DUMPUSER            # dumpuser, from configuration
-  $RUNNING_AS_DUMPUSER_PREFERRED  # dumpuser, but client_login is OK too
-  $RUNNING_AS_CLIENT_LOGIN        # client_login (--with-user at build time)
-
-If the flag C<$RUNNING_AS_UID_ONLY> is bit-or'd into C<$running_as_flags>, then
-the euid is ignored; this is used for programs that expect to be setuid-root.
-
-=cut
-
 sub finish_setup {
     my ($running_as) = @_;
 
@@ -217,23 +570,18 @@ sub finish_setup {
     check_running_as($running_as);
 }
 
-=item C<get_original_cwd()>
+sub finish_application {
+    dbclose();
+}
 
-Return the original current directory with C<get_original_cwd>.
+sub version_opt {
+    print "$_pname-$Amanda::Constants::VERSION\n";
+    exit 0;
+}
 
-=cut
 
 push @EXPORT_OK, qw(get_original_cwd);
 push @{$EXPORT_TAGS{"util"}}, qw(get_original_cwd);
-
-=head1 Miscellaneous Utilities
-
-=item C<safe_env()>
-
-Return a "safe" environment hash.  For non-setuid programs, this means filtering out any
-localization variables.
-
-=cut
 
 sub safe_env {
     my %rv = %ENV;
@@ -352,28 +700,49 @@ $_pcontext_t_VALUES{"CONTEXT_SCRIPTUTIL"} = $CONTEXT_SCRIPTUTIL;
 #copy symbols in pcontext_t to constants
 push @{$EXPORT_TAGS{"constants"}},  @{$EXPORT_TAGS{"pcontext_t"}};
 
-=item C<quote_string($str)>
+sub full_read {
+    my ($fd, $count) = @_;
+    my @bufs;
 
-Quote a string using Amanda's quoting algorithm.  Strings with no whitespace,
-control, or quote characters are returned unchanged.  An empty string is
-represented as the two-character string C<"">.  Otherwise, tab, newline,
-carriage return, form-feed, backslash, and double-quote (C<">) characters are
-escaped with a backslash and the string is surrounded by double quotes.
+    while ($count > 0) {
+	my $b;
+	my $n_read = POSIX::read($fd, $b, $count);
+	if (!defined $n_read) {
+	    next if ($! == EINTR);
+	    return undef;
+	} elsif ($n_read == 0) {
+	    last;
+	}
+	push @bufs, $b;
+	$count -= $n_read;
+    }
 
-=item C<unquote_string($str)>
+    return join('', @bufs);
+}
 
-Unquote a string as quoted with C<quote_string>.
+sub full_write {
+    my ($fd, $buf, $count) = @_;
+    my $total = 0;
 
-=item C<skip_quoted_string($str)>
+    while ($count > 0) {
+	my $n_written = POSIX::write($fd, $buf, $count);
+	if (!defined $n_written) {
+	    next if ($! == EINTR);
+	    return undef;
+	} elsif ($n_written == 0) {
+	    last;
+	}
 
-my($q, $remaider) = skip_quoted_string($str)
+	$count -= $n_written;
+	$total += $n_written;
 
-Return the first quoted string and the remainder of the string.
+	if ($count) {
+	    $buf = substr($buf, $n_written);
+	}
+    }
 
-Both C<quote_string>, C<unquote_string> and C<skip_quoted_string> are
-available under the export tag C<:quoting>.
-
-=cut
+    return $total;
+}
 
 sub skip_quoted_string {
     my $str = shift;
@@ -392,21 +761,60 @@ sub skip_quoted_string {
 	$c = substr $str, $i, 1;
     }
     my $quoted_string = substr $str, 0, $i;
-    my $remainder     = substr $str, $i+1;
+    my $remainder     = undef;
+    if (length($str) > $i) {
+	$remainder    = substr $str, $i+1;
+    }
 
     return ($quoted_string, $remainder);
 }
 
 
-push @EXPORT_OK, qw(quote_string unquote_string skip_quoted_string sanitise_filename);
-push @{$EXPORT_TAGS{"quoting"}}, qw(quote_string unquote_string skip_quoted_string sanitise_filename);
+push @EXPORT_OK, qw(slurp);
 
-=item C<generate_timestamp()>
+push @EXPORT_OK, qw(burp);
 
-Generate a timestamp from the current time, obeying the 'USETIMESTAMPS'
-config parameter.  The Amanda configuration must already be loaded.
+push @EXPORT_OK, qw(safe_overwrite_file);
 
-=cut
+
+sub slurp {
+    my $file = shift @_;
+    local $/;
+
+    open my $fh, "<", $file or croak "can't open $file: $!";
+    my $data = <$fh>;
+    close $fh;
+
+    return $data;
+}
+
+sub burp {
+    my $file = shift @_;
+    open my $fh, ">", $file or croak "can't open $file: $!";
+    print $fh @_;
+}
+
+sub safe_overwrite_file {
+    my ( $filename, $contents ) = @_;
+
+    my $tmpfname = "$filename." . time;
+    open my $tmpfh, ">", $tmpfname or die "open: $!";
+
+    print $tmpfh $contents;
+    (fsync($tmpfh) == 0) or die "fsync: $!";
+    return rename $tmpfname, $filename;
+}
+
+
+push @EXPORT_OK, qw(hexencode hexdecode);
+push @{$EXPORT_TAGS{"encoding"}}, qw(hexencode hexdecode);
+
+push @EXPORT_OK, qw(quote_string unquote_string skip_quoted_string sanitise_filename split_quoted_strings);
+push @{$EXPORT_TAGS{"quoting"}}, qw(quote_string unquote_string skip_quoted_string sanitise_filename split_quoted_strings);
+
+push @EXPORT_OK, qw(expand_braced_alternates collapse_braced_alternates);
+push @{$EXPORT_TAGS{"alternates"}}, qw(expand_braced_alternates collapse_braced_alternates);
+
 
 sub generate_timestamp {
     # this corresponds to common-src/timestamp.c's get_proper_stamp_from_time
@@ -417,13 +825,92 @@ sub generate_timestamp {
     }
 }
 
+sub built_with_component {
+    my ($component) = @_;
+    my @components = split / +/, $Amanda::Constants::AMANDA_COMPONENTS;
+    return grep { $_ eq $component } @components;
+}
+
+
+
+sub is_pid_alive {
+    my ($pid) = shift;
+
+    return 1 if $pid == $$;
+
+    my $Amanda_process = Amanda::Process->new(0);
+
+    $Amanda_process->load_ps_table();
+    my $alive = $Amanda_process->process_alive($pid);
+    return $alive;
+
+}
+
+push @EXPORT_OK, qw(weaken_ref);
+
+push @EXPORT_OK, qw(stream_server stream_accept check_security);
+
+push @EXPORT_OK, qw($AF_INET $STREAM_BUFSIZE);
+push @{$EXPORT_TAGS{"constants"}}, qw($AF_INET $STREAM_BUFSIZE);
+
+
+# these functions were verified to work similarly to those in
+# common-src/tapelist.c - they pass the same tests, at least.
+
+sub marshal_tapespec {
+    my ($filelist) = @_;
+    my @filelist = @$filelist; # make a copy we can wreck
+    my @specs;
+
+    while (@filelist) {
+	my $label = shift @filelist;
+	my $files = shift @filelist;
+
+	$label =~ s/([\\:;,])/\\$1/g;
+	push @specs, "$label:" . join(",", @$files);
+    }
+    return join(";", @specs);
+}
+
+sub unmarshal_tapespec {
+    my ($tapespec) = @_;
+    my @filelist;
+
+    # detect a non-tapespec string for special handling; in particular, a string
+    # without an unquoted : followed by digits and commas at the end.  The easiest
+    # way to do this is to replace every quoted character with a dummy, then look
+    # for the colon and digits.
+    my $tmp = $tapespec;
+    $tmp =~ s/\\([\\:;,])/X/g;
+    if ($tmp !~ /:[,\d]+$/) {
+	# ok, it doesn't end with the right form, so unquote it and return it
+	# with filenum 0
+	$tapespec =~ s/\\([\\:;,])/$1/g;
+	return [ $tapespec, [ 0 ] ];
+    }
+
+    # use a lookbehind to mask out any quoted ;'s
+    my @volumes = split(/(?<!\\);/, $tapespec);
+    for my $vol (@volumes) {
+	my ($label, $files) = ($vol =~ /(.+):([\d,]+)/);
+
+	$label =~ s/\\([\\:;,])/$1/g;
+	push @filelist, $label;
+
+	my @files = split(/,/, $files);
+	@files = map { $_+0 } @files;
+	@files = sort { $a <=> $b } @files;
+	push @filelist, \@files;
+    }
+
+    return \@filelist;
+}
+
+
 sub check_std_fds {
     fcntl(STDIN, F_GETFD, 0) or critical("Standard input is not open");
     fcntl(STDOUT, F_GETFD, 0) or critical("Standard output is not open");
     fcntl(STDERR, F_GETFD, 0) or critical("Standard error is not open");
 }
 
-=back
-
-=cut
 1;

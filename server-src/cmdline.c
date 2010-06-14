@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+ * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
  * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -14,7 +14,7 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  * 
- * Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+ * Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
  * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  *
  * Author: Dustin J. Mitchell <dustin@zmanda.com>
@@ -27,6 +27,7 @@
 
 #include <ctype.h>
 #include "amanda.h"
+#include "match.h"
 #include "cmdline.h"
 #include "holding.h"
 
@@ -89,30 +90,18 @@ cmdline_parse_dumpspecs(
         switch (arg_state) {
             case ARG_GET_HOST:
                 arg_state = ARG_GET_DISK;
-                if (name[0] != '\0'
-                    && (errstr=validate_regexp(name)) != NULL) {
-                    error(_("bad hostname regex \"%s\": %s\n"), name, errstr);
-                }
                 dumpspec = dumpspec_new(name, NULL, NULL, NULL);
 		list = g_slist_append(list, (gpointer)dumpspec);
                 break;
 
             case ARG_GET_DISK:
                 arg_state = ARG_GET_DATESTAMP;
-                if (name[0] != '\0'
-                    && (errstr=validate_regexp(name)) != NULL) {
-                    error(_("bad diskname regex \"%s\": %s\n"), name, errstr);
-                }
                 dumpspec->disk = stralloc(name);
                 break;
 
             case ARG_GET_DATESTAMP:
                 arg_state = ARG_GET_LEVEL;
 		if (!(flags & CMDLINE_PARSE_DATESTAMP)) continue;
-                if (name[0] != '\0'
-                    && (errstr=validate_regexp(name)) != NULL) {
-                    error(_("bad datestamp regex \"%s\": %s\n"), name, errstr);
-                }
                 dumpspec->datestamp = stralloc(name);
                 break;
 

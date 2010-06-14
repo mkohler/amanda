@@ -1,4 +1,4 @@
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2007,2008,2009 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -13,12 +13,13 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More tests => 78;
+use Test::More tests => 82;
 
 use lib "@amperldir@";
+use Installcheck;
 use Installcheck::Config;
 use Installcheck::Run qw(run run_get run_err);
 use Amanda::Paths;
@@ -121,7 +122,7 @@ is(run_get('amgetconf', 'TESTCONF', "build.mandir"), $mandir,
 is(run_get('amgetconf', 'TESTCONF', "build.AMANDA_DBGDIR"), $AMANDA_DBGDIR,
     "build.AMANDA_DBGDIR is correct");
 is(run_get('amgetconf', 'TESTCONF', "build.AMANDA_TMPDIR"), $AMANDA_TMPDIR,
-    "build.AMANDA_TMPDIR is correct");
+    "build.AMDNA_TMPDIR is correct");
 is(run_get('amgetconf', 'TESTCONF', "build.CONFIG_DIR"), $CONFIG_DIR,
     "build.CONFIG_DIR is correct");
 is(run_get('amgetconf', 'TESTCONF', "build.__empty"), "",
@@ -214,7 +215,9 @@ $testconf = Installcheck::Config->new();
 $testconf->add_tapetype("cassette", [ length => "32 k" ]);
 $testconf->add_tapetype("reel2reel", [ length => "1 M" ]);
 $testconf->add_tapetype("scotch", [ length => "500 bytes" ]); # (use a sharpie)
-$testconf->add_dumptype("testdump", [ comment => '"testdump-dumptype"' ]);
+$testconf->add_dumptype("testdump", [ comment => '"testdump-dumptype"',
+				      auth => '"bsd"' ]);
+$testconf->add_dumptype("testdump1", [ inherit => 'testdump' ]);
 $testconf->add_interface("testiface", [ use => '10' ]);
 $testconf->add_holdingdisk("hd17", [ chunksize => '128' ]);
 $testconf->add_application('app_amgtar', [ plugin => '"amgtar"' ]);
@@ -251,16 +254,25 @@ is(run_get('amgetconf', 'TESTCONF', 'holdingdisk:hd17:chunksize'), '128',
 like(run_get('amgetconf', 'TESTCONF', '--list', 'build'), qr(.*version.*),
 	"'--list build' lists build variables");
 
-is_deeply([sort(+split(/\n/, run_get('amgetconf', 'TESTCONF', '--list', 'application-tool')))],
+is_deeply([sort(+split(/\n/, run_get('amgetconf', 'TESTCONF', '--list', 'application')))],
           [sort("app_amgtar", "app_amstar")],
-        "--list returns correct set of application-tool");
+        "--list returns correct set of applications");
 
 is(run_get('amgetconf', 'TESTCONF', 'application-tool:app_amgtar:plugin'), 'amgtar',
     "returns application-tool parameter correctly");
 
+is_deeply([sort(+split(/\n/, run_get('amgetconf', 'TESTCONF', '--list', 'script')))],
+          [sort("my_script")],
+        "--list returns correct set of scripts");
+
+# test the old names
 is_deeply([sort(+split(/\n/, run_get('amgetconf', 'TESTCONF', '--list', 'script-tool')))],
           [sort("my_script")],
-        "--list returns correct set of script-tool");
+        "--list returns correct set of scripts, using the name script-tool");
+
+is_deeply([sort(+split(/\n/, run_get('amgetconf', 'TESTCONF', '--list', 'application-tool')))],
+          [sort("app_amgtar", "app_amstar")],
+        "--list returns correct set of applications, using the name 'application-tool'");
 
 is(run_get('amgetconf', 'TESTCONF', 'script-tool:my_script:execute-on'), 'PRE-DLE-AMCHECK',
     "returns script-tool parameter correctly");
@@ -272,6 +284,10 @@ is(run_get('amgetconf', 'TESTCONF', 'script_tOOl:my_script:eXECute-on'), 'PRE-DL
     "insensitive to case in subsec_key");
 is(run_get('amgetconf', 'TESTCONF', 'script-tool:my_script:execute_on'), 'PRE-DLE-AMCHECK',
     "insensitive to -/_ in subsec_key");
+is(run_get('amgetconf', 'TESTCONF', 'dumptype:testdump1:auth', '-odumptype:testdump:auth=SSH'), 'SSH',
+    "inherited setting are overrided");
+is(run_get('amgetconf', 'TESTCONF', 'dumptype:testdump1:compress', '-odumptype:testdump:compress=SERVER BEST'), 'SERVER BEST',
+    "inherited default are overrided");
 
 is_deeply([sort(split(/\n/, run_get('amgetconf', 'TESTCONF', '--list', 'device')))],
           [sort("my_device")],
@@ -318,5 +334,4 @@ is_deeply([sort(+split(qr/\n/, run_get('amgetconf', 'TESTCONF', 'dumptype:testdu
 	  [sort('FILE OPTIONAL "ifo"',
 	        'LIST OPTIONAL "ilo"')],
     "a final 'OPTIONAL' makes the whole include/exclude optional")
-
 

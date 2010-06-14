@@ -35,7 +35,7 @@
  */
 #include "util.h"
 #include "amanda.h"
-#include "version.h"
+#include "conffile.h"
 
 int main(int argc, char **argv);
 
@@ -84,12 +84,14 @@ main(
     signal(SIGPIPE, SIG_IGN);
 
     dbopen(DBG_SUBDIR_CLIENT);
+    config_init(CONFIG_INIT_CLIENT, NULL);
+
     if (argc < 3) {
 	error(_("Need at least 3 arguments\n"));
 	/*NOTREACHED*/
     }
 
-    dbprintf(_("version %s\n"), version());
+    dbprintf(_("version %s\n"), VERSION);
 
 #ifdef ERRMSG							/* { */
 

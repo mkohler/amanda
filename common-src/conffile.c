@@ -64,7 +64,7 @@ typedef enum {
     CONF_BUMPPERCENT,		CONF_BUMPSIZE,		CONF_BUMPDAYS,
     CONF_BUMPMULT,		CONF_ETIMEOUT,		CONF_DTIMEOUT,
     CONF_CTIMEOUT,		CONF_TAPEBUFS,		CONF_TAPELIST,
-    CONF_DEVICE_OUTPUT_BUFFER_SIZE,			CONF_RAWTAPEDEV,
+    CONF_DEVICE_OUTPUT_BUFFER_SIZE,
     CONF_DISKFILE,		CONF_INFOFILE,		CONF_LOGDIR,
     CONF_LOGFILE,		CONF_DISKDIR,		CONF_DISKSIZE,
     CONF_INDEXDIR,		CONF_NETUSAGE,		CONF_INPARALLEL,
@@ -84,11 +84,12 @@ typedef enum {
     CONF_TAPERFLUSH,
     CONF_FLUSH_THRESHOLD_DUMPED,
     CONF_FLUSH_THRESHOLD_SCHEDULED,
-    CONF_DEVICE_PROPERTY,      CONF_PROPERTY,          CONF_PLUGIN,
+    CONF_DEVICE_PROPERTY,      CONF_PROPERTY,		CONF_PLUGIN,
     CONF_APPLICATION,          CONF_APPLICATION_TOOL,
-    CONF_PP_SCRIPT,            CONF_PP_SCRIPT_TOOL,
+    CONF_SCRIPT,               CONF_SCRIPT_TOOL,
     CONF_EXECUTE_ON,           CONF_EXECUTE_WHERE,	CONF_SEND_AMREPORT_ON,
-    CONF_DEVICE,
+    CONF_DEVICE,               CONF_ORDER,
+    CONF_DATA_PATH,            CONF_AMANDA,		CONF_DIRECTTCP,
 
     /* execute on */
     CONF_PRE_DLE_AMCHECK,      CONF_PRE_HOST_AMCHECK,
@@ -121,7 +122,7 @@ typedef enum {
     CONF_SPLIT_DISKBUFFER,	CONF_FALLBACK_SPLITSIZE,CONF_SRVCOMPPROG,
     CONF_CLNTCOMPPROG,		CONF_SRV_ENCRYPT,	CONF_CLNT_ENCRYPT,
     CONF_SRV_DECRYPT_OPT,	CONF_CLNT_DECRYPT_OPT,	CONF_AMANDAD_PATH,
-    CONF_CLIENT_USERNAME,
+    CONF_CLIENT_USERNAME,	CONF_CLIENT_PORT,
 
     /* tape type */
     /*COMMENT,*/		CONF_BLOCKSIZE,		CONF_FILE_PAD,
@@ -136,12 +137,13 @@ typedef enum {
     CONF_REP_TRIES,		CONF_CONNECT_TRIES,	CONF_REQ_TRIES,
 
     /* debug config */
+    CONF_DEBUG_DAYS,
     CONF_DEBUG_AMANDAD,		CONF_DEBUG_AMIDXTAPED,	CONF_DEBUG_AMINDEXD,
     CONF_DEBUG_AMRECOVER,	CONF_DEBUG_AUTH,	CONF_DEBUG_EVENT,
     CONF_DEBUG_HOLDING,		CONF_DEBUG_PROTOCOL,	CONF_DEBUG_PLANNER,
     CONF_DEBUG_DRIVER,		CONF_DEBUG_DUMPER,	CONF_DEBUG_CHUNKER,
     CONF_DEBUG_TAPER,		CONF_DEBUG_SELFCHECK,	CONF_DEBUG_SENDSIZE,
-    CONF_DEBUG_SENDBACKUP,
+    CONF_DEBUG_SENDBACKUP,	CONF_DEBUG_RECOVERY,
 
     /* network interface */
     /* COMMENT, */		/* USE, */
@@ -153,6 +155,10 @@ typedef enum {
     CONF_NONE,			CONF_FAST,		CONF_BEST,
     CONF_SERVER,		CONF_CLIENT,		CONF_CALCSIZE,
     CONF_CUSTOM,
+
+    /* autolabel */
+    CONF_AUTOLABEL,		CONF_ANY_VOLUME,	CONF_OTHER_CONFIG,
+    CONF_NON_AMANDA,		CONF_VOLUME_ERROR,	CONF_EMPTY,
 
     /* holdingdisk */
     CONF_NEVER,			CONF_AUTO,		CONF_REQUIRED,
@@ -174,6 +180,7 @@ typedef enum {
     /* numbers */
     CONF_AMINFINITY,		CONF_MULT1,		CONF_MULT7,
     CONF_MULT1K,		CONF_MULT1M,		CONF_MULT1G,
+    CONF_MULT1T,
 
     /* boolean */
     CONF_ATRUE,			CONF_AFALSE
@@ -231,11 +238,12 @@ static void unget_conftoken(void);
 static int  conftoken_getc(void);
 static int  conftoken_ungetc(int c);
 
-static void copy_proplist(gpointer key_p,
-                          gpointer value_p,
-                          gpointer user_data_p);
-static void copy_pp_scriptlist(gpointer data_p,
-                               gpointer user_data_p);
+static void merge_proplist_foreach_fn(gpointer key_p,
+                                      gpointer value_p,
+                                      gpointer user_data_p);
+static void copy_proplist_foreach_fn(gpointer key_p,
+                                     gpointer value_p,
+                                     gpointer user_data_p);
 
 /*
  * Parser
@@ -297,7 +305,6 @@ struct interface_s {
 };
 
 struct holdingdisk_s {
-    struct holdingdisk_s *next;
     seen_t seen;
     char *name;
 
@@ -392,7 +399,8 @@ static void handle_deprecated_keyword(void);
  */
 static void read_block(conf_var_t *read_var, val_t *valarray, 
 		       char *errormsg, int read_brace,
-		       void (*copy_function)(void));
+		       void (*copy_function)(void),
+		       char *type, char *name);
 
 /* For each subsection type, we have a global and  four functions:
  *  - foocur is a temporary struct used to assemble new subsections
@@ -406,10 +414,10 @@ static void read_block(conf_var_t *read_var, val_t *valarray,
  *  - copy_foo implements inheritance as described in read_block()
  */
 static holdingdisk_t hdcur;
-static void get_holdingdisk(void);
+static void get_holdingdisk(int is_define);
 static void init_holdingdisk_defaults(void);
 static void save_holdingdisk(void);
-/* (holdingdisks don't support inheritance) */
+static void copy_holdingdisk(void);
 
 static dumptype_t dpcur;
 static void get_dumptype(void);
@@ -469,10 +477,11 @@ static void read_bool(conf_var_t *, val_t *);
 static void read_compress(conf_var_t *, val_t *);
 static void read_encrypt(conf_var_t *, val_t *);
 static void read_holding(conf_var_t *, val_t *);
-static void read_estimate(conf_var_t *, val_t *);
+static void read_estimatelist(conf_var_t *, val_t *);
 static void read_strategy(conf_var_t *, val_t *);
 static void read_taperalgo(conf_var_t *, val_t *);
 static void read_send_amreport_on(conf_var_t *, val_t *);
+static void read_data_path(conf_var_t *, val_t *);
 static void read_priority(conf_var_t *, val_t *);
 static void read_rate(conf_var_t *, val_t *);
 static void read_exinclude(conf_var_t *, val_t *);
@@ -482,6 +491,9 @@ static void read_dpp_script(conf_var_t *, val_t *);
 static void read_property(conf_var_t *, val_t *);
 static void read_execute_on(conf_var_t *, val_t *);
 static void read_execute_where(conf_var_t *, val_t *);
+static void read_holdingdisk(conf_var_t *, val_t *);
+static void read_int_or_str(conf_var_t *, val_t *);
+static void read_autolabel(conf_var_t *, val_t *);
 
 /* Functions to get various types of values.  These are called by
  * read_functions to take care of any variations in the way that these
@@ -521,6 +533,7 @@ static void validate_port_range(val_t *, int, int);
 static void validate_reserved_port_range(conf_var_t *, val_t *);
 static void validate_unreserved_port_range(conf_var_t *, val_t *);
 static void validate_program(conf_var_t *, val_t *);
+gint compare_pp_script_order(gconstpointer a, gconstpointer b);
 
 /*
  * Initialization
@@ -548,14 +561,14 @@ static gboolean config_initialized = FALSE;
  * with CONFIG_INIT_CLIENT) */
 static gboolean config_client = FALSE;
 
-/* What config overwrites are applied? */
-static config_overwrites_t *applied_config_overwrites = NULL;
+/* What config overwrites to use? */
+static config_overrides_t *config_overrides = NULL;
 
 /* All global parameters */
 static val_t conf_data[CNF_CNF];
 
 /* Linked list of holding disks */
-static holdingdisk_t *holdinglist = NULL;
+static GSList *holdinglist = NULL;
 static dumptype_t *dumplist = NULL;
 static tapetype_t *tapelist = NULL;
 static interface_t *interface_list = NULL;
@@ -568,6 +581,7 @@ static changer_config_t *changer_config_list = NULL;
 static long int unit_divisor = 1;
 
 int debug_amandad    = 0;
+int debug_recovery   = 0;
 int debug_amidxtaped = 0;
 int debug_amindexd   = 0;
 int debug_amrecover  = 0;
@@ -596,6 +610,9 @@ static void init_defaults(void);
  */
 static void update_derived_values(gboolean is_client);
 
+static cfgerr_level_t apply_config_overrides(config_overrides_t *co,
+					     char *key_ovr);
+
 /* per-type conf_init functions, used as utilities for init_defaults
  * and for each subsection's init_foo_defaults.
  *
@@ -607,13 +624,15 @@ static void conf_init_int64(val_t *val, gint64 l);
 static void conf_init_real(val_t *val, float r);
 static void conf_init_str(val_t *val, char *s);
 static void conf_init_ident(val_t *val, char *s);
+static void conf_init_identlist(val_t *val, char *s);
 static void conf_init_time(val_t *val, time_t t);
 static void conf_init_size(val_t *val, ssize_t sz);
 static void conf_init_bool(val_t *val, int i);
 static void conf_init_compress(val_t *val, comp_t i);
 static void conf_init_encrypt(val_t *val, encrypt_t i);
+static void conf_init_data_path(val_t *val, data_path_t i);
 static void conf_init_holding(val_t *val, dump_holdingdisk_t i);
-static void conf_init_estimate(val_t *val, estimate_t i);
+static void conf_init_estimatelist(val_t *val, estimate_t i);
 static void conf_init_execute_on(val_t *, int);
 static void conf_init_execute_where(val_t *, int);
 static void conf_init_send_amreport(val_t *val, send_amreport_t i);
@@ -624,28 +643,30 @@ static void conf_init_rate(val_t *val, float r1, float r2);
 static void conf_init_exinclude(val_t *val); /* to empty list */
 static void conf_init_intrange(val_t *val, int i1, int i2);
 static void conf_init_proplist(val_t *val); /* to empty list */
-static void conf_init_pp_scriptlist(val_t *);
 static void conf_init_application(val_t *val);
+static void conf_init_autolabel(val_t *val);
 
 /*
  * Command-line Handling
  */
 
-typedef struct config_overwrite_s {
-    char *key;
-    char *value;
-} config_overwrite_t;
+typedef struct config_override_s {
+    char     *key;
+    char     *value;
+    gboolean  applied;
+} config_override_t;
 
-struct config_overwrites_s {
+struct config_overrides_s {
     int n_allocated;
     int n_used;
-    config_overwrite_t *ovr;
+    config_override_t *ovr;
 };
 
 /*
  * val_t Management
  */
 
+static void merge_val_t(val_t *, val_t *);
 static void copy_val_t(val_t *, val_t *);
 static void free_val_t(val_t *);
 
@@ -653,11 +674,12 @@ static void free_val_t(val_t *);
  * Utilities
  */
 
+/* memory handling */
+void free_property_t(gpointer p);
 
 /* Utility functions/structs for val_t_display_strs */
 static char *exinclude_display_str(val_t *val, int file);
 static void proplist_display_str_foreach_fn(gpointer key_p, gpointer value_p, gpointer user_data_p);
-static void pp_scriptlist_display_str_foreach_fn(gpointer data_p, gpointer user_data_p);
 static void val_t_print_token(FILE *output, char *prefix, char *format, keytab_t *kt, val_t *val);
 
 /* Given a key name as used in config overwrites, return a pointer to the corresponding
@@ -706,6 +728,7 @@ keytab_t client_keytab[] = {
     { "SSH_KEYS", CONF_SSH_KEYS },
     { "AMANDAD_PATH", CONF_AMANDAD_PATH },
     { "CLIENT_USERNAME", CONF_CLIENT_USERNAME },
+    { "CLIENT_PORT", CONF_CLIENT_PORT },
     { "GNUTAR_LIST_DIR", CONF_GNUTAR_LIST_DIR },
     { "AMANDATES", CONF_AMANDATES },
     { "KRB5KEYTAB", CONF_KRB5KEYTAB },
@@ -715,7 +738,9 @@ keytab_t client_keytab[] = {
     { "REP_TRIES", CONF_REP_TRIES },
     { "REQ_TRIES", CONF_REQ_TRIES },
     { "CLIENT", CONF_CLIENT },
+    { "DEBUG_DAYS", CONF_DEBUG_DAYS },
     { "DEBUG_AMANDAD", CONF_DEBUG_AMANDAD },
+    { "DEBUG_RECOVERY", CONF_DEBUG_RECOVERY },
     { "DEBUG_AMIDXTAPED", CONF_DEBUG_AMIDXTAPED },
     { "DEBUG_AMINDEXD", CONF_DEBUG_AMINDEXD },
     { "DEBUG_AMRECOVER", CONF_DEBUG_AMRECOVER },
@@ -739,8 +764,9 @@ keytab_t client_keytab[] = {
     { "DEFINE", CONF_DEFINE },
     { "COMMENT", CONF_COMMENT },
     { "MAILER", CONF_MAILER },
-    { "SCRIPT", CONF_PP_SCRIPT },
-    { "SCRIPT_TOOL", CONF_PP_SCRIPT_TOOL },
+    { "ORDER", CONF_ORDER },
+    { "SCRIPT", CONF_SCRIPT },
+    { "SCRIPT_TOOL", CONF_SCRIPT_TOOL },
     { "PLUGIN", CONF_PLUGIN },
     { "PRE_DLE_AMCHECK", CONF_PRE_DLE_AMCHECK },
     { "PRE_HOST_AMCHECK", CONF_PRE_HOST_AMCHECK },
@@ -771,14 +797,17 @@ keytab_t client_keytab[] = {
 
 keytab_t server_keytab[] = {
     { "ALL", CONF_ALL },
+    { "AMANDA", CONF_AMANDA },
     { "AMANDAD_PATH", CONF_AMANDAD_PATH },
     { "AMRECOVER_CHANGER", CONF_AMRECOVER_CHANGER },
     { "AMRECOVER_CHECK_LABEL", CONF_AMRECOVER_CHECK_LABEL },
     { "AMRECOVER_DO_FSF", CONF_AMRECOVER_DO_FSF },
+    { "ANY", CONF_ANY_VOLUME },
     { "APPEND", CONF_APPEND },
     { "AUTH", CONF_AUTH },
     { "AUTO", CONF_AUTO },
     { "AUTOFLUSH", CONF_AUTOFLUSH },
+    { "AUTOLABEL", CONF_AUTOLABEL },
     { "APPLICATION", CONF_APPLICATION },
     { "APPLICATION_TOOL", CONF_APPLICATION_TOOL },
     { "BEST", CONF_BEST },
@@ -804,7 +833,10 @@ keytab_t server_keytab[] = {
     { "CONNECT_TRIES", CONF_CONNECT_TRIES },
     { "CTIMEOUT", CONF_CTIMEOUT },
     { "CUSTOM", CONF_CUSTOM },
+    { "DATA_PATH", CONF_DATA_PATH },
+    { "DEBUG_DAYS"       , CONF_DEBUG_DAYS },
     { "DEBUG_AMANDAD"    , CONF_DEBUG_AMANDAD },
+    { "DEBUG_RECOVERY"   , CONF_DEBUG_RECOVERY },
     { "DEBUG_AMIDXTAPED" , CONF_DEBUG_AMIDXTAPED },
     { "DEBUG_AMINDEXD"   , CONF_DEBUG_AMINDEXD },
     { "DEBUG_AMRECOVER"  , CONF_DEBUG_AMRECOVER },
@@ -824,6 +856,7 @@ keytab_t server_keytab[] = {
     { "DEVICE", CONF_DEVICE },
     { "DEVICE_PROPERTY", CONF_DEVICE_PROPERTY },
     { "DIRECTORY", CONF_DIRECTORY },
+    { "DIRECTTCP", CONF_DIRECTTCP },
     { "DISKFILE", CONF_DISKFILE },
     { "DISPLAYUNIT", CONF_DISPLAYUNIT },
     { "DTIMEOUT", CONF_DTIMEOUT },
@@ -831,6 +864,7 @@ keytab_t server_keytab[] = {
     { "DUMPORDER", CONF_DUMPORDER },
     { "DUMPTYPE", CONF_DUMPTYPE },
     { "DUMPUSER", CONF_DUMPUSER },
+    { "EMPTY", CONF_EMPTY },
     { "ENCRYPT", CONF_ENCRYPT },
     { "ERROR", CONF_ERROR },
     { "ESTIMATE", CONF_ESTIMATE },
@@ -884,8 +918,11 @@ keytab_t server_keytab[] = {
     { "NOFULL", CONF_NOFULL },
     { "NOINC", CONF_NOINC },
     { "NONE", CONF_NONE },
+    { "NON_AMANDA", CONF_NON_AMANDA },
     { "OPTIONAL", CONF_OPTIONAL },
+    { "ORDER", CONF_ORDER },
     { "ORG", CONF_ORG },
+    { "OTHER_CONFIG", CONF_OTHER_CONFIG },
     { "PLUGIN", CONF_PLUGIN },
     { "PRE_DLE_AMCHECK", CONF_PRE_DLE_AMCHECK },
     { "PRE_HOST_AMCHECK", CONF_PRE_HOST_AMCHECK },
@@ -917,9 +954,10 @@ keytab_t server_keytab[] = {
     { "RESERVED_TCP_PORT", CONF_RESERVED_TCP_PORT },
     { "RUNSPERCYCLE", CONF_RUNSPERCYCLE },
     { "RUNTAPES", CONF_RUNTAPES },
-    { "SCRIPT", CONF_PP_SCRIPT },
-    { "SCRIPT_TOOL", CONF_PP_SCRIPT_TOOL },
+    { "SCRIPT", CONF_SCRIPT },
+    { "SCRIPT_TOOL", CONF_SCRIPT_TOOL },
     { "SEND_AMREPORT_ON", CONF_SEND_AMREPORT_ON },
+    { "CLIENT_PORT", CONF_CLIENT_PORT },
     { "SERVER", CONF_SERVER },
     { "SERVER_CUSTOM_COMPRESS", CONF_SRVCOMPPROG },
     { "SERVER_DECRYPT_OPTION", CONF_SRV_DECRYPT_OPT },
@@ -939,7 +977,6 @@ keytab_t server_keytab[] = {
     { "DEVICE_OUTPUT_BUFFER_SIZE", CONF_DEVICE_OUTPUT_BUFFER_SIZE },
     { "TAPECYCLE", CONF_TAPECYCLE },
     { "TAPEDEV", CONF_TAPEDEV },
-    { "RAWTAPEDEV", CONF_RAWTAPEDEV },
     { "TAPELIST", CONF_TAPELIST },
     { "TAPERALGO", CONF_TAPERALGO },
     { "FLUSH_THRESHOLD_DUMPED", CONF_FLUSH_THRESHOLD_DUMPED },
@@ -951,6 +988,7 @@ keytab_t server_keytab[] = {
     { "UNRESERVED_TCP_PORT", CONF_UNRESERVED_TCP_PORT },
     { "USE", CONF_USE },
     { "USETIMESTAMPS", CONF_USETIMESTAMPS },
+    { "VOLUME_ERROR", CONF_VOLUME_ERROR },
     { NULL, CONF_IDENT },
     { NULL, CONF_UNKNOWN }
 };
@@ -989,6 +1027,14 @@ keytab_t numb_keytable[] = {
     { "GIG", CONF_MULT1G },
     { "GIGABYTE", CONF_MULT1G },
     { "GIGABYTES", CONF_MULT1G },
+    { "T", CONF_MULT1T },
+    { "TB", CONF_MULT1T },
+    { "TBPS", CONF_MULT1T },
+    { "TBYTE", CONF_MULT1T },
+    { "TBYTES", CONF_MULT1T },
+    { "TERA", CONF_MULT1T },
+    { "TERABYTE", CONF_MULT1T },
+    { "TERABYTES", CONF_MULT1T },
     { "MPS", CONF_MULT1M },
     { "TAPE", CONF_MULT1 },
     { "TAPES", CONF_MULT1 },
@@ -1023,6 +1069,7 @@ conf_var_t client_var [] = {
    { CONF_SSH_KEYS           , CONFTYPE_STR     , read_str     , CNF_SSH_KEYS           , NULL },
    { CONF_AMANDAD_PATH       , CONFTYPE_STR     , read_str     , CNF_AMANDAD_PATH       , NULL },
    { CONF_CLIENT_USERNAME    , CONFTYPE_STR     , read_str     , CNF_CLIENT_USERNAME    , NULL },
+   { CONF_CLIENT_PORT        , CONFTYPE_STR     , read_int_or_str, CNF_CLIENT_PORT      , NULL },
    { CONF_GNUTAR_LIST_DIR    , CONFTYPE_STR     , read_str     , CNF_GNUTAR_LIST_DIR    , NULL },
    { CONF_AMANDATES          , CONFTYPE_STR     , read_str     , CNF_AMANDATES          , NULL },
    { CONF_MAILER             , CONFTYPE_STR     , read_str     , CNF_MAILER             , NULL },
@@ -1031,7 +1078,9 @@ conf_var_t client_var [] = {
    { CONF_CONNECT_TRIES      , CONFTYPE_INT     , read_int     , CNF_CONNECT_TRIES      , validate_positive },
    { CONF_REP_TRIES          , CONFTYPE_INT     , read_int     , CNF_REP_TRIES          , validate_positive },
    { CONF_REQ_TRIES          , CONFTYPE_INT     , read_int     , CNF_REQ_TRIES          , validate_positive },
+   { CONF_DEBUG_DAYS         , CONFTYPE_INT     , read_int     , CNF_DEBUG_DAYS         , NULL },
    { CONF_DEBUG_AMANDAD      , CONFTYPE_INT     , read_int     , CNF_DEBUG_AMANDAD      , validate_debug },
+   { CONF_DEBUG_RECOVERY     , CONFTYPE_INT     , read_int     , CNF_DEBUG_RECOVERY     , validate_debug },
    { CONF_DEBUG_AMIDXTAPED   , CONFTYPE_INT     , read_int     , CNF_DEBUG_AMIDXTAPED   , validate_debug },
    { CONF_DEBUG_AMINDEXD     , CONFTYPE_INT     , read_int     , CNF_DEBUG_AMINDEXD     , validate_debug },
    { CONF_DEBUG_AMRECOVER    , CONFTYPE_INT     , read_int     , CNF_DEBUG_AMRECOVER    , validate_debug },
@@ -1052,7 +1101,7 @@ conf_var_t client_var [] = {
    { CONF_UNRESERVED_TCP_PORT, CONFTYPE_INTRANGE, read_intrange, CNF_UNRESERVED_TCP_PORT, validate_unreserved_port_range },
    { CONF_PROPERTY           , CONFTYPE_PROPLIST, read_property, CNF_PROPERTY           , NULL },
    { CONF_APPLICATION        , CONFTYPE_STR     , read_dapplication, DUMPTYPE_APPLICATION, NULL },
-   { CONF_PP_SCRIPT          , CONFTYPE_STR     , read_dpp_script, DUMPTYPE_PP_SCRIPTLIST, NULL },
+   { CONF_SCRIPT             , CONFTYPE_STR     , read_dpp_script, DUMPTYPE_SCRIPTLIST, NULL },
    { CONF_UNKNOWN            , CONFTYPE_INT     , NULL         , CNF_CNF                , NULL }
 };
 
@@ -1063,7 +1112,6 @@ conf_var_t server_var [] = {
    { CONF_PRINTER              , CONFTYPE_STR      , read_str         , CNF_PRINTER              , NULL },
    { CONF_MAILER               , CONFTYPE_STR      , read_str         , CNF_MAILER               , NULL },
    { CONF_TAPEDEV              , CONFTYPE_STR      , read_str         , CNF_TAPEDEV              , NULL },
-   { CONF_RAWTAPEDEV           , CONFTYPE_STR      , read_str         , CNF_RAWTAPEDEV           , NULL },
    { CONF_DEVICE_PROPERTY      , CONFTYPE_PROPLIST , read_property    , CNF_DEVICE_PROPERTY      , NULL },
    { CONF_PROPERTY             , CONFTYPE_PROPLIST , read_property    , CNF_PROPERTY             , NULL },
    { CONF_TPCHANGER            , CONFTYPE_STR      , read_str         , CNF_TPCHANGER            , NULL },
@@ -1076,6 +1124,7 @@ conf_var_t server_var [] = {
    { CONF_LOGDIR               , CONFTYPE_STR      , read_str         , CNF_LOGDIR               , NULL },
    { CONF_INDEXDIR             , CONFTYPE_STR      , read_str         , CNF_INDEXDIR             , NULL },
    { CONF_TAPETYPE             , CONFTYPE_IDENT    , read_ident       , CNF_TAPETYPE             , NULL },
+   { CONF_HOLDING              , CONFTYPE_IDENTLIST, read_holdingdisk , CNF_HOLDINGDISK          , NULL },
    { CONF_DUMPCYCLE            , CONFTYPE_INT      , read_int         , CNF_DUMPCYCLE            , validate_nonnegative },
    { CONF_RUNSPERCYCLE         , CONFTYPE_INT      , read_int         , CNF_RUNSPERCYCLE         , validate_runspercycle },
    { CONF_RUNTAPES             , CONFTYPE_INT      , read_int         , CNF_RUNTAPES             , validate_nonnegative },
@@ -1088,7 +1137,7 @@ conf_var_t server_var [] = {
    { CONF_INPARALLEL           , CONFTYPE_INT      , read_int         , CNF_INPARALLEL           , validate_inparallel },
    { CONF_DUMPORDER            , CONFTYPE_STR      , read_str         , CNF_DUMPORDER            , NULL },
    { CONF_MAXDUMPS             , CONFTYPE_INT      , read_int         , CNF_MAXDUMPS             , validate_positive },
-   { CONF_ETIMEOUT             , CONFTYPE_INT      , read_int         , CNF_ETIMEOUT             , NULL },
+   { CONF_ETIMEOUT             , CONFTYPE_INT      , read_int         , CNF_ETIMEOUT             , validate_positive },
    { CONF_DTIMEOUT             , CONFTYPE_INT      , read_int         , CNF_DTIMEOUT             , validate_positive },
    { CONF_CTIMEOUT             , CONFTYPE_INT      , read_int         , CNF_CTIMEOUT             , validate_positive },
    { CONF_TAPEBUFS             , CONFTYPE_INT      , read_int         , CNF_TAPEBUFS             , validate_positive },
@@ -1106,6 +1155,7 @@ conf_var_t server_var [] = {
    { CONF_KRB5KEYTAB           , CONFTYPE_STR      , read_str         , CNF_KRB5KEYTAB           , NULL },
    { CONF_KRB5PRINCIPAL        , CONFTYPE_STR      , read_str         , CNF_KRB5PRINCIPAL        , NULL },
    { CONF_LABEL_NEW_TAPES      , CONFTYPE_STR      , read_str         , CNF_LABEL_NEW_TAPES      , NULL },
+   { CONF_AUTOLABEL            , CONFTYPE_AUTOLABEL, read_autolabel   , CNF_AUTOLABEL            , NULL },
    { CONF_USETIMESTAMPS        , CONFTYPE_BOOLEAN  , read_bool        , CNF_USETIMESTAMPS        , NULL },
    { CONF_AMRECOVER_DO_FSF     , CONFTYPE_BOOLEAN  , read_bool        , CNF_AMRECOVER_DO_FSF     , NULL },
    { CONF_AMRECOVER_CHANGER    , CONFTYPE_STR      , read_str         , CNF_AMRECOVER_CHANGER    , NULL },
@@ -1113,7 +1163,9 @@ conf_var_t server_var [] = {
    { CONF_CONNECT_TRIES        , CONFTYPE_INT      , read_int         , CNF_CONNECT_TRIES        , validate_positive },
    { CONF_REP_TRIES            , CONFTYPE_INT      , read_int         , CNF_REP_TRIES            , validate_positive },
    { CONF_REQ_TRIES            , CONFTYPE_INT      , read_int         , CNF_REQ_TRIES            , validate_positive },
+   { CONF_DEBUG_DAYS           , CONFTYPE_INT      , read_int         , CNF_DEBUG_DAYS           , NULL },
    { CONF_DEBUG_AMANDAD        , CONFTYPE_INT      , read_int         , CNF_DEBUG_AMANDAD        , validate_debug },
+   { CONF_DEBUG_RECOVERY       , CONFTYPE_INT      , read_int         , CNF_DEBUG_RECOVERY       , validate_debug },
    { CONF_DEBUG_AMIDXTAPED     , CONFTYPE_INT      , read_int         , CNF_DEBUG_AMIDXTAPED     , validate_debug },
    { CONF_DEBUG_AMINDEXD       , CONFTYPE_INT      , read_int         , CNF_DEBUG_AMINDEXD       , validate_debug },
    { CONF_DEBUG_AMRECOVER      , CONFTYPE_INT      , read_int         , CNF_DEBUG_AMRECOVER      , validate_debug },
@@ -1149,7 +1201,7 @@ conf_var_t tapetype_var [] = {
 
 conf_var_t dumptype_var [] = {
    { CONF_COMMENT           , CONFTYPE_STR      , read_str      , DUMPTYPE_COMMENT           , NULL },
-   { CONF_AUTH              , CONFTYPE_STR      , read_str      , DUMPTYPE_SECURITY_DRIVER   , NULL },
+   { CONF_AUTH              , CONFTYPE_STR      , read_str      , DUMPTYPE_AUTH              , NULL },
    { CONF_BUMPDAYS          , CONFTYPE_INT      , read_int      , DUMPTYPE_BUMPDAYS          , NULL },
    { CONF_BUMPMULT          , CONFTYPE_REAL     , read_real     , DUMPTYPE_BUMPMULT          , NULL },
    { CONF_BUMPSIZE          , CONFTYPE_INT64    , read_int64    , DUMPTYPE_BUMPSIZE          , NULL },
@@ -1176,11 +1228,12 @@ conf_var_t dumptype_var [] = {
    { CONF_STRATEGY          , CONFTYPE_INT      , read_strategy , DUMPTYPE_STRATEGY          , NULL },
    { CONF_TAPE_SPLITSIZE    , CONFTYPE_INT64    , read_int64    , DUMPTYPE_TAPE_SPLITSIZE    , validate_nonnegative },
    { CONF_SPLIT_DISKBUFFER  , CONFTYPE_STR      , read_str      , DUMPTYPE_SPLIT_DISKBUFFER  , NULL },
-   { CONF_ESTIMATE          , CONFTYPE_INT      , read_estimate , DUMPTYPE_ESTIMATE          , NULL },
+   { CONF_ESTIMATE          , CONFTYPE_ESTIMATELIST, read_estimatelist , DUMPTYPE_ESTIMATELIST  , NULL },
    { CONF_SRV_ENCRYPT       , CONFTYPE_STR      , read_str      , DUMPTYPE_SRV_ENCRYPT       , NULL },
    { CONF_CLNT_ENCRYPT      , CONFTYPE_STR      , read_str      , DUMPTYPE_CLNT_ENCRYPT      , NULL },
    { CONF_AMANDAD_PATH      , CONFTYPE_STR      , read_str      , DUMPTYPE_AMANDAD_PATH      , NULL },
    { CONF_CLIENT_USERNAME   , CONFTYPE_STR      , read_str      , DUMPTYPE_CLIENT_USERNAME   , NULL },
+   { CONF_CLIENT_PORT       , CONFTYPE_STR      , read_int_or_str, DUMPTYPE_CLIENT_PORT      , NULL },
    { CONF_SSH_KEYS          , CONFTYPE_STR      , read_str      , DUMPTYPE_SSH_KEYS          , NULL },
    { CONF_SRVCOMPPROG       , CONFTYPE_STR      , read_str      , DUMPTYPE_SRVCOMPPROG       , NULL },
    { CONF_CLNTCOMPPROG      , CONFTYPE_STR      , read_str      , DUMPTYPE_CLNTCOMPPROG      , NULL },
@@ -1188,7 +1241,8 @@ conf_var_t dumptype_var [] = {
    { CONF_SRV_DECRYPT_OPT   , CONFTYPE_STR      , read_str      , DUMPTYPE_SRV_DECRYPT_OPT   , NULL },
    { CONF_CLNT_DECRYPT_OPT  , CONFTYPE_STR      , read_str      , DUMPTYPE_CLNT_DECRYPT_OPT  , NULL },
    { CONF_APPLICATION       , CONFTYPE_STR      , read_dapplication, DUMPTYPE_APPLICATION    , NULL },
-   { CONF_PP_SCRIPT         , CONFTYPE_STR      , read_dpp_script, DUMPTYPE_PP_SCRIPTLIST    , NULL },
+   { CONF_SCRIPT            , CONFTYPE_STR      , read_dpp_script, DUMPTYPE_SCRIPTLIST    , NULL },
+   { CONF_DATA_PATH         , CONFTYPE_DATA_PATH, read_data_path, DUMPTYPE_DATA_PATH      , NULL },
    { CONF_UNKNOWN           , CONFTYPE_INT      , NULL          , DUMPTYPE_DUMPTYPE          , NULL }
 };
 
@@ -1220,6 +1274,7 @@ conf_var_t pp_script_var [] = {
    { CONF_PROPERTY     , CONFTYPE_PROPLIST, read_property, PP_SCRIPT_PROPERTY     , NULL },
    { CONF_EXECUTE_ON   , CONFTYPE_EXECUTE_ON  , read_execute_on  , PP_SCRIPT_EXECUTE_ON   , NULL },
    { CONF_EXECUTE_WHERE, CONFTYPE_EXECUTE_WHERE  , read_execute_where  , PP_SCRIPT_EXECUTE_WHERE, NULL },
+   { CONF_ORDER        , CONFTYPE_INT     , read_int     , PP_SCRIPT_ORDER        , NULL },
    { CONF_UNKNOWN      , CONFTYPE_INT     , NULL         , PP_SCRIPT_PP_SCRIPT    , NULL }
 };
 
@@ -1236,6 +1291,8 @@ conf_var_t changer_config_var [] = {
    { CONF_TPCHANGER       , CONFTYPE_STR      , read_str      , CHANGER_CONFIG_TPCHANGER      , NULL },
    { CONF_CHANGERDEV      , CONFTYPE_STR      , read_str      , CHANGER_CONFIG_CHANGERDEV     , NULL },
    { CONF_CHANGERFILE     , CONFTYPE_STR      , read_str      , CHANGER_CONFIG_CHANGERFILE    , NULL },
+   { CONF_PROPERTY        , CONFTYPE_PROPLIST , read_property , CHANGER_CONFIG_PROPERTY       , NULL },
+   { CONF_DEVICE_PROPERTY , CONFTYPE_PROPLIST , read_property , CHANGER_CONFIG_DEVICE_PROPERTY, NULL },
    { CONF_UNKNOWN         , CONFTYPE_INT      , NULL          , CHANGER_CONFIG_CHANGER_CONFIG , NULL }
 };
 
@@ -1671,30 +1728,24 @@ read_confline(
 	read_conffile(tokenval.v.s, is_client, FALSE);
 	break;
 
-    case CONF_HOLDING:
-	if (is_client) {
-	    handle_invalid_keyword(tokenval.v.s);
-	} else {
-	    get_holdingdisk();
-	}
-	break;
-
     case CONF_DEFINE:
 	if (is_client) {
 	    get_conftoken(CONF_ANY);
-	    if(tok == CONF_APPLICATION_TOOL) get_application();
-	    else if(tok == CONF_PP_SCRIPT_TOOL) get_pp_script();
+	    /* accept application-tool here, too, for backward compatibility */
+	    if(tok == CONF_APPLICATION_TOOL || tok == CONF_APPLICATION) get_application();
+	    else if(tok == CONF_SCRIPT_TOOL || tok == CONF_SCRIPT) get_pp_script();
 	    else conf_parserror(_("APPLICATION-TOOL or SCRIPT-TOOL expected"));
 	} else {
 	    get_conftoken(CONF_ANY);
 	    if(tok == CONF_DUMPTYPE) get_dumptype();
 	    else if(tok == CONF_TAPETYPE) get_tapetype();
 	    else if(tok == CONF_INTERFACE) get_interface();
-	    else if(tok == CONF_APPLICATION_TOOL) get_application();
-	    else if(tok == CONF_PP_SCRIPT_TOOL) get_pp_script();
+	    else if(tok == CONF_APPLICATION_TOOL || tok == CONF_APPLICATION) get_application();
+	    else if(tok == CONF_SCRIPT_TOOL || tok == CONF_SCRIPT) get_pp_script();
 	    else if(tok == CONF_DEVICE) get_device_config();
 	    else if(tok == CONF_CHANGER) get_changer_config();
-	    else conf_parserror(_("DUMPTYPE, INTERFACE, TAPETYPE, APPLICATION-TOOL, SCRIPT-TOOL, DEVICE, or CHANGER expected"));
+	    else if(tok == CONF_HOLDING) get_holdingdisk(1);
+	    else conf_parserror(_("DUMPTYPE, INTERFACE, TAPETYPE, HOLDINGDISK, APPLICATION-TOOL, SCRIPT-TOOL, DEVICE, or CHANGER expected"));
 	}
 	break;
 
@@ -1741,9 +1792,9 @@ handle_deprecated_keyword(void)
      */
 
     static tok_t warning_deprecated[] = {
-        CONF_RAWTAPEDEV,  /* 2007-01-23 */
         CONF_TAPEBUFS,    /* 2007-10-15 */
 	CONF_FILE_PAD,	  /* 2008-07-01 */
+	CONF_LABEL_NEW_TAPES,	/* 2010-02-05 */
         0
     };
 
@@ -1760,12 +1811,13 @@ handle_invalid_keyword(
     const char * token)
 {
     static const char * error_deprecated[] = {
+	"rawtapedev",
         NULL
     };
     const char ** s;
 
     for (s = error_deprecated; *s != NULL; s ++) {
-	if (strcmp(*s, token) == 0) {
+	if (g_ascii_strcasecmp(*s, token) == 0) {
 	    conf_parserror(_("error: Keyword %s is deprecated."),
 			   token);
 	    return;
@@ -1810,10 +1862,14 @@ read_block(
     val_t    *valarray,
     char     *errormsg,
     int       read_brace,
-    void      (*copy_function)(void))
+    void      (*copy_function)(void),
+    char     *type,
+    char     *name)
 {
     conf_var_t *np;
-    int    done;
+    int         done;
+    char       *key_ovr;
+    int         i;
 
     if(read_brace) {
 	get_conftoken(CONF_LBRACE);
@@ -1859,11 +1915,78 @@ read_block(
 	if(tok != CONF_NL && tok != CONF_END && tok != CONF_RBRACE)
 	    get_conftoken(CONF_NL);
     } while(!done);
+
+    if (!config_overrides)
+	return;
+
+    key_ovr = vstralloc(type, ":", name, NULL);
+    for (i = 0; i < config_overrides->n_used; i++) {
+	config_override_t *co = &config_overrides->ovr[i];
+	char              *key = co->key;
+	char              *keyword;
+	char              *value;
+	keytab_t          *kt;
+
+	if (key_ovr && strncasecmp(key_ovr, key, strlen(key_ovr)) != 0)
+	    continue;
+
+	if (strlen(key) <= strlen(key_ovr) + 1)
+	    continue;
+
+	keyword = key + strlen(key_ovr) + 1;
+	value = co->value;
+
+	/* find the token in keytable */
+	for (kt = keytable; kt->token != CONF_UNKNOWN; kt++) {
+	    if (kt->keyword && strcasecmp(kt->keyword, keyword) == 0)
+		break;
+	}
+	if (kt->token == CONF_UNKNOWN)
+	     continue;
+
+	/* find the var in read_var */
+	for (np = read_var; np->token != CONF_UNKNOWN; np++)
+	    if (np->token == kt->token) break;
+	if (np->token == CONF_UNKNOWN)
+	    continue;
+
+	/* now set up a fake line and use the relevant read_function to
+	 * parse it.  This is sneaky! */
+	if (np->type == CONFTYPE_STR) {
+	    current_line = quote_string_always(value);
+	} else {
+	    current_line = stralloc(value);
+	}
+
+	current_char = current_line;
+	token_pushed = 0;
+	current_line_num = -2;
+	allow_overwrites = 1;
+	co->applied = TRUE;
+
+	np->read_function(np, &valarray[np->parm]);
+	if (np->validate_function)
+	    np->validate_function(np, &valarray[np->parm]);
+
+	amfree(current_line);
+	current_char = NULL;
+    }
+    amfree(key_ovr);
+
+}
+
+static void
+read_holdingdisk(
+    conf_var_t *np  G_GNUC_UNUSED,
+    val_t      *val G_GNUC_UNUSED)
+{
+    assert (val == &conf_data[CNF_HOLDINGDISK]);
+    get_holdingdisk(0);
 }
 
 static void
 get_holdingdisk(
-    void)
+    int is_define)
 {
     int save_overwrites;
 
@@ -1877,10 +2000,57 @@ get_holdingdisk(
     hdcur.seen.filename = current_filename;
     hdcur.seen.linenum = current_line_num;
 
-    read_block(holding_var, hdcur.value,
-	       _("holding disk parameter expected"), 1, NULL);
-    get_conftoken(CONF_NL);
-    save_holdingdisk();
+    get_conftoken(CONF_ANY);
+    if (tok == CONF_LBRACE) {
+	holdingdisk_t *hd;
+	hd = lookup_holdingdisk(hdcur.name);
+	if (hd) {
+	    conf_parserror(_("holding disk '%s' already defined"),
+			       hdcur.name);
+	} else {
+	    unget_conftoken();
+	    read_block(holding_var, hdcur.value,
+		     _("holding disk parameter expected"), 1, copy_holdingdisk,
+		     "HOLDINGDISK", hdcur.name);
+	    get_conftoken(CONF_NL);
+            save_holdingdisk();
+	    if (!is_define) {
+		conf_data[CNF_HOLDINGDISK].v.identlist = g_slist_append(
+				conf_data[CNF_HOLDINGDISK].v.identlist,
+				stralloc(hdcur.name));
+	    }
+	}
+    } else { /* use the already defined holding disk */
+	unget_conftoken();
+	if (is_define) {
+	    conf_parserror(_("holdingdisk definition must specify holdingdisk parameters"));
+	}
+	do {
+	    identlist_t il;
+
+	    for (il = conf_data[CNF_HOLDINGDISK].v.identlist; il != NULL;
+							      il = il->next) {
+		if (strcmp((char *)il->data, hdcur.name) == 0) {
+		    break;
+		}
+	    }
+	    if (il) {
+		conf_parserror(_("holding disk '%s' already in use"),
+			       hdcur.name);
+	    } else {
+		conf_data[CNF_HOLDINGDISK].v.identlist = g_slist_append(
+				conf_data[CNF_HOLDINGDISK].v.identlist,
+				stralloc(hdcur.name));
+	    }
+	    amfree(hdcur.name);
+	    get_conftoken(CONF_ANY);
+	    if (tok == CONF_IDENT || tok == CONF_STRING) {
+		hdcur.name = stralloc(tokenval.v.s);
+	    } else if (tok != CONF_NL) {
+		conf_parserror(_("IDENT or NL expected"));
+	    }
+	} while (tok == CONF_IDENT || tok == CONF_STRING);
+    }
 
     allow_overwrites = save_overwrites;
 }
@@ -1904,8 +2074,29 @@ save_holdingdisk(
 
     hp = alloc(sizeof(holdingdisk_t));
     *hp = hdcur;
-    hp->next = holdinglist;
-    holdinglist = hp;
+    holdinglist = g_slist_append(holdinglist, hp);
+}
+
+static void
+copy_holdingdisk(
+    void)
+{
+    holdingdisk_t *hp;
+    int i;
+
+    hp = lookup_holdingdisk(tokenval.v.s);
+
+    if (hp == NULL) {
+        conf_parserror(_("holdingdisk parameter expected"));
+        return;
+    }
+
+    for(i=0; i < HOLDING_HOLDING; i++) {
+        if(hp->value[i].seen.linenum) {
+            merge_val_t(&hdcur.value[i], &hp->value[i]);
+        }
+    }
+
 }
 
 
@@ -1951,7 +2142,8 @@ read_dumptype(
 
     read_block(dumptype_var, dpcur.value,
 	       _("dumptype parameter expected"),
-	       (name == NULL), copy_dumptype);
+	       (name == NULL), copy_dumptype,
+	       "DUMPTYPE", dpcur.name);
 
     if(!name) /* !name => reading disklist, not conffile */
 	get_conftoken(CONF_NL);
@@ -1991,10 +2183,11 @@ init_dumptype_defaults(void)
     conf_init_str   (&dpcur.value[DUMPTYPE_CLNTCOMPPROG]      , "");
     conf_init_str   (&dpcur.value[DUMPTYPE_SRV_ENCRYPT]       , "");
     conf_init_str   (&dpcur.value[DUMPTYPE_CLNT_ENCRYPT]      , "");
-    conf_init_str   (&dpcur.value[DUMPTYPE_AMANDAD_PATH]      , "X");
-    conf_init_str   (&dpcur.value[DUMPTYPE_CLIENT_USERNAME]   , "X");
-    conf_init_str   (&dpcur.value[DUMPTYPE_SSH_KEYS]          , "X");
-    conf_init_str   (&dpcur.value[DUMPTYPE_SECURITY_DRIVER]   , "BSD");
+    conf_init_str   (&dpcur.value[DUMPTYPE_AMANDAD_PATH]      , "");
+    conf_init_str   (&dpcur.value[DUMPTYPE_CLIENT_USERNAME]   , "");
+    conf_init_str   (&dpcur.value[DUMPTYPE_CLIENT_PORT]       , "");
+    conf_init_str   (&dpcur.value[DUMPTYPE_SSH_KEYS]          , "");
+    conf_init_str   (&dpcur.value[DUMPTYPE_AUTH]   , "BSD");
     conf_init_exinclude(&dpcur.value[DUMPTYPE_EXCLUDE]);
     conf_init_exinclude(&dpcur.value[DUMPTYPE_INCLUDE]);
     conf_init_priority (&dpcur.value[DUMPTYPE_PRIORITY]          , 1);
@@ -2007,9 +2200,10 @@ init_dumptype_defaults(void)
     conf_init_real     (&dpcur.value[DUMPTYPE_BUMPMULT]          , conf_data[CNF_BUMPMULT].v.r);
     conf_init_time     (&dpcur.value[DUMPTYPE_STARTTIME]         , (time_t)0);
     conf_init_strategy (&dpcur.value[DUMPTYPE_STRATEGY]          , DS_STANDARD);
-    conf_init_estimate (&dpcur.value[DUMPTYPE_ESTIMATE]          , ES_CLIENT);
+    conf_init_estimatelist(&dpcur.value[DUMPTYPE_ESTIMATELIST]   , ES_CLIENT);
     conf_init_compress (&dpcur.value[DUMPTYPE_COMPRESS]          , COMP_FAST);
     conf_init_encrypt  (&dpcur.value[DUMPTYPE_ENCRYPT]           , ENCRYPT_NONE);
+    conf_init_data_path(&dpcur.value[DUMPTYPE_DATA_PATH]         , DATA_PATH_AMANDA);
     conf_init_str   (&dpcur.value[DUMPTYPE_SRV_DECRYPT_OPT]   , "-d");
     conf_init_str   (&dpcur.value[DUMPTYPE_CLNT_DECRYPT_OPT]  , "-d");
     conf_init_rate     (&dpcur.value[DUMPTYPE_COMPRATE]          , 0.50, 0.50);
@@ -2024,7 +2218,7 @@ init_dumptype_defaults(void)
     conf_init_bool     (&dpcur.value[DUMPTYPE_IGNORE]            , 0);
     conf_init_bool     (&dpcur.value[DUMPTYPE_INDEX]             , 1);
     conf_init_application(&dpcur.value[DUMPTYPE_APPLICATION]);
-    conf_init_pp_scriptlist(&dpcur.value[DUMPTYPE_PP_SCRIPTLIST]);
+    conf_init_identlist(&dpcur.value[DUMPTYPE_SCRIPTLIST], NULL);
     conf_init_proplist(&dpcur.value[DUMPTYPE_PROPERTY]);
 }
 
@@ -2075,8 +2269,11 @@ copy_dumptype(void)
 
     for(i=0; i < DUMPTYPE_DUMPTYPE; i++) {
 	if(dt->value[i].seen.linenum) {
-	    free_val_t(&dpcur.value[i]);
-	    copy_val_t(&dpcur.value[i], &dt->value[i]);
+	    merge_val_t(&dpcur.value[i], &dt->value[i]);
+	    if (i == DUMPTYPE_SCRIPTLIST) {
+		/* sort in 'order' */
+		dpcur.value[i].v.identlist = g_slist_sort(dpcur.value[i].v.identlist, &compare_pp_script_order);
+	    }
 	}
     }
 }
@@ -2097,7 +2294,8 @@ get_tapetype(void)
     tpcur.seen.linenum = current_line_num;
 
     read_block(tapetype_var, tpcur.value,
-	       _("tapetype parameter expected"), 1, copy_tapetype);
+	       _("tapetype parameter expected"), 1, copy_tapetype,
+	       "TAPETYPE", tpcur.name);
     get_conftoken(CONF_NL);
 
     if (tapetype_get_readblocksize(&tpcur) <
@@ -2166,8 +2364,7 @@ copy_tapetype(void)
 
     for(i=0; i < TAPETYPE_TAPETYPE; i++) {
 	if(tp->value[i].seen.linenum) {
-	    free_val_t(&tpcur.value[i]);
-	    copy_val_t(&tpcur.value[i], &tp->value[i]);
+	    merge_val_t(&tpcur.value[i], &tp->value[i]);
 	}
     }
 }
@@ -2188,7 +2385,8 @@ get_interface(void)
     ifcur.seen.linenum = current_line_num;
 
     read_block(interface_var, ifcur.value,
-	       _("interface parameter expected"), 1, copy_interface);
+	       _("interface parameter expected"), 1, copy_interface,
+	       "INTERFACE", ifcur.name);
     get_conftoken(CONF_NL);
 
     save_interface();
@@ -2247,8 +2445,7 @@ copy_interface(void)
 
     for(i=0; i < INTER_INTER; i++) {
 	if(ip->value[i].seen.linenum) {
-	    free_val_t(&ifcur.value[i]);
-	    copy_val_t(&ifcur.value[i], &ip->value[i]);
+	    merge_val_t(&ifcur.value[i], &ip->value[i]);
 	}
     }
 }
@@ -2292,15 +2489,11 @@ read_application(
     apcur.seen.linenum = current_line_num;
 
     read_block(application_var, apcur.value,
-	       _("application-tool parameter expected"),
-	       (name == NULL), *copy_application);
+	       _("application parameter expected"),
+	       (name == NULL), *copy_application,
+	       "APPLICATION", apcur.name);
     if(!name)
 	get_conftoken(CONF_NL);
-
-    if (!application_get_plugin(&apcur) ||
-	strlen(application_get_plugin(&apcur)) == 0) {
-	conf_parserror("plugin not set for application");
-    }
 
     save_application();
 
@@ -2344,7 +2537,7 @@ save_application(
     ap = lookup_application(apcur.name);
 
     if(ap != (application_t *)0) {
-	conf_parserror(_("application-tool %s already defined at %s:%d"),
+	conf_parserror(_("application %s already defined at %s:%d"),
 		       ap->name, ap->seen.filename, ap->seen.linenum);
 	return;
     }
@@ -2379,8 +2572,7 @@ copy_application(void)
 
     for(i=0; i < APPLICATION_APPLICATION; i++) {
 	if(ap->value[i].seen.linenum) {
-	    free_val_t(&apcur.value[i]);
-	copy_val_t(&apcur.value[i], &ap->value[i]);
+	    merge_val_t(&apcur.value[i], &ap->value[i]);
 	}
     }
 }
@@ -2423,15 +2615,11 @@ read_pp_script(
     pscur.seen.linenum = current_line_num;
 
     read_block(pp_script_var, pscur.value,
-	       _("script-tool parameter expected"),
-	       (name == NULL), *copy_pp_script);
+	       _("script parameter expected"),
+	       (name == NULL), *copy_pp_script,
+	       "SCRIPT", pscur.name);
     if(!name)
 	get_conftoken(CONF_NL);
-
-    if (!pp_script_get_plugin(&pscur) ||
-	strlen(pp_script_get_plugin(&pscur)) == 0) {
-	conf_parserror("plugin not set for script");
-    }
 
     save_pp_script();
 
@@ -2466,6 +2654,7 @@ init_pp_script_defaults(
     conf_init_proplist(&pscur.value[PP_SCRIPT_PROPERTY]);
     conf_init_execute_on(&pscur.value[PP_SCRIPT_EXECUTE_ON], 0);
     conf_init_execute_where(&pscur.value[PP_SCRIPT_EXECUTE_WHERE], ES_CLIENT);
+    conf_init_int(&pscur.value[PP_SCRIPT_ORDER], 5000);
 }
 
 static void
@@ -2477,7 +2666,7 @@ save_pp_script(
     ps = lookup_pp_script(pscur.name);
 
     if(ps != (pp_script_t *)0) {
-	conf_parserror(_("script-tool %s already defined at %s:%d"),
+	conf_parserror(_("script %s already defined at %s:%d"),
 		       ps->name, ps->seen.filename, ps->seen.linenum);
 	return;
     }
@@ -2512,8 +2701,7 @@ copy_pp_script(void)
 
     for(i=0; i < PP_SCRIPT_PP_SCRIPT; i++) {
 	if(ps->value[i].seen.linenum) {
-	    free_val_t(&pscur.value[i]);
-	    copy_val_t(&pscur.value[i], &ps->value[i]);
+	    merge_val_t(&pscur.value[i], &ps->value[i]);
 	}
     }
 }
@@ -2557,7 +2745,8 @@ read_device_config(
 
     read_block(device_config_var, dccur.value,
 	       _("device parameter expected"),
-	       (name == NULL), *copy_device_config);
+	       (name == NULL), *copy_device_config,
+	       "DEVICE", dccur.name);
     if(!name)
 	get_conftoken(CONF_NL);
 
@@ -2638,8 +2827,7 @@ copy_device_config(void)
 
     for(i=0; i < DEVICE_CONFIG_DEVICE_CONFIG; i++) {
 	if(dc->value[i].seen.linenum) {
-	    free_val_t(&dccur.value[i]);
-	    copy_val_t(&dccur.value[i], &dc->value[i]);
+	    merge_val_t(&dccur.value[i], &dc->value[i]);
 	}
     }
 }
@@ -2682,7 +2870,8 @@ read_changer_config(
 
     read_block(changer_config_var, cccur.value,
 	       _("changer parameter expected"),
-	       (name == NULL), *copy_changer_config);
+	       (name == NULL), *copy_changer_config,
+	       "CHANGER", cccur.name);
     if(!name)
 	get_conftoken(CONF_NL);
 
@@ -2719,6 +2908,8 @@ init_changer_config_defaults(
     conf_init_str(&cccur.value[CHANGER_CONFIG_TPCHANGER]  , "");
     conf_init_str(&cccur.value[CHANGER_CONFIG_CHANGERDEV]  , "");
     conf_init_str(&cccur.value[CHANGER_CONFIG_CHANGERFILE]  , "");
+    conf_init_proplist(&cccur.value[CHANGER_CONFIG_PROPERTY]);
+    conf_init_proplist(&cccur.value[CHANGER_CONFIG_DEVICE_PROPERTY]);
 }
 
 static void
@@ -2765,8 +2956,7 @@ copy_changer_config(void)
 
     for(i=0; i < CHANGER_CONFIG_CHANGER_CONFIG; i++) {
 	if(dc->value[i].seen.linenum) {
-	    free_val_t(&cccur.value[i]);
-	    copy_val_t(&cccur.value[i], &dc->value[i]);
+	    merge_val_t(&cccur.value[i], &dc->value[i]);
 	}
     }
 }
@@ -2977,30 +3167,34 @@ read_holding(
 }
 
 static void
-read_estimate(
+read_estimatelist(
     conf_var_t *np G_GNUC_UNUSED,
     val_t *val)
 {
-    int estime;
+    estimatelist_t estimates = NULL;
 
     ckseen(&val->seen);
 
     get_conftoken(CONF_ANY);
-    switch(tok) {
-    case CONF_CLIENT:
-	estime = ES_CLIENT;
-	break;
-    case CONF_SERVER:
-	estime = ES_SERVER;
-	break;
-    case CONF_CALCSIZE:
-	estime = ES_CALCSIZE;
-	break;
-    default:
-	conf_parserror(_("CLIENT, SERVER or CALCSIZE expected"));
-	estime = ES_CLIENT;
-    }
-    val_t__estimate(val) = estime;
+    do {
+	switch(tok) {
+	case CONF_CLIENT:
+	    estimates = g_slist_append(estimates, GINT_TO_POINTER(ES_CLIENT));
+	    break;
+	case CONF_SERVER:
+	    estimates = g_slist_append(estimates, GINT_TO_POINTER(ES_SERVER));
+	    break;
+	case CONF_CALCSIZE:
+	    estimates = g_slist_append(estimates, GINT_TO_POINTER(ES_CALCSIZE));
+	    break;
+	default:
+	    conf_parserror(_("CLIENT, SERVER or CALCSIZE expected"));
+	}
+	get_conftoken(CONF_ANY);
+	if (tok == CONF_NL)
+	    break;
+    } while (1);
+    val_t__estimatelist(val) = estimates;
 }
 
 static void
@@ -3074,6 +3268,22 @@ read_send_amreport_on(
     case CONF_NEVER:   val_t__send_amreport(val) = SEND_AMREPORT_NEVER;   break;
     default:
 	conf_parserror(_("ALL, STRANGE, ERROR or NEVER expected"));
+    }
+}
+
+static void
+read_data_path(
+    conf_var_t *np G_GNUC_UNUSED,
+    val_t *val)
+{
+    ckseen(&val->seen);
+
+    get_conftoken(CONF_ANY);
+    switch(tok) {
+    case CONF_AMANDA   : val_t__send_amreport(val) = DATA_PATH_AMANDA   ; break;
+    case CONF_DIRECTTCP: val_t__send_amreport(val) = DATA_PATH_DIRECTTCP; break;
+    default:
+	conf_parserror(_("AMANDA or DIRECTTCP expected"));
     }
 }
 
@@ -3239,7 +3449,7 @@ read_property(
 	conf_parserror(_("key expected"));
 	return;
     }
-    key = strdup(tokenval.v.s);
+    key = g_ascii_strdown(tokenval.v.s, -1);
 
     get_conftoken(CONF_ANY);
     if (tok == CONF_NL ||  tok == CONF_END) {
@@ -3259,18 +3469,14 @@ read_property(
 
     old_property = g_hash_table_lookup(val->v.proplist, key);
     if (property->append) {
+	/* old_property will be freed by g_hash_table_insert, so
+	 * steal its values */
 	if (old_property) {
 	    if (old_property->priority)
 		property->priority = 1;
 	    property->values = old_property->values;
+	    old_property->values = NULL;
 	}
-    } else {
-	property->values = g_hash_table_lookup(val->v.proplist, key);
-	if (old_property) {
-	    g_slist_free(old_property->values);
-	    amfree(old_property);
-	}
-	property->values = NULL;
     }
     while(tok == CONF_STRING) {
 	property->values = g_slist_append(property->values,
@@ -3287,17 +3493,19 @@ read_dapplication(
     conf_var_t *np G_GNUC_UNUSED,
     val_t      *val)
 {
+    application_t *application;
 
     get_conftoken(CONF_ANY);
     if (tok == CONF_LBRACE) {
-	val->v.application = read_application(vstralloc("custom(DUMPTYPE:",
-							dpcur.name, ")", ".",
-							anonymous_value(),NULL),
-					      NULL, NULL, NULL);
-
+	current_line_num -= 1;
+	application = read_application(vstralloc("custom(DUMPTYPE:",
+						 dpcur.name, ")", ".",
+						 anonymous_value(),NULL),
+				       NULL, NULL, NULL);
+	current_line_num -= 1;
     } else if (tok == CONF_STRING) {
-	val->v.application = lookup_application(tokenval.v.s);
-	if (val->v.application == NULL) {
+	application = lookup_application(tokenval.v.s);
+	if (application == NULL) {
 	    conf_parserror(_("Unknown application named: %s"), tokenval.v.s);
 	    return;
 	}
@@ -3305,6 +3513,8 @@ read_dapplication(
 	conf_parserror(_("application name expected: %d %d"), tok, CONF_STRING);
 	return;
     }
+    amfree(val->v.s);
+    val->v.s = stralloc(application->name);
     ckseen(&val->seen);
 }
 
@@ -3316,20 +3526,29 @@ read_dpp_script(
     pp_script_t *pp_script;
     get_conftoken(CONF_ANY);
     if (tok == CONF_LBRACE) {
+	current_line_num -= 1;
 	pp_script = read_pp_script(vstralloc("custom(DUMPTYPE:", dpcur.name,
 					     ")", ".", anonymous_value(),NULL),
 				   NULL, NULL, NULL);
-    } else if (tok == CONF_STRING) {
-	pp_script = lookup_pp_script(tokenval.v.s);
-	if (pp_script == NULL) {
-	    conf_parserror(_("Unknown pp_script named: %s"), tokenval.v.s);
-	    return;
+	current_line_num -= 1;
+	val->v.identlist = g_slist_insert_sorted(val->v.identlist,
+			stralloc(pp_script->name), &compare_pp_script_order);
+    } else if (tok == CONF_STRING || tok == CONF_IDENT) {
+	while (tok == CONF_STRING || tok == CONF_IDENT) {
+	    pp_script = lookup_pp_script(tokenval.v.s);
+	    if (pp_script == NULL) {
+		conf_parserror(_("Unknown pp_script named: %s"), tokenval.v.s);
+		return;
+	    }
+    	    val->v.identlist = g_slist_insert_sorted(val->v.identlist,
+			 stralloc(pp_script->name), &compare_pp_script_order);
+	    get_conftoken(CONF_ANY);
 	}
+	unget_conftoken();
     } else {
 	conf_parserror(_("pp_script name expected: %d %d"), tok, CONF_STRING);
 	return;
     }
-    val->v.pp_scriptlist = g_slist_append(val->v.pp_scriptlist, pp_script);
     ckseen(&val->seen);
 }
 static void
@@ -3385,6 +3604,80 @@ read_execute_where(
     case CONF_SERVER:      val->v.i = ES_SERVER;   break;
     default:
 	conf_parserror(_("CLIENT or SERVER expected"));
+    }
+}
+
+static void
+read_int_or_str(
+    conf_var_t *np G_GNUC_UNUSED,
+    val_t *val)
+{
+    ckseen(&val->seen);
+
+    get_conftoken(CONF_ANY);
+    switch(tok) {
+    case CONF_INT:
+	amfree(val->v.s);
+	val->v.s = g_strdup_printf("%d", tokenval.v.i);
+	break;
+
+    case CONF_SIZE:
+	amfree(val->v.s);
+	val->v.s = g_strdup_printf("%zu", tokenval.v.size);
+	break;
+
+    case CONF_INT64:
+	amfree(val->v.s);
+	val->v.s = g_strdup_printf("%jd", (intmax_t)tokenval.v.int64);
+	break;
+
+    case CONF_STRING:
+	val->v.s = newstralloc(val->v.s, tokenval.v.s);
+	break;
+    default:
+	conf_parserror(_("CLIENT or SERVER expected"));
+    }
+}
+
+static void
+read_autolabel(
+    conf_var_t *np G_GNUC_UNUSED,
+    val_t *val)
+{
+    int data = 0;
+    ckseen(&val->seen);
+
+    get_conftoken(CONF_ANY);
+    if (tok == CONF_STRING) {
+	data++;
+	val->v.autolabel.template = newstralloc(val->v.autolabel.template,
+						tokenval.v.s);
+	get_conftoken(CONF_ANY);
+    }
+    val->v.autolabel.autolabel = 0;
+    while (tok != CONF_NL && tok != CONF_END) {
+	data++;
+	if (tok == CONF_ANY_VOLUME)
+	    val->v.autolabel.autolabel |= AL_OTHER_CONFIG | AL_NON_AMANDA |
+					  AL_VOLUME_ERROR | AL_EMPTY;
+	else if (tok == CONF_OTHER_CONFIG)
+	    val->v.autolabel.autolabel |= AL_OTHER_CONFIG;
+	else if (tok == CONF_NON_AMANDA)
+	    val->v.autolabel.autolabel |= AL_NON_AMANDA;
+	else if (tok == CONF_VOLUME_ERROR)
+	    val->v.autolabel.autolabel |= AL_VOLUME_ERROR;
+	else if (tok == CONF_EMPTY)
+	    val->v.autolabel.autolabel |= AL_EMPTY;
+	else {
+	    conf_parserror(_("ANY-VOLUME, NEW-VOLUME, OTHER-CONFIG, NON-AMANDA, VOLUME-ERROR or EMPTY is expected"));
+	}
+	get_conftoken(CONF_ANY);
+    }
+    if (data == 0) {
+	amfree(val->v.autolabel.template);
+	val->v.autolabel.autolabel = 0;
+    } else if (val->v.autolabel.autolabel == 0) {
+	val->v.autolabel.autolabel = AL_VOLUME_ERROR | AL_EMPTY;
     }
 }
 
@@ -3517,6 +3810,14 @@ get_int(void)
 	val *= 1024 * 1024;
 	break;
 
+    case CONF_MULT1T:
+	if (val > (INT_MAX / (1024 * 1024 * 1024)))
+	    conf_parserror(_("value too large"));
+	if (val < (INT_MIN / (1024 * 1024 * 1024)))
+	    conf_parserror(_("value too small"));
+	val *= 1024 * 1024 * 1024;
+	break;
+
     default:	/* it was not a multiplier */
 	unget_conftoken();
 	break;
@@ -3605,6 +3906,14 @@ get_size(void)
 	val *= (ssize_t)(1024 * 1024);
 	break;
 
+    case CONF_MULT1T:
+	if (val > (INT_MAX / (1024 * 1024 * 1024)))
+	    conf_parserror(_("value too large"));
+	if (val < (INT_MIN / (1024 * 1024 * 1024)))
+	    conf_parserror(_("value too small"));
+	val *= 1024 * 1024 * 1024;
+	break;
+
     default:	/* it was not a multiplier */
 	unget_conftoken();
 	break;
@@ -3675,6 +3984,12 @@ get_int64(void)
 	val *= 1024*1024;
 	break;
 
+    case CONF_MULT1T:
+	if (val > G_MAXINT64/(1024*1024*1024) || val < ((gint64)G_MININT64)/(1024*1024*1024))
+	    conf_parserror(_("value too large"));
+	val *= 1024*1024*1024;
+	break;
+
     default:	/* it was not a multiplier */
 	unget_conftoken();
 	break;
@@ -3733,7 +4048,7 @@ get_bool(void)
     default:
 	unget_conftoken();
 	val = 3; /* a bad argument - most likely TRUE */
-	conf_parserror(_("YES, NO, TRUE, FALSE, ON, OFF expected"));
+	conf_parserror(_("YES, NO, TRUE, FALSE, ON, OFF, 0, 1 expected"));
 	break;
     }
 
@@ -3993,6 +4308,13 @@ config_init(
     /* store away our client-ness for later reference */
     config_client = flags & CONFIG_INIT_CLIENT;
 
+    /* if we're using an explicit name, but the name is '.', then we're using the
+     * current directory */
+    if ((flags & CONFIG_INIT_EXPLICIT_NAME) && arg_config_name) {
+	if (0 == strcmp(arg_config_name, "."))
+	    flags = (flags & (~CONFIG_INIT_EXPLICIT_NAME)) | CONFIG_INIT_USE_CWD;
+    }
+
     if ((flags & CONFIG_INIT_EXPLICIT_NAME) && arg_config_name) {
 	config_name = newstralloc(config_name, arg_config_name);
 	config_dir = newvstralloc(config_dir, CONFIG_DIR, "/", arg_config_name, NULL);
@@ -4016,13 +4338,29 @@ config_init(
 	amfree(config_name);
 	config_dir = newstralloc(config_dir, CONFIG_DIR);
     } else {
-	/* ok, then, we won't read anything (for e.g., amrestore), but
-	 * will set up for server-side config_overwrites */
+	/* ok, then, we won't read anything (for e.g., amrestore) */
 	amfree(config_name);
 	amfree(config_dir);
+    }
+
+    /* setup for apply_config_overrides */
+    if (flags & CONFIG_INIT_CLIENT) {
+	keytable = client_keytab;
+	parsetable = client_var;
+    } else {
 	keytable = server_keytab;
 	parsetable = server_var;
     }
+
+    if (config_overrides) {
+	int i;
+	for (i = 0; i < config_overrides->n_used; i++) {
+	    config_overrides->ovr[i].applied = FALSE;
+	}
+    }
+
+    /* apply config overrides to default setting */
+    apply_config_overrides(config_overrides, NULL);
 
     /* If we have a config_dir, we can try reading something */
     if (config_dir) {
@@ -4039,6 +4377,19 @@ config_init(
 	amfree(config_filename);
     }
 
+    /* apply config overrides to default setting */
+    apply_config_overrides(config_overrides, NULL);
+
+    if (config_overrides) {
+	int i;
+	for (i = 0; i < config_overrides->n_used; i++) {
+	    if (config_overrides->ovr[i].applied == FALSE) {
+		conf_parserror(_("unknown parameter '%s'"),
+			       config_overrides->ovr[i].key);
+	    }
+	}
+    }
+
     update_derived_values(flags & CONFIG_INIT_CLIENT);
 
     return cfgerr_level;
@@ -4047,7 +4398,8 @@ config_init(
 void
 config_uninit(void)
 {
-    holdingdisk_t    *hp, *hpnext;
+    GSList           *hp;
+    holdingdisk_t    *hd;
     dumptype_t       *dp, *dpnext;
     tapetype_t       *tp, *tpnext;
     interface_t      *ip, *ipnext;
@@ -4059,19 +4411,19 @@ config_uninit(void)
 
     if (!config_initialized) return;
 
-    for(hp=holdinglist; hp != NULL; hp = hpnext) {
-	amfree(hp->name);
-	for(i=0; i<HOLDING_HOLDING-1; i++) {
-	   free_val_t(&hp->value[i]);
+    for(hp=holdinglist; hp != NULL; hp = hp->next) {
+	hd = hp->data;
+	amfree(hd->name);
+	for(i=0; i<HOLDING_HOLDING; i++) {
+	   free_val_t(&hd->value[i]);
 	}
-	hpnext = hp->next;
-	amfree(hp);
     }
+    g_slist_free_full(holdinglist);
     holdinglist = NULL;
 
     for(dp=dumplist; dp != NULL; dp = dpnext) {
 	amfree(dp->name);
-	for(i=0; i<DUMPTYPE_DUMPTYPE-1; i++) {
+	for(i=0; i<DUMPTYPE_DUMPTYPE; i++) {
 	   free_val_t(&dp->value[i]);
 	}
 	dpnext = dp->next;
@@ -4081,7 +4433,7 @@ config_uninit(void)
 
     for(tp=tapelist; tp != NULL; tp = tpnext) {
 	amfree(tp->name);
-	for(i=0; i<TAPETYPE_TAPETYPE-1; i++) {
+	for(i=0; i<TAPETYPE_TAPETYPE; i++) {
 	   free_val_t(&tp->value[i]);
 	}
 	tpnext = tp->next;
@@ -4091,7 +4443,7 @@ config_uninit(void)
 
     for(ip=interface_list; ip != NULL; ip = ipnext) {
 	amfree(ip->name);
-	for(i=0; i<INTER_INTER-1; i++) {
+	for(i=0; i<INTER_INTER; i++) {
 	   free_val_t(&ip->value[i]);
 	}
 	ipnext = ip->next;
@@ -4101,7 +4453,7 @@ config_uninit(void)
 
     for(ap=application_list; ap != NULL; ap = apnext) {
 	amfree(ap->name);
-	for(i=0; i<INTER_INTER-1; i++) {
+	for(i=0; i<APPLICATION_APPLICATION; i++) {
 	   free_val_t(&ap->value[i]);
 	}
 	apnext = ap->next;
@@ -4111,7 +4463,7 @@ config_uninit(void)
 
     for(pp=pp_script_list; pp != NULL; pp = ppnext) {
 	amfree(pp->name);
-	for(i=0; i<INTER_INTER-1; i++) {
+	for(i=0; i<PP_SCRIPT_PP_SCRIPT; i++) {
 	   free_val_t(&pp->value[i]);
 	}
 	ppnext = pp->next;
@@ -4121,7 +4473,7 @@ config_uninit(void)
 
     for(dc=device_config_list; dc != NULL; dc = dcnext) {
 	amfree(dc->name);
-	for(i=0; i<INTER_INTER-1; i++) {
+	for(i=0; i<DEVICE_CONFIG_DEVICE_CONFIG; i++) {
 	   free_val_t(&dc->value[i]);
 	}
 	dcnext = dc->next;
@@ -4131,7 +4483,7 @@ config_uninit(void)
 
     for(cc=changer_config_list; cc != NULL; cc = ccnext) {
 	amfree(cc->name);
-	for(i=0; i<INTER_INTER-1; i++) {
+	for(i=0; i<CHANGER_CONFIG_CHANGER_CONFIG; i++) {
 	   free_val_t(&cc->value[i]);
 	}
 	ccnext = cc->next;
@@ -4140,16 +4492,17 @@ config_uninit(void)
 
     changer_config_list = NULL;
 
-    for(i=0; i<CNF_CNF-1; i++)
+    for(i=0; i<CNF_CNF; i++)
 	free_val_t(&conf_data[i]);
 
-    if (applied_config_overwrites) {
-	free_config_overwrites(applied_config_overwrites);
-	applied_config_overwrites = NULL;
+    if (config_overrides) {
+	free_config_overrides(config_overrides);
+	config_overrides = NULL;
     }
 
     amfree(config_name);
     amfree(config_dir);
+    amfree(config_filename);
 
     g_slist_free_full(seen_filenames);
     seen_filenames = NULL;
@@ -4175,23 +4528,24 @@ init_defaults(
     conf_init_str(&conf_data[CNF_SSH_KEYS], "");
     conf_init_str(&conf_data[CNF_AMANDAD_PATH], "");
     conf_init_str(&conf_data[CNF_CLIENT_USERNAME], "");
+    conf_init_str(&conf_data[CNF_CLIENT_PORT], "");
     conf_init_str(&conf_data[CNF_GNUTAR_LIST_DIR], GNUTAR_LISTED_INCREMENTAL_DIR);
     conf_init_str(&conf_data[CNF_AMANDATES], DEFAULT_AMANDATES_FILE);
-    conf_init_str(&conf_data[CNF_MAILTO], "operators");
+    conf_init_str(&conf_data[CNF_MAILTO], "");
     conf_init_str(&conf_data[CNF_DUMPUSER], CLIENT_LOGIN);
     conf_init_str(&conf_data[CNF_TAPEDEV], DEFAULT_TAPE_DEVICE);
-    conf_init_str(&conf_data[CNF_RAWTAPEDEV], DEFAULT_TAPE_DEVICE);
     conf_init_proplist(&conf_data[CNF_DEVICE_PROPERTY]);
     conf_init_proplist(&conf_data[CNF_PROPERTY]);
-    conf_init_str(&conf_data[CNF_CHANGERDEV], DEFAULT_CHANGER_DEVICE);
-    conf_init_str(&conf_data[CNF_CHANGERFILE], "/usr/adm/amanda/changer-status");
+    conf_init_str(&conf_data[CNF_CHANGERDEV], NULL);
+    conf_init_str(&conf_data[CNF_CHANGERFILE]             , "changer");
     conf_init_str   (&conf_data[CNF_LABELSTR]             , ".*");
     conf_init_str   (&conf_data[CNF_TAPELIST]             , "tapelist");
     conf_init_str   (&conf_data[CNF_DISKFILE]             , "disklist");
     conf_init_str   (&conf_data[CNF_INFOFILE]             , "/usr/adm/amanda/curinfo");
     conf_init_str   (&conf_data[CNF_LOGDIR]               , "/usr/adm/amanda");
     conf_init_str   (&conf_data[CNF_INDEXDIR]             , "/usr/adm/amanda/index");
-    conf_init_ident    (&conf_data[CNF_TAPETYPE]             , "EXABYTE");
+    conf_init_ident    (&conf_data[CNF_TAPETYPE]             , "DEFAULT_TAPE");
+    conf_init_identlist(&conf_data[CNF_HOLDINGDISK]          , NULL);
     conf_init_int      (&conf_data[CNF_DUMPCYCLE]            , 10);
     conf_init_int      (&conf_data[CNF_RUNSPERCYCLE]         , 0);
     conf_init_int      (&conf_data[CNF_TAPECYCLE]            , 15);
@@ -4231,7 +4585,9 @@ init_defaults(
     conf_init_int      (&conf_data[CNF_CONNECT_TRIES]        , 3);
     conf_init_int      (&conf_data[CNF_REP_TRIES]            , 5);
     conf_init_int      (&conf_data[CNF_REQ_TRIES]            , 3);
+    conf_init_int      (&conf_data[CNF_DEBUG_DAYS]           , AMANDA_DEBUG_DAYS);
     conf_init_int      (&conf_data[CNF_DEBUG_AMANDAD]        , 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_RECOVERY]       , 0);
     conf_init_int      (&conf_data[CNF_DEBUG_AMIDXTAPED]     , 0);
     conf_init_int      (&conf_data[CNF_DEBUG_AMINDEXD]       , 0);
     conf_init_int      (&conf_data[CNF_DEBUG_AMRECOVER]      , 0);
@@ -4263,6 +4619,7 @@ init_defaults(
     conf_init_intrange (&conf_data[CNF_UNRESERVED_TCP_PORT]  , IPPORT_RESERVED, 65535);
 #endif
     conf_init_send_amreport (&conf_data[CNF_SEND_AMREPORT_ON], SEND_AMREPORT_ALL);
+    conf_init_autolabel(&conf_data[CNF_AUTOLABEL]);
 
     /* reset internal variables */
     config_clear_errors();
@@ -4314,17 +4671,9 @@ init_defaults(
     init_dumptype_defaults();
     dpcur.name = stralloc("BSD-AUTH");
     dpcur.seen.linenum = -1;
-    free_val_t(&dpcur.value[DUMPTYPE_SECURITY_DRIVER]);
-    val_t__str(&dpcur.value[DUMPTYPE_SECURITY_DRIVER]) = stralloc("BSD");
-    val_t__seen(&dpcur.value[DUMPTYPE_SECURITY_DRIVER]).linenum = -1;
-    save_dumptype();
-
-    init_dumptype_defaults();
-    dpcur.name = stralloc("KRB4-AUTH");
-    dpcur.seen.linenum = -1;
-    free_val_t(&dpcur.value[DUMPTYPE_SECURITY_DRIVER]);
-    val_t__str(&dpcur.value[DUMPTYPE_SECURITY_DRIVER]) = stralloc("KRB4");
-    val_t__seen(&dpcur.value[DUMPTYPE_SECURITY_DRIVER]).linenum = -1;
+    free_val_t(&dpcur.value[DUMPTYPE_AUTH]);
+    val_t__str(&dpcur.value[DUMPTYPE_AUTH]) = stralloc("BSD");
+    val_t__seen(&dpcur.value[DUMPTYPE_AUTH]).linenum = -1;
     save_dumptype();
 
     init_dumptype_defaults();
@@ -4361,18 +4710,18 @@ get_config_options(
 {
     char             **config_options;
     char	     **config_option;
-    int		     n_applied_config_overwrites = 0;
+    int		     n_config_overrides = 0;
     int		     i;
 
-    if (applied_config_overwrites)
-	n_applied_config_overwrites = applied_config_overwrites->n_used;
+    if (config_overrides)
+	n_config_overrides = config_overrides->n_used;
 
-    config_options = alloc((first+n_applied_config_overwrites+1)*SIZEOF(char *));
+    config_options = alloc((first+n_config_overrides+1)*SIZEOF(char *));
     config_option = config_options + first;
 
-    for (i = 0; i < n_applied_config_overwrites; i++) {
-	char *key = applied_config_overwrites->ovr[i].key;
-	char *value = applied_config_overwrites->ovr[i].value;
+    for (i = 0; i < n_config_overrides; i++) {
+	char *key = config_overrides->ovr[i].key;
+	char *value = config_overrides->ovr[i].value;
 	*config_option = vstralloc("-o", key, "=", value, NULL);
 	config_option++;
     }
@@ -4386,7 +4735,9 @@ static void
 update_derived_values(
     gboolean is_client)
 {
-    interface_t *ip;
+    interface_t   *ip;
+    identlist_t    il;
+    holdingdisk_t *hd;
 
     if (!is_client) {
 	/* Add a 'default' interface if one doesn't already exist */
@@ -4416,12 +4767,13 @@ update_derived_values(
 
 	/* Check the tapetype is defined */
 	if (lookup_tapetype(getconf_str(CNF_TAPETYPE)) == NULL) {
-	    /* Create a default tapetype */
+	    /* Create a default tapetype so that other code has
+	     * something to refer to, but don't pretend it's real */
 	    if (!getconf_seen(CNF_TAPETYPE) &&
-		strcmp(getconf_str(CNF_TAPETYPE), "EXABYTE") == 0 &&
-		!lookup_tapetype("EXABYTE")) {
+		strcmp(getconf_str(CNF_TAPETYPE), "DEFAULT_TAPE") == 0 &&
+		!lookup_tapetype("DEFAULT_TAPE")) {
 		init_tapetype_defaults();
-		tpcur.name = stralloc("EXABYTE");
+		tpcur.name = stralloc("DEFAULT_TAPE");
 		tpcur.seen = val_t__seen(getconf(CNF_TAPETYPE));
 		save_tapetype();
 	    } else {
@@ -4429,10 +4781,41 @@ update_derived_values(
 			       getconf_str(CNF_TAPETYPE));
 	    }
 	}
+
+	/* Check the holdingdisk are defined */
+	for (il = getconf_identlist(CNF_HOLDINGDISK);
+		 il != NULL; il = il->next) {
+	    hd = lookup_holdingdisk(il->data);
+	    if (!hd) {
+		conf_parserror(_("holdingdisk %s is not defined"),
+			       (char *)il->data);
+	    }
+	}
+
+	if ((getconf_seen(CNF_LABEL_NEW_TAPES) > 0 &&
+	     getconf_seen(CNF_AUTOLABEL) > 0)  ||
+	    (getconf_seen(CNF_LABEL_NEW_TAPES) < 0 &&
+	     getconf_seen(CNF_AUTOLABEL) < 0)) {
+		conf_parserror(_("Can't specify both label_new_tapes and autolabel"));
+	}
+	if ((getconf_seen(CNF_LABEL_NEW_TAPES) != 0 &&
+	     getconf_seen(CNF_AUTOLABEL) == 0) ||
+	    (getconf_seen(CNF_LABEL_NEW_TAPES) < 0 &&
+	     getconf_seen(CNF_AUTOLABEL) >= 0)) {
+	    autolabel_t *autolabel = &(conf_data[CNF_AUTOLABEL].v.autolabel);
+	    autolabel->template = g_strdup(getconf_str(CNF_LABEL_NEW_TAPES));
+	    if (!autolabel->template || autolabel->template == '\0') {
+		autolabel->template = NULL;
+		autolabel->autolabel = 0;
+	    } else {
+		autolabel->autolabel = AL_VOLUME_ERROR | AL_EMPTY;
+	    }
+	}
     }
 
     /* fill in the debug_* values */
     debug_amandad    = getconf_int(CNF_DEBUG_AMANDAD);
+    debug_recovery   = getconf_int(CNF_DEBUG_RECOVERY);
     debug_amidxtaped = getconf_int(CNF_DEBUG_AMIDXTAPED);
     debug_amindexd   = getconf_int(CNF_DEBUG_AMINDEXD);
     debug_amrecover  = getconf_int(CNF_DEBUG_AMRECOVER);
@@ -4539,6 +4922,19 @@ conf_init_ident(
 }
 
 static void
+conf_init_identlist(
+    val_t *val,
+    char  *s)
+{
+    val->seen.linenum = 0;
+    val->seen.filename = NULL;
+    val->type = CONFTYPE_IDENTLIST;
+    val->v.identlist = NULL;
+    if (s)
+	val->v.identlist = g_slist_append(val->v.identlist, stralloc(s));
+}
+
+static void
 conf_init_time(
     val_t *val,
     time_t   t)
@@ -4594,6 +4990,17 @@ conf_init_encrypt(
 }
 
 static void
+conf_init_data_path(
+    val_t *val,
+    data_path_t    i)
+{
+    val->seen.linenum = 0;
+    val->seen.filename = NULL;
+    val->type = CONFTYPE_DATA_PATH;
+    val_t__encrypt(val) = (int)i;
+}
+
+static void
 conf_init_holding(
     val_t              *val,
     dump_holdingdisk_t  i)
@@ -4605,14 +5012,16 @@ conf_init_holding(
 }
 
 static void
-conf_init_estimate(
+conf_init_estimatelist(
     val_t *val,
     estimate_t    i)
 {
+    GSList *estimates = NULL;
     val->seen.linenum = 0;
     val->seen.filename = NULL;
-    val->type = CONFTYPE_ESTIMATE;
-    val_t__estimate(val) = i;
+    val->type = CONFTYPE_ESTIMATELIST;
+    estimates = g_slist_append(estimates, GINT_TO_POINTER(i));
+    val_t__estimatelist(val) = estimates;
 }
 
 static void
@@ -4687,6 +5096,25 @@ conf_init_intrange(
 }
 
 static void
+conf_init_autolabel(
+    val_t *val) {
+    val->seen.linenum = 0;
+    val->seen.filename = NULL;
+    val->type = CONFTYPE_AUTOLABEL;
+    val->v.autolabel.template = NULL;
+    val->v.autolabel.autolabel = 0;
+}
+
+void
+free_property_t(
+    gpointer p)
+{
+    property_t *propery = (property_t *)p;
+    g_slist_free_full(propery->values);
+    amfree(propery);
+}
+
+static void
 conf_init_proplist(
     val_t *val)
 {
@@ -4694,7 +5122,7 @@ conf_init_proplist(
     val->seen.filename = NULL;
     val->type = CONFTYPE_PROPLIST;
     val_t__proplist(val) =
-        g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
+        g_hash_table_new_full(g_str_hash, g_str_equal, &g_free, &free_property_t);
 }
 
 static void
@@ -4730,18 +5158,11 @@ conf_init_send_amreport(
     val->v.i = i;
 }
 
-static void conf_init_pp_scriptlist(val_t *val) {
-    val->seen.linenum = 0;
-    val->seen.filename = NULL;
-    val->type = CONFTYPE_PP_SCRIPTLIST;
-    val->v.proplist = NULL;
-}
-
 static void conf_init_application(val_t *val) {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
     val->type = CONFTYPE_APPLICATION;
-    val->v.application = NULL;
+    val->v.s = NULL;
 }
 
 
@@ -4763,7 +5184,8 @@ getconf_list(
     tapetype_t *tp;
     dumptype_t *dp;
     interface_t *ip;
-    holdingdisk_t *hp;
+    holdingdisk_t *hd;
+    GSList        *hp;
     application_t *ap;
     pp_script_t   *pp;
     device_config_t *dc;
@@ -4780,19 +5202,22 @@ getconf_list(
 	}
     } else if (strcasecmp(listname,"holdingdisk") == 0) {
 	for(hp = holdinglist; hp != NULL; hp=hp->next) {
-	    rv = g_slist_append(rv, hp->name);
+	    hd = hp->data;
+	    rv = g_slist_append(rv, hd->name);
 	}
     } else if (strcasecmp(listname,"interface") == 0) {
 	for(ip = interface_list; ip != NULL; ip=ip->next) {
 	    rv = g_slist_append(rv, ip->name);
 	}
     } else if (strcasecmp(listname,"application_tool") == 0
-	    || strcasecmp(listname,"application-tool") == 0) {
+	    || strcasecmp(listname,"application-tool") == 0
+	    || strcasecmp(listname,"application") == 0) {
 	for(ap = application_list; ap != NULL; ap=ap->next) {
 	    rv = g_slist_append(rv, ap->name);
 	}
     } else if (strcasecmp(listname,"script_tool") == 0
-	    || strcasecmp(listname,"script-tool") == 0) {
+	    || strcasecmp(listname,"script-tool") == 0
+	    || strcasecmp(listname,"script") == 0) {
 	for(pp = pp_script_list; pp != NULL; pp=pp->next) {
 	    rv = g_slist_append(rv, pp->name);
 	}
@@ -4853,7 +5278,6 @@ validate_program(
     	strcmp(val->v.s, "APPLICATION") != 0)
        conf_parserror("program must be \"DUMP\", \"GNUTAR\", \"STAR\" or \"APPLICATION\"");
 }
-
 
 char *
 tapetype_name(
@@ -4927,27 +5351,21 @@ holdingdisk_t *
 lookup_holdingdisk(
     char *str)
 {
-    holdingdisk_t *p;
+    GSList        *hp;
+    holdingdisk_t *hd;
 
-    for(p = holdinglist; p != NULL; p = p->next) {
-	if(strcasecmp(p->name, str) == 0) return p;
+    for (hp = holdinglist; hp != NULL; hp = hp->next) {
+	hd = hp->data;
+	if (strcasecmp(hd->name, str) == 0) return hd;
     }
     return NULL;
 }
 
-holdingdisk_t *
+GSList *
 getconf_holdingdisks(
     void)
 {
     return holdinglist;
-}
-
-holdingdisk_t *
-holdingdisk_next(
-    holdingdisk_t *hdisk)
-{
-    if (hdisk) return hdisk->next;
-    return NULL;
 }
 
 val_t *
@@ -5098,11 +5516,11 @@ getconf_unit_divisor(void)
  * Command-line Handling Implementation
  */
 
-config_overwrites_t *
-new_config_overwrites(
+config_overrides_t *
+new_config_overrides(
     int size_estimate)
 {
-    config_overwrites_t *co;
+    config_overrides_t *co;
 
     if (size_estimate <= 0)
 	size_estimate = 10;
@@ -5116,8 +5534,8 @@ new_config_overwrites(
 }
 
 void
-free_config_overwrites(
-    config_overwrites_t *co)
+free_config_overrides(
+    config_overrides_t *co)
 {
     int i;
 
@@ -5130,8 +5548,8 @@ free_config_overwrites(
     amfree(co);
 }
 
-void add_config_overwrite(
-    config_overwrites_t *co,
+void add_config_override(
+    config_overrides_t *co,
     char *key,
     char *value)
 {
@@ -5151,8 +5569,8 @@ void add_config_overwrite(
 }
 
 void
-add_config_overwrite_opt(
-    config_overwrites_t *co,
+add_config_override_opt(
+    config_overrides_t *co,
     char *optarg)
 {
     char *value;
@@ -5165,28 +5583,28 @@ add_config_overwrite_opt(
     }
 
     *value = '\0';
-    add_config_overwrite(co, optarg, value+1);
+    add_config_override(co, optarg, value+1);
     *value = '=';
 }
 
-config_overwrites_t *
-extract_commandline_config_overwrites(
+config_overrides_t *
+extract_commandline_config_overrides(
     int *argc,
     char ***argv)
 {
     int i, j, moveup;
-    config_overwrites_t *co = new_config_overwrites(*argc/2);
+    config_overrides_t *co = new_config_overrides(*argc/2);
 
     i = 0;
     while (i<*argc) {
 	if(strncmp((*argv)[i],"-o",2) == 0) {
 	    if(strlen((*argv)[i]) > 2) {
-		add_config_overwrite_opt(co, (*argv)[i]+2);
+		add_config_override_opt(co, (*argv)[i]+2);
 		moveup = 1;
 	    }
 	    else {
 		if (i+1 >= *argc) error(_("expect something after -o"));
-		add_config_overwrite_opt(co, (*argv)[i+1]);
+		add_config_override_opt(co, (*argv)[i+1]);
 		moveup = 2;
 	    }
 
@@ -5203,9 +5621,25 @@ extract_commandline_config_overwrites(
     return co;
 }
 
-cfgerr_level_t
-apply_config_overwrites(
-    config_overwrites_t *co)
+void
+set_config_overrides(
+    config_overrides_t *co)
+{
+    int i;
+
+    config_overrides = co;
+
+    for (i = 0; i < co->n_used; i++) {
+	g_debug("config_overrides: %s %s", co->ovr[i].key, co->ovr[i].value);
+    }
+
+    return;
+}
+
+static cfgerr_level_t
+apply_config_overrides(
+    config_overrides_t *co,
+    char *key_ovr)
 {
     int i;
 
@@ -5219,16 +5653,19 @@ apply_config_overwrites(
 	val_t *key_val;
 	conf_var_t *key_parm;
 
+	if (key_ovr && strncasecmp(key_ovr, key, strlen(key_ovr)) != 0) {
+	    continue;
+	}
+
 	if (!parm_key_info(key, &key_parm, &key_val)) {
-	    conf_parserror(_("unknown parameter '%s'"), key);
+	    /* not an error, only default config is loaded */
 	    continue;
 	}
 
 	/* now set up a fake line and use the relevant read_function to
 	 * parse it.  This is sneaky! */
-
 	if (key_parm->type == CONFTYPE_STR) {
-	    current_line = vstralloc("\"", value, "\"", NULL);
+	    current_line = quote_string_always(value);
 	} else {
 	    current_line = stralloc(value);
 	}
@@ -5237,6 +5674,7 @@ apply_config_overwrites(
 	token_pushed = 0;
 	current_line_num = -2;
 	allow_overwrites = 1;
+        co->ovr[i].applied = TRUE;
 
 	key_parm->read_function(key_parm, key_val);
 	if ((key_parm)->validate_function)
@@ -5245,21 +5683,6 @@ apply_config_overwrites(
 	amfree(current_line);
 	current_char = NULL;
     }
-
-    /* merge these overwrites with previous overwrites, if necessary */
-    if (applied_config_overwrites) {
-	for (i = 0; i < co->n_used; i++) {
-	    char *key = co->ovr[i].key;
-	    char *value = co->ovr[i].value;
-
-	    add_config_overwrite(applied_config_overwrites, key, value);
-	}
-	free_config_overwrites(co);
-    } else {
-	applied_config_overwrites = co;
-    }
-
-    update_derived_values(config_client);
 
     return cfgerr_level;
 }
@@ -5272,6 +5695,7 @@ int
 val_t_to_int(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_INT) {
 	error(_("val_t_to_int: val.type is not CONFTYPE_INT"));
 	/*NOTREACHED*/
@@ -5283,6 +5707,7 @@ gint64
 val_t_to_int64(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_INT64) {
 	error(_("val_t_to_int64: val.type is not CONFTYPE_INT64"));
 	/*NOTREACHED*/
@@ -5294,6 +5719,7 @@ float
 val_t_to_real(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_REAL) {
 	error(_("val_t_to_real: val.type is not CONFTYPE_REAL"));
 	/*NOTREACHED*/
@@ -5305,6 +5731,7 @@ char *
 val_t_to_str(
     val_t *val)
 {
+    assert(config_initialized);
     /* support CONFTYPE_IDENT, too */
     if (val->type != CONFTYPE_STR && val->type != CONFTYPE_IDENT) {
 	error(_("val_t_to_str: val.type is not CONFTYPE_STR nor CONFTYPE_IDENT"));
@@ -5317,6 +5744,7 @@ char *
 val_t_to_ident(
     val_t *val)
 {
+    assert(config_initialized);
     /* support CONFTYPE_STR, too */
     if (val->type != CONFTYPE_STR && val->type != CONFTYPE_IDENT) {
 	error(_("val_t_to_ident: val.type is not CONFTYPE_IDENT nor CONFTYPE_STR"));
@@ -5325,10 +5753,23 @@ val_t_to_ident(
     return val_t__str(val);
 }
 
+identlist_t
+val_t_to_identlist(
+    val_t *val)
+{
+    assert(config_initialized);
+    if (val->type != CONFTYPE_IDENTLIST) {
+	error(_("val_t_to_ident: val.type is not CONFTYPE_IDENTLIST"));
+	/*NOTREACHED*/
+    }
+    return val_t__identlist(val);
+}
+
 time_t
 val_t_to_time(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_TIME) {
 	error(_("val_t_to_time: val.type is not CONFTYPE_TIME"));
 	/*NOTREACHED*/
@@ -5340,6 +5781,7 @@ ssize_t
 val_t_to_size(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_SIZE) {
 	error(_("val_t_to_size: val.type is not CONFTYPE_SIZE"));
 	/*NOTREACHED*/
@@ -5351,6 +5793,7 @@ int
 val_t_to_boolean(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_BOOLEAN) {
 	error(_("val_t_to_bool: val.type is not CONFTYPE_BOOLEAN"));
 	/*NOTREACHED*/
@@ -5362,6 +5805,7 @@ comp_t
 val_t_to_compress(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_COMPRESS) {
 	error(_("val_t_to_compress: val.type is not CONFTYPE_COMPRESS"));
 	/*NOTREACHED*/
@@ -5373,6 +5817,7 @@ encrypt_t
 val_t_to_encrypt(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_ENCRYPT) {
 	error(_("val_t_to_encrypt: val.type is not CONFTYPE_ENCRYPT"));
 	/*NOTREACHED*/
@@ -5384,6 +5829,7 @@ dump_holdingdisk_t
 val_t_to_holding(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_HOLDING) {
 	error(_("val_t_to_hold: val.type is not CONFTYPE_HOLDING"));
 	/*NOTREACHED*/
@@ -5391,21 +5837,23 @@ val_t_to_holding(
     return val_t__holding(val);
 }
 
-estimate_t
-val_t_to_estimate(
+estimatelist_t
+val_t_to_estimatelist(
     val_t *val)
 {
-    if (val->type != CONFTYPE_ESTIMATE) {
-	error(_("val_t_to_estimate: val.type is not CONFTYPE_ESTIMATE"));
+    assert(config_initialized);
+    if (val->type != CONFTYPE_ESTIMATELIST) {
+	error(_("val_t_to_estimatelist: val.type is not CONFTYPE_ESTIMATELIST"));
 	/*NOTREACHED*/
     }
-    return val_t__estimate(val);
+    return val_t__estimatelist(val);
 }
 
 strategy_t
 val_t_to_strategy(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_STRATEGY) {
 	error(_("val_t_to_strategy: val.type is not CONFTYPE_STRATEGY"));
 	/*NOTREACHED*/
@@ -5417,6 +5865,7 @@ taperalgo_t
 val_t_to_taperalgo(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_TAPERALGO) {
 	error(_("val_t_to_taperalgo: val.type is not CONFTYPE_TAPERALGO"));
 	/*NOTREACHED*/
@@ -5428,6 +5877,7 @@ send_amreport_t
 val_t_to_send_amreport(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_SEND_AMREPORT_ON) {
 	error(_("val_t_to_send_amreport: val.type is not CONFTYPE_SEND_AMREPORT_ON"));
 	/*NOTREACHED*/
@@ -5435,10 +5885,23 @@ val_t_to_send_amreport(
     return val_t__send_amreport(val);
 }
 
+data_path_t
+val_t_to_data_path(
+    val_t *val)
+{
+    assert(config_initialized);
+    if (val->type != CONFTYPE_DATA_PATH) {
+	error(_("val_t_to_data_path: val.type is not CONFTYPE_DATA_PATH"));
+	/*NOTREACHED*/
+    }
+    return val_t__data_path(val);
+}
+
 int
 val_t_to_priority(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_PRIORITY) {
 	error(_("val_t_to_priority: val.type is not CONFTYPE_PRIORITY"));
 	/*NOTREACHED*/
@@ -5450,6 +5913,7 @@ float *
 val_t_to_rate(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_RATE) {
 	error(_("val_t_to_rate: val.type is not CONFTYPE_RATE"));
 	/*NOTREACHED*/
@@ -5461,6 +5925,7 @@ exinclude_t
 val_t_to_exinclude(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_EXINCLUDE) {
 	error(_("val_t_to_exinclude: val.type is not CONFTYPE_EXINCLUDE"));
 	/*NOTREACHED*/
@@ -5473,6 +5938,7 @@ int *
 val_t_to_intrange(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_INTRANGE) {
 	error(_("val_t_to_intrange: val.type is not CONFTYPE_INTRANGE"));
 	/*NOTREACHED*/
@@ -5484,6 +5950,7 @@ proplist_t
 val_t_to_proplist(
     val_t *val)
 {
+    assert(config_initialized);
     if (val->type != CONFTYPE_PROPLIST) {
 	error(_("val_t_to_proplist: val.type is not CONFTYPE_PROPLIST"));
 	/*NOTREACHED*/
@@ -5491,11 +5958,60 @@ val_t_to_proplist(
     return val_t__proplist(val);
 }
 
+autolabel_t
+val_t_to_autolabel(
+    val_t *val)
+{
+    assert(config_initialized);
+    if (val->type != CONFTYPE_AUTOLABEL) {
+	error(_("val_t_to_autolabel: val.type is not CONFTYPE_AUTOLABEL"));
+	/*NOTREACHED*/
+    }
+    return val_t__autolabel(val);
+}
+
+static void
+merge_val_t(
+    val_t *valdst,
+    val_t *valsrc)
+{
+    if (valsrc->type == CONFTYPE_PROPLIST) {
+	if (valsrc->v.proplist) {
+	    if (valdst->v.proplist == NULL) {
+	        valdst->v.proplist = g_hash_table_new_full(g_str_hash,
+							   g_str_equal,
+							   &g_free,
+							   &free_property_t);
+	        g_hash_table_foreach(valsrc->v.proplist,
+				     &copy_proplist_foreach_fn,
+				     valdst->v.proplist);
+	    } else {
+		g_hash_table_foreach(valsrc->v.proplist,
+				     &merge_proplist_foreach_fn,
+				     valdst->v.proplist);
+	    }
+	}
+    } else if (valsrc->type == CONFTYPE_IDENTLIST) {
+	if (valsrc->v.identlist) {
+	    identlist_t il;
+	    for (il = valsrc->v.identlist; il != NULL; il = il->next) {
+		 valdst->v.identlist = g_slist_append(valdst->v.identlist,
+						   stralloc((char *)il->data));
+	    }
+	}
+    } else {
+	free_val_t(valdst);
+	copy_val_t(valdst, valsrc);
+    }
+}
+
 static void
 copy_val_t(
     val_t *valdst,
     val_t *valsrc)
 {
+    GSList *ia;
+
     if(valsrc->seen.linenum) {
 	valdst->type = valsrc->type;
 	valdst->seen = valsrc->seen;
@@ -5505,10 +6021,10 @@ copy_val_t(
 	case CONFTYPE_COMPRESS:
 	case CONFTYPE_ENCRYPT:
 	case CONFTYPE_HOLDING:
-	case CONFTYPE_ESTIMATE:
 	case CONFTYPE_EXECUTE_ON:
 	case CONFTYPE_EXECUTE_WHERE:
 	case CONFTYPE_SEND_AMREPORT_ON:
+	case CONFTYPE_DATA_PATH:
 	case CONFTYPE_STRATEGY:
 	case CONFTYPE_TAPERALGO:
 	case CONFTYPE_PRIORITY:
@@ -5537,9 +6053,28 @@ copy_val_t(
 	    valdst->v.s = stralloc(valsrc->v.s);
 	    break;
 
+	case CONFTYPE_IDENTLIST:
+	    valdst->v.identlist = NULL;
+	    for (ia = valsrc->v.identlist; ia != NULL; ia = ia->next) {
+		valdst->v.identlist = g_slist_append(valdst->v.identlist,
+						     stralloc(ia->data));
+	    }
+	    break;
+
 	case CONFTYPE_TIME:
 	    valdst->v.t = valsrc->v.t;
 	    break;
+
+	case CONFTYPE_ESTIMATELIST: {
+	    estimatelist_t estimates = valsrc->v.estimatelist;
+	    estimatelist_t dst_estimates = NULL;
+	    while (estimates != NULL) {
+		dst_estimates = g_slist_append(dst_estimates, estimates->data);
+		estimates = estimates->next;
+	    }
+	    valdst->v.estimatelist = dst_estimates;
+	    break;
+	}
 
 	case CONFTYPE_EXINCLUDE:
 	    valdst->v.exinclude.optional = valsrc->v.exinclude.optional;
@@ -5556,32 +6091,63 @@ copy_val_t(
 	    if (valsrc->v.proplist) {
 		valdst->v.proplist = g_hash_table_new_full(g_str_hash,
 							   g_str_equal,
-							   NULL, NULL);
+							   &g_free,
+							   &free_property_t);
 
-		g_hash_table_foreach(valsrc->v.proplist, &copy_proplist,
+		g_hash_table_foreach(valsrc->v.proplist,
+				     &copy_proplist_foreach_fn,
 				     valdst->v.proplist);
 	    } else {
 		valdst->v.proplist = NULL;
 	    }
 	    break;
 
-	case CONFTYPE_PP_SCRIPTLIST:
-	    valdst->v.pp_scriptlist = NULL;
-	    if (valsrc->v.pp_scriptlist) {
-		g_slist_foreach(valsrc->v.pp_scriptlist, &copy_pp_scriptlist,
-				&valdst->v.pp_scriptlist);
-	    }
+	case CONFTYPE_APPLICATION:
+	    valdst->v.s = stralloc(valsrc->v.s);
 	    break;
 
-	case CONFTYPE_APPLICATION:
-	    valdst->v.application = valsrc->v.application;
+	case CONFTYPE_AUTOLABEL:
+	    valdst->v.autolabel.template = stralloc(valsrc->v.autolabel.template);
+	    valdst->v.autolabel.autolabel = valsrc->v.autolabel.autolabel;
 	    break;
 	}
     }
 }
 
 static void
-copy_proplist(
+merge_proplist_foreach_fn(
+    gpointer key_p,
+    gpointer value_p,
+    gpointer user_data_p)
+{
+    char *property_s = key_p;
+    property_t *property = value_p;
+    proplist_t proplist = user_data_p;
+    GSList *elem = NULL;
+    int new_prop = 0;
+    property_t *new_property = g_hash_table_lookup(proplist, property_s);
+    if (new_property && !property->append) {
+	g_hash_table_remove(proplist, property_s);
+	new_property = NULL;
+    }
+    if (!new_property) {
+        new_property = malloc(sizeof(property_t));
+	new_property->append = property->append;
+	new_property->priority = property->priority;
+	new_property->values = NULL;
+	new_prop = 1;
+    }
+
+    for(elem = property->values;elem != NULL; elem=elem->next) {
+	new_property->values = g_slist_append(new_property->values,
+					      stralloc(elem->data));
+    }
+    if (new_prop)
+	g_hash_table_insert(proplist, stralloc(property_s), new_property);
+}
+
+static void
+copy_proplist_foreach_fn(
     gpointer key_p,
     gpointer value_p,
     gpointer user_data_p)
@@ -5599,18 +6165,7 @@ copy_proplist(
 	new_property->values = g_slist_append(new_property->values,
 					      stralloc(elem->data));
     }
-    g_hash_table_insert(proplist, property_s, new_property);
-}
-
-static void
-copy_pp_scriptlist(
-    gpointer data_p,
-    gpointer user_data_p)
-{
-    pp_script_t *pp_script   = data_p;
-    pp_scriptlist_t *pp_scriptlist = user_data_p;
-
-    *pp_scriptlist = g_slist_append(*pp_scriptlist, pp_script);
+    g_hash_table_insert(proplist, stralloc(property_s), new_property);
 }
 
 static void
@@ -5623,10 +6178,10 @@ free_val_t(
 	case CONFTYPE_COMPRESS:
 	case CONFTYPE_ENCRYPT:
 	case CONFTYPE_HOLDING:
-	case CONFTYPE_ESTIMATE:
 	case CONFTYPE_EXECUTE_WHERE:
 	case CONFTYPE_EXECUTE_ON:
 	case CONFTYPE_SEND_AMREPORT_ON:
+	case CONFTYPE_DATA_PATH:
 	case CONFTYPE_STRATEGY:
 	case CONFTYPE_SIZE:
 	case CONFTYPE_TAPERALGO:
@@ -5639,10 +6194,19 @@ free_val_t(
 
 	case CONFTYPE_IDENT:
 	case CONFTYPE_STR:
+	case CONFTYPE_APPLICATION:
 	    amfree(val->v.s);
 	    break;
 
+	case CONFTYPE_IDENTLIST:
+	    g_slist_free_full(val->v.identlist);
+	    break;
+
 	case CONFTYPE_TIME:
+	    break;
+
+	case CONFTYPE_ESTIMATELIST:
+	    g_slist_free(val->v.estimatelist);
 	    break;
 
 	case CONFTYPE_EXINCLUDE:
@@ -5654,11 +6218,8 @@ free_val_t(
             g_hash_table_destroy(val_t__proplist(val));
             break;
 
-	case CONFTYPE_PP_SCRIPTLIST:
-	    g_slist_free_full(val->v.pp_scriptlist);
-	    break;
-
-	case CONFTYPE_APPLICATION:
+	case CONFTYPE_AUTOLABEL:
+	    amfree(val->v.autolabel.template);
 	    break;
     }
     val->seen.linenum = 0;
@@ -5712,6 +6273,8 @@ generic_client_get_security_conf(
 		return(getconf_str(CNF_AMANDAD_PATH));
 	} else if(strcmp(string, "client_username")==0) {
 		return(getconf_str(CNF_CLIENT_USERNAME));
+	} else if(strcmp(string, "client_port")==0) {
+		return(getconf_str(CNF_CLIENT_PORT));
 	} else if(strcmp(string, "gnutar_list_dir")==0) {
 		return(getconf_str(CNF_GNUTAR_LIST_DIR));
 	} else if(strcmp(string, "amandates")==0) {
@@ -5730,7 +6293,8 @@ dump_configuration(void)
     tapetype_t *tp;
     dumptype_t *dp;
     interface_t *ip;
-    holdingdisk_t *hp;
+    holdingdisk_t *hd;
+    GSList        *hp;
     application_t *ap;
     pp_script_t *ps;
     device_config_t *dc;
@@ -5758,7 +6322,8 @@ dump_configuration(void)
     }
 
     for(hp = holdinglist; hp != NULL; hp = hp->next) {
-	g_printf("\nHOLDINGDISK %s {\n", hp->name);
+	hd = hp->data;
+	g_printf("\nDEFINE HOLDINGDISK %s {\n", hd->name);
 	for(i=0; i < HOLDING_HOLDING; i++) {
 	    for(np=holding_var; np->token != CONF_UNKNOWN; np++) {
 		if(np->parm == i)
@@ -5774,7 +6339,7 @@ dump_configuration(void)
 	    if(kt->token == CONF_UNKNOWN)
 		error(_("holding bad token"));
 
-            val_t_print_token(stdout, NULL, "      %-9s ", kt, &hp->value[i]);
+            val_t_print_token(stdout, NULL, "      %-9s ", kt, &hd->value[i]);
 	}
 	g_printf("}\n");
     }
@@ -5855,12 +6420,12 @@ dump_configuration(void)
 	    prefix = "#";
 	else
 	    prefix = "";
-	g_printf("\n%sDEFINE APPLICATION-TOOL %s {\n", prefix, ap->name);
+	g_printf("\n%sDEFINE APPLICATION %s {\n", prefix, ap->name);
 	for(i=0; i < APPLICATION_APPLICATION; i++) {
 	    for(np=application_var; np->token != CONF_UNKNOWN; np++)
 		if(np->parm == i) break;
 	    if(np->token == CONF_UNKNOWN)
-		error(_("application-tool bad value"));
+		error(_("application bad value"));
 
 	    for(kt = server_keytab; kt->token != CONF_UNKNOWN; kt++)
 		if(kt->token == np->token) break;
@@ -5877,12 +6442,12 @@ dump_configuration(void)
 	    prefix = "#";
 	else
 	    prefix = "";
-	g_printf("\n%sDEFINE SCRIPT-TOOL %s {\n", prefix, ps->name);
+	g_printf("\n%sDEFINE SCRIPT %s {\n", prefix, ps->name);
 	for(i=0; i < PP_SCRIPT_PP_SCRIPT; i++) {
 	    for(np=pp_script_var; np->token != CONF_UNKNOWN; np++)
 		if(np->parm == i) break;
 	    if(np->token == CONF_UNKNOWN)
-		error(_("script-tool bad value"));
+		error(_("script bad value"));
 
 	    for(kt = server_keytab; kt->token != CONF_UNKNOWN; kt++)
 		if(kt->token == np->token) break;
@@ -6013,10 +6578,28 @@ val_t_display_strs(
 	}
 	break;
 
+    case CONFTYPE_IDENTLIST:
+	{
+	    GSList *ia;
+	    int     first = 1;
+
+	    buf[0] = NULL;
+	    for (ia = val->v.identlist; ia != NULL; ia = ia->next) {
+		if (first) {
+		    buf[0] = stralloc(ia->data);
+		    first = 0;
+		} else {
+		    strappend(buf[0], " ");
+		    strappend(buf[0],  ia->data);
+		}
+	    }
+	}
+	break;
+
     case CONFTYPE_STR:
 	if(str_need_quote) {
             if(val->v.s) {
-		buf[0] = vstrallocf("\"%s\"", val->v.s);
+		buf[0] = quote_string_always(val->v.s);
             } else {
 		buf[0] = stralloc("\"\"");
             }
@@ -6026,6 +6609,24 @@ val_t_display_strs(
             } else {
 		buf[0] = stralloc("");
             }
+	}
+	break;
+
+    case CONFTYPE_AUTOLABEL:
+	{
+	    buf[0] = quote_string_always(val->v.autolabel.template);
+	    if (val->v.autolabel.autolabel & AL_OTHER_CONFIG) {
+		buf[0] = vstrextend(&buf[0], " OTHER-CONFIG", NULL);
+	    }
+	    if (val->v.autolabel.autolabel & AL_NON_AMANDA) {
+		buf[0] = vstrextend(&buf[0], " NON-AMANDA", NULL);
+	    }
+	    if (val->v.autolabel.autolabel & AL_VOLUME_ERROR) {
+		buf[0] = vstrextend(&buf[0], " VOLUME-ERROR", NULL);
+	    }
+	    if (val->v.autolabel.autolabel & AL_EMPTY) {
+		buf[0] = vstrextend(&buf[0], " EMPTY", NULL);
+	    }
 	}
 	break;
 
@@ -6107,21 +6708,32 @@ val_t_display_strs(
 	}
 	break;
 
-    case CONFTYPE_ESTIMATE:
-	switch(val_t__estimate(val)) {
-	case ES_CLIENT:
-	    buf[0] = vstrallocf("CLIENT");
-	    break;
+    case CONFTYPE_ESTIMATELIST: {
+	estimatelist_t es = val_t__estimatelist(val);
+	buf[0] = stralloc("");
+	while (es) {
+	    switch((estimate_t)GPOINTER_TO_INT(es->data)) {
+	    case ES_CLIENT:
+		strappend(buf[0], "CLIENT");
+		break;
 
-	case ES_SERVER:
-	    buf[0] = vstrallocf("SERVER");
-	    break;
+	    case ES_SERVER:
+		strappend(buf[0], "SERVER");
+		break;
 
-	case ES_CALCSIZE:
-	    buf[0] = vstrallocf("CALCSIZE");
-	    break;
+	    case ES_CALCSIZE:
+		strappend(buf[0], "CALCSIZE");
+		break;
+
+	    case ES_ES:
+		break;
+	    }
+	    es = es->next;
+	    if (es)
+		strappend(buf[0], " ");
 	}
 	break;
+    }
 
     case CONFTYPE_EXECUTE_WHERE:
 	switch(val->v.i) {
@@ -6150,6 +6762,10 @@ val_t_display_strs(
 	    buf[0] = vstrallocf("NEVER");
 	    break;
 	}
+	break;
+
+    case CONFTYPE_DATA_PATH:
+	buf[0] = g_strdup(data_path_to_string(val->v.i));
 	break;
 
      case CONFTYPE_ENCRYPT:
@@ -6219,24 +6835,9 @@ val_t_display_strs(
         break;
     }
 
-    case CONFTYPE_PP_SCRIPTLIST: {
-	int    nb_pp_scriplist;
-	char **mybuf;
-
-	nb_pp_scriplist = g_slist_length(val_t__pp_scriptlist(val));
-	amfree(buf);
-	buf = malloc((nb_pp_scriplist+1)*SIZEOF(char*));
-	buf[nb_pp_scriplist] = NULL;
-	mybuf = buf;
-	g_slist_foreach(val_t__pp_scriptlist(val),
-			pp_scriptlist_display_str_foreach_fn,
-			&mybuf);
-        break;
-    }
-
     case CONFTYPE_APPLICATION: {
-	if (val->v.application) {
-	    buf[0] = vstrallocf("\"%s\"", val->v.application->name);
+	if (val->v.s) {
+	    buf[0] = quote_string_always(val->v.s);
 	} else {
 	    buf[0] = stralloc("");
 	}
@@ -6344,19 +6945,7 @@ val_t_to_execute_where(
     return val->v.i;
 }
 
-pp_scriptlist_t
-val_t_to_pp_scriptlist(
-    val_t *val)
-{
-    if (val->type != CONFTYPE_PP_SCRIPTLIST) {
-	error(_("get_conftype_proplist: val.type is not CONFTYPE_PP_SCRIPTLIST"));
-	/*NOTREACHED*/
-    }
-    return val->v.pp_scriptlist;
-}
-
-
-application_t *
+char *
 val_t_to_application(
     val_t *val)
 {
@@ -6364,7 +6953,7 @@ val_t_to_application(
 	error(_("get_conftype_applicaiton: val.type is not CONFTYPE_APPLICATION"));
 	/*NOTREACHED*/
     }
-    return val->v.application;
+    return val->v.s;
 }
 
 
@@ -6374,35 +6963,26 @@ proplist_display_str_foreach_fn(
     gpointer value_p,
     gpointer user_data_p)
 {
-    char         *property_s = key_p;
+    char         *property_s = quote_string_always(key_p);
     property_t   *property   = value_p;
     GSList       *value;
     char       ***msg        = (char ***)user_data_p;
 
     /* What to do with property->append? it should be printed only on client */
     if (property->priority) {
-	**msg = vstralloc("priority \"", property_s, "\"", NULL);
+	**msg = vstralloc("priority ", property_s, NULL);
+	amfree(property_s);
     } else {
-	**msg = vstralloc("\"", property_s, "\"", NULL);
+	**msg = property_s;
+	property_s = NULL;
     }
     for(value=property->values; value != NULL; value = value->next) {
-	**msg = vstrextend(*msg, " \"", value->data, "\"", NULL);
+	char *qstr = quote_string_always((char *)value->data);
+	**msg = vstrextend(*msg, " ", qstr, NULL);
+	amfree(qstr);
     }
     (*msg)++;
 }
-
-static void
-pp_scriptlist_display_str_foreach_fn(
-    gpointer data_p,
-    gpointer user_data_p)
-{
-    pp_script_t *pp_script = data_p;
-    char ***msg      = (char ***)user_data_p;
-
-    **msg = vstralloc("\"", pp_script->name, "\"", NULL);
-    (*msg)++;
-}
-
 
 static char *
 exinclude_display_str(
@@ -6431,7 +7011,9 @@ exinclude_display_str(
 
     if (sl != NULL) {
 	for(excl = sl->first; excl != NULL; excl = excl->next) {
-            vstrextend(&rval, " \"", excl->name, "\"", NULL);
+	    char *qstr = quote_string_always(excl->name);
+            vstrextend(&rval, " ", qstr, NULL);
+	    amfree(qstr);
 	}
     }
 
@@ -6583,7 +7165,9 @@ parm_key_info(
 	    if (val) *val = &ip->value[np->parm];
 	    if (parm) *parm = np;
 	    success = TRUE;
-	} else if (strcmp(subsec_type, "APPLICATION_TOOL") == 0) {
+	/* accept the old name here, too */
+	} else if (strcmp(subsec_type, "APPLICATION_TOOL") == 0
+		|| strcmp(subsec_type, "APPLICATION") == 0) {
 	    ap = lookup_application(subsec_name);
 	    if (!ap) goto out;
 	    for(np = application_var; np->token != CONF_UNKNOWN; np++) {
@@ -6595,7 +7179,9 @@ parm_key_info(
 	    if (val) *val = &ap->value[np->parm];
 	    if (parm) *parm = np;
 	    success = TRUE;
-	} else if (strcmp(subsec_type, "SCRIPT_TOOL") == 0) {
+	/* accept the old name here, too */
+	} else if (strcmp(subsec_type, "SCRIPT_TOOL") == 0
+		|| strcmp(subsec_type, "SCRIPT") == 0) {
 	    pp = lookup_pp_script(subsec_name);
 	    if (!pp) goto out;
 	    for(np = pp_script_var; np->token != CONF_UNKNOWN; np++) {
@@ -6689,6 +7275,8 @@ find_multiplier(
                 return 1024*1024;
             case CONF_MULT1G:
                 return 1024*1024*1024;
+            case CONF_MULT1T:
+                return (gint64)1024*1024*1024*1024;
             case CONF_MULT7:
                 return 7;
             case CONF_AMINFINITY:
@@ -6706,6 +7294,39 @@ find_multiplier(
     /* None found; this is an error. */
     g_free(str);
     return 0;
+}
+
+int
+string_to_boolean(
+    const char *str)
+{
+    keytab_t * table_entry;
+
+    if (str == NULL || *str == '\0') {
+        return -1;
+    }
+
+    /* 0 and 1 are not in the table, as they are parsed as ints */
+    if (0 == strcmp(str, "0"))
+	return 0;
+    if (0 == strcmp(str, "1"))
+	return 1;
+
+    for (table_entry = bool_keytable; table_entry->keyword != NULL;
+         table_entry ++) {
+        if (strcasecmp(str, table_entry->keyword) == 0) {
+            switch (table_entry->token) {
+            case CONF_ATRUE:
+                return 1;
+            case CONF_AFALSE:
+                return 0;
+            default:
+                return -1;
+            }
+        }
+    }
+
+    return -1;
 }
 
 /*
@@ -6805,24 +7426,13 @@ char *get_config_filename(void)
     return config_filename;
 }
 
-int
-property_argv_size(proplist_t proplist) {
-    int nb;
-
-    nb = 0;
-    g_hash_table_foreach(proplist, &count_proplist, &nb);
-    return nb*2;
-}
-
-int
+void
 property_add_to_argv(
-    char **argvchild,
+    GPtrArray  *argv_ptr,
     proplist_t proplist)
 {
-    char **argv = argvchild;
-
-    g_hash_table_foreach(proplist, &proplist_add_to_argv, &argv);
-    return (argv - argvchild);
+    g_hash_table_foreach(proplist, &proplist_add_to_argv, argv_ptr);
+    return;
 }
 
 char *
@@ -6836,3 +7446,57 @@ anonymous_value(void)
     value++;
     return number;
 }
+
+gint compare_pp_script_order(
+    gconstpointer a,
+    gconstpointer b)
+{
+    return pp_script_get_order(lookup_pp_script((char *)a)) > pp_script_get_order(lookup_pp_script((char *)b));
+}
+
+char *
+data_path_to_string(
+    data_path_t data_path)
+{
+    switch (data_path) {
+	case DATA_PATH_AMANDA   : return "AMANDA";
+	case DATA_PATH_DIRECTTCP: return "DIRECTTCP";
+    }
+    error(_("data_path is not DATA_PATH_AMANDA or DATA_PATH_DIRECTTCP"));
+    /* NOTREACHED */
+}
+
+data_path_t
+data_path_from_string(
+    char *data)
+{
+    if (strcmp(data, "AMANDA") == 0)
+	return DATA_PATH_AMANDA;
+    if (strcmp(data, "DIRECTTCP") == 0)
+	return DATA_PATH_DIRECTTCP;
+    error(_("data_path is not AMANDA or DIRECTTCP :%s:"), data);
+    /* NOTREACHED */
+}
+
+gchar *
+amandaify_property_name(
+    const gchar *name)
+{
+    gchar *ret, *cur_r;
+    const gchar *cur_o;
+    if (!name) return NULL;
+
+    ret = g_malloc0(strlen(name)+1);
+    cur_r = ret;
+    for (cur_o = name; *cur_o; cur_o++) {
+	if ('_' == *cur_o)
+	    *cur_r = '-';
+	else
+	    *cur_r = g_ascii_tolower(*cur_o);
+
+	cur_r++;
+    }
+
+    return ret;
+}
+

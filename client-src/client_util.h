@@ -39,6 +39,11 @@
 #include "amandad.h"		/* for g_option_t */
 #include "amxml.h"		/* for dle_t	  */
 
+typedef enum {
+    RECOVER_PATH_CWD    = 0,
+    RECOVER_PATH_REMOTE = 1,
+} recover_path_t;
+
 typedef struct backup_support_option_s {
     int config;
     int host;
@@ -51,14 +56,20 @@ typedef struct backup_support_option_s {
     int record;
     int include_file;
     int include_list;
+    int include_list_glob;
     int include_optional;
     int exclude_file;
     int exclude_list;
+    int exclude_list_glob;
     int exclude_optional;
     int collection;
     int calcsize;
+    int client_estimate;
     int multi_estimate;
     int smb_recover_mode;
+    int features;
+    data_path_t data_path_set;  /* bitfield of all allowed data-path */
+    recover_path_t recover_path;
 } backup_support_option_t;
 
 typedef struct client_script_result_s {
@@ -67,6 +78,24 @@ typedef struct client_script_result_s {
     GPtrArray *output;
     GPtrArray *err;
 } client_script_result_t;
+
+typedef enum {
+    DMP_NORMAL, DMP_IGNORE, DMP_STRANGE, DMP_SIZE, DMP_ERROR
+} dmpline_t;
+
+typedef struct regex_s {
+    char *regex;
+    int srcline;
+    int scale;			/* only used for size lines */
+    int field;
+    dmpline_t typ;
+} amregex_t;
+
+#define AM_NORMAL_RE(re)	{(re), __LINE__, 0, 0, DMP_NORMAL}
+#define AM_IGNORE_RE(re)	{(re), __LINE__, 0, 0, DMP_IGNORE}
+#define AM_STRANGE_RE(re)	{(re), __LINE__, 0, 0, DMP_STRANGE}
+#define AM_SIZE_RE(re,s,f)	{(re), __LINE__, (s), (f), DMP_SIZE}
+#define AM_ERROR_RE(re)		{(re), __LINE__, 0, 0, DMP_ERROR}
 
 char *build_exclude(dle_t *dle, int verbose);
 char *build_include(dle_t *dle, int verbose);
@@ -86,13 +115,14 @@ int application_property_argv_size(dle_t *dle);
 /* Add all properties of an application for a dle to an ARGV.
  * include/exclude options are converted to properties.
  *
- * @param argvchild: the ARGV where to store properties.
+ * @param argv_ptr: the ARGV where to store properties.
  * @param dle: the dle.
  * @returns: Number of argument added to ARGV.
  */
-int application_property_add_to_argv(char **argvchild,
-				     dle_t *dle,
-				     backup_support_option_t *bsu);
+void application_property_add_to_argv(GPtrArray *argv_ptr,
+				      dle_t *dle,
+				      backup_support_option_t *bsu,
+				      am_feature_t *amfeatures);
 
 char *fixup_relative(char *name, char *device);
 backup_support_option_t *backup_support_option(char *program,
@@ -131,4 +161,20 @@ double the_num(char * str, int pos);
  */
 char *config_errors_to_error_string(GSList *errlist);
 
+amregex_t *build_re_table(amregex_t *orig_re_table,
+                          GSList *normal_message,
+                          GSList *ignore_message,
+                          GSList *strange_message);
+void add_type_table(dmpline_t typ,
+                    amregex_t **re_table, amregex_t *orig_re_table,
+                    GSList *normal_message, GSList *ignore_message,
+                    GSList *strange_message);
+void add_list_table(dmpline_t typ, amregex_t **re_table,
+                    GSList *message);
+
+/* Merge properties from proplist2 to proplist1)
+ */
+void merge_properties(proplist_t proplist1, proplist_t proplist2);
+
 #endif
+

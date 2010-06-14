@@ -45,7 +45,6 @@
 #include "diskfile.h"
 #include "arglist.h"
 #include "clock.h"
-#include "version.h"
 #include "amindex.h"
 #include "disk_history.h"
 #include "list_dir.h"
@@ -60,9 +59,9 @@
 
 #include <grp.h>
 
-#define amindexd_debug(i,x) do {	\
+#define DBG(i, ...) do {		\
 	if ((i) <= debug_amindexd) {	\
-	    dbprintf(x);		\
+	    g_debug(__VA_ARGS__);	\
 	}				\
 } while (0)
 
@@ -91,9 +90,10 @@ static REMOVE_ITEM *uncompress_remove = NULL;
 static am_feature_t *our_features = NULL;
 static am_feature_t *their_features = NULL;
 
+static int get_pid_status(int pid, char *program, GPtrArray **emsg);
 static REMOVE_ITEM *remove_files(REMOVE_ITEM *);
-static char *uncompress_file(char *, char **);
-static int process_ls_dump(char *, DUMP_ITEM *, int, char **);
+static char *uncompress_file(char *, GPtrArray **);
+static int process_ls_dump(char *, DUMP_ITEM *, int, GPtrArray **);
 
 static size_t reply_buffer_size = 1;
 static char *reply_buffer = NULL;
@@ -101,6 +101,7 @@ static char *amandad_auth = NULL;
 static FILE *cmdin;
 static FILE *cmdout;
 
+static void reply_ptr_array(int, GPtrArray *);
 static void reply(int, char *, ...) G_GNUC_PRINTF(2, 3);
 static void lreply(int, char *, ...) G_GNUC_PRINTF(2, 3);
 static void fast_lreply(int, char *, ...) G_GNUC_PRINTF(2, 3);
@@ -117,12 +118,51 @@ static int tapedev_is(void);
 static int are_dumps_compressed(void);
 static char *amindexd_nicedate (char *datestamp);
 static int cmp_date (const char *date1, const char *date2);
-static char *clean_backslash(char *line);
 static char *get_index_name(char *dump_hostname, char *hostname,
 			    char *diskname, char *timestamps, int level);
 static int get_index_dir(char *dump_hostname, char *hostname, char *diskname);
 
 int main(int, char **);
+
+
+static int
+get_pid_status(
+    int         pid,
+    char       *program,
+    GPtrArray **emsg)
+{
+    int       status;
+    amwait_t  wait_status;
+    char     *msg;
+    int       result = 1;
+
+    status = waitpid(pid, &wait_status, 0);
+    if (status < 0) {
+	msg = vstrallocf(
+		_("%s (%d) returned negative value: %s"),
+		program, pid, strerror(errno));
+	dbprintf("%s\n", msg);
+	g_ptr_array_add(*emsg, msg);
+	result = 0;
+    } else {
+	if (!WIFEXITED(wait_status)) {
+	    msg = vstrallocf(
+			_("%s exited with signal %d"),
+			program, WTERMSIG(wait_status));
+	    dbprintf("%s\n", msg);
+	    g_ptr_array_add(*emsg, msg);
+	    result = 0;
+	} else if (WEXITSTATUS(wait_status) != 0) {
+	    msg = vstrallocf(
+			_("%s exited with status %d"),
+			program, WEXITSTATUS(wait_status));
+	    dbprintf("%s\n", msg);
+	    g_ptr_array_add(*emsg, msg);
+	    result = 0;
+	}
+    }
+    return result;
+}
 
 static REMOVE_ITEM *
 remove_files(
@@ -143,8 +183,8 @@ remove_files(
 
 static char *
 uncompress_file(
-    char *	filename_gz,
-    char **	emsg)
+    char       *filename_gz,
+    GPtrArray **emsg)
 {
     char *cmd = NULL;
     char *filename = NULL;
@@ -155,13 +195,21 @@ uncompress_file(
     int pipe_to_sort;
     int indexfd;
     int nullfd;
-    int debugfd;
+    int uncompress_errfd;
+    int sort_errfd;
     char line[STR_SIZE];
     FILE *pipe_stream;
     pid_t pid_gzip;
     pid_t pid_sort;
-    amwait_t  wait_status;
-
+    pid_t pid_index;
+    int        status;
+    char      *msg;
+    gpointer  *p;
+    gpointer  *p_last;
+    GPtrArray *uncompress_err;
+    GPtrArray *sort_err;
+    FILE      *uncompress_err_stream;
+    FILE      *sort_err_stream;
 
     filename = stralloc(filename_gz);
     len = strlen(filename);
@@ -181,10 +229,10 @@ uncompress_file(
 	 * Check that compressed file exists manually.
 	 */
 	if (stat(filename_gz, &statbuf) < 0) {
-	    *emsg = newvstrallocf(*emsg,
-				_("Compressed file '%s' is inaccessable: %s"),
-				filename_gz, strerror(errno));
-	    dbprintf("%s\n",*emsg);
+	    msg = vstrallocf(_("Compressed file '%s' is inaccessable: %s"),
+			     filename_gz, strerror(errno));
+	    dbprintf("%s\n", msg);
+	    g_ptr_array_add(*emsg, msg);
 	    amfree(filename);
 	    return NULL;
  	}
@@ -199,9 +247,10 @@ uncompress_file(
 
 	indexfd = open(filename,O_WRONLY|O_CREAT, 0600);
 	if (indexfd == -1) {
-	    *emsg = newvstrallocf(*emsg, _("Can't open '%s' for writting: %s"),
-				 filename, strerror(errno));
-	    dbprintf("%s\n",*emsg);
+	    msg = vstrallocf(_("Can't open '%s' for writting: %s"),
+			      filename, strerror(errno));
+	    dbprintf("%s\n", msg);
+	    g_ptr_array_add(*emsg, msg);
 	    amfree(filename);
 	    aclose(nullfd);
 	    return NULL;
@@ -210,21 +259,21 @@ uncompress_file(
 	/* just use our stderr directly for the pipe's stderr; in 
 	 * main() we send stderr to the debug file, or /dev/null
 	 * if debugging is disabled */
-	debugfd = STDERR_FILENO;
 
 	/* start the uncompress process */
 	putenv(stralloc("LC_ALL=C"));
-	pid_gzip = pipespawn(UNCOMPRESS_PATH, STDOUT_PIPE, 0,
-			     &nullfd, &pipe_from_gzip, &debugfd,
+	pid_gzip = pipespawn(UNCOMPRESS_PATH, STDOUT_PIPE|STDERR_PIPE, 0,
+			     &nullfd, &pipe_from_gzip, &uncompress_errfd,
 			     UNCOMPRESS_PATH, PARAM_UNCOMPRESS_OPT,
 			     filename_gz, NULL);
 	aclose(nullfd);
 
 	pipe_stream = fdopen(pipe_from_gzip,"r");
 	if(pipe_stream == NULL) {
-	    *emsg = newvstrallocf(*emsg, _("Can't fdopen pipe from gzip: %s"),
-				 strerror(errno));
-	    dbprintf("%s\n",*emsg);
+	    msg = vstrallocf(_("Can't fdopen pipe from gzip: %s"),
+			     strerror(errno));
+	    dbprintf("%s\n", msg);
+	    g_ptr_array_add(*emsg, msg);
 	    amfree(filename);
 	    aclose(indexfd);
 	    return NULL;
@@ -232,57 +281,102 @@ uncompress_file(
 
 	/* start the sort process */
 	putenv(stralloc("LC_ALL=C"));
-	pid_sort = pipespawn(SORT_PATH, STDIN_PIPE, 0,
-			     &pipe_to_sort, &indexfd, &debugfd,
+	pid_sort = pipespawn(SORT_PATH, STDIN_PIPE|STDERR_PIPE, 0,
+			     &pipe_to_sort, &indexfd, &sort_errfd,
 			     SORT_PATH, NULL);
 	aclose(indexfd);
 
+	/* start a subprocess */
 	/* send all ouput from uncompress process to sort process */
-	/* clean the data with clean_backslash */
-	while (fgets(line, STR_SIZE, pipe_stream) != NULL) {
-	    if (line[0] != '\0') {
-		if (strchr(line,'/')) {
-		    clean_backslash(line);
-		    full_write(pipe_to_sort,line,strlen(line));
+	pid_index = fork();
+	switch (pid_index) {
+	case -1:
+	    msg = vstrallocf(
+			_("fork error: %s"),
+			strerror(errno));
+	    dbprintf("%s\n", msg);
+	    g_ptr_array_add(*emsg, msg);
+	    unlink(filename);
+	    amfree(filename);
+	default: break;
+	case 0:
+	    while (fgets(line, STR_SIZE, pipe_stream) != NULL) {
+		if (line[0] != '\0') {
+		    if (strchr(line,'/')) {
+			full_write(pipe_to_sort,line,strlen(line));
+		    }
 		}
 	    }
+	    exit(0);
 	}
 
 	fclose(pipe_stream);
 	aclose(pipe_to_sort);
-	if (waitpid(pid_gzip, &wait_status, 0) < 0) {
-	    if (!WIFEXITED(wait_status)) {
-		dbprintf(_("Uncompress exited with signal %d"),
-			  WTERMSIG(wait_status));
-	    } else if (WEXITSTATUS(wait_status) != 0) {
-		dbprintf(_("Uncompress exited with status %d"),
-			  WEXITSTATUS(wait_status));
-	    } else {
-		dbprintf(_("Uncompres returned negative value: %s"),
-			  strerror(errno));
+
+	uncompress_err_stream = fdopen(uncompress_errfd, "r");
+	uncompress_err = g_ptr_array_new();
+	while (fgets(line, sizeof(line), uncompress_err_stream) != NULL) {
+	    if (line[strlen(line)-1] == '\n')
+		line[strlen(line)-1] = '\0';
+	    g_ptr_array_add(uncompress_err, vstrallocf("  %s", line));
+	    dbprintf("Uncompress: %s\n", line);
+	}
+	fclose(uncompress_err_stream);
+
+	sort_err_stream = fdopen(sort_errfd, "r");
+	sort_err = g_ptr_array_new();
+	while (fgets(line, sizeof(line), sort_err_stream) != NULL) {
+	    if (line[strlen(line)-1] == '\n')
+		line[strlen(line)-1] = '\0';
+	    g_ptr_array_add(sort_err, vstrallocf("  %s", line));
+	    dbprintf("Sort: %s\n", line);
+	}
+	fclose(sort_err_stream);
+
+	status = get_pid_status(pid_gzip, UNCOMPRESS_PATH, emsg);
+	if (status == 0 && filename) {
+	    unlink(filename);
+	    amfree(filename);
+	}
+	if (uncompress_err->len > 0) {
+	    p_last = uncompress_err->pdata + uncompress_err->len;
+	    for (p = uncompress_err->pdata; p < p_last ;p++) {
+		g_ptr_array_add(*emsg, (char *)*p);
 	    }
 	}
-	if (waitpid(pid_sort, &wait_status, 0) < 0) {
-	    if (!WIFEXITED(wait_status)) {
-		dbprintf(_("Sort exited with signal %d"),
-			  WTERMSIG(wait_status));
-	    } else if (WEXITSTATUS(wait_status) != 0) {
-		dbprintf(_("Sort exited with status %d"),
-			  WEXITSTATUS(wait_status));
-	    } else {
-		dbprintf(_("Sort returned negative value: %s"),
-			  strerror(errno));
-	    }
+	g_ptr_array_free(uncompress_err, TRUE);
+
+	status = get_pid_status(pid_index, "index", emsg);
+	if (status == 0 && filename) {
+	    unlink(filename);
+	    amfree(filename);
 	}
 
+	status = get_pid_status(pid_sort, SORT_PATH, emsg);
+	if (status == 0 && filename) {
+	    unlink(filename);
+	    amfree(filename);
+	}
+	if (sort_err->len > 0) {
+	    p_last = sort_err->pdata + sort_err->len;
+	    for (p = sort_err->pdata; p < p_last ;p++) {
+		g_ptr_array_add(*emsg, (char *)*p);
+	    }
+	}
+	g_ptr_array_free(sort_err, TRUE);
+
 	/* add at beginning */
-	remove_file = (REMOVE_ITEM *)alloc(SIZEOF(REMOVE_ITEM));
-	remove_file->filename = stralloc(filename);
-	remove_file->next = uncompress_remove;
-	uncompress_remove = remove_file;
+	if (filename) {
+	    remove_file = (REMOVE_ITEM *)alloc(SIZEOF(REMOVE_ITEM));
+	    remove_file->filename = stralloc(filename);
+	    remove_file->next = uncompress_remove;
+	    uncompress_remove = remove_file;
+	}
+
     } else if(!S_ISREG((stat_filename.st_mode))) {
-	    amfree(*emsg);
-	    *emsg = vstrallocf(_("\"%s\" is not a regular file"), filename);
+	    msg = vstrallocf(_("\"%s\" is not a regular file"), filename);
+	    dbprintf("%s\n", msg);
+	    g_ptr_array_add(*emsg, msg);
 	    errno = -1;
 	    amfree(filename);
 	    amfree(cmd);
@@ -299,7 +393,7 @@ process_ls_dump(
     char *	dir,
     DUMP_ITEM *	dump_item,
     int		recursive,
-    char **	emsg)
+    GPtrArray **emsg)
 {
     char line[STR_SIZE], old_line[STR_SIZE];
     char *filename = NULL;
@@ -320,7 +414,7 @@ process_ls_dump(
     filename_gz = get_index_name(dump_hostname, dump_item->hostname, disk_name,
 				 dump_item->date, dump_item->level);
     if (filename_gz == NULL) {
-	*emsg = stralloc(_("index file not found"));
+	g_ptr_array_add(*emsg, stralloc(_("index file not found")));
 	amfree(filename_gz);
 	return -1;
     }
@@ -333,8 +427,7 @@ process_ls_dump(
     amfree(filename_gz);
 
     if((fp = fopen(filename,"r"))==0) {
-	amfree(*emsg);
-	*emsg = vstrallocf("%s", strerror(errno));
+	g_ptr_array_add(*emsg, vstrallocf("%s", strerror(errno)));
 	amfree(dir_slash);
         amfree(filename);
 	return -1;
@@ -368,6 +461,24 @@ process_ls_dump(
     amfree(filename);
     amfree(dir_slash);
     return 0;
+}
+
+static void
+reply_ptr_array(
+    int n,
+    GPtrArray *emsg)
+{
+    gpointer *p;
+
+    if (emsg->len == 0)
+	return;
+
+    p = emsg->pdata;
+    while (p != emsg->pdata + emsg->len -1) {
+	fast_lreply(n, "%s", (char *)*p);
+	p++;
+    }
+    reply(n, "%s", (char *)*p);
 }
 
 /* send a 1 line reply to the client */
@@ -478,7 +589,7 @@ printf_arglist_function1(static void fast_lreply, int, n, char *, fmt)
 	exit(1);
     }
 
-    dbprintf("< %03d-%s\n", n, reply_buffer);
+    DBG(2, "< %03d-%s", n, reply_buffer);
 }
 
 /* see if hostname is valid */
@@ -652,34 +763,9 @@ build_disk_table(void)
 	find_output != NULL; 
 	find_output = find_output->next) {
 	if(strcasecmp(dump_hostname, find_output->hostname) == 0 &&
-	   strcmp(disk_name    , find_output->diskname) == 0 &&
-	   strcmp("OK"         , find_output->status)   == 0) {
-	    int partnum = -1;
-	    int maxpart = -1;
-	    if (strcmp("1/1", find_output->partnum) == 0) {
-		partnum = -1;
-	    } else if (strcmp("1/-1", find_output->partnum) == 0) {
-		if (find_output->next &&
-		    strcmp(dump_hostname, find_output->next->hostname) == 0 &&
-		    strcmp(disk_name, find_output->next->diskname) == 0 &&
-		    strcmp(find_output->timestamp,
-			   find_output->next->timestamp) == 0 &&
-		    strcmp("OK", find_output->next->status) == 0 &&
-		    strcmp("2/-1", find_output->next->partnum) == 0) {
-		    partnum = 1;
-		}
-		else {
-		    partnum = -1;
-		}
-	    } else if (strcmp("--", find_output->partnum)) {
-		char *c;
-		partnum = atoi(find_output->partnum);
-		c = strchr(find_output->partnum,'/');
-		if (c)
-		    maxpart = atoi(c+1);
-		else
-		    maxpart = -1;
-	    }
+	   strcmp(disk_name    , find_output->diskname)     == 0 &&
+	   strcmp("OK"         , find_output->status)       == 0 &&
+	   strcmp("OK"         , find_output->dump_status)  == 0) {
 	    /*
 	     * The sort order puts holding disk entries first.  We want to
 	     * use them if at all possible, so ignore any other entries
@@ -689,29 +775,29 @@ build_disk_table(void)
 	    if(last_timestamp &&
 	       strcmp(find_output->timestamp, last_timestamp) == 0 &&
 	       find_output->level == last_level && 
-	       partnum == last_partnum && last_filenum == 0) {
+	       last_filenum == 0) {
 		continue;
 	    }
 	    /* ignore duplicate partnum */
 	    if(last_timestamp &&
 	       strcmp(find_output->timestamp, last_timestamp) == 0 &&
 	       find_output->level == last_level && 
-	       partnum == last_partnum) {
+	       find_output->partnum == last_partnum) {
 		continue;
 	    }
 	    last_timestamp = find_output->timestamp;
 	    last_filenum = find_output->filenum;
 	    last_level = find_output->level;
-	    last_partnum = partnum;
+	    last_partnum = find_output->partnum;
 	    date = amindexd_nicedate(find_output->timestamp);
 	    add_dump(find_output->hostname, date, find_output->level,
-		     find_output->label, find_output->filenum, partnum,
-		     maxpart);
+		     find_output->label, find_output->filenum,
+		     find_output->partnum, find_output->totalparts);
 	    dbprintf("- %s %d %s %lld %d %d\n",
 		     date, find_output->level, 
 		     find_output->label,
 		     (long long)find_output->filenum,
-		     partnum, maxpart);
+		     find_output->partnum, find_output->totalparts);
 	}
     }
 
@@ -785,7 +871,7 @@ is_dir_valid_opaque(
     char *filename_gz = NULL;
     char *filename = NULL;
     size_t ldir_len;
-    static char *emsg = NULL;
+    GPtrArray *emsg = NULL;
 
     if (get_config_name() == NULL || dump_hostname == NULL || disk_name == NULL) {
 	reply(502, _("Must set config,host,disk before asking about directories"));
@@ -833,17 +919,19 @@ is_dir_valid_opaque(
 	    amfree(ldir);
 	    return -1;
 	}
+	emsg = g_ptr_array_new();
 	if((filename = uncompress_file(filename_gz, &emsg)) == NULL) {
-	    reply(599, _("System error %s"), emsg);
+	    reply_ptr_array(599, emsg);
 	    amfree(filename_gz);
-	    amfree(emsg);
+	    g_ptr_array_free_full(emsg);
 	    amfree(ldir);
 	    return -1;
 	}
+	g_ptr_array_free_full(emsg);
 	amfree(filename_gz);
 	dbprintf("f %s\n", filename);
 	if ((fp = fopen(filename, "r")) == NULL) {
-	    reply(599, _("System error %s"), strerror(errno));
+	    reply(599, _("System error: %s"), strerror(errno));
 	    amfree(filename);
 	    amfree(ldir);
 	    return -1;
@@ -884,7 +972,7 @@ opaque_ls(
     DUMP_ITEM *dump_item;
     DIR_ITEM *dir_item;
     int level, last_level;
-    static char *emsg = NULL;
+    GPtrArray *emsg = NULL;
     am_feature_e marshall_feature;
 
     if (recursive) {
@@ -925,9 +1013,10 @@ opaque_ls(
     }
 
     /* get data from that dump */
+    emsg = g_ptr_array_new();
     if (process_ls_dump(dir, dump_item, recursive, &emsg) == -1) {
-	reply(599, _("System error %s"), emsg);
-	amfree(emsg);
+	reply_ptr_array(599, emsg);
+	g_ptr_array_free_full(emsg);
 	return -1;
     }
 
@@ -939,16 +1028,17 @@ opaque_ls(
 	{
 	    last_level = dump_item->level;
 	    if (process_ls_dump(dir, dump_item, recursive, &emsg) == -1) {
-		reply(599, _("System error %s"), emsg);
-		amfree(emsg);
+		reply_ptr_array(599, emsg);
+		g_ptr_array_free_full(emsg);
 		return -1;
 	    }
 	}
     }
+    g_ptr_array_free_full(emsg);
 
     /* return the information to the caller */
     lreply(200, _(" Opaque list of %s"), dir);
-    for(level=0; level<=9; level++) {
+    for(level=0; level < DUMP_LEVELS; level++) {
 	for (dir_item = get_dir_list(); dir_item != NULL; 
 	     dir_item = dir_item->next) {
 
@@ -1133,6 +1223,7 @@ main(
     textdomain("amanda"); 
 
     safe_fd(DATA_FD_OFFSET, 2);
+    openbsd_fd_inform();
     safe_cd();
 
     /*
@@ -1155,7 +1246,7 @@ main(
     signal(SIGPIPE, SIG_IGN);
 
     dbopen(DBG_SUBDIR_SERVER);
-    dbprintf(_("version %s\n"), version());
+    dbprintf(_("version %s\n"), VERSION);
 
     if(argv == NULL) {
 	error("argv == NULL\n");
@@ -1297,7 +1388,7 @@ main(
     }
 
     reply(220, _("%s AMANDA index server (%s) ready."), local_hostname,
-	  version());
+	  VERSION);
 
     user_validated = from_amandad;
 
@@ -1457,29 +1548,50 @@ main(
 	    if (dp->line == 0) {
 		reply(200, "NODLE");
 	    } else {
+		GPtrArray *errarray;
+		guint      i;
+
 		b64disk = amxml_format_tag("disk", dp->name);
-		optionstr = xml_optionstr(dp, their_features, NULL, 0);
-		l = vstralloc("<dle>\n",
+		dp->host->features = their_features;
+		errarray = validate_optionstr(dp);
+		if (errarray->len > 0) {
+		    for (i=0; i < errarray->len; i++) {
+			g_debug(_("ERROR: %s:%s %s"),
+				dump_hostname, disk_name,
+				(char *)g_ptr_array_index(errarray, i));
+		    }
+		    g_ptr_array_free(errarray, TRUE);
+		    reply(200, "NODLE");
+		} else {
+		    optionstr = xml_optionstr(dp, 0);
+		    l = vstralloc("<dle>\n",
 			      "  <program>", dp->program, "</program>\n", NULL);
-		if (dp->application) {
-		    char *xml_app = xml_application(dp->application,
-						    their_features);
-		    vstrextend(&l, xml_app, NULL);
-		    amfree(xml_app);
+		    if (dp->application) {
+			application_t *application;
+			char *xml_app;
+
+			application = lookup_application(dp->application);
+			g_assert(application != NULL);
+			xml_app = xml_application(dp, application,
+						  their_features);
+			vstrextend(&l, xml_app, NULL);
+			amfree(xml_app);
+		    }
+		    vstrextend(&l, "  ", b64disk, "\n", NULL);
+		    if (dp->device) {
+			char *b64device = amxml_format_tag("diskdevice",
+							   dp->device);
+			vstrextend(&l, "  ", b64device, "\n", NULL);
+			amfree(b64device);
+		    }
+		    vstrextend(&l, optionstr, "</dle>\n", NULL);
+		    ql = quote_string(l);
+		    reply(200, "%s", ql);
+		    amfree(optionstr);
+		    amfree(l);
+		    amfree(ql);
+		    amfree(b64disk);
 		}
-		vstrextend(&l, "  ", b64disk, "\n", NULL);
-		if (dp->device) {
-		    char *b64device = amxml_format_tag("diskdevice", dp->device);
-		    vstrextend(&l, "  ", b64device, "\n", NULL);
-		    amfree(b64device);
-		}
-		vstrextend(&l, optionstr, "</dle>\n", NULL);
-		ql = quote_string(l);
-		reply(200, "%s", ql);
-		amfree(optionstr);
-		amfree(l);
-		amfree(ql);
-		amfree(b64disk);
 	    }
 	} else if (strcmp(cmd, "LISTDISK") == 0) {
 	    char *qname;
@@ -1637,42 +1749,6 @@ cmp_date(
 {
     return strncmp(date1, date2, strlen(date2));
 }
-
-static char *
-clean_backslash(
-    char *line)
-{
-    char *s = line, *s1, *s2;
-    char *p = line;
-    int i;
-
-    while(*s != '\0') {
-	if (*s == '\\') {
-	    s++;
-	    s1 = s+1;
-	    s2 = s+2;
-	    if (*s != '\0' && isdigit((int)*s) &&
-		*s1 != '\0' && isdigit((int)*s1) &&
-		*s2 != '\0' &&  isdigit((int)*s2)) {
-		/* this is \000, an octal value */
-		i = ((*s)-'0')*64 + ((*s1)-'0')*8 + ((*s2)-'0');
-		*p++ = i;
-		s += 3;
-	    } else if (*s == '\\') { /* we remove one / */
-		*p++ = *s++;
-	    } else { /* we keep the / */
-		*p++ = '\\';
-		*p++ = *s++;
-	    }
-	} else {
-	    *p++ = *s++;
-	}
-    }
-    *p = '\0';
-
-    return line;
-}
-
 
 static int
 get_index_dir(

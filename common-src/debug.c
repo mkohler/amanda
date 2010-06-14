@@ -59,16 +59,12 @@ static char *dbgdir = NULL;
 /* time debug log was opened (timestamp of the file) */
 static time_t open_time;
 
-/* pointer to logfile.c's 'logerror()', if we're linked
- * with it */
-static void (*logerror_fn)(char *) = NULL;
-
 /* storage for global variables */
-erroutput_type_t erroutput_type = ERR_FROM_CONTEXT;
 int error_exit_status = 1;
 
 /* static function prototypes */
 static char *get_debug_name(time_t t, int n);
+static void debug_unlink_old(void);
 static void debug_setup_1(char *config, char *subdir);
 static void debug_setup_2(char *s, int fd, char *annotation);
 static char *msg_timestamp(void);
@@ -78,6 +74,12 @@ static void debug_logging_handler(const gchar *log_domain,
 	const gchar *message,
 	gpointer user_data);
 static void debug_setup_logging(void);
+
+/* By default, do not suppress tracebacks */
+static gboolean do_suppress_error_traceback = FALSE;
+
+/* configured amanda_log_handlers */
+static GSList *amanda_log_handlers = NULL;
 
 /*
  * Generate a debug file name.  The name is based on the program name,
@@ -110,6 +112,15 @@ get_debug_name(
     return result;
 }
 
+/* Call this to suppress tracebacks on error() or g_critical().  This is used
+ * when a critical error is indicated in perl, and the traceback will not be
+ * useful. */
+void
+suppress_error_traceback(void)
+{
+    do_suppress_error_traceback = 1;
+}
+
 /* A GLogFunc to handle g_log calls.  This function assumes that user_data
  * is either NULL or a pointer to one of the debug_* configuration variables
  * in conffile.c, indicating whether logging for this log domain is enabled.
@@ -125,78 +136,58 @@ debug_logging_handler(const gchar *log_domain G_GNUC_UNUSED,
 	    const gchar *message,
 	    gpointer user_data G_GNUC_UNUSED)
 {
-    char *maxlevel = NULL;
+    GLogLevelFlags maxlevel;
+    char *levprefix = NULL;
     pcontext_t context = get_pcontext();
+
+    /* glib allows a message to have multiple levels, so calculate the "worst"
+     * level */
+    if (log_level & G_LOG_LEVEL_ERROR) {
+	maxlevel = G_LOG_LEVEL_ERROR;
+	levprefix = _("error (fatal): ");
+    } else if (log_level & G_LOG_LEVEL_CRITICAL) {
+	maxlevel = G_LOG_LEVEL_CRITICAL;
+	levprefix = _("critical (fatal): ");
+    } else if (log_level & G_LOG_LEVEL_WARNING) {
+	maxlevel = G_LOG_LEVEL_WARNING;
+	levprefix = _("warning: ");
+    } else if (log_level & G_LOG_LEVEL_MESSAGE) {
+	maxlevel = G_LOG_LEVEL_MESSAGE;
+	levprefix = _("message: ");
+    } else if (log_level & G_LOG_LEVEL_INFO) {
+	maxlevel = G_LOG_LEVEL_INFO;
+	levprefix = _("info: ");
+    } else {
+	maxlevel = G_LOG_LEVEL_DEBUG;
+	levprefix = ""; /* no level displayed for debugging */
+    }
 
     /* scriptutil context doesn't do any logging except for critical
      * and error levels */
     if (context != CONTEXT_SCRIPTUTIL) {
 	/* convert the highest level to a string and dbprintf it */
-	if (log_level & G_LOG_LEVEL_ERROR)
-	    maxlevel = _("error (fatal): ");
-	else if (log_level & G_LOG_LEVEL_CRITICAL)
-	    maxlevel = _("critical (fatal): ");
-	else if (log_level & G_LOG_LEVEL_WARNING)
-	    maxlevel = _("warning: ");
-	else if (log_level & G_LOG_LEVEL_MESSAGE)
-	    maxlevel = _("message: ");
-	else if (log_level & G_LOG_LEVEL_INFO)
-	    maxlevel = _("info: ");
-	else
-	    maxlevel = ""; /* no level displayed for debugging */
+	debug_printf("%s%s\n", levprefix, message);
+    }
 
-	debug_printf("%s%s\n", maxlevel, message);
+    if (amanda_log_handlers) {
+	GSList *iter = amanda_log_handlers;
+	while (iter) {
+	    amanda_log_handler_t *hdlr = (amanda_log_handler_t *)iter->data;
+	    hdlr(maxlevel, message);
+	    iter = g_slist_next(iter);
+	}
+    } else {
+	/* call the appropriate handlers, based on the context */
+	amanda_log_stderr(maxlevel, message);
+	if (context == CONTEXT_DAEMON)
+	    amanda_log_syslog(maxlevel, message);
     }
 
     /* error and critical levels have special handling */
     if (log_level & (G_LOG_LEVEL_ERROR|G_LOG_LEVEL_CRITICAL)) {
-	erroutput_type_t local_erroutput;
-
-	/* Calculate a local version of erroutput_type, based on the
-	 * context if the process has not set erroutput_type explicitly */
-	if (!(erroutput_type & ERR_FROM_CONTEXT)) {
-	    local_erroutput = erroutput_type;
-	} else {
-	    switch (context) {
-		case CONTEXT_SCRIPTUTIL:
-		    local_erroutput = ERR_INTERACTIVE;
-		    break;
-
-		case CONTEXT_DAEMON:
-		    local_erroutput = ERR_INTERACTIVE
-				    | ERR_AMANDALOG
-				    | ERR_SYSLOG;
-		    break;
-
-		case CONTEXT_CMDLINE:
-		case CONTEXT_DEFAULT:
-		default:
-		    local_erroutput = ERR_INTERACTIVE;
-		    break;
-	    }
-	}
-
-	if (local_erroutput & ERR_AMANDALOG && logerror_fn != NULL)
-	    (*logerror_fn)((char *)message); /* discard 'const' */
-
-	if (local_erroutput & ERR_SYSLOG) {
-#ifdef LOG_AUTH
-	    openlog(get_pname(), LOG_PID, LOG_AUTH);
-#else
-	    openlog(get_pname(), LOG_PID, 0);
-#endif
-	    syslog(LOG_NOTICE, "%s", message);
-	    closelog();
-	}
-
-	if (local_erroutput & ERR_INTERACTIVE) {
-	    g_fprintf(stderr, "%s: %s\n", get_pname(), message);
-	    fflush(stderr);
-	}
-
 #ifdef HAVE_GLIBC_BACKTRACE
 	/* try logging a traceback to the debug log */
-	if (db_fd != -1) {
+	if (!do_suppress_error_traceback && db_fd != -1) {
 	    void *stack[32];
 	    int naddrs;
 	    naddrs = backtrace(stack, sizeof(stack)/sizeof(*stack));
@@ -228,8 +219,62 @@ debug_setup_logging(void)
 		      debug_logging_handler, NULL);
 }
 
-/* Set the global dbgdir according to 'config' and 'subdir', and clean
- * old debug files out of that directory
+void
+add_amanda_log_handler(amanda_log_handler_t *hdlr)
+{
+    amanda_log_handlers = g_slist_append(amanda_log_handlers, (gpointer)hdlr);
+}
+
+void
+amanda_log_syslog(GLogLevelFlags log_level, const gchar *message)
+{
+    int priority = LOG_ERR;
+    switch (log_level) {
+	case G_LOG_LEVEL_ERROR:
+	case G_LOG_LEVEL_CRITICAL:
+	    priority = LOG_ERR;
+	    break;
+
+	case G_LOG_LEVEL_WARNING:
+#ifdef LOG_WARNING
+	    priority = LOG_WARNING;
+#endif
+	    break;
+
+	default:
+	    return;
+    }
+
+#ifdef LOG_DAEMON
+    openlog(get_pname(), LOG_PID, LOG_DAEMON);
+#else
+    openlog(get_pname(), LOG_PID, 0);
+#endif
+    syslog(priority, "%s", message);
+    closelog();
+
+}
+
+void
+amanda_log_stderr(GLogLevelFlags log_level, const gchar *message)
+{
+    switch (log_level) {
+	case G_LOG_LEVEL_ERROR:
+	case G_LOG_LEVEL_CRITICAL:
+	    g_fprintf(stderr, "%s: %s\n", get_pname(), message);
+	    break;
+
+	default:
+	    return;
+    }
+}
+
+void
+amanda_log_null(GLogLevelFlags log_level G_GNUC_UNUSED, const gchar *message G_GNUC_UNUSED)
+{
+}
+
+/* Set the global dbgdir according to 'config' and 'subdir'
  *
  * The global open_time is set to the current time, and used to delete
  * old files.
@@ -240,25 +285,7 @@ debug_setup_logging(void)
 static void
 debug_setup_1(char *config, char *subdir)
 {
-    char *pname;
-    size_t pname_len;
-    char *e = NULL;
-    char *s = NULL;
-    DIR *d;
-    struct dirent *entry;
-    int do_rename;
-    char *test_name;
-    size_t test_name_len;
-    size_t d_name_len;
-    struct stat sbuf;
-    char *dbfilename = NULL;
     char *sane_config = NULL;
-    int i;
-
-    memset(&sbuf, 0, SIZEOF(sbuf));
-
-    pname = get_pname();
-    pname_len = strlen(pname);
 
     /*
      * Create the debug directory if it does not yet exist.
@@ -282,19 +309,45 @@ debug_setup_1(char *config, char *subdir)
     }
     amfree(sane_config);
 
-    /*
-     * Clean out old debug files.  We also rename files with old style
-     * names (XXX.debug or XXX.$PID.debug) into the new name format.
-     * We assume no system has 17 digit PID-s :-) and that there will
-     * not be a conflict between an old and new name.
-     */
+    time(&open_time);
+}
+
+/*
+ * Clean out old debug files.  We also rename files with old style
+ * names (XXX.debug or XXX.$PID.debug) into the new name format.
+ * We assume no system has 17 digit PID-s :-) and that there will
+ * not be a conflict between an old and new name.
+ */
+static void
+debug_unlink_old(void)
+{
+    char *pname;
+    size_t pname_len;
+    char *e = NULL;
+    char *s = NULL;
+    struct dirent *entry;
+    int do_rename;
+    char *test_name;
+    size_t test_name_len;
+    size_t d_name_len;
+    char *dbfilename = NULL;
+    int i;
+    DIR *d;
+    struct stat sbuf;
+
+    assert(dbgdir != NULL);
+
+    memset(&sbuf, 0, SIZEOF(sbuf));
+
+    pname = get_pname();
+    pname_len = strlen(pname);
+
     if((d = opendir(dbgdir)) == NULL) {
 	error(_("open debug directory \"%s\": %s"),
 	      dbgdir, strerror(errno));
 	/*NOTREACHED*/
     }
-    time(&open_time);
-    test_name = get_debug_name(open_time - (AMANDA_DEBUG_DAYS * 24 * 60 * 60), 0);
+    test_name = get_debug_name(open_time - (getconf_int(CNF_DEBUG_DAYS) * 24 * 60 * 60), 0);
     test_name_len = strlen(test_name);
     while((entry = readdir(d)) != NULL) {
 	if(is_dot_or_dotdot(entry->d_name)) {
@@ -389,7 +442,7 @@ debug_setup_2(
 		     db_filename, (int)get_client_uid(), (int)get_client_gid(), strerror(errno));
 	}
     }
-    amfree(dbgdir);
+
     /*
      * Move the file descriptor up high so it stays out of the way
      * of other processing, e.g. sendbackup.
@@ -428,12 +481,15 @@ debug_setup_2(
 static char *
 msg_timestamp(void)
 {
-    static char timestamp[128];
-    struct timeval tv;
+    static char  timestamp[128];
+    char        *r;
+    time_t       curtime;
 
-    gettimeofday(&tv, NULL);
-    g_snprintf(timestamp, SIZEOF(timestamp), "%lld.%06ld",
-		(long long)tv.tv_sec, (long)tv.tv_usec);
+    time(&curtime);
+    ctime_r(&curtime, timestamp);
+    r = strchr(timestamp, '\n');
+    if (r)
+	*r = '\0';
 
     return timestamp;
 }
@@ -453,12 +509,6 @@ debug_init(void)
     if (get_pcontext() != CONTEXT_SCRIPTUTIL) {
 	debug_open(get_ptype());
     }
-}
-
-void
-set_logerror(void (*f)(char *))
-{
-    logerror_fn = f;
 }
 
 void
@@ -562,8 +612,16 @@ debug_rename(
     if (!db_filename)
 	return;
 
+    if (get_pcontext() == CONTEXT_SCRIPTUTIL) {
+	return;
+    }
+
+    /* Remove old log from source directory */
+    debug_unlink_old();
     /* set 'dbgdir' and clean out old debug files */
     debug_setup_1(config, subdir);
+    /* Remove old log from destination directory */
+    debug_unlink_old();
 
     s = newvstralloc(s, dbgdir, db_name, NULL);
 
@@ -669,6 +727,12 @@ debug_close(void)
 {
     time_t curtime;
 
+    if (get_pcontext() == CONTEXT_SCRIPTUTIL) {
+	return;
+    }
+
+    debug_unlink_old();
+
     time(&curtime);
     debug_printf(_("pid %ld finish time %s"), (long)getpid(), ctime(&curtime));
 
@@ -750,7 +814,7 @@ debug_dup_stderr_to_debug(void)
     {
        if(dup2(db_fd, STDERR_FILENO) != STDERR_FILENO)
        {
-	   error(_("can't redirect stderr to the debug file"));
+	   error(_("can't redirect stderr to the debug file: %d, %s"), db_fd, strerror(errno));
 	   g_assert_not_reached();
        }
     }

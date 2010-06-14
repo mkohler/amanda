@@ -38,11 +38,11 @@
  *
  * Example:
  *
- * /data/holding                                     <-- holding disk
- * /data/holding/200703061234                        <-- holding dir
- * /data/holding/200703061234/videoserver._video_a   <-- holding file,
-                                                         holding file chunk
- * /data/holding/200703061234/videoserver._video_a.1 <-- holding file chunk
+ * /data/holding                                       <-- holding disk
+ * /data/holding/20070306123456                        <-- holding dir
+ * /data/holding/20070306123456/videoserver._video_a   <-- holding file,
+                                                           holding file chunk
+ * /data/holding/20070306123456/videoserver._video_a.1 <-- holding file chunk
  *
  */
 
@@ -159,6 +159,14 @@ holding_cleanup(corrupt_dle_fn corrupt_dle,
 /*
  * application-specific support
  */
+
+/* Set the orig_size in the header
+ *
+ * @param holding_file: full pathname of holding file.
+ * @param orig_size: the size.
+ */
+void
+holding_set_origsize(char *holding_file, off_t orig_size);
 
 /* Rename holding files from the temporary names used during
  * creation.

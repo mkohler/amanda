@@ -1,5 +1,5 @@
 #!@PERL@
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2008, 2010 Zmanda, Inc.  All Rights Reserved.
 # 
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published 
@@ -14,7 +14,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 # 
-# Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 use lib '@amperldir@';
@@ -31,19 +31,14 @@ my $kill_enable=0;
 my $process_alive=0;
 my $verbose=0;
 
-my $suf = '';
-if ( $Amanda::Constants::USE_VERSION_SUFFIXES =~ /^yes$/i ) {
-        $suf="-$Amanda::Constants::VERSION";
-}
-
 sub usage() {
     print "Usage: amcleanup [-k] [-v] [-p] conf\n";
     exit 1;
 }
 
-Amanda::Util::setup_application("amcleanup", "server", $CONTEXT_SCRIPTUTIL);
+Amanda::Util::setup_application("amcleanup", "server", $CONTEXT_CMDLINE);
 
-my $config_overwrites = new_config_overwrites($#ARGV+1);
+my $config_overrides = new_config_overrides($#ARGV+1);
 
 Getopt::Long::Configure(qw(bundling));
 GetOptions(
@@ -51,17 +46,17 @@ GetOptions(
     'p' => \$process_alive,
     'v' => \$verbose,
     'help|usage' => \&usage,
-    'o=s' => sub { add_config_overwrite_opt($config_overwrites, $_[1]); },
+    'o=s' => sub { add_config_override_opt($config_overrides, $_[1]); },
 ) or usage();
 
-my $config_name = shift @ARGV;
+my $config_name = shift @ARGV or usage;
 
 if ($kill_enable && $process_alive) {
     die "amcleanup: Can't use -k and -p simultaneously\n";
 }
 
+set_config_overrides($config_overrides);
 config_init($CONFIG_INIT_EXPLICIT_NAME, $config_name);
-apply_config_overwrites($config_overwrites);
 my ($cfgerr_level, @cfgerr_errors) = config_errors();
 if ($cfgerr_level >= $CFGERR_WARNINGS) {
     config_print_errors();
@@ -74,10 +69,10 @@ Amanda::Util::finish_setup($RUNNING_AS_DUMPUSER);
 
 my $logdir=config_dir_relative(getconf($CNF_LOGDIR));
 my $logfile = "$logdir/log";
-my $amreport="$sbindir/amreport$suf";
-my $amlogroll="$amlibexecdir/amlogroll$suf";
-my $amtrmidx="$amlibexecdir/amtrmidx$suf";
-my $amcleanupdisk="$amlibexecdir/amcleanupdisk$suf";
+my $amreport="$sbindir/amreport";
+my $amlogroll="$amlibexecdir/amlogroll";
+my $amtrmidx="$amlibexecdir/amtrmidx";
+my $amcleanupdisk="$amlibexecdir/amcleanupdisk";
 
 if ( ! -e "$CONFIG_DIR/$config_name" ) {
     die "Configuration directory '$CONFIG_DIR/$config_name' doesn't exist\n";
@@ -92,14 +87,7 @@ $Amanda_process->load_ps_table();
 if (-f "$logfile") {
     $Amanda_process->scan_log($logfile);
 } elsif (!$process_alive) {
-    #check amdump/amflush process
-    foreach my $pname ("amdump", "amflush") {
-	my $pid = `ps -ef|grep -w ${pname}|grep -w ${config_name}| grep -v grep | awk '{print \$2}'`;
-	chomp $pid;
-	if ($pid ne "") {
-	    $Amanda_process->set_master($pname, $pid);
-	}
-    }
+    $Amanda_process->set_master_process($config_name, "amdump", "amflush");
 }
 
 $Amanda_process->add_child();
@@ -115,6 +103,7 @@ if ($nb_amanda_process > 0) {
 	print "Usage: amcleanup [-k] conf\n";
 	exit 0;
     } else { #kill the processes
+	Amanda::Debug::debug("Killing amanda process");
 	$Amanda_process->kill_process("SIGTERM");
 	my $count = 5;
 	my $pp;
@@ -134,14 +123,40 @@ if ($nb_amanda_process > 0) {
 	}
 	print "amcleanup: ", $nb_amanda_process, " Amanda processes were found running.\n";
 	print "amcleanup: $pp processes failed to terminate.\n";
+	Amanda::Debug::debug("$nb_amanda_process Amanda processes were found running");
+	Amanda::Debug::debug("$pp processes failed to terminate");
+    }
+}
+
+sub run_system {
+    my $check_code = shift;
+    my @cmd = @_;
+    my $pgm = $cmd[0];
+
+    system @cmd;
+    my $err = $?;
+    my $res = $!;
+
+    if ($err == -1) {
+	Amanda::Debug::debug("failed to execute $pgm: $res");
+	print "failed to execute $pgm: $res\n";
+    } elsif ($err & 127) {
+	Amanda::Debug::debug(sprintf("$pgm died with signal %d, %s coredump",
+		      ($err & 127), ($err & 128) ? 'with' : 'without'));
+	printf "$pgm died with signal %d, %s coredump\n",
+		($err & 127), ($err & 128) ? 'with' : 'without';
+    } elsif ($check_code && $err > 0) {
+	Amanda::Debug::debug(sprintf("$pgm exited with value %d", $err >> 8));
+	printf "$pgm exited with value %d %d\n", $err >> 8, $err;
     }
 }
 
 # rotate log
 if (-f $logfile) {
-    system $amreport, $config_name;
-    system $amlogroll, $config_name;
-    system $amtrmidx, $config_name;
+    Amanda::Debug::debug("Processing log file");
+    run_system(0, $amreport, $config_name, "--from-amdump");
+    run_system(1, $amlogroll, $config_name);
+    run_system(1, $amtrmidx, $config_name);
 } else {
     print "amcleanup: no unprocessed logfile to clean up.\n";
 }
@@ -154,6 +169,7 @@ foreach my $pname ("amdump", "amflush") {
     my $errfile = "$logdir/$pname";
     if (-f $errfile) {
 	print "amcleanup: $errfile exists, renaming it.\n";
+	Amanda::Debug::debug("$errfile exists, renaming it");
 
 	# Keep debug log through the tapecycle plus a couple days
 	my $maxdays=$tapecycle + 2;
@@ -180,3 +196,5 @@ if ($verbose) {
 } else {
     system $amcleanupdisk, $config_name;
 }
+
+Amanda::Util::finish_application();

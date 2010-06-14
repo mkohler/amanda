@@ -81,16 +81,22 @@ int	conf_usetimestamps;
 #define DISK_PARTIALY_DONE			2
 #define DISK_DONE				3
 
+typedef struct one_est_s {
+    int     level;
+    gint64  nsize;	/* native size     */
+    gint64  csize;	/* compressed size */
+    char   *dumpdate;
+    int     guessed;    /* If server guessed the estimate size */
+} one_est_t;
+static one_est_t default_one_est = {-1, -1, -1, "INVALID_DATE", 0};
+
 typedef struct est_s {
     int state;
     int got_estimate;
     int dump_priority;
-    int dump_level;
-    gint64 dump_nsize;	/* native size */
-    gint64 dump_csize;	/* compressed size */
-    int degr_level;	/* if dump_level == 0, what would be the inc level */
-    gint64 degr_nsize;	/* native degraded size */
-    gint64 degr_csize;	/* compressed degraded size */
+    one_est_t *dump_est;
+    one_est_t *degr_est;
+    one_est_t  estimate[MAX_LEVELS];
     int last_level;
     gint64 last_lev0size;
     int next_level0;
@@ -100,9 +106,6 @@ typedef struct est_s {
     double fullrate, incrrate;
     double fullcomp, incrcomp;
     char *errstr;
-    int level[MAX_LEVELS];
-    char *dumpdate[MAX_LEVELS];
-    gint64 est_size[MAX_LEVELS];
     char *degr_mesg;
 } est_t;
 
@@ -161,6 +164,7 @@ static void delay_dumps(void);
 static int promote_highest_priority_incremental(void);
 static int promote_hills(void);
 static void output_scheduleline(disk_t *dp);
+static void server_estimate(disk_t *dp, int i, info_t *info, int level);
 int main(int, char **);
 
 int
@@ -181,7 +185,7 @@ main(
     char *qname;
     int    nb_disk;
     char  *errstr = NULL;
-    config_overwrites_t *cfg_ovr = NULL;
+    config_overrides_t *cfg_ovr = NULL;
     char *cfg_opt = NULL;
     int    planner_setuid;
     int exit_status = EXIT_SUCCESS;
@@ -204,24 +208,25 @@ main(
 
     dbopen(DBG_SUBDIR_SERVER);
 
-    cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
+    cfg_ovr = extract_commandline_config_overrides(&argc, &argv);
     if (argc > 1) 
 	cfg_opt = argv[1];
 
+    set_config_overrides(cfg_ovr);
     config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_USE_CWD, cfg_opt);
-    apply_config_overwrites(cfg_ovr);
 
     /* conf_diskfile is freed later, as it may be used in an error message */
     conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
     read_diskfile(conf_diskfile, &origq);
+    disable_skip_disk(&origq);
 
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
     setvbuf(stderr, (char *)NULL, (int)_IOLBF, 0);
 
-    erroutput_type = (ERR_AMANDALOG|ERR_INTERACTIVE);
-    set_logerror(logerror);
+    add_amanda_log_handler(amanda_log_stderr);
+    add_amanda_log_handler(amanda_log_trace_log);
 
     if (!planner_setuid) {
 	error(_("planner must be run setuid root"));
@@ -233,7 +238,7 @@ main(
 
     safe_cd();
 
-    check_running_as(RUNNING_AS_DUMPUSER);
+    check_running_as(RUNNING_AS_ROOT | RUNNING_AS_UID_ONLY);
 
     dbrename(get_config_name(), DBG_SUBDIR_SERVER);
 
@@ -245,7 +250,7 @@ main(
 
     log_add(L_INFO, "%s pid %ld", get_pname(), (long)getpid());
     g_fprintf(stderr, _("%s: pid %ld executable %s version %s\n"),
-	    get_pname(), (long) getpid(), argv[0], version());
+	    get_pname(), (long) getpid(), argv[0], VERSION);
     for (i = 0; version_info[i] != NULL; i++)
 	g_fprintf(stderr, _("%s: %s"), get_pname(), version_info[i]);
 
@@ -276,27 +281,6 @@ main(
 	/*NOTREACHED*/
     }
 
-    errstr = match_disklist(&origq, argc-diskarg_offset,
-				    argv+diskarg_offset);
-    if (errstr) {
-	g_fprintf(stderr,"%s",errstr);
-	amfree(errstr);
-        exit_status = EXIT_FAILURE;
-    }
-    nb_disk = 0;
-    for(dp = origq.head; dp != NULL; dp = dp->next) {
-	if(dp->todo) {
-	    qname = quote_string(dp->name);
-	    log_add(L_DISK, "%s %s", dp->host->hostname, qname);
-	    amfree(qname);
-	    nb_disk++;
-	}
-    }
-
-    if(nb_disk == 0) {
-	error(_("no DLE to backup"));
-	/*NOTREACHED*/
-    }
     amfree(conf_diskfile);
 
     conf_tapelist = config_dir_relative(getconf_str(CNF_TAPELIST));
@@ -345,6 +329,34 @@ main(
     g_fprintf(stderr, _("%s: timestamp %s\n"),
 		    get_pname(), planner_timestamp);
 
+    errstr = match_disklist(&origq, argc-diskarg_offset,
+				    argv+diskarg_offset);
+    if (errstr) {
+	g_fprintf(stderr,"%s",errstr);
+        exit_status = EXIT_FAILURE;
+    }
+    nb_disk = 0;
+    for (dp = origq.head; dp != NULL; dp = dp->next) {
+	if (dp->todo) {
+	    qname = quote_string(dp->name);
+	    log_add(L_DISK, "%s %s", dp->host->hostname, qname);
+	    amfree(qname);
+	    nb_disk++;
+	}
+    }
+
+    if (nb_disk == 0) {
+	if (errstr) {
+	    error(_("no DLE to backup; %s"), errstr);
+	} else {
+	    error(_("no DLE to backup"));
+	}
+	/*NOTREACHED*/
+    } else if (errstr) {
+	log_add(L_WARNING, "WARNING: %s", errstr);
+    }
+    amfree(errstr);
+
     /* some initializations */
 
     if(conf_runspercycle == 0) {
@@ -369,9 +381,15 @@ main(
     tape = lookup_tapetype(conf_tapetype);
     if(conf_maxdumpsize > (gint64)0) {
 	tape_length = conf_maxdumpsize;
+	g_fprintf(stderr, "planner: tape_length is set from maxdumpsize (%jd KB)\n",
+			 (intmax_t)conf_maxdumpsize);
     }
     else {
 	tape_length = tapetype_get_length(tape) * (gint64)conf_runtapes;
+	g_fprintf(stderr, "planner: tape_length is set from tape length (%jd KB) * runtapes (%d) == %jd KB\n",
+			 (intmax_t)tapetype_get_length(tape),
+			 conf_runtapes,
+			 (intmax_t)tape_length);
     }
     tape_mark = (size_t)tapetype_get_filemark(tape);
     tt_blocksize_kb = (size_t)tapetype_get_blocksize(tape);
@@ -535,9 +553,9 @@ main(
 	    qname = quote_string(dp->name);
 	    g_fprintf(stderr, _("  %s %s pri %d lev %d nsize %lld csize %lld\n"),
 		    dp->host->hostname, qname, est(dp)->dump_priority,
-		    est(dp)->dump_level,
-		    (long long)est(dp)->dump_nsize,
-                    (long long)est(dp)->dump_csize);
+		    est(dp)->dump_est->level,
+		    (long long)est(dp)->dump_est->nsize,
+                    (long long)est(dp)->dump_est->csize);
 	    amfree(qname);
 	}
     }
@@ -647,7 +665,8 @@ main(
 
 static void askfor(est_t *, int, int, info_t *);
 static int last_level(info_t *info);		  /* subroutines */
-static gint64 est_size(disk_t *dp, int level);
+static one_est_t *est_for_level(disk_t *dp, int level);
+static void est_csize(disk_t *dp, one_est_t *one_est);
 static gint64 est_tape_size(disk_t *dp, int level);
 static int next_level0(disk_t *dp, info_t *info);
 static int runs_at(info_t *info, int lev);
@@ -672,17 +691,21 @@ static void askfor(
     }
 
     if (lev == -1) {
-	ep->level[seq] = -1;
-	ep->dumpdate[seq] = (char *)0;
-	ep->est_size[seq] = (gint64)-2;
+	ep->estimate[seq].level = -1;
+	ep->estimate[seq].dumpdate = (char *)0;
+	ep->estimate[seq].nsize = (gint64)-3;
+	ep->estimate[seq].csize = (gint64)-3;
+	ep->estimate[seq].guessed = 0;
 	return;
     }
 
-    ep->level[seq] = lev;
+    ep->estimate[seq].level = lev;
 
-    ep->dumpdate[seq] = stralloc(get_dumpdate(info,lev));
+    ep->estimate[seq].dumpdate = stralloc(get_dumpdate(info,lev));
 
-    ep->est_size[seq] = (gint64)-2;
+    ep->estimate[seq].nsize = (gint64)-3;
+    ep->estimate[seq].csize = (gint64)-3;
+    ep->estimate[seq].guessed = 0;
 
     return;
 }
@@ -711,18 +734,51 @@ setup_estimate(
 	log_add(L_INFO, _("Adding new disk %s:%s."), dp->host->hostname, qname);
     }
 
+    if (dp->data_path == DATA_PATH_DIRECTTCP) {
+	if (dp->compress != COMP_NONE) {
+	    log_add(L_FAIL, _("%s %s %s 0 [Can't compress directtcp data-path]"),
+		    dp->host->hostname, qname, planner_timestamp);
+	    g_fprintf(stderr,_("%s:%s lev 0 skipped can't compress directtcp data-path\n"),
+		      dp->host->hostname, qname);
+	    amfree(qname);
+	    return;
+	}
+	if (dp->encrypt != ENCRYPT_NONE) {
+	    log_add(L_FAIL, _("%s %s %s 0 [Can't encrypt directtcp data-path]"),
+		    dp->host->hostname, qname, planner_timestamp);
+	    g_fprintf(stderr,_("%s:%s lev 0 skipped can't encrypt directtcp data-path\n"),
+		      dp->host->hostname, qname);
+	    amfree(qname);
+	    return;
+	}
+	if (dp->to_holdingdisk == HOLD_REQUIRED) {
+	    log_add(L_FAIL, _("%s %s %s 0 [Holding disk can't be use for directtcp data-path]"),
+		    dp->host->hostname, qname, planner_timestamp);
+	    g_fprintf(stderr,_("%s:%s lev 0 skipped Holding disk can't be use for directtcp data-path\n"),
+		      dp->host->hostname, qname);
+	    amfree(qname);
+	    return;
+	} else if (dp->to_holdingdisk == HOLD_AUTO) {
+	    log_add(L_INFO, _("Disabling holding disk for %s:%s."),
+		    dp->host->hostname, qname);
+	    g_fprintf(stderr,_("%s:%s Disabling holding disk\n"),
+		      dp->host->hostname, qname);
+	    dp->to_holdingdisk = HOLD_NEVER;
+	}
+    }
+
     /* setup working data struct for disk */
 
     ep = alloc(SIZEOF(est_t));
     dp->up = (void *) ep;
     ep->state = DISK_READY;
-    ep->dump_nsize = (gint64)-1;
-    ep->dump_csize = (gint64)-1;
     ep->dump_priority = dp->priority;
     ep->errstr = 0;
     ep->promote = 0;
     ep->post_dle = 0;
     ep->degr_mesg = NULL;
+    ep->dump_est = &default_one_est;
+    ep->degr_est = &default_one_est;
 
     /* calculated fields */
 
@@ -755,7 +811,7 @@ setup_estimate(
 	    ep->next_level0 = next_level0(dp, &info);
 	}
 	else {
-	    ep->degr_mesg = _("Can't switch to degraded mode when using a force-full disk");
+	    ep->degr_mesg = _("Skipping: force-full disk can't be dumped in degraded mode");
 	    ep->last_level = -1;
 	    ep->next_level0 = -conf_dumpcycle;
 	    log_add(L_INFO, _("Forcing full dump of %s:%s as directed."),
@@ -954,7 +1010,7 @@ setup_estimate(
     if(!dp->skip_incr && !(dp->strategy == DS_NOINC)) {
 	if(ep->last_level == -1) {		/* a new disk */
 	    if (ep->degr_mesg == NULL)
-		ep->degr_mesg = _("Can't switch to degraded mode when using a new disk");
+		ep->degr_mesg = _("Skipping: new disk can't be dumped in degraded mode");
 	    if(dp->strategy == DS_NOFULL || dp->strategy == DS_INCRONLY) {
 		askfor(ep, i++, 1, &info);
 	    } else {
@@ -971,13 +1027,13 @@ setup_estimate(
 		}
 		log_add(L_INFO,_("Preventing bump of %s:%s as directed."),
 			dp->host->hostname, qname);
-		ep->degr_mesg = _("Can't switch to degraded mode when using a force-no-bump disk");
+		ep->degr_mesg = _("Skipping: force-no-bump disk can't be dumped in degraded mode");
 	    } else if (ISSET(info.command, FORCE_BUMP)
 		       && curr_level + 1 < DUMP_LEVELS) {
 		askfor(ep, i++, curr_level+1, &info);
 		log_add(L_INFO,_("Bumping of %s:%s at level %d as directed."),
 			dp->host->hostname, qname, curr_level+1);
-		ep->degr_mesg = _("Can't switch to degraded mode when using a force-bump disk");
+		ep->degr_mesg = _("Skipping: force-bump disk can't be dumped in degraded mode");
 	    } else if (curr_level == 0) {
 		askfor(ep, i++, 1, &info);
 	    } else {
@@ -1013,11 +1069,11 @@ setup_estimate(
 		 dp->skip_full ? "skip-full" :
 		 dp->skip_incr ? "skip-incr" : "none",
 	    ep->last_level, ep->next_level0, ep->level_days,
-	    ep->level[0], (long long)ep->est_size[0],
-	    ep->level[1], (long long)ep->est_size[1],
-	    ep->level[2], (long long)ep->est_size[2]);
+	    ep->estimate[0].level, (long long)ep->estimate[0].nsize,
+	    ep->estimate[1].level, (long long)ep->estimate[1].nsize,
+	    ep->estimate[2].level, (long long)ep->estimate[2].nsize);
 
-    assert(ep->level[0] != -1);
+    assert(ep->estimate[0].level != -1);
     enqueue_disk(&startq, dp);
     amfree(qname);
 }
@@ -1042,35 +1098,42 @@ static int when_overwrite(
 }
 
 /* Return the estimated size for a particular dump */
-static gint64 est_size(
+static one_est_t *
+est_for_level(
     disk_t *dp,
     int level)
 {
     int i;
 
-    for(i = 0; i < MAX_LEVELS; i++) {
-	if(level == est(dp)->level[i])
-	    return est(dp)->est_size[i];
+    if (level < 0 || level >= DUMP_LEVELS)
+	return &default_one_est;
+
+    for (i = 0; i < MAX_LEVELS; i++) {
+        if (level == est(dp)->estimate[i].level) {
+            if (est(dp)->estimate[i].csize <= -1) {
+                est_csize(dp, &est(dp)->estimate[i]);
+            }
+	    return &est(dp)->estimate[i];
+	}
     }
-    return (gint64)-1;
+    return &default_one_est;
 }
 
 /* Return the estimated on-tape size of a particular dump */
-static gint64 est_tape_size(
-    disk_t *dp,
-    int level)
+static void
+est_csize(
+    disk_t    *dp,
+    one_est_t *one_est)
 {
-    gint64 size;
+    gint64 size = one_est->nsize;
     double ratio;
 
-    size = est_size(dp, level);
+    if (dp->compress == COMP_NONE) {
+        one_est->csize = one_est->nsize;
+        return;
+    }
 
-    if(size == (gint64)-1) return size;
-
-    if(dp->compress == COMP_NONE)
-	return size;
-
-    if(level == 0) ratio = est(dp)->fullcomp;
+    if (one_est->level == 0) ratio = est(dp)->fullcomp;
     else ratio = est(dp)->incrcomp;
 
     /*
@@ -1082,7 +1145,7 @@ static gint64 est_tape_size(
      * (RUG@USM.Uni-Muenchen.DE)
      */
 
-    if(ratio > 1.1) ratio = 1.1;
+    if (ratio > 1.1) ratio = 1.1;
 
     size = (gint64)((double)size * ratio);
 
@@ -1091,11 +1154,23 @@ static gint64 est_tape_size(
      * size goes back greater than zero.  It may not be right, but
      * indicates we did get an estimate.
      */
-    if(size <= (gint64)0) {
+    if (size <= (gint64)0) {
 	size = (gint64)1;
     }
 
-    return size;
+    one_est->csize = size;
+}
+
+static gint64 est_tape_size(
+    disk_t *dp,
+    int level)
+{
+    one_est_t *dump_est;
+
+    dump_est = est_for_level(dp, level);
+    if (dump_est->csize <= -1)
+	est_csize(dp, dump_est);
+    return dump_est->csize;
 }
 
 
@@ -1236,13 +1311,13 @@ static void get_estimates(void)
 		    if (dp1->todo)
 			run_server_scripts(EXECUTE_ON_PRE_HOST_ESTIMATE,
 					   get_config_name(), dp1,
-					   est(dp1)->level[0]);
+					   est(dp1)->estimate[0].level);
 		}
 		for(dp1 = hostp->disks; dp1 != NULL; dp1 = dp1->hostnext) {
 		    if (dp1->todo)
 			run_server_scripts(EXECUTE_ON_PRE_DLE_ESTIMATE,
 					   get_config_name(), dp1,
-					   est(dp1)->level[0]);
+					   est(dp1)->estimate[0].level);
 		}
 		getsize(hostp);
 		protocol_check();
@@ -1265,51 +1340,26 @@ static void get_estimates(void)
     while(!empty(pestq)) {
 	disk_t *dp = dequeue_disk(&pestq);
 	char *  qname = quote_string(dp->name);
-	
-	if(est(dp)->level[0] != -1 && est(dp)->est_size[0] < (gint64)0) {
-	    if(est(dp)->est_size[0] == (gint64)-1) {
-		log_add(L_WARNING, _("disk %s:%s, estimate of level %d failed."),
-			dp->host->hostname, qname, est(dp)->level[0]);
-	    }
-	    else {
-		log_add(L_WARNING,
-			_("disk %s:%s, estimate of level %d timed out."),
-			dp->host->hostname, qname, est(dp)->level[0]);
-	    }
-	    est(dp)->level[0] = -1;
+	int i;
+
+	for (i=0; i < MAX_LEVELS; i++) {
+	    if (est(dp)->estimate[i].level != -1 &&
+	        est(dp)->estimate[i].nsize < (gint64)0) {
+	        if (est(dp)->estimate[i].nsize == (gint64)-3) {
+		    log_add(L_WARNING,
+			    _("disk %s:%s, estimate of level %d timed out."),
+			    dp->host->hostname, qname, est(dp)->estimate[i].level);
+	        }
+	        est(dp)->estimate[i].level = -1;
+            }
 	}
 
-	if(est(dp)->level[1] != -1 && est(dp)->est_size[1] < (gint64)0) {
-	    if(est(dp)->est_size[1] == (gint64)-1) {
-		log_add(L_WARNING,
-			_("disk %s:%s, estimate of level %d failed."),
-			dp->host->hostname, qname, est(dp)->level[1]);
-	    }
-	    else {
-		log_add(L_WARNING,
-			_("disk %s:%s, estimate of level %d timed out."),
-			dp->host->hostname, qname, est(dp)->level[1]);
-	    }
-	    est(dp)->level[1] = -1;
-	}
-
-	if(est(dp)->level[2] != -1 && est(dp)->est_size[2] < (gint64)0) {
-	    if(est(dp)->est_size[2] == (gint64)-1) {
-		log_add(L_WARNING,
-			_("disk %s:%s, estimate of level %d failed."),
-			dp->host->hostname, qname, est(dp)->level[2]);
-	    }
-	    else {
-		log_add(L_WARNING,
-			_("disk %s:%s, estimate of level %d timed out."),
-			dp->host->hostname, qname, est(dp)->level[2]);
-	    }
-	    est(dp)->level[2] = -1;
-	}
-
-	if((est(dp)->level[0] != -1 && est(dp)->est_size[0] > (gint64)0) ||
-	   (est(dp)->level[1] != -1 && est(dp)->est_size[1] > (gint64)0) ||
-	   (est(dp)->level[2] != -1 && est(dp)->est_size[2] > (gint64)0)) {
+	if ((est(dp)->estimate[0].level != -1 &&
+	     est(dp)->estimate[0].nsize > (gint64)0) ||
+	    (est(dp)->estimate[1].level != -1 &&
+             est(dp)->estimate[1].nsize > (gint64)0) ||
+	    (est(dp)->estimate[2].level != -1 &&
+             est(dp)->estimate[2].nsize > (gint64)0)) {
 	    enqueue_disk(&estq, dp);
 	}
 	else {
@@ -1333,6 +1383,8 @@ static void getsize(
     char *	calcsize;
     char *	qname, *b64disk = NULL;
     char *	qdevice, *b64device = NULL;
+    estimate_t     estimate;
+    estimatelist_t el;
 
     assert(hostp->disks != NULL);
 
@@ -1382,25 +1434,83 @@ static void getsize(
 	estimates = 0;
 	for(dp = hostp->disks; dp != NULL; dp = dp->hostnext) {
 	    char *s = NULL;
+	    char *es;
 	    size_t s_len = 0;
+	    GPtrArray *errarray;
 
 	    if(dp->todo == 0) continue;
 
 	    if(est(dp)->state != DISK_READY) continue;
 
 	    est(dp)->got_estimate = 0;
-	    if(est(dp)->level[0] == -1) {
+	    if (est(dp)->estimate[0].level == -1) {
 		est(dp)->state = DISK_DONE;
 		continue;
 	    }
 
 	    qname = quote_string(dp->name);
+
+	    errarray = validate_optionstr(dp);
+	    if (errarray->len > 0) {
+		guint i;
+		for (i=0; i < errarray->len; i++) {
+		    log_add(L_FAIL, _("%s %s %s 0 [%s]"),
+			    dp->host->hostname, qname,
+			    planner_timestamp,
+			    (char *)g_ptr_array_index(errarray, i));
+		}
+		amfree(qname);
+		est(dp)->state = DISK_DONE;
+		continue;
+	    }
+		    
 	    b64disk = amxml_format_tag("disk", dp->name);
 	    qdevice = quote_string(dp->device);
+	    estimate = (estimate_t)GPOINTER_TO_INT(dp->estimatelist->data);
 	    if (dp->device)
 		b64device = amxml_format_tag("diskdevice", dp->device);
-	    if (dp->estimate == ES_CLIENT ||
-	        dp->estimate == ES_CALCSIZE ||
+
+	    estimate = ES_CLIENT;
+	    for (el = dp->estimatelist; el != NULL; el = el->next) {
+		estimate = (estimate_t)GPOINTER_TO_INT(el->data);
+		if (estimate == ES_SERVER)
+		    break;
+	    }
+	    if (estimate == ES_SERVER) {
+		info_t info;
+		nb_server++;
+		get_info(dp->host->hostname, dp->name, &info);
+		for(i = 0; i < MAX_LEVELS; i++) {
+		    int lev = est(dp)->estimate[i].level;
+
+		    if(lev == -1) break;
+		    server_estimate(dp, i, &info, lev);
+		}
+		g_fprintf(stderr,_("%s time %s: got result for host %s disk %s:"),
+			get_pname(), walltime_str(curclock()),
+			dp->host->hostname, qname);
+		g_fprintf(stderr,_(" %d -> %lldK, %d -> %lldK, %d -> %lldK\n"),
+			  est(dp)->estimate[0].level,
+			  (long long)est(dp)->estimate[0].nsize,
+			  est(dp)->estimate[1].level,
+                          (long long)est(dp)->estimate[1].nsize,
+			  est(dp)->estimate[2].level,
+                          (long long)est(dp)->estimate[2].nsize);
+		if (!am_has_feature(hostp->features, fe_xml_estimate)) {
+		    est(dp)->state = DISK_DONE;
+		    remove_disk(&startq, dp);
+		    enqueue_disk(&estq, dp);
+		}
+	    }
+
+	    estimate = ES_SERVER;
+	    for (el = dp->estimatelist; el != NULL; el = el->next) {
+		estimate = (estimate_t)GPOINTER_TO_INT(el->data);
+		if (estimate == ES_CLIENT || estimate == ES_CALCSIZE)
+		    break;
+	    }
+	    if (estimate == ES_CLIENT ||
+	        estimate == ES_CALCSIZE ||
 		(am_has_feature(hostp->features, fe_req_xml) &&
 		 am_has_feature(hostp->features, fe_xml_estimate))) {
 		nb_client++;
@@ -1413,23 +1523,29 @@ static void getsize(
 		    char spindle[NUM_STR_SIZE];
 		    char *o;
 		    char *l;
+		    info_t info;
 
+		    get_info(dp->host->hostname, dp->name, &info);
 		    for(i = 0; i < MAX_LEVELS; i++) {
-			int lev = est(dp)->level[i];
+			char *server;
+			int lev = est(dp)->estimate[i].level;
 			if (lev == -1) break;
 			g_snprintf(level, SIZEOF(level), "%d", lev);
+			if (am_has_feature(hostp->features, fe_xml_level_server) &&
+			    server_can_do_estimate(dp, &info, lev)) {
+			    server = "<server>YES</server>";
+			} else {
+			    server = "";
+			}
 			vstrextend(&levelstr, "  <level>",
-				   level,
+				   level, server,
 				   "</level>\n", NULL);
 		    }
 		    g_snprintf(spindle, SIZEOF(spindle), "%d", dp->spindle);
 		    spindlestr = vstralloc("  <spindle>",
 					   spindle,
 					   "</spindle>\n", NULL);
-		    o = xml_optionstr(dp, hostp->features, NULL, 0);
-		    if (o == NULL) {
-			error(_("problem with option string, check the dumptype definition.\n"));
-		    }
+		    o = xml_optionstr(dp, 0);
 		    
 		    if (strcmp(dp->program,"DUMP") == 0 ||
 			strcmp(dp->program,"GNUTAR") == 0) {
@@ -1442,37 +1558,21 @@ static void getsize(
 				      "  <program>APPLICATION</program>\n",
 				      NULL);
 			if (dp->application) {
-			    char *xml_app = xml_application(dp->application,
-							    hostp->features);
+			    application_t *application;
+			    char *xml_app;
+
+			    application = lookup_application(dp->application);
+			    g_assert(application != NULL);
+			    xml_app = xml_application(dp, application,
+						      hostp->features);
 			    vstrextend(&l, xml_app, NULL);
 			    amfree(xml_app);
 			}
 		    }
 
-		    if (am_has_feature(hostp->features, fe_xml_estimate)) {
-			if (dp->estimate == ES_CLIENT) {
-			    vstrextend(&l, "  <estimate>CLIENT</estimate>\n",
-				       NULL);
-			} else if (dp->estimate == ES_SERVER) {
-			    vstrextend(&l, "  <estimate>SERVER</estimate>\n",
-				       NULL);
-			} else if (dp->estimate == ES_CALCSIZE) {
-			    vstrextend(&l, "  <estimate>CALCSIZE</estimate>\n",
-				       NULL);
-			}
-		    }
-		    if (dp->estimate == ES_CALCSIZE) {
-			if (!am_has_feature(hostp->features,
-					    fe_calcsize_estimate)) {
-			    log_add(L_WARNING,
-				    _("%s:%s does not support CALCSIZE for estimate, using CLIENT.\n"),
-				    hostp->hostname, qname);
-			    dp->estimate = ES_CLIENT;
-			} else {
-			    vstrextend(&l, "  <calcsize>YES</calcsize>\n",
-				       NULL);
-			}
-		    }
+		    es = xml_estimate(dp->estimatelist, hostp->features);
+		    vstrextend(&l, es, "\n", NULL);
+		    amfree(es);
 		    vstrextend(&l, "  ", b64disk, "\n", NULL);
 		    if (dp->device)
 			vstrextend(&l, "  ", b64device, "\n", NULL);
@@ -1495,7 +1595,7 @@ static void getsize(
 			char *includefree = NULL;
 			char spindle[NUM_STR_SIZE];
 			char level[NUM_STR_SIZE];
-			int lev = est(dp)->level[i];
+			int lev = est(dp)->estimate[i].level;
 
 			if(lev == -1) break;
 
@@ -1504,7 +1604,7 @@ static void getsize(
 			if (am_has_feature(hostp->features,
 					   fe_sendsize_req_options)){
 			    exclude1 = " OPTIONS |";
-			    exclude2 = optionstr(dp, hostp->features, NULL);
+			    exclude2 = optionstr(dp);
 			    if ( exclude2 == NULL ) {
 				error(_("problem with option string, check the dumptype definition.\n"));
 			    }
@@ -1541,15 +1641,15 @@ static void getsize(
 			    }
 			}
 
-			if (dp->estimate == ES_CALCSIZE &&
+			if (estimate == ES_CALCSIZE &&
 		   	    !am_has_feature(hostp->features,
 					    fe_calcsize_estimate)) {
 			    log_add(L_WARNING,
 				    _("%s:%s does not support CALCSIZE for estimate, using CLIENT.\n"),
 				    hostp->hostname, qname);
-			    dp->estimate = ES_CLIENT;
+			    estimate = ES_CLIENT;
 			}
-			if(dp->estimate == ES_CLIENT)
+			if(estimate == ES_CLIENT)
 			    calcsize = "";
 			else
 			    calcsize = "CALCSIZE ";
@@ -1559,7 +1659,7 @@ static void getsize(
 				      " ", qname,
 				      " ", dp->device ? qdevice : "",
 				      " ", level,
-				      " ", est(dp)->dumpdate[i],
+				      " ", est(dp)->estimate[i].dumpdate,
 				      " ", spindle,
 				      " ", exclude1, exclude2,
 				      ((includefree != NULL) ? " " : ""),
@@ -1573,126 +1673,27 @@ static void getsize(
 			amfree(excludefree);
 		    }
 		}
-		remove_disk(&startq, dp);
 		if (s != NULL) {
 		    estimates += i;
 		    strappend(req, s);
 		    req_len += s_len;
 		    amfree(s);
-		    est(dp)->state = DISK_ACTIVE;
-		} else {
+		    if (est(dp)->state == DISK_DONE) {
+		        remove_disk(&estq, dp);
+		        est(dp)->state = DISK_PARTIALY_DONE;
+			enqueue_disk(&pestq, dp);
+		    } else {
+		        remove_disk(&startq, dp);
+		        est(dp)->state = DISK_ACTIVE;
+		    }
+		} else if (est(dp)->state != DISK_DONE) {
+		    remove_disk(&startq, dp);
 		    est(dp)->state = DISK_DONE;
 		    if (est(dp)->errstr == NULL) {
 			est(dp)->errstr = vstrallocf(
 	                                        _("Can't request estimate"));
 		    }
 		    enqueue_disk(&failq, dp);
-		}
-	    }
-	    if (dp->estimate == ES_SERVER) {
-		info_t info;
-		nb_server++;
-		get_info(dp->host->hostname, dp->name, &info);
-		for(i = 0; i < MAX_LEVELS; i++) {
-		    int j;
-		    int lev = est(dp)->level[i];
-
-		    if(lev == -1) break;
-		    if(lev == 0) { /* use latest level 0, should do extrapolation */
-			gint64 est_size = (gint64)0;
-			int nb_est = 0;
-
-			for(j=NB_HISTORY-2;j>=0;j--) {
-			    if(info.history[j].level == 0) {
-				if(info.history[j].size < (gint64)0) continue;
-				est_size = info.history[j].size;
-				nb_est++;
-			    }
-			}
-			if(nb_est > 0) {
-			    est(dp)->est_size[i] = est_size;
-			}
-			else if(info.inf[lev].size > (gint64)1000) { /* stats */
-			    est(dp)->est_size[i] = info.inf[lev].size;
-			}
-			else {
-			    est(dp)->est_size[i] = (gint64)1000000;
-			}
-		    }
-		    else if(lev == est(dp)->last_level) {
-			/* means of all X day at the same level */
-			#define NB_DAY 30
-			int nb_day = 0;
-			gint64 est_size_day[NB_DAY];
-			int nb_est_day[NB_DAY];
-			for(j=0;j<NB_DAY;j++) {
-			    est_size_day[j]=(gint64)0;
-			    nb_est_day[j]=0;
-			}
-
-			for(j=NB_HISTORY-2;j>=0;j--) {
-			    if(info.history[j].level <= 0) continue;
-			    if(info.history[j].size < (gint64)0) continue;
-			    if(info.history[j].level==info.history[j+1].level) {
-				if(nb_day <NB_DAY-1) nb_day++;
-				est_size_day[nb_day] += info.history[j].size;
-				nb_est_day[nb_day]++;
-			    }
-			    else {
-				nb_day=0;
-			    }
-			}
-			nb_day = info.consecutive_runs + 1;
-			if(nb_day > NB_DAY-1) nb_day = NB_DAY-1;
-
-			while(nb_day > 0 && nb_est_day[nb_day] == 0) nb_day--;
-
-			if(nb_est_day[nb_day] > 0) {
-			    est(dp)->est_size[i] = est_size_day[nb_day] /
-					(gint64)nb_est_day[nb_day];
-			}
-			else if(info.inf[lev].size > (gint64)1000) { /* stats */
-			    est(dp)->est_size[i] = info.inf[lev].size;
-			}
-			else {
-			    est(dp)->est_size[i] = (gint64)10000;
-			}
-		    }
-		    else if(lev == est(dp)->last_level + 1) {
-			/* means of all first day at a new level */
-			gint64 est_size = (gint64)0;
-			int nb_est = 0;
-
-			for(j=NB_HISTORY-2;j>=0;j--) {
-			    if(info.history[j].level <= 0) continue;
-			    if(info.history[j].size < (gint64)0) continue;
-			    if(info.history[j].level == info.history[j+1].level + 1 ) {
-				est_size += info.history[j].size;
-				nb_est++;
-			    }
-			}
-			if(nb_est > 0) {
-			    est(dp)->est_size[i] = est_size / (gint64)nb_est;
-			}
-			else if(info.inf[lev].size > (gint64)1000) { /* stats */
-			    est(dp)->est_size[i] = info.inf[lev].size;
-			}
-			else {
-			    est(dp)->est_size[i] = (gint64)100000;
-			}
-		    }
-		}
-		g_fprintf(stderr,_("%s time %s: got result for host %s disk %s:"),
-			get_pname(), walltime_str(curclock()),
-			dp->host->hostname, qname);
-		g_fprintf(stderr,_(" %d -> %lldK, %d -> %lldK, %d -> %lldK\n"),
-			est(dp)->level[0], (long long)est(dp)->est_size[0],
-			est(dp)->level[1], (long long)est(dp)->est_size[1],
-			est(dp)->level[2], (long long)est(dp)->est_size[2]);
-		if (!am_has_feature(hostp->features, fe_xml_estimate)) {
-		    est(dp)->state = DISK_DONE;
-		    remove_disk(&startq, dp);
-		    enqueue_disk(&estq, dp);
 		}
 	    }
 	    amfree(qname);
@@ -1723,12 +1724,12 @@ static void getsize(
 	timeout = (time_t)getconf_int(CNF_CTIMEOUT);
     }
 
-    secdrv = security_getdriver(hostp->disks->security_driver);
+    secdrv = security_getdriver(hostp->disks->auth);
     if (secdrv == NULL) {
 	hostp->up = HOST_DONE;
 	log_add(L_ERROR,
 		_("Could not find security driver '%s' for host '%s'"),
-		hostp->disks->security_driver, hostp->hostname);
+		hostp->disks->auth, hostp->hostname);
 	amfree(req);
 	return;
     }
@@ -1887,7 +1888,6 @@ static void handle_result(
 	skip_whitespace(t, tch);
 
 	dp = lookup_hostdisk(hostp, disk);
-	dp = lookup_hostdisk(hostp, disk);
 	if(dp == NULL) {
 	    log_add(L_ERROR, _("%s: invalid reply from sendsize: `%s'\n"),
 		    hostp->hostname, line);
@@ -1918,32 +1918,24 @@ static void handle_result(
 
 	amfree(disk);
 
-	if (dp->estimate == ES_SERVER) {
-	    if (size == (gint64)-2) {
-		for(i = 0; i < MAX_LEVELS; i++) {
-		    if (est(dp)->level[i] == level) {
-			est(dp)->est_size[i] = -1; /* remove estimate */
-			break;
-		    }
+	for (i = 0; i < MAX_LEVELS; i++) {
+	    if (est(dp)->estimate[i].level == level) {
+		if (size == (gint64)-2) {
+		    est(dp)->estimate[i].nsize = -1; /* remove estimate */
+		    est(dp)->estimate[i].guessed = 0;
+		} else if (size > (gint64)-1) {
+		    /* take the size returned by the client */
+		    est(dp)->estimate[i].nsize = size;
+		    est(dp)->estimate[i].guessed = 0;
 		}
-		if(i == MAX_LEVELS) {
-		    goto bad_msg;		/* this est wasn't requested */
-		}
-
+		break;
 	    }
-	    est(dp)->got_estimate++;
-	} else if (size > (gint64)-1) {
-	    for(i = 0; i < MAX_LEVELS; i++) {
-		if(est(dp)->level[i] == level) {
-		    est(dp)->est_size[i] = size;
-		    break;
-		}
-	    }
-	    if(i == MAX_LEVELS) {
-		goto bad_msg;			/* this est wasn't requested */
-	    }
-	    est(dp)->got_estimate++;
 	}
+	if (i == MAX_LEVELS) {
+	    goto bad_msg;		/* this est wasn't requested */
+	}
+	est(dp)->got_estimate++;
+
 	s = t;
 	ch = tch;
 	skip_quoted_line(s, ch);
@@ -1982,7 +1974,7 @@ static void handle_result(
 	    est(dp)->state = DISK_PARTIALY_DONE;
 	}
 
-	if(est(dp)->level[0] == -1) continue;   /* ignore this disk */
+	if (est(dp)->estimate[0].level == -1) continue;   /* ignore this disk */
 
 
 	qname = quote_string(dp->name);
@@ -1991,9 +1983,12 @@ static void handle_result(
 			get_pname(), walltime_str(curclock()),
 			dp->host->hostname, qname);
 		g_fprintf(stderr,_(" %d -> %lldK, %d -> %lldK, %d -> %lldK\n"),
-			est(dp)->level[0], (long long)est(dp)->est_size[0],
-			est(dp)->level[1], (long long)est(dp)->est_size[1],
-			est(dp)->level[2], (long long)est(dp)->est_size[2]);
+			  est(dp)->estimate[0].level,
+                          (long long)est(dp)->estimate[0].nsize,
+			  est(dp)->estimate[1].level,
+                          (long long)est(dp)->estimate[1].nsize,
+			  est(dp)->estimate[2].level,
+                          (long long)est(dp)->estimate[2].nsize);
 	    enqueue_disk(&pestq, dp);
 	}
 	else if(pkt->type == P_REP) {
@@ -2001,37 +1996,30 @@ static void handle_result(
 			get_pname(), walltime_str(curclock()),
 			dp->host->hostname, qname);
 		g_fprintf(stderr,_(" %d -> %lldK, %d -> %lldK, %d -> %lldK\n"),
-			est(dp)->level[0], (long long)est(dp)->est_size[0],
-			est(dp)->level[1], (long long)est(dp)->est_size[1],
-			est(dp)->level[2], (long long)est(dp)->est_size[2]);
-		if((est(dp)->level[0] != -1 && est(dp)->est_size[0] > (gint64)0) ||
-		   (est(dp)->level[1] != -1 && est(dp)->est_size[1] > (gint64)0) ||
-		   (est(dp)->level[2] != -1 && est(dp)->est_size[2] > (gint64)0)) {
+			  est(dp)->estimate[0].level,
+                          (long long)est(dp)->estimate[0].nsize,
+			  est(dp)->estimate[1].level,
+                          (long long)est(dp)->estimate[1].nsize,
+			  est(dp)->estimate[2].level,
+                          (long long)est(dp)->estimate[2].nsize);
+		if ((est(dp)->estimate[0].level != -1 &&
+                     est(dp)->estimate[0].nsize > (gint64)0) ||
+		    (est(dp)->estimate[1].level != -1 &&
+                     est(dp)->estimate[1].nsize > (gint64)0) ||
+		    (est(dp)->estimate[2].level != -1 &&
+                     est(dp)->estimate[2].nsize > (gint64)0)) {
 
-		    if(est(dp)->level[2] != -1 && est(dp)->est_size[2] < (gint64)0) {
-			log_add(L_WARNING,
-				_("disk %s:%s, estimate of level %d failed."),
-				dp->host->hostname, qname, est(dp)->level[2]);
-			est(dp)->level[2] = -1;
-		    }
-		    if(est(dp)->level[1] != -1 && est(dp)->est_size[1] < (gint64)0) {
-			log_add(L_WARNING,
-				_("disk %s:%s, estimate of level %d failed."),
-				dp->host->hostname, qname,
-				est(dp)->level[1]);
-			est(dp)->level[1] = -1;
-		    }
-		    if(est(dp)->level[0] != -1 && est(dp)->est_size[0] < (gint64)0) {
-			log_add(L_WARNING,
-				_("disk %s:%s, estimate of level %d failed."),
-				dp->host->hostname, qname, est(dp)->level[0]);
-			est(dp)->level[0] = -1;
+                    for (i=MAX_LEVELS-1; i >=0; i--) {
+		        if (est(dp)->estimate[i].level != -1 &&
+                            est(dp)->estimate[i].nsize < (gint64)0) {
+			    est(dp)->estimate[i].level = -1;
+		        }
 		    }
 		    enqueue_disk(&estq, dp);
 	    }
 	    else {
 		enqueue_disk(&failq, dp);
-		if(est(dp)->got_estimate) {
+		if(est(dp)->got_estimate && !est(dp)->errstr) {
 		    est(dp)->errstr = vstrallocf("disk %s, all estimate failed",
 						 qname);
 		}
@@ -2049,11 +2037,15 @@ static void handle_result(
 	}
 	if (est(dp)->post_dle == 0 &&
 	    (pkt->type == P_REP ||
-	     ((est(dp)->level[0] == -1 || est(dp)->est_size[0] > (gint64)0) &&
-	      (est(dp)->level[1] == -1 || est(dp)->est_size[1] > (gint64)0) &&
-	      (est(dp)->level[2] == -1 || est(dp)->est_size[2] > (gint64)0)))) {
+	     ((est(dp)->estimate[0].level == -1 ||
+               est(dp)->estimate[0].nsize > (gint64)0) &&
+	      (est(dp)->estimate[1].level == -1 ||
+               est(dp)->estimate[1].nsize > (gint64)0) &&
+	      (est(dp)->estimate[2].level == -1 ||
+               est(dp)->estimate[2].nsize > (gint64)0)))) {
 	    run_server_scripts(EXECUTE_ON_POST_DLE_ESTIMATE,
-			       get_config_name(), dp, est(dp)->level[0]);
+			       get_config_name(), dp,
+                               est(dp)->estimate[0].level);
 	    est(dp)->post_dle = 1;
 	}
 	amfree(qname);
@@ -2064,7 +2056,8 @@ static void handle_result(
 	    if (dp->todo)
 		if (pkt->type == P_REP) {
 		    run_server_scripts(EXECUTE_ON_POST_HOST_ESTIMATE,
-				       get_config_name(), dp, est(dp)->level[0]);
+				       get_config_name(), dp,
+                                       est(dp)->estimate[0].level);
 	    }
 	}
     }
@@ -2131,7 +2124,7 @@ static void handle_result(
  */
 
 static int schedule_order(disk_t *a, disk_t *b);	  /* subroutines */
-static int pick_inclevel(disk_t *dp);
+static one_est_t *pick_inclevel(disk_t *dp);
 
 static void analyze_estimate(
     disk_t *dp)
@@ -2152,59 +2145,45 @@ static void analyze_estimate(
 	have_info = 1;
     }
 
-    ep->degr_level = -1;
-    ep->degr_nsize = (gint64)-1;
-    ep->degr_csize = (gint64)-1;
+    ep->degr_est = &default_one_est;
 
-    if(ep->next_level0 <= 0 || (have_info && ep->last_level == 0
+    if (ep->next_level0 <= 0 || (have_info && ep->last_level == 0
        && (info.command & FORCE_NO_BUMP))) {
-	if(ep->next_level0 <= 0) {
+	if (ep->next_level0 <= 0) {
 	    g_fprintf(stderr,_("(due for level 0) "));
 	}
-	ep->dump_level = 0;
-	ep->dump_nsize = est_size(dp, 0);
-	ep->dump_csize = est_tape_size(dp, 0);
-	if(ep->dump_csize <= (gint64)0) {
+	ep->dump_est = est_for_level(dp, 0);
+	if (ep->dump_est->csize <= (gint64)0) {
 	    g_fprintf(stderr,
 		    _("(no estimate for level 0, picking an incr level)\n"));
-	    ep->dump_level = pick_inclevel(dp);
-	    ep->dump_nsize = est_size(dp, ep->dump_level);
-	    ep->dump_csize = est_tape_size(dp, ep->dump_level);
+	    ep->dump_est = pick_inclevel(dp);
 
-	    if(ep->dump_nsize == (gint64)-1) {
-		ep->dump_level = ep->dump_level + 1;
-		ep->dump_nsize = est_size(dp, ep->dump_level);
-		ep->dump_csize = est_tape_size(dp, ep->dump_level);
+	    if (ep->dump_est->nsize == (gint64)-1) {
+		ep->dump_est = est_for_level(dp, ep->dump_est->level + 1);
 	    }
 	}
 	else {
-	    total_lev0 += (double) ep->dump_csize;
+	    total_lev0 += (double) ep->dump_est->csize;
 	    if(ep->last_level == -1 || dp->skip_incr) {
 		g_fprintf(stderr,_("(%s disk, can't switch to degraded mode)\n"),
 			dp->skip_incr? "skip-incr":_("new"));
 		if (dp->skip_incr  && ep->degr_mesg == NULL) {
-		    ep->degr_mesg = _("Can't switch to degraded mode when using a skip-incr disk");
+		    ep->degr_mesg = _("Skpping: skip-incr disk can't be dumped in degraded mode");
 		}
-		ep->degr_level = -1;
-		ep->degr_nsize = (gint64)-1;
-		ep->degr_csize = (gint64)-1;
+		ep->degr_est = &default_one_est;
 	    }
 	    else {
 		/* fill in degraded mode info */
 		g_fprintf(stderr,_("(picking inclevel for degraded mode)"));
-		ep->degr_level = pick_inclevel(dp);
-		ep->degr_nsize = est_size(dp, ep->degr_level);
-		ep->degr_csize = est_tape_size(dp, ep->degr_level);
-		if(ep->degr_csize == (gint64)-1) {
-		    ep->degr_level = ep->degr_level + 1;
-		    ep->degr_nsize = est_size(dp, ep->degr_level);
-		    ep->degr_csize = est_tape_size(dp, ep->degr_level);
+		ep->degr_est = pick_inclevel(dp);
+		if (ep->degr_est->csize == (gint64)-1) {
+                    ep->degr_est = est_for_level(dp, ep->degr_est->level + 1);
 		}
-		if(ep->degr_csize == (gint64)-1) {
+		if (ep->degr_est->csize == (gint64)-1) {
 		    g_fprintf(stderr,_("(no inc estimate)"));
 		    if (ep->degr_mesg == NULL)
-			ep->degr_mesg = _("Can't switch to degraded mode because an incremental estimate could not be performed");
-		    ep->degr_level = -1;
+			ep->degr_mesg = _("Skipping: an incremental estimate could not be performed, so disk cannot be dumped in degraded mode");
+		    ep->degr_est = &default_one_est;
 		}
 		g_fprintf(stderr,"\n");
 	    }
@@ -2213,37 +2192,29 @@ static void analyze_estimate(
     else {
 	g_fprintf(stderr,_("(not due for a full dump, picking an incr level)\n"));
 	/* XXX - if this returns -1 may be we should force a total? */
-	ep->dump_level = pick_inclevel(dp);
-	ep->dump_nsize = est_size(dp, ep->dump_level);
-	ep->dump_csize = est_tape_size(dp, ep->dump_level);
+	ep->dump_est = pick_inclevel(dp);
 
-	if(ep->dump_csize == (gint64)-1) {
-	    ep->dump_level = ep->last_level;
-	    ep->dump_nsize = est_size(dp, ep->dump_level);
-	    ep->dump_csize = est_tape_size(dp, ep->dump_level);
+	if (ep->dump_est->csize == (gint64)-1) {
+	    ep->dump_est = est_for_level(dp, ep->last_level);
 	}
-	if(ep->dump_csize == (gint64)-1) {
-	    ep->dump_level = ep->last_level + 1;
-	    ep->dump_nsize = est_size(dp, ep->dump_level);
-	    ep->dump_csize = est_tape_size(dp, ep->dump_level);
+	if (ep->dump_est->csize == (gint64)-1) {
+	    ep->dump_est = est_for_level(dp, ep->last_level + 1);
 	}
-	if(ep->dump_csize == (gint64)-1) {
-	    ep->dump_level = 0;
-	    ep->dump_nsize = est_size(dp, ep->dump_level);
-	    ep->dump_csize = est_tape_size(dp, ep->dump_level);
+	if (ep->dump_est->csize == (gint64)-1) {
+	    ep->dump_est = est_for_level(dp, 0);
 	}
 	if (ep->degr_mesg == NULL) {
-	    ep->degr_mesg = _("Can't switch to degraded mode because a full is not planned");
+	    ep->degr_mesg = _("Skipping: a full is not planned, so can't dump in degraded mode");
 	}
     }
 
     g_fprintf(stderr,_("  curr level %d nsize %lld csize %lld "),
-    	    ep->dump_level, (long long)ep->dump_nsize, 
-            (long long)ep->dump_csize);
+              ep->dump_est->level, (long long)ep->dump_est->nsize,
+              (long long)ep->dump_est->csize);
 
     insert_disk(&schedq, dp, schedule_order);
 
-    total_size += (gint64)tt_blocksize_kb + ep->dump_csize + tape_mark;
+    total_size += (gint64)tt_blocksize_kb + ep->dump_est->csize + tape_mark;
 
     /* update the balanced size */
     if(!(dp->skip_full || dp->strategy == DS_NOFULL || 
@@ -2263,8 +2234,16 @@ static void analyze_estimate(
     /* It can be an error from a script          */
     if (est(dp)->errstr) {
 	char *qerrstr = quote_string(est(dp)->errstr);
-	log_add(L_FAIL, _("%s %s %s 0 %s"), dp->host->hostname, qname, 
-		planner_timestamp, qerrstr);
+	/* Log only a warning if a server estimate is available */
+	if (est(dp)->estimate[0].nsize > 0 ||
+	    est(dp)->estimate[1].nsize > 0 ||
+	    est(dp)->estimate[2].nsize > 0) {
+	    log_add(L_WARNING, _("%s %s %s 0 %s"), dp->host->hostname, qname, 
+		    planner_timestamp, qerrstr);
+	} else {
+	    log_add(L_FAIL, _("%s %s %s 0 %s"), dp->host->hostname, qname, 
+		    planner_timestamp, qerrstr);
+	}
 	amfree(qerrstr);
     }
 
@@ -2309,78 +2288,77 @@ static int schedule_order(
     diff = est(b)->dump_priority - est(a)->dump_priority;
     if(diff != 0) return diff;
 
-    ldiff = est(b)->dump_csize - est(a)->dump_csize;
+    ldiff = est(b)->dump_est->csize - est(a)->dump_est->csize;
     if(ldiff < (gint64)0) return -1; /* XXX - there has to be a better way to dothis */
     if(ldiff > (gint64)0) return 1;
     return 0;
 }
 
 
-static int pick_inclevel(
+static one_est_t *pick_inclevel(
     disk_t *dp)
 {
-    int base_level, bump_level;
-    gint64 base_size, bump_size;
+    one_est_t *level0_est, *base_est, *bump_est;
     gint64 thresh;
     char *qname;
 
-    base_level = est(dp)->last_level;
+    level0_est = est_for_level(dp, 0);
+    base_est = est_for_level(dp, est(dp)->last_level);
 
     /* if last night was level 0, do level 1 tonight, no ifs or buts */
-    if(base_level == 0) {
+    if (base_est->level == 0) {
 	g_fprintf(stderr,_("   picklev: last night 0, so tonight level 1\n"));
-	return 1;
+	return est_for_level(dp, 1);
     }
 
     /* if no-full option set, always do level 1 */
     if(dp->strategy == DS_NOFULL) {
 	g_fprintf(stderr,_("   picklev: no-full set, so always level 1\n"));
-	return 1;
+	return est_for_level(dp, 1);
     }
-
-    base_size = est_size(dp, base_level);
 
     /* if we didn't get an estimate, we can't do an inc */
-    if(base_size == (gint64)-1) {
-	base_size = est_size(dp, base_level+1);
-	if(base_size > (gint64)0) /* FORCE_BUMP */
-	    return base_level+1;
-	g_fprintf(stderr,_("   picklev: no estimate for level %d, so no incs\n"), base_level);
-	return base_level;
+    if (base_est->nsize == (gint64)-1) {
+	bump_est = est_for_level(dp, base_est->level + 1);
+	if (bump_est->nsize > (gint64)0) /* FORCE_BUMP */
+	    return bump_est;
+	g_fprintf(stderr,_("   picklev: no estimate for level %d, so no incs\n"), base_est->level);
+	return base_est;
     }
 
-    thresh = bump_thresh(base_level, est_size(dp, 0), dp->bumppercent, dp->bumpsize, dp->bumpmult);
+    thresh = bump_thresh(base_est->level, level0_est->nsize, dp->bumppercent,
+                         dp->bumpsize, dp->bumpmult);
 
     g_fprintf(stderr,
 	    _("   pick: size %lld level %d days %d (thresh %lldK, %d days)\n"),
-	    (long long)base_size, base_level, est(dp)->level_days,
+	    (long long)base_est->nsize, base_est->level, est(dp)->level_days,
 	    (long long)thresh, dp->bumpdays);
 
-    if(base_level == 9
+    if(base_est->level == (DUMP_LEVELS - 1)
        || est(dp)->level_days < dp->bumpdays
-       || base_size <= thresh)
-	    return base_level;
+       || base_est->nsize <= thresh)
+	    return base_est;
 
-    bump_level = base_level + 1;
-    bump_size = est_size(dp, bump_level);
+    bump_est = est_for_level(dp, base_est->level + 1);
 
-    if(bump_size == (gint64)-1) return base_level;
+    if (bump_est->nsize == (gint64)-1)
+        return base_est;
 
     g_fprintf(stderr, _("   pick: next size %lld... "),
-    	    (long long)bump_size);
+              (long long)bump_est->nsize);
 
-    if(base_size - bump_size < thresh) {
+    if (base_est->nsize - bump_est->nsize < thresh) {
 	g_fprintf(stderr, _("not bumped\n"));
-	return base_level;
+	return base_est;
     }
 
     qname = quote_string(dp->name);
     g_fprintf(stderr, _("BUMPED\n"));
     log_add(L_INFO, _("Incremental of %s:%s bumped to level %d."),
-	    dp->host->hostname, qname, bump_level);
+	    dp->host->hostname, qname, bump_est->level);
     amfree(qname);
 
-    return bump_level;
+    return bump_est;
 }
 
 
@@ -2466,16 +2444,16 @@ static void delay_dumps(void)
 	    amfree(qname);
 	}
 
-	if (est(dp)->dump_csize == (gint64)-1 ||
-	    est(dp)->dump_csize <= tapetype_get_length(tape) * (gint64)avail_tapes) {
+	if (est(dp)->dump_est->csize == (gint64)-1 ||
+	    est(dp)->dump_est->csize <= tapetype_get_length(tape) * (gint64)avail_tapes) {
 	    continue;
 	}
 
 	/* Format dumpsize for messages */
 	g_snprintf(est_kb, 20, "%lld KB,",
-		 (long long)est(dp)->dump_csize);
+                   (long long)est(dp)->dump_est->csize);
 
-	if(est(dp)->dump_level == 0) {
+	if(est(dp)->dump_est->level == 0) {
 	    if(dp->skip_incr) {
 		delete = 1;
 		message = _("but cannot incremental dump skip-incr disk");
@@ -2484,11 +2462,11 @@ static void delay_dumps(void)
 		delete = 1;
 		message = _("but cannot incremental dump new disk");
 	    }
-	    else if(est(dp)->degr_level < 0) {
+	    else if(est(dp)->degr_est->level < 0) {
 		delete = 1;
 		message = _("but no incremental estimate");
 	    }
-	    else if (est(dp)->degr_csize > tapetype_get_length(tape)) {
+	    else if (est(dp)->degr_est->csize > tapetype_get_length(tape)) {
 		delete = 1;
 		message = _("incremental dump also larger than tape");
 	    }
@@ -2521,7 +2499,7 @@ static void delay_dumps(void)
     nb_forced_level_0 = 0;
     preserve = NULL;
     for(dp = schedq.head; dp != NULL && preserve == NULL; dp = dp->next)
-	if(est(dp)->dump_level == 0)
+	if(est(dp)->dump_est->level == 0)
 	    preserve = dp;
 
     /* 2.a. Do not delay forced full */
@@ -2530,7 +2508,7 @@ static void delay_dumps(void)
 		dp = ndp) {
 	ndp = dp->prev;
 
-	if(est(dp)->dump_level != 0) continue;
+	if(est(dp)->dump_est->level != 0) continue;
 
 	get_info(dp->host->hostname, dp->name, &info);
 	if(info.command & FORCE_FULL) {
@@ -2543,7 +2521,7 @@ static void delay_dumps(void)
 
 	    /* Format dumpsize for messages */
 	    g_snprintf(est_kb, 20, "%lld KB,",
-	    	     (long long)est(dp)->dump_csize);
+                       (long long)est(dp)->dump_est->csize);
 
 	    if(dp->skip_incr) {
 		delete = 1;
@@ -2553,7 +2531,7 @@ static void delay_dumps(void)
 		delete = 1;
 		message = _("but cannot incremental dump new disk");
 	    }
-	    else if(est(dp)->degr_level < 0) {
+	    else if(est(dp)->degr_est->level < 0) {
 		delete = 1;
 		message = _("but no incremental estimate");
 	    }
@@ -2573,11 +2551,11 @@ static void delay_dumps(void)
 		dp = ndp) {
 	    ndp = dp->prev;
 
-	    if(est(dp)->dump_level == 0 && dp != preserve) {
+	    if(est(dp)->dump_est->level == 0 && dp != preserve) {
 
 		/* Format dumpsize for messages */
 		g_snprintf(est_kb, 20, "%lld KB,",
-			     (long long)est(dp)->dump_csize);
+                           (long long)est(dp)->dump_est->csize);
 
 		if(dp->skip_incr) {
 		    delete = 1;
@@ -2587,7 +2565,7 @@ static void delay_dumps(void)
 		    delete = 1;
 		    message = _("but cannot incremental dump new disk");
 		}
-		else if(est(dp)->degr_level < 0) {
+		else if(est(dp)->degr_est->level < 0) {
 		    delete = 1;
 		    message = _("but no incremental estimate");
 		}
@@ -2614,11 +2592,11 @@ static void delay_dumps(void)
 	    dp = ndp) {
 	ndp = dp->prev;
 
-	if(est(dp)->dump_level != 0) {
+	if(est(dp)->dump_est->level != 0) {
 
 	    /* Format dumpsize for messages */
 	    g_snprintf(est_kb, 20, "%lld KB,",
-	    	     (long long)est(dp)->dump_csize);
+                       (long long)est(dp)->dump_est->csize);
 
 	    delay_one_dump(dp, 1,
 			   _("dumps way too big,"),
@@ -2648,7 +2626,7 @@ static void delay_dumps(void)
 	    new_total = total_size + (gint64)tt_blocksize_kb +
 			bi->csize + (gint64)tape_mark;
 	} else {
-	    new_total = total_size - est(dp)->dump_csize + bi->csize;
+	    new_total = total_size - est(dp)->dump_est->csize + bi->csize;
 	}
 	if((new_total <= tape_length) &&
 	  (bi->csize < (tapetype_get_length(tape) * (gint64)avail_tapes))) {
@@ -2661,9 +2639,7 @@ static void delay_dumps(void)
 		insert_disk(&schedq, dp, schedule_order);
 	    }
 	    else {
-		est(dp)->dump_level = bi->level;
-		est(dp)->dump_nsize = bi->nsize;
-		est(dp)->dump_csize = bi->csize;
+		est(dp)->dump_est = est_for_level(dp, bi->level);
 	    }
 
 	    /* Keep it clean */
@@ -2698,7 +2674,7 @@ static void delay_dumps(void)
 	else {
 	    dp = bi->dp;
 	    g_fprintf(stderr, _("  delay: %s now at level %d\n"),
-		bi->errstr, est(dp)->dump_level);
+		bi->errstr, est(dp)->dump_est->level);
 	    log_add(L_INFO, "%s", bi->errstr);
 	}
 	/*@ignore@*/
@@ -2733,9 +2709,9 @@ arglist_function1(
 
     arglist_start(argp, delete);
 
-    total_size -= (gint64)tt_blocksize_kb + est(dp)->dump_csize + (gint64)tape_mark;
-    if(est(dp)->dump_level == 0) {
-	total_lev0 -= (double) est(dp)->dump_csize;
+    total_size -= (gint64)tt_blocksize_kb + est(dp)->dump_est->csize + (gint64)tape_mark;
+    if(est(dp)->dump_est->level == 0) {
+	total_lev0 -= (double) est(dp)->dump_est->csize;
     }
 
     bi = alloc(SIZEOF(bi_t));
@@ -2749,11 +2725,11 @@ arglist_function1(
 
     bi->deleted = delete;
     bi->dp = dp;
-    bi->level = est(dp)->dump_level;
-    bi->nsize = est(dp)->dump_nsize;
-    bi->csize = est(dp)->dump_csize;
+    bi->level = est(dp)->dump_est->level;
+    bi->nsize = est(dp)->dump_est->nsize;
+    bi->csize = est(dp)->dump_est->csize;
 
-    g_snprintf(level_str, SIZEOF(level_str), "%d", est(dp)->dump_level);
+    g_snprintf(level_str, SIZEOF(level_str), "%d", est(dp)->dump_est->level);
     bi->errstr = vstralloc(dp->host->hostname,
 			   " ", qname,
 			   " ", planner_timestamp ? planner_timestamp : "?",
@@ -2775,10 +2751,8 @@ arglist_function1(
     if (delete) {
 	remove_disk(&schedq, dp);
     } else {
-	est(dp)->dump_level = est(dp)->degr_level;
-	est(dp)->dump_nsize = est(dp)->degr_nsize;
-	est(dp)->dump_csize = est(dp)->degr_csize;
-	total_size += (gint64)tt_blocksize_kb + est(dp)->dump_csize + (gint64)tape_mark;
+	est(dp)->dump_est = est(dp)->degr_est;
+	total_size += (gint64)tt_blocksize_kb + est(dp)->dump_est->csize + (gint64)tape_mark;
     }
     amfree(qname);
     return;
@@ -2788,7 +2762,7 @@ arglist_function1(
 static int promote_highest_priority_incremental(void)
 {
     disk_t *dp, *dp1, *dp_promote;
-    gint64 new_size, new_total, new_lev0;
+    gint64 new_total, new_lev0;
     int check_days;
     int nb_today, nb_same_day, nb_today2;
     int nb_disk_today, nb_disk_same_day;
@@ -2801,10 +2775,10 @@ static int promote_highest_priority_incremental(void)
 
     dp_promote = NULL;
     for(dp = schedq.head; dp != NULL; dp = dp->next) {
-
+	one_est_t *level0_est = est_for_level(dp, 0);
 	est(dp)->promote = -1000;
 
-	if(est_size(dp,0) <= (gint64)0)
+	if (level0_est->nsize <= (gint64)0)
 	    continue;
 
 	if(est(dp)->next_level0 <= 0)
@@ -2813,21 +2787,20 @@ static int promote_highest_priority_incremental(void)
 	if(est(dp)->next_level0 > dp->maxpromoteday)
 	    continue;
 
-	new_size = est_tape_size(dp, 0);
-	new_total = total_size - est(dp)->dump_csize + new_size;
-	new_lev0 = (gint64)total_lev0 + new_size;
+	new_total = total_size - est(dp)->dump_est->csize + level0_est->csize;
+	new_lev0 = (gint64)total_lev0 + level0_est->csize;
 
 	nb_today = 0;
 	nb_same_day = 0;
 	nb_disk_today = 0;
 	nb_disk_same_day = 0;
 	for(dp1 = schedq.head; dp1 != NULL; dp1 = dp1->next) {
-	    if(est(dp1)->dump_level == 0)
+	    if(est(dp1)->dump_est->level == 0)
 		nb_disk_today++;
 	    else if(est(dp1)->next_level0 == est(dp)->next_level0)
 		nb_disk_same_day++;
 	    if(strcmp(dp->host->hostname, dp1->host->hostname) == 0) {
-		if(est(dp1)->dump_level == 0)
+		if(est(dp1)->dump_est->level == 0)
 		    nb_today++;
 		else if(est(dp1)->next_level0 == est(dp)->next_level0)
 		    nb_same_day++;
@@ -2875,22 +2848,19 @@ static int promote_highest_priority_incremental(void)
     }
 
     if(dp_promote) {
+	one_est_t *level0_est;
 	dp = dp_promote;
+	level0_est = est_for_level(dp, 0);
 
 	qname = quote_string(dp->name);
-	new_size = est_tape_size(dp, 0);
-	new_total = total_size - est(dp)->dump_csize + new_size;
-	new_lev0 = (gint64)total_lev0 + new_size;
+	new_total = total_size - est(dp)->dump_est->csize + level0_est->csize;
+	new_lev0 = (gint64)total_lev0 + level0_est->csize;
 
 	total_size = new_total;
 	total_lev0 = (double)new_lev0;
 	check_days = est(dp)->next_level0;
-	est(dp)->degr_level = est(dp)->dump_level;
-	est(dp)->degr_nsize = est(dp)->dump_nsize;
-	est(dp)->degr_csize = est(dp)->dump_csize;
-	est(dp)->dump_level = 0;
-	est(dp)->dump_nsize = est_size(dp, 0);
-	est(dp)->dump_csize = new_size;
+	est(dp)->degr_est = est(dp)->dump_est;
+	est(dp)->dump_est = level0_est;
 	est(dp)->next_level0 = 0;
 
 	g_fprintf(stderr,
@@ -2920,7 +2890,6 @@ static int promote_hills(void)
     int days;
     int hill_days = 0;
     gint64 hill_size;
-    gint64 new_size;
     gint64 new_total;
     int my_dumpcycle;
     char *qname;
@@ -2965,27 +2934,26 @@ static int promote_hills(void)
 
 	/* Find all the dumps in that hill and try and remove one */
 	for(dp = schedq.head; dp != NULL; dp = dp->next) {
+	    one_est_t *level0_est;
 	    if(est(dp)->next_level0 != hill_days ||
 	       est(dp)->next_level0 > dp->maxpromoteday ||
 	       dp->skip_full ||
 	       dp->strategy == DS_NOFULL ||
 	       dp->strategy == DS_INCRONLY)
 		continue;
-	    new_size = est_tape_size(dp, 0);
-	    new_total = total_size - est(dp)->dump_csize + new_size;
+	    level0_est = est_for_level(dp, 0);
+	    if (level0_est->nsize <= (gint64)0)
+		continue;
+	    new_total = total_size - est(dp)->dump_est->csize + level0_est->csize;
 	    if(new_total > tape_length)
 		continue;
 	    /* We found a disk we can promote */
 	    qname = quote_string(dp->name);
 	    total_size = new_total;
-	    total_lev0 += (double)new_size;
-	    est(dp)->degr_level = est(dp)->dump_level;
-	    est(dp)->degr_nsize = est(dp)->dump_nsize;
-	    est(dp)->degr_csize = est(dp)->dump_csize;
-	    est(dp)->dump_level = 0;
+	    total_lev0 += (double)level0_est->csize;
+            est(dp)->degr_est = est(dp)->dump_est;
+            est(dp)->dump_est = level0_est;
 	    est(dp)->next_level0 = 0;
-	    est(dp)->dump_nsize = est_size(dp, 0);
-	    est(dp)->dump_csize = new_size;
 
 	    g_fprintf(stderr,
 		    _("   promote: moving %s:%s up, total_lev0 %1.0lf, total_size %lld\n"),
@@ -3036,54 +3004,48 @@ static void output_scheduleline(
     char degr_kps_str[NUM_STR_SIZE];
     char *dump_date, *degr_date;
     char *features;
-    int i;
     char *qname = quote_string(dp->name);
 
     ep = est(dp);
 
-    if(ep->dump_csize == (gint64)-1) {
+    if(ep->dump_est->csize == (gint64)-1) {
 	/* no estimate, fail the disk */
 	g_fprintf(stderr,
 		_("%s: FAILED %s %s %s %d \"[no estimate]\"\n"),
 		get_pname(),
-		dp->host->hostname, qname, planner_timestamp, ep->dump_level);
+		dp->host->hostname, qname, planner_timestamp, ep->dump_est->level);
 	log_add(L_FAIL, _("%s %s %s %d [no estimate]"),
-		dp->host->hostname, qname, planner_timestamp, ep->dump_level);
+		dp->host->hostname, qname, planner_timestamp, ep->dump_est->level);
 	amfree(qname);
 	return;
     }
 
-    dump_date = degr_date = (char *)0;
-    for(i = 0; i < MAX_LEVELS; i++) {
-	if(ep->dump_level == ep->level[i])
-	    dump_date = ep->dumpdate[i];
-	if(ep->degr_level == ep->level[i])
-	    degr_date = ep->dumpdate[i];
-    }
+    dump_date = ep->dump_est->dumpdate;
+    degr_date = ep->degr_est->dumpdate;
 
 #define fix_rate(rate) (rate < 1.0 ? DEFAULT_DUMPRATE : rate)
 
-    if(ep->dump_level == 0) {
+    if(ep->dump_est->level == 0) {
 	dump_kps = fix_rate(ep->fullrate);
-	dump_time = (time_t)((double)ep->dump_csize / dump_kps);
+	dump_time = (time_t)((double)ep->dump_est->csize / dump_kps);
 
-	if(ep->degr_csize != (gint64)-1) {
+	if(ep->degr_est->csize != (gint64)-1) {
 	    degr_kps = fix_rate(ep->incrrate);
-	    degr_time = (time_t)((double)ep->degr_csize / degr_kps);
+	    degr_time = (time_t)((double)ep->degr_est->csize / degr_kps);
 	}
     }
     else {
 	dump_kps = fix_rate(ep->incrrate);
-	dump_time = (time_t)((double)ep->dump_csize / dump_kps);
+	dump_time = (time_t)((double)ep->dump_est->csize / dump_kps);
     }
 
-    if(ep->dump_level == 0 && ep->degr_csize != (gint64)-1) {
+    if(ep->dump_est->level == 0 && ep->degr_est->csize != (gint64)-1) {
 	g_snprintf(degr_level_str, sizeof(degr_level_str),
-		    "%d", ep->degr_level);
+		    "%d", ep->degr_est->level);
 	g_snprintf(degr_nsize_str, sizeof(degr_nsize_str),
-		    "%lld", (long long)ep->degr_nsize);
+		    "%lld", (long long)ep->degr_est->nsize);
 	g_snprintf(degr_csize_str, sizeof(degr_csize_str),
-		    "%lld", (long long)ep->degr_csize);
+		    "%lld", (long long)ep->degr_est->csize);
 	g_snprintf(degr_time_str, sizeof(degr_time_str),
 		    "%lld", (long long)degr_time);
 	g_snprintf(degr_kps_str, sizeof(degr_kps_str),
@@ -3100,7 +3062,7 @@ static void output_scheduleline(
 	if (ep->degr_mesg) {
 	    degr_mesg = quote_string(ep->degr_mesg);
 	} else {
-	    degr_mesg = quote_string(_("Can't switch to degraded mode for unknown reason"));
+	    degr_mesg = quote_string(_("Skipping: cannot dump in degraded mode for unknown reason"));
 	}
 	degr_str = vstralloc(" ", degr_mesg, NULL);
 	amfree(degr_mesg);
@@ -3108,11 +3070,11 @@ static void output_scheduleline(
     g_snprintf(dump_priority_str, SIZEOF(dump_priority_str),
 		"%d", ep->dump_priority);
     g_snprintf(dump_level_str, SIZEOF(dump_level_str),
-		"%d", ep->dump_level);
+		"%d", ep->dump_est->level);
     g_snprintf(dump_nsize_str, sizeof(dump_nsize_str),
-		"%lld", (long long)ep->dump_nsize);
+		"%lld", (long long)ep->dump_est->nsize);
     g_snprintf(dump_csize_str, sizeof(dump_csize_str),
-		"%lld", (long long)ep->dump_csize);
+		"%lld", (long long)ep->dump_est->csize);
     g_snprintf(dump_time_str, sizeof(dump_time_str),
 		"%lld", (long long)dump_time);
     g_snprintf(dump_kps_str, sizeof(dump_kps_str),
@@ -3132,10 +3094,32 @@ static void output_scheduleline(
 			  degr_str ? degr_str : "",
 			  "\n", NULL);
 
+    if (est(dp)->dump_est->guessed == 1) {
+        log_add(L_WARNING, _("WARNING: no history available for %s:%s; guessing that size will be %lld KB\n"), dp->host->hostname, qname, (long long)est(dp)->dump_est->csize);
+    }
     fputs(schedline, stdout);
     fputs(schedline, stderr);
     amfree(features);
     amfree(schedline);
     amfree(degr_str);
     amfree(qname);
+}
+
+static void
+server_estimate(
+    disk_t *dp,
+    int     i,
+    info_t *info,
+    int     level)
+{
+    int    stats;
+    gint64 size;
+
+    size = internal_server_estimate(dp, info, level, &stats);
+
+    est(dp)->dump_est = &est(dp)->estimate[i];
+    est(dp)->estimate[i].nsize = size;
+    if (stats == 0) {
+	est(dp)->estimate[i].guessed = 1;
+    }
 }

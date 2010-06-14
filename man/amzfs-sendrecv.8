@@ -2,12 +2,12 @@
 .\"     Title: amzfs-sendrecv
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMZFS\-SENDRECV" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMZFS\-SENDRECV" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,9 +22,7 @@
 amzfs-sendrecv \- Amanda script to create zfs sendrecv
 .SH "DESCRIPTION"
 .PP
-amzfs\-sendrecv is an
-\fIAmanda\fR
-application implementing the Application API\&. It should not be run by users directly\&. It create a zfs snapshot of the filesystem and backup the snapshot with \'zfs send\'\&. Snapshot are kept after the backup is done, this increase the disk space use on the client but it is neccesary to be able do to incremental backup\&. If you want only full backup, you can disable this feature by setting the KEEP\-SNAPSHOT property to \'NO\'\&. Only the restoration of the complete backup is allowed, it is impossible to restore a single file\&.
+amzfs\-sendrecv is an Amanda application implementing the Application API\&. It should not be run by users directly\&. It create a zfs snapshot of the filesystem and backup the snapshot with \'zfs send\'\&. Snapshot are kept after the backup is done, this increase the disk space use on the client but it is neccesary to be able do to incremental backup\&. If you want only full backup, you can disable this feature by setting the KEEP\-SNAPSHOT property to \'NO\'\&. Only the restoration of the complete backup is allowed, it is impossible to restore a single file\&.
 .PP
 The application is run as the amanda user, it must have many zfs priviledge:
 .sp
@@ -108,10 +106,13 @@ In this example, a dumptype is defined to use amzfs\-sendrecv application to bac
 .fi
 .SH "SEE ALSO"
 .PP
-
+\fBamanda\fR(8),
 \fBamanda.conf\fR(5),
 \fBamanda-client.conf\fR(5),
 \fBamanda-applications\fR(7)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHOR"
 .PP
 \fBJean\-Louis Martineau\fR <\&martineau@zmanda\&.com\&>

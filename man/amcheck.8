@@ -2,12 +2,12 @@
 .\"     Title: amcheck
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMCHECK" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMCHECK" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,18 +19,14 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amcheck \- run \fIAmanda\fR self\-checks
+amcheck \- run Amanda self\-checks
 .SH "SYNOPSIS"
 .HP \w'\fBamcheck\fR\ 'u
-\fBamcheck\fR [\-am] [\-w] [\-sclt] [\-M\ \fIaddress\fR] \fIconfig\fR [\fIhost\fR\ [\fIdisk\fR...]...] [\-o\ \fIconfigoption\fR]...
+\fBamcheck\fR [\-am] [\-w] [\-sclt] [\-M\ \fIaddress\fR] \fIconfig\fR [\fIhost\fR\ [\fIdisk\fR...]...] [{\fB\-o\fR\ \fIconfigoption\fR}...]
 .SH "DESCRIPTION"
 .PP
 \fBAmcheck\fR
-runs a number of self\-checks on both the
-\fIAmanda\fR
-tape server host and the
-\fIAmanda\fR
-client hosts\&.
+runs a number of self\-checks on both the Amanda tape server host and the Amanda client hosts\&.
 .PP
 On the tape server host,
 \fBamcheck\fR
@@ -45,8 +41,7 @@ You can specify many host/disk expressions, only disks that match an expression 
 .PP
 See the
 \fBamanda\fR(8)
-man page for more details about
-\fIAmanda\fR\&.
+man page for more details about Amanda\&.
 .SH "OPTIONS"
 .PP
 \fB\-s\fR
@@ -113,9 +108,9 @@ value from
 Specify the host and disk on which the command will work\&.
 .RE
 .PP
-\fB\-o\fR \fIconfigoption\fR
+\fB\-o \fR\fB\fIconfigoption\fR\fR
 .RS 4
-See the "\fBCONFIGURATION OVERRIDE\fR" section in
+See the "CONFIGURATION OVERRIDE" section in
 \fBamanda\fR(8)\&.
 .RE
 .PP
@@ -126,21 +121,21 @@ The default is
 In this example, both the tape server and client tests are run\&. The results are displayed on standard output\&.
 .nf
 % amcheck daily
-\fIAmanda\fR Tape Server Host Check
+Amanda Tape Server Host Check
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
 /amanda2/amanda/work: 911475 KB disk space available, that\'s plenty\&.
 NOTE: skipping tape\-writable test\&.
 Tape VOL10 label ok\&.
 Server check took 34\&.966 seconds\&.
 
-\fIAmanda\fR Backup Client Hosts Check
+Amanda Backup Client Hosts Check
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
 WARNING: northstar: selfcheck request timed out\&.  Host down?
 WARNING: drinkme: selfcheck request timed out\&.  Host down?
 WARNING: scruffy: selfcheck request timed out\&.  Host down?
 Client check: 136 hosts checked in 51\&.945 seconds, 3 problems found\&.
 
-(brought to you by \fIAmanda\fR 2\&.5\&.0) 
+(brought to you by Amanda 2\&.5\&.0) 
 .fi
 .PP
 In this example, if the line
@@ -246,9 +241,7 @@ instead of
 .PP
 ERROR: program dir \fIdirectory\fR: not accessible
 .RS 4
-(error) The directory
-\fIAmanda\fR
-expects to find its auxiliary programs in,
+(error) The directory Amanda expects to find its auxiliary programs in,
 \fIdirectory\fR, is not accessible\&.
 .RE
 .PP
@@ -290,9 +283,7 @@ may be:
 .PP
 log
 .RS 4
-for the
-\fIAmanda\fR
-log directory (see
+for the Amanda log directory (see
 \fBlogdir\fR
 in
 \fBamanda\&.conf\fR)
@@ -308,9 +299,7 @@ in
 .PP
 info
 .RS 4
-for an
-\fIAmanda\fR
-database information directory (see
+for an Amanda database information directory (see
 \fBcurinfo\fR
 in
 \fBamanda\&.conf\fR) or
@@ -318,9 +307,7 @@ in
 .PP
 index
 .RS 4
-for an
-\fIAmanda\fR
-index directory (see
+for an Amanda index directory (see
 \fBindexdir\fR
 in
 \fBamanda\&.conf\fR)
@@ -410,9 +397,7 @@ parameter in
 \fBamanda\&.conf\fR
 is set to
 /dev/null
-and
-\fIAmanda\fR
-uses that when debugging to throw all the dump images away\&.
+and Amanda uses that when debugging to throw all the dump images away\&.
 .RE
 .PP
 WARNING: hold file file exists
@@ -504,9 +489,7 @@ Holding disk \fIdisk\fR: \fIF\fR KB disk space available, using \fIU\fR KB
 \fIdisk\fR
 has
 \fIF\fR
-KBytes of free space and
-\fIAmanda\fR
-will be using up to
+KBytes of free space and Amanda will be using up to
 \fIU\fR
 Kbytes\&.
 .RE
@@ -654,9 +637,7 @@ ERROR: \fIhost\fR NAK: [NAK parse failed]
 (error)
 \fBAmcheck\fR
 could not parse the negative acknowledgment error from
-\fIhost\fR\&. There might be an
-\fIAmanda\fR
-version mismatch between the host running
+\fIhost\fR\&. There might be an Amanda version mismatch between the host running
 \fBamcheck\fR
 and
 \fIhost\fR\&.
@@ -685,8 +666,11 @@ The exit code of \fBamcheck\fR is one of:
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
-\fBamdump\fR(8),
-: http://wiki.zmanda.com
+\fBamanda.conf\fR(5),
+\fBamdump\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBJames da Silva\fR <\&jds@amanda\&.org\&>

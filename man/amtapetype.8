@@ -2,12 +2,12 @@
 .\"     Title: amtapetype
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMTAPETYPE" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMTAPETYPE" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,13 +22,11 @@
 amtapetype \- generate a tapetype definition by testing the device directly
 .SH "SYNOPSIS"
 .HP \w'\fBamtapetype\fR\ 'u
-\fBamtapetype\fR [\-h] [\-c] [\-f] [\-p] [\-b\ \fIblocksize\fR] [\-t\ \fItypename\fR] [\-l\ \fIlabel\fR] [\-o\ \fIconfig_overwrite\fR] [\fIdevice\fR]
+\fBamtapetype\fR [\-h] [\-c] [\-f] [\-p] [\-b\ \fIblocksize\fR] [\-t\ \fItypename\fR] [\-l\ \fIlabel\fR] [{\fB\-o\fR\ \fIconfigoption\fR}...] [\fIconfig\fR] [\fIdevice\fR]
 .SH "DESCRIPTION"
 .PP
 \fBamtapetype\fR
-generates a tapetype entry for
-\fIAmanda\fR
-by testing the device directly
+generates a tapetype entry for Amanda by testing the device directly\&.
 .SH "OPTIONS"
 .if n \{\
 .sp
@@ -61,7 +59,7 @@ Run only the hardware compression detection heuristic test and stop\&. This take
 .PP
 \fB\-f\fR
 .RS 4
-Run amtapetype even if the loaded volume is already in use or compression is enabled\&.
+Run amtapetype even if the loaded volume is already labeled\&.
 .RE
 .PP
 \fB\-p\fR
@@ -84,11 +82,15 @@ Name to give to the new tapetype definition\&.
 Label to write on the tape (default is randomly generated)\&.
 .RE
 .PP
-\fB\-o\fR \fIconfigoption\fR
+\fB\-o \fR\fB\fIconfigoption\fR\fR
 .RS 4
-See the "\fBCONFIGURATION OVERRIDE\fR" section in
+See the "CONFIGURATION OVERRIDE" section in
 \fBamanda\fR(8)\&.
 .RE
+.PP
+If a configuration is specified, it is loaded and used to configure the device\&. Note that global configuration parameters are not applied to the device, so if you need to apply properties to a device to run amtapetype, you should supply those properties in a named
+\fIdevice\fR
+section\&.
 .SH "EXAMPLE"
 .PP
 Generate a tapetype definition for your tape device:
@@ -115,6 +117,13 @@ All sorts of things might happen to cause the amount of data written to vary eno
 Note that the file mark size might really be zero for whatever device this is, and it was just the measured capacity variation that caused
 \fBamtapetype\fR
 to think those extra file marks in pass 2 actually took up space\&.
+.SH "SEE ALSO"
+.PP
+\fBamanda\fR(8),
+\fBamanda.conf\fR(5)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBDustin J\&. Mitchell\fR <\&dustin@zmanda\&.com\&>

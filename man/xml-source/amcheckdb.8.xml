@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -19,7 +19,7 @@
 </refmeta>
 <refnamediv>
 <refname>amcheckdb</refname>
-<refpurpose>check &A; database for tape consistency</refpurpose>
+<refpurpose>check Amanda database for tape consistency</refpurpose>
 </refnamediv>
 <refentryinfo>
 &author.atf3r;
@@ -36,12 +36,12 @@
 
 <refsect1><title>DESCRIPTION</title>
 <para><emphasis remap='B'>Amcheckdb</emphasis>
-verifies that every tape mentioned in the &A; database
+verifies that every tape mentioned in the Amanda database
 is still valid in the &tapelist;.</para>
 
 <para>See the
-<citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
-man page for more details about &A;.</para>
+<manref name="amanda" vol="8"/>
+man page for more details about Amanda.</para>
 </refsect1>
 
 <refsect1><title>EXAMPLE</title>
@@ -63,12 +63,10 @@ Ready.
 </programlisting>
 </refsect1>
 
-<refsect1><title>SEE ALSO</title>
-<para><citerefentry><refentrytitle>amadmin</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amrmtape</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<ulink url="http://wiki.zmanda.com"/>
-</para>
-</refsect1>
+<seealso>
+<manref name="amadmin" vol="8"/>,
+<manref name="amrmtape" vol="8"/>,
+</seealso>
+
 </refentry>
 

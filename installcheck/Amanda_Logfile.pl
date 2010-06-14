@@ -1,4 +1,4 @@
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -13,29 +13,36 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More tests => 30;
+use Test::More tests => 35;
 use File::Path;
 use strict;
 
 use lib "@amperldir@";
+use Installcheck;
 use Installcheck::Config;
+use Data::Dumper;
 use Amanda::Paths;
 use Amanda::Tapelist;
 use Amanda::Cmdline;
-use Amanda::Logfile qw(:logtype_t :program_t open_logfile get_logline close_logfile);
+use Amanda::Util;
+use Amanda::Debug qw( :logging );
+use Amanda::Logfile qw(:logtype_t :program_t open_logfile get_logline
+		close_logfile log_add $amanda_log_trace_log );
 use Amanda::Config qw( :init :getconf config_dir_relative );
 
-my $log_filename = "$AMANDA_TMPDIR/Amanda_Logfile_test.log";
+Amanda::Debug::dbopen("installcheck");
+
+my $log_filename = "$Installcheck::TMP/Amanda_Logfile_test.log";
 
 # write a logfile and return the filename
 sub write_logfile {
     my ($contents) = @_;
 
-    if (!-e $AMANDA_TMPDIR) {
-	mkpath($AMANDA_TMPDIR);
+    if (!-e $Installcheck::TMP) {
+	mkpath($Installcheck::TMP);
     }
 
     open my $logfile, ">", $log_filename or die("Could not create temporary log file '$log_filename': $!");
@@ -43,10 +50,6 @@ sub write_logfile {
     close $logfile;
 
     return $log_filename;
-}
-
-sub unlink_logfile {
-    unlink($log_filename);
 }
 
 ####
@@ -62,6 +65,17 @@ is(logtype_t_to_string($L_MARKER), "L_MARKER", "logtype_t_to_string works");
 is(program_t_to_string($P_DRIVER), "P_DRIVER", "program_t_to_string works");
 
 ##
+# Regression test for previously missing program types
+is( program_t_to_string($P_AMDUMP),
+    "P_AMDUMP", "program type for amdump defined" );
+is( program_t_to_string($P_AMIDXTAPED),
+    "P_AMIDXTAPED", "program type for amidxtaped defined" );
+is( program_t_to_string($P_AMFETCHDUMP),
+    "P_AMFETCHDUMP", "program type for amfetchdump defined" );
+is( program_t_to_string($P_AMCHECKDUMP),
+    "P_AMCHECKDUMP", "program type for amcheckdump defined" );
+
+##
 # Test a simple logfile
 
 $logdata = <<END;
@@ -70,7 +84,7 @@ END
 
 $logfile = open_logfile(write_logfile($logdata));
 ok($logfile, "can open a simple logfile");
-is_deeply([ get_logline($logfile) ], 
+is_deeply([ get_logline($logfile) ],
 	  [ $L_START, $P_PLANNER, "date 20071026183200" ],
 	  "reads START line correctly");
 ok(!get_logline($logfile), "no second line");
@@ -85,12 +99,12 @@ INFO chunker line1
 END
 
 $logfile = open_logfile(write_logfile($logdata));
-ok($logfile, "can open a logfile containing conitinuation lines");
+ok($logfile, "can open a logfile containing continuation lines");
 is_deeply([ get_logline($logfile) ],
-	  [ $L_INFO, $P_CHUNKER, "line1" ], 
+	  [ $L_INFO, $P_CHUNKER, "line1" ],
 	  "can read INFO line");
 is_deeply([ get_logline($logfile) ],
-	  [ $L_CONT, $P_CHUNKER, "line2" ], 
+	  [ $L_CONT, $P_CHUNKER, "line2" ],
 	  "can read continuation line");
 ok(!get_logline($logfile), "no third line");
 close_logfile($logfile);
@@ -107,7 +121,7 @@ END
 
 $logfile = open_logfile(write_logfile($logdata));
 ok($logfile, "can open a logfile containing blank lines");
-is_deeply([ get_logline($logfile) ], 
+is_deeply([ get_logline($logfile) ],
 	  [ $L_STATS, $P_TAPER, "foo" ],
 	  "reads non-blank line correctly");
 ok(!get_logline($logfile), "no second line");
@@ -125,14 +139,14 @@ END
 
 $logfile = open_logfile(write_logfile($logdata));
 ok($logfile, "can open a logfile containing bogus entries");
-is_deeply([ get_logline($logfile) ], 
+is_deeply([ get_logline($logfile) ],
 	  [ $L_BOGUS, $P_UNKNOWN, "bar" ],
 	  "can read line with bogus program and logtype");
-is_deeply([ get_logline($logfile) ], 
+is_deeply([ get_logline($logfile) ],
 	  [ $L_MARKER, $P_AMFLUSH, "" ],
 	  "can read line with an empty string");
 ok(get_logline($logfile), "can read third line (to fill in curstr with some text)");
-is_deeply([ get_logline($logfile) ], 
+is_deeply([ get_logline($logfile) ],
 	  [ $L_PART, $P_UNKNOWN, "" ],
 	  "can read a one-word line, with P_UNKNOWN");
 ok(!get_logline($logfile), "no next line");
@@ -152,7 +166,10 @@ sub res2arr {
 	$res->{'label'},
 	"$res->{'filenum'}",
 	$res->{'status'},
-	$res->{'partnum'}
+	$res->{'dump_status'},
+	$res->{'message'},
+	"$res->{'partnum'}",
+	"$res->{'totalparts'}"
     ];
 }
 
@@ -165,6 +182,21 @@ $testconf->write();
 config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF") == $CFGERR_OK
     or die("Could not load config");
 my $tapelist = config_dir_relative("tapelist");
+my $logdir = $testconf->{'logdir'};
+
+# test log_add
+{
+    my $filename = "$logdir/log";
+
+    -f "$filename" and unlink("$filename");
+    log_add($L_INFO, "This is my info");
+
+    open(my $fh, "<", $filename) or die("open $filename: $!");
+    my $logdata = do { local $/; <$fh> };
+    close($fh);
+
+    like($logdata, qr/^INFO Amanda_Logfile This is my info/, "log_add works");
+}
 
 # set up and read the tapelist (we don't use Amanda::Tapelist to write this,
 # in case it's broken)
@@ -180,7 +212,6 @@ Amanda::Tapelist::read_tapelist($tapelist);
 
 # set up a number of logfiles in logdir.
 my $logf;
-my $logdir = $testconf->{'logdir'};
 
 # (an old log file that should be ignored)
 open $logf, ">", "$logdir/log.20071106010002.0" or die("Could not write logfile");
@@ -245,20 +276,11 @@ is_deeply([ Amanda::Logfile::find_log() ],
 	  "find_log returns correct logfiles in the correct order");
 
 my @results;
-my @results2;
-my @results3;
-my @results4;
 my @results_arr;
 
-@results2 = Amanda::Logfile::search_logfile("TESTCONF002", "20071109010002",
+@results = Amanda::Logfile::search_logfile(undef, "20071109010002",
 					   "$logdir/log.20071109010002.0", 1);
-@results3 = Amanda::Logfile::search_logfile("TESTCONF003", "20071109010002",
-					   "$logdir/log.20071109010002.0", 1);
-@results4 = Amanda::Logfile::search_logfile("TESTCONF004", "20071109010002",
-					   "$logdir/log.20071109010002.0", 1);
-@results = ();
-push @results, @results2, @results3, @results4;
-is($#results+1, 17, "search_logfile returned 15 results");
+is($#results+1, 17, "search_logfile returned 17 results");
 
 # sort by filenum so we can compare each to what it should be
 @results = sort { $a->{'label'} cmp $b->{'label'} ||
@@ -266,26 +288,25 @@ is($#results+1, 17, "search_logfile returned 15 results");
 
 # and convert the hashes to arrays for easy comparison
 @results_arr = map { res2arr($_) } @results;
-
 is_deeply(\@results_arr,
 	[
-	  [ '20071109010002', 'clihost', '/usr',	    0, 'TESTCONF002', 1,  'OK', '1'   ],
-	  [ '20071109010002', 'clihost', '/my documents',   0, 'TESTCONF002', 2,  'OK', '1'   ],
-	  [ '20071109010002', 'thatbox', '/var',	    1, 'TESTCONF002', 3,  'OK', '--'  ],
-	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 4,  'OK', '1/5' ],
-	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 5,  'OK', '2/5' ],
-	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 6,  'OK', '3/5' ],
-	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 7,  'OK', '4/5' ],
-	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 8,  'OK', '5/5' ],
-	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 9,  'OK', '1/4' ],
-	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 10, 'OK', '2/4' ],
-	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 11, 'PARTIAL', '3/4' ],
-	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF003', 1,  '"Oh no!"', '3/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 2, 'OK', '1/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 3, 'OK', '2/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 4, 'PARTIAL', '3/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF004', 1, 'OK', '3/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF004', 2, 'OK', '4/4' ],
+	  [ '20071109010002', 'clihost', '/usr',	    0, 'TESTCONF002', 1,  'OK',       'OK',   '',         1, 1 ],
+	  [ '20071109010002', 'clihost', '/my documents',   0, 'TESTCONF002', 2,  'OK',       'OK',   '',         1, 1 ],
+	  [ '20071109010002', 'thatbox', '/var',	    1, 'TESTCONF002', 3,  'OK',       'OK',   '',         1, 1 ],
+	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 4,  'OK',       'OK',   '',         1, 5 ],
+	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 5,  'OK',       'OK',   '',         2, 5 ],
+	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 6,  'OK',       'OK',   '',         3, 5 ],
+	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 7,  'OK',       'OK',   '',         4, 5 ],
+	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 8,  'OK',       'OK',   '',         5, 5 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',         2, 'TESTCONF002', 9,  'OK',       'FAIL', '"Oh no!"', 1, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',         2, 'TESTCONF002', 10, 'OK',       'FAIL', '"Oh no!"', 2, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',         2, 'TESTCONF002', 11, 'PARTIAL',  'FAIL', '"Oh no!"', 3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',         2, 'TESTCONF003', 1,  'OK',       'FAIL', '"Oh no!"', 3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',          3, 'TESTCONF003', 2,  'OK',       'OK',   '',         1, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',          3, 'TESTCONF003', 3,  'OK',       'OK',   '',         2, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',          3, 'TESTCONF003', 4,  'PARTIAL',  'OK',   '',         3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',          3, 'TESTCONF004', 1,  'OK',       'OK',   '',         3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',          3, 'TESTCONF004', 2,  'OK',       'OK',   '',         4, 4 ],
 	], "results are correct");
 
 my @filtered;
@@ -300,16 +321,16 @@ is($#filtered+1, 10, "ten results match 'thatbox'");
 
 is_deeply(\@filtered_arr,
 	[
-	  [ '20071109010002', 'thatbox', '/var',      1, 'TESTCONF002', 3,  'OK',       '--' ],
-	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 9,  'OK',       '1/4' ],
-	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 10, 'OK',       '2/4' ],
-	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 11, 'PARTIAL',  '3/4' ],
-	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF003', 1,  '"Oh no!"', '3/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 2,  'OK',       '1/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 3,  'OK',       '2/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 4,  'PARTIAL',  '3/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF004', 1,  'OK',       '3/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF004', 2,  'OK',       '4/4' ],
+	  [ '20071109010002', 'thatbox', '/var',      1, 'TESTCONF002', 3,  'OK',      'OK',   '',         1, 1 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 9,  'OK',      'FAIL', '"Oh no!"', 1, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 10, 'OK',      'FAIL', '"Oh no!"', 2, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 11, 'PARTIAL', 'FAIL', '"Oh no!"', 3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF003', 1,  'OK',      'FAIL', '"Oh no!"', 3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 2,  'OK',      'OK',   '',         1, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 3,  'OK',      'OK',   '',         2, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 4,  'PARTIAL', 'OK',   '',         3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF004', 1,  'OK',      'OK',   '',         3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF004', 2,  'OK',      'OK',   '',         4, 4 ],
 	], "results are correct");
 
 @filtered = Amanda::Logfile::dumps_match([@results], "thatbox", "/var", undef, undef, 0);
@@ -319,7 +340,7 @@ is($#filtered+1, 1, "only one result matches 'thatbox:/var'");
 is($#filtered+1, 17, "all 17 results match '20071109010002'");
 
 @filtered = Amanda::Logfile::dumps_match([@results], undef, undef, "20071109010002", undef, 1);
-is($#filtered+1, 14, "of those, 14 results are 'OK'");
+is($#filtered+1, 12, "of those, 12 results are 'OK'");
 
 @filtered = Amanda::Logfile::dumps_match([@results], undef, undef, undef, "2", 0);
 is($#filtered+1, 4, "4 results are at level 2");
@@ -332,7 +353,7 @@ my @dumpspecs;
 @filtered = Amanda::Logfile::dumps_match_dumpspecs([@results], [@dumpspecs], 0);
 is_deeply([ map { res2arr($_) } @filtered ],
 	[
-	  [ '20071109010002', 'thatbox', '/var',	    1, 'TESTCONF002', 3,  'OK', '--'  ],
+	  [ '20071109010002', 'thatbox', '/var',	    1, 'TESTCONF002', 3,  'OK', 'OK', '', 1, 1 ],
 	], "filter with dumpspecs 'thatbox /var'");
 
 @dumpspecs = Amanda::Cmdline::parse_dumpspecs(["thatbox", "/var", "clihost"], 0);
@@ -341,14 +362,14 @@ is_deeply([ map { res2arr($_) } @filtered ],
 		   $a->{'filenum'} <=> $b->{'filenum'} } @filtered;
 is_deeply([ map { res2arr($_) } @filtered ],
 	[
-	  [ '20071109010002', 'clihost', '/usr',	    0, 'TESTCONF002', 1,  'OK', '1'   ],
-	  [ '20071109010002', 'clihost', '/my documents',   0, 'TESTCONF002', 2,  'OK', '1'   ],
-	  [ '20071109010002', 'thatbox', '/var',	    1, 'TESTCONF002', 3,  'OK', '--'  ],
-	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 4,  'OK', '1/5' ],
-	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 5,  'OK', '2/5' ],
-	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 6,  'OK', '3/5' ],
-	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 7,  'OK', '4/5' ],
-	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 8,  'OK', '5/5' ],
+	  [ '20071109010002', 'clihost', '/usr',	    0, 'TESTCONF002', 1,  'OK', 'OK', '', 1, 1 ],
+	  [ '20071109010002', 'clihost', '/my documents',   0, 'TESTCONF002', 2,  'OK', 'OK', '', 1, 1 ],
+	  [ '20071109010002', 'thatbox', '/var',	    1, 'TESTCONF002', 3,  'OK', 'OK', '', 1, 1 ],
+	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 4,  'OK', 'OK', '', 1, 5 ],
+	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 5,  'OK', 'OK', '', 2, 5 ],
+	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 6,  'OK', 'OK', '', 3, 5 ],
+	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 7,  'OK', 'OK', '', 4, 5 ],
+	  [ '20071109010002', 'clihost', '/home',	    0, 'TESTCONF002', 8,  'OK', 'OK', '', 5, 5 ],
 	], "filter with dumpspecs 'thatbox /var clihost' (union of two disjoint sets)");
 
 # if multiple dumpspecs specify the same dump, it will be included in the output multiple times
@@ -358,16 +379,18 @@ is_deeply([ map { res2arr($_) } @filtered ],
 		   $a->{'filenum'} <=> $b->{'filenum'} } @filtered;
 is_deeply([ map { res2arr($_) } @filtered ],
 	[
-	  [ '20071109010002', 'thatbox', '/var',      1, 'TESTCONF002', 3,  'OK',       '--'  ],
-	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 9,  'OK',       '1/4' ],
-	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 10, 'OK',       '2/4' ],
-	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 11, 'PARTIAL',  '3/4' ],
-	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF003', 1,  '"Oh no!"', '3/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 2,  'OK',       '1/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 3,  'OK',       '2/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 4,  'PARTIAL',  '3/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF004', 1,  'OK',       '3/4' ],
-	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF004', 2,  'OK',       '4/4' ],
+	  [ '20071109010002', 'thatbox', '/var',      1, 'TESTCONF002', 3,  'OK',      'OK'  , '',         1, 1 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 9,  'OK',      'FAIL', '"Oh no!"', 1, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 10, 'OK',      'FAIL', '"Oh no!"', 2, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 11, 'PARTIAL', 'FAIL', '"Oh no!"', 3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF003', 1,  'OK',      'FAIL', '"Oh no!"', 3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 2,  'OK',      'OK'  , '',         1, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 3,  'OK',      'OK'  , '',         2, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 4,  'PARTIAL', 'OK'  , '',         3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF004', 1,  'OK',      'OK'  , '',         3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF004', 2,  'OK',      'OK'  , '',         4, 4 ],
 	], "filter with dumpspecs '.* /var thatbox' (union of two overlapping sets includes dupes)");
 
-unlink_logfile();
+unlink($log_filename);
+
+# search_holding_disk and match_* are tested via Amanda::DB::Catalog's installcheck

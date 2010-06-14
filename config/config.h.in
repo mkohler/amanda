@@ -1,5 +1,9 @@
 /* config/config.h.in.  Generated from configure.in by autoheader.  */
 
+/* Define if the compiler is building for multiple architectures of Apple
+   platforms at once. */
+#undef AA_APPLE_UNIVERSAL_BUILD
+
 /* Define if building universal (internal helper macro) */
 #undef AC_APPLE_UNIVERSAL_BUILD
 
@@ -54,15 +58,6 @@
 /* Define to force to another user on client machines. */
 #undef CHECK_USERID
 
-/* The Kerberos client host instance. */
-#undef CLIENT_HOST_INSTANCE
-
-/* The Kerberos client host key file. */
-#undef CLIENT_HOST_KEY_FILE
-
-/* The Kerberos client host principal. */
-#undef CLIENT_HOST_PRINCIPAL
-
 /* Define as a the user to force to on client machines. */
 #undef CLIENT_LOGIN
 
@@ -94,9 +89,6 @@
 
 /* Default location for 'amandates' */
 #undef DEFAULT_AMANDATES_FILE
-
-/* This is the default changer device. */
-#undef DEFAULT_CHANGER_DEVICE
 
 /* This is the default Amanda configuration. */
 #undef DEFAULT_CONFIG
@@ -135,14 +127,17 @@
    language is requested. */
 #undef ENABLE_NLS
 
-/* Define as good substitute value for EOVERFLOW. */
-#undef EOVERFLOW
-
 /* Define to 1 if the `getpgrp' function requires zero arguments. */
 #undef GETPGRP_VOID
 
 /* Define if gettimeofday clobbers the localtime buffer. */
 #undef GETTIMEOFDAY_CLOBBERS_LOCALTIME
+
+/* Define to indicate the 'malloc' module. */
+#undef GNULIB_MALLOC_GNU
+
+/* Define to 1 when using the gnulib module sys_socket. */
+#undef GNULIB_SYS_SOCKET
 
 /* Location of the GNU 'tar' binary */
 #undef GNUTAR
@@ -209,6 +204,9 @@
 /* Define if bind is declared. */
 #undef HAVE_BIND_DECL
 
+/* Define to 1 if you have the `btowc' function. */
+#undef HAVE_BTOWC
+
 /* Define to 1 if you have the `bzero' function. */
 #undef HAVE_BZERO
 
@@ -228,6 +226,9 @@
 
 /* Define to 1 if you have the <chio.h> header file. */
 #undef HAVE_CHIO_H
+
+/* Define to 1 if you have the `chsize' function. */
+#undef HAVE_CHSIZE
 
 /* Define to 1 if you have the `closelog' function. */
 #undef HAVE_CLOSELOG
@@ -260,6 +261,10 @@
    don't. */
 #undef HAVE_DECL_GETADDRINFO
 
+/* Define to 1 if you have the declaration of `getc_unlocked', and to 0 if you
+   don't. */
+#undef HAVE_DECL_GETC_UNLOCKED
+
 /* Define to 1 if you have the declaration of `getenv', and to 0 if you don't.
    */
 #undef HAVE_DECL_GETENV
@@ -272,9 +277,9 @@
    don't. */
 #undef HAVE_DECL_INET_NTOP
 
-/* Define to 1 if you have the declaration of `mkdir', and to 0 if you don't.
-   */
-#undef HAVE_DECL_MKDIR
+/* Define to 1 if you have the declaration of `isblank', and to 0 if you
+   don't. */
+#undef HAVE_DECL_ISBLANK
 
 /* Define to 1 if you have the declaration of `readdir', and to 0 if you
    don't. */
@@ -296,10 +301,6 @@
    don't. */
 #undef HAVE_DECL_SNPRINTF
 
-/* Define to 1 if you have the declaration of `strdup', and to 0 if you don't.
-   */
-#undef HAVE_DECL_STRDUP
-
 /* Define to 1 if you have the declaration of `_snprintf', and to 0 if you
    don't. */
 #undef HAVE_DECL__SNPRINTF
@@ -319,6 +320,9 @@
 
 /* Define to 1 if you have the `endmntent' function. */
 #undef HAVE_ENDMNTENT
+
+/* Define to 1 if you have the <errno.h> header file. */
+#undef HAVE_ERRNO_H
 
 /* Define to 1 if you have the `fclose' function. */
 #undef HAVE_FCLOSE
@@ -365,11 +369,17 @@
 /* Define to 1 if you have the `fseek' function. */
 #undef HAVE_FSEEK
 
+/* Define to 1 if fseeko (and presumably ftello) exists and is declared. */
+#undef HAVE_FSEEKO
+
 /* Define if fseek is declared. */
 #undef HAVE_FSEEK_DECL
 
 /* Define to 1 if you have the <fstab.h> header file. */
 #undef HAVE_FSTAB_H
+
+/* Define to 1 if you have the `ftruncate' function. */
+#undef HAVE_FTRUNCATE
 
 /* Define to 1 if you have the `fwrite' function. */
 #undef HAVE_FWRITE
@@ -413,6 +423,9 @@
 /* Define to 1 if you have the `getpwuid_r' function. */
 #undef HAVE_GETPWUID_R
 
+/* Define to 1 if you have the `getservbyname' function. */
+#undef HAVE_GETSERVBYNAME
+
 /* Define to 1 if you have the `getsockname' function. */
 #undef HAVE_GETSOCKNAME
 
@@ -455,9 +468,6 @@
 /* Define if you have the iconv() function. */
 #undef HAVE_ICONV
 
-/* Define if your compiler supports the #include_next directive. */
-#undef HAVE_INCLUDE_NEXT
-
 /* Define to 1 if you have the `inet_ntop' function. */
 #undef HAVE_INET_NTOP
 
@@ -483,20 +493,29 @@
 /* Define if ioctl is declared. */
 #undef HAVE_IOCTL_DECL
 
-/* Define to 1 if you have the <io.h> header file. */
-#undef HAVE_IO_H
-
 /* Define to 1 if <sys/socket.h> defines AF_INET. */
 #undef HAVE_IPV4
 
 /* Define to 1 if <sys/socket.h> defines AF_INET6. */
 #undef HAVE_IPV6
 
+/* Define to 1 if you have the `isblank' function. */
+#undef HAVE_ISBLANK
+
 /* Define to 1 if you have the `isnormal' function. */
 #undef HAVE_ISNORMAL
 
 /* Define if isnormal is declared. */
 #undef HAVE_ISNORMAL_DECL
+
+/* Define to 1 if you have the `iswcntrl' function. */
+#undef HAVE_ISWCNTRL
+
+/* Define to 1 if you have the `iswctype' function. */
+#undef HAVE_ISWCTYPE
+
+/* Define if you have <langinfo.h> and nl_langinfo(CODESET). */
+#undef HAVE_LANGINFO_CODESET
 
 /* Define to 1 if you have the `cam' library (-lcam). */
 #undef HAVE_LIBCAM
@@ -518,6 +537,9 @@
 
 /* Define to 1 if you have the `intl' library (-lintl). */
 #undef HAVE_LIBINTL
+
+/* Define to 1 if you have the <libintl.h> header file. */
+#undef HAVE_LIBINTL_H
 
 /* Define to 1 if you have the `krb5support' library (-lkrb5support). */
 #undef HAVE_LIBKRB5SUPPORT
@@ -555,8 +577,14 @@
 /* Define if listen is declared. */
 #undef HAVE_LISTEN_DECL
 
+/* Define to 1 if you have the <locale.h> header file. */
+#undef HAVE_LOCALE_H
+
 /* Define to 1 if the system has the type `long long int'. */
 #undef HAVE_LONG_LONG_INT
+
+/* Set to 1 if an LPR command was found at configure time */
+#undef HAVE_LPR_CMD
 
 /* Define to 1 if you have the `lstat' function. */
 #undef HAVE_LSTAT
@@ -578,6 +606,15 @@
 
 /* Define to 1 if you have the <math.h> header file. */
 #undef HAVE_MATH_H
+
+/* Define to 1 if you have the `mbrtowc' function. */
+#undef HAVE_MBRTOWC
+
+/* Define to 1 if you have the `mbsinit' function. */
+#undef HAVE_MBSINIT
+
+/* Define to 1 if <wchar.h> declares mbstate_t. */
+#undef HAVE_MBSTATE_T
 
 /* Define to 1 if you have the `memmove' function. */
 #undef HAVE_MEMMOVE
@@ -699,6 +736,9 @@
 /* Define if puts is declared. */
 #undef HAVE_PUTS_DECL
 
+/* Define to 1 if you have the <random.h> header file. */
+#undef HAVE_RANDOM_H
+
 /* System has readline support (headers and libraries) */
 #undef HAVE_READLINE
 
@@ -743,6 +783,9 @@
 
 /* Define if rewind is declared. */
 #undef HAVE_REWIND_DECL
+
+/* Define to 1 if you have the <rpc/rpc.h> header file. */
+#undef HAVE_RPC_RPC_H
 
 /* Define to 1 if you have the `ruserok' function. */
 #undef HAVE_RUSEROK
@@ -837,6 +880,9 @@
 /* Define if shmget is declared. */
 #undef HAVE_SHMGET_DECL
 
+/* Define to 1 if you have the `shutdown' function. */
+#undef HAVE_SHUTDOWN
+
 /* Define to 1 if you have the `sigaction' function. */
 #undef HAVE_SIGACTION
 
@@ -907,9 +953,6 @@
 /* Define if strcasecmp is declared. */
 #undef HAVE_STRCASECMP_DECL
 
-/* Define to 1 if you have the `strdup' function. */
-#undef HAVE_STRDUP
-
 /* Define to 1 if you have the `strerror' function. */
 #undef HAVE_STRERROR
 
@@ -934,6 +977,9 @@
 /* Define if strncasecmp is declared. */
 #undef HAVE_STRNCASECMP_DECL
 
+/* Define to 1 if you have the `strnlen' function. */
+#undef HAVE_STRNLEN
+
 /* Define to 1 if you have the `strtol' function. */
 #undef HAVE_STRTOL
 
@@ -948,6 +994,12 @@
 
 /* Define to 1 if the system has the type `struct addrinfo'. */
 #undef HAVE_STRUCT_ADDRINFO
+
+/* Define to 1 if the system has the type `struct random_data'. */
+#undef HAVE_STRUCT_RANDOM_DATA
+
+/* Define to 1 if `sa_len' is member of `struct sockaddr'. */
+#undef HAVE_STRUCT_SOCKADDR_SA_LEN
 
 /* Define to 1 if you have the `sysctl' function. */
 #undef HAVE_SYSCTL
@@ -1177,8 +1229,20 @@
 /* Define if you have the 'wchar_t' type. */
 #undef HAVE_WCHAR_T
 
+/* Define to 1 if you have the `wcrtomb' function. */
+#undef HAVE_WCRTOMB
+
+/* Define to 1 if you have the `wcscoll' function. */
+#undef HAVE_WCSCOLL
+
 /* Define to 1 if you have the `wcslen' function. */
 #undef HAVE_WCSLEN
+
+/* Define to 1 if you have the `wcsnlen' function. */
+#undef HAVE_WCSNLEN
+
+/* Define to 1 if you have the <wctype.h> header file. */
+#undef HAVE_WCTYPE_H
 
 /* Define to 1 if you have the <winsock2.h> header file. */
 #undef HAVE_WINSOCK2_H
@@ -1213,9 +1277,6 @@
 
 /* The name for the Kerberized Amanda service. */
 #undef KAMANDA_SERVICE_NAME
-
-/* Enable Kerberos IV security. */
-#undef KRB4_SECURITY
 
 /* Define if Kerberos 5 security is to be enabled. */
 #undef KRB5_SECURITY
@@ -1276,11 +1337,25 @@
    amrecover) */
 #undef LOW_TCPPORTRANGE
 
-/* Command for starting printing jobs. */
-#undef LPRCMD
+/* Define to 1 if lseek does not detect pipes. */
+#undef LSEEK_PIPE_BROKEN
 
-/* LPRCMD switch for specifying a printer name. */
-#undef LPRFLAG
+/* Define to 1 if `lstat' dereferences a symlink specified with a trailing
+   slash. */
+#undef LSTAT_FOLLOWS_SLASHED_SYMLINK
+
+/* Define to the sub-directory in which libtool stores uninstalled libraries.
+   */
+#undef LT_OBJDIR
+
+/* Define if the mbrtowc function has the NULL string argument bug. */
+#undef MBRTOWC_NULL_ARG_BUG
+
+/* Define if the mbrtowc function does not return 0 for a NUL character. */
+#undef MBRTOWC_NUL_RETVAL_BUG
+
+/* Define if the mbrtowc function returns a wrong return value. */
+#undef MBRTOWC_RETVAL_BUG
 
 /* The switch to be used when invoking mt to specify the * tape device. */
 #undef MT_FILE_FLAG
@@ -1290,6 +1365,9 @@
 
 /* Define if we have to reset tape offsets when reaching 2GB. */
 #undef NEED_RESETOFS
+
+/* Define to 1 if your C compiler doesn't accept -c and -o together. */
+#undef NO_MINUS_C_MINUS_O
 
 /* Name of package */
 #undef PACKAGE
@@ -1340,15 +1418,6 @@
 
 /* Define to type of select arguments. */
 #undef SELECT_ARG_TYPE
-
-/* The Kerberos server instance. */
-#undef SERVER_HOST_INSTANCE
-
-/* The Kerberos server key file. */
-#undef SERVER_HOST_KEY_FILE
-
-/* The Kerberos server principal. */
-#undef SERVER_HOST_PRINCIPAL
 
 /* A suffix that will be appended to service names. * Useful for testing in
    parallel with a working version. */
@@ -1420,6 +1489,9 @@
 	STACK_DIRECTION = 0 => direction of growth unknown */
 #undef STACK_DIRECTION
 
+/* Location of the 'star' binary */
+#undef STAR
+
 /* Define if the block counts reported by statfs may be truncated to 2GB and
    the correct values may be stored in the f_spare array. (SunOS 4.1.2, 4.1.3,
    and 4.1.3_U1 are reported to have this problem. SunOS 4.1.1 seems not to be
@@ -1460,9 +1532,6 @@
 /* A comma-separated list of two integers, determining the minimum and *
    maximum unreserved TCP port numbers sockets should be bound to. */
 #undef TCPPORTRANGE
-
-/* The Kerberos ticket lifetime. */
-#undef TICKET_LIFETIME
 
 /* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
 #undef TIME_WITH_SYS_TIME
@@ -1516,10 +1585,6 @@
    made weak. */
 #undef USE_SOLARIS_THREADS_WEAK
 
-/* Define to have programs use version suffixes when calling other programs.
-   */
-#undef USE_VERSION_SUFFIXES
-
 /* Define if the Win32 multithreading API can be used. */
 #undef USE_WIN32_THREADS
 
@@ -1528,6 +1593,18 @@
 
 /* Version number of package */
 #undef VERSION
+
+/* Amanda version information beyond patch */
+#undef VERSION_COMMENT
+
+/* major Amanda version number */
+#undef VERSION_MAJOR
+
+/* minor Amanda version number */
+#undef VERSION_MINOR
+
+/* Amanda patch number */
+#undef VERSION_PATCH
 
 /* Define the location of the vrestore program. */
 #undef VRESTORE
@@ -1557,6 +1634,12 @@
 
 /* Define to use POSIX (fcntl()) for file locking */
 #undef WANT_AMFLOCK_POSIX
+
+/* Compile DVD-RW driver */
+#undef WANT_DVDRW_DEVICE
+
+/* Compile NDMP device */
+#undef WANT_NDMP_DEVICE
 
 /* Compile Amazon S3 driver */
 #undef WANT_S3_DEVICE
@@ -1612,6 +1695,9 @@
 /* Number of bits in a file offset, on hosts where this is settable. */
 #undef _FILE_OFFSET_BITS
 
+/* Define to 1 to make fseeko visible on some hosts (e.g. glibc 2.2). */
+#undef _LARGEFILE_SOURCE
+
 /* Define for large files, on AIX-style hosts. */
 #undef _LARGE_FILES
 
@@ -1624,6 +1710,12 @@
 
 /* Define to 1 if you need to in order for `stat' and other things to work. */
 #undef _POSIX_SOURCE
+
+/* Define if you want regoff_t to be at least as wide POSIX requires. */
+#undef _REGEX_LARGE_OFFSETS
+
+/* Define to 500 only on HP-UX. */
+#undef _XOPEN_SOURCE
 
 /* Enable extensions on AIX 3, Interix.  */
 #ifndef _ALL_SOURCE
@@ -1696,14 +1788,33 @@
 /* Define to long or long long if <stdint.h> and <inttypes.h> don't define. */
 #undef intmax_t
 
+/* Work around a bug in Apple GCC 4.0.1 build 5465: In C99 mode, it supports
+   the ISO C 99 semantics of 'extern inline' (unlike the GNU C semantics of
+   earlier versions), but does not display it by setting __GNUC_STDC_INLINE__.
+   __APPLE__ && __MACH__ test for MacOS X.
+   __APPLE_CC__ tests for the Apple compiler and its version.
+   __STDC_VERSION__ tests for the C99 mode.  */
+#if defined __APPLE__ && defined __MACH__ && __APPLE_CC__ >= 5465 && !defined __cplusplus && __STDC_VERSION__ >= 199901L && !defined __GNUC_STDC_INLINE__
+# define __GNUC_STDC_INLINE__ 1
+#endif
+
 /* Directory in which internal binaries should be installed. */
 #undef libexecdir
 
 /* Define to rpl_localtime if the replacement function should be used. */
 #undef localtime
 
+/* Define to rpl_malloc if the replacement function should be used. */
+#undef malloc
+
 /* Directory in which man-pages should be installed */
 #undef mandir
+
+/* Define to a type if <wchar.h> does not define. */
+#undef mbstate_t
+
+/* Define to the type of st_nlink in struct stat, or a supertype. */
+#undef nlink_t
 
 /* Define to `long int' if <sys/types.h> does not define. */
 #undef off_t
@@ -1714,6 +1825,51 @@
 /* Define as the type of the result of subtracting two pointers, if the system
    doesn't define it. */
 #undef ptrdiff_t
+
+/* Define to rpl_re_comp if the replacement should be used. */
+#undef re_comp
+
+/* Define to rpl_re_compile_fastmap if the replacement should be used. */
+#undef re_compile_fastmap
+
+/* Define to rpl_re_compile_pattern if the replacement should be used. */
+#undef re_compile_pattern
+
+/* Define to rpl_re_exec if the replacement should be used. */
+#undef re_exec
+
+/* Define to rpl_re_match if the replacement should be used. */
+#undef re_match
+
+/* Define to rpl_re_match_2 if the replacement should be used. */
+#undef re_match_2
+
+/* Define to rpl_re_search if the replacement should be used. */
+#undef re_search
+
+/* Define to rpl_re_search_2 if the replacement should be used. */
+#undef re_search_2
+
+/* Define to rpl_re_set_registers if the replacement should be used. */
+#undef re_set_registers
+
+/* Define to rpl_re_set_syntax if the replacement should be used. */
+#undef re_set_syntax
+
+/* Define to rpl_re_syntax_options if the replacement should be used. */
+#undef re_syntax_options
+
+/* Define to rpl_regcomp if the replacement should be used. */
+#undef regcomp
+
+/* Define to rpl_regerror if the replacement should be used. */
+#undef regerror
+
+/* Define to rpl_regexec if the replacement should be used. */
+#undef regexec
+
+/* Define to rpl_regfree if the replacement should be used. */
+#undef regfree
 
 /* Define to the equivalent of the C99 'restrict' keyword, or to
    nothing if this is not supported.  Do not define if restrict is
@@ -1748,3 +1904,13 @@
 
 /* Define to `int' if <sys/types.h> doesn't define. */
 #undef uid_t
+
+/* Define as a marker that can be attached to function parameter declarations
+   for parameters that are not used.  This helps to reduce warnings, such as
+   from GCC -Wunused-parameter.  */
+#if __GNUC__ >= 3 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 7)
+# define _UNUSED_PARAMETER_ __attribute__ ((__unused__))
+#else
+# define _UNUSED_PARAMETER_
+#endif
+

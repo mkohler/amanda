@@ -1,26 +1,28 @@
 /*
- * Copyright (c) 2008 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
  *
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1
- * as published by the Free Software Foundation.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  *
- * This library is distributed in the hope that it will be useful, but
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 %module "Amanda::MainLoop"
 %include "amglue/amglue.swg"
 %include "exception.i"
+
+%include "Amanda/MainLoop.pod"
 
 %{
 #include "amanda.h"
@@ -28,240 +30,49 @@
 %}
 
 %perlcode %{
-=head1 NAME
 
-Amanda::MainLoop - Perl interface to the Glib MainLoop
+use POSIX;
+use Carp;
 
-=head1 SYNOPSIS
+## basic functions
 
-    use Amanda::MainLoop;
-    
-    my $to = Amanda::MainLoop::timeout_source(2000);
-    $to->set_callback(sub { 
-	print "Time's Up!\n";
-	$to->remove();		    # dont' re-queue this timeout
-	Amanda::MainLoop::quit();   # return from Amanda::MainLoop::run
-    });
-
-    Amanda::MainLoop::run();
-
-Note that all functions in this module are individually available for export,
-e.g.,
-
-    use Amanda::MainLoop qw(run quit);
-
-=head1 OVERVIEW
-
-The main event loop of an application is a tight loop which waits for events,
-and calls functions to respond to those events.  This design allows an IO-bound
-application to multitask within a single thread, by responding to IO events as
-they occur instead of blocking on particular IO operations.
-
-The Amanda security API, transfer API, and other components rely on the event
-loop to allow them to respond to their own events in a timely fashion.
-
-The overall structure of an application, then, is to initialize its state,
-register callbacks for some events, and begin looping.  When some
-application-defined state is reached, the loop is terminated and the
-application cleans up and exits.
-
-=head2 LOOPING
-
-The actual event loop takes place within a call to C<Amanda::MainLoop::run()>.
-This function executes until a call to C<Amanda::MainLoop::quit()> occurs, at
-which point C<run()> returns.  You can check whether the loop is running with
-C<Amanda::MainLoop::is_running()>.
-
-In some cases, a sub should only run after the loop has started.  The
-most common case is when a callback may call C<Amanda::MainLoop::quit>
-immediately.  In this circumstance, use C<call_later>, which takes a
-subref and an arbitrary number of arguments for that sub:
-
-    my $cb = sub {
-	my ($letters, $digits) = @_;
-	# ..
-	Amanda::MainLoop::quit();
-    };
-    Amanda::MainLoop::call_later($cb, "abc", 123);
-    # ..
-    Amanda::MainLoop::run();
-
-Similarly, a tight loop of callbacks with no blocking operations can
-lead to excessive stack consumption.  In this case, C<call_later()> is
-useful, too. It queues the callback to run at the next cycle of the
-MainLoop:
-
-    sub might_delay {
-        my ($cb) = @_;
-        if (can_do_it_now()) {
-            my $result = do_it();
-            Amanda::MainLoop::call_later($cb, $result)
-        } else {
-            # ..
-        }
+BEGIN {
+    my $have_sub_name = eval "use Sub::Name; 1";
+    if (!$have_sub_name) {
+	eval <<'EOF'
+	    sub subname {
+		my ($name, $sub) = @_;
+		$sub;
+	    }
+EOF
     }
+}
 
-=head2 EVENT SOURCES
-
-An event source is responsible for producing events.  A source may produce
-multiple events over its lifetime.
-
-The method C<$src->set_callback(\&cb)> sets the function that will be called
-for a given source, and "attaches" the source to the main loop so that it will
-begin generating events.  The arguments to the callback depend on the event
-source, but the first argument is always the source itself.  Unless specified,
-no other arguments are provided.
-
-Event sources persist until they are removed with C<$src->remove()>, even if
-the source itself is no longer accessible from Perl.  Although Glib supports
-it, there is no provision for "automatically" removing an event source.  As an
-example:
-
-  sub start_timer { 
-    my ($loops) = @_;
-
-    Amanda::MainLoop::timeout_source(200)->set_callback(sub {
-      my ($src) = @_;
-      print "timer\n";
-      if (--$loops <= 0) {
-        $src->remove();
-        Amanda::MainLoop::quit();
-      }
-    });
-  }
-  start_timer(10);
-  Amanda::MainLoop::run();
-
-=head3 Timeout
-
-  my $src = Amanda::MainLoop::timeout_source(10000);
-
-A timeout source will create events at the specified interval, specified in
-milliseconds (thousandths of a second).  The events will continue until the
-source is destroyed.
-
-=head3 Idle
-
-  my $src = Amanda::MainLoop::idle_source(2);
-
-An idle source will create events continuously except when a higher-priority
-source is emitting events.  Priorities are generally small positive integers,
-with larger integers denoting lower priorities.  The events will continue until
-the source is destroyed.
-
-=head3 Child Watch
-
-  my $src = Amanda::MainLoop::child_watch_source($pid);
-
-A child watch source will issue an event when the process with the given PID
-dies.  To avoid race conditions, it will issue an event even if the process
-dies before the source is created.  The callback is called with three
-arguments: the event source, the PID, and the child's exit status.
-
-Note that this source is totally incompatible with any thing that would cause
-perl to change the SIGCHLD handler.  If SIGCHLD is changed, under some
-circumstances the module will recognize this circumstance, add a warning to the
-debug log, and continue operating.  However, it is impossible to catch all
-possible situations.
-
-=head3 File Descriptor
-
-  my $src = Amanda::MainLoop::fd_source($fd, G_IO_IN);
-
-This source will issuen an event whenever one of the given conditions is true
-for the given file descriptor.  The conditions are from Glib's GIOCondition,
-and are C<$G_IO_IN>, C<G_IO_OUT>, C<$G_IO_PRI>, C<$G_IO_ERR>, C<$G_IO_HUP>, and
-C<$G_IO_NVAL>.  These constants are available with the import tag
-C<:GIOCondition>.
-
-Generally, when reading from a file descriptor, use C<$G_IO_IN|$G_IO_HUP> to
-ensure that an EOF triggers an event as well.  Writing to a file descriptor can
-simply use C<$G_IO_OUT>.
-
-=head1 RELATION TO GLIB
-
-Glib's main event loop is described in the Glib manual:
-L<http://library.gnome.org/devel/glib/stable/glib-The-Main-Event-Loop.html>.
-Note that Amanda depends only on the functionality available in Glib-2.2.0, so
-many functions described in that document are not available in Amanda.  This
-module provides a much-simplified interface to the glib library, and is not
-intended as a generic wrapper for it.  Specifically:
-
-=over
-
-=item Amanda's perl-accessible main loop only runs a single C<GMainContext>, and
-always runs in the main thread.
-
-=item Besides idle sources, event priorities are not accessible from Perl.
-
-=back
-
-=head1 PROGRAMMING HINTS
-
-Most often, callbacks are short, and can be specified as anonymous subs:
-
-    $src->set_callback(sub {
-	my ($src) = @_;
-	# ...
-    });
-
-There is currently no means in place to specify extra arguments for a callback
-when it is set.  If the callback needs access to other data, it should use a
-Perl closure in the form of lexically scoped variables and a (possibly
-anonymous) sub:
-
-    {
-	my $total_results = 0;
-
-	$src->set_callback(sub {
-	    my ($src, $result) = @_;
-	    $total_results += $result;
-	});
-    }
-
-Event sources are often set up in groups, e.g., a long-term operation and a
-timeout.  When this is the case, be careful that all sources are removed when
-the operation is complete.  The easiest way to accomplish this is to include all
-sources in a lexical scope and remove them at the appropriate times:
-
-    {
-	my $op_src = long_operation_src();
-	my $timeout_src = Amanda::MainLoop::timeout_source($timeout);
-
-	sub finish {
-	    $op_src->remove();
-	    $timeout_src->remove();
-	}
-
-	$op_src->set_callback(sub {
-	    print "Operation complete\n";
-	    finish();
-	});
-
-	$timeout_src->set_callback(sub {
-	    print "Operation timed out\n";
-	    finish();
-	});
-    }
-
-Both of these limitations may be lifted in future revisions of
-L<Amanda::MainLoop>.
-
-=cut
-%}
-
-/*
- * Looping
- */
-
-%perlcode %{
 # glib's g_is_main_loop_running() seems inaccurate, so we just
 # track that information locally..
 my $mainloop_running = 0;
+sub run {
+    $mainloop_running = 1;
+    run_c();
+    $mainloop_running = 0;
+}
+push @EXPORT_OK, "run";
+
+sub is_running {
+    return $mainloop_running;
+}
+push @EXPORT_OK, "is_running";
+
+# quit is a direct call to C
+push @EXPORT_OK, "quit";
+
+## utility functions
 
 my @waiting_to_call_later;
 sub call_later {
     my ($sub, @args) = @_;
+
+    confess "undefined sub" unless ($sub);
 
     # add the callback if nothing is waiting right now
     if (!@waiting_to_call_later) {
@@ -270,23 +81,248 @@ sub call_later {
             $src->remove();
 
             while (@waiting_to_call_later) {
-                my ($sub, @args) = @{pop @waiting_to_call_later};
-                $sub->(@args);
+                my ($sub, @args) = @{shift @waiting_to_call_later};
+                $sub->(@args) if $sub;
             }
         });
     }
 
     push @waiting_to_call_later, [ $sub, @args ];
 }
+push @EXPORT_OK, "call_later";
 
-sub run {
-    $mainloop_running = 1;
-    run_c();
-    $mainloop_running = 0;
+sub make_cb {
+    my ($name, $sub) = @_;
+
+    if ($sub) {
+	my ($pkg, $filename, $line) = caller;
+	my $newname = sprintf('$%s::%s@l%s', $pkg, $name, $line);
+	$sub = subname($newname => $sub);
+    } else {
+	$sub = $name; # no name => sub is actually in first parameter
+    }
+
+    sub {
+        Amanda::MainLoop::call_later($sub, @_);
+    };
 }
+push @EXPORT, 'make_cb';
 
-sub is_running {
-    return $mainloop_running;
+sub call_after {
+    my ($delay_ms, $sub, @args) = @_;
+
+    confess "undefined sub" unless ($sub);
+
+    my $src = timeout_source($delay_ms);
+    $src->set_callback(sub {
+	$src->remove();
+	$sub->(@args);
+    });
+
+    return $src;
+}
+push @EXPORT_OK, "call_after";
+
+sub call_on_child_termination {
+    my ($pid, $cb, @args) = @_;
+
+    confess "undefined sub" unless ($cb);
+
+    my $src = child_watch_source($pid);
+    $src->set_callback(sub {
+	my ($src, $pid, $exitstatus) = @_;
+	$src->remove();
+	return $cb->($exitstatus);
+    });
+}
+push @EXPORT_OK, "call_on_child_termination";
+
+sub async_read {
+    my %params = @_;
+    my $fd = $params{'fd'};
+    my $size = $params{'size'} || 0;
+    my $cb = $params{'async_read_cb'};
+    my @args;
+    @args = @{$params{'args'}} if exists $params{'args'};
+
+    my $fd_cb = sub {
+	my ($src) = @_;
+	$src->remove();
+
+	my $buf;
+	my $res = POSIX::read($fd, $buf, $size || 32768);
+	if (!defined $res) {
+	    return $cb->($!, undef, @args);
+	} else {
+	    return $cb->(undef, $buf, @args);
+	}
+    };
+    my $src = fd_source($fd, $G_IO_IN|$G_IO_HUP|$G_IO_ERR);
+    $src->set_callback($fd_cb);
+    return $src;
+}
+push @EXPORT_OK, "async_read";
+
+my %outstanding_writes;
+sub async_write {
+    my %params = @_;
+    my $fd = $params{'fd'};
+    my $data = $params{'data'};
+    my $cb = $params{'async_write_cb'};
+    my @args;
+    @args = @{$params{'args'}} if exists $params{'args'};
+
+    # more often than not, writes will not block, so just try it.
+    if (!exists $outstanding_writes{$fd}) {
+	my $res = POSIX::write($fd, $data, length($data));
+	if (!defined $res) {
+	    if ($! != POSIX::EAGAIN) {
+		return $cb->($!, 0, @args);
+	    }
+	} elsif ($res eq length($data)) {
+	    return $cb->(undef, $res, @args);
+	} else {
+	    # chop off whatever data was written
+	    $data = substr($data, $res);
+	}
+    }
+
+    if (!exists $outstanding_writes{$fd}) {
+	my $fd_writes = $outstanding_writes{$fd} = [];
+	my $src = fd_source($fd, $G_IO_OUT|$G_IO_HUP|$G_IO_ERR);
+
+	# (note that this does not coalesce consecutive outstanding writes
+	# into a single POSIX::write call)
+	my $fd_cb = sub {
+	    my $ow = $fd_writes->[0];
+	    my ($buf, $nwritten, $len, $cb, $args) = @$ow;
+
+	    my $res = POSIX::write($fd, $buf, $len-$nwritten);
+	    if (!defined $res) {
+		shift @$fd_writes;
+		$cb->($!, $nwritten, @$args);
+	    } else {
+		$ow->[1] = $nwritten = $nwritten + $res;
+		if ($nwritten == $len) {
+		    shift @$fd_writes;
+		    $cb->(undef, $nwritten, @$args);
+		} else {
+		    $ow->[0] = substr($buf, $res);
+		}
+	    }
+
+	    # (the following is *intentionally* done after calling $cb, allowing
+	    # $cb to add a new message to $fd_writes if desired, and thus avoid
+	    # removing and re-adding the source)
+	    if (@$fd_writes == 0) {
+		$src->remove();
+		delete $outstanding_writes{$fd};
+	    }
+	};
+
+	$src->set_callback($fd_cb);
+    }
+    
+    push @{$outstanding_writes{$fd}}, [ $data, 0, length($data), $cb, \@args ];
+}
+push @EXPORT_OK, "async_write";
+
+sub synchronized {
+    my ($lock, $orig_cb, $sub) = @_;
+    my $continuation_cb;
+
+    $continuation_cb = sub {
+	my @args = @_;
+
+	# shift this invocation off the queue
+	my ($last_sub, $last_orig_cb) = @{ shift @$lock };
+
+	# start the next invocation, if the queue isn't empty
+	if (@$lock) {
+	    Amanda::MainLoop::call_later($lock->[0][0], $continuation_cb);
+	}
+
+	# call through to the original callback for the last invocation
+	return $last_orig_cb->(@args);
+    };
+
+    # push this sub onto the lock queue
+    if ((push @$lock, [ $sub, $orig_cb ]) == 1) {
+	# if this is the first addition to the queue, start it
+	$sub->($continuation_cb);
+    }
+}
+push @EXPORT_OK, "synchronized";
+
+{   # privat variables to track the "current" step definition
+    my $current_steps;
+    my $immediate;
+    my $first_step;
+
+    sub define_steps (@) {
+	my (%params) = @_;
+	my $cb_ref = $params{'cb_ref'};
+	my %steps;
+
+	croak "cb_ref is undefined" unless defined $cb_ref;
+	croak "cb_ref is not a reference" unless ref($cb_ref) eq 'REF';
+	croak "cb_ref is not a code double-reference" unless ref($$cb_ref) eq 'CODE';
+
+	# arrange to clear out $steps when $exit_cb is called; this eliminates
+	# reference loops (values in %steps are closures which point to %steps).
+	# This also clears $current_steps, which is likely holding a reference to
+	# the steps hash.
+	my $orig_cb = $$cb_ref;
+	$$cb_ref = sub {
+	    %steps = ();
+	    $current_steps = undef;
+	    goto $orig_cb;
+	};
+
+	# set up state
+	$current_steps = \%steps;
+	$immediate = $params{'immediate'};
+	$first_step = 1;
+
+	return $current_steps;
+    }
+    push @EXPORT, "define_steps";
+
+    sub step (@) {
+	my (%params) = @_;
+	my $step_immediate = $immediate || $params{'immediate'};
+	delete $params{'immediate'} if $step_immediate;
+
+	my ($name) = keys %params;
+	my $cb = $params{$name};
+
+	croak "expected a sub at key $name" unless ref($cb) eq 'CODE';
+
+	# make the sub delayed
+	unless ($step_immediate) {
+	    my $orig_cb = $cb;
+	    $cb = sub { Amanda::MainLoop::call_later($orig_cb, @_); }
+	}
+
+	# patch up the callback
+	my ($pkg, $filename, $line) = caller;
+	my $newname = sprintf('$%s::%s@l%s', $pkg, $name, $line);
+	$cb = subname($newname => $cb);
+
+	# store the step for later
+	$current_steps->{$name} = $cb;
+
+	# and invoke it, if it's the first step given
+	if ($first_step) {
+	    if ($step_immediate) {
+		call_later($cb);
+	    } else {
+		$cb->();
+	    }
+	}
+	$first_step = 0;
+    }
+    push @EXPORT, "step";
 }
 %}
 
@@ -353,12 +389,13 @@ typedef struct amglue_Source {
 	     * that we make a copy of this SV, in case the user later
 	     * modifies it. */
 	    if (self->callback_sv) {
-		SvSetSV(self->callback_sv, callback_sub);
-	    } else {
-		self->callback_sv = newSVsv(callback_sub);
-		g_source_set_callback(self->src, self->callback,
-		    (gpointer)self, NULL);
+		SvREFCNT_dec(self->callback_sv);
+		self->callback_sv = NULL;
 	    }
+	    self->callback_sv = newSVsv(callback_sub);
+	    SvREFCNT_inc(self->callback_sv);
+	    g_source_set_callback(self->src, self->callback,
+		(gpointer)self, NULL);
 	}
 	/* delete the cheater's typemap */
 	%typemap(in) SV *sv;
@@ -412,6 +449,8 @@ amglue_source_callback_simple(
     amglue_Source *src = (amglue_Source *)data;
     SV *src_sv = NULL;
 
+    /* keep the source around long enough for the call to finish */
+    amglue_source_ref(src);
     g_assert(src->callback_sv != NULL);
 
     ENTER;
@@ -433,9 +472,12 @@ amglue_source_callback_simple(
     FREETMPS;
     LEAVE;
 
-    /* these may have been freed, so don't use them after this point */
-    src_sv = NULL;
+    /* we no longer need the src */
+    amglue_source_unref(src);
     src = NULL;
+
+    /* this may have been freed, so don't use them after this point */
+    src_sv = NULL;
 
     /* check for an uncaught 'die'.  If we don't do this, then Perl will longjmp()
      * over the GMainLoop mechanics, leaving GMainLoop in an inconsistent (locked)
@@ -492,6 +534,8 @@ child_watch_source_callback(
     amglue_Source *src = (amglue_Source *)data;
     SV *src_sv;
 
+    /* keep the source around long enough for the call to finish */
+    amglue_source_ref(src);
     g_assert(src->callback_sv != NULL);
 
     ENTER;
@@ -519,9 +563,12 @@ child_watch_source_callback(
     FREETMPS;
     LEAVE;
 
-    /* these may have been freed, so don't use them after this point */
-    src_sv = NULL;
+    /* we no longer need the src */
+    amglue_source_unref(src);
     src = NULL;
+
+    /* this may have been freed, so don't use them after this point */
+    src_sv = NULL;
 
     /* check for an uncaught 'die'.  If we don't do this, then Perl will longjmp()
      * over the GMainLoop mechanics, leaving GMainLoop in an inconsistent (locked)
@@ -564,7 +611,7 @@ amglue_copy_to_tag(GIOCondition, constants);
 %inline %{
 amglue_Source *
 fd_source(
-    gint fd,
+    int fd,
     GIOCondition events)
 {
     GSource *fdsource = new_fdsource(fd, events);

@@ -1,0 +1,81 @@
+'\" t
+.\"     Title: amraw
+.\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
+.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
+.\"      Date: 06/01/2010
+.\"    Manual: System Administration Commands
+.\"    Source: Amanda 3.1.0
+.\"  Language: English
+.\"
+.TH "AMRAW" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "NAME"
+amraw \- Amanda Application open and read data
+.SH "DESCRIPTION"
+.PP
+Amraw is an Amanda Application API script\&. It should not be run by users directly\&. It uses dd to backup and restore data\&.
+.PP
+Amraw can backup only one directory entry, it can be a single file, a raw device, anything that amanda can open and read\&.
+.PP
+Restore is done in place, an open is done and the data is written to it\&. A file owned by root and permission 0600 is create if the directory entry doesn\'t exist before the restore\&.
+.PP
+Only full backup is allowed
+.SH "PROPERTIES"
+.PP
+This section lists the properties that control amgtar\'s functionality\&. See
+\fBamanda-applications\fR(7)
+for information on application properties and how they are configured\&.
+.PP
+DIRECTORY
+.RS 4
+
+Used only for restore command, can be a device name or file, the data will be restored to it\&.
+.RE
+.SH "EXAMPLE"
+.PP
+
+.sp
+.nf
+  define application\-tool app_amraw {
+    plugin "amraw"
+  }
+.fi
+A dumptype using this application might look like:
+.sp
+.nf
+  define dumptype amraw {
+    global
+    program "APPLICATION"
+    application "app_amraw"
+  }
+.fi
+Note that the
+\fIprogram\fR
+parameter must be set to
+\fI"APPLICATION"\fR
+to use the
+\fIapplication\fR
+parameter\&.
+.SH "SEE ALSO"
+.PP
+\fBamanda\fR(8),
+\fBamanda.conf\fR(5),
+\fBamanda-applications\fR(7)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
+.SH "AUTHOR"
+.PP
+\fBJean\-Louis Martineau\fR <\&martineau@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (http://www\&.zmanda\&.com)
+.RE

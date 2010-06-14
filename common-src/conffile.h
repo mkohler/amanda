@@ -111,8 +111,23 @@ typedef enum {
     ES_CLIENT,          /* client estimate */
     ES_SERVER,          /* server estimate */
     ES_CALCSIZE,        /* calcsize estimate */
-    ES_ES /* sentinel */
+    ES_ES               /* sentinel */
 } estimate_t;
+/* A GSlist where each element is a element_t */
+typedef GSList *estimatelist_t;
+
+typedef enum {
+    AL_OTHER_CONFIG = 1<<0,
+    AL_NON_AMANDA   = 1<<1,
+    AL_VOLUME_ERROR = 1<<2,
+    AL_EMPTY        = 1<<3,
+} autolabel_enum_t;
+typedef int autolabel_set_t;
+
+typedef struct autolabel_s {
+    char            *template;
+    autolabel_set_t  autolabel;
+} autolabel_t;
 
 /* Dump strategies */
 typedef enum {
@@ -166,6 +181,11 @@ typedef enum {
     SEND_AMREPORT_NEVER
 } send_amreport_t;
 
+typedef enum {
+    DATA_PATH_AMANDA    = 1<<0,
+    DATA_PATH_DIRECTTCP = 1<<1,
+} data_path_t;
+
 typedef struct exinclude_s {
     sl_t *sl_list;
     sl_t *sl_file;
@@ -179,7 +199,8 @@ typedef struct {
 } property_t;
 
 typedef GHashTable* proplist_t;
-typedef GSList* pp_scriptlist_t;
+/* A GSlist where each element is a 'char*' */
+typedef GSList* identlist_t;
 
 /* Names for the type of value in a val_t.  Mostly for internal use, but useful
  * for wrapping val_t's, too. */
@@ -195,7 +216,7 @@ typedef enum {
     CONFTYPE_COMPRESS,
     CONFTYPE_ENCRYPT,
     CONFTYPE_HOLDING,
-    CONFTYPE_ESTIMATE,
+    CONFTYPE_ESTIMATELIST,
     CONFTYPE_STRATEGY,
     CONFTYPE_TAPERALGO,
     CONFTYPE_PRIORITY,
@@ -207,7 +228,9 @@ typedef enum {
     CONFTYPE_EXECUTE_ON,
     CONFTYPE_EXECUTE_WHERE,
     CONFTYPE_SEND_AMREPORT_ON,
-    CONFTYPE_PP_SCRIPTLIST
+    CONFTYPE_IDENTLIST,
+    CONFTYPE_DATA_PATH,
+    CONFTYPE_AUTOLABEL,
 } conftype_t;
 
 /* A "seen" struct.  Rather than allocate strings all over the place, this
@@ -233,8 +256,9 @@ typedef struct val_s {
         exinclude_t	exinclude;
         int		intrange[2];
         proplist_t      proplist;
-	struct application_s  *application;
-	pp_scriptlist_t pp_scriptlist;
+	estimatelist_t  estimatelist;
+	identlist_t     identlist;
+        autolabel_t     autolabel;
     } v;
     seen_t seen;
     conftype_t type;
@@ -248,13 +272,14 @@ gint64                val_t_to_int64    (val_t *);
 float                 val_t_to_real     (val_t *);
 char                 *val_t_to_str      (val_t *); /* (also converts CONFTYPE_IDENT) */
 char                 *val_t_to_ident    (val_t *); /* (also converts CONFTYPE_STR) */
+identlist_t           val_t_to_identlist(val_t *);
 time_t                val_t_to_time     (val_t *);
 ssize_t               val_t_to_size     (val_t *);
 int                   val_t_to_boolean  (val_t *);
 comp_t                val_t_to_compress (val_t *);
 encrypt_t             val_t_to_encrypt  (val_t *);
 dump_holdingdisk_t    val_t_to_holding  (val_t *);
-estimate_t            val_t_to_estimate (val_t *);
+estimatelist_t        val_t_to_estimatelist (val_t *);
 strategy_t            val_t_to_strategy (val_t *);
 taperalgo_t           val_t_to_taperalgo(val_t *);
 int                   val_t_to_priority (val_t *);
@@ -262,11 +287,12 @@ float                *val_t_to_rate     (val_t *); /* array of two floats */
 exinclude_t           val_t_to_exinclude(val_t *);
 int                  *val_t_to_intrange (val_t *); /* array of two ints */
 proplist_t            val_t_to_proplist (val_t *);
-struct application_s *val_t_to_application(val_t *);
-pp_scriptlist_t       val_t_to_pp_scriptlist(val_t *);
+char                 *val_t_to_application(val_t *);
 execute_on_t          val_t_to_execute_on(val_t *);
 execute_where_t       val_t_to_execute_where(val_t *);
 send_amreport_t       val_t_to_send_amreport(val_t *);
+data_path_t           val_t_to_data_path(val_t *);
+autolabel_t           val_t_to_autolabel(val_t *);
 
 /* Has the given val_t been seen in a configuration file or config overwrite?
  *
@@ -295,13 +321,14 @@ send_amreport_t       val_t_to_send_amreport(val_t *);
 #define val_t__real(val)          ((val)->v.r)
 #define val_t__str(val)           ((val)->v.s)
 #define val_t__ident(val)         ((val)->v.s)
+#define val_t__identlist(val)     ((val)->v.identlist)
 #define val_t__time(val)          ((val)->v.t)
 #define val_t__size(val)          ((val)->v.size)
 #define val_t__boolean(val)       ((val)->v.i)
 #define val_t__compress(val)      ((val)->v.i)
 #define val_t__encrypt(val)       ((val)->v.i)
 #define val_t__holding(val)       ((val)->v.i)
-#define val_t__estimate(val)      ((val)->v.i)
+#define val_t__estimatelist(val)  ((val)->v.estimatelist)
 #define val_t__strategy(val)      ((val)->v.i)
 #define val_t__taperalgo(val)     ((val)->v.i)
 #define val_t__send_amreport(val) ((val)->v.i)
@@ -310,10 +337,11 @@ send_amreport_t       val_t_to_send_amreport(val_t *);
 #define val_t__exinclude(val)     ((val)->v.exinclude)
 #define val_t__intrange(val)      ((val)->v.intrange)
 #define val_t__proplist(val)      ((val)->v.proplist)
-#define val_t__pp_scriptlist(val) ((val)->v.pp_scriptlist)
 #define val_t__application(val)   ((val)->v.application)
 #define val_t__execute_on(val)    ((val)->v.i)
 #define val_t__execute_where(val) ((val)->v.i)
+#define val_t__data_path(val)     ((val)->v.i)
+#define val_t__autolabel(val)     ((val)->v.autolabel)
 /*
  * Parameters
  *
@@ -334,12 +362,12 @@ typedef enum {
     CNF_SSH_KEYS,
     CNF_AMANDAD_PATH,
     CNF_CLIENT_USERNAME,
+    CNF_CLIENT_PORT,
     CNF_GNUTAR_LIST_DIR,
     CNF_AMANDATES,
     CNF_MAILTO,
     CNF_DUMPUSER,
     CNF_TAPEDEV,
-    CNF_RAWTAPEDEV,
     CNF_DEVICE_PROPERTY,
     CNF_PROPERTY,
     CNF_APPLICATION,
@@ -398,6 +426,7 @@ typedef enum {
     CNF_CONNECT_TRIES,
     CNF_REQ_TRIES,
     CNF_DEBUG_AMANDAD,
+    CNF_DEBUG_RECOVERY,
     CNF_DEBUG_AMIDXTAPED,
     CNF_DEBUG_AMINDEXD,
     CNF_DEBUG_AMRECOVER,
@@ -416,6 +445,9 @@ typedef enum {
     CNF_RESERVED_UDP_PORT,
     CNF_RESERVED_TCP_PORT,
     CNF_UNRESERVED_TCP_PORT,
+    CNF_HOLDINGDISK,
+    CNF_AUTOLABEL,
+    CNF_DEBUG_DAYS,
     CNF_CNF /* sentinel */
 } confparm_key;
 
@@ -432,9 +464,10 @@ val_t *getconf(confparm_key key);
  * @returns: boolean
  */
 #define getconf_seen(key)       (val_t_seen(getconf((key))))
+#define getconf_linenum(key)       (val_t_seen(getconf((key))))
 
 /* (convenience macros)
- * Fetch a gloabl parameter of a specific type.  Note that these
+ * Fetch a global parameter of a specific type.  Note that these
  * convenience macros have a different form from those for the
  * subsections: here you specify a type and a key, while for the
  * subsections you specify only a key.  The difference is historical.
@@ -447,13 +480,14 @@ val_t *getconf(confparm_key key);
 #define getconf_real(key)         (val_t_to_real(getconf((key))))
 #define getconf_str(key)	  (val_t_to_str(getconf((key))))
 #define getconf_ident(key)        (val_t_to_ident(getconf((key))))
+#define getconf_identlist(key)    (val_t_to_identlist(getconf((key))))
 #define getconf_time(key)         (val_t_to_time(getconf((key))))
 #define getconf_size(key)         (val_t_to_size(getconf((key))))
 #define getconf_boolean(key)      (val_t_to_boolean(getconf((key))))
 #define getconf_compress(key)     (val_t_to_compress(getconf((key))))
 #define getconf_encrypt(key)      (val_t_to_encrypt(getconf((key))))
 #define getconf_holding(key)      (val_t_to_holding(getconf((key))))
-#define getconf_estimate(key)     (val_t_to_estimate(getconf((key))))
+#define getconf_estimatelist(key) (val_t_to_estimatelist(getconf((key))))
 #define getconf_strategy(key)     (val_t_to_strategy(getconf((key))))
 #define getconf_taperalgo(key)    (val_t_to_taperalgo(getconf((key))))
 #define getconf_priority(key)     (val_t_to_priority(getconf((key))))
@@ -462,6 +496,7 @@ val_t *getconf(confparm_key key);
 #define getconf_intrange(key)     (val_t_to_intrange(getconf((key))))
 #define getconf_proplist(key)     (val_t_to_proplist(getconf((key))))
 #define getconf_send_amreport(key) (val_t_to_send_amreport(getconf((key))))
+#define getconf_autolabel(key)    (val_t_to_autolabel(getconf((key))))
 
 /* Get a list of names for subsections of the given type
  *
@@ -496,6 +531,7 @@ long int getconf_unit_divisor(void);
  * desired.  */
 
 extern int debug_amandad;
+extern int debug_recovery;
 extern int debug_amidxtaped;
 extern int debug_amindexd;
 extern int debug_amrecover;
@@ -579,6 +615,8 @@ char *tapetype_name(tapetype_t *ttyp);
 
 /*
  * Dumptype parameter access
+ *
+ * Note that some parameters are generic to the host
  */
 
 typedef enum {
@@ -588,15 +626,15 @@ typedef enum {
     DUMPTYPE_CLNTCOMPPROG,
     DUMPTYPE_SRV_ENCRYPT,
     DUMPTYPE_CLNT_ENCRYPT,
-    DUMPTYPE_AMANDAD_PATH,
-    DUMPTYPE_CLIENT_USERNAME,
-    DUMPTYPE_SSH_KEYS,
-    DUMPTYPE_SECURITY_DRIVER,
+    DUMPTYPE_AMANDAD_PATH,		/* host parameter */
+    DUMPTYPE_CLIENT_USERNAME,		/* host parameter */
+    DUMPTYPE_SSH_KEYS,			/* host parameter */
+    DUMPTYPE_AUTH,			/* host parameter */
     DUMPTYPE_EXCLUDE,
     DUMPTYPE_INCLUDE,
     DUMPTYPE_PRIORITY,
     DUMPTYPE_DUMPCYCLE,
-    DUMPTYPE_MAXDUMPS,
+    DUMPTYPE_MAXDUMPS,		        /* host parameter */
     DUMPTYPE_MAXPROMOTEDAY,
     DUMPTYPE_BUMPPERCENT,
     DUMPTYPE_BUMPSIZE,
@@ -604,7 +642,7 @@ typedef enum {
     DUMPTYPE_BUMPMULT,
     DUMPTYPE_STARTTIME,
     DUMPTYPE_STRATEGY,
-    DUMPTYPE_ESTIMATE,
+    DUMPTYPE_ESTIMATELIST,
     DUMPTYPE_COMPRESS,
     DUMPTYPE_ENCRYPT,
     DUMPTYPE_SRV_DECRYPT_OPT,
@@ -621,8 +659,10 @@ typedef enum {
     DUMPTYPE_IGNORE,
     DUMPTYPE_INDEX,
     DUMPTYPE_APPLICATION,
-    DUMPTYPE_PP_SCRIPTLIST,
+    DUMPTYPE_SCRIPTLIST,
     DUMPTYPE_PROPERTY,
+    DUMPTYPE_CLIENT_PORT,
+    DUMPTYPE_DATA_PATH,
     DUMPTYPE_DUMPTYPE /* sentinel */
 } dumptype_key;
 
@@ -675,7 +715,7 @@ char *dumptype_name(dumptype_t *dtyp);
 #define dumptype_get_amandad_path(dtyp)        (val_t_to_str(dumptype_getconf((dtyp), DUMPTYPE_AMANDAD_PATH)))
 #define dumptype_get_client_username(dtyp)     (val_t_to_str(dumptype_getconf((dtyp), DUMPTYPE_CLIENT_USERNAME)))
 #define dumptype_get_ssh_keys(dtyp)            (val_t_to_str(dumptype_getconf((dtyp), DUMPTYPE_SSH_KEYS)))
-#define dumptype_get_security_driver(dtyp)     (val_t_to_str(dumptype_getconf((dtyp), DUMPTYPE_SECURITY_DRIVER)))
+#define dumptype_get_auth(dtyp)                (val_t_to_str(dumptype_getconf((dtyp), DUMPTYPE_AUTH)))
 #define dumptype_get_exclude(dtyp)             (val_t_to_exinclude(dumptype_getconf((dtyp), DUMPTYPE_EXCLUDE)))
 #define dumptype_get_include(dtyp)             (val_t_to_exinclude(dumptype_getconf((dtyp), DUMPTYPE_INCLUDE)))
 #define dumptype_get_priority(dtyp)            (val_t_to_priority(dumptype_getconf((dtyp), DUMPTYPE_PRIORITY)))
@@ -690,7 +730,7 @@ char *dumptype_name(dumptype_t *dtyp);
 #define dumptype_get_bumpmult(dtyp)            (val_t_to_real(dumptype_getconf((dtyp), DUMPTYPE_BUMPMULT)))
 #define dumptype_get_starttime(dtyp)           (val_t_to_time(dumptype_getconf((dtyp), DUMPTYPE_STARTTIME)))
 #define dumptype_get_strategy(dtyp)            (val_t_to_strategy(dumptype_getconf((dtyp), DUMPTYPE_STRATEGY)))
-#define dumptype_get_estimate(dtyp)            (val_t_to_estimate(dumptype_getconf((dtyp), DUMPTYPE_ESTIMATE)))
+#define dumptype_get_estimatelist(dtyp)        (val_t_to_estimatelist(dumptype_getconf((dtyp), DUMPTYPE_ESTIMATELIST)))
 #define dumptype_get_compress(dtyp)            (val_t_to_compress(dumptype_getconf((dtyp), DUMPTYPE_COMPRESS)))
 #define dumptype_get_encrypt(dtyp)             (val_t_to_encrypt(dumptype_getconf((dtyp), DUMPTYPE_ENCRYPT)))
 #define dumptype_get_srv_decrypt_opt(dtyp)     (val_t_to_str(dumptype_getconf((dtyp), DUMPTYPE_SRV_DECRYPT_OPT)))
@@ -707,8 +747,10 @@ char *dumptype_name(dumptype_t *dtyp);
 #define dumptype_get_ignore(dtyp)              (val_t_to_boolean(dumptype_getconf((dtyp), DUMPTYPE_IGNORE)))
 #define dumptype_get_index(dtyp)               (val_t_to_boolean(dumptype_getconf((dtyp), DUMPTYPE_INDEX)))
 #define dumptype_get_application(dtyp)         (val_t_to_application(dumptype_getconf((dtyp), DUMPTYPE_APPLICATION)))
-#define dumptype_get_pp_scriptlist(dtyp)       (val_t_to_pp_scriptlist(dumptype_getconf((dtyp), DUMPTYPE_PP_SCRIPTLIST)))
+#define dumptype_get_scriptlist(dtyp)          (val_t_to_identlist(dumptype_getconf((dtyp), DUMPTYPE_SCRIPTLIST)))
 #define dumptype_get_property(dtyp)            (val_t_to_proplist(dumptype_getconf((dtyp), DUMPTYPE_PROPERTY)))
+#define dumptype_get_client_port(dtyp)             (val_t_to_str(dumptype_getconf((dtyp), DUMPTYPE_CLIENT_PORT)))
+#define dumptype_get_data_path(dtyp)             (val_t_to_data_path(dumptype_getconf((dtyp), DUMPTYPE_DATA_PATH)))
 
 /*
  * Interface parameter access
@@ -786,20 +828,11 @@ typedef struct holdingdisk_s holdingdisk_t;
  */
 holdingdisk_t *lookup_holdingdisk(char *identifier);
 
-/* Return the whole linked list of holdingdisks.  Use holdingdisk_next
- * to traverse the list.
+/* Return the whole linked list of holdingdisks.
  *
  * @returns: first holding disk
  */
-holdingdisk_t *getconf_holdingdisks(void);
-
-/* Return the next holdingdisk in the list.
- *
- * @param hdisk: holding disk
- * @returns: NULL if hdisk is the last disk, otherwise the next holding
- * disk
- */
-holdingdisk_t *holdingdisk_next(holdingdisk_t *hdisk);
+GSList *getconf_holdingdisks(void);
 
 /* Given a holdingdisk and a key, return a pointer to the corresponding val_t.
  *
@@ -897,6 +930,7 @@ typedef enum pp_script_e  {
     PP_SCRIPT_PROPERTY,
     PP_SCRIPT_EXECUTE_ON,
     PP_SCRIPT_EXECUTE_WHERE,
+    PP_SCRIPT_ORDER,
     PP_SCRIPT_PP_SCRIPT
 } pp_script_key;
 
@@ -947,6 +981,7 @@ char *pp_script_name(pp_script_t *pps);
 #define pp_script_get_property(pp_script)   (val_t_to_proplist(pp_script_getconf((pp_script), PP_SCRIPT_PROPERTY)))
 #define pp_script_get_execute_on(pp_script)   (val_t_to_execute_on(pp_script_getconf((pp_script), PP_SCRIPT_EXECUTE_ON)))
 #define pp_script_get_execute_where(pp_script)   (val_t_to_execute_where(pp_script_getconf((pp_script), PP_SCRIPT_EXECUTE_WHERE)))
+#define pp_script_get_order(pp_script)   (val_t_to_int(pp_script_getconf((pp_script), PP_SCRIPT_ORDER)))
 
 pp_script_t *read_pp_script(char *name, FILE *from, char *fname, int *linenum);
 pp_script_t *lookup_pp_script(char *identifier);
@@ -1015,6 +1050,8 @@ typedef enum {
     CHANGER_CONFIG_TPCHANGER,
     CHANGER_CONFIG_CHANGERDEV,
     CHANGER_CONFIG_CHANGERFILE,
+    CHANGER_CONFIG_PROPERTY,
+    CHANGER_CONFIG_DEVICE_PROPERTY,
     CHANGER_CONFIG_CHANGER_CONFIG
 } changer_config_key;
 
@@ -1122,41 +1159,41 @@ void config_add_error(cfgerr_level_t level, char *errmsg);
  */
 
 /* opaque type */
-typedef struct config_overwrites_s config_overwrites_t;
+typedef struct config_overrides_s config_overrides_t;
 
-/* Create a new, empty config_overwrites object.
+/* Create a new, empty config_overrides object.
  *
  * @param size_estimate: a guess at the number of overwrites; argc/2 is a 
  *  good estimate.
  * @returns: new object
  */
-config_overwrites_t *new_config_overwrites(int size_estimate);
+config_overrides_t *new_config_overrides(int size_estimate);
 
-/* Free a config_overwrites object.  This usually won't be needed, as
- * apply_config_overwrites takes ownership of the overwrites for you.
+/* Free a config_overrides object.  This usually won't be needed, as
+ * apply_config_overrides takes ownership of the overwrites for you.
  *
- * @param co: config_overwrites object
+ * @param co: config_overrides object
  */
-void free_config_overwrites(config_overwrites_t *co);
+void free_config_overrides(config_overrides_t *co);
 
-/* Add an overwrite to a config_overwrites object.
+/* Add an overwrite to a config_overrides object.
  *
- * @param co: the config_overwrites object
+ * @param co: the config_overrides object
  * @param key: the configuration parameter's key, possibly with the format
  * SUBTYPE:NAME:KEYWORD
  * @param value: the value for the parameter, as would be seen in amanda.conf
  */
-void add_config_overwrite(config_overwrites_t *co,
+void add_config_override(config_overrides_t *co,
 			 char *key,
 			 char *value);
 
-/* Add an overwrite option from the command line to a config_overwrites
+/* Add an overwrite option from the command line to a config_overrides
  * object.  Calls error() with any errors
  *
- * @param co: the config_overwrites object
+ * @param co: the config_overrides object
  * @param optarg: the value of the command-line option
  */
-void add_config_overwrite_opt(config_overwrites_t *co,
+void add_config_override_opt(config_overrides_t *co,
 			      char *optarg);
 
 /* Given a command line, represented as argc/argv, extract any -o options
@@ -1164,24 +1201,22 @@ void add_config_overwrite_opt(config_overwrites_t *co,
  *
  * This is the deprecated way to extract config overwrites, for applications
  * which do not use getopt.  The preferred method is to use getopt and
- * call add_config_overwrite_opt for any -o options.
+ * call add_config_override_opt for any -o options.
  *
  * @param argc: (in/out) command-line length
  * @param argv: (in/out) command-line strings
- * @returns: newly allocated config_overwrites object
+ * @returns: newly allocated config_overrides object
  */
-config_overwrites_t *
-extract_commandline_config_overwrites(int *argc,
+config_overrides_t *
+extract_commandline_config_overrides(int *argc,
 				      char ***argv);
 
-/* Apply configuration overwrites to the current configuration and take
- * ownership of the config_overwrites object.  It is the caller's
- * responsibility to handle any errors.
+/* Set configuration overwrites to the current configuration and take
+ * ownership of the config_overrides object.
  *
- * @param co: the config_overwrites object
- * @returns: current error level
+ * @param co: the config_overrides object
  */
-cfgerr_level_t apply_config_overwrites(config_overwrites_t *co);
+void set_config_overrides(config_overrides_t *co);
 
 /*
  * Initialization
@@ -1230,7 +1265,7 @@ cfgerr_level_t config_init(
  */
 void config_uninit(void);
 
-/* Encode any applied config_overwrites into a strv format suitale for
+/* Encode any applied config_overrides into a strv format suitale for
  * executing another Amanda tool.
  *
  * The * result is dynamically allocated and NULL terminated.  There is no
@@ -1345,18 +1380,35 @@ char *taperalgo2str(taperalgo_t taperalgo);
  */
 gint64 find_multiplier(char * casestr);
 
-/* Compute the size needed in an ARGV to pass all properties
+/* Converts a string matching any of Amanda's names for "true" or
+ * "false" to a boolean value.
  *
- * @param proplist: The property list
- * @returns: The size required for an ARGV
+ * @param str: string to match
+ * @returns: 0 or 1 (boolean) or -1 (no match)
  */
-int property_argv_size(proplist_t proplist);
+int string_to_boolean(const char *str);
 
 /* Add all properties to an ARGV
  *
  * @param argvchild: Pointer to the ARGV.
  * @param proplist: The property list
  */
-int property_add_to_argv(char **argvchild, proplist_t proplist);
+void property_add_to_argv(GPtrArray *argv_ptr, proplist_t proplist);
+
+/* Return a pointer to a static string for the data_path */
+char *data_path_to_string(data_path_t data_path);
+
+/* Return the data_path for the string */
+data_path_t data_path_from_string(char *data);
+
+void free_property_t(gpointer p);
+
+/* Converts a string into Amanda property name style.
+ *
+ * @param name: The name to convert.
+ * @returns: A newly allocated string, with name in lowercase and
+ * any instances of '_' replaced with '-'.
+ */
+gchar *amandaify_property_name(const gchar *name);
 
 #endif /* ! CONFFILE_H */

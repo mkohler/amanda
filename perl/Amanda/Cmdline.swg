@@ -1,21 +1,21 @@
 /*
- * Copyright (c) Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2007,2008,2009 Zmanda, Inc.  All Rights Reserved.
  *
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1
- * as published by the Free Software Foundation.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  *
- * This library is distributed in the hope that it will be useful, but
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 %module "Amanda::Cmdline"
@@ -23,79 +23,13 @@
 %include "exception.i"
 %include "amglue/dumpspecs.swg"
 
+%include "Amanda/Cmdline.pod"
+
 %{
 #include <glib.h>
+#include "amanda.h"
 #include "cmdline.h"
-%}
-
-%perlcode %{
-=head1 NAME
-
-Amanda::Cmdline - utilities for handling command lines
-
-=head1 SYNOPSIS
-
-  use Amanda::Cmdline;
-
-  my $spec = Amanda::Cmdline::dumpspec_t->new($host, $disk, $datestamp, $level);
-  print "host: $spec->{'host'}; disk: $spec->{'disk'}\n";
-
-  my @specs = Amanda::Cmdline::parse_dumpspecs(["host", "disk", "date"],
-			    $Amanda::Cmdline::CMDLINE_PARSE_DATESTAMP);
-
-=head1 API STATUS
-
-Will change.
-
-=head1 Amanda::Cmdline::dumpspec_t Objects
-
-=head2 Instance Variables
-
-=over
-
-=item C<$host>
-
-=item C<$disk>
-
-=item C<$datestamp>
-
-=item C<$level>
-
-=back
-
-=head2 Methods
-
-=over
-
-=item C<format()>
-
-Format the dumpspec as a string.
-
-=back
-
-=head1 Functions
-
-=over
-
-=item C<format_dumpspec_components($host, $disk, $datestamp, $level)>
-
-This function returns a string representing the formatted form of the given dumpspec.  This formatting
-is the same as performed by C<format_dumpspec_components>, but does not need a C<dumpspec_t>.
-
-=item C<parse_dumpspecs(@cmdline, $flags)> 
-
-This function parses C<@cmdline> into a list of C<dumpspec_t> objects,
-according to C<$flags>, which is a logical combination of zero or
-more of C<$CMDLINE_PARSE_DATESTAMP> to recognize datestamps and
-C<$CMDLINE_PARSE_LEVEL> to recognize levels.
-
-=back
-
-=head1 SEE ALSO
-
-L<Amanda::Config> handles C<-o> options itself, through C<config_overwrites>.
-
-=cut
+#include "fileheader.h"
 %}
 
 /* Add a few methods to make this type act like a class */
@@ -169,3 +103,42 @@ amglue_dumpspec_list *cmdline_parse_dumpspecs(int argc, char **argv, int flags);
  */
 /* amglue_dumpspec_list * cmdline_match_holding(amglue_dumpspec_list *dumpspec_list); */
 
+%inline %{
+gboolean header_matches_dumpspecs(dumpfile_t *dumpfile, amglue_dumpspec_list *dumpspecs) {
+    char level_str[100];
+
+    /* ignore anything that's not a (split) dumpfile */
+    if(dumpfile->type != F_DUMPFILE && dumpfile->type != F_SPLIT_DUMPFILE)
+	return FALSE;
+
+    g_snprintf(level_str, sizeof(level_str), "%d", dumpfile->dumplevel);
+
+    while (dumpspecs) {
+	dumpspec_t *ds = (dumpspec_t *)dumpspecs->data;
+	dumpspecs = g_slist_next(dumpspecs);
+
+	if (ds->host && *ds->host
+	    && !match_host(ds->host, dumpfile->name))
+	    continue;
+
+	if (ds->disk && *ds->disk
+	    && !match_disk(ds->disk, dumpfile->disk))
+	    continue;
+
+	if (ds->datestamp && *ds->datestamp
+	    && !match_datestamp(ds->datestamp, dumpfile->datestamp))
+	    continue;
+
+	if (ds->level && *ds->level
+	    && !match_level(ds->level, level_str))
+	    continue;
+
+	/* passed all the checks, so it's a match */
+	return TRUE;
+    }
+
+    return FALSE;
+}
+%}
+
+amglue_export_ok(header_matches_dumpspecs);

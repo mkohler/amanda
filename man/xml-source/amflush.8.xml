@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -19,7 +19,7 @@
 </refmeta>
 <refnamediv>
 <refname>amflush</refname>
-<refpurpose>flush &A; backup files from holding disk to tape</refpurpose>
+<refpurpose>flush Amanda backup files from holding disk to tape</refpurpose>
 </refnamediv>
 <refentryinfo>
 &author.jds;
@@ -38,15 +38,15 @@
        <arg choice='plain'><replaceable>host</replaceable></arg>
        <arg choice='opt' rep='repeat'><replaceable>disk</replaceable></arg>
     </arg>
-    <arg choice='plain' rep='repeat'><group><arg choice='plain'>-o </arg><replaceable>configoption</replaceable></group></arg>
+    &configoverride.synopsis;
 </cmdsynopsis>
 </refsynopsisdiv>
 
 
 <refsect1><title>DESCRIPTION</title>
 <para><emphasis remap='B'>Amflush</emphasis>
-writes &A; backups from the holding disks to tape,
-and updates the &A; info database and &tapelist; accordingly.
+writes Amanda backups from the holding disks to tape,
+and updates the Amanda info database and &tapelist; accordingly.
 Backups may stay in a holding disk when something is wrong with the tape
 at the time
 <emphasis remap='B'>amdump</emphasis>
@@ -99,7 +99,7 @@ option.</para>
   <listitem>
 <para>specify a  datestamp expression you want to flush, see the 
 &quot;DATESTAMP EXPRESSION&quot; section of
-<citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+<manref name="amanda" vol="8"/>
 for a description.
 <option>-D 20001225-7</option>
 will flush all
@@ -114,26 +114,21 @@ dumps from 25 december 2000 to 27 december 2000.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
-  <term><emphasis remap='B'>-o</emphasis> <replaceable>configoption</replaceable></term>
-  <listitem>
-<para>See the "<emphasis remap='B'>CONFIGURATION OVERRIDE</emphasis>" section in <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>.</para>
-  </listitem>
-  </varlistentry>
+  &configoverride.varlistentry;
 
 </variablelist>
 
 <para>You can specify many host/disk expressions, only disks that
 match an expression will be flushed. All disks are flushed if no
 expressions are given. see the &quot;HOST &amp; DISK EXPRESSION&quot; section of
-<citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+<manref name="amanda" vol="8"/>
 for a description.</para>
 
 <para><emphasis remap='B'>Amflush</emphasis>
 will look in the holding disks specified by the
 <emphasis remap='I'>amanda.conf</emphasis>
 file in /usr/local/etc/amanda/<emphasis remap='I'>config</emphasis>
-for any non-empty &A; work directories.
+for any non-empty Amanda work directories.
 It then prompts you to select a directory
 or to process all of the directories.
 The work directories in the holding disks are named by the date at the time
@@ -142,8 +137,8 @@ was run, e.g.
 <literal>19910215</literal>.</para>
 
 <para>See the
-<citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
-man page for more details about &A;.</para>
+<manref name="amanda" vol="8"/>
+man page for more details about Amanda.</para>
 </refsect1>
 
 <refsect1><title>EXAMPLE</title>
@@ -155,15 +150,15 @@ After you select which holding area to flush,
 <command>amflush</command>
 writes the data to tape, updates the databases and sends
 a mail report similar to
-<citerefentry><refentrytitle>amdump</refentrytitle><manvolnum>8</manvolnum></citerefentry>.</para>
+<manref name="amdump" vol="8"/>.</para>
 
 <programlisting>
 % amflush MyConfig
 Scanning /amanda-hold...
-  20001113: found &A; directory.
-  20001114: found &A; directory.
+  20001113: found Amanda directory.
+  20001114: found Amanda directory.
 
-Multiple &A; directories, please pick one by letter:
+Multiple Amanda directories, please pick one by letter:
   A. 20001113
   B. 20001114
 Select directories to flush [A..B]: [ALL] all
@@ -196,12 +191,9 @@ The exit code of <command>amflush</command> is the ORed value of:
 </programlisting>
 </refsect1>
 
-<refsect1><title>SEE ALSO</title>
-<para>
-  <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-  <citerefentry><refentrytitle>amdump</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-  <ulink url="http://wiki.zmanda.com"/>
-</para>
-</refsect1>
+<seealso>
+<manref name="amdump" vol="8"/>
+</seealso>
+
 </refentry>
 

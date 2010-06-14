@@ -1,4 +1,4 @@
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -13,18 +13,20 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 use Test::More tests => 3;
 
 use lib "@amperldir@";
+use Installcheck;
 use Installcheck::Run qw( run run_get );
 use Amanda::Paths;
 use Amanda::Constants;
 
-my $input_filename = "$AMANDA_TMPDIR/amservice_input.txt";
+my $input_filename = "$Installcheck::TMP/amservice_input.txt";
 my $testconf = Installcheck::Run::setup();
+$testconf->write();
 my $input;
 
 sub write_input_file {
@@ -59,7 +61,7 @@ like(run_get('amservice', '-f', '/dev/null', 'localhost', 'local', 'noop'),
 $input = <<EOF;
 <dle>
   <program>GNUTAR</program>
-  <disk>$AMANDA_TMPDIR</disk>
+  <disk>$Installcheck::TMP</disk>
 </dle>
 EOF
 
@@ -79,7 +81,7 @@ $input = <<EOF;
   <backup-program>
     <plugin>amgtar</plugin>
   </backup-program>
-  <disk>$AMANDA_TMPDIR</disk>
+  <disk>$Installcheck::TMP</disk>
 </dle>
 EOF
 
@@ -97,7 +99,7 @@ $input = <<EOF;
   <backup-program>
     <plugin>amstar</plugin>
   </backup-program>
-  <disk>$AMANDA_TMPDIR</disk>
+  <disk>$Installcheck::TMP</disk>
 </dle>
 EOF
 

@@ -2,12 +2,12 @@
 .\"     Title: amcleanup
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMCLEANUP" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMCLEANUP" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,7 +19,7 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amcleanup \- run the \fIAmanda\fR cleanup process after a failure
+amcleanup \- run the Amanda cleanup process after a failure
 .SH "SYNOPSIS"
 .HP \w'\fBamcleanup\fR\ 'u
 \fBamcleanup\fR [\fB\-k\fR] [\fB\-p\fR] [\fB\-v\fR] \fIconfig\fR
@@ -27,10 +27,8 @@ amcleanup \- run the \fIAmanda\fR cleanup process after a failure
 .PP
 \fBAmcleanup\fR
 generates the
-\fI\fIAmanda\fR\fR\fI Mail Report\fR
-and updates the
-\fIAmanda\fR
-databases after a system failure on a tape server host\&. This cleanup process is normally done automatically as part of the
+\fIAmanda Mail Report\fR
+and updates the Amanda databases after a system failure on a tape server host\&. This cleanup process is normally done automatically as part of the
 \fBamdump\fR
 program, but if
 \fBamdump\fR
@@ -40,8 +38,7 @@ must be run some time later (usually during system boot)\&.
 .PP
 See the
 \fBamanda\fR(8)
-man page for more details about
-\fIAmanda\fR\&.
+man page for more details about Amanda\&.
 .SH "OPTIONS"
 .PP
 \fB\-k\fR
@@ -60,17 +57,13 @@ Generate verbose output\&.
 .RE
 .SH "EXAMPLES"
 .PP
-This example runs the
-\fIAmanda\fR
-cleanup process by hand after a failure\&.
+This example runs the Amanda cleanup process by hand after a failure\&.
 .nf
 % amcleanup daily
 .fi
 .PP
 Putting the following line in a system boot script (e\&.g\&.
-/etc/rc\&.local) runs the
-\fIAmanda\fR
-cleanup process as part of the reboot, eliminating the need to run it by hand\&.
+/etc/rc\&.local) runs the Amanda cleanup process as part of the reboot, eliminating the need to run it by hand\&.
 .nf
 /usr/local/sbin/amcleanup daily
 .fi
@@ -84,8 +77,10 @@ amcleanup: no unprocessed logfile to clean up\&.
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
-\fBamdump\fR(8),
-: http://wiki.zmanda.com
+\fBamdump\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBJames da Silva\fR <\&jds@amanda\&.org\&>

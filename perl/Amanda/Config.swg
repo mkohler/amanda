@@ -1,266 +1,31 @@
 /*
- * Copyright (c) Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
  *
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1
- * as published by the Free Software Foundation.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  *
- * This library is distributed in the hope that it will be useful, but
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 %module "Amanda::Config"
 %include "amglue/amglue.swg"
 %include "exception.i"
 
+%include "Amanda/Config.pod"
+
 %{
 #include "conffile.h"
-%}
-
-%perlcode %{
-=head1 NAME
-
-Amanda::Config - access to Amanda configuration parameters
-
-=head1 SYNOPSIS
-
-  use Amanda::Config qw( :init :getconf );
-
-  config_init($CONFIG_INIT_EXPLICIT_NAME, $ARGV[1])
-    or die("errors processing config file " . $Amanda::Config::get_config_filename());
-
-  print "tape device is ", getconf($CNF_TAPEDEV), "\n";
-
-This API closely parallels the C API.  See F<conffile.h> for details
-on the functions and constants available here.
-
-=head1 API STATUS
-
-Stable
-
-=head1 INITIALIZATION
-
-The Amanda configuration is treated as a global state for the
-application.  It is not possible to load two configurations
-simultaneously.
-
-All initialization-related symbols can be imported with the tag
-C<:init>.
-
-=head2 LOADING CONFIGURATION
-
-The Amanda configuration is loaded with the aptly named
-C<config_init($flags, $name)>.  Because of the great variety in
-invocation method among Amanda applications, this function has a number
-of flags that affect its behavior.  These flags can be OR'd together.
-
-=over
-
-=item If C<CONFIG_INIT_EXPLICIT_NAME> is given, then the C<$name>
-parameter can contain the name of a configuration to load.
-
-=item If C<CONFIG_INIT_USE_CWD> is given, and if the current directory
-contains C<amanda.conf>, then that file is loaded.
-
-=item If C<CONFIG_INIT_CLIENT> is given, then a client configuration
-is loaded.
-
-=item If C<CONFIG_INIT_OVERLAY> is given, then any existing
-configuration is not reset.
-
-=back
-
-See C<conffile.h> for more detailed information on these flags and
-their interactions.
-
-C<config_uninit()> reverses the effects of C<config_init>.  It is
-not often used.
-
-Once the configuration is loaded, the configuration name
-(e.g., "DailySet1"), directory (C</etc/amanda/DailySet1>),
-and filename (C</etc/amanda/DailySet1/amanda.conf>) are
-available from C<get_config_name()>, C<get_config_dir()>, and
-C<get_config_filename()>, respectively.
-
-=head3 CONFIG ERRORS
-
-This module collects configuration errors and warnings in a list, and also
-tracks the overall error level with an enumeration: C<$CFGERR_OK>,
-C<$CFGERR_WARNINGS>, and C<$CFGERR_ERRORS>.  C<config_init> and
-C<apply_config_overwrites> both return the current level.  The level and the
-list of error messages are available from C<config_errors>:
-
-  my ($cfgerr_level, @errors) = Amanda::Configconfig_errors();
-
-As a convenience, C<config_print_errors> will print all error messages to
-stderr.  The error state can be cleared with C<config_clear_errors>.
-
-=head2 CONFIG OVERWRITES
-
-Most Amanda applications accept the command-line option C<-o>
-to "overwrite" configuration values in C<amanda.conf>.  In Perl
-applications, these options should be parsed with L<Getopt::Long|Getopt::Long>, with
-the action being a call to C<add_config_overwrite_opt>.  For example:
-
-  my $config_overwrites = new_config_overwrites($#ARGV+1);
-    GetOptions(
-	# ...
-	'o=s' => sub { add_config_overwrite_opt($config_overwrites, $_[1]); },
-    ) or usage();
-  my $cfg_ok = config_init($CONFIG_INIT_EXPLICIT_NAME | $CONFIG_INIT_USE_CWD, $config_name);
-  apply_config_overwrites($config_overwrites);
-
-C<new_config_overwrites($size_estimate)> creates a new
-overwrites object, using the given size as an estimate of
-the number of items it will contain (C<$#ARGC/2> is a good
-estimate).  Individual configuration options are then added via
-C<add_config_overwrite($co, $key, $value)> (which takes a key/value
-pair) or C<add_config_overwrite_opt($co, $optarg)>, which parses a
-string following C<-o> on the command line.
-
-Once the overwrites are gathered, they are applied with
-C<apply_config_overwrites($co)>, which applies the overwrites to the
-active configuration.  No further operations can be performed on the
-overwrites object after C<apply_config_overwrites> has been called.
-
-The utility function C<get_config_options()> returns a list of
-command-line arguments to represent any overwrites that were used
-to generate the current configuration.  (TODO: this function isn't
-available yet)
-
-=head1 PARAMETER ACCESS
-
-Amanda configurations consist of "global" parameters and several
-sets of "subsections" -- one set for dumptypes, one for tapetypes,
-and so on.
-
-All of the global parameters are represented by a constant beginning
-with C<$CNF_>, e.g., C<$CNF_LABELSTR>.  The function C<getconf($cnf)>
-returns the value of parameter C<$cnf>, in whatever format is
-appropriate for the parameter.  C<getconf_seen($cnf)> returns a true
-value if C<$cnf> was seen in the configuration file.  If it was not
-seen, then it will have its default value.
-
-Some parameters have enumerated types.  The values for those
-enumerations are available from this module with the same name as
-in C<conffile.h>.  For example, C<$CNF_TAPERALGO> will yield a value
-from the enumeration C<taperalgo_t>, the constants for which all
-begin with C<$ALGO_>.  See C<conffile.h> for the details.
-
-Each subsection type has the following functions:
-
-=over
-
-=item C<lookup_TYP($subsec_name)>
-
-which returns an opaque object
-(C<$ss>) representing the subsection, or C<undef> if no subsection
-with that name exists;
-
-=item C<TYP_name($ss)>
-
-returning the name of the subsection;
-
-=item C<TYP_getconf($ss, $cnf)>
-
-which fetches a parameter value from C<$ss>; and
-
-=item C<TYP_seen($ss, $cnf)>
-
-which returns a true value if <$cnf> was seen in the subsection.
-
-=back
-
-The subsections are:
-
-=over
-
-=item C<tapetype>
-
-with constants beginning with C<$TAPETYPE_>
-
-=item C<dumptype>
-
-with constants beginning with C<$DUMPTYPE_>
-
-=item C<interface>
-
-with constants beginning with C<$INTER_>
-
-=item C<holdingdisk>
-
-with constants beginning with C<$HOLDING_>
-
-=item C<application>
-
-with constants beginning with C<$APPLICATION_>
-
-=item C<script>
-
-with constants beginning with C<$PP_SCRIPT_>
-
-=item C<device>
-
-with constants beginning with C<$DEVICE_CONFIG_>.
-
-=item C<changer>
-
-with constants beginning with C<$CHANGER_CONFIG_>.
-
-=back
-
-See C<conffile.h> for the names of the constants themselves.
-
-Parameter values are available by name from C<getconf_byname($name)> and
-C<getconf_byname_strs($name, $str_needs_quotes)>.  These functions implement
-the C<TYP:NAME:PARAM> syntax advertised by C<amgetconf> to access values in
-subsections.  The first function returns a perl value, while the second returns
-a string suitable for use in C<amanda.conf>, including quotes around strings if
-C<$str_needs_quotes> is true.
-
-C<getconf_list($typ)> returns a list of the names of all subsections of the
-given type.  C<%subsection_names> is a hash whose keys are allowed subsection
-names.
-
-The C<$CNF_DISPLAYUNIT> implies a certain divisor to convert from
-kilobytes to the desired unit.  This divisor is available from
-C<getconf_unit_divisor()>.  Note carefully that it is a I<divisor>
-for a value in I<kilobytes>!
-
-Finally, various subsections of Amanda enable verbose debugging via
-configuration parameters.  The status of each parameter is available
-a similarly-named variable, e.g., C<$debug_auth>.
-
-All parameter access functions and constants can be imported with
-the tag C<:getconf>.
-
-=head1 MISCELLANEOUS
-
-These functions defy categorization.
-
-The function C<config_dir_relative> will interpret a path relative to
-the current configuration directory.  Absolute paths are passed through
-unchanged, while relative paths are converted to absolute paths.
-
-C<dump_configuration()> dumps the current configuration, in a format
-suitable for re-evaluation for this module, to standard output.
-This function may be revised to return a string.
-
-Several parts of Amanda need to convert unit modifier value like
-"gbytes" to a multiplier.  The function C<find_multiplier($str)>
-returns the unit multiplier for such a string.  For example, "mbytes"
-is converted to 1048576 (1024*1024).
-
-=cut
 %}
 
 /*
@@ -278,6 +43,7 @@ amglue_add_constant(CNF_AUTH, confparm_key);
 amglue_add_constant(CNF_SSH_KEYS, confparm_key);
 amglue_add_constant(CNF_AMANDAD_PATH, confparm_key);
 amglue_add_constant(CNF_CLIENT_USERNAME, confparm_key);
+amglue_add_constant(CNF_CLIENT_PORT, confparm_key);
 amglue_add_constant(CNF_GNUTAR_LIST_DIR, confparm_key);
 amglue_add_constant(CNF_AMANDATES, confparm_key);
 amglue_add_constant(CNF_MAILER, confparm_key);
@@ -289,6 +55,7 @@ amglue_add_constant(CNF_PROPERTY, confparm_key);
 amglue_add_constant(CNF_CHANGERDEV, confparm_key);
 amglue_add_constant(CNF_CHANGERFILE, confparm_key);
 amglue_add_constant(CNF_LABELSTR, confparm_key);
+amglue_add_constant(CNF_AUTOLABEL, confparm_key);
 amglue_add_constant(CNF_TAPELIST, confparm_key);
 amglue_add_constant(CNF_DISKFILE, confparm_key);
 amglue_add_constant(CNF_INFOFILE, confparm_key);
@@ -334,6 +101,7 @@ amglue_add_constant(CNF_REP_TRIES, confparm_key);
 amglue_add_constant(CNF_CONNECT_TRIES, confparm_key);
 amglue_add_constant(CNF_REQ_TRIES, confparm_key);
 amglue_add_constant(CNF_DEBUG_AMANDAD, confparm_key);
+amglue_add_constant(CNF_DEBUG_RECOVERY, confparm_key);
 amglue_add_constant(CNF_DEBUG_AMIDXTAPED, confparm_key);
 amglue_add_constant(CNF_DEBUG_AMINDEXD, confparm_key);
 amglue_add_constant(CNF_DEBUG_AMRECOVER, confparm_key);
@@ -352,6 +120,8 @@ amglue_add_constant(CNF_DEBUG_SENDBACKUP, confparm_key);
 amglue_add_constant(CNF_RESERVED_UDP_PORT, confparm_key);
 amglue_add_constant(CNF_RESERVED_TCP_PORT, confparm_key);
 amglue_add_constant(CNF_UNRESERVED_TCP_PORT, confparm_key);
+amglue_add_constant(CNF_HOLDINGDISK, confparm_key);
+amglue_add_constant(CNF_SEND_AMREPORT_ON, confparm_key);
 amglue_copy_to_tag(confparm_key, getconf);
 
 amglue_add_enum_tag_fns(tapetype_key);
@@ -374,8 +144,9 @@ amglue_add_constant(DUMPTYPE_SRV_ENCRYPT, dumptype_key);
 amglue_add_constant(DUMPTYPE_CLNT_ENCRYPT, dumptype_key);
 amglue_add_constant(DUMPTYPE_AMANDAD_PATH, dumptype_key);
 amglue_add_constant(DUMPTYPE_CLIENT_USERNAME, dumptype_key);
+amglue_add_constant(DUMPTYPE_CLIENT_PORT, dumptype_key);
 amglue_add_constant(DUMPTYPE_SSH_KEYS, dumptype_key);
-amglue_add_constant(DUMPTYPE_SECURITY_DRIVER, dumptype_key);
+amglue_add_constant(DUMPTYPE_AUTH, dumptype_key);
 amglue_add_constant(DUMPTYPE_EXCLUDE, dumptype_key);
 amglue_add_constant(DUMPTYPE_INCLUDE, dumptype_key);
 amglue_add_constant(DUMPTYPE_PRIORITY, dumptype_key);
@@ -388,7 +159,7 @@ amglue_add_constant(DUMPTYPE_BUMPDAYS, dumptype_key);
 amglue_add_constant(DUMPTYPE_BUMPMULT, dumptype_key);
 amglue_add_constant(DUMPTYPE_STARTTIME, dumptype_key);
 amglue_add_constant(DUMPTYPE_STRATEGY, dumptype_key);
-amglue_add_constant(DUMPTYPE_ESTIMATE, dumptype_key);
+amglue_add_constant(DUMPTYPE_ESTIMATELIST, dumptype_key);
 amglue_add_constant(DUMPTYPE_COMPRESS, dumptype_key);
 amglue_add_constant(DUMPTYPE_ENCRYPT, dumptype_key);
 amglue_add_constant(DUMPTYPE_SRV_DECRYPT_OPT, dumptype_key);
@@ -405,8 +176,9 @@ amglue_add_constant(DUMPTYPE_KENCRYPT, dumptype_key);
 amglue_add_constant(DUMPTYPE_IGNORE, dumptype_key);
 amglue_add_constant(DUMPTYPE_INDEX, dumptype_key);
 amglue_add_constant(DUMPTYPE_APPLICATION, dumptype_key);
-amglue_add_constant(DUMPTYPE_PP_SCRIPTLIST, dumptype_key);
+amglue_add_constant(DUMPTYPE_SCRIPTLIST, dumptype_key);
 amglue_add_constant(DUMPTYPE_PROPERTY, dumptype_key);
+amglue_add_constant(DUMPTYPE_DATA_PATH, dumptype_key);
 amglue_copy_to_tag(dumptype_key, getconf);
 
 amglue_add_enum_tag_fns(interface_key);
@@ -433,6 +205,7 @@ amglue_add_constant(PP_SCRIPT_PLUGIN, pp_script_key);
 amglue_add_constant(PP_SCRIPT_PROPERTY, pp_script_key);
 amglue_add_constant(PP_SCRIPT_EXECUTE_ON, pp_script_key);
 amglue_add_constant(PP_SCRIPT_EXECUTE_WHERE, pp_script_key);
+amglue_add_constant(PP_SCRIPT_ORDER, pp_script_key);
 amglue_copy_to_tag(pp_script_key, getconf);
 
 amglue_add_enum_tag_fns(device_config_key);
@@ -447,6 +220,8 @@ amglue_add_constant(CHANGER_CONFIG_TAPEDEV, changer_config_key);
 amglue_add_constant(CHANGER_CONFIG_TPCHANGER, changer_config_key);
 amglue_add_constant(CHANGER_CONFIG_CHANGERDEV, changer_config_key);
 amglue_add_constant(CHANGER_CONFIG_CHANGERFILE, changer_config_key);
+amglue_add_constant(CHANGER_CONFIG_PROPERTY, changer_config_key);
+amglue_add_constant(CHANGER_CONFIG_DEVICE_PROPERTY, changer_config_key);
 amglue_copy_to_tag(changer_config_key, getconf);
 
 /*
@@ -492,6 +267,13 @@ amglue_add_constant(ES_SERVER, estimate_t);
 amglue_add_constant(ES_CALCSIZE, estimate_t);
 amglue_copy_to_tag(estimate_t, getconf);
 
+amglue_add_enum_tag_fns(autolabel_enum_t);
+amglue_add_constant(AL_OTHER_CONFIG, autolabel_enum_t);
+amglue_add_constant(AL_NON_AMANDA, autolabel_enum_t);
+amglue_add_constant(AL_VOLUME_ERROR, autolabel_enum_t);
+amglue_add_constant(AL_EMPTY, autolabel_enum_t);
+amglue_copy_to_tag(autolabel_enum_t, getconf);
+
 amglue_add_enum_tag_fns(taperalgo_t);
 amglue_add_constant(ALGO_FIRST, taperalgo_t);
 amglue_add_constant(ALGO_FIRSTFIT, taperalgo_t);
@@ -523,6 +305,11 @@ amglue_add_constant(SEND_AMREPORT_ERROR, send_amreport_on_t);
 amglue_add_constant(SEND_AMREPORT_NEVER, send_amreport_on_t);
 amglue_copy_to_tag(send_amreport_on_t, getconf);
 
+amglue_add_enum_tag_fns(data_path_t);
+amglue_add_constant(DATA_PATH_AMANDA, data_path_t);
+amglue_add_constant(DATA_PATH_DIRECTTCP, data_path_t);
+amglue_copy_to_tag(data_path_t, getconf);
+
 /*
  * val_t typemaps
  */
@@ -533,13 +320,15 @@ amglue_copy_to_tag(send_amreport_on_t, getconf);
  *    CONFTYPE_BOOLEAN -> IV
  *  - CONFTYPE_REAL -> NV
  *  - CONFTYPE_STR, CONFTYPE_IDENT -> PV
+ *  - CONFTYPE_APPLICATION -> PV
  *  - CONFTYPE_TIME -> IV (epoch timestamp)
- *  - CONFTYPE_COMPRESS, CONFTYPE_ENCRYPT, CONFTYPE_ESTIMATE, CONFTYPE_STRATEGY,
+ *  - CONFTYPE_COMPRESS, CONFTYPE_ENCRYPT, CONFTYPE_ESTIMATELIST, CONFTYPE_STRATEGY,
  *    CONFTYPE_TAPERALGO, CONFTYPE_PRIORITY, CONFTYPE_HOLDING, CONFTYPE_EXECUTE_ON,
- *    CONFTYPE_EXECUTE_WHERE, SEND_AMREPORT_ON -> IV (enums)
+ *    CONFTYPE_EXECUTE_WHERE, CONFTYPE_SEND_AMREPORT_ON,
+ *    CONFTYPE_DATA_PATH -> IV (enums)
  *  - CONFTYPE_RATE -> list of two NVs
  *  - CONFTYPE_INTRANGE -> list of two IVs
- *  - CONFTYPE_EXINCLUDE -> hashref with keys 'list' (listref), 'file' (listref), 
+ *  - CONFTYPE_EXINCLUDE -> hashref with keys 'list' (listref), 'file' (listref),
  *    and 'optional' (int)
  *  - CONFTYPE_PROPLIST -> hashref of hashref with keys 'append' (IV), 'priority' (IV),
  *							'values' (listref)
@@ -569,7 +358,6 @@ amglue_copy_to_tag(send_amreport_on_t, getconf);
 		$result= sv_newmortal();
 		sv_setiv($result, val_t__intrange($1)[1]);
 		argvi++;
-		break;
 		break;
 	    }
 
@@ -622,19 +410,20 @@ amglue_copy_to_tag(send_amreport_on_t, getconf);
 		break;
 
 	    case CONFTYPE_SIZE:
+		SP += argvi; PUTBACK;
 		$result = sv_2mortal(amglue_newSVi64(val_t__size($1)));
-		argvi++;
+		SPAGAIN; SP -= argvi; argvi++;
 		break;
 
 	    case CONFTYPE_INT64:
+		SP += argvi; PUTBACK;
 		$result = sv_2mortal(amglue_newSVi64(val_t__int64($1)));
-		argvi++;
+		SPAGAIN; SP -= argvi; argvi++;
 		break;
 
 	    case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
 	    case CONFTYPE_COMPRESS:
 	    case CONFTYPE_ENCRYPT:
-	    case CONFTYPE_ESTIMATE:
 	    case CONFTYPE_STRATEGY:
 	    case CONFTYPE_TAPERALGO:
 	    case CONFTYPE_PRIORITY:
@@ -642,14 +431,28 @@ amglue_copy_to_tag(send_amreport_on_t, getconf);
 	    case CONFTYPE_EXECUTE_ON:
 	    case CONFTYPE_EXECUTE_WHERE:
 	    case CONFTYPE_SEND_AMREPORT_ON:
+	    case CONFTYPE_DATA_PATH:
 	    case CONFTYPE_INT:
+		SP += argvi; PUTBACK;
 		$result = sv_2mortal(amglue_newSVi64(val_t__int($1)));
-		argvi++;
+		SPAGAIN; SP -= argvi; argvi++;
 		break;
 
-	    case CONFTYPE_TIME:
-		$result = sv_2mortal(amglue_newSVi64(val_t__time($1)));
+           case CONFTYPE_ESTIMATELIST: {
+		AV *elist = newAV();
+		estimatelist_t el;
+		for (el=val_t__estimatelist($1); el != NULL; el = el->next) {
+		    av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
+		}
+		$result = sv_2mortal(newRV_noinc((SV *)elist));
 		argvi++;
+		break;
+	    }
+
+	    case CONFTYPE_TIME:
+		SP += argvi; PUTBACK;
+		$result = sv_2mortal(amglue_newSVi64(val_t__time($1)));
+		SPAGAIN; SP -= argvi; argvi++;
 		break;
 
 	    case CONFTYPE_REAL:
@@ -660,10 +463,51 @@ amglue_copy_to_tag(send_amreport_on_t, getconf);
 
 	    case CONFTYPE_IDENT:	    /* same as STRING */
 	    case CONFTYPE_STR:
+	    case CONFTYPE_APPLICATION:
 		$result = sv_newmortal();
 		sv_setpv($result, val_t__str($1));
 		argvi++;
 		break;
+
+	    case CONFTYPE_IDENTLIST: {
+		AV *ilist = newAV();
+
+		identlist_t il;
+		for (il=val_t__identlist($1); il != NULL; il = il->next) {
+		    av_push(ilist, newSVpv((char *)il->data, 0));
+		}
+
+		$result = sv_2mortal(newRV_noinc((SV *)ilist));
+		argvi++;
+		break;
+	    }
+
+	    case CONFTYPE_AUTOLABEL: {
+		autolabel_t *autolabel = &val_t__autolabel($1);
+		HV *hv;
+
+		/* now build the hash */
+		hv = (HV *)sv_2mortal((SV *)newHV());
+		hv_store(hv, "template", 8,
+			(autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
+			0);
+		hv_store(hv, "other_config", 12,
+			(autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
+			0);
+		hv_store(hv, "non_amanda", 10,
+			(autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
+			0);
+		hv_store(hv, "volume_error", 12,
+			(autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
+			0);
+		hv_store(hv, "empty", 5,
+			(autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
+			0);
+
+		$result = sv_2mortal(newRV((SV *)hv));
+		argvi++;
+		break;
+	    }
 
 	    /* No match yet -> not one of the "complex" types */
 	    default:
@@ -703,8 +547,11 @@ amglue_copy_to_tag(send_amreport_on_t, getconf);
     g_strfreev($1);
 }
 
+data_path_t data_path_from_string(char *data);
+
 val_t *getconf(confparm_key key);
 gboolean getconf_seen(confparm_key key);
+int getconf_linenum(confparm_key key);
 val_t *getconf_byname(char *key);
 GSList *getconf_list(char *listname);
 %inline %{
@@ -717,7 +564,7 @@ val_t_strs getconf_byname_strs(char *key, int str_needs_quotes) {
 %}
 
 amglue_export_tag(getconf,
-    getconf getconf_seen 
+    getconf getconf_seen getconf_linenum
     getconf_byname getconf_byname_strs
     getconf_list
 );
@@ -750,14 +597,13 @@ amglue_export_tag(getconf,
 );
 
 holdingdisk_t *lookup_holdingdisk(char *identifier);
-holdingdisk_t *getconf_holdingdisks(void);
-holdingdisk_t *holdingdisk_next(holdingdisk_t *hdisk);
+GSList *getconf_holdingdisks(void);
 val_t *holdingdisk_getconf(holdingdisk_t *hdisk, holdingdisk_key key);
 char *holdingdisk_name(holdingdisk_t *hdisk);
 gboolean holdingdisk_seen(holdingdisk_t *hdisk, holdingdisk_key key);
 amglue_export_tag(getconf,
     lookup_holdingdisk holdingdisk_getconf holdingdisk_name
-    getconf_holdingdisks holdingdisk_next
+    getconf_holdingdisks
     holdingdisk_seen holdingdisk_seen
 );
 
@@ -798,13 +644,17 @@ amglue_export_tag(getconf,
 );
 
 %perlcode %{
+# only those keys with a value of '1' should be shown; the
+# others are deprecated
 our %subsection_names = (
     "tapetype" => 1,
     "dumptype" => 1,
     "interface" => 1,
     "holdingdisk" => 1,
-    "application-tool" => 1,
-    "script-tool" => 1,
+    "application" => 1,
+    "script" => 1,
+    "application-tool" => 0,
+    "script-tool" => 0,
     "device" => 1,
     "changer" => 1,
 );
@@ -814,6 +664,7 @@ amglue_export_tag(getconf, %subsection_names);
 long int getconf_unit_divisor(void);
 
 extern int debug_amandad;
+extern int debug_recovery;
 extern int debug_amidxtaped;
 extern int debug_amindexd;
 extern int debug_amrecover;
@@ -832,7 +683,7 @@ extern int debug_sendbackup;
 amglue_export_tag(getconf,
     getconf_unit_divisor
 
-    $debug_amandad $debug_amidxtaped $debug_amindexd $debug_amrecover
+    $debug_amandad $debug_recovery $debug_amidxtaped $debug_amindexd $debug_amrecover
     $debug_auth $debug_event $debug_holding $debug_protocol
     $debug_planner $debug_driver $debug_dumper $debug_chunker
     $debug_taper $debug_selfcheck $debug_sendsize $debug_sendbackup
@@ -855,7 +706,7 @@ amglue_add_constant(CONFIG_INIT_CLIENT, config_init_flags);
 amglue_add_constant(CONFIG_INIT_OVERLAY, config_init_flags);
 amglue_copy_to_tag(config_init_flags, init);
 
-gboolean config_init(config_init_flags flags,
+cfgerr_level_t config_init(config_init_flags flags,
 		     char *arg_config_name);
 void config_uninit(void);
 char **get_config_options(int first);
@@ -885,21 +736,21 @@ void config_clear_errors(void);
 cfgerr_level_t config_errors(GSList **ERRLIST);
 
 
-config_overwrites_t *new_config_overwrites(int size_estimate);
-void free_config_overwrites(config_overwrites_t *co);
-void add_config_overwrite(config_overwrites_t *co,
+config_overrides_t *new_config_overrides(int size_estimate);
+void free_config_overrides(config_overrides_t *co);
+void add_config_override(config_overrides_t *co,
 			 char *key,
 			 char *value);
-void add_config_overwrite_opt(config_overwrites_t *co,
+void add_config_override_opt(config_overrides_t *co,
 			      char *optarg);
-cfgerr_level_t apply_config_overwrites(config_overwrites_t *co);
+void set_config_overrides(config_overrides_t *co);
 
 amglue_export_tag(init,
     config_init config_uninit get_config_options
     get_config_name get_config_dir get_config_filename
     config_print_errors config_clear_errors config_errors
-    new_config_overwrites free_config_overwrites add_config_overwrite
-    add_config_overwrite_opt apply_config_overwrites
+    new_config_overrides free_config_overrides add_config_override
+    add_config_override_opt set_config_overrides
 );
 
 /*
@@ -916,3 +767,17 @@ amglue_export_ok(
     dump_configuration config_dir_relative taperalgo2str find_multiplier
 );
 
+%rename(C_string_to_boolean) string_to_boolean;
+int string_to_boolean(const char *str);
+%perlcode %{
+
+sub string_to_boolean {
+    my ($str) = @_;
+    my $ret = C_string_to_boolean($str);
+    return undef unless $ret >= 0;
+    return $ret;
+}
+
+%}
+
+amglue_export_ok(string_to_boolean);

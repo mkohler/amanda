@@ -1477,13 +1477,14 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 #define SWIGTYPE_p_GSList swig_types[0]
 #define SWIGTYPE_p_char swig_types[1]
 #define SWIGTYPE_p_double swig_types[2]
-#define SWIGTYPE_p_dumpspec_t swig_types[3]
-#define SWIGTYPE_p_float swig_types[4]
-#define SWIGTYPE_p_int swig_types[5]
-#define SWIGTYPE_p_p_char swig_types[6]
-#define SWIGTYPE_p_unsigned_char swig_types[7]
-static swig_type_info *swig_types[9];
-static swig_module_info swig_module = {swig_types, 8, 0, 0, 0, 0};
+#define SWIGTYPE_p_dumpfile_t swig_types[3]
+#define SWIGTYPE_p_dumpspec_t swig_types[4]
+#define SWIGTYPE_p_float swig_types[5]
+#define SWIGTYPE_p_int swig_types[6]
+#define SWIGTYPE_p_p_char swig_types[7]
+#define SWIGTYPE_p_unsigned_char swig_types[8]
+static swig_type_info *swig_types[10];
+static swig_module_info swig_module = {swig_types, 9, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1532,7 +1533,9 @@ typedef GSList amglue_dumpspec_list;
 
 
 #include <glib.h>
+#include "amanda.h"
 #include "cmdline.h"
+#include "fileheader.h"
 
 
 SWIGINTERNINLINE SV *
@@ -1761,6 +1764,43 @@ SWIG_AsVal_int SWIG_PERL_DECL_ARGS_2(SV * obj, int *val)
     }
   }  
   return res;
+}
+
+
+gboolean header_matches_dumpspecs(dumpfile_t *dumpfile, amglue_dumpspec_list *dumpspecs) {
+    char level_str[100];
+
+    /* ignore anything that's not a (split) dumpfile */
+    if(dumpfile->type != F_DUMPFILE && dumpfile->type != F_SPLIT_DUMPFILE)
+	return FALSE;
+
+    g_snprintf(level_str, sizeof(level_str), "%d", dumpfile->dumplevel);
+
+    while (dumpspecs) {
+	dumpspec_t *ds = (dumpspec_t *)dumpspecs->data;
+	dumpspecs = g_slist_next(dumpspecs);
+
+	if (ds->host && *ds->host
+	    && !match_host(ds->host, dumpfile->name))
+	    continue;
+
+	if (ds->disk && *ds->disk
+	    && !match_disk(ds->disk, dumpfile->disk))
+	    continue;
+
+	if (ds->datestamp && *ds->datestamp
+	    && !match_datestamp(ds->datestamp, dumpfile->datestamp))
+	    continue;
+
+	if (ds->level && *ds->level
+	    && !match_level(ds->level, level_str))
+	    continue;
+
+	/* passed all the checks, so it's a match */
+	return TRUE;
+    }
+
+    return FALSE;
 }
 
 #ifdef __cplusplus
@@ -2161,12 +2201,78 @@ XS(_wrap_parse_dumpspecs) {
 }
 
 
+XS(_wrap_header_matches_dumpspecs) {
+  {
+    dumpfile_t *arg1 = (dumpfile_t *) 0 ;
+    amglue_dumpspec_list *arg2 = (amglue_dumpspec_list *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    gboolean result;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: header_matches_dumpspecs(dumpfile,dumpspecs);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dumpfile_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "header_matches_dumpspecs" "', argument " "1"" of type '" "dumpfile_t *""'"); 
+    }
+    arg1 = (dumpfile_t *)(argp1);
+    {
+      AV *av;
+      int len;
+      int i;
+      
+      if (!SvROK(ST(1)) || SvTYPE(SvRV(ST(1))) != SVt_PVAV) {
+        SWIG_exception_fail(SWIG_TypeError, "Expected an arrayref of dumpspecs");
+      }
+      av = (AV *)SvRV(ST(1));
+      
+      len = av_len(av)+1;
+      arg2 = NULL;
+      for (i = 0; i < len; i++) {
+        dumpspec_t *ds = NULL;
+        SV **elt = av_fetch(av, i, 0);
+        if (elt)
+        SWIG_ConvertPtr(*elt, (void **)&ds, SWIGTYPE_p_dumpspec_t, 0);
+        if (!ds)
+        SWIG_exception_fail(SWIG_TypeError, "Expected an arrayref of dumpspecs");
+        arg2 = g_slist_append(arg2, ds);
+      }
+    }
+    result = (gboolean)header_matches_dumpspecs(arg1,arg2);
+    {
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
+      argvi++;
+    }
+    
+    {
+      /* Free the GSList, but not its contents (which are still owned by SWIG) */
+      g_slist_free(arg2);
+    }
+    XSRETURN(argvi);
+  fail:
+    
+    {
+      /* Free the GSList, but not its contents (which are still owned by SWIG) */
+      g_slist_free(arg2);
+    }
+    SWIG_croak_null();
+  }
+}
+
+
 
 /* -------- TYPE CONVERSION AND EQUIVALENCE RULES (BEGIN) -------- */
 
 static swig_type_info _swigt__p_GSList = {"_p_GSList", "amglue_dumpspec_list *|GSList *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_char = {"_p_char", "gchar *|char *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_dumpfile_t = {"_p_dumpfile_t", "dumpfile_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_dumpspec_t = {"_p_dumpspec_t", "struct dumpspec_t *|dumpspec_t *", 0, 0, (void*)"Amanda::Cmdline::dumpspec_t", 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *|gfloat *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_int = {"_p_int", "int *|gboolean *|cmdline_parse_dumpspecs_flags *", 0, 0, (void*)0, 0};
@@ -2177,6 +2283,7 @@ static swig_type_info *swig_type_initial[] = {
   &_swigt__p_GSList,
   &_swigt__p_char,
   &_swigt__p_double,
+  &_swigt__p_dumpfile_t,
   &_swigt__p_dumpspec_t,
   &_swigt__p_float,
   &_swigt__p_int,
@@ -2187,6 +2294,7 @@ static swig_type_info *swig_type_initial[] = {
 static swig_cast_info _swigc__p_GSList[] = {  {&_swigt__p_GSList, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_char[] = {  {&_swigt__p_char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_double[] = {  {&_swigt__p_double, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_dumpfile_t[] = {  {&_swigt__p_dumpfile_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_dumpspec_t[] = {  {&_swigt__p_dumpspec_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_float[] = {  {&_swigt__p_float, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_int[] = {  {&_swigt__p_int, 0, 0, 0},{0, 0, 0, 0}};
@@ -2197,6 +2305,7 @@ static swig_cast_info *swig_cast_initial[] = {
   _swigc__p_GSList,
   _swigc__p_char,
   _swigc__p_double,
+  _swigc__p_dumpfile_t,
   _swigc__p_dumpspec_t,
   _swigc__p_float,
   _swigc__p_int,
@@ -2226,6 +2335,7 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Cmdlinec::dumpspec_t_format", _wrap_dumpspec_t_format},
 {"Amanda::Cmdlinec::format_dumpspec_components", _wrap_format_dumpspec_components},
 {"Amanda::Cmdlinec::parse_dumpspecs", _wrap_parse_dumpspecs},
+{"Amanda::Cmdlinec::header_matches_dumpspecs", _wrap_header_matches_dumpspecs},
 {0,0}
 };
 /* -----------------------------------------------------------------------------

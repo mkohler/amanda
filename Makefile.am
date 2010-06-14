@@ -4,22 +4,22 @@ AUTOMAKE_OPTIONS = 1.4 foreign
 include $(top_srcdir)/config/automake/vars.am
 include $(top_srcdir)/config/automake/installperms.am
 
-ACLOCAL_AMFLAGS = --force -I . -I config -I config/gettext-macros -I config/gnulib -I config/amanda -I config/macro-archive
+ACLOCAL_AMFLAGS = --force -I config -I . -I config/gettext-macros -I config/gnulib -I config/amanda -I config/macro-archive
 
 if WANT_CLIENT
 CLIENT_SUBDIRS = client-src application-src
 endif
 if WANT_SERVER
-SERVER_SUBDIRS = device-src server-src changer-src xfer-src
-endif
-if WANT_RESTORE
-RESTORE_SUBDIRS = restore-src
+SERVER_SUBDIRS = device-src server-src changer-src
 endif
 if WANT_RECOVER
 RECOVER_SUBDIRS = recover-src oldrecover-src
 endif
 if WANT_AMPLOT
 PLOT_SUBDIRS = amplot
+endif
+if WANT_NDMP
+NDMP_SUBDIRS = ndmp-src
 endif
 # order is significant, don't change it arbitrarily
 SUBDIRS = . \
@@ -28,6 +28,8 @@ SUBDIRS = . \
 	common-src \
 	amar-src \
 	amandad-src \
+	xfer-src \
+	$(NDMP_SUBDIRS) \
 	$(TAPE_SUBDIRS) \
 	$(CLIENT_SUBDIRS) \
 	$(SERVER_SUBDIRS) \
@@ -70,7 +72,14 @@ EXTRA_DIST += $(SNAPSHOT_STAMP) \
 	patches/samba-largefs.patch	\
 	patches/tar-1.12.patch		\
 	UPGRADING			\
-	DEVELOPING
+	DEVELOPING			\
+	VERSION				\
+	FULL_VERSION
+
+FULL_VERSION: VERSION
+	config/set_full_version $(top_srcdir)
+
+config.status: FULL_VERSION
 
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status --recheck
@@ -92,7 +101,6 @@ lint:
 	(cd common-src; make lint)
 	(cd oldrecover-src; make lint)
 	(cd recover-src; make lint)
-	(cd restore-src; make lint)
 	(cd server-src; make lint)
 	(cd xfer-src; make lint)
 

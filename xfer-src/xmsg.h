@@ -1,21 +1,21 @@
 /*
- * Copyright (c) 2008 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
  *
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1 as
- * published by the Free Software Foundation.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  *
- * This library is distributed in the hope that it will be useful, but
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 #ifndef XMSG_H
@@ -72,9 +72,39 @@ typedef enum {
     /* XMSG_CANCEL: this transfer is being cancelled, but data may still be
      * "draining" from buffers.  A subsequent XMSG_DONE indicates that the
      * transfer has actually completed.
+     * Attributes:
+     *  (none)
      */
     XMSG_CANCEL = 4,
 
+    /* XMSG_PART_DONE: a split part is finished; used by XferDestTaper and
+     * XferSourceTaper elements to indicate that the element is paused and
+     * awaiting instructions to start a new part.  Not all of the attributes
+     * are applicable to both elements.
+     *
+     * Attributes:
+     *  - successful (true if the whole part was written; always false for
+     *		XferSourceTaper)
+     *  - eom (true if the device is at EOM; always false for XferSourceTaper)
+     *  - eof (recipient should not call start_part; always false for
+     *		XferSourceTaper)
+     *  - size (bytes written to or read from the volume)
+     *  - duration (time spent writing, not counting changer ops, etc.)
+     *  - partnum (the zero-based number of this part in the overall
+     *		dumpfile; always 0 for XferSourceTaper)
+     *  - fileno (the on-media file number used for this part, or 0 if no file
+     *		  was used)
+     */
+    XMSG_PART_DONE = 5,
+
+    /* XMSG_READY: some elements do some additional, potentially long-term
+     * startup operations after the xfer itself starts.  This message is used
+     * to indicate that the startup was successful.
+     *
+     * Attributes:
+     *  (none)
+     */
+    XMSG_READY = 6,
 } xmsg_type;
 
 /*
@@ -104,8 +134,14 @@ typedef struct XMsg {
      * by the XMsg object, and will be freed in xmsg_free.  The use of stralloc()
      * is advised for strings.
      *
-     * N.B. When adding new attributes, also edit perl/Amanda/Xfer.swg:xmsg_to_sv
-     * so that they will be accessible from Perl. */
+     * NOTE TO IMPLEMENTERS:
+     *
+     * When adding a new attribute, make changes in the following places:
+     *  - add the attribute to the XMsg struct in xmsg.h
+     *  - add the attribute to the comments for the appropriate xmsg_types
+     *  - free the attribute in xmsg_free.
+     *  - edit perl/Amanda/Xfer.swg:new_sv_for_xmsg
+     */
 
     /* free-form string message for display to the users
      *
@@ -114,6 +150,27 @@ typedef struct XMsg {
      * quoted-printable.
      */
     char *message;
+
+    /* true indicates a successful operation */
+    gboolean successful;
+
+    /* true if an EOM condition has occurred */
+    gboolean eom;
+
+    /* true if an EOF condition has occurred */
+    gboolean eof;
+
+    /* size, in bytes */
+    guint64 size;
+
+    /* duration, in seconds */
+    double duration;
+
+    /* split-part number */
+    guint64 partnum;
+
+    /* file number on a volume */
+    guint64 fileno;
 } XMsg;
 
 /*

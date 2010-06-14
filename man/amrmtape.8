@@ -2,12 +2,12 @@
 .\"     Title: amrmtape
 .\"    Author: Adrian T. Filipi-Martin <atf3r@cs.virginia.edu>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMRMTAPE" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMRMTAPE" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,10 +19,10 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amrmtape \- remove a tape from the \fIAmanda\fR database
+amrmtape \- remove a tape from the Amanda database
 .SH "SYNOPSIS"
 .HP \w'\fBamrmtape\fR\ 'u
-\fBamrmtape\fR [\-n] [\-v] [\-q] [\-d] \fIconfig\fR \fIlabel\fR
+\fBamrmtape\fR [\-\-changer\ \fIchanger\-name\fR] [\-\-cleanup] [\-\-dryrun] [\-n] [\-\-erase] [\-\-keep\-label] [\-\-quiet] [\-q] [\-\-verbose] [\-v] \fIconfig\fR \fIlabel\fR
 .SH "DESCRIPTION"
 .PP
 \fBAmrmtape\fR
@@ -30,11 +30,22 @@ invalidates the contents of an existing backup tape in the configuration databas
 .PP
 See the
 \fBamanda\fR(8)
-man page for more details about
-\fIAmanda\fR\&.
+man page for more details about Amanda\&.
 .SH "OPTIONS"
 .PP
-\fB\-n\fR
+\fB\-\-changer \fR\fB\fIchanger\-name\fR\fR\fB \fR
+.RS 4
+Specify which changer to use when erasing
+\fIlabel\fR
+.RE
+.PP
+\fB\-\-cleanup\fR
+.RS 4
+Remove logs and indexes associated with
+\fIlabel\fR\&. Otherwise, they\'ll remain until the next run of amdump\&.
+.RE
+.PP
+\fB\-\-dryrun\fR, \fB\-n\fR
 .RS 4
 Generate new
 \fBtapelist\fR(5)
@@ -45,20 +56,27 @@ removed, but leave them in
 and do not update the original copies\&.
 .RE
 .PP
-\fB\-v\fR
+\fB\-\-erase\fR
+.RS 4
+Attempt to erase the data contained on the volume with the given label\&. This requires that Amanda be able to find that volume using the tape changer\&. Erasure is not supported by all Amanda devices, and the erasure is not "secure" in the sense that the data can most likely be recovered by someone with the right tools\&.
+.RE
+.PP
+\fB\-\-keep\-label\fR
+.RS 4
+Do not remove
+\fIlabel\fR
+from the tapelist\&.
+.RE
+.PP
+\fB\-\-verbose\fR, \fB\-v\fR
 .RS 4
 List backups of hosts and disks that are being discarded\&. Enabled by default\&.
 .RE
 .PP
-\fB\-q\fR
+\fB\-\-quiet\fR, \fB\-q\fR
 .RS 4
 Opposite of
 \fB\-v\fR\&.
-.RE
-.PP
-\fB\-d\fR
-.RS 4
-Run in debugging mode so all executed commands are shown\&.
 .RE
 .SH "EXAMPLE"
 .PP
@@ -72,9 +90,11 @@ configuration\&.
 .fi
 .SH "SEE ALSO"
 .PP
-\fBamadmin\fR(8),
 \fBamanda\fR(8),
-: http://wiki.zmanda.com
+\fBamadmin\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBAdrian T\&. Filipi\-Martin\fR <\&atf3r@cs\&.virginia\&.edu\&>

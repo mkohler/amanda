@@ -30,16 +30,16 @@
  */
 
 #include "amanda.h"
+#include "match.h"
 #include "sendbackup.h"
 #include "clock.h"
 #include "pipespawn.h"
 #include "amfeatures.h"
-#include "amandad.h"
 #include "arglist.h"
 #include "getfsent.h"
-#include "version.h"
 #include "conffile.h"
 #include "amandates.h"
+#include "stream.h"
 
 #define sendbackup_debug(i, ...) do {	\
 	if ((i) <= debug_sendbackup) {	\
@@ -125,6 +125,7 @@ main(
     int ch;
     GSList *errlist;
     FILE   *mesgstream;
+    level_t *alevel;
 
     /* initialize */
     /*
@@ -137,6 +138,7 @@ main(
     textdomain("amanda"); 
 
     safe_fd(DATA_FD_OFFSET, DATA_FD_COUNT*2);
+    openbsd_fd_inform();
 
     safe_cd();
 
@@ -156,10 +158,11 @@ main(
 	interactive = 0;
     }
 
-    erroutput_type = (ERR_INTERACTIVE|ERR_SYSLOG);
+    add_amanda_log_handler(amanda_log_stderr);
+    add_amanda_log_handler(amanda_log_syslog);
     dbopen(DBG_SUBDIR_CLIENT);
     startclock();
-    dbprintf(_("Version %s\n"), version());
+    dbprintf(_("Version %s\n"), VERSION);
 
     if(argc > 2 && strcmp(argv[1], "amandad") == 0) {
 	amandad_auth = stralloc(argv[2]);
@@ -297,7 +300,9 @@ main(
 	    goto err;				/* bad level */
 	}
 	skip_integer(s, ch);
-	dle->level = g_slist_append(dle->level, GINT_TO_POINTER(level));
+	alevel = g_new0(level_t, 1);
+	alevel->level = level;
+	dle->levellist = g_slist_append(dle->levellist, alevel);
 
 	skip_whitespace(s, ch);			/* find the dump date */
 	if(ch == '\0') {
@@ -361,27 +366,30 @@ main(
     }
     gdle = dle;
 
-    if (dle->program == NULL ||
-	dle->disk    == NULL ||
-	dle->device  == NULL ||
-	dle->level   == NULL ||
-	dumpdate     == NULL) {
+    if (dle->program   == NULL ||
+	dle->disk      == NULL ||
+	dle->device    == NULL ||
+	dle->levellist == NULL ||
+	dumpdate       == NULL) {
 	err_extra = _("no valid sendbackup request");
 	goto err;
     }
 
-    if (g_slist_length(dle->level) != 1) {
+    if (g_slist_length(dle->levellist) != 1) {
 	err_extra = _("Too many level");
 	goto err;
     }
 
-    level = GPOINTER_TO_INT(dle->level->data);
+    alevel = (level_t *)dle->levellist->data;
+    level = alevel->level;
     dbprintf(_("  Parsed request as: program `%s'\n"), dle->program);
     dbprintf(_("                     disk `%s'\n"), qdisk);
     dbprintf(_("                     device `%s'\n"), qamdevice);
     dbprintf(_("                     level %d\n"), level);
     dbprintf(_("                     since %s\n"), dumpdate);
     dbprintf(_("                     options `%s'\n"), stroptions);
+    dbprintf(_("                     datapath `%s'\n"),
+			    data_path_to_string(dle->data_path));
 
     if (dle->program_is_application_api==1) {
 	/* check that the application_api exist */
@@ -465,9 +473,9 @@ main(
     fflush(mesgstream);
 
     if (dle->program_is_application_api==1) {
-	int i, j, k;
+	guint j;
 	char *cmd=NULL;
-	char **argvchild;
+	GPtrArray *argv_ptr;
 	char levelstr[20];
 	backup_support_option_t *bsu;
 	char *compopt = NULL;
@@ -570,63 +578,98 @@ main(
 
 	switch(application_api_pid=fork()) {
 	case 0:
-	    cmd = vstralloc(APPLICATION_DIR, "/", dle->program, NULL);
-	    k = application_property_argv_size(dle);
-	    for (scriptlist = dle->scriptlist; scriptlist != NULL;
-		 scriptlist = scriptlist->next) {
-		script = (script_t *)scriptlist->data;
-		if (script->result && script->result->proplist) {
-		    k += property_argv_size(script->result->proplist);
+	    application_api_info_tapeheader(mesgfd, dle->program, dle);
+
+	    /* find directt-tcp address from indirect direct-tcp */
+	    if (dle->data_path == DATA_PATH_DIRECTTCP &&
+		bsu->data_path_set & DATA_PATH_DIRECTTCP &&
+		strncmp(dle->directtcp_list->data, "255.255.255.255:", 16) == 0) {
+		char *indirect_tcp;
+		char *str_port;
+		in_port_t port;
+		int fd;
+		char buffer[32770];
+		int size;
+		char *s, *s1;
+
+		indirect_tcp = stralloc(dle->directtcp_list->data);
+		g_slist_free(dle->directtcp_list);
+		dle->directtcp_list = NULL;
+		str_port = strchr(indirect_tcp, ':');
+		str_port++;
+		port = atoi(str_port);
+		fd = stream_client("localhost", port, 32768, 32768, NULL, 0);
+		if (fd <= 0) {
+		    g_debug("Failed to connect to indirect-direct-tcp port: %s",
+			    strerror(errno));
+		    exit(1);
 		}
+		size = full_read(fd, buffer, 32768);
+		if (size <= 0) {
+		    g_debug("Failed to read from indirect-direct-tcp port: %s",
+			    strerror(errno));
+		    exit(1);
+		}
+		buffer[size++] = ' ';
+		buffer[size] = '\0';
+		s1 = buffer;
+		while ((s = strchr(s1, ' ')) != NULL) {
+		    *s++ = '\0';
+		    dle->directtcp_list = g_slist_append(dle->directtcp_list, stralloc(s1));
+		    s1 = s;
+		}
+		amfree(indirect_tcp);
 	    }
-	    argvchild = g_new0(char *, 20 + k);
-	    i=0;
-	    argvchild[i++] = dle->program;
-	    argvchild[i++] = "backup";
+
+	    argv_ptr = g_ptr_array_new();
+	    cmd = vstralloc(APPLICATION_DIR, "/", dle->program, NULL);
+	    g_ptr_array_add(argv_ptr, stralloc(dle->program));
+	    g_ptr_array_add(argv_ptr, stralloc("backup"));
 	    if (bsu->message_line == 1) {
-		argvchild[i++] = "--message";
-		argvchild[i++] = "line";
+		g_ptr_array_add(argv_ptr, stralloc("--message"));
+		g_ptr_array_add(argv_ptr, stralloc("line"));
 	    }
 	    if (g_options->config && bsu->config == 1) {
-		argvchild[i++] = "--config";
-		argvchild[i++] = g_options->config;
+		g_ptr_array_add(argv_ptr, stralloc("--config"));
+		g_ptr_array_add(argv_ptr, stralloc(g_options->config));
 	    }
 	    if (g_options->hostname && bsu->host == 1) {
-		argvchild[i++] = "--host";
-		argvchild[i++] = g_options->hostname;
+		g_ptr_array_add(argv_ptr, stralloc("--host"));
+		g_ptr_array_add(argv_ptr, stralloc(g_options->hostname));
 	    }
 	    if (dle->disk && bsu->disk == 1) {
-		argvchild[i++] = "--disk";
-		argvchild[i++] = dle->disk;
+		g_ptr_array_add(argv_ptr, stralloc("--disk"));
+		g_ptr_array_add(argv_ptr, stralloc(dle->disk));
 	    }
-	    argvchild[i++] = "--device";
-	    argvchild[i++] = dle->device;
+	    g_ptr_array_add(argv_ptr, stralloc("--device"));
+	    g_ptr_array_add(argv_ptr, stralloc(dle->device));
 	    if (level <= bsu->max_level) {
-		argvchild[i++] = "--level";
+		g_ptr_array_add(argv_ptr, stralloc("--level"));
 		g_snprintf(levelstr,19,"%d",level);
-		argvchild[i++] = levelstr;
+		g_ptr_array_add(argv_ptr, stralloc(levelstr));
 	    }
 	    if (indexfd != -1 && bsu->index_line == 1) {
-		argvchild[i++] = "--index";
-		argvchild[i++] = "line";
+		g_ptr_array_add(argv_ptr, stralloc("--index"));
+		g_ptr_array_add(argv_ptr, stralloc("line"));
 	    }
 	    if (dle->record && bsu->record == 1) {
-		argvchild[i++] = "--record";
+		g_ptr_array_add(argv_ptr, stralloc("--record"));
 	    }
-	    i += application_property_add_to_argv(&argvchild[i], dle, bsu);
+	    application_property_add_to_argv(argv_ptr, dle, bsu,
+					     g_options->features);
 
 	    for (scriptlist = dle->scriptlist; scriptlist != NULL;
 		 scriptlist = scriptlist->next) {
 		script = (script_t *)scriptlist->data;
 		if (script->result && script->result->proplist) {
-		    i += property_add_to_argv(&argvchild[i],
-					      script->result->proplist);
+		    property_add_to_argv(argv_ptr, script->result->proplist);
 		}
 	    }
 
-	    argvchild[i] = NULL;
+	    g_ptr_array_add(argv_ptr, NULL);
 	    dbprintf(_("%s: running \"%s\n"), get_pname(), cmd);
-	    for(j=1;j<i;j++) dbprintf(" %s\n",argvchild[j]);
+	    for (j = 1; j < argv_ptr->len - 1; j++)
+		dbprintf(" %s\n", (char *)g_ptr_array_index(argv_ptr,j));
 	    dbprintf(_("\"\n"));
 	    if(dup2(dumpout, 1) == -1) {
 		error(_("Can't dup2: %s"),strerror(errno));
@@ -647,13 +690,12 @@ main(
 		}
 		fcntl(indexfd, F_SETFD, 0);
 	    }
-	    application_api_info_tapeheader(mesgfd, dle->program, dle);
 	    if (indexfd != 0) {
 		safe_fd(3, 2);
 	    } else {
 		safe_fd(3, 1);
 	    }
-	    execve(cmd, argvchild, safe_env());
+	    execve(cmd, (char **)argv_ptr->pdata, safe_env());
 	    exit(1);
 	    break;
  
@@ -690,7 +732,8 @@ main(
 		finish_amandates();
 		free_amandates();
 	    } else {
-		if (dle->calcsize && bsu->calcsize) {
+		if (GPOINTER_TO_INT(dle->estimatelist->data) == ES_CALCSIZE &&
+		    bsu->calcsize) {
 		    error(_("error [opening %s for writing: %s]"),
 			  amandates_file, strerror(errno));
 		} else {

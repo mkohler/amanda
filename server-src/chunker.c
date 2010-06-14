@@ -37,7 +37,6 @@
 #include "protocol.h"
 #include "security.h"
 #include "stream.h"
-#include "version.h"
 #include "fileheader.h"
 #include "amfeatures.h"
 #include "server_util.h"
@@ -103,8 +102,8 @@ static ssize_t write_tapeheader(int, dumpfile_t *);
 static void databuf_init(struct databuf *, int, char *, off_t, off_t);
 static int databuf_flush(struct databuf *);
 
-static int startup_chunker(char *, off_t, off_t, struct databuf *);
-static int do_chunk(int, struct databuf *);
+static int startup_chunker(char *, off_t, off_t, struct databuf *, int *);
+static int do_chunk(int, struct databuf *, int);
 
 
 int
@@ -114,16 +113,17 @@ main(
 {
     static struct databuf db;
     struct cmdargs *cmdargs;
-    int infd;
+    int header_fd;
     char *q = NULL;
     char *filename = NULL;
     off_t chunksize, use;
     times_t runtime;
     am_feature_t *their_features = NULL;
     int a;
-    config_overwrites_t *cfg_ovr = NULL;
+    config_overrides_t *cfg_ovr = NULL;
     char *cfg_opt = NULL;
     char *m;
+    int data_socket;
 
     /*
      * Configure program for internationalization:
@@ -143,16 +143,16 @@ main(
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
-    erroutput_type = (ERR_AMANDALOG|ERR_INTERACTIVE);
-    set_logerror(logerror);
+    add_amanda_log_handler(amanda_log_stderr);
+    add_amanda_log_handler(amanda_log_trace_log);
 
-    cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
+    cfg_ovr = extract_commandline_config_overrides(&argc, &argv);
 
     if (argc > 1) 
 	cfg_opt = argv[1];
 
+    set_config_overrides(cfg_ovr);
     config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_USE_CWD, cfg_opt);
-    apply_config_overwrites(cfg_ovr);
 
     if (config_errors(NULL) >= CFGERR_WARNINGS) {
 	config_print_errors();
@@ -171,7 +171,7 @@ main(
     g_fprintf(stderr,
 	    _("%s: pid %ld executable %s version %s\n"),
 	    get_pname(), (long) getpid(),
-	    argv[0], version());
+	    argv[0], VERSION);
     fflush(stderr);
 
     /* now, make sure we are a valid user */
@@ -295,13 +295,14 @@ main(
 	        /*NOTREACHED*/
 	    }
 
-	    if((infd = startup_chunker(filename, use, chunksize, &db)) < 0) {
+	    if ((header_fd = startup_chunker(filename, use, chunksize, &db,
+					     &data_socket)) < 0) {
 		q = quote_string(vstrallocf(_("[chunker startup failed: %s]"), errstr));
 		putresult(TRYAGAIN, "%s %s\n", handle, q);
 		error("startup_chunker failed: %s", errstr);
 	    }
 	    command_in_transit = NULL;
-	    if(infd >= 0 && do_chunk(infd, &db)) {
+	    if (header_fd >= 0 && do_chunk(header_fd, &db, data_socket)) {
 		char kb_str[NUM_STR_SIZE];
 		char kps_str[NUM_STR_SIZE];
 		double rt;
@@ -355,7 +356,7 @@ main(
 		default: break;
 		}
 		amfree(q);
-	    } else if(infd != -2) {
+	    } else if (header_fd != -2) {
 		if(q == NULL) {
 		    m = vstrallocf("[%s]", errstr);
 		    q = quote_string(m);
@@ -416,38 +417,53 @@ startup_chunker(
     char *		filename,
     off_t		use,
     off_t		chunksize,
-    struct databuf *	db)
+    struct databuf *	db,
+    int                *datasocket)
 {
-    int infd, outfd;
+    int header_fd, outfd;
     char *tmp_filename, *pc;
-    in_port_t data_port;
-    int data_socket;
+    in_port_t header_port, data_port;
+    int header_socket, data_socket;
     int result;
     struct addrinfo *res;
 
+    header_port = 0;
     data_port = 0;
     if ((result = resolve_hostname("localhost", 0, &res, NULL) != 0)) {
 	errstr = newvstrallocf(errstr, _("could not resolve localhost: %s"),
 			       gai_strerror(result));
 	return -1;
     }
+    header_socket = stream_server(res->ai_family, &header_port, 0,
+				STREAM_BUFSIZE, 0);
     data_socket = stream_server(res->ai_family, &data_port, 0,
 				STREAM_BUFSIZE, 0);
     if (res) freeaddrinfo(res);
 
-    if(data_socket < 0) {
-	errstr = vstrallocf(_("error creating stream server: %s"), strerror(errno));
+    if (header_socket < 0) {
+	errstr = vstrallocf(_("error creating header stream server: %s"), strerror(errno));
+	aclose(data_socket);
 	return -1;
     }
 
-    putresult(PORT, "%d\n", data_port);
-
-    infd = stream_accept(data_socket, CONNECT_TIMEOUT, 0, STREAM_BUFSIZE);
-    aclose(data_socket);
-    if(infd == -1) {
-	errstr = vstrallocf(_("error accepting stream: %s"), strerror(errno));
+    if (data_socket < 0) {
+	errstr = vstrallocf(_("error creating data stream server: %s"), strerror(errno));
+	aclose(header_socket);
 	return -1;
     }
+
+    putresult(PORT, "%d 127.0.0.1:%d\n", header_port, data_port);
+
+    header_fd = stream_accept(header_socket, CONNECT_TIMEOUT, 0,
+			      STREAM_BUFSIZE);
+    if (header_fd == -1) {
+	errstr = vstrallocf(_("error accepting header stream: %s"),
+			    strerror(errno));
+	aclose(header_socket);
+	aclose(data_socket);
+	return -1;
+    }
+    aclose(header_socket);
 
     tmp_filename = vstralloc(filename, ".tmp", NULL);
     pc = strrchr(tmp_filename, '/');
@@ -464,7 +480,8 @@ startup_chunker(
 	errstr = quote_string(m);
 	amfree(m);
 	amfree(tmp_filename);
-	aclose(infd);
+	aclose(header_fd);
+	aclose(data_socket);
 	if(save_errno == ENOSPC) {
 	    putresult(NO_ROOM, "%s %lld\n",
 	    	      handle, (long long)use);
@@ -476,15 +493,18 @@ startup_chunker(
     amfree(tmp_filename);
     databuf_init(db, outfd, filename, use, chunksize);
     db->filename_seq++;
-    return infd;
+    *datasocket = data_socket;
+    return header_fd;
 }
 
 static int
 do_chunk(
-    int			infd,
-    struct databuf *	db)
+    int			header_fd,
+    struct databuf *	db,
+    int                 data_socket)
 {
     size_t nread;
+    int    data_fd;
     char header_buf[DISK_BLOCK_BYTES];
 
     startclock();
@@ -498,7 +518,7 @@ do_chunk(
      * need to save into "file", as well as write out.  Later, the
      * chunk code will rewrite it.
      */
-    nread = full_read(infd, header_buf, SIZEOF(header_buf));
+    nread = full_read(header_fd, header_buf, SIZEOF(header_buf));
     if (nread != sizeof(header_buf)) {
 	if(errno != 0) {
 	    errstr = vstrallocf(_("cannot read header: %s"), strerror(errno));
@@ -506,6 +526,7 @@ do_chunk(
 	    errstr = vstrallocf(_("cannot read header: got %zd bytes instead of %zd"),
 				nread, sizeof(header_buf));
 	}
+	aclose(data_socket);
 	return 0;
     }
     parse_file_header(header_buf, &file, (size_t)nread);
@@ -519,17 +540,29 @@ do_chunk(
 	    putresult(NO_ROOM, "%s %lld\n", handle, 
 		      (long long)(db->use+db->split_size-dumpsize));
 	}
+	aclose(data_socket);
 	return 0;
     }
     dumpsize += (off_t)DISK_BLOCK_KB;
     filesize = (off_t)DISK_BLOCK_KB;
     headersize += DISK_BLOCK_KB;
 
+    /* open the data socket */
+    data_fd = stream_accept(data_socket, CONNECT_TIMEOUT, 0, STREAM_BUFSIZE);
+
+    if (data_fd == -1) {
+	errstr = vstrallocf(_("error accepting data stream: %s"),
+			    strerror(errno));
+	aclose(data_socket);
+	return 0;
+    }
+    aclose(data_socket);
+
     /*
      * We've written the file header.  Now, just write data until the
      * end.
      */
-    while ((nread = full_read(infd, db->buf,
+    while ((nread = full_read(data_fd, db->buf,
 			     (size_t)(db->datalimit - db->datain))) > 0) {
 	db->datain += nread;
 	while(db->dataout < db->datain) {
@@ -581,6 +614,7 @@ databuf_flush(
 {
     struct cmdargs *cmdargs = NULL;
     int rc = 1;
+    size_t size_to_write;
     size_t written;
     off_t left_in_chunk;
     char *arg_filename = NULL;
@@ -829,8 +863,8 @@ databuf_flush(
     /*
      * Write out the buffer
      */
-    written = full_write(db->fd, db->dataout,
-			(size_t)(db->datain - db->dataout));
+    size_to_write = (size_t)(db->datain - db->dataout);
+    written = full_write(db->fd, db->dataout, size_to_write);
     if (written > 0) {
 	db->dataout += written;
 	dumpbytes += (off_t)written;
@@ -838,7 +872,7 @@ databuf_flush(
     dumpsize += (dumpbytes / (off_t)1024);
     filesize += (dumpbytes / (off_t)1024);
     dumpbytes %= 1024;
-    if (written == 0) {
+    if (written < size_to_write) {
 	if (errno != ENOSPC) {
 	    char *m = vstrallocf(_("data write: %s"), strerror(errno));
 	    errstr = quote_string(m);
@@ -887,7 +921,11 @@ write_tapeheader(
     size_t written;
 
     file->blocksize = DISK_BLOCK_BYTES;
-    buffer = build_header(file, DISK_BLOCK_BYTES);
+    if (debug_chunker > 1)
+	dump_dumpfile_t(file);
+    buffer = build_header(file, NULL, DISK_BLOCK_BYTES);
+    if (!buffer) /* this shouldn't happen */
+	error(_("header does not fit in %zd bytes"), (size_t)DISK_BLOCK_BYTES);
 
     written = full_write(outfd, buffer, DISK_BLOCK_BYTES);
     amfree(buffer);

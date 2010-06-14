@@ -33,6 +33,7 @@
 #include "amanda.h"
 #include "util.h"
 #include "amxml.h"
+#include "match.h"
 #include "glib.h"
 #include "conffile.h"
 #include "base64.h"
@@ -48,6 +49,7 @@ typedef struct amgxml_s {
     int      has_compress;
     int      has_encrypt;
     int      has_kencrypt;
+    int      has_datapath;
     int      has_exclude;
     int      has_include;
     int      has_index;
@@ -58,9 +60,9 @@ typedef struct amgxml_s {
     property_t *property_data;
     proplist_t  property;
     script_t   *script;
+    level_t    *alevel;
     char       *encoding;
     char       *raw;
-
 } amgxml_t;
 
 
@@ -82,14 +84,13 @@ init_dle(
     dle->device = NULL;
     dle->program_is_application_api = 0;
     dle->program = NULL;
-    dle->calcsize = 0;
-    dle->estimate = 0;
+    dle->estimatelist = NULL;
     dle->record = 1;
     dle->spindle = 0;
     dle->compress = COMP_NONE;
     dle->encrypt = ENCRYPT_NONE;
     dle->kencrypt = 0;
-    dle->level = NULL;
+    dle->levellist = NULL;
     dle->dumpdate = NULL;
     dle->compprog = NULL;
     dle->srv_encrypt = NULL;
@@ -106,6 +107,8 @@ init_dle(
     dle->include_optional = 0;
     dle->application_property = NULL;
     dle->scriptlist = NULL;
+    dle->data_path = DATA_PATH_AMANDA;
+    dle->directtcp_list = NULL;
     dle->next = NULL;
 }
 
@@ -193,6 +196,7 @@ amstart_element(
 	data_user->has_compress = 0;
 	data_user->has_encrypt = 0;
 	data_user->has_kencrypt = 0;
+	data_user->has_datapath = 0;
 	data_user->has_exclude = 0;
 	data_user->has_include = 0;
 	data_user->has_index = 0;
@@ -201,6 +205,11 @@ amstart_element(
 	data_user->has_optional = 0;
 	data_user->property_name = NULL;
 	data_user->property_data = NULL;
+	data_user->property = NULL;
+	data_user->script = NULL;
+	data_user->alevel = NULL;
+	data_user->encoding = NULL;
+	data_user->raw = NULL;
     } else if(strcmp(element_name, "disk"          ) == 0 ||
 	      strcmp(element_name, "diskdevice"    ) == 0 ||
 	      strcmp(element_name, "calcsize"      ) == 0 ||
@@ -215,6 +224,7 @@ amstart_element(
 	      strcmp(element_name, "compress"      ) == 0 ||
 	      strcmp(element_name, "encrypt"       ) == 0 ||
 	      strcmp(element_name, "kencrypt"      ) == 0 ||
+	      strcmp(element_name, "datapath"      ) == 0 ||
 	      strcmp(element_name, "exclude"       ) == 0 ||
 	      strcmp(element_name, "include"       ) == 0) {
 	if (strcmp(last_element_name, "dle") != 0) {
@@ -235,6 +245,7 @@ amstart_element(
 	    (strcmp(element_name, "compress"      ) == 0 && data_user->has_compress) ||
 	    (strcmp(element_name, "encrypt"       ) == 0 && data_user->has_encrypt) ||
 	    (strcmp(element_name, "kencrypt"      ) == 0 && data_user->has_kencrypt) ||
+	    (strcmp(element_name, "datapath"      ) == 0 && data_user->has_datapath) ||
 	    (strcmp(element_name, "exclude"       ) == 0 && data_user->has_exclude) ||
 	    (strcmp(element_name, "include"       ) == 0 && data_user->has_include)) {
 	    g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
@@ -248,11 +259,21 @@ amstart_element(
 	if (strcmp(element_name, "index"         ) == 0) data_user->has_index          = 1;
 	if (strcmp(element_name, "compress"      ) == 0) data_user->has_compress       = 1;
 	if (strcmp(element_name, "encrypt"       ) == 0) data_user->has_encrypt        = 1;
-	if (strcmp(element_name, "kencrypt"       ) == 0) data_user->has_kencrypt        = 1;
+	if (strcmp(element_name, "kencrypt"      ) == 0) data_user->has_kencrypt       = 1;
+	if (strcmp(element_name, "datapath"      ) == 0) data_user->has_datapath       = 1;
 	if (strcmp(element_name, "exclude"       ) == 0) data_user->has_exclude        = 1;
 	if (strcmp(element_name, "include"       ) == 0) data_user->has_include        = 1;
 	if (strcmp(element_name, "exclude") == 0 || strcmp(element_name, "include") == 0)
 	   data_user->has_optional = 0;
+	if (strcmp(element_name, "level") == 0) {
+	    data_user->alevel = g_new0(level_t, 1);
+	}
+    } else if (strcmp(element_name, "server") == 0) {
+	if (strcmp(last_element_name, "level") != 0) {
+	    g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
+			"XML: Invalid %s element", element_name);
+	    return;
+	}
     } else if(strcmp(element_name, "custom-compress-program") == 0) {
 	if (strcmp(last_element_name, "compress") != 0) {
 	    g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
@@ -369,6 +390,12 @@ amstart_element(
 	data_user->has_plugin = 0;
     } else if (strcmp(element_name, "execute_on") == 0) {
     } else if (strcmp(element_name, "execute_where") == 0) {
+    } else if (strcmp(element_name, "directtcp") == 0) {
+	if (strcmp(last_element_name, "datapath") != 0) {
+	    g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
+			"XML: Invalid %s element", element_name);
+	    return;
+	}
     } else {
 	g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
 		    "XML: Invalid %s element", element_name);
@@ -410,11 +437,6 @@ amend_element(
 	data_user->property_name = NULL;
 	data_user->property_data = NULL;
     } else if (strcmp(element_name, "dle") == 0) {
-	if (dle->disk == NULL) {
-	    g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
-		    "XML: No disk provided in DLE element");
-	    return;
-	}
 	if (dle->program_is_application_api &&
 	    !dle->program) {
 	    g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
@@ -423,6 +445,8 @@ amend_element(
 	}
 	if (dle->device == NULL && dle->disk)
 	    dle->device = stralloc(dle->disk);
+	if (dle->estimatelist == NULL)
+	    dle->estimatelist = g_slist_append(dle->estimatelist, ES_CLIENT);
 /* Add check of required field */
 	data_user->dle = NULL;
     } else if (strcmp(element_name, "backup-program") == 0) {
@@ -443,6 +467,9 @@ amend_element(
 	data_user->property = NULL;
 	dle->scriptlist = g_slist_append(dle->scriptlist, data_user->script);
 	data_user->script = NULL;
+    } else if (strcmp(element_name, "level") == 0) {
+	dle->levellist = g_slist_append(dle->levellist, data_user->alevel);
+	data_user->alevel = NULL;
     }
     g_free(data_user->element_names->data);
     data_user->element_names = g_slist_delete_link(data_user->element_names,
@@ -488,6 +515,14 @@ amtext(
     if (data_user->raw) {
 	amfree(tt);
 	tt = stralloc(data_user->raw);
+    } else if (strlen(tt) > 0) {
+	/* remove trailing space */
+	char *ttt = tt + strlen(tt) - 1;
+	while(*ttt == ' ') {
+	    ttt--;
+	}
+	ttt++;
+	*ttt = '\0';
     }
 
     //check if it is only space
@@ -519,17 +554,33 @@ amtext(
 	dle->device = tt;
     } else if(strcmp(last_element_name, "calcsize") == 0) {
 	if (strcasecmp(tt,"yes") == 0) {
-	    dle->calcsize = 1;
+	    dle->estimatelist = g_slist_append(dle->estimatelist,
+					       GINT_TO_POINTER(ES_CALCSIZE));
 	}
 	amfree(tt);
     } else if(strcmp(last_element_name, "estimate") == 0) {
-	if (strcasecmp(tt,"client") == 0) {
-	    dle->estimate = ES_CLIENT;
-	} else if (strcasecmp(tt,"calcsize") == 0) {
-	    dle->estimate = ES_CALCSIZE;
-	    dle->calcsize = 1;
-	} else if (strcasecmp(tt,"server") == 0) {
-	    dle->estimate = ES_SERVER;
+	char *ttt = tt;
+	while (strlen(ttt) > 0) {
+	    if (BSTRNCMP(ttt,"CLIENT") == 0) {
+		dle->estimatelist = g_slist_append(dle->estimatelist,
+						   GINT_TO_POINTER(ES_CLIENT));
+		ttt += strlen("client");
+	    } else if (BSTRNCMP(ttt,"CALCSIZE") == 0) {
+		if (!data_user->has_calcsize)
+		    dle->estimatelist = g_slist_append(dle->estimatelist,
+						 GINT_TO_POINTER(ES_CALCSIZE));
+		ttt += strlen("calcsize");
+	    } else if (BSTRNCMP(ttt,"SERVER") == 0) {
+		dle->estimatelist = g_slist_append(dle->estimatelist,
+						   GINT_TO_POINTER(ES_SERVER));
+		ttt += strlen("server");
+	    } else {
+	    g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
+			"XML: bad estimate: %s", tt);
+		return;
+	    }
+	    while (*ttt == ' ')
+		ttt++;
 	}
 	amfree(tt);
     } else if(strcmp(last_element_name, "program") == 0) {
@@ -601,7 +652,19 @@ amtext(
 	}
 	dle->auth = tt;
     } else if(strcmp(last_element_name, "level") == 0) {
-	dle->level = g_slist_append(dle->level, GINT_TO_POINTER(atoi(tt)));
+	data_user->alevel->level = atoi(tt);
+	amfree(tt);
+    } else if (strcmp(last_element_name, "server") == 0) {
+	if (strcasecmp(tt,"no") == 0) {
+	    data_user->alevel->server = 0;
+	} else if (strcasecmp(tt,"yes") == 0) {
+	    data_user->alevel->server = 1;
+	} else {
+	    g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
+			"XML: Invalid %s (%s)", last_element_name, tt);
+	    amfree(tt);
+	    return;
+	}
 	amfree(tt);
     } else if(strcmp(last_element_name, "index") == 0) {
 	if (strcasecmp(tt,"no") == 0) {
@@ -802,6 +865,18 @@ amtext(
 	} else {
 	    data_user->script->execute_where = ES_SERVER;
 	}
+    } else if(strcmp(last_element_name, "datapath") == 0) {
+	if (strcmp(tt, "AMANDA") == 0) {
+	    dle->data_path = DATA_PATH_AMANDA;
+	} else if (strcmp(tt, "DIRECTTCP") == 0) {
+	    dle->data_path = DATA_PATH_DIRECTTCP;
+	} else {
+	    g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
+			"XML: bad datapath value '%s'", tt);
+	}
+	amfree(tt);
+    } else if(strcmp(last_element_name, "directtcp") == 0) {
+	dle->directtcp_list = g_slist_append(dle->directtcp_list, tt);
     } else {
 	g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
 		    "XML: amtext not defined for '%s'", last_element_name);
@@ -814,7 +889,7 @@ amxml_parse_node_CHAR(
     char *txt,
     char **errmsg)
 {
-    amgxml_t             amgxml = {NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL};
+    amgxml_t             amgxml = {NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
     GMarkupParser        parser = {&amstart_element, &amend_element, &amtext,
 				   NULL, NULL};
     GMarkupParseFlags    flags = 0;
@@ -843,7 +918,7 @@ amxml_parse_node_FILE(
     FILE *file,
     char **errmsg)
 {
-    amgxml_t             amgxml = {NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL};
+    amgxml_t             amgxml = {NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
     GMarkupParser        parser = {&amstart_element, &amend_element, &amtext,
 				   NULL, NULL};
     GMarkupParseFlags    flags = 0;

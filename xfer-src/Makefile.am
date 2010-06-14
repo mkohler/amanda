@@ -1,7 +1,6 @@
 # Makefile for Amanda library.
 
 include $(top_srcdir)/config/automake/vars.am
-include $(top_srcdir)/config/automake/scripts.am
 include $(top_srcdir)/config/automake/installperms.am
 include $(top_srcdir)/config/automake/precompile.am
 
@@ -18,22 +17,25 @@ LINT=$(AMLINT)
 LINTFLAGS=$(AMLINTFLAGS)
 
 libamxfer_la_SOURCES = \
-	dest-device.c \
 	dest-fd.c \
 	dest-null.c \
+	dest-buffer.c \
+	dest-directtcp-connect.c \
+	dest-directtcp-listen.c \
 	element-glue.c \
 	filter-xor.c \
-	source-device.c \
+	filter-process.c \
 	source-random.c \
 	source-fd.c \
 	source-pattern.c \
+	source-directtcp-connect.c \
+	source-directtcp-listen.c \
 	xfer-element.c \
 	xfer.c \
 	xmsg.c
 
 libamxfer_la_LDFLAGS = -release $(VERSION)
 libamxfer_la_LIBADD = \
-	../device-src/libamdevice.la \
 	../common-src/libamanda.la
 
 noinst_HEADERS = \

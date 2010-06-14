@@ -33,7 +33,6 @@
 #include "conffile.h"
 #include "packet.h"
 #include "protocol.h"
-#include "version.h"
 #include "server_util.h"
 #include "amfeatures.h"
 
@@ -51,8 +50,7 @@ int main(int argc, char **argv);
 void
 usage(void)
 {
-    error(_("Usage: amservice%s [-o configoption]* [-f input_file] host auth service"),
-	  versionsuffix());
+    error(_("Usage: amservice [-o configoption]* [-f input_file] host auth service"));
     /*NOTREACHED*/
 }
 
@@ -61,7 +59,7 @@ main(
     int		argc,
     char **	argv)
 {
-    config_overwrites_t *cfg_ovr;
+    config_overrides_t *cfg_ovr;
     char *hostname;
     char *auth;
     char *service;
@@ -93,18 +91,18 @@ main(
 
     dbopen(DBG_SUBDIR_SERVER);
 
-    erroutput_type = ERR_INTERACTIVE;
+    add_amanda_log_handler(amanda_log_stderr);
 
     our_features = am_init_feature_set();
     our_feature_string = am_feature_to_string(our_features);
 
     /* process arguments */
 
-    cfg_ovr = new_config_overwrites(argc/2);
+    cfg_ovr = new_config_overrides(argc/2);
     input_file = stdin;
     while((opt = getopt(argc, argv, "o:f:")) != EOF) {
 	switch(opt) {
-	case 'o':	add_config_overwrite_opt(cfg_ovr, optarg);
+	case 'o':	add_config_override_opt(cfg_ovr, optarg);
 			break;
 	case 'f':	if (*optarg == '/') {
 			    input_file = fopen(optarg, "r");
@@ -125,8 +123,8 @@ main(
     if(argc < 3) usage();
 
     /* set a default config */
+    set_config_overrides(cfg_ovr);
     config_init(CONFIG_INIT_CLIENT, NULL);
-    apply_config_overwrites(cfg_ovr);
     dbrename(get_config_name(), DBG_SUBDIR_SERVER);
 
     if (config_errors(NULL) >= CFGERR_WARNINGS) {

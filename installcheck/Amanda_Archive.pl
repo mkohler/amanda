@@ -1,4 +1,4 @@
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -13,7 +13,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 use Test::More tests => 20;
@@ -24,12 +24,13 @@ use warnings;
 # library is well-covered by amar-test.
 
 use lib "@amperldir@";
+use Installcheck;
 use Amanda::Archive;
 use Amanda::Paths;
 use Data::Dumper;
 
-my $arch_filename = "$AMANDA_TMPDIR/amanda_archive.bin";
-my $data_filename = "$AMANDA_TMPDIR/some_data.bin";
+my $arch_filename = "$Installcheck::TMP/amanda_archive.bin";
+my $data_filename = "$Installcheck::TMP/some_data.bin";
 my ($fh, $dfh, $ar, $f1, $f2, $a1, $a2, @res, $posn);
 
 # some versions of Test::More will fail tests if the identity
@@ -244,3 +245,4 @@ is_deeply([@res], [
 $ar->close();
 
 unlink($data_filename);
+unlink($arch_filename);

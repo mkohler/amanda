@@ -1,4 +1,4 @@
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2008 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -13,12 +13,13 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More tests => 2;
+use Test::More tests => 4;
 
 use lib "@amperldir@";
+use Installcheck::Dumpcache;
 use Installcheck::Config;
 use Installcheck::Run qw(run run_err $diskname amdump_diag);
 use Amanda::Config qw( :init );
@@ -29,7 +30,7 @@ my $testconf;
 # Just run amdump.
 
 $testconf = Installcheck::Run::setup();
-$testconf->add_param('label_new_tapes', '"TESTCONF%%"');
+$testconf->add_param('autolabel', '"TESTCONF%%" empty volume_error');
 
 # one program "GNUTAR"
 $testconf->add_dle(<<EODLE);
@@ -61,5 +62,26 @@ $testconf->add_dle('does-not-exist.example.com / installcheck-test');
 $testconf->write();
 
 ok(!run('amdump', 'TESTCONF'), "amdump fails with nonexistent client");
+
+#check failure in validate_optstr.
+$testconf = Installcheck::Run::setup();
+$testconf->add_dle(<<EODLE);
+localhost diskname2 $diskname {
+    installcheck-test
+    program "APPLICATION"
+    application {
+        plugin "amgtar"
+        property "ATIME-PRESERVE" "NO"
+    }
+    compress client custom
+}
+EODLE
+$testconf->write();
+
+ok(!run("$amlibexecdir/planner", 'TESTCONF'), "amdump fails in validate_optstr");
+open(my $logfile, "<", "$CONFIG_DIR/TESTCONF/log/log")
+	or die("opening log: $!");
+my $logline = grep(/^\S+ planner localhost diskname2 \d* 0 \[client custom compression with no compression program specified\]/, <$logfile>);
+ok($logline, "planner fail without 'client custom compression with no compression program specified'");
 
 Installcheck::Run::cleanup();

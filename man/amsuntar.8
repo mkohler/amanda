@@ -1,0 +1,128 @@
+'\" t
+.\"     Title: amsuntar
+.\"    Author: Satya Ganga <gast@zmanda.com>
+.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
+.\"      Date: 06/01/2010
+.\"    Manual: System Administration Commands
+.\"    Source: Amanda 3.1.0
+.\"  Language: English
+.\"
+.TH "AMSUNTAR" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "NAME"
+amsuntar \- Amanda Application to interface with native tar utility available on solaris platforms
+.SH "DESCRIPTION"
+.PP
+Amsuntar is an Amanda Application API script\&. It should not be run by users directly\&. It uses Solaris bundled tar utility to backup and restore data\&. Currenty ACLs from ZFS file system can only be backed up using the solaris supplied tar utility\&.
+.PP
+Solaris 10 supports Role Based Access Control(RBAC) which is enabled by default\&. To run backup operations using sun tar utility by under privileged user like amandabackup, amandabackup user need to have proper roles and profiles, specially "Media Backup" profile/role\&. This can be done using \'usermod \-P "Media Backup" amandabackup\' command\&.
+.SH "PROPERTIES"
+.PP
+This section lists the properties that control amsuntar\'s functionality\&. See
+\fBamanda-applications\fR(7)
+for information on application properties and how they are configured\&.
+.PP
+BLOCK\-SIZE
+.RS 4
+
+Optional tar read or write block size\&.  The default is 256\&.
+.RE
+.PP
+DIRECTORY
+.RS 4
+
+If set, suntar will backup from that directory instead of the \fIdiskdevice\fR set by the DLE\&. On restore, the data is restore in that directory instead of the current working directory\&.
+.RE
+.PP
+EXTENDED\-ATTRIBUTES
+.RS 4
+
+Include extended attributes in archive\&.  The default is YES\&.
+.RE
+.PP
+EXTENDED\-HEADERS
+.RS 4
+
+Write tar file with extended headers\&. With this optiion the modification time
+is maintained with a  granularity of microseconds,Long file names and file 
+sizes greater than 8GB can be archived\&. The default is YES\&.
+.RE
+.PP
+LANG
+.RS 4
+
+Default LANG is "C"\&. suntar require an UTF\-8 LANG if you have UTF\-8 filename and it is configured for extended headers\&. A good value can be "en_US\&.UTF\-8" if that locale is installed on your machine\&.
+.RE
+.PP
+NORMAL
+.RS 4
+List all regex (Perl Regular Expression syntax) that are normal output from sun tar\&. These output are in the "FAILED DUMP DETAILS" section of the email report if the dump result is STRANGE or FAILED\&. Default values:
+.sp
+.nf
+is not a file\&. Not dumped\e$
+same as archive file\e$
+.fi
+.sp
+To treat one of these default patterns differently, specify it explicitly in a different property\&.
+.RE
+.PP
+IGNORE
+.RS 4
+List all regex (Perl Regular Expression syntax) that amanda ignore\&. These output are never in the email report\&.
+.RE
+.PP
+STRANGE
+.RS 4
+List all regex (Perl Regular Expression syntax) that are strange output from sun tar\&. The result of the dump is STRANGE if sun tar produce a strange output\&. These output are in the "FAILED DUMP DETAILS" section of the email report\&. Default values:
+.sp
+.nf
+: invalid character in UTF\-8 conversion of 
+: UTF\-8 conversion failed\&.\e$
+.fi
+.sp
+To treat one of these default patterns differently, specify it explicitly in a different property\&.
+.RE
+.PP
+ERROR
+.RS 4
+List all regex (perl Regular Expression syntax) that are error output from sun tar\&. All sun tar output that doesn\'t match a normal, ignore or strange regex are error by default\&. The result of the dump is FAILED if sun tar produce an error output\&. These output are in the "FAILED DUMP DETAILS" section of the email report\&. Default values:
+.sp
+.nf
+: Permission denied\e$
+.fi
+.sp
+To treat one of these default patterns differently, specify it explicitly in a different property\&.
+.RE
+.SH "SEE ALSO"
+.PP
+\fBamanda\fR(8),
+\fBamanda.conf\fR(5),
+\fBamanda-applications\fR(7)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
+.SH "AUTHORS"
+.PP
+\fBSatya Ganga\fR <\&gast@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (http://www\&.zmanda\&.com)
+.RE
+.PP
+\fBJean\-Louis Martineau\fR <\&martineau@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (http://www\&.zmanda\&.com)
+.RE
+.PP
+\fBDustin J\&. Mitchell\fR <\&dustin@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (http://www\&.zmanda\&.com)
+.RE

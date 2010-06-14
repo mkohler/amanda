@@ -37,11 +37,9 @@
 #include "util.h"
 #include "event.h"
 #include "packet.h"
-#include "queue.h"
 #include "security.h"
 #include "security-util.h"
 #include "stream.h"
-#include "version.h"
 #include "sockaddr-util.h"
 
 /*
@@ -53,9 +51,7 @@
 /*
  * This is a queue of open connections
  */
-struct connq_s connq = {
-    TAILQ_HEAD_INITIALIZER(connq.tailq), 0
-};
+GSList *connq = NULL;
 static int newhandle = 1;
 static int newevent = 1;
 
@@ -363,6 +359,10 @@ tcpm_stream_read(
     rs->arg = arg;
 }
 
+/* buffer for tcpm_stream_read_sync function */
+static ssize_t  sync_pktlen;
+static void    *sync_pkt;
+
 /*
  * Write a chunk of data to a stream.  Blocks until completion.
  */
@@ -381,12 +381,15 @@ tcpm_stream_read_sync(
     if (rs->ev_read != NULL) {
 	return -1;
     }
+    sync_pktlen = 0;
+    sync_pkt = NULL;
     rs->ev_read = event_register((event_id_t)rs->rc->event_id, EV_WAIT,
         stream_read_sync_callback, rs);
     sec_tcp_conn_read(rs->rc);
     event_wait(rs->ev_read);
-    *buf = rs->rc->pkt;
-    return (rs->rc->pktlen);
+    /* Can't use rs or rc, they can be freed */
+    *buf = sync_pkt;
+    return (sync_pktlen);
 }
 
 /*
@@ -428,6 +431,7 @@ tcpm_send_token(
     int			rval;
     char		*encbuf;
     ssize_t		encsize;
+    int			save_errno;
 
     assert(SIZEOF(netlength) == 4);
 
@@ -468,6 +472,7 @@ tcpm_send_token(
     }
 
     rval = full_writev(fd, iov, nb_iov);
+    save_errno = errno;
     if (len != 0 && rc->driver->data_encrypt != NULL && buf != encbuf) {
 	amfree(encbuf);
     }
@@ -475,7 +480,7 @@ tcpm_send_token(
     if (rval < 0) {
 	if (errmsg)
             *errmsg = newvstrallocf(*errmsg, _("write error to: %s"),
-				   strerror(errno));
+				   strerror(save_errno));
         return (-1);
     }
     return (0);
@@ -883,10 +888,10 @@ bsd_prefix_packet(
     if (pkt->type != P_REQ)
 	return "";
 
-    if ((pwd = getpwuid(getuid())) == NULL) {
+    if ((pwd = getpwuid(geteuid())) == NULL) {
 	security_seterror(&rh->sech,
 			  _("can't get login name for my uid %ld"),
-			  (long)getuid());
+			  (long)geteuid());
 	return "";
     }
     buf = alloc(16+strlen(pwd->pw_name));
@@ -1430,17 +1435,19 @@ sec_tcp_conn_get(
     const char *hostname,
     int		want_new)
 {
-    struct tcp_conn *rc;
+    GSList *iter;
+    struct tcp_conn *rc = NULL;
 
     auth_debug(1, _("sec_tcp_conn_get: %s\n"), hostname);
 
     if (want_new == 0) {
-	for (rc = connq_first(); rc != NULL; rc = connq_next(rc)) {
+	for (iter = connq; iter != NULL; iter = iter->next) {
+	    rc = (struct tcp_conn *)iter->data;
 	    if (strcasecmp(hostname, rc->hostname) == 0)
 		break;
 	}
 
-	if (rc != NULL) {
+	if (iter != NULL) {
 	    rc->refcnt++;
 	    auth_debug(1,
 		      _("sec_tcp_conn_get: exists, refcnt to %s is now %d\n"),
@@ -1473,7 +1480,7 @@ sec_tcp_conn_get(
     rc->conf_fn = NULL;
     rc->datap = NULL;
     rc->event_id = newevent++;
-    connq_append(rc);
+    connq = g_slist_append(connq, rc);
     return (rc);
 }
 
@@ -1506,7 +1513,7 @@ sec_tcp_conn_put(
 	event_release(rc->ev_read);
     if (rc->errmsg != NULL)
 	amfree(rc->errmsg);
-    connq_remove(rc);
+    connq = g_slist_remove(connq, rc);
     amfree(rc->pkt);
     if(!rc->donotclose) {
 	/* amfree(rc) */
@@ -1640,6 +1647,10 @@ stream_read_sync_callback(
      * way if they reschedule it.
      */
     tcpm_stream_read_cancel(rs);
+
+    sync_pktlen = rs->rc->pktlen;
+    sync_pkt = malloc(sync_pktlen);
+    memcpy(sync_pkt, rs->rc->pkt, sync_pktlen);
 
     if (rs->rc->pktlen <= 0) {
 	auth_debug(1, _("sec: stream_read_sync_callback: %s\n"), rs->rc->errmsg);
@@ -2570,4 +2581,34 @@ error:
     if (res) freeaddrinfo(res);
     amfree(canonname);
     return -1;
+}
+
+in_port_t
+find_port_for_service(
+    char *service,
+    char *proto)
+{
+    in_port_t  port;
+    char      *s;
+    int        all_numeric = 1;
+
+    for (s=service; *s != '\0'; s++) {
+	if (!isdigit((int)*s)) {
+	    all_numeric = 0;
+	}
+    }
+
+    if (all_numeric == 1) {
+	port = atoi(service);
+    } else {
+        struct servent *sp;
+
+	if ((sp = getservbyname(service, proto)) == NULL) {
+	    port = 0;
+	} else {
+	    port = (in_port_t)(ntohs((in_port_t)sp->s_port));
+	}
+    }
+
+    return port;
 }

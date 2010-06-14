@@ -1,5 +1,5 @@
 #! @PERL@
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -14,7 +14,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 use lib '@amperldir@';
@@ -26,12 +26,10 @@ use Amanda::Config qw( :getconf config_dir_relative );
 use Amanda::Debug qw( :logging );
 use Amanda::Device qw( :constants );
 use Amanda::Xfer qw( :constants );
-use Amanda::Types qw( :filetype_t );
+use Amanda::Header qw( :constants );
 use Amanda::MainLoop;
 use Amanda::DB::Catalog;
 use Amanda::Changer;
-
-my $quiet = 0;
 
 sub fail($) {
     print STDERR @_, "\n";
@@ -39,13 +37,16 @@ sub fail($) {
 }
 
 sub vlog($) {
-    if (!$quiet) {
+    my $self = shift;
+
+    if (!$self->{'quiet'}) {
 	print @_, "\n";
     }
 }
 
 sub new {
-    my ($class, $src_write_timestamp, $dst_changer, $dst_label_template) = @_;
+    my ($class, $src_write_timestamp, $dst_changer, $dst_label_template,
+	$quiet, $autolabel) = @_;
 
     # check that the label template is valid
     fail "Invalid label template '$dst_label_template'"
@@ -65,6 +66,8 @@ sub new {
 	'dst_changer' => $dst_changer,
 	'dst_label_template' => $dst_label_template,
 	'first_dst_slot' => undef,
+	'quiet' => $quiet,
+	'autolabel' => $autolabel
     }, $class;
 }
 
@@ -75,7 +78,7 @@ sub run {
 
     $self->{'remaining_files'} = [
 	Amanda::DB::Catalog::sort_dumps([ "label", "filenum" ],
-	    Amanda::DB::Catalog::get_dumps(
+	    Amanda::DB::Catalog::get_parts(
 		write_timestamp => $self->{'src_write_timestamp'},
 		ok => 1,
 	)) ];
@@ -87,7 +90,6 @@ sub run {
 
     $self->{'dst_chg'} = Amanda::Changer->new($self->{'dst_changer'});
     $self->{'dst_res'} = undef;
-    $self->{'dst_next'} = undef;
     $self->{'dst_dev'} = undef;
     $self->{'dst_label'} = undef;
 
@@ -126,26 +128,26 @@ sub generate_new_dst_label {
 # add $next_file to the catalog db.  This assumes that the corresponding label
 # is already in the DB.
 
-sub add_dump_to_db {
+sub add_part_to_db {
     my $self = shift;
-    my ($next_file) = @_;
+    my ($next_file, $filenum) = @_;
 
     my $dump = {
 	'label' => $self->{'dst_label'},
-	'filenum' => $next_file->{'filenum'},
-	'dump_timestamp' => $next_file->{'dump_timestamp'},
+	'filenum' => $filenum,
+	'dump_timestamp' => $next_file->{'dump'}->{'dump_timestamp'},
 	'write_timestamp' => $self->{'dst_timestamp'},
-	'hostname' => $next_file->{'hostname'},
-	'diskname' => $next_file->{'diskname'},
-	'level' => $next_file->{'level'},
+	'hostname' => $next_file->{'dump'}->{'hostname'},
+	'diskname' => $next_file->{'dump'}->{'diskname'},
+	'level' => $next_file->{'dump'}->{'level'},
 	'status' => 'OK',
 	'partnum' => $next_file->{'partnum'},
-	'nparts' => $next_file->{'nparts'},
+	'nparts' => $next_file->{'dump'}->{'nparts'},
 	'kb' => 0, # unknown
 	'sec' => 0, # unknown
     };
 
-    Amanda::DB::Catalog::add_dump($dump);
+    Amanda::DB::Catalog::add_part($dump);
 }
 
 # This function is called to copy the next file in $self->{remaining_files}
@@ -155,8 +157,10 @@ sub start_next_file {
 
     # bail if we're finished
     if (!defined $next_file) {
-	Amanda::MainLoop::quit();
-	vlog("all files copied");
+	$self->vlog("all files copied");
+	$self->release_reservations(sub {
+	    Amanda::MainLoop::quit();
+	});
 	return;
     }
 
@@ -174,15 +178,15 @@ sub start_next_file {
 sub load_next_volumes {
     my $self = shift;
     my ($next_file) = @_;
-    my ($src_loaded, $dst_loaded) = (0,0);
-    my ($release_src, $load_src, $open_src,
-        $release_dst, $load_dst, $open_dst,
+    my $src_and_dst_counter;
+    my ($release_src, $load_src, $got_src, $set_labeled_src,
+        $release_dst, $load_dst, $got_dst,
 	$maybe_done);
 
     # For the source changer, we release the previous device, load the next
     # volume by its label, and open the device.
 
-    $release_src = sub {
+    $release_src = make_cb('release_src' => sub {
 	if ($self->{'src_dev'}) {
 	    $self->{'src_dev'}->finish()
 		or fail $self->{'src_dev'}->error_or_status();
@@ -194,86 +198,84 @@ sub load_next_volumes {
 	} else {
 	    $load_src->(undef);
 	}
-    };
+    });
 
-    $load_src = sub {
+    $load_src = make_cb('load_src' => sub {
 	my ($err) = @_;
 	fail $err if $err;
-	vlog("Loading source volume $next_file->{label}");
+	$self->vlog("Loading source volume $next_file->{label}");
 
 	$self->{'src_chg'}->load(
 	    label => $next_file->{'label'},
-	    res_cb => $open_src);
-    };
+	    res_cb => $got_src);
+    });
 
-    $open_src = sub {
+    $got_src = make_cb(got_src => sub {
 	my ($err, $res) = @_;
 	fail $err if $err;
-	debug("Opening source device $res->{device_name}");
+
+	debug("Opened source device");
 
 	$self->{'src_res'} = $res;
-	my $dev = $self->{'src_dev'} =
-	    Amanda::Device->new($res->{'device_name'});
-	if ($dev->status() != $DEVICE_STATUS_SUCCESS) {
-	    fail ("Could not open device $res->{device_name}: " .
-		 $dev->error_or_status());
-	}
-
-	if ($dev->read_label() != $DEVICE_STATUS_SUCCESS) {
-	    fail ("Could not read label from $res->{device_name}: " .
-		 $dev->error_or_status());
-	}
+	my $dev = $self->{'src_dev'} = $res->{'device'};
+	my $device_name = $dev->device_name;
 
 	if ($dev->volume_label ne $next_file->{'label'}) {
-	    fail ("Volume in $res->{device_name} has unexpected label " .
+	    fail ("Volume in $device_name has unexpected label " .
 		 $dev->volume_label);
 	}
 
 	$dev->start($ACCESS_READ, undef, undef)
-	    or fail ("Could not start device $res->{device_name}: " .
+	    or fail ("Could not start device $device_name: " .
 		$dev->error_or_status());
 
 	# OK, it all matches up now..
 	$self->{'src_label'} = $next_file->{'label'};
-	$src_loaded = 1;
 
 	$maybe_done->();
-    };
+    });
 
     # For the destination, we release the reservation after noting the 'next'
     # slot, and either load that slot or "current".  When the slot is loaded,
     # check that there is no label, invent a label, and write it to the volume.
 
-    $release_dst = sub {
+    $release_dst = make_cb('release_dst' => sub {
 	if ($self->{'dst_dev'}) {
 	    $self->{'dst_dev'}->finish()
 		or fail $self->{'dst_dev'}->error_or_status();
 	    $self->{'dst_dev'} = undef;
-	    $self->{'dst_next'} = $self->{'dst_res'}->{'next_slot'};
 
 	    $self->{'dst_res'}->release(
 		finished_cb => $load_dst);
 	} else {
-	    $self->{'dst_next'} = "current";
 	    $load_dst->(undef);
 	}
-    };
+    });
 
-    $load_dst = sub {
+    $load_dst = make_cb('load_dst' => sub {
 	my ($err) = @_;
 	fail $err if $err;
-	vlog("Loading destination slot $self->{dst_next}");
+	$self->vlog("Loading next destination slot");
 
-	$self->{'dst_chg'}->load(
-	    slot => $self->{'dst_next'},
-	    set_current => 1,
-	    res_cb => $open_dst);
-    };
+	if (defined $self->{'dst_res'}) {
+	    $self->{'dst_chg'}->load(
+		relative_slot => 'next',
+		slot => $self->{'dst_res'}->{'this_slot'},
+		set_current => 1,
+		res_cb => $got_dst);
+	} else {
+	    $self->{'dst_chg'}->load(
+		relative_slot => "current",
+		set_current => 1,
+		res_cb => $got_dst);
+	}
+    });
 
-    $open_dst = sub {
+    $got_dst = make_cb('got_dst' => sub {
 	my ($err, $res) = @_;
 	fail $err if $err;
-	debug("Opening destination device $res->{device_name}");
+
+	debug("Opened destination device");
 
 	# if we've tried this slot before, we're out of destination slots
 	if (defined $self->{'first_dst_slot'}) {
@@ -285,31 +287,53 @@ sub load_next_volumes {
 	}
 
 	$self->{'dst_res'} = $res;
-	my $dev = $self->{'dst_dev'} =
-	    Amanda::Device->new($res->{'device_name'});
-	if ($dev->status() != $DEVICE_STATUS_SUCCESS) {
-	    fail ("Could not open device $res->{device_name}: " .
+	my $dev = $self->{'dst_dev'} = $res->{'device'};
+	my $device_name = $dev->device_name;
+
+	# characterize the device/volume status, and then check if we can
+	# automatically relabel it.
+
+use Data::Dumper;
+debug("". Dumper($dev->volume_header));
+	my $status = $dev->status;
+	my $volstate = '';
+	if ($status & $DEVICE_STATUS_VOLUME_UNLABELED and
+		$dev->volume_header and
+		$dev->volume_header->{'type'} == $F_EMPTY) {
+	    $volstate = 'empty';
+	} elsif ($status & $DEVICE_STATUS_VOLUME_UNLABELED and
+		!$dev->volume_header) {
+	    $volstate = 'empty';
+	} elsif ($status & $DEVICE_STATUS_VOLUME_UNLABELED and
+		$dev->volume_header and
+		$dev->volume_header->{'type'} != $F_WEIRD) {
+	    $volstate = 'non_amanda';
+	} elsif ($status & $DEVICE_STATUS_VOLUME_ERROR) {
+	    $volstate = 'volume_error';
+	} elsif ($status == $DEVICE_STATUS_SUCCESS) {
+	    # OK, the label was read successfully
+	    if (!$dev->volume_header) {
+		$volstate = 'empty';
+	    } elsif ($dev->volume_header->{'type'} != $F_TAPESTART) {
+		$volstate = 'non_amanda';
+	    } else {
+		my $label = $dev->volume_label;
+		print "got label $label\n";
+		my $labelstr = getconf($CNF_LABELSTR);
+		if ($label =~ /$labelstr/) {
+		    $volstate = 'this_config';
+		} else {
+		    $volstate = 'other_config';
+		}
+	    }
+	} else {
+	    fail ("Could not read label from $device_name: " .
 		 $dev->error_or_status());
 	}
 
-	# for now, we only overwrite absolutely empty volumes.  This will need
-	# to change when we introduce use of a taperscan algorithm.
-
-	my $status = $dev->read_label();
-	if (!($status & $DEVICE_STATUS_VOLUME_UNLABELED)) {
-	    # if UNLABELED is only one possibility, give a device error msg
-	    if ($status & ~$DEVICE_STATUS_VOLUME_UNLABELED) {
-		fail ("Could not read label from $res->{device_name}: " .
-		     $dev->error_or_status());
-	    } else {
-		vlog("Volume in destination slot $res->{this_slot} is already labeled; going to next slot");
-		$release_dst->();
-		return;
-	    }
-	}
-
-	if (defined($dev->volume_header)) {
-	    vlog("Volume in destination slot $res->{this_slot} is not empty; going to next slot");
+	if (!$self->{'autolabel'}{$volstate}) {
+	    $self->vlog("Volume in destination slot $res->{this_slot} ($volstate) "
+		      . "does not meet autolabel requirements; going to next slot");
 	    $release_dst->();
 	    return;
 	}
@@ -317,35 +341,38 @@ sub load_next_volumes {
 	my $new_label = $self->generate_new_dst_label();
 
 	$dev->start($ACCESS_WRITE, $new_label, $self->{'dst_timestamp'})
-	    or fail ("Could not start device $res->{device_name}: " .
+	    or fail ("Could not start device $device_name: " .
 		$dev->error_or_status());
 
 	# OK, it all matches up now..
 	$self->{'dst_label'} = $new_label;
-	$dst_loaded = 1;
 
-	$maybe_done->();
-    };
+	$res->set_label(label => $dev->volume_label(),
+			finished_cb => $maybe_done);
+    });
 
     # and finally, when both src and dst are finished, we move on to
     # the next step.
-    $maybe_done = sub {
-	return if (!$src_loaded or !$dst_loaded);
+    $maybe_done = make_cb('maybe_done' => sub {
+	return if (--$src_and_dst_counter);
 
-	vlog("Volumes loaded; starting copy");
+	$self->vlog("Volumes loaded; starting copy");
 	$self->seek_and_copy($next_file);
-    };
+    });
 
     # kick it off
+    $src_and_dst_counter++;
     $release_src->();
+    $src_and_dst_counter++;
     $release_dst->();
 }
 
 sub seek_and_copy {
     my $self = shift;
     my ($next_file) = @_;
+    my $dst_filenum;
 
-    vlog("Copying file #$next_file->{filenum}");
+    $self->vlog("Copying file #$next_file->{filenum}");
 
     # seek the source device
     my $hdr = $self->{'src_dev'}->seek_file($next_file->{'filenum'});
@@ -367,22 +394,23 @@ sub seek_and_copy {
 	fail "Error starting new file: " . $self->{'dst_dev'}->error_or_status();
     }
 
+    # and track the destination filenum correctly
+    $dst_filenum = $self->{'dst_dev'}->file();
+
     # now put together a transfer to copy that data.
     my $xfer;
     my $xfer_cb = sub {
 	my ($src, $msg, $elt) = @_;
 	if ($msg->{type} == $XMSG_INFO) {
-	    vlog("while transferring: $msg->{message}\n");
+	    $self->vlog("while transferring: $msg->{message}\n");
 	}
 	if ($msg->{type} == $XMSG_ERROR) {
 	    fail $msg->{elt} . " failed: " . $msg->{message};
-	}
-	if ($xfer->get_status() == $Amanda::Xfer::XFER_DONE) {
-	    $xfer->get_source()->remove();
+	} elsif ($msg->{'type'} == $XMSG_DONE) {
 	    debug("transfer completed");
 
 	    # add this dump to the logfile
-	    $self->add_dump_to_db($next_file);
+	    $self->add_part_to_db($next_file, $dst_filenum);
 
 	    # start up the next copy
 	    $self->start_next_file();
@@ -394,9 +422,43 @@ sub seek_and_copy {
 	Amanda::Xfer::Dest::Device->new($self->{'dst_dev'},
 				        getconf($CNF_DEVICE_OUTPUT_BUFFER_SIZE)),
     ]);
-    $xfer->get_source()->set_callback($xfer_cb);
+
     debug("starting transfer");
-    $xfer->start();
+    $xfer->start($xfer_cb);
+}
+
+sub release_reservations {
+    my $self = shift;
+    my ($finished_cb) = @_;
+    my $steps = define_steps
+	cb_ref => \$finished_cb;
+
+    step release_src => sub {
+	if ($self->{'src_res'}) {
+	    $self->{'src_res'}->release(
+		finished_cb => $steps->{'release_dst'});
+	} else {
+	    $steps->{'release_dst'}->(undef);
+	}
+    };
+
+    step release_dst => sub {
+	my ($err) = @_;
+	$self->vlog("$err") if $err;
+
+	if ($self->{'dst_res'}) {
+	    $self->{'dst_res'}->release(
+		finished_cb => $steps->{'done'});
+	} else {
+	    $steps->{'done'}->(undef);
+	}
+    };
+
+    step done => sub {
+	my ($err) = @_;
+	$self->vlog("$err") if $err;
+	$finished_cb->();
+    };
 }
 
 ## Application initialization
@@ -410,11 +472,12 @@ sub usage {
     print <<EOF;
 **NOTE** this interface is under development and will change in future releases!
 
-Usage: amvault [-o configoption]* [-q|--quiet]
+Usage: amvault [-o configoption]* [-q|--quiet] [--autolabel=AUTOLABEL]
 	<conf> <src-run-timestamp> <dst-changer> <label-template>
 
     -o: configuration overwrite (see amanda(8))
     -q: quiet progress messages
+    --autolabel: set conditions under which a volume will be relabeled
 
 Copies data from the run with timestamp <src-run-timestamp> onto volumes using
 the changer <dst-changer>, labeling new volumes with <label-template>.  If
@@ -423,18 +486,43 @@ will be used.
 
 Each source volume will be copied to a new destination volume; no re-assembly
 or splitting will be performed.  Destination volumes must be at least as large
-as the source volumes.
+as the source volumes.  Without --autolabel, destination volumes must be empty.
 
 EOF
     exit(1);
 }
 
+# options
+my $quiet = 0;
+my %autolabel = ( empty => 1 );
+
+sub set_autolabel {
+    my ($opt, $val) = @_;
+    $val = lc $val;
+
+    my @allowed_autolabels = qw(other_config non_amanda volume_error empty this_config);
+    if ($val eq 'any') {
+	%autolabel = map { $_ => 1 } @allowed_autolabels;
+	return;
+    }
+
+    %autolabel = ();
+    for my $al (split /,/, $val) {
+	if (!grep { $_ eq $al } @allowed_autolabels) {
+	    print STDERR "invalid autolabel parameter $al\n";
+	    exit 1;
+	}
+	$autolabel{$al} = 1;
+    }
+}
+
 Amanda::Util::setup_application("amvault", "server", $CONTEXT_CMDLINE);
 
-my $config_overwrites = new_config_overwrites($#ARGV+1);
+my $config_overrides = new_config_overrides($#ARGV+1);
 Getopt::Long::Configure(qw{ bundling });
 GetOptions(
-    'o=s' => sub { add_config_overwrite_opt($config_overwrites, $_[1]); },
+    'o=s' => sub { add_config_override_opt($config_overrides, $_[1]); },
+    'autolabel=s' => \&set_autolabel,
     'q|quiet' => \$quiet,
 ) or usage();
 
@@ -442,18 +530,20 @@ usage unless (@ARGV == 4);
 
 my ($config_name, $src_write_timestamp, $dst_changer, $label_template) = @ARGV;
 
+set_config_overrides($config_overrides);
 config_init($CONFIG_INIT_EXPLICIT_NAME, $config_name);
-apply_config_overwrites($config_overwrites);
 my ($cfgerr_level, @cfgerr_errors) = config_errors();
 if ($cfgerr_level >= $CFGERR_WARNINGS) {
     config_print_errors();
     if ($cfgerr_level >= $CFGERR_ERRORS) {
-	fail("errors processing config file");
+	print STDERR "errors processing config file\n";
+	exit 1;
     }
 }
 
 Amanda::Util::finish_setup($RUNNING_AS_ANY);
 
 # start the copy
-my $vault = Amvault->new($src_write_timestamp, $dst_changer, $label_template);
+my $vault = Amvault->new($src_write_timestamp, $dst_changer, $label_template, $quiet, \%autolabel);
 $vault->run();
+Amanda::Util::finish_application();

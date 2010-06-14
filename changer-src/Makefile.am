@@ -27,13 +27,10 @@ endif
 amlibexec_PROGRAMS =	$(CHG_SCSI)
 EXTRA_PROGRAMS =	$(CHIO_SCSI)
 
-CHECK_PERL = \
-		chg-glue \
+SCRIPTS_PERL = \
 		chg-chio \
 		chg-iomega \
 		chg-rth
-
-SCRIPTS_PERL = $(CHECK_PERL)
 
 SCRIPTS_SHELL = \
 		chg-manual \
@@ -41,9 +38,9 @@ SCRIPTS_SHELL = \
 		chg-mtx \
 		chg-chs \
 		chg-zd-mtx \
-		chg-juke \
 		chg-rait \
 		chg-null \
+		chg-juke \
 		chg-mcutil \
 		chg-disk
 

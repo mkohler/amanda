@@ -2,12 +2,12 @@
 .\"     Title: amoverview
 .\"    Author: Stefan G. Weichinger <sgw@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMOVERVIEW" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMOVERVIEW" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,21 +19,18 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amoverview \- display file systems processed by \fIAmanda\fR over time
+amoverview \- display file systems processed by Amanda over time
 .SH "SYNOPSIS"
 .HP \w'\fBamoverview\fR\ 'u
 \fBamoverview\fR [[\-config\ ]\ \fIconfig\fR] [\-hostwidth\ \fIwidth\fR] [\-diskwidth\ \fIwidth\fR] [\-skipmissed] [\-last] [\-num0] [\-togo0] [\-verbose]
 .SH "DESCRIPTION"
 .PP
 \fBAmoverview\fR
-displays a chart showing hosts and file systems processed by
-\fIAmanda\fR
-along with the backup level performed each day\&.
+displays a chart showing hosts and file systems processed by Amanda along with the backup level performed each day\&.
 .PP
 See the
 \fBamanda\fR(8)
-man page for more details about
-\fIAmanda\fR\&.
+man page for more details about Amanda\&.
 .SH "OPTIONS"
 .PP
 \fB\-config\fR \fIconfig\fR
@@ -63,9 +60,7 @@ characters instead of 20\&.
 .PP
 \fB\-skipmissed\fR
 .RS 4
-Compacts the output by only printing stats for the days
-\fIAmanda\fR
-actually ran\&.
+Compacts the output by only printing stats for the days Amanda actually ran\&.
 .RE
 .PP
 \fB\-last\fR
@@ -101,9 +96,7 @@ A number indicates the level of backup and it succeeded\&. An "E" indicates an e
 .PP
 You can have an "E" followed by a number if a filesystem ran into end\-of\-tape once (gives an "E", and later that day, you flush it to a second tape (a number: the level, indicating success)\&. If the flush failed too, you get a double "EE" for that day\&.
 .PP
-You can also have a double code if you have two tapes in the changer and
-\fIAmanda\fR
-failed to write to tape the first time because it hit end of tape (resulting in "E0", for a full, "E1" for an incremental etc\&.) or twice with error ("EE"), and may a successful flush afterwards giving maybe "EE0"\&. (Only the latest 2 characters are printed)\&.
+You can also have a double code if you have two tapes in the changer and Amanda failed to write to tape the first time because it hit end of tape (resulting in "E0", for a full, "E1" for an incremental etc\&.) or twice with error ("EE"), and may a successful flush afterwards giving maybe "EE0"\&. (Only the latest 2 characters are printed)\&.
 .SH "EXAMPLE"
 .PP
 This shows the
@@ -125,9 +118,11 @@ host2    /var                  1  1  0  1  1  1
 .fi
 .SH "SEE ALSO"
 .PP
-\fBamadmin\fR(8),
 \fBamanda\fR(8),
-: http://wiki.zmanda.com
+\fBamadmin\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHOR"
 .PP
 \fBStefan G\&. Weichinger\fR <\&sgw@amanda\&.org\&>

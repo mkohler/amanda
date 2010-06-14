@@ -1,21 +1,21 @@
 /*
- * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
- * 
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1 as 
- * published by the Free Software Foundation.
- * 
- * This library is distributed in the hope that it will be useful, but
+ * Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
- * 
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 #ifndef __S3_H__
@@ -198,7 +198,7 @@ s3_curl_location_compat(void);
  *
  * @note This doesn't guarantee that bucket name is entirely valid,
  * just that using it as one (or more) subdomain(s) of s3.amazonaws.com
- * won't fail; that would prevent the reporting of useful messages from 
+ * won't fail; that would prevent the reporting of useful messages from
  * the service.
  *
  * @param bucket: the bucket name
@@ -209,7 +209,7 @@ s3_bucket_location_compat(const char *bucket);
 
 /* Initialize S3 operation
  *
- * If an error occurs in this function, diagnostic information is 
+ * If an error occurs in this function, diagnostic information is
  * printed to stderr.
  *
  * @returns: false if an error occurred
@@ -226,11 +226,13 @@ s3_init(void);
  * @param secret_key: the secret key for Amazon Web Services
  * @param user_token: the user token for Amazon DevPay
  * @param bucket_location: the location constraint for buckets
+ * @param ca_info: the path to pass to libcurl as the certificate authority.
+ *                 see curl_easy_setopt() CURLOPT_CAINFO for more
  * @returns: the new S3Handle
  */
 S3Handle *
-s3_open(const char * access_key, const char *secret_key, const char * user_token, 
-        const char * bucket_location);
+s3_open(const char * access_key, const char *secret_key, const char * user_token,
+        const char * bucket_location, const char * ca_info);
 
 /* Deallocate an S3Handle
  *
@@ -256,7 +258,7 @@ s3_reset(S3Handle *hdl);
  * NULL, that result will not be returned.  Caller is not responsible for
  * freeing any returned strings, although the results are only valid until
  * the next call to an S3 function with this handle.
- * 
+ *
  * @param hdl: the S3Handle object
  * @param message: (result) the error message, or NULL if none exists
  * @param response_code: (result) the HTTP response code (or 0 if none exists)
@@ -293,6 +295,24 @@ s3_verbose(S3Handle *hdl,
 gboolean
 s3_use_ssl(S3Handle *hdl, gboolean use_ssl);
 
+/* Control the throttling of S3 uploads.  Only supported with curl >= 7.15.5.
+ *
+ * @param hdl: the S3Handle object
+ * @param max_send_speed: max speed (bytes/sec) at which to send
+ * @returns: true if the setting is valid
+ */
+gboolean
+s3_set_max_send_speed(S3Handle *hdl, guint64 max_send_speed);
+
+/* Control the throttling of S3 downloads.  Only supported with curl >= 7.15.5.
+ *
+ * @param hdl: the S3Handle object
+ * @param max_recv_speed: max speed (bytes/sec) at which to receive
+ * @returns: true if the setting is valid
+ */
+gboolean
+s3_set_max_recv_speed(S3Handle *hdl, guint64 max_recv_speed);
+
 /* Get the error information from the last operation on this handle,
  * formatted as a string.
  *
@@ -305,7 +325,7 @@ char *
 s3_strerror(S3Handle *hdl);
 
 /* Perform an upload.
- * 
+ *
  * When this function returns, KEY and BUFFER remain the
  * responsibility of the caller.
  *
@@ -334,7 +354,7 @@ s3_upload(S3Handle *hdl,
           s3_progress_func progress_func,
           gpointer progress_data);
 
-/* List all of the files matching the pseudo-glob C{PREFIX*DELIMITER*}, 
+/* List all of the files matching the pseudo-glob C{PREFIX*DELIMITER*},
  * returning only that portion which matches C{PREFIX*DELIMITER}.  S3 supports
  * this particular semantics, making it quite efficient.  The returned list
  * should be freed by the caller.
@@ -397,6 +417,18 @@ s3_delete(S3Handle *hdl,
 gboolean
 s3_make_bucket(S3Handle *hdl,
                const char *bucket);
+
+/* Delete a bucket
+ *
+ * @note A bucket can not be deleted if it still contains keys
+ *
+ * @param hdl: the S3Handle object
+ * @param bucket: the bucket to delete
+ * @returns: FALSE if an error occurs
+ */
+gboolean
+s3_delete_bucket(S3Handle *hdl,
+                 const char *bucket);
 
 /* Attempt a RefreshAWSSecurityToken on a token; if it succeeds, the old
  * token will be freed and replaced by the new. If it fails, the old

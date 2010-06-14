@@ -1,7 +1,6 @@
 # Makefile for Amanda archive library
 
 include $(top_srcdir)/config/automake/vars.am
-include $(top_srcdir)/config/automake/scripts.am
 include $(top_srcdir)/config/automake/installperms.am
 include $(top_srcdir)/config/automake/precompile.am
 
@@ -37,3 +36,6 @@ noinst_PROGRAMS = $(TESTS)
 amar_test_SOURCES = amar-test.c
 amar_test_LDADD = libamar.la \
 	../common-src/libtestutils.la
+
+INSTALLPERMS_exec = \
+	dest=$(sbindir) chown=amanda chmod=0750 $(sbin_PROGRAMS)

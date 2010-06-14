@@ -2,12 +2,12 @@
 .\"     Title: amdevcheck
 .\"    Author: Ian Turner <ian@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMDEVCHECK" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMDEVCHECK" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,52 +19,61 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amdevcheck \- Validate an \fIAmanda\fR device and volume\&.
+amdevcheck \- Validate an Amanda device and volume\&.
 .SH "SYNOPSIS"
 .HP \w'\fBamdevcheck\fR\ 'u
-\fBamdevcheck\fR \fIconfig\fR [\fIdevice\ name\fR] [\-o\ \fIconfigoption\fR]...
+\fBamdevcheck\fR \fIconfig\fR [\fIdevice\-name\fR] [\-\-label] [\-properties\ \fIlist\fR] [{\fB\-o\fR\ \fIconfigoption\fR}...]
 .SH "DESCRIPTION"
 .PP
 
 \fBAmdevcheck\fR
-provides a way to check that a particular
-\fIAmanda\fR
-device is accessible, whether or not it contains a volume, and whether or not that volume is labeled\&. Some devices can\'t distinguish between all of these cases; a missing volume and an unlabeled volume might generate the same error code, for example\&. In those cases, this tool reports all possible causes of the error\&.
+provides a way to check that a particular Amanda device is accessible, whether or not it contains a volume, and whether or not that volume is labeled\&. Some devices can\'t distinguish between all of these cases; a missing volume and an unlabeled volume might generate the same error code, for example\&. In those cases, this tool reports all possible causes of the error\&. Optionally this tools lists the properties for the device\&.
 .PP
 See the
 \fBamanda\fR(8)
-man page for more details about
-\fIAmanda\fR\&. See
+man page for more details about Amanda\&. See
 \fBamanda-devices\fR(7)
 for more information on devices\&.
 .SH "OPTIONS"
 .PP
 \fIconfig\fR
 .RS 4
-
-\fIAmanda\fR
-configuration to use\&. Note that
+Amanda configuration to use\&. Note that
 \fBamdevcheck\fR
 ignores any tape changer configuration\&.
 .RE
 .PP
-\fI device\fR
+\fIdevice\fR
 .RS 4
-
-\fIAmanda\fR
-device to use\&. This option overrides any tapedev configuration specified in the configuration file\&.
+Amanda device to use\&. This option overrides any tapedev configuration specified in the configuration file\&.
 .RE
 .PP
-\fB\-o\fR \fIclientconfigoption\fR
+\fI\-\-label\fR
 .RS 4
-See the "\fBCONFIGURATION OVERRIDE\fR" section in
+Get the device\'s label\&. If this option is given, the usual check output is omitted, and the label of the loaded volume is printed to stdout\&. Returns with error if the label is not found\&.
+.RE
+.PP
+\fI\-\-properties [list]\fR
+.RS 4
+List device properties\&. If this option is given, the usual check output is omitted, and property values are printed to stdout, one per line, as a property name, followed by \'=\', followed by the property value\&. Returns with error if properties are not available\&.
+.sp
+If
+\fIlist\fR
+is given, it is treated as a comma\-separated list of properties to display\&. If it is omitted, all supported properties are displayed\&.
+.RE
+.PP
+\fB\-o \fR\fB\fIconfigoption\fR\fR
+.RS 4
+See the "CONFIGURATION OVERRIDE" section in
 \fBamanda\fR(8)\&.
 .RE
 .SH "OUTPUT"
-\fBAmdevcheck\fR returns one or more of the following lines\&. If multiple lines appear, then at least one, but not necessarily all of
-the messages apply\&.  This situation can occur when working with hardware or
-operating systems which cannot distinguish, for example, between a
-malfunctioning drive and a functional but unloaded drive\&.
+.PP
+\fBamdevcheck\fR
+exit with code 0 if the device is working of if it get an expected error, look at the MESSAGE line for the error\&. It exit with code 1 if it get an unexpected error\&.
+.PP
+\fBAmdevcheck\fR
+returns one or more of the following lines\&. If multiple lines appear, then at least one, but not necessarily all of the messages apply\&. This situation can occur when working with hardware or operating systems which cannot distinguish, for example, between a malfunctioning drive and a functional but unloaded drive\&.
 .PP
 \fBSUCCESS\fR
 .RS 4
@@ -102,10 +111,11 @@ Where text provides a human\-readable description of the problem\&.
 .RE
 .SH "SEE ALSO"
 .PP
-
 \fBamanda\fR(8),
-\fBammt\fR(8),
-: http://wiki.zmanda.com
+\fBamanda-devices\fR(7)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHOR"
 .PP
 \fBIan Turner\fR <\&ian@zmanda\&.com\&>

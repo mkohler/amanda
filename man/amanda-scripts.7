@@ -2,12 +2,12 @@
 .\"     Title: amanda-scripts
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMANDA\-SCRIPTS" "7" "11/05/2009" "Amanda 2\&.6\&.1p2" "Miscellanea"
+.TH "AMANDA\-SCRIPTS" "7" "06/01/2010" "Amanda 3\&.1\&.0" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -25,8 +25,7 @@ amanda-scripts \- Configuring and using the Script API
 The Script API is a flexible system for invoking user\-supplied scripts at various points in the execution of Amanda\&. This manual page describes the operation and configuration of the API\&. For help writing Script API scripts, see http://wiki\&.zmanda\&.com/index\&.php/Script_API\&.
 .SH "SCRIPTS"
 .PP
-This section lists the scripts included with
-\fIAmanda\fR, see the individual man page for instructions on using them\&. For complete How\-To information, consult the Amanda wiki at http://wiki\&.zmanda\&.com\&.
+This section lists the scripts included with Amanda, see the individual man page for instructions on using them\&. For complete How\-To information, consult the Amanda wiki at http://wiki\&.zmanda\&.com\&.
 .sp
 .RS 4
 .ie n \{\
@@ -51,10 +50,19 @@ This section lists the scripts included with
 \fBscript-email\fR(8),
 \- send email\&.
 .RE
+.PP
+Script properties work just like application properties: they are insensitive to case, and
+\-
+(dash) and
+_
+(underscore) may be used interchangeably\&.
 .SH "SEE ALSO"
 .PP
-
+\fBamanda\fR(8),
 \fBamanda.conf\fR(5)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBJean\-Louis Martineau\fR <\&martineau@zmanda\&.com\&>

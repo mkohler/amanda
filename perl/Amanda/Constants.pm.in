@@ -1,5 +1,5 @@
 # vim:ft=perl
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -14,7 +14,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 package Amanda::Constants;
@@ -38,10 +38,6 @@ This module does not automatically export any of its values.
 
 See the source for the list of constants available.
 
-=head1 API STATUS
-
-Constants will not be removed from this file unless they are no longer available in the codebase.
-
 =cut
 
 # the 'warnings' pragma doesn't recognized exported variables as "used", and generates warnings
@@ -51,6 +47,7 @@ no warnings;
 # (keep this list sorted in alphabetical order, for ease of updates)
 
 $AIX_BACKUP = "@AIX_BACKUP@";
+$AMANDA_COMPONENTS = "@AMANDA_COMPONENTS@";
 $AMANDA_DEBUG_DAYS = "@AMANDA_DEBUG_DAYS@";
 $ASSERTIONS = "@ASSERTIONS@";
 $BSDTCP_SECURITY = "@BSDTCP_SECURITY@";
@@ -66,6 +63,7 @@ $COMPRESS_BEST_OPT = "@COMPRESS_BEST_OPT@";
 $COMPRESS_FAST_OPT = "@COMPRESS_FAST_OPT@";
 $COMPRESS_PATH = "@COMPRESS_PATH@";
 $COMPRESS_SUFFIX = "@COMPRESS_SUFFIX@";
+$DD = "@DD@";
 $DEFAULT_AMANDATES_FILE = "@DEFAULT_AMANDATES_FILE@";
 $DEFAULT_CONFIG = "@DEFAULT_CONFIG@";
 $DEFAULT_SERVER = "@DEFAULT_SERVER@";
@@ -75,13 +73,17 @@ $DUMP = "@DUMP@";
 $DUMP_RETURNS_1 = "@DUMP_RETURNS_1@";
 $GNUTAR = "@GNUTAR@";
 $HAVE_GZIP = "@HAVE_GZIP@";
-$KRB4_SECURITY = "@KRB4_SECURITY@";
 $KRB5_SECURITY = "@KRB5_SECURITY@";
 $LOCKING = "@LOCKING@";
 $MAILER = "@MAILER@";
-$RESTORE = "@RESTORE@";
+$MT = "@MT@";
+$MTX = "@MTX@";
+$LPR = "@LPR@";
+$LPRFLAG = "@LPRFLAG@";
 $PS = "@PS@";
 $PS_ARGUMENT = "@PS_ARGUMENT@";
+$PS_ARGUMENT_ARGS = "@PS_ARGUMENT_ARGS@";
+$RESTORE = "@RESTORE@";
 $RSH_SECURITY = "@RSH_SECURITY@";
 $SAMBA_CLIENT = "@SAMBA_CLIENT@";
 $SERVER_HOST_INSTANCE = "@SERVER_HOST_INSTANCE@";
@@ -94,7 +96,6 @@ $UNCOMPRESS_OPT = "@UNCOMPRESS_OPT@";
 $UNCOMPRESS_PATH = "@UNCOMPRESS_PATH@";
 $USE_AMANDAHOSTS = "@USE_AMANDAHOSTS@";
 $USE_RUNDUMP = "@USE_RUNDUMP@";
-$USE_VERSION_SUFFIXES = "@USE_VERSION_SUFFIXES@";
 $VDUMP = "@VDUMP@";
 $VERSION = "@VERSION@";
 $VRESTORE = "@VRESTORE@";
@@ -102,5 +103,10 @@ $VXDUMP = "@VXDUMP@";
 $VXRESTORE = "@VXRESTORE@";
 $XFSDUMP = "@XFSDUMP@";
 $XFSRESTORE = "@XFSRESTORE@";
+
+# non-AC_SUBST'd constants
+
+$DATA_FD_OFFSET = 50;
+$DATA_FD_COUNT = 3;
 
 1;

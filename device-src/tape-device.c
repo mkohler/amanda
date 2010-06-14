@@ -1,29 +1,31 @@
 /*
- * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
- * 
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1 as 
- * published by the Free Software Foundation.
- * 
- * This library is distributed in the hope that it will be useful, but
+ * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
- * 
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
+#include "amanda.h"
+#include "pipespawn.h"
 #include <string.h> /* memset() */
 #include "util.h"
 #include "tape-device.h"
 #include "tape-ops.h"
 
-/* This is equal to 2*1024*1024*1024 - 16*1024*1024 - 1, but written 
+/* This is equal to 2*1024*1024*1024 - 16*1024*1024 - 1, but written
    explicitly to avoid overflow issues. */
 #define RESETOFS_THRESHOLD (0x7effffff)
 
@@ -35,13 +37,13 @@ struct TapeDevicePrivate_s {
        modulus RESETOFS_THRESHOLD. */
     int write_count;
     char * device_filename;
-    gsize read_buffer_size;
+    gsize read_block_size;
 };
 
 /* Possible (abstracted) results from a system I/O operation. */
 typedef enum {
     RESULT_SUCCESS,
-    RESULT_ERROR,        /* Undefined error. */
+    RESULT_ERROR,        /* Undefined error (*errmsg set) */
     RESULT_SMALL_BUFFER, /* Tried to read with a buffer that is too
                             small. */
     RESULT_NO_DATA,      /* End of File, while reading */
@@ -65,12 +67,13 @@ DevicePropertyBase device_property_eom;
 DevicePropertyBase device_property_bsf_after_eom;
 DevicePropertyBase device_property_nonblocking_open;
 DevicePropertyBase device_property_final_filemarks;
+DevicePropertyBase device_property_read_buffer_size; /* old name for READ_BLOCK_SIZE */
 
 void tape_device_register(void);
 
 #define tape_device_read_size(self) \
-    (((TapeDevice *)(self))->private->read_buffer_size? \
-	((TapeDevice *)(self))->private->read_buffer_size : ((Device *)(self))->block_size)
+    (((TapeDevice *)(self))->private->read_block_size? \
+	((TapeDevice *)(self))->private->read_block_size : ((Device *)(self))->block_size)
 
 /* here are local prototypes */
 static void tape_device_init (TapeDevice * o);
@@ -82,7 +85,9 @@ static gboolean tape_device_set_final_filemarks_fn(Device *p_self, DevicePropert
 				    GValue *val, PropertySurety surety, PropertySource source);
 static gboolean tape_device_set_compression_fn(Device *p_self, DevicePropertyBase *base,
 				    GValue *val, PropertySurety surety, PropertySource source);
-static gboolean tape_device_set_read_buffer_size_fn(Device *p_self, DevicePropertyBase *base,
+static gboolean tape_device_get_read_block_size_fn(Device *p_self, DevicePropertyBase *base,
+				    GValue *val, PropertySurety *surety, PropertySource *source);
+static gboolean tape_device_set_read_block_size_fn(Device *p_self, DevicePropertyBase *base,
 				    GValue *val, PropertySurety surety, PropertySource source);
 static void tape_device_open_device (Device * self, char * device_name, char * device_type, char * device_node);
 static Device * tape_device_factory (char * device_name, char * device_type, char * device_node);
@@ -96,12 +101,12 @@ static gboolean tape_device_start_file (Device * self, dumpfile_t * ji);
 static gboolean tape_device_finish_file (Device * self);
 static dumpfile_t * tape_device_seek_file (Device * self, guint file);
 static gboolean tape_device_seek_block (Device * self, guint64 block);
+static gboolean tape_device_eject (Device * self);
 static gboolean tape_device_finish (Device * self);
 static IoResult tape_device_robust_read (TapeDevice * self, void * buf,
-                                               int * count);
-static IoResult tape_device_robust_write (TapeDevice * self, void * buf, int count);
+                                               int * count, char **errmsg);
+static IoResult tape_device_robust_write (TapeDevice * self, void * buf, int count, char **errmsg);
 static gboolean tape_device_fsf (TapeDevice * self, guint count);
-static gboolean tape_device_bsf (TapeDevice * self, guint count, guint file);
 static gboolean tape_device_fsr (TapeDevice * self, guint count);
 static gboolean tape_device_bsr (TapeDevice * self, guint count, guint file, guint block);
 static gboolean tape_device_eod (TapeDevice * self);
@@ -112,7 +117,7 @@ static DeviceClass *parent_class = NULL;
 GType tape_device_get_type (void)
 {
     static GType type = 0;
-    
+
     if G_UNLIKELY(type == 0) {
         static const GTypeInfo info = {
             sizeof (TapeDeviceClass),
@@ -126,7 +131,7 @@ GType tape_device_get_type (void)
             (GInstanceInitFunc) tape_device_init,
             NULL
         };
-        
+
         type = g_type_register_static (TYPE_DEVICE, "TapeDevice",
                                        &info, (GTypeFlags)0);
     }
@@ -134,7 +139,7 @@ GType tape_device_get_type (void)
     return type;
 }
 
-static void 
+static void
 tape_device_init (TapeDevice * self) {
     Device * d_self;
     GValue response;
@@ -197,10 +202,10 @@ tape_device_init (TapeDevice * self) {
 	    &response, PROPERTY_SURETY_BAD, PROPERTY_SOURCE_DEFAULT);
     g_value_unset(&response);
 
-    self->private->read_buffer_size = 0;
+    self->private->read_block_size = 0;
     g_value_init(&response, G_TYPE_UINT);
-    g_value_set_uint(&response, self->private->read_buffer_size);
-    device_set_simple_property(d_self, PROPERTY_READ_BUFFER_SIZE,
+    g_value_set_uint(&response, self->private->read_block_size);
+    device_set_simple_property(d_self, PROPERTY_READ_BLOCK_SIZE,
 	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DEFAULT);
     g_value_unset(&response);
 
@@ -221,7 +226,7 @@ tape_device_init (TapeDevice * self) {
     g_value_unset(&response);
 
     g_value_init(&response, G_TYPE_BOOLEAN);
-    g_value_set_boolean(&response, FALSE);
+    g_value_set_boolean(&response, TRUE);
     device_set_simple_property(d_self, PROPERTY_APPENDABLE,
 	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
     g_value_unset(&response);
@@ -229,6 +234,12 @@ tape_device_init (TapeDevice * self) {
     g_value_init(&response, G_TYPE_BOOLEAN);
     g_value_set_boolean(&response, FALSE);
     device_set_simple_property(d_self, PROPERTY_PARTIAL_DELETION,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
+    g_value_unset(&response);
+
+    g_value_init(&response, G_TYPE_BOOLEAN);
+    g_value_set_boolean(&response, FALSE);
+    device_set_simple_property(d_self, PROPERTY_FULL_DELETION,
 	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
     g_value_unset(&response);
 
@@ -251,14 +262,14 @@ static void tape_device_finalize(GObject * obj_self) {
     amfree(self->private);
 }
 
-static void 
+static void
 tape_device_class_init (TapeDeviceClass * c)
 {
     DeviceClass *device_class = (DeviceClass *)c;
     GObjectClass *g_object_class = (GObjectClass *)c;
 
     parent_class = g_type_class_ref (TYPE_DEVICE);
-    
+
     device_class->open_device = tape_device_open_device;
     device_class->read_label = tape_device_read_label;
     device_class->write_block = tape_device_write_block;
@@ -268,8 +279,9 @@ tape_device_class_init (TapeDeviceClass * c)
     device_class->finish_file = tape_device_finish_file;
     device_class->seek_file = tape_device_seek_file;
     device_class->seek_block = tape_device_seek_block;
+    device_class->eject = tape_device_eject;
     device_class->finish = tape_device_finish;
-    
+
     g_object_class->finalize = tape_device_finalize;
 }
 
@@ -335,10 +347,15 @@ tape_device_base_init (TapeDeviceClass * c)
 	    NULL,
 	    tape_device_set_compression_fn);
 
-    device_class_register_property(device_class, PROPERTY_READ_BUFFER_SIZE,
+    device_class_register_property(device_class, PROPERTY_READ_BLOCK_SIZE,
 	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
-	    device_simple_property_get_fn,
-	    tape_device_set_read_buffer_size_fn);
+	    tape_device_get_read_block_size_fn,
+	    tape_device_set_read_block_size_fn);
+
+    device_class_register_property(device_class, device_property_read_buffer_size.ID,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
+	    tape_device_get_read_block_size_fn,
+	    tape_device_set_read_block_size_fn);
 }
 
 static gboolean
@@ -458,20 +475,31 @@ tape_device_set_compression_fn(Device *p_self, DevicePropertyBase *base,
 }
 
 static gboolean
-tape_device_set_read_buffer_size_fn(Device *p_self, DevicePropertyBase *base,
+tape_device_get_read_block_size_fn(Device *p_self, DevicePropertyBase *base G_GNUC_UNUSED,
+    GValue *val, PropertySurety *surety, PropertySource *source)
+{
+    /* use the READ_BLOCK_SIZE, even if we're invoked to get the old READ_BUFFER_SIZE */
+    return device_simple_property_get_fn(p_self, &device_property_read_block_size,
+					val, surety, source);
+}
+
+static gboolean
+tape_device_set_read_block_size_fn(Device *p_self, DevicePropertyBase *base G_GNUC_UNUSED,
     GValue *val, PropertySurety surety, PropertySource source)
 {
     TapeDevice *self = TAPE_DEVICE(p_self);
-    guint buffer_size = g_value_get_uint(val);
+    guint read_block_size = g_value_get_uint(val);
 
-    if (buffer_size != 0 &&
-	    ((gsize)buffer_size < p_self->block_size ||
-	     (gsize)buffer_size > p_self->max_block_size))
+    if (read_block_size != 0 &&
+	    ((gsize)read_block_size < p_self->block_size ||
+	     (gsize)read_block_size > p_self->max_block_size))
 	return FALSE;
 
-    self->private->read_buffer_size = buffer_size;
+    self->private->read_block_size = read_block_size;
 
-    return device_simple_property_set_fn(p_self, base, val, surety, source);
+    /* use the READ_BLOCK_SIZE, even if we're invoked to get the old READ_BUFFER_SIZE */
+    return device_simple_property_set_fn(p_self, &device_property_read_block_size,
+					val, surety, source);
 }
 
 void tape_device_register(void) {
@@ -502,7 +530,6 @@ void tape_device_register(void) {
                                       G_TYPE_BOOLEAN, "bsr",
       "Does this drive support the MTBSR command?");
 
-    /* FIXME: Is this feature even useful? */
     device_property_fill_and_register(&device_property_eom,
                                       G_TYPE_BOOLEAN, "eom",
       "Does this drive support the MTEOM command?");
@@ -520,6 +547,10 @@ void tape_device_register(void) {
     device_property_fill_and_register(&device_property_final_filemarks,
                                       G_TYPE_UINT, "final_filemarks",
       "How many filemarks to write after the last tape file?" );
+
+    device_property_fill_and_register(&device_property_read_buffer_size,
+                                      G_TYPE_UINT, "read_buffer_size",
+      "(deprecated name for READ_BLOCK_SIZE)");
 
     /* Then the device itself */
     register_device(tape_device_factory, device_prefix_list);
@@ -638,8 +669,8 @@ static int try_open_tape_device(TapeDevice * self, char * device_filename) {
 }
 
 static void
-tape_device_open_device (Device * d_self, char * device_name G_GNUC_UNUSED,
-			char * device_type G_GNUC_UNUSED, char * device_node) {
+tape_device_open_device (Device * d_self, char * device_name,
+			char * device_type, char * device_node) {
     TapeDevice * self;
 
     self = TAPE_DEVICE(d_self);
@@ -652,7 +683,7 @@ tape_device_open_device (Device * d_self, char * device_name G_GNUC_UNUSED,
 
     /* Chain up */
     if (parent_class->open_device) {
-        parent_class->open_device(d_self, device_node, device_type, device_node);
+        parent_class->open_device(d_self, device_name, device_type, device_node);
     }
 }
 
@@ -723,12 +754,14 @@ static DeviceStatusFlags tape_device_read_label(Device * dself) {
     IoResult result;
     dumpfile_t *header;
     DeviceStatusFlags new_status;
+    char *msg = NULL;
 
     self = TAPE_DEVICE(dself);
 
     amfree(dself->volume_label);
     amfree(dself->volume_time);
-    amfree(dself->volume_header);
+    dumpfile_free(dself->volume_header);
+    dself->volume_header = NULL;
 
     if (device_in_error(self)) return dself->status;
 
@@ -746,30 +779,47 @@ static DeviceStatusFlags tape_device_read_label(Device * dself) {
     /* Rewind it. */
     if (!tape_rewind(self->fd)) {
 	device_set_error(dself,
-	    vstrallocf(_("Error rewinding device %s"), self->private->device_filename),
+	    vstrallocf(_("Error rewinding device %s to read label: %s"),
+		    self->private->device_filename, strerror(errno)),
 	      DEVICE_STATUS_DEVICE_ERROR
 	    | DEVICE_STATUS_VOLUME_ERROR);
-        robust_close(self->fd);
         return dself->status;
     }
 
     buffer_len = tape_device_read_size(self);
     header_buffer = malloc(buffer_len);
-    result = tape_device_robust_read(self, header_buffer, &buffer_len);
+    result = tape_device_robust_read(self, header_buffer, &buffer_len, &msg);
 
     if (result != RESULT_SUCCESS) {
         free(header_buffer);
         tape_rewind(self->fd);
         /* I/O error. */
-        if (result == RESULT_NO_DATA) {
+	switch (result) {
+	case RESULT_NO_DATA:
+	    msg = stralloc(_("no data"));
             new_status = (DEVICE_STATUS_VOLUME_ERROR |
 	                  DEVICE_STATUS_VOLUME_UNLABELED);
-        } else {
+	    break;
+
+	case RESULT_SMALL_BUFFER:
+	    msg = stralloc(_("block size too small"));
+            new_status = (DEVICE_STATUS_DEVICE_ERROR |
+	                  DEVICE_STATUS_VOLUME_ERROR);
+	    break;
+
+	default:
+	    msg = stralloc(_("unknown error"));
+	case RESULT_ERROR:
             new_status = (DEVICE_STATUS_DEVICE_ERROR |
 	                  DEVICE_STATUS_VOLUME_ERROR |
 	                  DEVICE_STATUS_VOLUME_UNLABELED);
+	    break;
         }
-	device_set_error(dself, stralloc(_("Error reading Amanda header")), new_status);
+	device_set_error(dself,
+		 g_strdup_printf(_("Error reading Amanda header: %s"),
+			msg? msg : _("unknown error")),
+		 new_status);
+	amfree(msg);
 	return dself->status;
     }
 
@@ -796,6 +846,7 @@ tape_device_write_block(Device * pself, guint size, gpointer data) {
     TapeDevice * self;
     char *replacement_buffer = NULL;
     IoResult result;
+    char *msg = NULL;
 
     self = TAPE_DEVICE(pself);
 
@@ -813,7 +864,7 @@ tape_device_write_block(Device * pself, guint size, gpointer data) {
         size = pself->block_size;
     }
 
-    result = tape_device_robust_write(self, data, size);
+    result = tape_device_robust_write(self, data, size, &msg);
     amfree(replacement_buffer);
 
     switch (result) {
@@ -824,14 +875,16 @@ tape_device_write_block(Device * pself, guint size, gpointer data) {
 	    device_set_error(pself,
 		stralloc(_("No space left on device")),
 		DEVICE_STATUS_VOLUME_ERROR);
-	    pself->is_eof = TRUE;
+	    pself->is_eom = TRUE;
 	    return FALSE;
 
 	default:
+	    msg = stralloc(_("unknown error"));
 	case RESULT_ERROR:
 	    device_set_error(pself,
-		vstrallocf(_("Error writing block: %s"), strerror(errno)),
+		g_strdup_printf(_("Error writing block: %s"), msg),
 		DEVICE_STATUS_DEVICE_ERROR);
+	    amfree(msg);
 	    return FALSE;
     }
 
@@ -846,7 +899,8 @@ static int tape_device_read_block (Device * pself, gpointer buf,
     int size;
     IoResult result;
     gssize read_block_size = tape_device_read_size(pself);
-    
+    char *msg = NULL;
+
     self = TAPE_DEVICE(pself);
 
     g_assert(self->fd >= 0);
@@ -860,7 +914,7 @@ static int tape_device_read_block (Device * pself, gpointer buf,
     }
 
     size = *size_req;
-    result = tape_device_robust_read(self, buf, &size);
+    result = tape_device_robust_read(self, buf, &size, &msg);
     switch (result) {
     case RESULT_SUCCESS:
         *size_req = size;
@@ -883,15 +937,15 @@ static int tape_device_read_block (Device * pself, gpointer buf,
         }
         g_assert (new_size > (gsize)*size_req);
 
-	g_warning("Device %s indicated blocksize %zd was too small; using %zd.",
+	g_info("Device %s indicated blocksize %zd was too small; using %zd.",
 	    pself->device_name, (gsize)*size_req, new_size);
 	*size_req = (int)new_size;
-	self->private->read_buffer_size = new_size;
+	self->private->read_block_size = new_size;
 
 	bzero(&newval, sizeof(newval));
 	g_value_init(&newval, G_TYPE_UINT);
-	g_value_set_uint(&newval, self->private->read_buffer_size);
-	device_set_simple_property(pself, PROPERTY_READ_BUFFER_SIZE,
+	g_value_set_uint(&newval, self->private->read_block_size);
+	device_set_simple_property(pself, PROPERTY_READ_BLOCK_SIZE,
 		&newval, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
 	g_value_unset(&newval);
 
@@ -906,9 +960,12 @@ static int tape_device_read_block (Device * pself, gpointer buf,
         return -1;
 
     default:
+	msg = stralloc(_("unknown error"));
+    case RESULT_ERROR:
 	device_set_error(pself,
-	    vstrallocf(_("Error reading from tape device: %s"), strerror(errno)),
+	    vstrallocf(_("Error reading from tape device: %s"), msg),
 	    DEVICE_STATUS_VOLUME_ERROR | DEVICE_STATUS_DEVICE_ERROR);
+	amfree(msg);
         return -1;
     }
 
@@ -921,32 +978,36 @@ static gboolean write_tapestart_header(TapeDevice * self, char * label,
      IoResult result;
      dumpfile_t * header;
      char * header_buf;
-     int header_size;
-     gboolean header_fits;
      Device * d_self = (Device*)self;
+     char *msg = NULL;
+
      tape_rewind(self->fd);
-    
+
      header = make_tapestart_header(d_self, label, timestamp);
      g_assert(header != NULL);
-     header_buf = device_build_amanda_header(d_self, header, &header_size,
-                                             &header_fits);
-     amfree(header);
-     g_assert(header_buf != NULL);
-
-     if (!header_fits) {
-         amfree(header_buf);
+     header_buf = device_build_amanda_header(d_self, header, NULL);
+     if (header_buf == NULL) {
 	 device_set_error(d_self,
 	    stralloc(_("Tapestart header won't fit in a single block!")),
 	    DEVICE_STATUS_DEVICE_ERROR);
+	 dumpfile_free(header);
          return FALSE;
      }
+     dumpfile_free(d_self->volume_header);
+     d_self->volume_header = NULL;
 
-     g_assert(header_size >= (int)d_self->min_block_size);
-     result = tape_device_robust_write(self, header_buf, header_size);
+     result = tape_device_robust_write(self, header_buf, d_self->block_size, &msg);
      if (result != RESULT_SUCCESS) {
-	 device_set_error(d_self,
-	    vstrallocf(_("Error writing tapestart header: %s"), strerror(errno)),
+	device_set_error(d_self,
+	    g_strdup_printf(_("Error writing tapestart header: %s"),
+			(result == RESULT_ERROR)? msg : _("out of space")),
 	    DEVICE_STATUS_DEVICE_ERROR);
+
+        if (result == RESULT_NO_SPACE)
+            d_self->is_eom = TRUE;
+
+	amfree(msg);
+	dumpfile_free(header);
 	amfree(header_buf);
 	return FALSE;
      }
@@ -958,14 +1019,17 @@ static gboolean write_tapestart_header(TapeDevice * self, char * label,
 			 vstrallocf(_("Error writing filemark: %s"),
 				    strerror(errno)),
 			 DEVICE_STATUS_DEVICE_ERROR|DEVICE_STATUS_VOLUME_ERROR);
+        /* can't tell if this was EOM or not, so assume it is */
+        d_self->is_eom = TRUE;
+	dumpfile_free(header);
 	return FALSE;
      }
 
+     d_self->volume_header = header;
      return TRUE;
-
 }
 
-static gboolean 
+static gboolean
 tape_device_start (Device * d_self, DeviceAccessMode mode, char * label,
                    char * timestamp) {
     TapeDevice * self;
@@ -1001,7 +1065,7 @@ tape_device_start (Device * d_self, DeviceAccessMode mode, char * label,
             return FALSE;
         } else if (!tape_rewind(self->fd)) {
 	    device_set_error(d_self,
-		vstrallocf(_("Couldn't rewind device: %s"), strerror(errno)),
+		vstrallocf(_("Error rewinding device to start: %s"), strerror(errno)),
 		DEVICE_STATUS_DEVICE_ERROR);
 	    return FALSE;
         }
@@ -1022,7 +1086,7 @@ tape_device_start (Device * d_self, DeviceAccessMode mode, char * label,
             return FALSE;
 	}
         break;
-        
+
     case ACCESS_READ:
 	if (d_self->volume_label == NULL && device_read_label(d_self) != DEVICE_STATUS_SUCCESS) {
 	    /* device_read_label already set our error message */
@@ -1031,7 +1095,7 @@ tape_device_start (Device * d_self, DeviceAccessMode mode, char * label,
 
         if (!tape_rewind(self->fd)) {
 	    device_set_error(d_self,
-		vstrallocf(_("Couldn't rewind device: %s"), strerror(errno)),
+		vstrallocf(_("Error rewinding device after reading label: %s"), strerror(errno)),
 		DEVICE_STATUS_DEVICE_ERROR);
             return FALSE;
         }
@@ -1064,8 +1128,9 @@ static gboolean tape_device_start_file(Device * d_self,
     TapeDevice * self;
     IoResult result;
     char * amanda_header;
-    int header_size;
-    gboolean header_fits;
+    char *msg = NULL;
+
+    d_self->is_eom = FALSE;
 
     self = TAPE_DEVICE(d_self);
 
@@ -1077,20 +1142,26 @@ static gboolean tape_device_start_file(Device * d_self,
 
     /* Make the Amanda header suitable for writing to the device. */
     /* Then write the damn thing. */
-    amanda_header = device_build_amanda_header(d_self, info,
-                                               &header_size, &header_fits);
-    if (!header_fits) {
+    amanda_header = device_build_amanda_header(d_self, info, NULL);
+    if (amanda_header == NULL) {
 	device_set_error(d_self,
 	    stralloc(_("Amanda file header won't fit in a single block!")),
 	    DEVICE_STATUS_DEVICE_ERROR);
 	return FALSE;
     }
-    result = tape_device_robust_write(self, amanda_header, header_size);
+
+    result = tape_device_robust_write(self, amanda_header, d_self->block_size, &msg);
     if (result != RESULT_SUCCESS) {
 	device_set_error(d_self,
-	    vstrallocf(_("Error writing file header: %s"), strerror(errno)),
+	    vstrallocf(_("Error writing file header: %s"),
+			(result == RESULT_ERROR)? msg : _("out of space")),
 	    DEVICE_STATUS_DEVICE_ERROR);
+
+        if (result == RESULT_NO_SPACE)
+            d_self->is_eom = TRUE;
+
 	amfree(amanda_header);
+	amfree(msg);
         return FALSE;
     }
     amfree(amanda_header);
@@ -1114,6 +1185,8 @@ tape_device_finish_file (Device * d_self) {
 	device_set_error(d_self,
 		vstrallocf(_("Error writing filemark: %s"), strerror(errno)),
 		DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
+        /* can't tell if this was EOM or not, so assume it is */
+        d_self->is_eom = TRUE;
         return FALSE;
     }
 
@@ -1121,14 +1194,16 @@ tape_device_finish_file (Device * d_self) {
     return TRUE;
 }
 
-static dumpfile_t * 
+static dumpfile_t *
 tape_device_seek_file (Device * d_self, guint file) {
     TapeDevice * self;
+    gint got_file;
     int difference;
     char * header_buffer;
     dumpfile_t * rval;
     int buffer_len;
     IoResult result;
+    char *msg;
 
     self = TAPE_DEVICE(d_self);
 
@@ -1147,6 +1222,7 @@ tape_device_seek_file (Device * d_self, guint file) {
     d_self->is_eof = FALSE;
     d_self->block = 0;
 
+reseek:
     if (difference > 0) {
         /* Seeking forwards */
         if (!tape_device_fsf(self, difference)) {
@@ -1156,40 +1232,94 @@ tape_device_seek_file (Device * d_self, guint file) {
 		DEVICE_STATUS_VOLUME_ERROR | DEVICE_STATUS_DEVICE_ERROR);
             return NULL;
         }
-    } else if (difference < 0) {
-        /* Seeking backwards */
-        if (!tape_device_bsf(self, -difference, d_self->file)) {
-            tape_rewind(self->fd);
-	    device_set_error(d_self,
-		vstrallocf(_("Could not seek backward to file %d"), file),
-		DEVICE_STATUS_VOLUME_ERROR | DEVICE_STATUS_DEVICE_ERROR);
-            return NULL;
-        }
+    } else { /* (difference <= 0) */
+        /* Seeking backwards, or to this file itself */
+
+	/* if the drive supports bsf, we can do this the fancy way */
+	if (self->bsf) {
+	    /* bsf one more than the difference */
+	    if (!tape_bsf(self->fd, -difference + 1)) {
+		tape_rewind(self->fd);
+		device_set_error(d_self,
+		    vstrallocf(_("Could not seek backward to file %d"), file),
+		    DEVICE_STATUS_VOLUME_ERROR | DEVICE_STATUS_DEVICE_ERROR);
+		return NULL;
+	    }
+
+	    /* now we are on the BOT side of the desired filemark, so FSF to get to the
+	     * EOT side of it */
+	    if (!tape_device_fsf(self, 1)) {
+		tape_rewind(self->fd);
+		device_set_error(d_self,
+		    vstrallocf(_("Could not seek forward to file %d"), file),
+		    DEVICE_STATUS_VOLUME_ERROR | DEVICE_STATUS_DEVICE_ERROR);
+		return NULL;
+	    }
+	} else {
+	    /* no BSF, so just rewind and seek forward */
+	    if (!tape_rewind(self->fd)) {
+		device_set_error(d_self,
+		    vstrallocf(_("Could not rewind device while emulating BSF")),
+		    DEVICE_STATUS_VOLUME_ERROR | DEVICE_STATUS_DEVICE_ERROR);
+		return FALSE;
+	    }
+
+	    if (!tape_device_fsf(self, file)) {
+		tape_rewind(self->fd);
+		device_set_error(d_self,
+		    vstrallocf(_("Could not seek forward to file %d"), file),
+		    DEVICE_STATUS_VOLUME_ERROR | DEVICE_STATUS_DEVICE_ERROR);
+		return NULL;
+	    }
+	}
+    }
+
+    /* double-check that we're on the right fileno, if possible.  This is most
+     * likely a programming error if it occurs, but could also be due to a weird
+     * tape drive or driver (and that would *never* happen, right?) */
+    got_file = tape_fileno(self->fd);
+    if (got_file >= 0 && (guint)got_file != file) {
+	device_set_error(d_self,
+		vstrallocf(_("Could not seek to file %d correctly; got %d"),
+			    file, got_file),
+		DEVICE_STATUS_DEVICE_ERROR);
+	d_self->file = (guint)got_file;
+	return NULL;
     }
 
     buffer_len = tape_device_read_size(d_self);
     header_buffer = malloc(buffer_len);
     d_self->is_eof = FALSE;
-    result = tape_device_robust_read(self, header_buffer, &buffer_len);
+    result = tape_device_robust_read(self, header_buffer, &buffer_len, &msg);
 
     if (result != RESULT_SUCCESS) {
         free(header_buffer);
         tape_rewind(self->fd);
-        if (result == RESULT_NO_DATA) {
+	switch (result) {
+	case RESULT_NO_DATA:
             /* If we read 0 bytes, that means we encountered a double
              * filemark, which indicates end of tape. This should
              * work even with QIC tapes on operating systems with
              * proper support. */
 	    d_self->file = file; /* other attributes are already correct */
             return make_tapeend_header();
+
+	case RESULT_SMALL_BUFFER:
+	    msg = stralloc(_("block size too small"));
+	    break;
+
+	default:
+	    msg = stralloc(_("unknown error"));
+	case RESULT_ERROR:
+	    break;
         }
-        /* I/O error. */
 	device_set_error(d_self,
-	    stralloc(_("Error reading Amanda header")),
+	    g_strdup_printf(_("Error reading Amanda header: %s"), msg),
 	    DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
+	amfree(msg);
         return NULL;
     }
-        
+
     rval = g_new(dumpfile_t, 1);
     parse_file_header(header_buffer, rval, buffer_len);
     amfree(header_buffer);
@@ -1198,6 +1328,15 @@ tape_device_seek_file (Device * d_self, guint file) {
     case F_CONT_DUMPFILE:
     case F_SPLIT_DUMPFILE:
         break;
+
+    case F_NOOP:
+	/* a NOOP is written on QIC tapes to avoid writing two sequential
+	 * filemarks when closing a device in WRITE or APPEND mode.  In this
+	 * case, we just seek to the next file. */
+	amfree(rval);
+	file++;
+	difference = 1;
+	goto reseek;
 
     default:
         tape_rewind(self->fd);
@@ -1214,7 +1353,7 @@ tape_device_seek_file (Device * d_self, guint file) {
     return rval;
 }
 
-static gboolean 
+static gboolean
 tape_device_seek_block (Device * d_self, guint64 block) {
     TapeDevice * self;
     int difference;
@@ -1224,18 +1363,18 @@ tape_device_seek_block (Device * d_self, guint64 block) {
     if (device_in_error(self)) return FALSE;
 
     difference = block - d_self->block;
-    
+
     if (difference > 0) {
         if (!tape_device_fsr(self, difference)) {
 	    device_set_error(d_self,
-		vstrallocf(_("Could not seek forward to block %ju"), (uintmax_t)block),
+		vstrallocf(_("Could not seek forward to block %ju: %s"), (uintmax_t)block, strerror(errno)),
 		DEVICE_STATUS_VOLUME_ERROR | DEVICE_STATUS_DEVICE_ERROR);
             return FALSE;
 	}
     } else if (difference < 0) {
         if (!tape_device_bsr(self, difference, d_self->file, d_self->block)) {
 	    device_set_error(d_self,
-		vstrallocf(_("Could not seek backward to block %ju"), (uintmax_t)block),
+		vstrallocf(_("Could not seek backward to block %ju: %s"), (uintmax_t)block, strerror(errno)),
 		DEVICE_STATUS_VOLUME_ERROR | DEVICE_STATUS_DEVICE_ERROR);
             return FALSE;
 	}
@@ -1245,16 +1384,60 @@ tape_device_seek_block (Device * d_self, guint64 block) {
     return TRUE;
 }
 
-static gboolean 
-tape_device_finish (Device * d_self) {
+static gboolean
+tape_device_eject (Device * d_self) {
     TapeDevice * self;
 
     self = TAPE_DEVICE(d_self);
 
     if (device_in_error(self)) return FALSE;
 
-    if (d_self->access_mode == ACCESS_NULL)
+    /* Open the device if not already opened */
+    if (self->fd == -1) {
+	self->fd = try_open_tape_device(self, self->private->device_filename);
+	/* if the open failed, then try_open_tape_device already set the
+         * approppriate error status */
+        if (self->fd == -1)
+            return FALSE;
+    }
+
+    /* Rewind it. */
+    if (!tape_rewind(self->fd)) {
+	device_set_error(d_self,
+	    vstrallocf(_("Error rewinding device %s before ejecting: %s"),
+		       self->private->device_filename, strerror(errno)),
+	      DEVICE_STATUS_DEVICE_ERROR
+	    | DEVICE_STATUS_VOLUME_ERROR);
+	return FALSE;
+    }
+
+    if (tape_offl(self->fd))
 	return TRUE;
+
+    device_set_error(d_self,
+	vstrallocf(_("Error ejecting device %s: %s\n"),
+		   self->private->device_filename, strerror(errno)),
+	  DEVICE_STATUS_DEVICE_ERROR);
+
+    return FALSE;
+}
+
+static gboolean
+tape_device_finish (Device * d_self) {
+    TapeDevice * self;
+    char *msg = NULL;
+
+    self = TAPE_DEVICE(d_self);
+
+    if (device_in_error(self)) return FALSE;
+
+    /* if we're already in ACCESS_NULL, then there are no filemarks or anything
+     * to worry about, but we need to release the kernel device */
+    if (d_self->access_mode == ACCESS_NULL) {
+        robust_close(self->fd);
+	self->fd = -1;
+	return TRUE;
+    }
 
     /* Polish off this file, if relevant. */
     if (d_self->in_file && IS_WRITABLE_ACCESS_MODE(d_self->access_mode)) {
@@ -1262,25 +1445,45 @@ tape_device_finish (Device * d_self) {
             return FALSE;
     }
 
-    /* Write an extra filemark, if needed. The OS will give us one for
-       sure. */
-    /* device_finish_file already wrote one for us */
-    /*
-    if (self->final_filemarks > 1 &&
+    /* Straighten out the filemarks.  We already wrote one in finish_file, and
+     * the device driver will write another filemark when we rewind.  This means
+     * that, if we do nothing, we'll get two filemarks.  If final_filemarks is
+     * 1, this would be wrong, so in this case we insert a F_NOOP header between
+     * the two filemarks. */
+    if (self->final_filemarks == 1 &&
         IS_WRITABLE_ACCESS_MODE(d_self->access_mode)) {
-        if (!tape_weof(self->fd, 1)) {
-	device_set_error(d_self,
-	    vstrallocf(_("Error writing final filemark: %s"), strerror(errno)),
-	    DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
-            return FALSE;
-        }
-    }
-    */
+	dumpfile_t file;
+	char *header;
+	int result;
 
-    /* Rewind. */
+	/* write a F_NOOP header */
+	fh_init(&file);
+	file.type = F_NOOP;
+	header = device_build_amanda_header(d_self, &file, NULL);
+	if (!header) {
+	    device_set_error(d_self,
+		stralloc(_("Amanda file header won't fit in a single block!")),
+		DEVICE_STATUS_DEVICE_ERROR);
+	    return FALSE;
+	}
+
+	result = tape_device_robust_write(self, header, d_self->block_size, &msg);
+	if (result != RESULT_SUCCESS) {
+	    device_set_error(d_self,
+		vstrallocf(_("Error writing file header: %s"),
+			    (result == RESULT_ERROR)? msg : _("out of space")),
+		DEVICE_STATUS_DEVICE_ERROR);
+	    amfree(header);
+	    amfree(msg);
+	    return FALSE;
+	}
+	amfree(header);
+    }
+
+    /* Rewind (the kernel will write a filemark first) */
     if (!tape_rewind(self->fd)) {
 	device_set_error(d_self,
-	    vstrallocf(_("Couldn't rewind device: %s"), strerror(errno)),
+	    vstrallocf(_("Couldn't rewind device to finish: %s"), strerror(errno)),
 	    DEVICE_STATUS_DEVICE_ERROR);
         return FALSE;
     }
@@ -1288,15 +1491,21 @@ tape_device_finish (Device * d_self) {
     d_self->is_eof = FALSE;
     d_self->access_mode = ACCESS_NULL;
 
+    /* release the kernel's device */
+    robust_close(self->fd);
+    self->fd = -1;
+
     return TRUE;
 }
 
 /* Works just like read(), except for the following:
  * 1) Retries on EINTR & friends.
  * 2) Stores count in parameter, not return value.
- * 3) Provides explicit return result. */
+ * 3) Provides explicit return result.
+ * *errmsg is only set on RESULT_ERROR.
+ */
 static IoResult
-tape_device_robust_read (TapeDevice * self, void * buf, int * count) {
+tape_device_robust_read (TapeDevice * self, void * buf, int * count, char **errmsg) {
     Device * d_self;
     int result;
 
@@ -1341,16 +1550,15 @@ tape_device_robust_read (TapeDevice * self, void * buf, int * count) {
 #endif
                         )) {
                 /* Buffer too small. */
+		g_warning("Buffer is too small (%d bytes) from %s: %s",
+			*count, self->private->device_filename, strerror(errno));
                 return RESULT_SMALL_BUFFER;
             } else {
-		device_set_error(d_self,
-		    vstrallocf(_("Error reading %d bytes from %s: %s"),
-				*count, self->private->device_filename, strerror(errno)),
-		    DEVICE_STATUS_DEVICE_ERROR | DEVICE_STATUS_VOLUME_ERROR);
+		*errmsg = g_strdup_printf(_("Error reading %d bytes from %s: %s"),
+			*count, self->private->device_filename, strerror(errno));
                 return RESULT_ERROR;
             }
         }
-
     }
 
     g_assert_not_reached();
@@ -1380,13 +1588,14 @@ static void check_resetofs(TapeDevice * self G_GNUC_UNUSED,
 #endif
 }
 
-static IoResult 
-tape_device_robust_write (TapeDevice * self, void * buf, int count) {
+/* *errmsg is only set on RESULT_ERROR */
+static IoResult
+tape_device_robust_write (TapeDevice * self, void * buf, int count, char **errmsg) {
     Device * d_self;
     int result;
 
     d_self = (Device*)self;
-    
+
     check_resetofs(self, count);
 
     for (;;) {
@@ -1399,10 +1608,8 @@ tape_device_robust_write (TapeDevice * self, void * buf, int count) {
             return RESULT_SUCCESS;
         } else if (result >= 0) {
             /* write() returned a short count. This should not happen. */
-	    device_set_error(d_self,
-		     vstrallocf(_("Mysterious short write on tape device: Tried %d, got %d"),
-				count, result),
-		    DEVICE_STATUS_DEVICE_ERROR);
+	    *errmsg = g_strdup_printf("Mysterious short write on tape device: Tried %d, got %d",
+				count, result);
             return RESULT_ERROR;
         } else if (0
 #ifdef EAGAIN
@@ -1435,10 +1642,8 @@ tape_device_robust_write (TapeDevice * self, void * buf, int count) {
             return RESULT_NO_SPACE;
         } else {
             /* WTF */
-	    device_set_error(d_self,
-		    vstrallocf(_("Kernel gave unexpected write() result of \"%s\" on device %s"),
-					strerror(errno), self->private->device_filename),
-		    DEVICE_STATUS_DEVICE_ERROR);
+	    *errmsg = vstrallocf(_("Kernel gave unexpected write() result of \"%s\" on device %s"),
+			    strerror(errno), self->private->device_filename);
             return RESULT_ERROR;
         }
     }
@@ -1458,7 +1663,7 @@ static int drain_tape_blocks(TapeDevice * self, int count) {
 
     buffer_size = tape_device_read_size(self);
 
-    buffer = malloc(sizeof(buffer_size));
+    buffer = malloc(buffer_size);
 
     for (i = 0; i < count || count < 0;) {
         int result;
@@ -1511,15 +1716,12 @@ static int drain_tape_blocks(TapeDevice * self, int count) {
             }
         }
     }
-    
+
     amfree(buffer);
     return count;
 }
 
-/* FIXME: Make sure that there are no cycles in reimplementation
-   dependencies. */
-
-static gboolean 
+static gboolean
 tape_device_fsf (TapeDevice * self, guint count) {
     if (self->fsf) {
         return tape_fsf(self->fd, count);
@@ -1533,33 +1735,8 @@ tape_device_fsf (TapeDevice * self, guint count) {
     }
 }
 
-/* Seek back over count + 1 filemarks to the start of the given file. */
-static gboolean 
-tape_device_bsf (TapeDevice * self, guint count, guint file) {
-    if (self->bsf) {
-        /* The BSF operation is not very smart; it includes the
-           filemark of the present file as part of the count, and seeks
-           to the wrong (BOT) side of the filemark. We compensate for
-           this by seeking one filemark too many, then FSFing back over
-           it.
 
-           If this procedure fails for some reason, we can still try
-           the backup plan. */
-        if (tape_bsf(self->fd, count + 1) &&
-            tape_device_fsf(self, 1))
-            return TRUE;
-    } /* Fall through to backup plan. */
-
-    /* We rewind the tape, then seek forward the given number of
-       files. */
-    if (!tape_rewind(self->fd))
-        return FALSE;
-
-    return tape_device_fsf(self, file);
-}
-
-
-static gboolean 
+static gboolean
 tape_device_fsr (TapeDevice * self, guint count) {
     if (self->fsr) {
         return tape_fsr(self->fd, count);
@@ -1572,15 +1749,27 @@ tape_device_fsr (TapeDevice * self, guint count) {
 /* Seek back the given number of blocks to block number block within
  * the current file, numbered file. */
 
-static gboolean 
+static gboolean
 tape_device_bsr (TapeDevice * self, guint count, guint file, guint block) {
     if (self->bsr) {
         return tape_bsr(self->fd, count);
-    } else {
-        /* We BSF, then FSR. */
-        if (!tape_device_bsf(self, 0, file))
+    } else if (self->bsf && self->fsf) {
+        /* BSF, FSF to the right side of the filemark, and then FSR. */
+        if (!tape_bsf(self->fd, 1))
             return FALSE;
-        
+
+        if (!tape_fsf(self->fd, 1))
+            return FALSE;
+
+        return tape_device_fsr(self, block);
+    } else {
+	/* rewind, FSF, and FSR */
+	if (!tape_rewind(self->fd))
+	    return FALSE;
+
+	if (!tape_device_fsf(self, file))
+	    return FALSE;
+
         return tape_device_fsr(self, block);
     }
     g_assert_not_reached();
@@ -1588,47 +1777,57 @@ tape_device_bsr (TapeDevice * self, guint count, guint file, guint block) {
 
 /* Go to the right place to write more data, and update the file
    number if possible. */
-static gboolean 
+static gboolean
 tape_device_eod (TapeDevice * self) {
     Device * d_self;
+    int count;
+
     d_self = (Device*)self;
 
     if (self->eom) {
         int result;
-        result = tape_eod(self->fd); 
+        result = tape_eod(self->fd);
         if (result == TAPE_OP_ERROR) {
             return FALSE;
-        } else if (result == TAPE_POSITION_UNKNOWN) {
-            d_self->file = -1;
+        } else if (result != TAPE_POSITION_UNKNOWN) {
+	    /* great - we just fast-forwarded to EOD, but don't know where we are, so
+	     * now we have to rewind and drain all of that data.  Warn the user so that
+	     * we can skip the fast-forward-rewind stage on the next run */
+	    g_warning("Seek to end of tape does not give an accurate tape position; set "
+		      "the EOM property to 0 to avoid useless tape movement.");
+	    /* and set the property so that next time *this* object is opened for
+	     * append, we skip this stage */
+	    self->eom = FALSE;
+            /* fall through to draining blocks, below */
         } else {
             /* We drop by 1 because Device will increment the first
                time the user does start_file. */
             d_self->file = result - 1;
+	    return TRUE;
         }
-        return TRUE;
-    } else {
-        int count = 0;
-        if (!tape_rewind(self->fd))
-            return FALSE;
-        
-        for (;;) {
-            /* We alternately read a block and FSF. If the read is
-               successful, then we are not there yet and should FSF
-               again. */
-            int result;
-            result = drain_tape_blocks(self, 1);
-            if (result == 1) {
-                /* More data, FSF. */
-                tape_device_fsf(self, 1);
-                count ++;
-            } else if (result == 0) {
-                /* Finished. */
-                d_self->file = count;
-                return TRUE;
-            } else {
-                return FALSE;
-            }
-        }
+    }
+
+    if (!tape_rewind(self->fd))
+	return FALSE;
+
+    count = 0;
+    for (;;) {
+	/* We alternately read a block and FSF. If the read is
+	   successful, then we are not there yet and should FSF
+	   again. */
+	int result;
+	result = drain_tape_blocks(self, 1);
+	if (result == 1) {
+	    /* More data, FSF. */
+	    tape_device_fsf(self, 1);
+	    count ++;
+	} else if (result == 0) {
+	    /* Finished. */
+	    d_self->file = count - 1;
+	    return TRUE;
+	} else {
+	    return FALSE;
+	}
     }
 }
 

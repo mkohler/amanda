@@ -2,12 +2,12 @@
 .\"     Title: amreport
 .\"    Author: Stefan G. Weichinger <sgw@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMREPORT" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMREPORT" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,27 +19,85 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amreport \- generate a formatted output of statistics for an \fIAmanda\fR run
+amreport \- generate a formatted output of statistics for an Amanda run
 .SH "SYNOPSIS"
 .HP \w'\fBamreport\fR\ 'u
-\fBamreport\fR [\fIconfig\fR] [\-i] [\-M\ \fIaddress\fR] [\-l\ \fIlogfile\fR] [\-f\ \fIoutputfile\fR] [\-p\ \fIpostscriptfile\fR] [\-o\ \fIconfigoption\fR]...
+\fBamreport\fR [\fIconfig\fR] [{\fB\-o\fR\ \fIconfigoption\fR}...] [(1)\ \fIcommand\-line options\fR | (2)\ \fIscript options\fR]
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.HP \w'(1)\ 'u
+(1)\ [\-\-log=\fIlogfile\fR] [\-\-ps=\fIfilename\fR] [\-\-text=\fIfilename\fR] [\-\-xml=\fIfilename\fR] [\-\-print=\fIprinter\fR] [\-\-mail\-text=\fIrecipient\fR]
+.HP \w'(2)\ 'u
+(2)\ [\-i] [\-M\ \fIaddress\fR] [\-l\ \fIlogfile\fR] [\-f\ \fIoutputfile\fR] [\-p\ \fIpostscriptfile\fR] [\-\-from\-amdump]
 .SH "DESCRIPTION"
 .PP
 \fBAmreport\fR
-generates a summary report of an
-\fBamanda\fR(8)
-backup run\&. If no configuration name is specified, amanda\&.conf is read from the current directory\&.
+generates a summary report of an Amanda backup run\&.
 .PP
 See the
 \fBamanda\fR(8)
-man page for more details about
-\fIAmanda\fR\&.
+man page for more details about Amanda\&.
 .SH "OPTIONS"
 .PP
 \fIconfig\fR
 .RS 4
-Name of the configuration to process\&.
+Name of the configuration to process\&. If no configuration name is specified, amanda\&.conf is read from the current directory\&.
 .RE
+.PP
+\fB\-o \fR\fB\fIconfigoption\fR\fR
+.RS 4
+See the "CONFIGURATION OVERRIDE" section in
+\fBamanda\fR(8)\&.
+.RE
+.PP
+Amreport operates in two distinct modes\&. Command\-line mode is intended for use by an administrator from the command line, and uses long command\-line options for clarity\&. Script mode is intended for use from scripts such as amdump, and has a lot of non\-obvious default behaviors to suit that need\&.
+.PP
+Unless a script\-mode option is given, amreport defaults to command\-line mode\&. If no options are given, amreport writes a report for the most recent logfile to stdout\&.
+.SS "Command\-Line Mode Options"
+.PP
+\fB\-\-log=\fR\fB\fIlogfile\fR\fR
+.RS 4
+Use this logfile as the basis for the report\&. If this option is given, then the report is a "historical" report and will not include current state from e\&.g\&., holding disk and curinfo\&. If this option is not specified, then the most recent logfile will be used\&.
+.RE
+.PP
+\fB\-\-ps=\fR\fB\fIfilename\fR\fR
+.RS 4
+Write a postscript label to
+\fIfilename\fR\&. See "LABEL PRINTING" below\&. If filename is not specified, then the label is written to stdout\&.
+.RE
+.PP
+\fB\-\-text=\fR\fB\fIfilename\fR\fR
+.RS 4
+Write a human\-readable text report to
+\fIfilename\fR\&. If filename is not specified, then the report is written to stdout\&.
+.RE
+.PP
+\fB\-\-xml=\fR\fB\fIfilename\fR\fR
+.RS 4
+Write an XML\-formatted report to
+\fIfilename\fR\&. If filename is not specified, then the report is written to stdout\&.
+.RE
+.PP
+\fB\-\-print=\fR\fB\fIprinter\fR\fR
+.RS 4
+Pipe a postscript label to
+\fBlp\fR
+or
+\fBlpr\fR, specifying the given
+\fIprinter\fR\&. If the printer is not specified, uses the default from the Amanda configuration, or the system default printer\&.
+.RE
+.PP
+\fB\-\-mail\-text=\fR\fB\fIrecipient\fR\fR
+.RS 4
+Send a human\-readable text report to the given
+\fIrecipient\fR
+via the mailer specified in the Amanda configuration\&. If the recipient is not specified, this uses the
+\fImailto\fR
+from the Amanda configuration\&.
+.RE
+.SS "Script Mode Options"
 .PP
 \fB\-i\fR
 .RS 4
@@ -58,14 +116,11 @@ value from
 .PP
 \fB\-l\fR \fIlogfile\fR
 .RS 4
-Name of the log file to parse to generate the report\&. If a log file is not specified, it defaults to the file:
-.RE
-.PP
-\fIlogdir\fR/log
-.PP
-where
-\fIlogdir\fR
+Name of the log file to parse to generate the report\&. If a log file is not specified, it defaults to the file
+$logdir/log, where
+$logdir
 is the log directory defined in amanda\&.conf\&.
+.RE
 .PP
 \fB\-f\fR \fIoutputfile\fR
 .RS 4
@@ -90,15 +145,13 @@ command\&. This option has an effect only if the
 directive is specified in amanda\&.conf\&.
 .RE
 .PP
-\fB\-o\fR \fIconfigoption\fR
+\fB\-\-from\-amdump\fR
 .RS 4
-See the "\fBCONFIGURATION OVERRIDE\fR" section in
-\fBamanda\fR(8)\&.
+Force script mode\&. Has no other effect\&.
 .RE
 .SH "LABEL PRINTING"
 .PP
-\fIAmanda\fR
-can print postscript labels describing the contents of tape(s) written in a run\&. The labels are designed to be folded and inserted into the tape case along with the tape or hole punched and put in a 3\-ring binder\&. Various label templates are provided to format data for different tape sizes\&.
+Amanda can print postscript labels describing the contents of tape(s) written in a run\&. The labels are designed to be folded and inserted into the tape case along with the tape or hole punched and put in a 3\-ring binder\&. Various label templates are provided to format data for different tape sizes\&.
 .PP
 The information printed varies slightly between label templates due to size constraints\&. Labels contain one line for each host/file\-system pair and may also contain the file number on the tape, the level of the dump, the original size of the dump and the size of the (possibly compressed) tape file\&.
 .PP
@@ -109,12 +162,11 @@ parameter to the tapetype definition in amanda\&.conf to enable labels\&. If you
 will not print tape labels\&.
 .PP
 You may use the
-\fIremap=\'I\'>printer\fR
+\fIprinter\fR
 keyword in amanda\&.conf to print to other than the system default printer\&.
 .SH "TEMPLATES"
 .PP
-\fIAmanda\fR
-provides label templates for the following tape types\&. These are pretty generic labels and should be easy to customize for other tape types or particular site needs\&.
+Amanda provides label templates for the following tape types\&. These are pretty generic labels and should be easy to customize for other tape types or particular site needs\&.
 .sp
 .if n \{\
 .RS 4
@@ -144,8 +196,10 @@ The exit code of \fBamreport\fR is the ORed value of:
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
-\fBamflush\fR(8),
-: http://wiki.zmanda.com
+\fBamflush\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHOR"
 .PP
 \fBStefan G\&. Weichinger\fR <\&sgw@amanda\&.org\&>

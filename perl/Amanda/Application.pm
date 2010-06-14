@@ -59,11 +59,6 @@ package Amanda::Application;
 @EXPORT_OK = ();
 %EXPORT_TAGS = ();
 
-push @ISA, qw(Amanda::Script_App);
-require Amanda::Script_App;
-
-use strict;
-use warnings;
 
 =head1 NAME
 
@@ -75,9 +70,8 @@ Amanda::Application - perl utility functions for Applications.
   use base qw(Amanda::Application);
 
   sub new {
-    my $class = shift;
-    my ($foo, $bar) = @_;
-    my $self = $class->SUPER::new();
+    my ($class, $config, $foo) = @_;
+    my $self = $class->SUPER::new($config);
 
     $self->{'foo'} = $foo;
     $self->{'bar'} = $bar;
@@ -98,12 +92,36 @@ Amanda::Application - perl utility functions for Applications.
   my $application = Amanda::Application::my_application->new($opt_foo, $opt_bar);
   $application->do($cmd);
 
+=head1 INTERFACE
+
+=head2 write_magic_block
+
+  $self->write_magic_block($type)
+
+Write a 512 bytes magic block to STDOUT.
+
+=head2 read_magic_bloc
+
+  $type = $self->read_magic_block()
+
+Read the 512 bytes magic block from STDIN and return the type.
+
 =cut
 
-sub new {
-    my $class = shift;
 
-    my $self = Amanda::Script_App::new($class, "client", "application", @_);
+push @ISA, qw(Amanda::Script_App);
+require Amanda::Script_App;
+
+use strict;
+use warnings;
+use Amanda::Config qw( :init :getconf  config_dir_relative );
+
+
+sub new {
+    my $class = shift @_;
+    my $config_name = shift @_;
+
+    my $self = Amanda::Script_App::new($class, "client", "application", $config_name);
 
     $self->{known_commands} = {
         support   => 1,
@@ -122,5 +140,33 @@ sub run_calcsize {
 
     run_calcsize_C($self->{config}, $program, $self->{disk}, $self->{device}, $self->{level}, undef, undef);
 
+}
+
+sub default_validate {
+    my $self = shift;
+    my $buffer;
+
+    do {
+	sysread STDIN, $buffer, 1048576;
+    } while (defined $buffer and length($buffer) > 0);
+}
+
+sub write_magic_block {
+    my $self = shift;
+    my $type = shift;
+
+    my $dump_str = pack("a512", $type);
+    print STDOUT $dump_str;
+}
+
+sub read_magic_block {
+    my $self = shift;
+
+    my $magic_block = Amanda::Util::full_read(0, 512);
+    #remove '\0' bytes
+    $magic_block =~ /^([^\0]*)/;
+    my $type = $1;
+
+    return $type;
 }
 1;

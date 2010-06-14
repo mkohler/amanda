@@ -2,12 +2,12 @@
 .\"     Title: amflush
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMFLUSH" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMFLUSH" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,18 +19,14 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amflush \- flush \fIAmanda\fR backup files from holding disk to tape
+amflush \- flush Amanda backup files from holding disk to tape
 .SH "SYNOPSIS"
 .HP \w'\fBamflush\fR\ 'u
-\fBamflush\fR [\-b] [\-f] [\-s] [\-D\ \fIdatestamp\fR] \fIconfig\fR [\fIhost\fR\ [\fIdisk\fR...]...] [\-o\ \fIconfigoption\fR]...
+\fBamflush\fR [\-b] [\-f] [\-s] [\-D\ \fIdatestamp\fR] \fIconfig\fR [\fIhost\fR\ [\fIdisk\fR...]...] [{\fB\-o\fR\ \fIconfigoption\fR}...]
 .SH "DESCRIPTION"
 .PP
 \fBAmflush\fR
-writes
-\fIAmanda\fR
-backups from the holding disks to tape, and updates the
-\fIAmanda\fR
-info database and
+writes Amanda backups from the holding disks to tape, and updates the Amanda info database and
 \fBtapelist\fR(5)
 accordingly\&. Backups may stay in a holding disk when something is wrong with the tape at the time
 \fBamdump\fR
@@ -82,9 +78,9 @@ will flush all dumps from 25 december 2000 to 27 december 2000\&.
 Specify the host and disk on which the command will work\&.
 .RE
 .PP
-\fB\-o\fR \fIconfigoption\fR
+\fB\-o \fR\fB\fIconfigoption\fR\fR
 .RS 4
-See the "\fBCONFIGURATION OVERRIDE\fR" section in
+See the "CONFIGURATION OVERRIDE" section in
 \fBamanda\fR(8)\&.
 .RE
 .PP
@@ -96,17 +92,14 @@ for a description\&.
 will look in the holding disks specified by the
 \fIamanda\&.conf\fR
 file in /usr/local/etc/amanda/\fIconfig\fR
-for any non\-empty
-\fIAmanda\fR
-work directories\&. It then prompts you to select a directory or to process all of the directories\&. The work directories in the holding disks are named by the date at the time
+for any non\-empty Amanda work directories\&. It then prompts you to select a directory or to process all of the directories\&. The work directories in the holding disks are named by the date at the time
 \fBamdump\fR
 was run, e\&.g\&.
 19910215\&.
 .PP
 See the
 \fBamanda\fR(8)
-man page for more details about
-\fIAmanda\fR\&.
+man page for more details about Amanda\&.
 .SH "EXAMPLE"
 .PP
 \fBAmflush\fR
@@ -119,10 +112,10 @@ writes the data to tape, updates the databases and sends a mail report similar t
 .nf
 % amflush MyConfig
 Scanning /amanda\-hold\&.\&.\&.
-  20001113: found \fIAmanda\fR directory\&.
-  20001114: found \fIAmanda\fR directory\&.
+  20001113: found Amanda directory\&.
+  20001114: found Amanda directory\&.
 
-Multiple \fIAmanda\fR directories, please pick one by letter:
+Multiple Amanda directories, please pick one by letter:
   A\&. 20001113
   B\&. 20001114
 Select directories to flush [A\&.\&.B]: [ALL] all
@@ -152,10 +145,11 @@ The exit code of \fBamflush\fR is the ORed value of:
 .fi
 .SH "SEE ALSO"
 .PP
-
 \fBamanda\fR(8),
-\fBamdump\fR(8),
-: http://wiki.zmanda.com
+\fBamdump\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBJames da Silva\fR <\&jds@amanda\&.org\&>

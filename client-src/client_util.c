@@ -40,7 +40,6 @@
 #include "glob.h"
 #include "clock.h"
 #include "amandates.h"
-#include "version.h"
 
 #define MAXMAXDUMPS 16
 
@@ -122,7 +121,7 @@ build_name(
 	/*NOTREACHED*/
     }
     test_name = get_name(diskname, exin,
-			 curtime - (AMANDA_DEBUG_DAYS * 24 * 60 * 60), 0);
+			 curtime - (getconf_int(CNF_DEBUG_DAYS) * 24 * 60 * 60), 0);
     match_len = strlen(get_pname()) + strlen(diskname) + 2;
     while((entry = readdir(d)) != NULL) {
 	if(is_dot_or_dotdot(entry->d_name)) {
@@ -483,16 +482,6 @@ parse_options(
 	    }
 	    dle->auth = stralloc("bsd");
 	}
-	else if (am_has_feature(fs, fe_options_krb4_auth)
-	   && BSTRNCMP(tok, "krb4-auth") == 0) {
-	    if (dle->auth != NULL) {
-		dbprintf(_("multiple auth option\n"));
-		if (verbose) {
-		    g_printf(_("ERROR [multiple auth option]\n"));
-		}
-	    }
-	    dle->auth = stralloc("krb4");
-	}
 	else if (BSTRNCMP(tok, "compress-fast") == 0) {
 	    if (dle->compress != COMP_NONE) {
 		dbprintf(_("multiple compress option\n"));
@@ -648,91 +637,78 @@ parse_options(
     amfree(p);
 }
 
-int
-application_property_argv_size(dle_t *dle) {
-    int nb;
-
-    nb = 0;
-    if (dle->include_list)
-	nb += dle->include_list->nb_element;
-    if (dle->include_file)
-	nb += dle->include_file->nb_element;
-    nb++; /* include optional */
-    if (dle->exclude_list)
-	nb += dle->exclude_list->nb_element;
-    if (dle->exclude_file)
-	nb += dle->exclude_file->nb_element;
-    nb++; /* exclude optional */
-    nb *= 2;  /*name + value */
-    nb += property_argv_size(dle->application_property);
-
-    return nb;
-}
-
-int
+void
 application_property_add_to_argv(
-    char **argvchild,
+    GPtrArray *argv_ptr,
     dle_t *dle,
-    backup_support_option_t *bsu)
+    backup_support_option_t *bsu,
+    am_feature_t *amfeatures)
 {
-    char **argv = argvchild;
     sle_t *incl, *excl;
 
     if (bsu) {
 	if (bsu->include_file && dle->include_file) {
 	    for (incl = dle->include_file->first; incl != NULL;
 		 incl = incl->next) {
-		*argv = stralloc("--include-file");
-		argv++;
-		*argv = stralloc(incl->name);
-		argv++;
+		g_ptr_array_add(argv_ptr, stralloc("--include-file"));
+		g_ptr_array_add(argv_ptr, stralloc(incl->name));
 	    }
 	}
 	if (bsu->include_list && dle->include_list) {
 	    for (incl = dle->include_list->first; incl != NULL;
 		 incl = incl->next) {
-		*argv = stralloc("--include-list");
-		argv++;
-		*argv = stralloc(incl->name);
-		argv++;
+		g_ptr_array_add(argv_ptr, stralloc("--include-list"));
+		g_ptr_array_add(argv_ptr, stralloc(incl->name));
 	    }
 	}
 	if (bsu->include_optional && dle->include_optional) {
-	    *argv = stralloc("--include-optional");
-	    argv++;
-	    *argv = stralloc("yes");
-	    argv++;
+	    g_ptr_array_add(argv_ptr, stralloc("--include-optional"));
+	    g_ptr_array_add(argv_ptr, stralloc("yes"));
 	}
 
 	if (bsu->exclude_file && dle->exclude_file) {
 	    for (excl = dle->exclude_file->first; excl != NULL;
 	 	 excl = excl->next) {
-		*argv = stralloc("--exclude-file");
-		argv++;
-		*argv = stralloc(excl->name);
-		argv++;
+		g_ptr_array_add(argv_ptr, stralloc("--exclude-file"));
+		g_ptr_array_add(argv_ptr, stralloc(excl->name));
 	    }
 	}
 	if (bsu->exclude_list && dle->exclude_list) {
 	    for (excl = dle->exclude_list->first; excl != NULL;
 		excl = excl->next) {
-		*argv = stralloc("--exclude-list");
-		argv++;
-		*argv = stralloc(excl->name);
-		argv++;
+		g_ptr_array_add(argv_ptr, stralloc("--exclude-list"));
+		g_ptr_array_add(argv_ptr, stralloc(excl->name));
 	    }
 	}
 	if (bsu->exclude_optional && dle->exclude_optional) {
-	    *argv = stralloc("--exclude-optional");
-	    argv++;
-	    *argv = stralloc("yes");
-	    argv++;
+	    g_ptr_array_add(argv_ptr, stralloc("--exclude-optional"));
+	    g_ptr_array_add(argv_ptr, stralloc("yes"));
+	}
+
+	if (bsu->features && amfeatures) {
+	    char *feature_string = am_feature_to_string(amfeatures);
+	    g_ptr_array_add(argv_ptr, stralloc("--amfeatures"));
+	    g_ptr_array_add(argv_ptr, feature_string);
+	}
+
+	if (dle->data_path == DATA_PATH_DIRECTTCP &&
+	    bsu->data_path_set & DATA_PATH_DIRECTTCP) {
+	    GSList *directtcp;
+
+	    g_ptr_array_add(argv_ptr, stralloc("--data-path"));
+	    g_ptr_array_add(argv_ptr, stralloc("directtcp"));
+	    for (directtcp = dle->directtcp_list; directtcp != NULL;
+						  directtcp = directtcp->next) {
+		g_ptr_array_add(argv_ptr, stralloc("--direct-tcp"));
+		g_ptr_array_add(argv_ptr, stralloc(directtcp->data));
+		break; /* XXX temporary; apps only support one ip:port pair */
+	    }
 	}
     }
 
     g_hash_table_foreach(dle->application_property,
-			&proplist_add_to_argv, &argv);
-    return (argv - argvchild);
+			 &proplist_add_to_argv, argv_ptr);
+    return;
 }
 
 backup_support_option_t *
@@ -746,8 +722,7 @@ backup_support_option(
     pid_t   supportpid;
     int     supportin, supportout, supporterr;
     char   *cmd;
-    char  **argvchild;
-    int     i;
+    GPtrArray *argv_ptr = g_ptr_array_new();
     FILE   *streamout;
     FILE   *streamerr;
     char   *line;
@@ -757,31 +732,30 @@ backup_support_option(
 
     *errarray = g_ptr_array_new();
     cmd = vstralloc(APPLICATION_DIR, "/", program, NULL);
-    argvchild = g_new0(char *, 12);
-    i = 0;
-    argvchild[i++] = program;
-    argvchild[i++] = "support";
+    g_ptr_array_add(argv_ptr, stralloc(program));
+    g_ptr_array_add(argv_ptr, stralloc("support"));
     if (g_options->config) {
-	argvchild[i++] = "--config";
-	argvchild[i++] = g_options->config;
+	g_ptr_array_add(argv_ptr, stralloc("--config"));
+	g_ptr_array_add(argv_ptr, stralloc(g_options->config));
     }
     if (g_options->hostname) {
-	argvchild[i++] = "--host";
-	argvchild[i++] = g_options->hostname;
+	g_ptr_array_add(argv_ptr, stralloc("--host"));
+	g_ptr_array_add(argv_ptr, stralloc(g_options->hostname));
     }
     if (disk) {
-	argvchild[i++] = "--disk";
-	argvchild[i++] = disk;
+	g_ptr_array_add(argv_ptr, stralloc("--disk"));
+	g_ptr_array_add(argv_ptr, stralloc(disk));
     }
     if (amdevice) {
-	argvchild[i++] = "--device";
-	argvchild[i++] = stralloc(amdevice);
+	g_ptr_array_add(argv_ptr, stralloc("--device"));
+	g_ptr_array_add(argv_ptr, stralloc(amdevice));
     }
-    argvchild[i++] = NULL;
+    g_ptr_array_add(argv_ptr, NULL);
 
     supporterr = fileno(stderr);
     supportpid = pipespawnv(cmd, STDIN_PIPE|STDOUT_PIPE|STDERR_PIPE, 0,
-			    &supportin, &supportout, &supporterr, argvchild);
+			    &supportin, &supportout, &supporterr,
+			    (char **)argv_ptr->pdata);
 
     aclose(supportin);
 
@@ -826,6 +800,9 @@ backup_support_option(
 	} else if (strncmp(line,"INCLUDE-LIST ", 13) == 0) {
 	    if (strcmp(line+13, "YES") == 0)
 		bsu->include_list = 1;
+	} else if (strncmp(line,"INCLUDE-LIST-GLOB ", 17) == 0) {
+	    if (strcmp(line+17, "YES") == 0)
+		bsu->include_list_glob = 1;
 	} else if (strncmp(line,"INCLUDE-OPTIONAL ", 17) == 0) {
 	    if (strcmp(line+17, "YES") == 0)
 		bsu->include_optional = 1;
@@ -835,6 +812,9 @@ backup_support_option(
 	} else if (strncmp(line,"EXCLUDE-LIST ", 13) == 0) {
 	    if (strcmp(line+13, "YES") == 0)
 		bsu->exclude_list = 1;
+	} else if (strncmp(line,"EXCLUDE-LIST-GLOB ", 17) == 0) {
+	    if (strcmp(line+17, "YES") == 0)
+		bsu->exclude_list_glob = 1;
 	} else if (strncmp(line,"EXCLUDE-OPTIONAL ", 17) == 0) {
 	    if (strcmp(line+17, "YES") == 0)
 		bsu->exclude_optional = 1;
@@ -844,6 +824,9 @@ backup_support_option(
 	} else if (strncmp(line,"CALCSIZE ", 9) == 0) {
 	    if (strcmp(line+9, "YES") == 0)
 		bsu->calcsize = 1;
+	} else if (strncmp(line,"CLIENT-ESTIMATE ", 16) == 0) {
+	    if (strcmp(line+16, "YES") == 0)
+		bsu->client_estimate = 1;
 	} else if (strncmp(line,"MULTI-ESTIMATE ", 15) == 0) {
 	    if (strcmp(line+15, "YES") == 0)
 		bsu->multi_estimate = 1;
@@ -852,12 +835,29 @@ backup_support_option(
 	} else if (strncmp(line,"RECOVER-MODE ", 13) == 0) {
 	    if (strcasecmp(line+13, "SMB") == 0)
 		bsu->smb_recover_mode = 1;
+	} else if (strncmp(line,"DATA-PATH ", 10) == 0) {
+	    if (strcasecmp(line+10, "AMANDA") == 0)
+		bsu->data_path_set |= DATA_PATH_AMANDA;
+	    else if (strcasecmp(line+10, "DIRECTTCP") == 0)
+		bsu->data_path_set |= DATA_PATH_DIRECTTCP;
+	} else if (strncmp(line,"RECOVER-PATH ", 13) == 0) {
+	    if (strcasecmp(line+13, "CWD") == 0)
+		bsu->recover_path = RECOVER_PATH_CWD;
+	    else if (strcasecmp(line+13, "REMOTE") == 0)
+		bsu->recover_path = RECOVER_PATH_REMOTE;
+	} else if (strncmp(line,"AMFEATURES ", 11) == 0) {
+	    if (strcmp(line+11, "YES") == 0)
+		bsu->features = 1;
 	} else {
 	    dbprintf(_("Invalid support line: %s\n"), line);
 	}
 	amfree(line);
     }
     fclose(streamout);
+
+    if (bsu->data_path_set == 0)
+	bsu->data_path_set = DATA_PATH_AMANDA;
+
     streamerr = fdopen(supporterr, "r");
     if (!streamerr) {
 	error(_("Error opening pipe to child: %s"), strerror(errno));
@@ -885,6 +885,8 @@ backup_support_option(
 	dbprintf("Application '%s': %s\n", program, err);
 	amfree(bsu);
     }
+    g_ptr_array_free_full(argv_ptr);
+    amfree(cmd);
     return bsu;
 }
 
@@ -898,13 +900,12 @@ run_client_script(
     pid_t     scriptpid;
     int       scriptin, scriptout, scripterr;
     char     *cmd;
-    char    **argvchild;
-    int       i;
+    GPtrArray *argv_ptr = g_ptr_array_new();
     FILE     *streamout;
     FILE     *streamerr;
     char     *line;
-    int       argv_size;
     amwait_t  wait_status;
+    char     *command = NULL;
 
     if ((script->execute_on & execute_on) == 0)
 	return;
@@ -912,84 +913,97 @@ run_client_script(
 	return;
 
     cmd = vstralloc(APPLICATION_DIR, "/", script->plugin, NULL);
-    argv_size = 14 + property_argv_size(script->property);
-    if (dle->level)
-	argv_size += 2 * g_slist_length(dle->level);
-    argvchild = g_new0(char *, argv_size);
-    i = 0;
-    argvchild[i++] = script->plugin;
+    g_ptr_array_add(argv_ptr, stralloc(script->plugin));
 
     switch (execute_on) {
     case EXECUTE_ON_PRE_DLE_AMCHECK:
-	argvchild[i++] = "PRE-DLE-AMCHECK"; break;
+	command = "PRE-DLE-AMCHECK";
+	break;
     case EXECUTE_ON_PRE_HOST_AMCHECK:
-	argvchild[i++] = "PRE-HOST-AMCHECK"; break;
+	command = "PRE-HOST-AMCHECK";
+	break;
     case EXECUTE_ON_POST_DLE_AMCHECK:
-	argvchild[i++] = "POST-DLE-AMCHECK"; break;
+	command = "POST-DLE-AMCHECK";
+	break;
     case EXECUTE_ON_POST_HOST_AMCHECK:
-	argvchild[i++] = "POST-HOST-AMCHECK"; break;
+	command = "POST-HOST-AMCHECK";
+	break;
     case EXECUTE_ON_PRE_DLE_ESTIMATE:
-	argvchild[i++] = "PRE-DLE-ESTIMATE"; break;
+	command = "PRE-DLE-ESTIMATE";
+	break;
     case EXECUTE_ON_PRE_HOST_ESTIMATE:
-	argvchild[i++] = "PRE-HOST-ESTIMATE"; break;
+	command = "PRE-HOST-ESTIMATE";
+	break;
     case EXECUTE_ON_POST_DLE_ESTIMATE:
-	argvchild[i++] = "POST-DLE-ESTIMATE"; break;
+	command = "POST-DLE-ESTIMATE";
+	break;
     case EXECUTE_ON_POST_HOST_ESTIMATE:
-	argvchild[i++] = "POST-HOST-ESTIMATE"; break;
+	command = "POST-HOST-ESTIMATE";
+	break;
     case EXECUTE_ON_PRE_DLE_BACKUP:
-	argvchild[i++] = "PRE-DLE-BACKUP"; break;
+	command = "PRE-DLE-BACKUP";
+	break;
     case EXECUTE_ON_PRE_HOST_BACKUP:
-	argvchild[i++] = "PRE-HOST-BACKUP"; break;
+	command = "PRE-HOST-BACKUP";
+	break;
     case EXECUTE_ON_POST_DLE_BACKUP:
-	argvchild[i++] = "POST-DLE-BACKUP"; break;
+	command = "POST-DLE-BACKUP";
+	break;
     case EXECUTE_ON_POST_HOST_BACKUP:
-	argvchild[i++] = "POST-HOST-BACKUP"; break;
+	command = "POST-HOST-BACKUP";
+	break;
     case EXECUTE_ON_PRE_RECOVER:
-	argvchild[i++] = "PRE-RECOVER"; break;
+	command = "PRE-RECOVER";
+	break;
     case EXECUTE_ON_POST_RECOVER:
-	argvchild[i++] = "POST-RECOVER"; break;
+	command = "POST-RECOVER";
+	break;
     case EXECUTE_ON_PRE_LEVEL_RECOVER:
-	argvchild[i++] = "PRE-LEVEL-RECOVER"; break;
+	command = "PRE-LEVEL-RECOVER";
+	break;
     case EXECUTE_ON_POST_LEVEL_RECOVER:
-	argvchild[i++] = "POST-LEVEL-RECOVER"; break;
+	command = "POST-LEVEL-RECOVER";
+	break;
     case EXECUTE_ON_INTER_LEVEL_RECOVER:
-	argvchild[i++] = "INTER-LEVEL-RECOVER"; break;
+	command = "INTER-LEVEL-RECOVER";
+	break;
     }
-
-    argvchild[i++] = "--execute-where";
-    argvchild[i++] = "client";
+    g_ptr_array_add(argv_ptr, stralloc(command));
+    g_ptr_array_add(argv_ptr, stralloc("--execute-where"));
+    g_ptr_array_add(argv_ptr, stralloc("client"));
 
     if (g_options->config) {
-	argvchild[i++] = "--config";
-	argvchild[i++] = g_options->config;
+	g_ptr_array_add(argv_ptr, stralloc("--config"));
+	g_ptr_array_add(argv_ptr, stralloc(g_options->config));
     }
     if (g_options->hostname) {
-	argvchild[i++] = "--host";
-	argvchild[i++] = g_options->hostname;
+	g_ptr_array_add(argv_ptr, stralloc("--host"));
+	g_ptr_array_add(argv_ptr, stralloc(g_options->hostname));
     }
     if (dle->disk) {
-	argvchild[i++] = "--disk";
-	argvchild[i++] = dle->disk;
+	g_ptr_array_add(argv_ptr, stralloc("--disk"));
+	g_ptr_array_add(argv_ptr, stralloc(dle->disk));
     }
     if (dle->device) {
-	argvchild[i++] = "--device";
-	argvchild[i++] = stralloc(dle->device);
+	g_ptr_array_add(argv_ptr, stralloc("--device"));
+	g_ptr_array_add(argv_ptr, stralloc(dle->device));
     }
-    if (dle->level) {
-	GSList *level;
+    if (dle->levellist) {
+	levellist_t levellist;
 	char number[NUM_STR_SIZE];
-	for (level=dle->level; level; level=level->next) {
-	    argvchild[i++] = "--level";
-	    g_snprintf(number, SIZEOF(number), "%d",
-		       GPOINTER_TO_INT(level->data));
-	    argvchild[i++] = stralloc(number);
+	for (levellist=dle->levellist; levellist; levellist=levellist->next) {
+	    level_t *alevel = (level_t *)levellist->data;
+	    g_ptr_array_add(argv_ptr, stralloc("--level"));
+	    g_snprintf(number, SIZEOF(number), "%d", alevel->level);
+	    g_ptr_array_add(argv_ptr, stralloc(number));
 	}
     }
-    i += property_add_to_argv(&argvchild[i], script->property);
-    argvchild[i++] = NULL;
+    property_add_to_argv(argv_ptr, script->property);
+    g_ptr_array_add(argv_ptr, NULL);
 
     scriptpid = pipespawnv(cmd, STDIN_PIPE|STDOUT_PIPE|STDERR_PIPE, 0,
-			   &scriptin, &scriptout, &scripterr, argvchild);
+			   &scriptin, &scriptout, &scripterr,
+			   (char **)argv_ptr->pdata);
 
     close(scriptin);
 
@@ -1041,8 +1055,7 @@ run_client_script(
         while((line = agets(streamerr)) != NULL) {
 	    g_ptr_array_add(script->result->err,
 			    g_strdup_printf(_("Script '%s' command '%s': %s"),
-					    script->plugin, argvchild[1],
-					    line));
+					    script->plugin, command, line));
 	    amfree(line);
 	}
     }
@@ -1051,21 +1064,22 @@ run_client_script(
     if (WIFSIGNALED(wait_status)) {
 	g_ptr_array_add(script->result->err,
 			g_strdup_printf(_("Script '%s' command '%s' terminated with signal %d: see %s"),
-					script->plugin, argvchild[1],
+					script->plugin, command,
 					WTERMSIG(wait_status),
 					dbfn()));
     } else if (WIFEXITED(wait_status)) {
         if (WEXITSTATUS(wait_status) != 0) {
 	    g_ptr_array_add(script->result->err,
 			    g_strdup_printf(_("Script '%s' command '%s' exited with status %d: see %s"),
-					    script->plugin, argvchild[1],
+					    script->plugin, command,
 					    WEXITSTATUS(wait_status),
 					    dbfn()));
         } else {
             /* Normal exit */
         }
     }
-    
+    amfree(cmd);
+    g_ptr_array_free_full(argv_ptr);
 }
 
 void run_client_script_output(gpointer data, gpointer user_data);
@@ -1222,13 +1236,13 @@ run_calcsize(
     char   *file_include)
 {
     char        *cmd, *cmdline;
-    char        *my_argv[DUMP_LEVELS*2+22];
-    int          my_argc;
+    char	*command;
+    GPtrArray   *argv_ptr = g_ptr_array_new();
     char         tmppath[PATH_MAX];
     char         number[NUM_STR_SIZE];
     GSList      *alevel;
-    int          level;
-    int          i;
+    guint        level;
+    guint        i;
     char        *match_expr;
     int          pipefd = -1, nullfd = -1;
     pid_t        calcpid;
@@ -1259,31 +1273,30 @@ run_calcsize(
     }
 
     startclock();
-    cmd = vstralloc(amlibexecdir, "/", "calcsize", versionsuffix(), NULL);
+    cmd = vstralloc(amlibexecdir, "/", "calcsize", NULL);
 
-    my_argc = 0;
 
-    my_argv[my_argc++] = stralloc("calcsize");
+    g_ptr_array_add(argv_ptr, stralloc("calcsize"));
     if (config)
-	my_argv[my_argc++] = stralloc(config);
+	g_ptr_array_add(argv_ptr, stralloc(config));
     else
-	my_argv[my_argc++] = stralloc("NOCONFIG");
+	g_ptr_array_add(argv_ptr, stralloc("NOCONFIG"));
 
-    my_argv[my_argc++] = stralloc(program);
+    g_ptr_array_add(argv_ptr, stralloc(program));
 
     canonicalize_pathname(disk, tmppath);
-    my_argv[my_argc++] = stralloc(tmppath);
+    g_ptr_array_add(argv_ptr, stralloc(tmppath));
     canonicalize_pathname(dirname, tmppath);
-    my_argv[my_argc++] = stralloc(tmppath);
+    g_ptr_array_add(argv_ptr, stralloc(tmppath));
 
     if (file_exclude) {
-	my_argv[my_argc++] = stralloc("-X");
-	my_argv[my_argc++] = file_exclude;
+	g_ptr_array_add(argv_ptr, stralloc("-X"));
+	g_ptr_array_add(argv_ptr, stralloc(file_exclude));
     }
 
     if (file_include) {
-	my_argv[my_argc++] = stralloc("-I");
-	my_argv[my_argc++] = file_include;
+	g_ptr_array_add(argv_ptr, stralloc("-I"));
+	g_ptr_array_add(argv_ptr, stralloc(file_include));
     }
 
     for (alevel = levels; alevel != NULL; alevel = alevel->next) {
@@ -1296,15 +1309,17 @@ run_calcsize(
 		dumpsince = amdp->dates[i];
 	}
 	g_snprintf(number, SIZEOF(number), "%d", level);
-	my_argv[my_argc++] = stralloc(number);
+	g_ptr_array_add(argv_ptr, stralloc(number));
 	g_snprintf(number, SIZEOF(number), "%d", dumpsince);
-	my_argv[my_argc++] = stralloc(number);
+	g_ptr_array_add(argv_ptr, stralloc(number));
     }
 
-    my_argv[my_argc] = NULL;
-    cmdline = stralloc(my_argv[0]);
-    for(i = 1; i < my_argc; i++)
-	cmdline = vstrextend(&cmdline, " ", my_argv[i], NULL);
+    g_ptr_array_add(argv_ptr, NULL);
+    command = (char *)g_ptr_array_index(argv_ptr, 0);
+    cmdline = stralloc(command);
+    for(i = 1; i < argv_ptr->len - 1; i++)
+	cmdline = vstrextend(&cmdline, " ",
+			     (char *)g_ptr_array_index(argv_ptr,i), NULL);
     dbprintf(_("running: \"%s\"\n"), cmdline);
     amfree(cmdline);
 
@@ -1320,7 +1335,7 @@ run_calcsize(
     }
 
     calcpid = pipespawnv(cmd, STDERR_PIPE, 0,
-			 &nullfd, &nullfd, &pipefd, my_argv);
+			 &nullfd, &nullfd, &pipefd, (char **)argv_ptr->pdata);
     amfree(cmd);
 
     dumpout = fdopen(pipefd,"r");
@@ -1347,7 +1362,7 @@ run_calcsize(
     amfree(match_expr);
 
     dbprintf(_("waiting for %s %s child (pid=%d)\n"),
-	     my_argv[0], qdisk, (int)calcpid);
+	     command, qdisk, (int)calcpid);
     waitpid(calcpid, &wait_status, 0);
     if (WIFSIGNALED(wait_status)) {
 	errmsg = vstrallocf(_("%s terminated with signal %d: see %s"),
@@ -1367,7 +1382,7 @@ run_calcsize(
     }
 
     dbprintf(_("after %s %s wait: child pid=%d status=%d\n"),
-	     my_argv[0], qdisk,
+	     command, qdisk,
 	     (int)calcpid, WEXITSTATUS(wait_status));
 
     dbprintf(_(".....\n"));
@@ -1384,9 +1399,7 @@ common_exit:
     }
     amfree(qdisk);
     amfree(errmsg);
-    for(i = 0; i < my_argc; i++) {
-        amfree(my_argv[i]);
-    }
+    g_ptr_array_free_full(argv_ptr);
     amfree(cmd);
 
 }
@@ -1430,6 +1443,12 @@ check_file(
 	    g_printf(_("ERROR [%s is not a file]\n"), quoted);
 	    amfree(quoted);
 	}
+    } else {
+	int save_errno = errno;
+	quoted = quote_string(filename);
+	g_printf(_("ERROR [can not stat %s: %s]\n"), quoted,
+		 strerror(save_errno));
+	amfree(quoted);
     }
     if (getuid() == geteuid()) {
 	check_access(filename, mode);
@@ -1452,8 +1471,10 @@ check_dir(
 	    amfree(quoted);
 	}
     } else {
+	int save_errno = errno;
 	quoted = quote_string(dirname);
-	g_printf(_("ERROR [%s: %s]\n"), quoted, strerror(errno));
+	g_printf(_("ERROR [can not stat %s: %s]\n"), quoted,
+		 strerror(save_errno));
 	amfree(quoted);
     }
     if (getuid() == geteuid()) {
@@ -1480,7 +1501,7 @@ check_suid(
 	}
     }
     else {
-	g_printf(_("ERROR [can not stat %s]\n"), quoted);
+	g_printf(_("ERROR [can not stat %s: %s]\n"), quoted, strerror(errno));
     }
     amfree(quoted);
 #else
@@ -1535,3 +1556,156 @@ config_errors_to_error_string(
     return vstrallocf("ERROR %s%s", errmsg,
 	multiple_errors? _(" (additional errors not displayed)"):"");
 }
+
+
+void
+add_type_table(
+    dmpline_t   typ,
+    amregex_t **re_table,
+    amregex_t  *orig_re_table,
+    GSList     *normal_message,
+    GSList     *ignore_message,
+    GSList     *strange_message)
+{
+    amregex_t *rp;
+
+    for(rp = orig_re_table; rp->regex != NULL; rp++) {
+	if (rp->typ == typ) {
+	    int     found = 0;
+	    GSList *mes;
+
+	    for (mes = normal_message; mes != NULL; mes = mes->next) {
+		if (strcmp(rp->regex, (char *)mes->data) == 0)
+		    found = 1;
+	    }
+	    for (mes = ignore_message; mes != NULL; mes = mes->next) {
+		if (strcmp(rp->regex, (char *)mes->data) == 0)
+		    found = 1;
+	    }
+	    for (mes = strange_message; mes != NULL; mes = mes->next) {
+		if (strcmp(rp->regex, (char *)mes->data) == 0)
+		    found = 1;
+	    }
+	    if (found == 0) {
+		(*re_table)->regex   = rp->regex;
+		(*re_table)->srcline = rp->srcline;
+		(*re_table)->scale   = rp->scale;
+		(*re_table)->field   = rp->field;
+		(*re_table)->typ     = rp->typ;
+		(*re_table)++;
+	    }
+	}
+    }
+}
+
+void
+add_list_table(
+    dmpline_t   typ,
+    amregex_t **re_table,
+    GSList     *message)
+{
+    GSList *mes;
+
+    for (mes = message; mes != NULL; mes = mes->next) {
+	(*re_table)->regex = (char *)mes->data;
+	(*re_table)->srcline = 0;
+	(*re_table)->scale   = 0;
+	(*re_table)->field   = 0;
+	(*re_table)->typ     = typ;
+	(*re_table)++;
+    }
+}
+
+amregex_t *
+build_re_table(
+    amregex_t *orig_re_table,
+    GSList    *normal_message,
+    GSList    *ignore_message,
+    GSList    *strange_message)
+{
+    int        nb = 0;
+    amregex_t *rp;
+    amregex_t *re_table, *new_re_table;
+
+    for(rp = orig_re_table; rp->regex != NULL; rp++) {
+	nb++;
+    }
+    nb += g_slist_length(normal_message);
+    nb += g_slist_length(ignore_message);
+    nb += g_slist_length(strange_message);
+    nb ++;
+
+    re_table =  new_re_table = malloc(nb * sizeof(amregex_t));
+    
+    /* add SIZE from orig_re_table */
+    add_type_table(DMP_SIZE, &re_table, orig_re_table,
+		   normal_message, ignore_message, strange_message);
+
+    /* add ignore_message */
+    add_list_table(DMP_IGNORE, &re_table, ignore_message);
+
+    /* add IGNORE from orig_re_table */
+    add_type_table(DMP_IGNORE, &re_table, orig_re_table,
+		   normal_message, ignore_message, strange_message);
+
+    /* add normal_message */
+    add_list_table(DMP_NORMAL, &re_table, normal_message);
+
+    /* add NORMAL from orig_re_table */
+    add_type_table(DMP_NORMAL, &re_table, orig_re_table,
+		   normal_message, ignore_message, strange_message);
+
+    /* add strange_message */
+    add_list_table(DMP_STRANGE, &re_table, strange_message);
+
+    /* add STRANGE from orig_re_table */
+    add_type_table(DMP_STRANGE, &re_table, orig_re_table,
+		   normal_message, ignore_message, strange_message);
+
+    /* Add DMP_STRANGE with NULL regex,       */
+    /* it is not copied by previous statement */
+    re_table->regex = NULL;
+    re_table->srcline = 0;
+    re_table->scale = 0;
+    re_table->field = 0;
+    re_table->typ = DMP_STRANGE;
+
+    return new_re_table;
+}
+
+typedef struct {
+    proplist_t result;
+} merge_property_t;
+
+static void
+merge_property(
+    gpointer key_p,
+    gpointer value_p,
+    gpointer user_data_p)
+{
+    char *property_s = key_p;
+    GSList *value_s = value_p;
+    merge_property_t *merge_p = user_data_p;
+    GSList *value = g_hash_table_lookup(merge_p->result, property_s);
+
+    if (value) { /* remove old value */
+	g_hash_table_remove(merge_p->result, key_p);
+    }
+    g_hash_table_insert(merge_p->result, key_p, value_s);
+}
+
+void
+merge_properties(
+    proplist_t proplist1,
+    proplist_t proplist2)
+{
+    merge_property_t merge_p = {proplist1};
+
+    if (proplist2 == NULL) {
+	return;
+    }
+    g_hash_table_foreach(proplist2,
+                         &merge_property,
+                         &merge_p);
+}
+

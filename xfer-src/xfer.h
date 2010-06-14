@@ -1,20 +1,20 @@
 /*
- * Copyright (c) 2008 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
  *
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1 as
- * published by the Free Software Foundation.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  *
- * This library is distributed in the hope that it will be useful, but
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * Contact information: Zmanda Inc., 505 N Mathlida Ave, Suite 120
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
  * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
@@ -177,5 +177,42 @@ void xfer_start(Xfer *xfer);
  * @param xfer: the Xfer object
  */
 void xfer_cancel(Xfer *xfer);
+
+/*
+ * Utilities
+ */
+
+/* Wait for the xfer's state to become CANCELLED or DONE; this is useful to
+ * wait until a cancelletion is in progress before returning an EOF or
+ * otherwise handling a failure.  If you call this in the main thread, you'll
+ * be waiting for a while.
+ *
+ * @param xfer: the transfer object
+ * @returns: the new status (XFER_CANCELLED or XFER_DONE)
+ */
+xfer_status wait_until_xfer_cancelled(Xfer *xfer);
+
+/* Wait for the xfer's state to become anything but START; this is
+ * called *automatically* for every xfer_element_pull_buffer call, as the
+ * upstream element may not be running and ready for a pull just yet.  But
+ * the function may be useful in other places, too.
+ *
+ * @param xfer: the transfer object
+ * @returns: the new status (XFER_CANCELLED or XFER_DONE)
+ */
+xfer_status wait_until_xfer_running(Xfer *xfer);
+
+/* Send an XMSG_ERROR constructed with the given format and arguments, then
+ * cancel the transfer, then wait until the transfer is completely cancelled.
+ * This is the most common error-handling process for transfer elements.  All
+ * that remains to be done on return is to branch to the appropriate point in
+ * the cancellation-handling portion of the transfer.
+ *
+ * @param elt: the transfer element producing the error
+ * @param fmt: the format for the error message
+ * @param ...: arguments corresponding to the format
+ */
+void xfer_cancel_with_error(struct XferElement *elt, const char *fmt, ...)
+	G_GNUC_PRINTF(2,3);
 
 #endif /* XFER_H */

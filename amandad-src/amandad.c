@@ -39,7 +39,6 @@
 #include "amfeatures.h"
 #include "packet.h"
 #include "version.h"
-#include "queue.h"
 #include "security.h"
 #include "stream.h"
 #include "util.h"
@@ -143,18 +142,12 @@ struct active_service {
 	struct active_service *as;	/* pointer back to our enclosure */
     } data[DATA_FD_COUNT];
     char databuf[NETWORK_BLOCK_BYTES];	/* buffer to relay netfd data in */
-    TAILQ_ENTRY(active_service) tq;	/* queue handle */
 };
 
 /*
  * Queue of outstanding requests that we are running.
  */
-static struct {
-    TAILQ_HEAD(, active_service) tailq;
-    int qlength;
-} serviceq = {
-    TAILQ_HEAD_INITIALIZER(serviceq.tailq), 0
-};
+GSList *serviceq = NULL;
 
 static int wait_30s = 1;
 static int exit_on_qlength = 1;
@@ -175,6 +168,7 @@ static action_t s_sendrep(struct active_service *, action_t, pkt_t *);
 static action_t s_ackwait(struct active_service *, action_t, pkt_t *);
 
 static void repfd_recv(void *);
+static void process_errfd(void *cookie);
 static void errfd_recv(void *);
 static void timeout_repfd(void *);
 static void protocol_recv(void *, pkt_t *, security_status_t);
@@ -253,7 +247,8 @@ main(
 	check_running_as(RUNNING_AS_CLIENT_LOGIN);
     }
 
-    erroutput_type = (ERR_INTERACTIVE|ERR_SYSLOG);
+    add_amanda_log_handler(amanda_log_stderr);
+    add_amanda_log_handler(amanda_log_syslog);
 
     /*
      * ad-hoc argument parsing
@@ -269,18 +264,9 @@ main(
     have_services = 0;
     for (i = 1; i < argc; i++) {
 	/*
-	 * accept -krb4 as an alias for -auth=krb4 (for compatibility)
-	 */
-	if (strcmp(argv[i], "-krb4") == 0) {
-	    argv[i] = "-auth=krb4";
-	    /* FALLTHROUGH */
-	    auth = "krb4";
-	}
-
-	/*
 	 * Get a driver for a security type specified after -auth=
 	 */
-	else if (strncmp(argv[i], "-auth=", strlen("-auth=")) == 0) {
+	if (strncmp(argv[i], "-auth=", strlen("-auth=")) == 0) {
 	    argv[i] += strlen("-auth=");
 	    secdrv = security_getdriver(argv[i]);
 	    auth = argv[i];
@@ -443,13 +429,15 @@ main(
 	exit_on_qlength = 1;
     }
 
-    if (getuid() == 0) {
+#ifndef SINGLE_USERID
+    if (geteuid() == 0) {
 	if (strcasecmp(auth, "krb5") != 0) {
 	    struct passwd *pwd;
 	    /* lookup our local user name */
 	    if ((pwd = getpwnam(CLIENT_LOGIN)) == NULL) {
 		error(_("getpwnam(%s) failed."), CLIENT_LOGIN);
 	    }
+
 	    if (pwd->pw_uid != 0) {
 		error(_("'amandad' must be run as user '%s' when using '%s' authentication"),
 		      CLIENT_LOGIN, auth);
@@ -460,13 +448,13 @@ main(
 	    error(_("'amandad' must be run as user 'root' when using 'krb5' authentication"));
 	}
     }
-
+#endif
 
     /* initialize */
 
     startclock();
 
-    dbprintf(_("version %s\n"), version());
+    dbprintf(_("version %s\n"), VERSION);
     for (i = 0; version_info[i] != NULL; i++) {
 	dbprintf("    %s", version_info[i]);
     }
@@ -521,7 +509,7 @@ exit_check(
     /*
      * If things are still running, then don't exit.
      */
-    if (serviceq.qlength > 0)
+    if (g_slist_length(serviceq) > 0)
 	return;
 
     /*
@@ -544,6 +532,7 @@ protocol_accept(
     pkt_t *		pkt)
 {
     pkt_t pkt_out;
+    GSList *iter;
     struct active_service *as;
     char *pktbody, *tok, *service, *arguments;
     char *service_path = NULL;
@@ -646,7 +635,7 @@ protocol_accept(
 	goto send_pkt_out;
     }
 
-    service_path = vstralloc(amlibexecdir, "/", service, versionsuffix(), NULL);
+    service_path = vstralloc(amlibexecdir, "/", service, NULL);
     if (access(service_path, X_OK) < 0) {
 	dbprintf(_("can't execute %s: %s\n"), service_path, strerror(errno));
 	    pkt_init(&pkt_out, P_NAK,
@@ -656,8 +645,8 @@ protocol_accept(
     }
 
     /* see if its already running */
-    for (as = TAILQ_FIRST(&serviceq.tailq); as != NULL;
-	as = TAILQ_NEXT(as, tq)) {
+    for (iter = serviceq; iter != NULL; iter = g_slist_next(iter)) {
+	as = (struct active_service *)iter->data;
 	    if (strcmp(as->cmd, service_path) == 0 &&
 		strcmp(as->arguments, arguments) == 0) {
 		    dbprintf(_("%s %s: already running, acking req\n"),
@@ -908,20 +897,7 @@ s_repwait(
 	    }
 	}
 
-	/* Process errfd before sending the REP packet */
-	if (as->ev_errfd) {
-	    SELECT_ARG_TYPE readset;
-	    struct timeval  tv;
-	    int             nfound;
-
-	    memset(&tv, 0, SIZEOF(tv));
-	    FD_ZERO(&readset);
-	    FD_SET(as->errfd, &readset);
-	    nfound = select(as->errfd+1, &readset, NULL, NULL, &tv);
-	    if (nfound && FD_ISSET(as->errfd, &readset)) {
-		errfd_recv(as);
-	    }
-	}
+	process_errfd(as);
 
 	if (pid == 0)
 	    pid = waitpid(as->pid, &retstat, WNOHANG);
@@ -1154,6 +1130,7 @@ s_ackwait(
     for (dh = &as->data[0]; dh < &as->data[DATA_FD_COUNT]; dh++) {
 	if (dh->netfd == NULL)
 	    continue;
+	dbprintf("opening security stream for fd %d\n", (int)(dh - as->data) + DATA_FD_OFFSET);
 	if (security_stream_accept(dh->netfd) < 0) {
 	    dbprintf(_("stream %td accept failed: %s\n"),
 		dh - &as->data[0], security_geterror(as->security_handle));
@@ -1223,6 +1200,28 @@ repfd_recv(
     assert(as->ev_repfd != NULL);
 
     state_machine(as, A_RECVREP, NULL);
+}
+
+static void
+process_errfd(
+    void *cookie)
+{
+    struct active_service *as = cookie;
+
+    /* Process errfd before sending the REP packet */
+    if (as->ev_errfd) {
+	SELECT_ARG_TYPE readset;
+	struct timeval  tv;
+	int             nfound;
+
+	memset(&tv, 0, SIZEOF(tv));
+	FD_ZERO(&readset);
+	FD_SET(as->errfd, &readset);
+	nfound = select(as->errfd+1, &readset, NULL, NULL, &tv);
+	if (nfound && FD_ISSET(as->errfd, &readset)) {
+	    errfd_recv(as);
+	}
+    }
 }
 
 /*
@@ -1471,6 +1470,9 @@ allocstream(
 {
     struct datafd_handle *dh;
 
+    /* note that handle is in the range DATA_FD_OFFSET to DATA_FD_COUNT, but
+     * it is NOT a file descriptor! */
+
     /* if the handle is -1, then we don't bother */
     if (handle < 0)
 	return (-1);
@@ -1621,8 +1623,7 @@ service_new(
 
 	/* add it to the service queue */
 	/* increment the active service count */
-	TAILQ_INSERT_TAIL(&serviceq.tailq, as, tq);
-	serviceq.qlength++;
+	serviceq = g_slist_append(serviceq, (gpointer)as);
 
 	return (as);
     case 0:
@@ -1735,6 +1736,8 @@ service_delete(
     struct active_service *	as)
 {
     int i;
+    int   count;
+    pid_t pid;
     struct datafd_handle *dh;
 
     amandad_debug(1, _("closing service: %s\n"),
@@ -1752,11 +1755,17 @@ service_delete(
 	aclose(as->reqfd);
     if (as->repfd != -1)
 	aclose(as->repfd);
+    if (as->errfd != -1) {
+	process_errfd(as);
+	aclose(as->errfd);
+    }
 
     if (as->ev_repfd != NULL)
 	event_release(as->ev_repfd);
     if (as->ev_reptimeout != NULL)
 	event_release(as->ev_reptimeout);
+    if (as->ev_errfd != NULL)
+	event_release(as->ev_errfd);
 
     for (i = 0; i < DATA_FD_COUNT; i++) {
 	dh = &as->data[i];
@@ -1778,11 +1787,18 @@ service_delete(
 
     assert(as->pid > 0);
     kill(as->pid, SIGTERM);
-    waitpid(as->pid, NULL, WNOHANG);
+    pid = waitpid(as->pid, NULL, WNOHANG);
+    count = 5;
+    while (pid != as->pid && count > 0) {
+	count--;
+	sleep(1);
+	pid = waitpid(as->pid, NULL, WNOHANG);
+    }
+    if (pid != as->pid) {
+	g_debug("Process %d failed to exit", (int)as->pid);
+    }
 
-    TAILQ_REMOVE(&serviceq.tailq, as, tq);
-    assert(serviceq.qlength > 0);
-    serviceq.qlength--;
+    serviceq = g_slist_remove(serviceq, (gpointer)as);
 
     amfree(as->cmd);
     amfree(as->arguments);
@@ -1790,7 +1806,7 @@ service_delete(
     amfree(as->rep_pkt.body);
     amfree(as);
 
-    if(exit_on_qlength == 0 && serviceq.qlength == 0) {
+    if(exit_on_qlength == 0 && g_slist_length(serviceq) == 0) {
 	dbclose();
 	exit(0);
     }
