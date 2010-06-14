@@ -1,26 +1,27 @@
 /*
- * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+ * Copyright (c) 2007,2008,2009 Zmanda, Inc.  All Rights Reserved.
  *
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1 as
- * published by the Free Software Foundation.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  *
- * This library is distributed in the hope that it will be useful, but
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 #ifndef AMANDA_AMGLUE_H
 #define AMANDA_AMGLUE_H
 
+#include "../config/config.h"
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
@@ -93,6 +94,20 @@ SV *g_hash_table_to_hashref_gslist(GHashTable *hash);
 SV *g_hash_table_to_hashref_property(GHashTable *hash);
 
 /*
+ * prototypes for gerror.c
+ */
+
+/* Call perl's croak (die) for a GError (if there is one)
+ *
+ * @note This is not thread-safe
+ * @note This function does not return if error is non-NULL
+ *
+ * @param domain: String to prefix to error message (followed by ": ")
+ * @param error: The GError pointer
+ */
+void croak_gerror(const char *domain, GError **error);
+
+/*
  * prototypes for bigint.c
  */
 
@@ -107,6 +122,16 @@ SV *g_hash_table_to_hashref_property(GHashTable *hash);
 /* Convert an (unsigned) integer to a Perl SV.  These will always produce a 
  * Math::BigInt object.  Any failure is fatal.  *All* C-to-Perl integer conversions
  * must use these functions.
+ *
+ * NOTE - NOTE - NOTE
+ *
+ * Due to the way SWIG constructs return values, *any* outgoing typemap (out or
+ * argout) must use the following syntax:
+ *   SP += argvi; PUTBACK;
+ *   $result = sv_2mortal(amglue_newSVi64(...));
+ *   SPAGAIN; SP -= argvi; argvi++;
+ * This has the effect of saving the arguments added to the perl stack so far, by
+ * setting the global perl stack to a point above them.
  *
  * @param v: value to convert
  * @returns: pointer to a new SV (refcount=1)
@@ -130,6 +155,66 @@ gint16 amglue_SvI16(SV *sv);
 guint16 amglue_SvU16(SV *sv);
 gint8 amglue_SvI8(SV *sv);
 guint8 amglue_SvU8(SV *sv);
+
+/*
+ * prototypes for objwrap.c
+ */
+
+/* Return a new SV with refcount 1 representing the given C object
+ * with the given class.
+ *
+ * @param c_obj: the object to represent
+ * @param perl_class: the perl with which to bless and tie the SV
+ */
+SV * new_sv_for_c_obj(gpointer c_obj, const char *perl_class);
+
+/* Return the C object buried in an SV, asserting that the perl SV is
+ * derived from derived_from.  Returns NULL for undefined perl values.
+ *
+ * This function is based on SWIG's SWIG_Perl_ConvertPtr.  The INT2PTR
+ * situation certainly looks strange, but is documented in perlxs.
+ *
+ * @param sv: the SV to convert
+ * @param derived_from: perl class from which the SV should be derived
+ * @return: underlying pointer
+ */
+gpointer c_obj_from_sv(SV *sv, const char *derived_from);
+
+/*
+ * prototypes for xferwrap.c
+ */
+
+/* declare structs */
+struct Xfer;
+struct XferElement;
+
+/* Return a new SV representing a transfer.
+ *
+ * @param xfer: the transfer to represent
+ */
+SV *new_sv_for_xfer(struct Xfer *xfer);
+
+/* Return a new SV representing a transfer element.
+ *
+ * @param xe: the transfer element to represent
+ */
+SV *new_sv_for_xfer_element(struct XferElement *xe);
+
+/* Convert an SV to an Xfer.  The Xfer's reference count is not
+ * incremented -- this is a "borrowed" reference.
+ *
+ * @param sv: the perl value
+ * @returns: pointer to the corresponding transfer, or NULL
+ */
+struct Xfer *xfer_from_sv(SV *sv);
+
+/* Convert an SV to an XferElement.  The element's reference count is
+ * not incremented -- this is a "borrowed" reference.
+ *
+ * @param sv: the perl value
+ * @returns: pointer to the corresponding transfer element, or NULL.
+ */
+struct XferElement *xfer_element_from_sv(SV *sv);
 
 /*
  * prototypes for source.c

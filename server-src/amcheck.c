@@ -35,14 +35,11 @@
 #include "fsusage.h"
 #include "diskfile.h"
 #include "tapefile.h"
-#include "changer.h"
 #include "packet.h"
 #include "security.h"
 #include "protocol.h"
 #include "clock.h"
-#include "version.h"
 #include "amindex.h"
-#include "taperscan.h"
 #include "server_util.h"
 #include "pipespawn.h"
 #include "amfeatures.h"
@@ -73,7 +70,8 @@ int test_server_pgm(FILE *outf, char *dir, char *pgm, int suid, uid_t dumpuid);
 void
 usage(void)
 {
-    error(_("Usage: amcheck%s [-am] [-w] [-sclt] [-M <address>] <conf> [host [disk]* ]* [-o configoption]*"), versionsuffix());
+    g_printf(_("Usage: amcheck [-am] [-w] [-sclt] [-M <address>] [-o configoption]* <conf> [host [disk]* ]*\n"));
+    exit(1);
     /*NOTREACHED*/
 }
 
@@ -109,7 +107,7 @@ main(
     struct passwd *pw;
     uid_t uid_me;
     char *errstr;
-    config_overwrites_t *cfg_ovr;
+    config_overrides_t *cfg_ovr;
     char *mailer;
 
     /*
@@ -139,12 +137,12 @@ main(
 
     g_snprintf(pid_str, SIZEOF(pid_str), "%ld", (long)getpid());
 
-    erroutput_type = ERR_INTERACTIVE;
+    add_amanda_log_handler(amanda_log_stderr);
 
     our_features = am_init_feature_set();
     our_feature_string = am_feature_to_string(our_features);
 
-    uid_me = getuid();
+    uid_me = geteuid();
 
     alwaysmail = mailout = overwrite = 0;
     do_localchk = do_tapechk = do_clientchk = 0;
@@ -153,7 +151,7 @@ main(
 
     /* process arguments */
 
-    cfg_ovr = new_config_overwrites(argc/2);
+    cfg_ovr = new_config_overrides(argc/2);
     while((opt = getopt(argc, argv, "M:mawsclto:")) != EOF) {
 	switch(opt) {
 	case 'M':	if (mailto) {
@@ -181,7 +179,7 @@ main(
 			break;
 	case 'w':	overwrite = 1;
 			break;
-	case 'o':	add_config_overwrite_opt(cfg_ovr, optarg);
+	case 'o':	add_config_override_opt(cfg_ovr, optarg);
 			break;
 	case 't':	do_tapechk = 1;
 			break;
@@ -202,12 +200,13 @@ main(
     if(overwrite)
 	do_tapechk = 1;
 
+    set_config_overrides(cfg_ovr);
     config_init(CONFIG_INIT_EXPLICIT_NAME, argv[0]);
-    apply_config_overwrites(cfg_ovr);
     dbrename(get_config_name(), DBG_SUBDIR_SERVER);
 
     conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
     read_diskfile(conf_diskfile, &origq);
+    disable_skip_disk(&origq);
     amfree(conf_diskfile);
 
     if (config_errors(NULL) >= CFGERR_WARNINGS) {
@@ -386,7 +385,7 @@ main(
 	aclose(tempfd);
     }
 
-    version_string = vstrallocf(_("\n(brought to you by Amanda %s)\n"), version());
+    version_string = vstrallocf(_("\n(brought to you by Amanda %s)\n"), VERSION);
     if (full_write(mainfd, version_string, strlen(version_string)) < strlen(version_string)) {
 	error(_("write main file: %s"), strerror(errno));
 	/*NOTREACHED*/
@@ -565,7 +564,7 @@ test_server_pgm(
     int pgmbad = 0;
     char *quoted;
 
-    pgm = vstralloc(dir, "/", pgm, versionsuffix(), NULL);
+    pgm = vstralloc(dir, "/", pgm, NULL);
     quoted = quote_string(pgm);
     if(stat(pgm, &statbuf) == -1) {
 	g_fprintf(outf, _("ERROR: program %s: does not exist\n"),
@@ -600,124 +599,50 @@ test_server_pgm(
 /* check that the tape is a valid amanda tape
    Returns TRUE if all tests passed; FALSE otherwise. */
 static gboolean test_tape_status(FILE * outf) {
-    int tape_status;
-    Device * device;
-    GValue property_value;
-    char * label = NULL;
-    char * tapename = NULL;
-    DeviceStatusFlags device_status;
+    int outfd;
+    int nullfd = -1;
+    pid_t devpid;
+    char *amcheck_device = NULL;
+    gchar **args;
+    amwait_t wait_status;
+    gboolean success;
 
-    bzero(&property_value, sizeof(property_value));
-    
-    tapename = getconf_str(CNF_TAPEDEV);
-    g_return_val_if_fail(tapename != NULL, FALSE);
-
-    device_api_init();
-    
-    if (!getconf_seen(CNF_TPCHANGER) && getconf_int(CNF_RUNTAPES) != 1) {
-        g_fprintf(outf,
-                _("WARNING: if a tape changer is not available, runtapes "
-                  "must be set to 1\n"));
-        g_fprintf(outf, _("Change the value of the \"runtapes\" parameter in " 
-                        "amanda.conf or configure a tape changer\n"));
-    }
-    
-    tape_status = taper_scan(NULL, &label, &datestamp, &tapename, NULL,
-                             FILE_taperscan_output_callback, outf,
-                             NULL, NULL);
-    if (tape_status < 0) {
-        tape_t *exptape = lookup_last_reusable_tape(0);
-        g_fprintf(outf, _("       (expecting "));
-        if(exptape != NULL) g_fprintf(outf, _("tape %s or "), exptape->label);
-        g_fprintf(outf, _("a new tape)\n"));
-        amfree(label);
-        return FALSE;
+    if ((nullfd = open("/dev/null", O_RDWR)) == -1) {
+	return FALSE;
     }
 
-    device = device_open(tapename);
-    g_assert(device != NULL);
+    fflush(outf);
+    outfd = fileno(outf);
 
-    if (device->status != DEVICE_STATUS_SUCCESS) {
-        g_fprintf(outf, "ERROR: Could not open tape device: %s.\n",
-		  device_error(device));
-        amfree(label);
-        return FALSE;
+    amcheck_device = vstralloc(amlibexecdir, "/", "amcheck-device", NULL);
+    args = get_config_options(overwrite? 3 : 2);
+    args[0] = amcheck_device; /* steal the reference */
+    args[1] = g_strdup(get_config_name());
+    if (overwrite)
+	args[2] = g_strdup("-w");
+
+    /* run libexecdir/amcheck-device.pl, capturing STDERR and STDOUT to outf */
+    devpid = pipespawnv(amcheck_device, 0, 0,
+	    &nullfd, &outfd, &outfd,
+	    (char **)args);
+
+    /* and immediately wait for it to die */
+    waitpid(devpid, &wait_status, 0);
+
+    if (WIFSIGNALED(wait_status)) {
+	g_fprintf(outf, _("amcheck-device terminated with signal %d"),
+		  WTERMSIG(wait_status));
+	success = FALSE;
+    } else if (WIFEXITED(wait_status)) {
+	success = (WEXITSTATUS(wait_status) == 0);
+    } else {
+	success = FALSE;
     }
 
-    if (!device_configure(device, TRUE)) {
-        g_fprintf(outf, "ERROR: Could not configure device: %s.\n",
-		  device_error_or_status(device));
-        amfree(label);
-        return FALSE;
-    }
+    g_strfreev(args);
+    close(nullfd);
 
-    device_status = device_read_label(device);
-
-    if (tape_status == 3 && 
-        !(device_status & DEVICE_STATUS_VOLUME_UNLABELED)) {
-        if (device_status == DEVICE_STATUS_SUCCESS) {
-            g_fprintf(outf, "WARNING: Volume was unlabeled, but now "
-                    "is labeled \"%s\".\n", device->volume_label);
-        }
-    } else if (device_status != DEVICE_STATUS_SUCCESS && tape_status != 3) {
-        g_fprintf(outf,
-		  _("WARNING: Reading label the second time failed: %s.\n"),
-                  device_error_or_status(device));
-    } else if (tape_status != 3 &&
-               (device->volume_label == NULL || label == NULL ||
-                strcmp(device->volume_label, label) != 0)) {
-        g_fprintf(outf, "WARNING: Label mismatch on re-read: "
-                "Got %s first, then %s.\n", label, device->volume_label);
-    }
-    
-    /* If we can't get this property, it's not an error. Maybe the device
-     * doesn't support this property, or needs an actual volume to know
-     * for sure. */
-    if (device_property_get(device, PROPERTY_MEDIUM_ACCESS_TYPE, &property_value)) {
-        g_assert(G_VALUE_TYPE(&property_value) == MEDIA_ACCESS_MODE_TYPE);
-        if (g_value_get_enum(&property_value) ==
-            MEDIA_ACCESS_MODE_WRITE_ONLY) {
-            g_fprintf(outf, "WARNING: Media access mode is WRITE_ONLY; "
-                    "dumps may not be recoverable.\n");
-        }
-    }
-    
-    if (overwrite) {
-	char *timestamp = get_undef_timestamp();
-        if (!device_start(device, ACCESS_WRITE, label, timestamp)) {
-            if (tape_status == 3) {
-                g_fprintf(outf, "ERROR: Could not label brand new tape");
-            } else {
-                g_fprintf(outf,
-                        "ERROR: tape %s label ok, but is not writable",
-                        label);
-            }
-	    g_fprintf(outf, ": %s.\n", device_error(device));
-	    amfree(timestamp);
-            amfree(label);
-            g_object_unref(device);
-            return FALSE;
-        } else { /* Write succeeded. */
-            if (tape_status != 3) {
-                g_fprintf(outf, "Tape %s is writable; rewrote label.\n", label);
-            } else {
-                g_fprintf(outf, "Wrote label %s to brand new tape.\n", label);
-            }
-        }
-	amfree(timestamp);
-    } else { /* !overwrite */
-        g_fprintf(outf, "NOTE: skipping tape-writable test\n");
-        if (tape_status == 3) {
-            g_fprintf(outf,
-                    "Found a brand new tape, will label it %s.\n", 
-                    label);
-        } else {
-            g_fprintf(outf, "Tape %s label ok\n", label);
-        }                    
-    }
-    g_object_unref(device);
-    amfree(label);
-    return TRUE;
+    return success;
 }
 
 pid_t
@@ -728,7 +653,6 @@ start_server_check(
 {
     struct fs_usage fsusage;
     FILE *outf = NULL;
-    holdingdisk_t *hdp;
     pid_t pid G_GNUC_UNUSED;
     int confbad = 0, tapebad = 0, disklow = 0, logbad = 0;
     int userbad = 0, infobad = 0, indexbad = 0, pgmbad = 0;
@@ -795,8 +719,8 @@ start_server_check(
 			strerror(errno));
 		confbad = 1;
 	    }
-#if !defined(LPRCMD)
-	    g_fprintf(outf, _("ERROR:lbl-templ  set but no LPRCMD defined. You should reconfigure amanda\n       and make sure it finds a lpr or lp command.\n"));
+#if !defined(HAVE_LPR_CMD)
+	    g_fprintf(outf, _("ERROR: lbl-templ set but no LPR command defined. You should reconfigure amanda\n       and make sure it finds a lpr or lp command.\n"));
 	    confbad = 1;
 #endif
 	}
@@ -826,6 +750,14 @@ start_server_check(
 	    g_fprintf(outf, _("ERROR: Cannot resolve `localhost': %s\n"), gai_strerror(res));
 	    confbad = 1;
 	}
+
+	if (!getconf_seen(CNF_TAPETYPE)) {
+	    g_fprintf(outf,
+		      _("ERROR: no tapetype specified; you must give a value for "
+			"the 'tapetype' parameter\n"));
+	    confbad = 1;
+	}
+
     }
 
     /*
@@ -975,7 +907,13 @@ start_server_check(
     /* check available disk space */
 
     if(do_localchk) {
-	for(hdp = getconf_holdingdisks(); hdp != NULL; hdp = holdingdisk_next(hdp)) {
+	identlist_t    il;
+	holdingdisk_t *hdp;
+
+	for (il = getconf_identlist(CNF_HOLDINGDISK);
+		il != NULL;
+		il = il->next) {
+	    hdp = lookup_holdingdisk(il->data);
     	    quoted = quote_string(holdingdisk_get_diskdir(hdp));
 	    if(get_fs_usage(holdingdisk_get_diskdir(hdp), NULL, &fsusage) == -1) {
 		g_fprintf(outf, _("ERROR: holding dir %s (%s), "
@@ -1082,7 +1020,7 @@ start_server_check(
 	}
 	amfree(quoted);
 
-	if(access(logfile, F_OK) == 0) {
+	if(logbad == 0 && access(logfile, F_OK) == 0) {
 	    testtape = 0;
 	    logbad = 2;
 	    if(access(logfile, W_OK) != 0) {
@@ -1094,20 +1032,20 @@ start_server_check(
 
 	olddir = vstralloc(conf_logdir, "/oldlog", NULL);
 	quoted = quote_string(olddir);
-	if (stat(olddir,&stat_old) == 0) { /* oldlog exist */
+	if (logbad == 0 && stat(olddir,&stat_old) == 0) { /* oldlog exist */
 	    if(!(S_ISDIR(stat_old.st_mode))) {
 		g_fprintf(outf, _("ERROR: oldlog directory %s is not a directory\n"),
 			quoted);
 		g_fprintf(outf, _("Remove the entry and create a new directory\n"));
 		logbad = 1;
 	    }
-	    if(access(olddir, W_OK) == -1) {
+	    if(logbad == 0 && access(olddir, W_OK) == -1) {
 		g_fprintf(outf, _("ERROR: oldlog dir %s: not writable\n"), quoted);
 		g_fprintf(outf, _("Check permissions\n"));
 		logbad = 1;
 	    }
 	}
-	else if(lstat(olddir,&stat_old) == 0) {
+	else if(logbad == 0 && lstat(olddir,&stat_old) == 0) {
 	    g_fprintf(outf, _("ERROR: oldlog directory %s is not a directory\n"),
 		    quoted);
 		g_fprintf(outf, _("Remove the entry and create a new directory\n"));
@@ -1115,7 +1053,7 @@ start_server_check(
 	}
 	amfree(quoted);
 
-	if (testtape) {
+	if (logbad == 0 && testtape) {
 	    logfile = newvstralloc(logfile, conf_logdir, "/amdump", NULL);
 	    if (access(logfile, F_OK) == 0) {
 		testtape = 0;
@@ -1134,8 +1072,12 @@ start_server_check(
 	g_fprintf(outf, _("WARNING: skipping tape test because amdump or amflush seem to be running\n"));
 	g_fprintf(outf, _("WARNING: if they are not, you must run amcleanup\n"));
     } else if (logbad == 2) {
-	g_fprintf(outf, _("WARNING: amdump or amflush seem to be running\n"));
-	g_fprintf(outf, _("WARNING: if they are not, you must run amcleanup\n"));
+	g_fprintf(outf, _("NOTE: amdump or amflush seem to be running\n"));
+	g_fprintf(outf, _("NOTE: if they are not, you must run amcleanup\n"));
+
+	/* we skipped the tape checks, but this is just a NOTE and
+	 * should not result in a nonzero exit status, so reset logbad to 0 */
+	logbad = 0;
     } else {
 	g_fprintf(outf, _("NOTE: skipping tape checks\n"));
     }
@@ -1160,6 +1102,19 @@ start_server_check(
 	char *host;
 	char *disk;
 	int conf_tapecycle, conf_runspercycle;
+	identlist_t pp_scriptlist;
+	gboolean printed_small_tape_splitsize_warning = FALSE;
+	char *small_tape_splitsize_warning =
+	    _(" This may create > 1000 parts, severely degrading backup/restore performance.\n"
+	    " To remedy, increase tape_splitsize or disable splitting by setting it to 0\n"
+	    " See http://wiki.zmanda.com/index.php/Splitsize_too_small for more information.\n");
+
+	gboolean printed_small_fallback_splitsize_warning = FALSE;
+	char *small_fallback_splitsize_warning =
+	    _(" This may create > 1000 parts, severely degrading backup/restore performance.\n"
+	    " To remedy, create/set a split_diskbuffer or increase fallback_splitsize\n"
+	    " See http://wiki.zmanda.com/index.php/Splitsize_too_small for more information.\n");
+
 
 	conf_tapecycle = getconf_int(CNF_TAPECYCLE);
 	conf_runspercycle = getconf_int(CNF_RUNSPERCYCLE);
@@ -1425,18 +1380,91 @@ start_server_check(
 			      hostp->hostname, dp->name);
 		    pgmbad = 1;
 		}
-		if (dp->fallback_splitsize * 1024 > physmem_total()) {
+		if (dp->tape_splitsize && dp->fallback_splitsize * 1024 > physmem_total()) {
 		    g_fprintf(outf,
 			      _("ERROR: %s %s: fallback_splitsize > total available memory\n"),
 			      hostp->hostname, dp->name);
 		    pgmbad = 1;
 		}
-		if (dp->fallback_splitsize > tape_size) {
+		if (dp->tape_splitsize && dp->fallback_splitsize > tape_size) {
 		    g_fprintf(outf,
 			      _("ERROR: %s %s: fallback_splitsize > tape size\n"),
 			      hostp->hostname, dp->name);
 		    pgmbad = 1;
 		}
+
+		/* also check for part sizes that are too small */
+		if (dp->tape_splitsize && dp->tape_splitsize * 1000 < tape_size) {
+		    g_fprintf(outf,
+			      _("WARNING: %s %s: tape_splitsize of %ju %sB < 0.1%% of tape length.\n"),
+			      hostp->hostname, dp->name,
+			      (uintmax_t)dp->tape_splitsize/(uintmax_t)unitdivisor,
+			      displayunit);
+		    if (!printed_small_tape_splitsize_warning) {
+			printed_small_tape_splitsize_warning = TRUE;
+			g_fprintf(outf, "%s", small_tape_splitsize_warning);
+		    }
+		}
+
+		/* fallback splitsize will be used if split_diskbuffer is empty or NULL */
+		if (dp->tape_splitsize != 0 && dp->fallback_splitsize != 0 &&
+			(dp->split_diskbuffer == NULL ||
+			 dp->split_diskbuffer[0] == '\0') &&
+			dp->fallback_splitsize * 1000 < tape_size) {
+		    g_fprintf(outf,
+			  _("WARNING: %s %s: fallback_splitsize of %ju %sB < 0.1%% of tape length.\n"),
+			  hostp->hostname, dp->name,
+			  (uintmax_t)dp->fallback_splitsize/(uintmax_t)unitdivisor,
+			  displayunit);
+		    if (!printed_small_fallback_splitsize_warning) {
+			printed_small_fallback_splitsize_warning = TRUE;
+			g_fprintf(outf, "%s", small_fallback_splitsize_warning);
+		    }
+		}
+
+		if (dp->data_path == DATA_PATH_DIRECTTCP) {
+		    if (dp->compress != COMP_NONE) {
+			g_fprintf(outf,
+				  _("ERROR: %s %s: Can't compress directtcp data-path\n"),
+				  hostp->hostname, dp->name);
+			pgmbad = 1;
+		    }
+		    if (dp->encrypt != ENCRYPT_NONE) {
+			g_fprintf(outf,
+				  _("ERROR: %s %s: Can't encrypt directtcp data-path\n"),
+				  hostp->hostname, dp->name);
+			pgmbad = 1;
+		    }
+		    if (dp->to_holdingdisk == HOLD_REQUIRED) {
+			g_fprintf(outf,
+				  _("ERROR: %s %s: Holding disk can't be use for directtcp data-path\n"),
+				  hostp->hostname, dp->name);
+			pgmbad = 1;
+		    } else if (dp->to_holdingdisk == HOLD_AUTO) {
+			g_fprintf(outf,
+				  _("WARNING: %s %s: Holding disk can't be use for directtcp data-path\n"),
+				  hostp->hostname, dp->name);
+			pgmbad = 1;
+		    }
+		}
+
+		for (pp_scriptlist = dp->pp_scriptlist; pp_scriptlist != NULL;
+		     pp_scriptlist = pp_scriptlist->next) {
+		    pp_script_t *pp_script = lookup_pp_script((char *)pp_scriptlist->data);
+		    g_assert(pp_script != NULL);
+		    if (pp_script_get_execute_where(pp_script) == ES_CLIENT &&
+			pp_script_get_execute_on(pp_script) & EXECUTE_ON_PRE_HOST_BACKUP) {
+			g_fprintf(outf,
+				  _("ERROR: %s %s: Can't run pre-host-backup script on client\n"),
+				  hostp->hostname, dp->name);
+		    } else if (pp_script_get_execute_where(pp_script) == ES_CLIENT &&
+			pp_script_get_execute_on(pp_script) & EXECUTE_ON_POST_HOST_BACKUP) {
+			g_fprintf(outf,
+				  _("ERROR: %s %s: Can't run post-host-backup script on client\n"),
+				  hostp->hostname, dp->name);
+		    }
+		}
+
 		amfree(disk);
 		remove_disk(&origq, dp);
 	    }
@@ -1455,6 +1483,14 @@ start_server_check(
     g_fprintf(outf, _("Server check took %s seconds\n"), walltime_str(curclock()));
 
     fflush(outf);
+    g_debug("userbad: %d", userbad);
+    g_debug("confbad: %d", confbad);
+    g_debug("tapebad: %d", tapebad);
+    g_debug("disklow: %d", disklow);
+    g_debug("logbad: %d", logbad);
+    g_debug("infobad: %d", infobad);
+    g_debug("indexbad: %d", indexbad);
+    g_debug("pgmbad: %d", pgmbad);
 
     exit(userbad \
 	 || confbad \
@@ -1494,15 +1530,10 @@ start_host(
     int disk_count;
     const security_driver_t *secdrv;
     char number[NUM_STR_SIZE];
+    estimate_t estimate;
 
     if(hostp->up != HOST_READY) {
 	return;
-    }
-
-    if (strcmp(hostp->hostname,"localhost") == 0) {
-	g_fprintf(outf,
-                    _("WARNING: Usage of fully qualified hostname recommended for Client %s.\n"),
-                    hostp->hostname);
     }
 
     /*
@@ -1587,24 +1618,37 @@ start_host(
 	req_len += 256;                         /* room for non-disk answers */
 	for(dp = hostp->disks; dp != NULL; dp = dp->hostnext) {
 	    char *l;
+	    char *es;
 	    size_t l_len;
-	    char *o;
+	    char *o = NULL;
 	    char *calcsize;
 	    char *qname, *b64disk;
 	    char *qdevice, *b64device = NULL;
+	    GPtrArray *errarray;
+	    guint      i;
 
 	    if(dp->up != DISK_READY || dp->todo != 1) {
 		continue;
 	    }
-	    if (am_has_feature(hostp->features, fe_req_xml))
-		o = xml_optionstr(dp, hostp->features, outf, 0);
-	    else
-		o = optionstr(dp, hostp->features, outf);
-	    if (o == NULL) {
-	        remote_errors++;
-		continue;
-	    }
 	    qname = quote_string(dp->name);
+
+	    errarray = validate_optionstr(dp);
+	    if (errarray->len > 0) {
+		for (i=0; i < errarray->len; i++) {
+		    g_fprintf(outf, _("ERROR: %s:%s %s\n"),
+			      hostp->hostname, qname,
+			      (char *)g_ptr_array_index(errarray, i));
+		}
+		g_ptr_array_free(errarray, TRUE);
+		amfree(qname);
+		remote_errors++;
+		continue;
+	    } else  if (am_has_feature(hostp->features, fe_req_xml)) {
+		o = xml_optionstr(dp, 0);
+	    } else {
+		o = optionstr(dp);
+	    }
+
 	    b64disk = amxml_format_tag("disk", dp->name);
 	    qdevice = quote_string(dp->device); 
 	    if (dp->device)
@@ -1646,6 +1690,18 @@ start_host(
 				    "specify a diskdevice in the disklist"	
 				    " or don't specify a diskdevice in the disklist.\n"));	
 		}
+
+		if (dp->data_path != DATA_PATH_AMANDA &&
+		    !am_has_feature(hostp->features, fe_xml_data_path)) {
+		    g_fprintf(outf,
+			      _("ERROR: Client %s does not support %s data-path\n"),
+			      hostp->hostname,  data_path_to_string(dp->data_path));
+		} else if (dp->data_path == DATA_PATH_DIRECTTCP &&
+		    !am_has_feature(hostp->features, fe_xml_directtcp_list)) {
+		    g_fprintf(outf,
+			      _("ERROR: Client %s does not support directtcp data-path\n"),
+			      hostp->hostname);
+		}
 	    }
 	    if (dp->program &&
 	        (strcmp(dp->program,"DUMP") == 0 || 
@@ -1664,16 +1720,17 @@ start_host(
 		    g_fprintf(outf, _("You must upgrade amanda on the client to use GNUTAR "
 				    "or you can use another program.\n"));	
 		}
-		if(dp->estimate == ES_CALCSIZE &&
+		estimate = (estimate_t)GPOINTER_TO_INT(dp->estimatelist->data);
+		if(estimate == ES_CALCSIZE &&
 		   !am_has_feature(hostp->features, fe_calcsize_estimate)) {
 		    g_fprintf(outf, _("ERROR: %s:%s does not support CALCSIZE for "
 				    "estimate, using CLIENT.\n"),
 			    hostp->hostname, qname);
 		    g_fprintf(outf, _("You must upgrade amanda on the client to use "
 				    "CALCSIZE for estimate or don't use CALCSIZE for estimate.\n"));
-		    dp->estimate = ES_CLIENT;
+		    estimate = ES_CLIENT;
 		}
-		if(dp->estimate == ES_CALCSIZE &&
+		if(estimate == ES_CALCSIZE &&
 		   am_has_feature(hostp->features, fe_selfcheck_calcsize))
 		    calcsize = "CALCSIZE ";
 		else
@@ -1711,8 +1768,9 @@ start_host(
 				  "  <program>",
 				  dp->program,
 				  "</program>\n", NULL);
-                    if (strlen(calcsize) > 0)
-			vstrextend(&l, "  <calcsize>YES</calcsize>\n", NULL);
+		    es = xml_estimate(dp->estimatelist, hostp->features);
+		    vstrextend(&l, es, "\n", NULL);
+		    amfree(es);
 		    vstrextend(&l, "  ", b64disk, "\n", NULL);
 		    if (dp->device)
 			vstrextend(&l, "  ", b64device, "\n", NULL);
@@ -1744,15 +1802,24 @@ start_host(
 			    hostp->hostname, qname);
 		    g_fprintf(outf, _("Dumptype configuration is not GNUTAR or DUMP."
 				    " It is case sensitive\n"));
+		    remote_errors++;
 		    l = stralloc("");
 		} else {
 		    l = vstralloc("<dle>\n"
 				  "  <program>APPLICATION</program>\n", NULL);
 		    if (dp->application) {
-			char *xml_app = xml_application(dp->application,
-							hostp->features);
-			vstrextend(&l, xml_app, NULL);
-			amfree(xml_app);
+			application_t *application;
+			char          *xml_app;
+
+			application = lookup_application(dp->application);
+			if (!application) {
+			    g_fprintf(outf,
+			      _("ERROR: application '%s' not found.\n"), dp->application);
+			} else {
+			    xml_app = xml_application(dp, application, hostp->features);
+			    vstrextend(&l, xml_app, NULL);
+			    amfree(xml_app);
+			}
 		    }
 		    if (dp->pp_scriptlist) {
 			if (!am_has_feature(hostp->features, fe_pp_script)) {
@@ -1761,6 +1828,9 @@ start_host(
 			      hostp->hostname, qname);
 			}
 		    }
+		    es = xml_estimate(dp->estimatelist, hostp->features);
+		    vstrextend(&l, es, "\n", NULL);
+		    amfree(es);
 		    vstrextend(&l, "  ", b64disk, "\n", NULL);
 		    if (dp->device)
 			vstrextend(&l, "  ", b64device, "\n", NULL);
@@ -1799,10 +1869,10 @@ start_host(
 	return;
     }
 
-    secdrv = security_getdriver(hostp->disks->security_driver);
+    secdrv = security_getdriver(hostp->disks->auth);
     if (secdrv == NULL) {
 	fprintf(stderr, _("Could not find security driver \"%s\" for host \"%s\". auth for this dle is invalid\n"),
-	      hostp->disks->security_driver, hostp->hostname);
+	      hostp->disks->auth, hostp->hostname);
     } else {
 	protocol_sendreq(hostp->hostname, secdrv, amhost_get_security_conf, 
 			 req, conf_ctimeout, handle_result, hostp);

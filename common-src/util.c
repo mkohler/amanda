@@ -29,12 +29,17 @@
 
 #include "amanda.h"
 #include "util.h"
+#include "match.h"
 #include <regex.h>
 #include "arglist.h"
 #include "clock.h"
 #include "sockaddr-util.h"
 #include "conffile.h"
 #include "base64.h"
+#include "stream.h"
+#include "pipespawn.h"
+#include <glib.h>
+#include <string.h>
 
 static int make_socket(sa_family_t family);
 static int connect_port(sockaddr_union *addrp, in_port_t port, char *proto,
@@ -89,6 +94,11 @@ make_socket(
 #endif
 
     return s;
+}
+
+GQuark am_util_error_quark(void)
+{
+    return g_quark_from_static_string("am-util-error-quark");
 }
 
 /* addrp is my address */
@@ -283,29 +293,29 @@ bind_portrange(
 	    socklen = SS_LEN(addrp);
 	    if (bind(s, (struct sockaddr *)addrp, socklen) >= 0) {
 		if (servPort == NULL) {
-		    dbprintf(_("bind_portrange2: Try  port %d: Available - Success\n"), port);
+		    g_debug(_("bind_portrange2: Try  port %d: Available - Success"), port);
 		} else {
-		    dbprintf(_("bind_portrange2: Try  port %d: Owned by %s - Success.\n"), port, servPort->s_name);
+		    g_debug(_("bind_portrange2: Try  port %d: Owned by %s - Success."), port, servPort->s_name);
 		}
 		return 0;
 	    }
 	    if (errno != EAGAIN && errno != EBUSY)
 		save_errno = errno;
 	    if (servPort == NULL) {
-		dbprintf(_("bind_portrange2: Try  port %d: Available - %s\n"),
+		g_debug(_("bind_portrange2: Try  port %d: Available - %s"),
 			port, strerror(errno));
 	    } else {
-		dbprintf(_("bind_portrange2: Try  port %d: Owned by %s - %s\n"),
+		g_debug(_("bind_portrange2: Try  port %d: Owned by %s - %s"),
 			port, servPort->s_name, strerror(errno));
 	    }
 	} else {
-	        dbprintf(_("bind_portrange2: Skip port %d: Owned by %s.\n"),
+	        g_debug(_("bind_portrange2: Skip port %d: Owned by %s."),
 		      port, servPort->s_name);
 	}
 	if (++port > last_port)
 	    port = first_port;
     }
-    dbprintf(_("bind_portrange: all ports between %d and %d busy\n"),
+    g_debug(_("bind_portrange: all ports between %d and %d busy"),
 		  first_port,
 		  last_port);
     errno = save_errno;
@@ -363,29 +373,22 @@ full_writev(
 }
 
 
-int
-needs_quotes(
-    const char * str)
-{
-    return (match("[ \t\f\r\n\"]", str) != 0);
-}
-
-
 /*
- * For backward compatibility we are trying for minimal quoting.
- * We only quote a string if it contains whitespace or is misquoted...
+ * For backward compatibility we are trying for minimal quoting.  Unless ALWAYS
+ * is true, we only quote a string if it contains whitespace or is misquoted...
  */
 
 char *
-quote_string(
-    const char *str)
+quote_string_maybe(
+    const char *str,
+    gboolean always)
 {
     char *  s;
     char *  ret;
 
     if ((str == NULL) || (*str == '\0')) {
 	ret = stralloc("\"\"");
-    } else if ((match("[:\'\\\"[:space:][:cntrl:]]", str)) == 0) {
+    } else if (!always && (match("[:\'\\\"[:space:][:cntrl:]]", str)) == 0) {
 	/*
 	 * String does not need to be quoted since it contains
 	 * neither whitespace, control or quote characters.
@@ -499,12 +502,18 @@ gchar **
 split_quoted_strings(
     const gchar *string)
 {
-    char *local = g_strdup(string);
-    char *start = local;
-    char *p = local;
+    char *local;
+    char *start;
+    char *p;
     char **result;
-    GPtrArray *strs = g_ptr_array_new();
+    GPtrArray *strs;
     int iq = 0;
+
+    if (!string)
+	return NULL;
+
+    p = start = local = g_strdup(string);
+    strs = g_ptr_array_new();
 
     while (*p) {
 	if (!iq && *p == ' ') {
@@ -591,6 +600,248 @@ sanitize_string(
 	}
     }
     return (ret);
+}
+
+char *hexencode_string(const char *str)
+{
+    size_t orig_len, new_len, i;
+    GString *s;
+    gchar *ret;
+    if (!str) {
+        s = g_string_sized_new(0);
+        goto cleanup;
+    }
+    new_len = orig_len = strlen(str);
+    for (i = 0; i < orig_len; i++) {
+        if (!g_ascii_isalnum(str[i])) {
+            new_len += 2;
+        }
+    }
+    s = g_string_sized_new(new_len);
+
+    for (i = 0; i < orig_len; i++) {
+        if (g_ascii_isalnum(str[i])) {
+            g_string_append_c(s, str[i]);
+        } else {
+            g_string_append_printf(s, "%%%02hhx", str[i]);
+        }
+    }
+
+cleanup:
+    ret = s->str;
+    g_string_free(s, FALSE);
+    return ret;
+}
+
+char *hexdecode_string(const char *str, GError **err)
+{
+    size_t orig_len, new_len, i;
+    GString *s;
+    gchar *ret;
+    if (!str) {
+        s = g_string_sized_new(0);
+        goto cleanup;
+    }
+    new_len = orig_len = strlen(str);
+    for (i = 0; i < orig_len; i++) {
+        if (str[i] == '%') {
+            new_len -= 2;
+        }
+    }
+    s = g_string_sized_new(new_len);
+
+    for (i = 0; (orig_len > 2) && (i < orig_len-2); i++) {
+        if (str[i] == '%') {
+            gchar tmp = 0;
+            size_t j;
+            for (j = 1; j < 3; j++) {
+                tmp <<= 4;
+                if (str[i+j] >= '0' && str[i+j] <= '9') {
+                    tmp += str[i+j] - '0';
+                } else if (str[i+j] >= 'a' && str[i+j] <= 'f') {
+                    tmp += str[i+j] - 'a' + 10;
+                } else if (str[i+j] >= 'A' && str[i+j] <= 'F') {
+                    tmp += str[i+j] - 'A' + 10;
+                } else {
+                    /* error */
+                    g_set_error(err, am_util_error_quark(), AM_UTIL_ERROR_HEXDECODEINVAL,
+                        "Illegal character (non-hex) 0x%02hhx at offset %zd", str[i+j], i+j);
+                    g_string_truncate(s, 0);
+                    goto cleanup;
+                }
+            }
+            if (!tmp) {
+                g_set_error(err, am_util_error_quark(), AM_UTIL_ERROR_HEXDECODEINVAL,
+                    "Encoded NULL at starting offset %zd", i);
+                g_string_truncate(s, 0);
+                goto cleanup;
+            }
+            g_string_append_c(s, tmp);
+            i += 2;
+        } else {
+            g_string_append_c(s, str[i]);
+        }
+    }
+    for ( /*nothing*/; i < orig_len; i++) {
+        if (str[i] == '%') {
+            g_set_error(err, am_util_error_quark(), AM_UTIL_ERROR_HEXDECODEINVAL,
+                "'%%' found at offset %zd, but fewer than two characters follow it (%zd)", i, orig_len-i-1);
+            g_string_truncate(s, 0);
+            goto cleanup;
+        } else {
+            g_string_append_c(s, str[i]);
+        }
+    }
+
+cleanup:
+    ret = s->str;
+    g_string_free(s, FALSE);
+    return ret;
+}
+
+/* Helper for expand_braced_alternates; returns a list of un-escaped strings
+ * for the first "component" of str, where a component is a plain string or a
+ * brace-enclosed set of alternatives.  str is pointing to the first character
+ * of the next component on return. */
+static GPtrArray *
+parse_braced_component(char **str)
+{
+    GPtrArray *result = g_ptr_array_new();
+
+    if (**str == '{') {
+	char *p = (*str)+1;
+	char *local = g_malloc(strlen(*str)+1);
+	char *current = local;
+	char *c = current;
+
+	while (1) {
+	    if (*p == '\0' || *p == '{') {
+		/* unterminated { .. } or extra '{' */
+		amfree(local);
+		g_ptr_array_free(result, TRUE);
+		return NULL;
+	    }
+
+	    if (*p == '}' || *p == ',') {
+		*c = '\0';
+		g_ptr_array_add(result, g_strdup(current));
+		current = ++c;
+
+		if (*p == '}')
+		    break;
+		else
+		    p++;
+	    }
+
+	    if (*p == '\\') {
+		if (*(p+1) == '{' || *(p+1) == '}' || *(p+1) == '\\' || *(p+1) == ',')
+		    p++;
+	    }
+	    *(c++) = *(p++);
+	}
+
+	amfree(local);
+
+	if (*p)
+	    *str = p+1;
+	else
+	    *str = p;
+    } else {
+	/* no braces -- just un-escape a plain string */
+	char *local = g_malloc(strlen(*str)+1);
+	char *r = local;
+	char *p = *str;
+
+	while (*p && *p != '{') {
+	    if (*p == '\\') {
+		if (*(p+1) == '{' || *(p+1) == '}' || *(p+1) == '\\' || *(p+1) == ',')
+		    p++;
+	    }
+	    *(r++) = *(p++);
+	}
+	*r = '\0';
+	g_ptr_array_add(result, local);
+	*str = p;
+    }
+
+    return result;
+}
+
+GPtrArray *
+expand_braced_alternates(
+    char * source)
+{
+    GPtrArray *rval = g_ptr_array_new();
+
+    g_ptr_array_add(rval, g_strdup(""));
+
+    while (*source) {
+	GPtrArray *new_components;
+	GPtrArray *new_rval;
+	guint i, j;
+
+	new_components = parse_braced_component(&source);
+	if (!new_components) {
+	    /* parse error */
+	    g_ptr_array_free(rval, TRUE);
+	    return NULL;
+	}
+
+	new_rval = g_ptr_array_new();
+
+	/* do a cartesian join of rval and new_components */
+	for (i = 0; i < rval->len; i++) {
+	    for (j = 0; j < new_components->len; j++) {
+		g_ptr_array_add(new_rval, g_strconcat(
+		    g_ptr_array_index(rval, i),
+		    g_ptr_array_index(new_components, j),
+		    NULL));
+	    }
+	}
+
+	g_ptr_array_free(rval, TRUE);
+	g_ptr_array_free(new_components, TRUE);
+	rval = new_rval;
+    }
+
+    return rval;
+}
+
+char *
+collapse_braced_alternates(
+    GPtrArray *source)
+{
+    GString *result = NULL;
+    guint i;
+
+    result = g_string_new("{");
+
+    for (i = 0; i < source->len; i ++) {
+	const char *str = g_ptr_array_index(source, i);
+	char *qstr = NULL;
+
+	if (strchr(str, ',') || strchr(str, '\\') ||
+	    strchr(str, '{') || strchr(str, '}')) {
+	    const char *s;
+	    char *d;
+
+	    s = str;
+	    qstr = d = g_malloc(strlen(str)*2+1);
+	    while (*s) {
+		if (*s == ',' || *s == '\\' || *s == '{' || *s == '}')
+		    *(d++) = '\\';
+		*(d++) = *(s++);
+	    }
+	    *(d++) = '\0';
+	}
+	g_string_append_printf(result, "%s%s", qstr? qstr : str,
+		(i < source->len-1)? "," : "");
+	if (qstr)
+	    g_free(qstr);
+    }
+
+    g_string_append(result, "}");
+    return g_string_free(result, FALSE);
 }
 
 /*
@@ -910,6 +1161,7 @@ check_running_as(running_as_flags who)
 	case RUNNING_AS_ANY:
 	    uid_target = uid_me;
 	    uname_target = uname_me;
+	    amfree(uname_me);
 	    return;
 
 	case RUNNING_AS_ROOT:
@@ -973,12 +1225,39 @@ int
 set_root_privs(int need_root)
 {
 #ifndef SINGLE_USERID
-    if (need_root) {
+    static gboolean first_call = TRUE;
+    static uid_t unpriv = 1;
+
+    if (first_call) {
+	/* save the original real userid (that of our invoker) */
+	unpriv = getuid();
+
+	/* and set all of our userids (including, importantly, the saved
+	 * userid) to 0 */
+	setuid(0);
+
+	/* don't need to do this next time */
+	first_call = FALSE;
+    }
+
+    if (need_root == 1) {
+	if (geteuid() == 0) return 1; /* already done */
+
         if (seteuid(0) == -1) return 0;
         /* (we don't switch the group back) */
+    } else if (need_root == -1) {
+	/* make sure the euid is 0 so that we can set the uid */
+	if (geteuid() != 0) {
+	    if (seteuid(0) == -1) return 0;
+	}
+
+	/* now set the uid to the unprivileged userid */
+	if (setuid(unpriv) == -1) return 0;
     } else {
-	if (geteuid() != 0) return 0;
-        if (seteuid(getuid()) == -1) return 0;
+	if (geteuid() != 0) return 1; /* already done */
+
+	/* set the *effective* userid only */
+        if (seteuid(unpriv) == -1) return 0;
         if (setegid(getgid()) == -1) return 0;
     }
 #else
@@ -991,14 +1270,14 @@ int
 become_root(void)
 {
 #ifndef SINGLE_USERID
-    // if euid !=0, it set only euid
-    if (setuid(0) == -1) return 0;
-    // will set ruid because euid == 0.
+    /* first, set the effective userid to 0 */
+    if (seteuid(0) == -1) return 0;
+
+    /* then, set all of the userids to 0 */
     if (setuid(0) == -1) return 0;
 #endif
     return 1;
 }
-
 
 char *
 base64_decode_alloc_string(
@@ -1042,7 +1321,7 @@ void proplist_add_to_argv(
 {
     char         *property_s = key_p;
     property_t   *value_s = value_p;
-    char       ***argv = user_data_p;
+    GPtrArray    *argv_ptr = user_data_p;
     GSList       *value;
     char         *q, *w, *qprop;
 
@@ -1056,10 +1335,8 @@ void proplist_add_to_argv(
     qprop = stralloc2("--", q);
     amfree(q);
     for(value=value_s->values; value != NULL; value = value->next) {
-	**argv = stralloc(qprop);
-	(*argv)++;
-	**argv = stralloc((char *)value->data);
-	(*argv)++;
+	g_ptr_array_add(argv_ptr, stralloc(qprop));
+	g_ptr_array_add(argv_ptr, stralloc((char *)value->data));
     }
     amfree(qprop);
 }
@@ -1110,3 +1387,33 @@ get_pcontext(void)
 {
     return pcontext;
 }
+
+#ifdef __OpenBSD__
+void
+openbsd_fd_inform(void)
+{
+    int i;
+    for (i = DATA_FD_OFFSET; i < DATA_FD_OFFSET + DATA_FD_COUNT*2; i++) {
+	/* a simple fcntl() will cause the library to "look" at this file
+	 * descriptor, which is good enough */
+	(void)fcntl(i, F_GETFL);
+    }
+}
+#endif
+
+void
+debug_executing(
+    GPtrArray *argv_ptr)
+{
+    guint i;
+    char *cmdline = stralloc((char *)g_ptr_array_index(argv_ptr, 0));
+
+    for (i = 1; i < argv_ptr->len-1; i++) {
+	char *arg = g_shell_quote((char *)g_ptr_array_index(argv_ptr, i));
+	cmdline = vstrextend(&cmdline, " ", arg, NULL);
+	amfree(arg);
+    }
+    g_debug("Executing: %s\n", cmdline);
+    amfree(cmdline);
+}
+

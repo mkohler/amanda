@@ -1,5 +1,5 @@
 # vim:ft=perl
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -14,7 +14,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 package Installcheck::Run;
@@ -53,29 +53,34 @@ a fairly messy project.  This module simplifies that process by
 abstracting away the mess.  It takes care of:
 
 =over
+
 =item Setting up a holding disk;
+
 =item Setting up several vtapes; and
+
 =item Setting up a DLE pointing to a reasonably-sized subdirectory of the build directory.
+
 =back
 
-Most of this magic is in C<setup()>, which returns a configuration
-object from C<Installcheck::Config>, allowing the test to
-modify that configuration before writing it out.  The hostname
-for the DLE is "localhost", and the disk name is available in
-C<Installcheck::Run::diskname>.
+Most of this magic is in C<setup()>, which returns a configuration object from
+C<Installcheck::Config>, allowing the test to modify that configuration before
+writing it out.  The hostname for the DLE is "localhost", and the disk name is
+available in C<$Installcheck::Run::diskname>.  This DLE has a subdirectory
+C<dir> which can be used as a secondary, smaller DLE if needed.
 
-This module also provides a convenient Perlish interface for running
-Amanda commands: C<run($app, $args, ...)>.  This function uses the
-appropriate path to get to $app, and returns true if the application
-exited with a status of zero.  The stdout and stderr of the application
-are left in C<Installcheck::Run::stdout> and C<stderr>, respectively.
+This module also provides a convenient Perlish interface for running Amanda
+commands: C<run($app, $args, ...)>.  This function runs $app (from $sbindir if
+$app is not an absolute path), and returns true if the application exited with
+a status of zero.  The stdout and stderr of the application are left in
+C<$Installcheck::Run::stdout> and C<stderr>, respectively.
 
 To check that a run is successful, and return its stdout (chomped), use
 C<run_get($app, $args, ...)>.  This function returns C<''> if the application
-returns a nonzero exit status.  Similarly, C<run_err> checks that a run returns
-a nonzero exit status, and then returns its stderr, chomped.  If you need a
-different output file, use a bare C<run> followed by C<get_stderr> or
-C<get_stdout> as needed.
+returns a nonzero exit status.  Since many Amanda applications send normal
+output to stderr, use C<run_get_err($app, $args, ...)> to check that a run is
+successful and return its stderr.  Similarly, C<run_err> checks that a run
+returns a nonzero exit status, and then returns its stderr, chomped.  If you
+need both, use a bare C<run> and then check C<$stderr> and C<$stdout> as needed.
 
 C<run> and friends can be used whether or not this module's C<setup>
 was invoked.
@@ -86,20 +91,21 @@ to call this before your test script exits.
 
 =head2 VTAPES
 
-This module sets up a configuration with three 10M vtapes, replete with
+This module sets up a configuration with three 30M vtapes, replete with
 the proper vtape directories.  These are controlled by C<chg-disk>.
-The tapes are not labeled, and C<label_new_tapes> is not set by
+The tapes are not labeled, and C<autolabel> is not set by
 default, although C<labelstr> is set to C<TESTCONF[0-9][0-9]>.
 
-The vtapes are created in a subdirectory of C<AMANDA_TMPDIR> for ease of later
-deletion.  The subdirectory is available from C<vtape_dir($slot)>.
-C<load_vtape($slot)> will "load" the indicated slot just like chg-disk would,
-and return the resulting path.
+The vtapes are created in <$Installcheck::Run::taperoot>, a subdirectory of
+C<$Installcheck::TMP> for ease of later deletion.  The subdirectory for each
+slot is available from C<vtape_dir($slot)>, while the parent directory is
+available from C<vtape_dir()>.  C<load_vtape($slot)> will "load" the indicated
+slot just like chg-disk would, and return the resulting path.
 
 =head2 HOLDING
 
-The holding disk is also stored under C<AMANDA_TMPDIR>.  It is a 15M
-holding disk, with a chunksize of 1M (to help exercise the chunker).
+The holding disk is C<$Installcheck::Run::holdingdir>.  It is a 15M holding disk,
+with a chunksize of 1M (to help exercise the chunker).
 
 =head2 DISKLIST
 
@@ -135,23 +141,28 @@ particular test script.
 
 =cut
 
+use Installcheck;
 use Installcheck::Config;
 use Amanda::Paths;
 use File::Path;
 use IPC::Open3;
 use Cwd qw(abs_path getcwd);
 use Carp;
+use POSIX qw( WIFEXITED );
 use Test::More;
 use Amanda::Config qw( :init );
+use Amanda::Util qw(slurp);
 
 require Exporter;
 
 @ISA = qw(Exporter);
-@EXPORT_OK = qw(setup 
-    run run_get run_err
-    cleanup 
-    $diskname $stdout $stderr
-    amdump_diag);
+@EXPORT_OK = qw(setup
+    run run_get run_get_err run_err
+    cleanup
+    $diskname $taperoot $holdingdir
+    $stdout $stderr $exit_code
+    load_vtape vtape_dir
+    amdump_diag run_expect );
 @EXPORT = qw(exp_continue exp_continue_timeout);
 
 # global variables
@@ -172,24 +183,82 @@ BEGIN {
     }
 };
 
-# diskname is device-src, which, when full of object files, is about 4M in
-# my environment.  Consider creating a directory full of a configurable amount
-# of junk and pointing to that, to eliminate a potential point of variation in
-# tests.
-our $diskname = abs_path(getcwd() . "/../device-src");
-
-# common paths
-my $taperoot = "$AMANDA_TMPDIR/installcheck-vtapes";
-my $holdingdir ="$AMANDA_TMPDIR/installcheck-holding";
+# common paths (note that Installcheck::Dumpcache assumes these do not change)
+our $diskname = "$Installcheck::TMP/backmeup";
+our $taperoot = "$Installcheck::TMP/vtapes";
+our $holdingdir ="$Installcheck::TMP/holding";
 
 sub setup {
     my $testconf = Installcheck::Config->new();
 
+    (-d $diskname) or setup_backmeup();
     setup_vtapes($testconf, 3);
     setup_holding($testconf, 25);
     setup_disklist($testconf);
 
     return $testconf;
+}
+
+# create the 'backmeup' data
+sub setup_backmeup {
+    my $dir_structure = {
+	'1megabyte' => 1024*1024,
+	'1kilobyte' => 1024,
+	'1byte' => 1,
+	'dir' => {
+	    'ff' => 182,
+	    'gg' => 2748,
+	    'subdir' => {
+		'subsubdir' => {
+		    '10k' => 1024*10,
+		},
+	    },
+	},
+    };
+
+    rmtree($diskname);
+    mkpath($diskname) or die("Could not create $name");
+
+    # pick a file for 'random' data -- /dev/urandom or, failing that,
+    # Amanda's ChangeLog.
+    my $randomfile = "/dev/urandom";
+    if (!-r $randomfile) {
+	$randomfile = "../ChangeLog";
+    }
+
+    my $rfd;
+    $create = sub {
+	my ($parent, $contents) = @_;
+	while (my ($name, $val) = each(%$contents)) {
+	    my $name = "$parent/$name";
+	    if (ref($val) eq 'HASH') {
+		mkpath($name) or die("Could not create $name");
+		$create->($name, $val);
+	    } else {
+		my $bytes_needed = $val+0;
+		open(my $wfd, ">", $name) or die("Could not open $name: $!");
+
+		# read bytes from a source file as a source of "random" data..
+		while ($bytes_needed) {
+		    my $buf;
+		    if (!defined($rfd)) {
+			open($rfd, "<", "$randomfile") or die("Could not open $randomfile");
+		    }
+		    my $to_read = $bytes_needed>10240? 10240:$bytes_needed;
+		    my $bytes_read = sysread($rfd, $buf, $to_read);
+		    print $wfd $buf;
+		    if ($bytes_read < $to_read) {
+			close($rfd);
+			$rfd = undef;
+		    }
+
+		    $bytes_needed -= $bytes_read;
+		}
+	    }
+	}
+    };
+
+    $create->($diskname, $dir_structure);
 }
 
 sub setup_vtapes {
@@ -211,10 +280,11 @@ sub setup_vtapes {
     $testconf->add_param("tpchanger", "\"chg-disk\"");
     $testconf->add_param("changerfile", "\"$CONFIG_DIR/TESTCONF/ignored-filename\"");
     $testconf->add_param("labelstr", "\"TESTCONF[0-9][0-9]\"");
+    $testconf->add_param("tapecycle", "$ntapes");
 
     # this overwrites the existing TEST-TAPE tapetype
     $testconf->add_tapetype('TEST-TAPE', [
-	'length' => '20 mbytes',
+	'length' => '30 mbytes',
 	'filemark' => '4 kbytes',
     ]);
 }
@@ -236,7 +306,7 @@ sub setup_holding {
 
 sub setup_disklist {
     my ($testconf) = @_;
-    
+
     $testconf->add_dumptype("installcheck-test", [
 	'auth' => '"local"',
 	'compress' => 'none',
@@ -246,7 +316,11 @@ sub setup_disklist {
 
 sub vtape_dir {
     my ($slot) = @_;
-    my $tapepath = "$taperoot/slot$slot";
+    if (defined($slot)) {
+        return "$taperoot/slot$slot";
+    } else {
+        return "$taperoot";
+    }
 }
 
 sub load_vtape {
@@ -263,16 +337,17 @@ sub load_vtape {
 sub run {
     my $app = shift;
     my @args = @_;
-    my $errtempfile = "$AMANDA_TMPDIR/stderr$$.out";
+    my $errtempfile = "$Installcheck::TMP/stderr$$.out";
 
     # use a temporary file for error output -- this eliminates synchronization
     # problems between reading stderr and stdout
     local (*INFH, *OUTFH, *ERRFH);
     open(ERRFH, ">", $errtempfile);
 
+    $app = "$sbindir/$app" unless ($app =~ qr{/});
     my $pid = IPC::Open3::open3("INFH", "OUTFH", ">&ERRFH",
-	"$sbindir/$app", @args);
-    
+	"$app", @args);
+
     # immediately close the child's stdin
     close(INFH);
 
@@ -286,23 +361,44 @@ sub run {
     close(ERRFH);
 
     # fetch stderr from the temporary file
-    open(ERRFH, "<", "$errtempfile") or croak("Could not open '$errtempfile'");
-    $stderr = do { local $/; <ERRFH> };
-    close(ERRFH);
+    $stderr = slurp($errtempfile);
     unlink($errtempfile);
 
     # and return true if the exit status was zero
-    return ($status >> 8) == 0;
+    $exit_code = $status >> 8;
+    return WIFEXITED($status) && $exit_code == 0;
 }
 
 sub run_get {
     if (!run @_) {
-	Test::More::diag("run unexpectedly failed; no output to compare");
+	my $detail = '';
+	# prefer to put stderr in the output
+	if ($stderr) {
+	    $detail .= "\nstderr is:\n$stderr";
+	} else {
+	    if ($stdout and length($stdout) < 1024) {
+		$detail .= "\nstdout is:\n$stdout";
+	    }
+	}
+	Test::More::diag("run unexpectedly failed; no output to compare$detail");
 	return '';
     }
 
-    chomp $stdout;
-    return $stdout;
+    my $ret = $stdout;
+    chomp($ret);
+    return $ret;
+}
+
+sub run_get_err {
+    if (!run @_) {
+	my $detail = "\nstderr is:\n$stderr";
+	Test::More::diag("run unexpectedly failed; no output to compare$detail");
+	return '';
+    }
+
+    my $ret = $stderr;
+    chomp($ret);
+    return $ret;
 }
 
 sub run_err {
@@ -311,21 +407,14 @@ sub run_err {
 	return '';
     }
 
-    chomp $stderr;
-    return $stderr;
-}
-
-sub get_stdout {
-    chomp $stdout;
-    return $stdout;
-}
-
-sub get_stderr {
-    chomp $stderr;
-    return $stderr;
+    my $ret = $stderr;
+    chomp($ret);
+    return $ret;
 }
 
 sub cleanup {
+    Installcheck::Config::cleanup();
+
     if (-d $taperoot) {
 	rmtree($taperoot);
     }
@@ -340,7 +429,8 @@ sub run_expect {
 
     die "Expect.pm not found" unless $have_expect;
 
-    my $exp = Expect->new("$sbindir/$app", @args);
+    $app = "$sbindir/$app" unless ($app =~ qr{^/});
+    my $exp = Expect->new("$app", @args);
 
     return $exp;
 }

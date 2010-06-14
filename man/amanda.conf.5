@@ -2,12 +2,12 @@
 .\"     Title: amanda.conf
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: File formats and conventions
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMANDA\&.CONF" "5" "11/05/2009" "Amanda 2\&.6\&.1p2" "File formats and conventions"
+.TH "AMANDA\&.CONF" "5" "06/01/2010" "Amanda 3\&.1\&.0" "File formats and conventions"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,21 +19,18 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amanda.conf \- Main configuration file for \fIAmanda\fR, the Advanced Maryland Automatic Network Disk Archiver
+amanda.conf \- Main configuration file for Amanda, the Advanced Maryland Automatic Network Disk Archiver
 .SH "DESCRIPTION"
 .PP
 \fBamanda.conf\fR(5)
-is the main configuration file for
-\fIAmanda\fR\&. This manpage lists the relevant sections and parameters of this file for quick reference\&.
+is the main configuration file for Amanda\&. This manpage lists the relevant sections and parameters of this file for quick reference\&.
 .PP
 The file
 \fB<CONFIG_DIR>/<config>/amanda\&.conf\fR
 is loaded\&.
 .SH "SYNTAX"
 .PP
-There are a number of configuration parameters that control the behavior of the
-\fIAmanda\fR
-programs\&. All have default values, so you need not specify the parameter in
+There are a number of configuration parameters that control the behavior of the Amanda programs\&. All have default values, so you need not specify the parameter in
 \fBamanda\&.conf\fR
 if the default is suitable\&.
 .SS "COMMENTS"
@@ -45,22 +42,13 @@ Keywords are case insensitive, i\&.e\&.
 \fBmailto\fR
 and
 \fBMailTo\fR
-are treated the same\&. Also, the characters
-\fB\'\-\'\fR
-and
-\fB\'_\'\fR
-are interchangeable in all predefined
-\fIAmanda\fR
-keywords:
+are treated the same\&. Also, the characters \'\fB\-\fR\' and \'\fB_\fR\' are interchangeable in all predefined Amanda keywords:
 \fBdevice_property\fR
 and
 \fBdevice\-property\fR
 have the same meaning\&.
 .PP
-Identifiers are names which are defined in the configuration itself, such as dumptypes or interfaces\&. Identifiers are are case\-insensitive, but sensitive to
-\fB\'\-\'\fR
-vs\&.
-\fB\'_\'\fR\&. Identifiers should be quoted in the configuration file, although For historical reasons, the quotes are optional\&.
+Identifiers are names which are defined in the configuration itself, such as dumptypes or interfaces\&. Identifiers are are case\-insensitive, but sensitive to \'\fB\-\fR\' vs\&. \'\fB_\fR\'\&. Identifiers should be quoted in the configuration file, although For historical reasons, the quotes are optional\&.
 .PP
 Strings are always quoted with double quotes ("), and any double quotes or backslashes within the string are escaped with a backslash:
 .sp
@@ -123,6 +111,11 @@ Some number of megabytes per second (bytes*1024*1024)\&.
 Some number of gigabytes (bytes*1024*1024*1024)\&.
 .RE
 .PP
+\fBt tb tbyte tbytes terabyte terabytes\fR
+.RS 4
+Some number of terabytes (bytes*1024*1024*1024*1024)\&.
+.RE
+.PP
 \fBtape tapes\fR
 .RS 4
 Some number of tapes\&.
@@ -153,6 +146,7 @@ The value
 may be used in most places where an integer is expected to mean an infinite amount\&.
 .sp
 Boolean arguments may have any of the values
+\fB1\fR,
 \fBy\fR,
 \fByes\fR,
 \fBt\fR,
@@ -160,6 +154,7 @@ Boolean arguments may have any of the values
 or
 \fBon\fR
 to indicate a true state, or
+\fB0\fR,
 \fBn\fR,
 \fBno\fR,
 \fBf\fR,
@@ -199,28 +194,65 @@ Examples:
 finserver "/data/finance/XYZ Corp\'s \e"real\e" finances" finance\-high eth0 \-1
 property "syspath" "C:\e\eWINDOWS\e\eSYSTEM"
 .fi
+.SS "SUBSECTIONS AND INHERITANCE"
+.PP
+Amanda configuration files may include various
+\fIsubsections\fR, each defining a set of configuration directives\&. Each type of subsection is described below\&. Note that all types of subsections can
+\fIinherit\fR
+from other subsections of the same type by naming the "parent" section in the "child" subsection\&. For example:
+.sp
+.nf
+define dumptype global {
+    record yes
+    index yes
+}
+
+define dumptype nocomp {
+    global      # inherit the parameters in dumptype \'global\'
+    compress none
+}
+.fi
+.PP
+Note that multiple inheritance is also supported by simply naming multiple parent sections in a child\&. Parents are implicitly expanded in place in a child, and the last occurrence of each parameter takes precedence\&. For example,
+.sp
+.nf
+define tapetype par1 {
+    comment "Parent 1"
+    filemark 8k
+    speed 300bps
+    length 200M
+}
+define tapetype par2 {
+    comment "Parent 2"
+    filemark 16k
+    speed 400bps
+}
+define tapetype child {
+    par1
+    par2
+    filemark 32k
+}
+.fi
+In this example, \'child\' will have a filemark of 32k, a speed of 400bps, and a length of 200M\&.
 .SH "GLOBAL PARAMETERS"
 .PP
-\fBorg\fR \fI string\fR
+\fBorg\fR \fIstring\fR
 .RS 4
 Default:
-\fIdaily\fR\&. A descriptive name for the configuration\&. This string appears in the Subject line of mail reports\&. Each
-\fIAmanda\fR
-configuration should have a different string to keep mail reports distinct\&.
+\fI"daily"\fR\&. A descriptive name for the configuration\&. This string appears in the Subject line of mail reports\&. Each Amanda configuration should have a different string to keep mail reports distinct\&.
 .RE
 .PP
-\fBmailer\fR \fI string\fR
+\fBmailer\fR \fIstring\fR
 .RS 4
 Default found by configure\&. A mail program that can send mail with \'\fIMAILER \-s "subject" user < message_file\fR\'\&.
 .RE
 .PP
-\fBmailto\fR \fI string\fR
+\fBmailto\fR \fIstring\fR
 .RS 4
-Default:
-\fIoperators\fR\&. A space separated list of recipients for mail reports\&.
+Default: none\&. A space separated list of recipients for mail reports\&. If not specified, amdump will not send any mail\&.
 .RE
 .PP
-\fBsend\-amreport\-on\fR [all|strange|error|never]
+\fBsend\-amreport\-on\fR [ \fBall\fR | \fBstrange\fR | \fBerror\fR | \fBnever\fR ]
 .RS 4
 Default:
 \fBall\fR\&. Specify which types of messages will trigger an email from amreport\&. amreport is used by amdump and amflush\&.
@@ -232,8 +264,7 @@ Send an email on any message\&.
 .PP
 \fBstrange\fR
 .RS 4
-Send an email on strange or error message\&. A strange message occurs when the dump succeeded, but returned one or more errors unknown to
-\fIAmanda\fR\&.
+Send an email on strange or error message\&. A strange message occurs when the dump succeeded, but returned one or more errors unknown to Amanda\&.
 .RE
 .PP
 \fBerror\fR
@@ -247,7 +278,7 @@ Never send an email\&.
 .RE
 .RE
 .PP
-\fBdumpcycle\fR \fI int\fR
+\fBdumpcycle\fR \fIint\fR
 .RS 4
 Default:
 \fI10 days\fR\&. The number of days in the backup cycle\&. Each disk will get a full backup at least this often\&. Setting this to zero tries to do a full backup each run\&.
@@ -274,7 +305,7 @@ before any
 .RE
 .RE
 .PP
-\fBrunspercycle\fR \fI int\fR
+\fBrunspercycle\fR \fIint\fR
 .RS 4
 Default:
 \fIsame as dumpcycle\fR\&. The number of amdump runs in
@@ -288,24 +319,44 @@ days /
 \fBruntapes\fR\&.
 .RE
 .PP
-\fBtapecycle\fR \fI int\fR
+\fBtapecycle\fR \fIint\fR
 .RS 4
 Default:
-\fI15 tapes\fR\&. Typically tapes are used by
-\fIAmanda\fR
-in an ordered rotation\&. The
+\fI15 tapes\fR\&. Typically tapes are used by Amanda in an ordered rotation\&. The
 \fBtapecycle\fR
-parameter defines the size of that rotation\&. The number of tapes in rotation must be larger than the number of tapes required for a complete dump cycle (see the
-\fBdumpcycle\fR
-parameter)\&.
+parameter defines the size of that rotation\&. This parameter must be be larger than the number of tapes used in a dumpcycle\&.
 .sp
-This is calculated by multiplying the number of
+The number of tapes per dumpcycle is calculated by multiplying the number of
 \fBamdump\fR
-runs per dump cycle (\fBrunspercycle\fR
-parameter) times the number of tapes used per run (\fBruntapes\fR
-parameter)\&. Typically two to four times this calculated number of tapes are in rotation\&. While
-\fIAmanda\fR
-is always willing to use a new tape in its rotation, it refuses to reuse a tape until at least \'\fBtapecycle\fR
+runs per dump cycle
+\fBrunspercycle\fR
+(the number of
+\fBamdump\fR
+runs per dump cycle) and
+\fBruntapes\fR
+(the number of tapes used per run)\&. Typically
+\fBtapecycle\fR
+is set to two or four times the tapes per dumpcycle\&.
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+Amanda is commonly misconfigured with \fBtapecycle\fR
+equal to the number of tapes per \fBdumpcycle\fR\&.  In this
+misconfiguration, amanda may erase a full dump before a new one is completed,
+the recovery is then impossible\&. tapecycle must be at least one tape larger
+than the number of tapes per dumpcycle\&.
+.sp .5v
+.RE
+While Amanda is always willing to use a new tape in its rotation, it refuses to reuse a tape until at least \'\fBtapecycle\fR
 \-1\' number of other tapes have been used\&.
 .sp
 It is considered good administrative practice to set the
@@ -313,41 +364,72 @@ It is considered good administrative practice to set the
 parameter slightly lower than the actual number of tapes in rotation\&. This allows the administrator to more easily cope with damaged or misplaced tapes or schedule adjustments that call for slight adjustments in the rotation order\&.
 .RE
 .PP
-\fBusetimestamps\fR \fI bool\fR
+\fBusetimestamps\fR \fIbool\fR
 .RS 4
 Default:
 \fBYes\fR\&. This option allows Amanda to track multiple runs per calendar day\&. The only reason one might disable it is that Amanda versions before 2\&.5\&.1 can\'t read logfiles written when this option was enabled\&.
 .RE
 .PP
-\fBlabel_new_tapes\fR \fI string\fR
+\fBlabel_new_tapes\fR \fIstring\fR
 .RS 4
-Default: not set\&. When set, this directive will cause
-\fIAmanda\fR
-to automatically write an
-\fIAmanda\fR
-tape label to any blank tape she encounters\&. This option is DANGEROUS because when set,
-\fIAmanda\fR
-will ERASE any non\-\fIAmanda\fR
-tapes you may have, and may also ERASE any near\-failing tapes\&. Use with caution\&.
+Deprecated, use
+\fBautolabel\fR
+option\&.
+.sp
+Default: not set\&. When set, this directive will cause Amanda to automatically write an Amanda tape label to any blank tape she encounters\&. This option is DANGEROUS because when set, Amanda will ERASE any non\-Amanda tapes you may have, and may also ERASE any near\-failing tapes\&. Use with caution\&.
 .sp
 When using this directive, specify the template for new tape labels\&. The template should contain some number of contiguous \'%\' characters, which will be replaced with a generated number\&. Be sure to specify enough \'%\' characters that you do not run out of tape labels\&. Example:
 \fBlabel_new_tapes "DailySet1\-%%%"\fR
 .RE
 .PP
-\fBdumpuser\fR \fI string\fR
+\fBautolabel\fR \fIstring\fR [\fBany\fR] [\fBother_config\fR] [\fBnon_amanda\fR] [\fBvolume_error\fR] [\fBempty\fR]
 .RS 4
-Default:
-\fIamanda\fR\&. The login name
-\fIAmanda\fR
-uses to run the backups\&. The backup client hosts must allow access from the tape server host as this user via
-\fB\&.rhosts\fR
-or
-\fB\&.amandahosts\fR, depending on how the
-\fIAmanda\fR
-software was built\&.
+Default: not set\&. When set, this directive will cause Amanda to automatically write an Amanda tape label to most volume she encounters\&. This option is DANGEROUS because when set, Amanda may erase near\-failing tapes or tapes accidentally loaded in the wrong slot\&.
+.sp
+When using this directive, specify the template for new tape labels\&. The template should contain some number of contiguous \'%\' characters, which will be replaced with a generated number\&. Be sure to specify enough \'%\' characters that you do not run out of tape labels\&. Example:
+\fBautolabel "DailySet1\-%%%" empty\fR
+.PP
+\fBany\fR
+.RS 4
+equivalent to \'\fBother_config non_amanda volume_error empty\fR\'
 .RE
 .PP
-\fBprinter\fR string
+\fBother_config\fR
+.RS 4
+Label volumes with a valid Amanda label that do not match our
+\fBlabelstr\fR\&. Danger: this may erase volumes
+from other Amanda configurations without warning!
+.RE
+.PP
+\fBnon_amanda\fR
+.RS 4
+Label volumes which do not start with data that resembles an
+Amanda header\&. Danger: this may erase volumes from other backup applications
+without warning!
+.RE
+.PP
+\fBvolume_error\fR
+.RS 4
+Label volumes where an error occurs while trying to read the label\&.
+Danger: this may erase arbitrary volumes due to transient errors\&.
+.RE
+.PP
+\fBempty\fR
+.RS 4
+Label volumes where a read returns 0 bytes\&.
+.RE
+.RE
+.PP
+\fBdumpuser\fR \fIstring\fR
+.RS 4
+Default:
+\fI"amanda"\fR\&. The login name Amanda uses to run the backups\&. The backup client hosts must allow access from the tape server host as this user via
+\fB\&.rhosts\fR
+or
+\fB\&.amandahosts\fR, depending on how the Amanda software was built\&.
+.RE
+.PP
+\fBprinter\fR \fIstring\fR
 .RS 4
 Printer to use when doing tape labels\&. See the
 \fBlbl\-templ\fR
@@ -355,10 +437,10 @@ Printer to use when doing tape labels\&. See the
 option\&.
 .RE
 .PP
-\fBtapedev\fR string
+\fBtapedev\fR \fIstring\fR
 .RS 4
 Default:
-null:\&. The device name, referencing the name of a "device" section in the configuration file\&. See
+\fI"null:"\fR\&. The device name, referencing the name of a "device" section in the configuration file\&. See
 \fBamanda-devices\fR(7)
 for more information on device names\&.
 .sp
@@ -377,7 +459,7 @@ option set to
 \fIno\fR\&.
 .RE
 .PP
-\fBdevice_property\fR string string
+\fBdevice_property\fR \fIstring\fR \fIstring\fR
 .RS 4
 These options can set various device properties\&. See
 \fBamanda-devices\fR(7)
@@ -387,70 +469,61 @@ device_property "BLOCK_SIZE" "128k"
 .fi
 .RE
 .PP
-\fBproperty\fR [append] string string+
+\fBproperty\fR [\fBappend\fR] \fIstring\fR \fIstring\fR+
 .RS 4
 These options can set various properties, they can be used by third party software to store information in the configuration file\&. Both strings are quoted; the first string contains the name of the property to set, and the others contains its values\&.
 \fBappend\fR
 keyword append the values to the list of values for that property\&.
 .RE
 .PP
-\fBtpchanger\fR string
+\fBtpchanger\fR \fIstring\fR
 .RS 4
-Default:
-\fInone\fR\&. The name of the tape changer\&. If a tape changer is not configured, this option is not used and should be commented out of the configuration file\&.
+Default: not set\&. The name of the tape changer\&. If a tape changer is not configured, this option is not used and should be commented out of the configuration file\&.
 .sp
 If a tape changer is configured, choose one of the changer scripts (e\&.g\&.
 \fBchg\-scsi\fR) and enter that here\&.
 .RE
 .PP
-\fBchangerdev\fR string
+\fBchangerdev\fR \fIstring\fR
 .RS 4
 Default:
-/dev/null\&. A tape changer configuration parameter\&. Usage depends on the particular changer defined with the
+\fI"dev/null"\fR\&. A tape changer configuration parameter\&. Usage depends on the particular changer defined with the
 \fBtpchanger\fR
 option\&.
 .RE
 .PP
-\fBchangerfile\fR string
+\fBchangerfile\fR \fIstring\fR
 .RS 4
 Default:
-/usr/adm/amanda/log/changer\-status\&. A tape changer configuration parameter\&. Usage depends on the particular changer defined with the
+\fI"usr/adm/amanda/log/changer\-status"\fR\&. A tape changer configuration parameter\&. Usage depends on the particular changer defined with the
 \fBtpchanger\fR
 option\&.
 .RE
 .PP
-\fBruntapes\fR int
+\fBruntapes\fR \fIint\fR
 .RS 4
 Default:
-1\&. The maximum number of tapes used in a single run\&. If a tape changer is not configured, this option is not used and should be commented out of the configuration file\&.
+\fI1\fR\&. The maximum number of tapes used in a single run\&. If a tape changer is not configured, this option is not used and should be commented out of the configuration file\&.
 .sp
-If a tape changer is configured, this may be set larger than one to let
-\fIAmanda\fR
-write to more than one tape\&.
+If a tape changer is configured, this may be set larger than one to let Amanda write to more than one tape\&.
 .sp
-Note that this is an upper bound on the number of tapes, and
-\fIAmanda\fR
-may use less\&.
+Note that this is an upper bound on the number of tapes, and Amanda may use less\&.
 .sp
-Also note that as of this release,
-\fIAmanda\fR
-does not support true tape overflow\&. When it reaches the end of one tape, the backup image
-\fIAmanda\fR
-was processing starts over again on the next tape\&.
+Also note that as of this release, Amanda does not support true tape overflow\&. When it reaches the end of one tape, the backup image Amanda was processing starts over again on the next tape\&.
 .RE
 .PP
-\fBmaxdumpsize\fR int
+\fBmaxdumpsize\fR \fIint\fR
 .RS 4
 Default:
-\fIruntapes\fR*\fItape_length\fR\&. Maximum number of bytes the planner will schedule for a run\&.
+\fI\fBruntapes\fR\fR\fI*\fR\fI\fBtape_length\fR\fR\&. Maximum number of bytes the planner will schedule for a run\&.
 .sp
 The default unit is Kbytes if it is not specified\&.
 .RE
 .PP
-\fBtaperalgo\fR [first|firstfit|largest|largestfit|smallest|last]
+\fBtaperalgo\fR [ \fBfirst\fR | \fBfirstfit\fR | \fBlargest\fR | \fBlargestfit\fR | \fBsmallest\fR | \fBlast\fR ]
 .RS 4
 Default:
-\fIfirst\fR\&. The algorithm used to choose which dump image to send to the taper\&.
+\fBfirst\fR\&. The algorithm used to choose which dump image to send to the taper\&.
 .PP
 \fBfirst\fR
 .RS 4
@@ -483,17 +556,17 @@ Last in, first out\&.
 .RE
 .RE
 .PP
-\fBlabelstr\fR \fI string\fR
+\fBlabelstr\fR \fIstring\fR
 .RS 4
 Default:
-\fI\&.*\fR\&. The tape label constraint regular expression\&. All tape labels generated (see
+\fI"\&.*"\fR\&. The tape label constraint regular expression\&. All tape labels generated (see
 \fBamlabel\fR(8)) and used by this configuration must match the regular expression\&. If multiple configurations are run from the same tape server host, it is helpful to set their labels to different strings (for example, "DAILY[0\-9][0\-9]*" vs\&. "ARCHIVE[0\-9][0\-9]*") to avoid overwriting each other\'s tapes\&.
 .RE
 .PP
-\fBtapetype\fR \fI identifier\fR
+\fBtapetype\fR \fIstring\fR
 .RS 4
 Default:
-\fI"EXABYTE"\fR\&. The type of tape drive associated with
+\fIno default\fR\&. The type of tape drive associated with
 \fBtapedev\fR
 or
 \fBtpchanger\fR\&. This refers to one of the defined
@@ -505,7 +578,7 @@ size, and
 of the tape media and device\&.
 .RE
 .PP
-\fBctimeout\fR int
+\fBctimeout\fR \fIint\fR
 .RS 4
 Default:
 \fI30 seconds\fR\&. Maximum amount of time that
@@ -513,7 +586,7 @@ Default:
 will wait for each client host\&.
 .RE
 .PP
-\fBdtimeout\fR int
+\fBdtimeout\fR \fIint\fR
 .RS 4
 Default:
 \fI1800 seconds\fR\&. Amount of idle time per disk on a given client that a
@@ -523,7 +596,7 @@ running from within
 will wait before it fails with a data timeout error\&.
 .RE
 .PP
-\fBetimeout\fR int
+\fBetimeout\fR \fIint\fR
 .RS 4
 Default:
 \fI300 seconds\fR\&. Amount of time per estimate on a given client that the
@@ -535,47 +608,42 @@ will wait to get the dump size estimates (note: Amanda runs up to 3 estimates fo
 will wait up to 40 minutes for that machine\&. A negative value will be interpreted as a total amount of time to wait per client instead of per disk\&.
 .RE
 .PP
-\fBconnect_tries\fR int
+\fBconnect_tries\fR \fIint\fR
 .RS 4
 Default:
 \fI3\fR\&. How many times the server will try a connection\&.
 .RE
 .PP
-\fBreq_tries\fR int
+\fBreq_tries\fR \fIint\fR
 .RS 4
 Default:
 \fI3\fR\&. How many times the server will resend a REQ packet if it doesn\'t get the ACK packet\&.
 .RE
 .PP
-\fBnetusage\fR int
+\fBnetusage\fR \fIint\fR
 .RS 4
 Default:
-\fI8000 Kbps\fR\&. The maximum network bandwidth allocated to
-\fIAmanda\fR, in Kbytes per second\&. See also the
+\fI8000 Kbps\fR\&. The maximum network bandwidth allocated to Amanda, in Kbytes per second\&. See also the
 \fBinterface\fR
 section\&.
 .RE
 .PP
-\fBinparallel\fR int
+\fBinparallel\fR \fIint\fR
 .RS 4
 Default:
-10\&. The maximum number of backups that
-\fIAmanda\fR
-will attempt to run in parallel\&.
-\fIAmanda\fR
-will stay within the constraints of network bandwidth and holding disk space available, so it doesn\'t hurt to set this number a bit high\&. Some contention can occur with larger numbers of backups, but this effect is relatively small on most systems\&.
+\fI10\fR\&. The maximum number of backups that Amanda will attempt to run in parallel\&. Amanda will stay within the constraints of network bandwidth and holding disk space available, so it doesn\'t hurt to set this number a bit high\&. Some contention can occur with larger numbers of backups, but this effect is relatively small on most systems\&.
 .RE
 .PP
 \fBdisplayunit\fR "k|m|g|t"
 .RS 4
 Default:
-"k"\&. The unit used to print many numbers, k=kilo, m=mega, g=giga, t=tera\&.
+\fI"k"\fR\&. The unit used to print many numbers, k=kilo, m=mega, g=giga, t=tera\&.
 .RE
 .PP
-\fBdumporder\fR string
+\fBdumporder\fR \fIstring\fR
 .RS 4
 Default:
-\fItttTTTTTTT\fR\&. The priority order of each dumper:
+\fI"tttTTTTTTT"\fR\&. The priority order of each dumper:
 .sp
 .nf
 s: smallest size
@@ -587,12 +655,10 @@ B: largest bandwidth
 .fi
 .RE
 .PP
-\fBmaxdumps\fR int
+\fBmaxdumps\fR \fIint\fR
 .RS 4
 Default:
-1\&. The maximum number of backups from a single host that
-\fIAmanda\fR
-will attempt to run in parallel\&. See also the
+\fI1\fR\&. The maximum number of backups from a single host that Amanda will attempt to run in parallel\&. See also the
 \fBinparallel\fR
 option\&.
 .sp
@@ -605,12 +671,10 @@ before any
 \fBdumptype\fRs are defined\&.
 .RE
 .PP
-\fBbumpsize\fR int
+\fBbumpsize\fR \fIint\fR
 .RS 4
 Default:
-\fI10 Mbytes\fR\&. The minimum savings required to trigger an automatic bump from one incremental level to the next, expressed as size\&. If
-\fIAmanda\fR
-determines that the next higher backup level will be this much smaller than the current level, it will do the next level\&. The value of this parameter is used only if the parameter
+\fI10 Mbytes\fR\&. The minimum savings required to trigger an automatic bump from one incremental level to the next, expressed as size\&. If Amanda determines that the next higher backup level will be this much smaller than the current level, it will do the next level\&. The value of this parameter is used only if the parameter
 \fIbumppercent\fR
 is set to 0\&.
 .sp
@@ -625,12 +689,10 @@ and
 \fBbumpdays\fR\&.
 .RE
 .PP
-\fBbumppercent\fR int
+\fBbumppercent\fR \fIint\fR
 .RS 4
 Default:
-\fI0 percent\fR\&. The minimum savings required to trigger an automatic bump from one incremental level to the next, expressed as percentage of the current size of the DLE (size of current level 0)\&. If
-\fIAmanda\fR
-determines that the next higher backup level will be this much smaller than the current level, it will do the next level\&.
+\fI0\fR\&. The minimum savings required to trigger an automatic bump from one incremental level to the next, expressed as percentage of the current size of the DLE (size of current level 0)\&. If Amanda determines that the next higher backup level will be this much smaller than the current level, it will do the next level\&.
 .sp
 If this parameter is set to 0, the value of the parameter
 \fIbumpsize\fR
@@ -645,12 +707,10 @@ and
 \fBbumpdays\fR\&.
 .RE
 .PP
-\fBbumpmult\fR \fI float\fR
+\fBbumpmult\fR \fIfloat\fR
 .RS 4
 Default:
-1\&.5\&. The bump size multiplier\&.
-\fIAmanda\fR
-multiplies
+\fI1\&.5\fR\&. The bump size multiplier\&. Amanda multiplies
 \fBbumpsize\fR
 by this factor for each level\&. This prevents active filesystems from bumping too much by making it harder to bump to the next level\&. For example, with the default
 \fBbumpsize\fR
@@ -661,119 +721,113 @@ set to 2\&.0, the bump threshold will be 10 Mbytes for level one, 20 Mbytes for 
 The global setting of this parameter can be overwritten inside of a dumptype\-definition\&.
 .RE
 .PP
-\fBbumpdays\fR \fI int\fR
+\fBbumpdays\fR \fIint\fR
 .RS 4
 Default:
-\fI2 days\fR\&. To insure redundancy in the dumps,
-\fIAmanda\fR
-keeps filesystems at the same incremental level for at least
+\fI2 days\fR\&. To insure redundancy in the dumps, Amanda keeps filesystems at the same incremental level for at least
 \fBbumpdays\fR
 days, even if the other bump threshold criteria are met\&.
 .sp
 The global setting of this parameter can be overwritten inside of a dumptype\-definition\&.
 .RE
 .PP
-\fBdiskfile\fR \fI string\fR
+\fBdiskfile\fR \fIstring\fR
 .RS 4
 Default:
-\fIdisklist\fR\&. The file name for the
+\fI"disklist"\fR\&. The file name for the
 \fIdisklist\fR
 file holding client hosts, disks and other client dumping information\&.
 .RE
 .PP
-\fBinfofile\fR \fI string\fR
+\fBinfofile\fR \fIstring\fR
 .RS 4
 Default:
-/usr/adm/amanda/curinfo\&. The file or directory name for the historical information database\&. If
-\fIAmanda\fR
-was configured to use DBM databases, this is the base file name for them\&. If it was configured to use text formated databases (the default), this is the base directory and within here will be a directory per client, then a directory per disk, then a text file of data\&.
+\fI"/usr/adm/amanda/curinfo"\fR\&. The file or directory name for the historical information database\&. If Amanda was configured to use DBM databases, this is the base file name for them\&. If it was configured to use text formated databases (the default), this is the base directory and within here will be a directory per client, then a directory per disk, then a text file of data\&.
 .RE
 .PP
-\fBlogdir\fR \fI string\fR
+\fBlogdir\fR \fIstring\fR
 .RS 4
 Default:
-/usr/adm/amanda\&. The directory for the
+\fI"/usr/adm/amanda"\fR\&. The directory for the
 \fBamdump\fR
 and
 \fBlog\fR
 files\&.
 .RE
 .PP
-\fBindexdir\fR \fI string\fR
+\fBindexdir\fR \fIstring\fR
 .RS 4
 Default
-/usr/adm/amanda/index\&. The directory where index files (backup image catalogues) are stored\&. Index files are only generated for filesystems whose
+\fI"/usr/adm/amanda/index"\fR\&. The directory where index files (backup image catalogues) are stored\&. Index files are only generated for filesystems whose
 \fBdumptype\fR
 has the
 \fBindex\fR
 option enabled\&.
 .RE
 .PP
-\fBtapelist\fR \fI string\fR
+\fBtapelist\fR \fIstring\fR
 .RS 4
 Default:
-\fItapelist\fR\&. The file name for the active
-\fBtapelist\fR(5)\&.
-\fIAmanda\fR
-maintains this file with information about the active set of tapes\&.
+\fI"tapelist"\fR\&. The file name for the active
+\fBtapelist\fR(5)\&. Amanda maintains this file with information about the active set of tapes\&.
 .RE
 .PP
-\fBdevice_output_buffer_size\fR \fI int\fR
+\fBdevice_output_buffer_size\fR \fIint\fR
 .RS 4
 Default:
-1280k\&. Controls the amount of memory used by
-\fIAmanda\fR
-to hold data as it is read from the network or disk before it is written to the output device\&. Higher values may be useful on fast tape drives and optical media\&.
+\fI1280k\fR\&. Controls the amount of memory used by Amanda to hold data as it is read from the network or disk before it is written to the output device\&. Higher values may be useful on fast tape drives and optical media\&.
 .sp
 The default unit is bytes if it is not specified\&.
 .RE
 .PP
-\fBtapebufs\fR \fI int\fR
+\fBtapebufs\fR \fIint\fR
 .RS 4
 Default:
-20\&. This option is deprecated; use the
+\fI20\fR\&. This option is deprecated; use the
 \fBdevice_output_buffer_size\fR
 directive instead\&.
 \fBtapebufs\fR
 works the same way, but the number specified is multiplied by the device blocksize prior to use\&.
 .RE
 .PP
-\fBreserve\fR \fI number\fR
+\fBreserve\fR \fIint\fR
 .RS 4
 Default:
-100\&. The part of holding\-disk space that should be reserved for incremental backups if no tape is available, expressed as a percentage of the available holding\-disk space (0\-100)\&. By default, when there is no tape to write to, degraded mode (incremental) backups will be performed to the holding disk\&. If full backups should also be allowed in this case, the amount of holding disk space reserved for incrementals should be lowered\&.
+\fI100\fR\&. The part of holding\-disk space that should be reserved for incremental backups if no tape is available, expressed as a percentage of the available holding\-disk space (0\-100)\&. By default, when there is no tape to write to, degraded mode (incremental) backups will be performed to the holding disk\&. If full backups should also be allowed in this case, the amount of holding disk space reserved for incrementals should be lowered\&.
 .RE
 .PP
-\fBautoflush\fR \fI bool\fR
+\fBautoflush\fR \fIbool\fR
 .RS 4
 Default:
-\fIoff\fR\&. Whether an amdump run will flush the dumps from holding disk to tape\&.
+\fBoff\fR\&. Whether an amdump run will flush the dumps from holding disk to tape\&.
 .RE
 .PP
-\fBamrecover_do_fsf\fR \fI bool\fR
+\fBamrecover_do_fsf\fR \fIbool\fR
 .RS 4
 Default:
-\fIon\fR\&. Amrecover will call amrestore with the \-f flag for faster positioning of the tape\&.
+\fBon\fR\&. Amrecover will call amrestore with the \-f flag for faster positioning of the tape\&.
 .RE
 .PP
-\fBamrecover_check_label\fR \fI bool\fR
+\fBamrecover_check_label\fR \fIbool\fR
 .RS 4
 Default:
-\fIon\fR\&. Amrecover will call amrestore with the \-l flag to check the label\&.
+\fBon\fR\&. Amrecover will call amrestore with the \-l flag to check the label\&.
 .RE
 .PP
-\fBamrecover_changer\fR \fI string\fR
+\fBamrecover_changer\fR \fIstring\fR
 .RS 4
-Default: \'\'\&. Amrecover will use the changer if you use \'settape <string>\' and that string is the same as the amrecover_changer setting\&.
+Default: not set\&. Amrecover will use the changer if you use \'settape <string>\' and that string is the same as the amrecover_changer setting\&.
 .RE
 .PP
-\fBcolumnspec\fR \fI string\fR
+\fBcolumnspec\fR \fIstring\fR
 .RS 4
+default: "HostName=0:12:12,Disk=1:11:11,Level=1:1:1,OrigKB=1:\-7:0,OutKB=1:\-7:0,Compress=1:\-6:1,DumpTime=1:\-7:7,Dumprate=1:\-6:1,TapeTime=1:\-6:6,TapeRate=1:\-6:1"
+.sp
 Defines the width of columns
 \fBamreport\fR
 should use\&.
 \fIString\fR
-is a comma (\',\') separated list of triples\&. Each triple consists of three parts which are separated by a equal sign (\'=\') and a colon (\':\') (see the example)\&. These three parts specify:
+is a comma (\',\') separated list of triples\&. Each triple consists of three parts which are separated by a equal sign (\'=\') and a colon (\':\') (see the example)\&. These four parts specify:
 .sp
 .RS 4
 .ie n \{\
@@ -784,6 +838,7 @@ is a comma (\',\') separated list of triples\&. Each triple consists of three pa
 .IP "  1." 4.2
 .\}
 the name of the column, which may be:
+.sp
 .nf
 	Compress (compression ratio)
 	Disk (client disk name)
@@ -807,7 +862,6 @@ the name of the column, which may be:
 .IP "  2." 4.2
 .\}
 the amount of space to display before the column (used to get whitespace between columns)\&.
-.sp
 .RE
 .sp
 .RS 4
@@ -820,111 +874,109 @@ the amount of space to display before the column (used to get whitespace between
 .\}
 the width of the column itself\&. If set to a negative value, the width will be calculated on demand to fit the largest entry in this column\&.
 .RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04' 4.\h'+01'\c
+.\}
+.el \{\
+.sp -1
+.IP "  4." 4.2
+.\}
+the precision of the column, number of digit after the decimal point for number\&.
+.RE
+.sp
 Here is an example:
 .sp
 .nf
-columnspec "Disk=1:18,HostName=0:10,OutKB=1:7"
+columnspec "Disk=1:18,HostName=0:10,OrigKB=::2,OutKB=1:7"
 .fi
 .sp
-The above will display the disk information in 18 characters and put one space before it\&. The hostname column will be 10 characters wide with no space to the left\&. The output KBytes column is seven characters wide with one space before it\&.
+The above will display the disk information in 18 characters and put one space before it\&. The hostname column will be 10 characters wide with no space to the left\&. The Original KBytes print 2 decimal digit\&. The output KBytes column is seven characters wide with one space before it\&.
 .RE
 .PP
-\fBincludefile\fR \fI string\fR
+\fBincludefile\fR \fIstring\fR
 .RS 4
 Default:
-\fInone\fR\&. The name of an
-\fIAmanda\fR
-configuration file to include within the current file\&. Useful for sharing dumptypes, tapetypes and interface definitions among several configurations\&. Relative pathnames are relative to the configuration directory\&.
+\fIno default\fR\&. The name of an Amanda configuration file to include within the current file\&. Useful for sharing dumptypes, tapetypes and interface definitions among several configurations\&. Relative pathnames are relative to the configuration directory\&.
 .RE
 .PP
-\fBdebug_auth\fR int
+\fBdebug_days\fR \fIint\fR
+.RS 4
+Default:
+\fI3\fR\&. The number of days the debug files are kept\&.
+.RE
+.PP
+\fBdebug_auth\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the auth module
 .RE
 .PP
-\fBdebug_event\fR int
+\fBdebug_event\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the event module
 .RE
 .PP
-\fBdebug_holding\fR int
+\fBdebug_holding\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the holdingdisk module
 .RE
 .PP
-\fBdebug_protocol\fR int
+\fBdebug_protocol\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the protocol module
 .RE
 .PP
-\fBdebug_planner\fR int
+\fBdebug_planner\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the planner process
 .RE
 .PP
-\fBdebug_driver\fR int
+\fBdebug_driver\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the driver process
 .RE
 .PP
-\fBdebug_dumper\fR int
+\fBdebug_dumper\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the dumper process
 .RE
 .PP
-\fBdebug_chunker\fR int
+\fBdebug_chunker\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the chunker process
 .RE
 .PP
-\fBdebug_taper\fR int
+\fBdebug_taper\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the taper process
 .RE
 .PP
-\fBflush\-threshold\-dumped\fR int
+\fBflush\-threshold\-dumped\fR \fIint\fR
 .RS 4
 Default:
-\fI0\fR\&.
-\fIAmanda\fR
-will not begin writing data to a new volume until the amount of data on the holding disk is at least this percentage of the volume size\&. In other words,
-\fIAmanda\fR
-will not begin until the inequality
-h > t \(mu d
-is satisfied, where
-h
-is the amount of data on the holding disk,
-t
-is the capacity of a volume, and
-d
-is this parameter, expressed as a percentage\&. This parameter may be larger than 100%, for example to keep more recent dumps on the holding disk for faster recovery\&.
+\fI0\fR\&. Amanda will not begin writing data to a new volume until the amount of data on the holding disk is at least this percentage of the volume size\&. In other words, Amanda will not begin until the amount of data on the holding disk is greater than the tape length times this parameter\&. This parameter may be larger than 100%, for example to keep more recent dumps on the holding disk for faster recovery\&.
 .sp
-Needless to say, your holding disk must be big enough that this criterion could be satisfied\&. If the holding disk cannot be used for a particular dump (because, for example, there is no remaining holding space) then
-\fIAmanda\fR
-will disregard the constraint specified by this setting and start a new volume anyway\&. Once writing to a volume has begun, this constraint is not applied unless and until a new volume is needed\&.
+Needless to say, your holding disk must be big enough that this criterion could be satisfied\&. If the holding disk cannot be used for a particular dump (because, for example, there is no remaining holding space) then Amanda will disregard the constraint specified by this setting and start a new volume anyway\&. Once writing to a volume has begun, this constraint is not applied unless and until a new volume is needed\&.
 .sp
 The value of this parameter may not exceed than that of the
 \fBflush\-threshold\-scheduled\fR
 parameter\&.
 .RE
 .PP
-\fBflush\-threshold\-scheduled\fR int
+\fBflush\-threshold\-scheduled\fR \fIint\fR
 .RS 4
 Default:
-\fI0\fR\&.
-\fIAmanda\fR
-will not begin writing data to a new volume until the sum of the amount of data on the holding disk and the estimated amount of data remaining to be dumped during this run is at least this percentage of the volume size\&. In other words,
-\fIAmanda\fR
-will not begin until the inequality
+\fI0\fR\&. Amanda will not begin writing data to a new volume until the sum of the amount of data on the holding disk and the estimated amount of data remaining to be dumped during this run is at least this percentage of the volume size\&. In other words, Amanda will not begin until the inequality
 h + s > t \(mu d
 is satisfied, where
 h
@@ -936,9 +988,7 @@ is the capacity of a volume, and
 d
 is this parameter, expressed as a percentage\&. This parameter may be larger than 100%\&.
 .sp
-Needless to say, your holding disk must be big enough that this criterion could be satisfied\&. If the holding disk cannot be used for a particular dump (because, for example, there is no remaining holding space) then
-\fIAmanda\fR
-will disregard the constraint specified by this setting and start a new volume anyway\&. Once writing to a volume has begun, this constraint is not applied unless and until a new volume is needed\&.
+Needless to say, your holding disk must be big enough that this criterion could be satisfied\&. If the holding disk cannot be used for a particular dump (because, for example, there is no remaining holding space) then Amanda will disregard the constraint specified by this setting and start a new volume anyway\&. Once writing to a volume has begun, this constraint is not applied unless and until a new volume is needed\&.
 .sp
 The value of this parameter may not be less than that of the
 \fBflush\-threshold\-dumped\fR
@@ -947,14 +997,10 @@ or
 parameters\&.
 .RE
 .PP
-\fBtaperflush\fR int
+\fBtaperflush\fR \fIint\fR
 .RS 4
 Default:
-\fI0\fR\&. At the end of a run,
-\fIAmanda\fR
-will start a new tape to flush remaining data if there is more data on the holding disk at the end of a run than this setting allows; the amount is specified as a percentage of the capacity of a single volume\&. In other words, at the end of a run,
-\fIAmanda\fR
-will begin a new tape if the inequality
+\fI0\fR\&. At the end of a run, Amanda will start a new tape to flush remaining data if there is more data on the holding disk at the end of a run than this setting allows; the amount is specified as a percentage of the capacity of a single volume\&. In other words, at the end of a run, Amanda will begin a new tape if the inequality
 h > t \(mu f
 is satisfied, where
 h
@@ -973,19 +1019,19 @@ must be set to \'yes\' if
 is greater than 0\&.
 .RE
 .PP
-\fBreserved\-udp\-port\fR int,int
+\fBreserved\-udp\-port\fR \fIint\fR,\fIint\fR
 .RS 4
 Default: \-\-with\-udpportrange or
 \fI512,1023\fR\&. Reserved udp port that will be used (bsd, bsdudp)\&. Range is inclusive\&.
 .RE
 .PP
-\fBreserved\-tcp\-port\fR int,int
+\fBreserved\-tcp\-port\fR \fIint\fR,\fIint\fR
 .RS 4
 Default: \-\-with\-low\-tcpportrange or
 \fI512,1023\fR\&. Reserved tcp port that will be used (bsdtcp)\&. Range is inclusive\&.
 .RE
 .PP
-\fBunreserved\-tcp\-port\fR int,int
+\fBunreserved\-tcp\-port\fR \fIint\fR,\fIint\fR
 .RS 4
 Default: \-\-with\-tcpportrange or
 \fI1024,65535\fR\&. Unreserved tcp port that will be used (bsd, bsdudp)\&. Range is inclusive\&.
@@ -996,53 +1042,48 @@ The
 \fBamanda\&.conf\fR
 file may define one or more holding disks used as buffers to hold backup images before they are written to tape\&. The syntax is:
 .nf
-holdingdisk \fIname\fR {
+define holdingdisk \fIname\fR {
     \fIholdingdisk\-option\fR \fIholdingdisk\-value\fR
     \&.\&.\&.
 }
 .fi
+.PP
+The { must appear at the end of a line, and the } on its own line\&.
 .PP
 \fIName\fR
 is a logical name for this holding disk\&.
 .PP
 The options and values are:
 .PP
-\fBcomment\fR \fI string\fR
+\fBcomment\fR \fIstring\fR
 .RS 4
-Default:
-\fInone\fR\&. A comment string describing this holding disk\&.
+Default: not set\&. A comment string describing this holding disk\&.
 .RE
 .PP
-\fBdirectory\fR \fI disk\fR
+\fBdirectory\fR \fIstring\fR
 .RS 4
 Default:
-/dumps/amanda\&. The path to this holding area\&.
+\fI"/dumps/amanda"\fR\&. The path to this holding area\&.
 .RE
 .PP
-\fBuse\fR \fI int\fR
+\fBuse\fR \fIint\fR
 .RS 4
 Default:
-\fI0 Gb\fR\&. Amount of space that can be used in this holding disk area\&. If the value is zero, all available space on the file system is used\&. If the value is negative,
-\fIAmanda\fR
-will use all available space minus that value\&.
+\fI0 Gb\fR\&. Amount of space that can be used in this holding disk area\&. If the value is zero, all available space on the file system is used\&. If the value is negative, Amanda will use all available space minus that value\&.
 .RE
 .PP
-\fBchunksize\fR \fI int\fR
+\fBchunksize\fR \fIint\fR
 .RS 4
 Default:
 \fI1 Gb\fR\&. Holding disk chunk size\&. Dumps larger than the specified size will be stored in multiple holding disk files\&. The size of each chunk will not exceed the specified value\&. However, even though dump images are split in the holding disk, they are concatenated as they are written to tape, so each dump image still corresponds to a single continuous tape section\&.
 .sp
 The default unit is Kbytes if it is not specified\&.
 .sp
-If 0 is specified,
-\fIAmanda\fR
-will create holding disk chunks as large as ((INT_MAX/1024)\-64) Kbytes\&.
+If 0 is specified, Amanda will create holding disk chunks as large as ((INT_MAX/1024)\-64) Kbytes\&.
 .sp
 Each holding disk chunk includes a 32 Kbyte header, so the minimum chunk size is 64 Kbytes (but that would be really silly)\&.
 .sp
-Operating systems that are limited to a maximum file size of 2 Gbytes actually cannot handle files that large\&. They must be at least one byte less than 2 Gbytes\&. Since
-\fIAmanda\fR
-works with 32 Kbyte blocks, and to handle the final read at the end of the chunk, the chunk size should be at least 64 Kbytes (2 * 32 Kbytes) smaller than the maximum file size, e\&.g\&. 2047 Mbytes\&.
+Operating systems that are limited to a maximum file size of 2 Gbytes actually cannot handle files that large\&. They must be at least one byte less than 2 Gbytes\&. Since Amanda works with 32 Kbyte blocks, and to handle the final read at the end of the chunk, the chunk size should be at least 64 Kbytes (2 * 32 Kbytes) smaller than the maximum file size, e\&.g\&. 2047 Mbytes\&.
 .RE
 .SH "DUMPTYPE SECTION"
 .PP
@@ -1061,6 +1102,8 @@ define dumptype "\fIname\fR" {
     \&.\&.\&.
 }
 .fi
+.PP
+The { must appear at the end of a line, and the } on its own line\&.
 .PP
 \fIName\fR
 is the name of this set of backup options\&. It is referenced from the
@@ -1081,32 +1124,36 @@ sections to start with that value, but the value may be changed on a section by 
 .PP
 The dumptype options and values are:
 .PP
-\fBauth\fR \fI string\fR
+\fBauth\fR \fIstring\fR
 .RS 4
 Default:
-\fIbsd\fR\&. Type of authorization to perform between tape server and backup client hosts\&. See
+\fI"bsd"\fR\&. Type of authorization to perform between tape server and backup client hosts\&. See
 \fBamanda-auth\fR(7)
 for more detail\&.
 .RE
 .PP
-\fBamandad_path\fR \fI string\fR
+\fBamandad_path\fR \fIstring\fR
 .RS 4
 Default:
-\fI$libexec/amandad\fR\&. Specify the amandad path of the client, only use with rsh/ssh authentification\&.
+\fI"$libexec/amandad"\fR\&. Specify the amandad path of the client, only use with rsh/ssh authentification\&.
 .RE
 .PP
-\fBclient_username\fR \fI string\fR
+\fBclient_username\fR \fIstring\fR
 .RS 4
 Default:
 \fICLIENT_LOGIN\fR\&. Specify the username to connect on the client, only use with rsh/ssh authentification\&.
 .RE
 .PP
-\fBbumpsize\fR int
+\fBclient_port\fR [ \fIint\fR | \fIstring\fR ]
 .RS 4
 Default:
-\fI10 Mbytes\fR\&. The minimum savings required to trigger an automatic bump from one incremental level to the next, expressed as size\&. If
-\fIAmanda\fR
-determines that the next higher backup level will be this much smaller than the current level, it will do the next level\&. The value of this parameter is used only if the parameter
+\fI"amanda"\fR\&. Specifies the port to connect to on the client\&. It can be a service name or a numeric port number\&.
+.RE
+.PP
+\fBbumpsize\fR \fIint\fR
+.RS 4
+Default:
+\fI10 Mbytes\fR\&. The minimum savings required to trigger an automatic bump from one incremental level to the next, expressed as size\&. If Amanda determines that the next higher backup level will be this much smaller than the current level, it will do the next level\&. The value of this parameter is used only if the parameter
 \fIbumppercent\fR
 is set to 0\&.
 .sp
@@ -1119,12 +1166,10 @@ and
 \fBbumpdays\fR\&.
 .RE
 .PP
-\fBbumppercent\fR int
+\fBbumppercent\fR \fIint\fR
 .RS 4
 Default:
-\fI0 percent\fR\&. The minimum savings required to trigger an automatic bump from one incremental level to the next, expressed as percentage of the current size of the DLE (size of current level 0)\&. If
-\fIAmanda\fR
-determines that the next higher backup level will be this much smaller than the current level, it will do the next level\&.
+\fI0\fR\&. The minimum savings required to trigger an automatic bump from one incremental level to the next, expressed as percentage of the current size of the DLE (size of current level 0)\&. If Amanda determines that the next higher backup level will be this much smaller than the current level, it will do the next level\&.
 .sp
 If this parameter is set to 0, the value of the parameter
 \fIbumpsize\fR
@@ -1137,12 +1182,10 @@ and
 \fBbumpdays\fR\&.
 .RE
 .PP
-\fBbumpmult\fR \fI float\fR
+\fBbumpmult\fR \fIfloat\fR
 .RS 4
 Default:
-1\&.5\&. The bump size multiplier\&.
-\fIAmanda\fR
-multiplies
+\fI1\&.5\fR\&. The bump size multiplier\&. Amanda multiplies
 \fBbumpsize\fR
 by this factor for each level\&. This prevents active filesystems from bumping too much by making it harder to bump to the next level\&. For example, with the default
 \fBbumpsize\fR
@@ -1151,47 +1194,37 @@ and
 set to 2\&.0, the bump threshold will be 10 Mbytes for level one, 20 Mbytes for level two, 40 Mbytes for level three, and so on\&.
 .RE
 .PP
-\fBbumpdays\fR \fI int\fR
+\fBbumpdays\fR \fIint\fR
 .RS 4
 Default:
-\fI2 days\fR\&. To insure redundancy in the dumps,
-\fIAmanda\fR
-keeps filesystems at the same incremental level for at least
+\fI2 days\fR\&. To insure redundancy in the dumps, Amanda keeps filesystems at the same incremental level for at least
 \fBbumpdays\fR
 days, even if the other bump threshold criteria are met\&.
 .RE
 .PP
-\fBcomment\fR \fI string\fR
+\fBcomment\fR \fIstring\fR
 .RS 4
-Default:
-\fInone\fR\&. A comment string describing this set of backup options\&.
+Default: not set\&. A comment string describing this set of backup options\&.
 .RE
 .PP
 \fBcomprate\fR \fIfloat\fR [, \fIfloat\fR ]
 .RS 4
 Default:
-0\&.50,
-0\&.50\&. The expected full and incremental compression factor for dumps\&. It is only used if
-\fIAmanda\fR
-does not have any history information on compression rates for a filesystem, so should not usually need to be set\&. However, it may be useful for the first time a very large filesystem that compresses very little is backed up\&.
+\fI0\&.50, 0\&.50\fR\&. The expected full and incremental compression factor for dumps\&. It is only used if Amanda does not have any history information on compression rates for a filesystem, so should not usually need to be set\&. However, it may be useful for the first time a very large filesystem that compresses very little is backed up\&.
 .RE
 .PP
-\fBcompress [client|server]\fR \fI string\fR
+\fBcompress\fR [ \fBnone\fR | \fBclient\fR | \fBserver\fR ] [ \fBbest\fR | \fBfast\fR | \fBcustom\fR ]
 .RS 4
 Default:
-\fIclient fast\fR\&. If
-\fIAmanda\fR
-does compression of the backup images, it can do so either on the backup client host before it crosses the network or on the tape server host as it goes from the network into the holding disk or to tape\&. Which place to do compression (if at all) depends on how well the dump image usually compresses, the speed and load on the client or server, network capacity, holding disk capacity, availability of tape hardware compression, etc\&.
+\fBclient fast\fR\&. If Amanda does compression of the backup images, it can do so either on the backup client host before it crosses the network or on the tape server host as it goes from the network into the holding disk or to tape\&. Which place to do compression (if at all) depends on how well the dump image usually compresses, the speed and load on the client or server, network capacity, holding disk capacity, availability of tape hardware compression, etc\&.
 .sp
-For either type of compression,
-\fIAmanda\fR
-also allows the selection of three styles of compression\&.
-\fBBest\fR
+For either type of compression, Amanda also allows the selection of three styles of compression\&.
+\fBbest\fR
 is the best compression available, often at the expense of CPU overhead\&.
-\fBFast\fR
+\fBfast\fR
 is often not as good a compression as
 \fBbest\fR, but usually less CPU overhead\&. Or to specify
-\fBCustom\fR
+\fBcustom\fR
 to use your own compression method\&. (See dumptype custom\-compress in example/amanda\&.conf for reference)
 .sp
 So the
@@ -1230,7 +1263,7 @@ compress server best
 compress server custom
 .RS 4
 Specify
-\fIserver_custom_compress\fR
+\fBserver_custom_compress\fR
 "PROG"
 .sp
 PROG must not contain white space and it must accept \-d for uncompress\&.
@@ -1238,21 +1271,28 @@ PROG must not contain white space and it must accept \-d for uncompress\&.
 .sp
 Note that some tape devices do compression and this option has nothing to do with whether that is used\&. If hardware compression is used (usually via a particular tape device name or
 \fBmt\fR
-option),
-\fIAmanda\fR
-(software) compression should be disabled\&.
+option), Amanda (software) compression should be disabled\&.
 .RE
 .PP
-\fBdumpcycle\fR \fI int\fR
+\fBclient_custom_compress\fR \fIstring\fR
+.RS 4
+Default: none\&. The program to use to perform compression/decompression on the client; used with "compress client custom"\&. Must not contain whitespace\&. Must accept \-d to uncompress\&.
+.RE
+.PP
+\fBserver_custom_compress\fR \fIstring\fR
+.RS 4
+Default: none\&. The program to use to perform compression/decompression on the server; used with "compress server custom"\&. Must not contain whitespace\&. Must accept \-d to uncompress\&.
+.RE
+.PP
+\fBdumpcycle\fR \fIint\fR
 .RS 4
 Default:
 \fI10 days\fR\&. The number of days in the backup cycle\&. Each disk using this set of options will get a full backup at least this of ten\&. Setting this to zero tries to do a full backup each run\&.
 .RE
 .PP
-\fBencrypt [none|client|server]\fR
+\fBencrypt\fR [ \fBnone\fR | \fBclient\fR | \fBserver\fR ]
 .RS 4
-Default:
-\fInone\fR\&. To encrypt backup images, it can do so either on the backup client host before it crosses the network or on the tape server host as it goes from the network into the holding disk or to tape\&.
+Default: not set\&. To encrypt backup images, it can do so either on the backup client host before it crosses the network or on the tape server host as it goes from the network into the holding disk or to tape\&.
 .sp
 So the
 \fBencrypt\fR
@@ -1295,16 +1335,34 @@ which is a wrapper of
 is provided as a reference symmetric encryption program\&.
 .RE
 .PP
-\fBestimate\fR \fIclient|calcsize|server\fR
+\fBclient_encrypt\fR \fIstring\fR
+.RS 4
+Default: none\&. The program to use to perform encryption/decryption on the client; used with "encrypt client"\&. Must not contain whitespace\&.
+.RE
+.PP
+\fBclient_decrypt_option\fR \fIstring\fR
+.RS 4
+Default: \-d\&. The option that can be passed to client_encrypt to make it decrypt instead\&. Must not contain whitespace\&.
+.RE
+.PP
+\fBserver_encrypt\fR \fIstring\fR
+.RS 4
+Default: none\&. The program to use to perform encryption/decryption on the server; used with "encrypt server"\&. Must not contain whitespace\&.
+.RE
+.PP
+\fBserver_decrypt_option\fR \fIstring\fR
+.RS 4
+Default: \-d\&. The option that can be passed to server_encrypt to make it decrypt instead\&. Must not contain whitespace\&.
+.RE
+.PP
+\fBestimate\fR [ \fBclient\fR | \fBcalcsize\fR | \fBserver\fR ]+
 .RS 4
 Default:
-\fIclient\fR\&. Determine the way
-\fIAmanda\fR
-does it\'s estimate\&.
+\fBclient\fR\&. Determine the way Amanda estimates the size of each DLE before beginning a backup\&. This is a list of acceptable estimate methods, and Amanda applies the first method supported by the application\&. The methods are:
 .PP
 client
 .RS 4
-Use the same program as the dumping program, this is the most accurate way to do estimates, but it can take a long time\&.
+Use the same program as the dumping program\&. This is the most accurate method to do estimates, but it can take a long time\&.
 .RE
 .PP
 calcsize
@@ -1314,40 +1372,42 @@ Use a faster program to do estimates, but the result is less accurate\&.
 .PP
 server
 .RS 4
-Use only statistics from the previous run to give an estimate, it takes only a few seconds but the result is not accurate if your disk usage changes from day to day\&.
+Use only statistics from the previous few runs to give an estimate\&. This very quick, but the result is not accurate if your disk usage changes from day to day\&. If this method is specified, but the server does not have enough data to make an estimate, then the option is internally moved to the end of the list, thereby preferring \'client\' or \'calcsize\' in this case\&.
 .RE
 .RE
 .PP
-\fBexclude\fR [ list|file ][[optional][ append ][ \fIstring\fR ]+]
+\fBexclude\fR [ \fBlist\fR | \fBfile\fR ][[\fBoptional\fR][\fBappend\fR][ \fIstring\fR ]+]
 .RS 4
 Default:
-\fIfile\fR\&. There are two exclude lists,
-\fBexclude file\fR
+\fBfile\fR\&. Exclude is the opposite of
+\fBinclude\fR
+and specifies files that will be excluded from the backup\&. The format of the exclude expressions depends on the application, and some applications do not support excluding files at all\&.
+.sp
+There are two exclude parameters,
+\fBexclude\fR
+\fBfile\fR
 and
-\fBexclude list\&.\fR
+\fBexclude\fR
+\fBlist\&.\fR
 With
-\fBexclude file\fR
-, the
+\fBexclude\fR
+\fBfile\fR, the
 \fIstring\fR
-is a
-\fBGNU\-tar\fR
-exclude expression\&. With
-\fBexclude list\fR
+is an exclude expression\&. With
+\fBexclude\fR
+\fBlist\fR
 , the
 \fIstring\fR
 is a file name on the client containing
 \fBGNU\-tar\fR
-exclude expressions\&. The path to the specified exclude list file, if present (see description of \'optional\' below), must be readable by the
-\fIAmanda\fR
-user\&.
+exclude expressions\&. The path to the specified exclude list file, if present (see description of \'optional\' below), must be readable by the Amanda user\&.
 .sp
-All exclude expressions are concatenated in one file and passed to
-\fBGNU\-tar\fR
-as an
+All exclude expressions are concatenated in one file and passed to the application as an
 \fB\-\-exclude\-from\fR
 argument\&.
 .sp
-Exclude expressions must always be specified as relative to the head directory of the DLE\&.
+For
+\fBGNU\-tar\fR, exclude expressions must always be specified as relative to the top\-level directory of the DLE, and must start with "\&./"\&. See the manpages for individual applications for more information on supported exclude expressions\&.
 .sp
 With the
 \fBappend\fR
@@ -1360,10 +1420,12 @@ overwrites the list\&.
 If
 \fBoptional\fR
 is specified for
-\fBexclude list\fR, then amcheck will not complain if the file doesn\'t exist or is not readable\&.
+\fBexclude\fR
+\fBlist\fR, then amcheck will not complain if the file doesn\'t exist or is not readable\&.
 .sp
 For
-\fBexclude list\fR, if the file name is relative, the disk name being backed up is prepended\&. So if this is entered:
+\fBexclude\fR
+\fBlist\fR, if the file name is relative, the disk name being backed up is prepended\&. So if this is entered:
 .nf
     exclude list "\&.amanda\&.excludes"
 .fi
@@ -1376,12 +1438,10 @@ for a backup of
 /usr/local, and so on\&.
 .RE
 .PP
-\fBholdingdisk\fR [ never|auto|required ]
+\fBholdingdisk\fR [ \fBnever\fR | \fBauto\fR | \fBrequired\fR ]
 .RS 4
 Default:
-\fIauto\fR\&. Whether a holding disk should be used for these backups or whether they should go directly to tape\&. If the holding disk is a portion of another file system that
-\fIAmanda\fR
-is backing up, that file system should refer to a dumptype with
+\fBauto\fR\&. Whether a holding disk should be used for these backups or whether they should go directly to tape\&. If the holding disk is a portion of another file system that Amanda is backing up, that file system should refer to a dumptype with
 \fBholdingdisk\fR
 set to
 \fInever\fR
@@ -1403,18 +1463,18 @@ Always dump to holdingdisk, never directly to tape\&. There will be no dump if i
 .RE
 .RE
 .PP
-\fBignore\fR \fI boolean\fR
+\fBignore\fR \fIboolean\fR
 .RS 4
 Default:
-\fIno\fR\&. Whether disks associated with this backup type should be backed up or not\&. This option is useful when the
+\fBno\fR\&. Whether disks associated with this backup type should be backed up or not\&. This option is useful when the
 \fIdisklist\fR
 file is shared among several configurations, some of which should not back up all the listed file systems\&.
 .RE
 .PP
-\fBinclude\fR [ list|file ][[optional][ append ][ \fIstring\fR ]+]
+\fBinclude\fR [ \fBlist\fR | \fBfile\fR ][[\fBoptional\fR][\fBappend\fR][ \fIstring\fR ]+]
 .RS 4
 Default:
-\fIfile\fR
+\fBfile\fR
 "\&."\&. There are two include lists,
 \fBinclude file\fR
 and
@@ -1429,8 +1489,7 @@ is a glob expression\&. With
 \fIstring\fR
 is a file name on the client containing glob expressions\&.
 .sp
-All include expressions are expanded by
-\fIAmanda\fR, concatenated in one file and passed to
+All include expressions are expanded by Amanda, concatenated in one file and passed to
 \fBGNU\-tar\fR
 as a
 \fB\-\-files\-from\fR
@@ -1449,9 +1508,7 @@ Include expressions must always be specified as relative to the head directory o
 \fBNote\fR
 .ps -1
 .br
-For globbing to work at all, even the limited single level, the top level directory of the DLE must be readable by the
-\fIAmanda\fR
-user\&.
+For globbing to work at all, even the limited single level, the top level directory of the DLE must be readable by the Amanda user\&.
 .sp .5v
 .RE
 With the
@@ -1465,95 +1522,90 @@ overwrites the list\&.
 If
 \fBoptional\fR
 is specified for
-\fBinclude list,\fR
-then amcheck will not complain if the file doesn\'t exist or is not readable\&.
+\fBinclude list\fR, then amcheck will not complain if the file doesn\'t exist or is not readable\&.
 .sp
 For
 \fBinclude list\fR, If the file name is relative, the disk name being backed up is prepended\&.
 .RE
 .PP
-\fBindex\fR \fI boolean\fR
+\fBindex\fR \fIboolean\fR
 .RS 4
 Default:
-\fIno\fR\&. Whether an index (catalogue) of the backup should be generated and saved in
+\fBno\fR\&. Whether an index (catalogue) of the backup should be generated and saved in
 \fBindexdir\fR\&. These catalogues are used by the
 \fBamrecover\fR
 utility\&.
 .RE
 .PP
-\fBkencrypt\fR \fI boolean\fR
+\fBkencrypt\fR \fIboolean\fR
 .RS 4
 Default:
-\fIno\fR\&. Whether the backup image should be encrypted by Kerberos as it is sent across the network from the backup client host to the tape server host\&.
+\fBno\fR\&. Whether the backup image should be encrypted by Kerberos as it is sent across the network from the backup client host to the tape server host\&.
 .RE
 .PP
-\fBmaxdumps\fR \fI int\fR
+\fBmaxdumps\fR \fIint\fR
 .RS 4
 Default:
-1\&. The maximum number of backups from a single host that
-\fIAmanda\fR
-will attempt to run in parallel\&. See also the main section parameter
+\fI1\fR\&. The maximum number of backups from a single host that Amanda will attempt to run in parallel\&. See also the main section parameter
 \fBinparallel\fR\&.
 .RE
 .PP
-\fBmaxpromoteday\fR \fI int\fR
+\fBmaxpromoteday\fR \fIint\fR
 .RS 4
 Default:
-10000\&. The maximum number of day for a promotion, set it 0 if you don\'t want promotion, set it to 1 or 2 if your disks get overpromoted\&.
+\fI10000\fR\&. The maximum number of day for a promotion, set it 0 if you don\'t want promotion, set it to 1 or 2 if your disks get overpromoted\&.
 .RE
 .PP
-\fBpriority\fR \fI string\fR
+\fBpriority\fR [ \fBlow\fR | \fBmedium\fR | \fBhigh\fR ]
 .RS 4
 Default:
-\fImedium\fR\&. When there is no tape to write to,
-\fIAmanda\fR
-will do incremental backups in priority order to the holding disk\&. The priority may be high (2), medium (1), low (0) or a number of your choice\&.
+\fBmedium\fR\&. When there is no tape to write to, Amanda will do incremental backups in priority order to the holding disk\&. The priority may be high (2), medium (1), low (0) or a number of your choice\&.
 .RE
 .PP
-\fBprogram\fR [DUMP|GNUTAR|APPLICATION]
+\fBprogram\fR [ \fB"DUMP"\fR | \fB"GNUTAR"\fR | \fB"APPLICATION"\fR ]
 .RS 4
 Default:
-\fIDUMP\fR\&. The type of backup to perform\&. Valid values are:
+\fI"DUMP"\fR\&. The type of backup to perform\&. Valid values are:
 .PP
-\fBDUMP\fR
+\fB"DUMP"\fR
 .RS 4
 The native operating system backup program\&.
 .RE
 .PP
-\fBGNUTAR\fR
+\fB"GNUTAR"\fR
 .RS 4
 To use GNU\-tar or to do PC backups using Samba\&.
 .RE
 .PP
-\fBAPPLICATION\fR
+\fB"APPLICATION"\fR
 .RS 4
-To use an application\-tool, see the
+To use an application, see the
 \fIapplication\fR
 option\&.
 .RE
 .RE
 .PP
-\fBapplication\fR \fI string\fR
+\fBapplication\fR \fIstring\fR
 .RS 4
-No default\&. Must be the name of an application\-tool if
+No default\&. Must be the name of an application if
 \fIprogram\fR
 is set to
 \fIAPPLICATION\fR\&. See APPLICATION SECTION below\&.
 .RE
 .PP
-\fBscript\fR \fI string\fR
+\fBscript\fR \fIstring\fR
 .RS 4
-No default\&. Must be the name of a script\-tool\&. You can have many script\&. See SCRIPT SECTION below\&.
+No default\&. Must be the name of a script\&. You can have many script\&. See SCRIPT SECTION below\&.
 .RE
 .PP
-\fBproperty\fR [append] \fIstring\fR \fIstring\fR+
+\fBproperty\fR [\fBappend\fR] \fIstring\fR \fIstring\fR+
 .RS 4
 These options can set various properties, they can be used by third party software to store information in the configuration file\&. Both strings are quoted; the first string contains the name of the property to set, and the others contains its values\&.
 \fBappend\fR
 keyword append the values to the list of values for that property\&.
 .RE
 .PP
-\fBrecord\fR \fI boolean\fR
+\fBrecord\fR \fIboolean\fR
 .RS 4
 Default:
 \fIyes\fR\&. Whether to ask the backup program to update its database (e\&.g\&.
@@ -1563,51 +1615,45 @@ for DUMP or
 for GNUTAR) of time stamps\&. This is normally enabled for daily backups and turned off for periodic archival runs\&.
 .RE
 .PP
-\fBskip\-full\fR \fI boolean\fR
+\fBskip\-full\fR \fIboolean\fR
 .RS 4
 Default:
-\fIno\fR\&. If
-\fItrue\fR
+\fBno\fR\&. If
+\fBtrue\fR
 and
 \fBplanner\fR
-has scheduled a full backup, these disks will be skipped, and full backups should be run off\-line on these days\&. It was reported that
-\fIAmanda\fR
-only schedules level 1 incrementals in this configuration; this is probably a bug\&.
+has scheduled a full backup, these disks will be skipped, and full backups should be run off\-line on these days\&. It was reported that Amanda only schedules level 1 incrementals in this configuration; this is probably a bug\&.
 .RE
 .PP
-\fBskip\-incr\fR \fI boolean\fR
+\fBskip\-incr\fR \fIboolean\fR
 .RS 4
 Default:
-\fIno\fR\&. If
-\fItrue\fR
+\fBno\fR\&. If
+\fBtrue\fR
 and
 \fBplanner\fR
 has scheduled an incremental backup, these disks will be skipped\&.
 .RE
 .PP
-\fBssh_keys\fR \fI string\fR
+\fBssh_keys\fR \fIstring\fR
 .RS 4
-Default:
-\fINo default\fR\&. The key file the ssh auth will use, it must be the private key\&. If this parameter is not specified, then the default ssh key will be used\&.
+Default: not set\&. The key file the ssh auth will use, it must be the private key\&. If this parameter is not specified, then the default ssh key will be used\&.
 .RE
 .PP
-\fBstarttime\fR \fI int\fR
+\fBstarttime\fR \fIint\fR
 .RS 4
-Default:
-\fInone\fR\&. Backups will not start until after this time of day\&. The value should be hh*100+mm, e\&.g\&. 6:30PM (18:30) would be entered as
+Default: not set\&. Backup of these disks will not start until after this time of day\&. The value should be hh*100+mm, e\&.g\&. 6:30PM (18:30) would be entered as
 1830\&.
 .RE
 .PP
-\fBstrategy\fR \fI string\fR
+\fBstrategy\fR [ \fBstandard\fR | \fBnofull\fR | \fBnoinc\fR | \fBskip\fR | \fBincronly\fR ]
 .RS 4
 Default:
-\fIstandard\fR\&. Strategy to use when planning what level of backup to run next\&. Values are:
+\fBstandard\fR\&. Strategy to use when planning what level of backup to run next\&. Values are:
 .PP
 \fBstandard\fR
 .RS 4
-The standard
-\fIAmanda\fR
-schedule\&.
+The standard Amanda schedule\&.
 .RE
 .PP
 \fBnofull\fR
@@ -1622,36 +1668,32 @@ Never do incremental backups, only full dumps\&.
 .PP
 \fBskip\fR
 .RS 4
-Never do backups (useful when sharing the
+Treat this DLE as if it doesn\'t exist (useful to disable DLEs when sharing the
 \fIdisklist\fR
-file)\&.
+file between multiple configurations)\&. Skipped DLEs will not be checked or dumped, and will not be matched by disklist expressions\&.
 .RE
 .PP
 \fBincronly\fR
 .RS 4
 Only do incremental dumps\&.
 \fBamadmin force\fR
-should be used to tell
-\fIAmanda\fR
-that a full dump has been performed off\-line, so that it resets to level 1\&.
+should be used to tell Amanda that a full dump has been performed off\-line, so that it resets to level 1\&.
 .RE
 .RE
 .PP
-\fBtape_splitsize\fR \fI int\fR
+\fBtape_splitsize\fR \fIint\fR
 .RS 4
-Default:
-\fInone\fR\&. Split dump file on tape into pieces of a specified size\&. This allows dumps to be spread across multiple tapes, and can potentially make more efficient use of tape space\&. Note that if this value is too large (more than half the size of the average dump being split), substantial tape space can be wasted\&. If too small, large dumps will be split into innumerable tiny dumpfiles, adding to restoration complexity\&. A good rule of thumb, usually, is 1/10 of the size of your tape\&.
+Default: not set\&. Split dump file on tape into pieces of a specified size\&. This allows dumps to be spread across multiple tapes, and can potentially make more efficient use of tape space\&. Note that if this value is too large (more than half the size of the average dump being split), substantial tape space can be wasted\&. If too small, large dumps will be split into innumerable tiny dumpfiles, adding to restoration complexity\&. A good rule of thumb, usually, is 1/10 of the size of your tape\&.
 .sp
 The default unit is Kbytes if it is not specified\&.
 .RE
 .PP
-\fBsplit_diskbuffer\fR \fI string\fR
+\fBsplit_diskbuffer\fR \fIstring\fR
 .RS 4
-Default:
-\fInone\fR\&. When dumping a split dump in PORT\-WRITE mode (usually meaning "no holding disk"), buffer the split chunks to a file in the directory specified by this option\&.
+Default: not set\&. When dumping a split dump in PORT\-WRITE mode (usually meaning "no holding disk"), buffer the split chunks to a file in the directory specified by this option\&.
 .RE
 .PP
-\fBfallback_splitsize\fR \fI int\fR
+\fBfallback_splitsize\fR \fIint\fR
 .RS 4
 Default:
 \fI10M\fR\&. When dumping a split dump in PORT\-WRITE mode, if no split_diskbuffer is specified (or if we somehow fail to use our split_diskbuffer), we must buffer split chunks in memory\&. This specifies the maximum size split chunks can be in this scenario, and thus the maximum amount of memory consumed for in\-memory splitting\&. The size of this buffer can be changed from its (very conservative) default to a value reflecting the amount of memory that each taper process on the dump server may reasonably consume\&.
@@ -1661,8 +1703,7 @@ The default unit is Kbytes if it is not specified\&.
 .PP
 The following
 \fBdumptype\fR
-entries are predefined by
-\fIAmanda\fR:
+entries are predefined by Amanda:
 .nf
 define dumptype "no\-compress" {
     compress none
@@ -1678,9 +1719,6 @@ define dumptype "srvcompress" {
 }
 define dumptype "bsd\-auth" {
     auth bsd
-}
-define dumptype "krb4\-auth" {
-    auth krb4
 }
 define dumptype "no\-record" {
     record no
@@ -1717,8 +1755,7 @@ define dumptype "testing" {
 }
 .fi
 .PP
-\fIAmanda\fR
-provides a
+Amanda provides a
 \fBdumptype\fR
 named
 \fIglobal\fR
@@ -1726,7 +1763,9 @@ in the sample
 \fBamanda\&.conf\fR
 file that all
 \fBdumptype\fRs should reference\&. This provides an easy place to make changes that will affect every
-\fBdumptype\fR\&.
+\fBdumptype\fR, although you must be careful that every dumptype explicitly inherits from the
+\fIglobal\fR
+dumptype \- Amanda does not do so automatically\&.
 .SH "TAPETYPE SECTION"
 .PP
 The
@@ -1741,6 +1780,8 @@ define tapetype "\fIname\fR" {
 }
 .fi
 .PP
+The { must appear at the end of a line, and the } on its own line\&.
+.PP
 \fIName\fR
 is the name of this type of tape medium/device\&. It is referenced from the
 \fBtapetype\fR
@@ -1748,35 +1789,30 @@ option in the main part of the config file\&.
 .PP
 The tapetype options and values are:
 .PP
-\fBcomment\fR \fI string\fR
+\fBcomment\fR \fIstring\fR
 .RS 4
-Default:
-\fInone\fR\&. A comment string describing this set of tape information\&.
+Default: not set\&. A comment string describing this set of tape information\&.
 .RE
 .PP
-\fBfilemark\fR \fI int\fR
+\fBfilemark\fR \fIint\fR
 .RS 4
 Default:
 \fI1 kbytes\fR\&. How large a file mark (tape mark) is, measured in kbytes\&. If the size is only known in some linear measurement (e\&.g\&. inches), convert it to kbytes using the device density\&.
 .RE
 .PP
-\fBlength\fR \fI int\fR
+\fBlength\fR \fIint\fR
 .RS 4
 Default:
 \fI2000 kbytes\fR\&. How much data will fit on a tape, expressed in kbytes\&.
 .sp
-Note that this value is only used by
-\fIAmanda\fR
-to schedule which backups will be run\&. Once the backups start,
-\fIAmanda\fR
-will continue to write to a tape until it gets an error, regardless of what value is entered for
+Note that this value is only used by Amanda to schedule which backups will be run\&. Once the backups start, Amanda will continue to write to a tape until it gets an error, regardless of what value is entered for
 \fBlength\fR
 (but see
 \fBamanda-devices\fR(7)
 for exceptions)\&.
 .RE
 .PP
-\fBblocksize\fR \fI int\fR
+\fBblocksize\fR \fIint\fR
 .RS 4
 Default:
 \fI32 kbytes\fR\&. How much data will be written in each tape record, expressed in kbytes\&. This is similar to the
@@ -1784,7 +1820,7 @@ Default:
 device property, but if the blocksize is not a multiple of 1024 bytes, then this parameter cannot be used to specify it, and the property must be used instead\&.
 .RE
 .PP
-\fBreadblocksize\fR \fI int\fR
+\fBreadblocksize\fR \fIint\fR
 .RS 4
 Default:
 \fI32 kytes\fR
@@ -1793,20 +1829,17 @@ How much data will be read in each tape record\&. This can be used to override a
 The default unit is Kbytes if it is not specified\&.
 .RE
 .PP
-\fBspeed\fR \fI int\fR
+\fBspeed\fR \fIint\fR
 .RS 4
 Default:
-\fI200 bps\fR\&. How fast the drive will accept data, in bytes per second\&. This parameter is NOT currently used by
-\fIAmanda\fR\&.
+\fI200 bps\fR\&. How fast the drive will accept data, in bytes per second\&. This parameter is NOT currently used by Amanda\&.
 .RE
 .PP
-\fBlbl\-templ\fR \fI string\fR
+\fBlbl\-templ\fR \fIstring\fR
 .RS 4
-A PostScript template file used by
+Default: not set\&. A PostScript template file used by
 \fBamreport\fR
-to generate labels\&. Several sample files are provided with the
-\fIAmanda\fR
-sources in the
+to generate labels\&. Several sample files are provided with the Amanda sources in the
 \fIexample\fR
 directory\&. See the
 \fBamreport\fR(8)
@@ -1846,27 +1879,23 @@ define interface "\fIname\fR" {
 }
 .fi
 .PP
+The { must appear at the end of a line, and the } on its own line\&.
+.PP
 \fIname\fR
 is the name of this type of network interface\&. It is referenced from the
 \fIdisklist\fR
 file\&.
 .PP
-Note that these sections define network interface characteristics, not the actual interface that will be used\&. Nor do they impose limits on the bandwidth that will actually be taken up by
-\fIAmanda\fR\&.
-\fIAmanda\fR
-computes the estimated bandwidth each file system backup will take based on the estimated size and time, then compares that plus any other running backups with the limit as another of the criteria when deciding whether to start the backup\&. Once a backup starts,
-\fIAmanda\fR
-will use as much of the network as it can leaving throttling up to the operating system and network hardware\&.
+Note that these sections define network interface characteristics, not the actual interface that will be used\&. Nor do they impose limits on the bandwidth that will actually be taken up by Amanda\&. Amanda computes the estimated bandwidth each file system backup will take based on the estimated size and time, then compares that plus any other running backups with the limit as another of the criteria when deciding whether to start the backup\&. Once a backup starts, Amanda will use as much of the network as it can leaving throttling up to the operating system and network hardware\&.
 .PP
 The interface options and values are:
 .PP
-\fBcomment\fR \fI string\fR
+\fBcomment\fR \fIstring\fR
 .RS 4
-Default:
-\fInone\fR\&. A comment string describing this set of network information\&.
+Default: not set\&. A comment string describing this set of network information\&.
 .RE
 .PP
-\fBuse\fR \fI int\fR
+\fBuse\fR \fIint\fR
 .RS 4
 Default:
 \fI8000 Kbps\fR\&. The speed of the interface in Kbytes per second\&.
@@ -1883,25 +1912,26 @@ inherit options from another
 The
 \fBamanda\&.conf\fR
 file may define multiple types of application\&. The information is entered in a
-\fBapplication\-tool\fR
+\fBapplication\fR
 section, which looks like this:
 .nf
-define application\-tool "\fIname\fR" {
+define application "\fIname\fR" {
     \fIapplication\-option\fR \fIapplication\-value\fR
     \&.\&.\&.
 }
 .fi
 .PP
+The { must appear at the end of a line, and the } on its own line\&.
+.PP
 \fIname\fR
 is the name of this type of application\&. It is referenced from the
 \fIdumptype\fR
 .PP
-The application\-tool options and values are:
+The application options and values are:
 .PP
 \fBcomment\fR \fIstring\fR
 .RS 4
-Default:
-\fInone\fR\&. A comment string describing this application\&.
+Default: not set\&. A comment string describing this application\&.
 .RE
 .PP
 \fBplugin\fR \fIstring\fR
@@ -1911,7 +1941,7 @@ No default\&. Must be set to the name of the program\&. This program must be in 
 directory on the client\&.
 .RE
 .PP
-\fBproperty\fR [append] [priority] \fIstring\fR \fIstring\fR+
+\fBproperty\fR [\fBappend\fR] [\fBpriority\fR] \fIstring\fR \fIstring\fR+
 .RS 4
 No default\&. You can set property for the application, each application have a different set of property\&. Both strings are quoted; the first string contains the name of the property to set, and the others contains its values\&.
 \fBappend\fR
@@ -1924,25 +1954,26 @@ keyword disallow the setting of that property on the client\&.
 The
 \fBamanda\&.conf\fR
 file may define multiple types of script\&. The information is entered in a
-\fBscript\-tool\fR
+\fBscript\fR
 section, which looks like this:
 .nf
-define script\-tool "\fIname\fR" {
+define script "\fIname\fR" {
     \fIscript\-option\fR \fIscript\-value\fR
     \&.\&.\&.
 }
 .fi
 .PP
+The { must appear at the end of a line, and the } on its own line\&.
+.PP
 \fIname\fR
 is the name of this type of script\&. It is referenced from the
 \fIdumptype\fR
 .PP
-The script\-tool options and values are:
+The script options and values are:
 .PP
 \fBcomment\fR \fIstring\fR
 .RS 4
-Default:
-\fInone\fR\&. A comment string describing this script\&.
+Default: not set\&. A comment string describing this script\&.
 .RE
 .PP
 \fBplugin\fR \fIstring\fR
@@ -1952,13 +1983,19 @@ No default\&. Must be set to the name of the program\&. This program must be in 
 directory on the client and/or server\&.
 .RE
 .PP
-\fBexecute_where\fR [client|server]
+\fBorder\fR \fIint\fR
 .RS 4
 Default:
-\fIclient\fR\&. Where the script must be executed, on the client or server\&.
+\fI5000\fR\&. Scripts are executed in that order, it is useful if you have many scripts and they must be executed in a spefific order\&.
 .RE
 .PP
-\fBexecute_on\fR \fIexecute_on\fR[,\fIexecute_on\fR]*
+\fBexecute_where\fR [ \fBclient\fR | \fBserver\fR ]
+.RS 4
+Default:
+\fBclient\fR\&. Where the script must be executed, on the client or server\&.
+.RE
+.PP
+\fB>execute_on\fR \fIexecute_on\fR [,\fIexecute_on\fR]*
 .RS 4
 No default\&. When the script must be executed, you can specify many of them:
 .PP
@@ -2009,7 +2046,7 @@ Execute before the backup command for the dle\&.
 .PP
 \fBpre\-host\-backup\fR
 .RS 4
-Execute before the backup command for all dle for the client\&.
+Execute before the backup command for all dle for the client\&. It can\'t be run on client, it must be run on server
 .RE
 .PP
 \fBpost\-dle\-backup\fR
@@ -2019,7 +2056,7 @@ Execute after the backup command for the dle\&.
 .PP
 \fBpost\-host\-backup\fR
 .RS 4
-Execute after the backup command for all dle for the client\&.
+Execute after the backup command for all dle for the client\&. It can\'t be run on client, it must be run on server
 .RE
 .PP
 \fBpre\-recover\fR
@@ -2061,7 +2098,7 @@ script \-\-post\-recover
 .fi
 .RE
 .PP
-\fBproperty\fR [append] [priority] \fIstring\fR \fIstring\fR+
+\fBproperty\fR> [\fBappend\fR] [\fBpriority\fR] \fIstring\fR \fIstring\fR+
 .RS 4
 No default\&. You can set property for the script, each script have a different set of property\&. Both strings are quoted; the first string contains the name of the property to set, and the others contains its values\&.
 \fBappend\fR
@@ -2082,6 +2119,8 @@ define device \fIname\fR {
     \&.\&.\&.
 }
 .fi
+.PP
+The { must appear at the end of a line, and the } on its own line\&.
 .PP
 \fIname\fR
 is the user\-specified name of this device\&. It is referenced from the global
@@ -2106,24 +2145,33 @@ in the form of "changer" sections, which look like this:
 .nf
 define changer \fIname\fR {
     comment "\fIcomment (optional)\fR"
-    tapedev "\fItape\-device\fR"
-    tpchanger "\fIchanger\-type\fR"
+    tpchanger "\fIchanger\-spec\fR"
     changerdev "\fIdevice\-name\fR"
     changerfile "\fIstate\-file\fR"
     \&.\&.\&.
 }
 .fi
 .PP
+The { must appear at the end of a line, and the } on its own line\&.
+.PP
 \fIname\fR
 is the user\-specified name of this device\&. The remaining parameters are specific to the changer type selected\&.
+.PP
+See
+\fBamanda-changers\fR(7)
+for more information on configuring changers\&.
 .SH "SEE ALSO"
 .PP
-
 \fBamanda\fR(8),
 \fBamanda-client.conf\fR(5),
-\fBamcrypt\fR(8),
-\fBaespipe\fR(1),
-: http://wiki.zmanda.com
+\fBamanda-applications\fR(7),
+\fBamanda-auth\fR(7),
+\fBamanda-changers\fR(7),
+\fBamanda-devices\fR(7),
+\fBamanda-scripts\fR(7)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBJames da Silva\fR <\&jds@amanda\&.org\&>

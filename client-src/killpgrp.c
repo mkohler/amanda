@@ -34,8 +34,8 @@
  *
  */
 #include "amanda.h"
-#include "version.h"
 #include "util.h"
+#include "conffile.h"
 
 #ifdef HAVE_GETPGRP
 #ifdef GETPGRP_VOID
@@ -76,11 +76,13 @@ main(
     set_pname("killpgrp");
 
     dbopen(DBG_SUBDIR_CLIENT);
+    config_init(CONFIG_INIT_CLIENT, NULL);
+
     if (argc < 2) {
 	error("Need at least 2 arguments\n");
 	/*NOTREACHED*/
     }
-    dbprintf(_("version %s\n"), version());
+    dbprintf(_("version %s\n"), VERSION);
     dbprintf(_("config: %s\n"), argv[1]);
     if (strcmp(argv[1], "NOCONFIG") != 0)
 	dbrename(argv[1], DBG_SUBDIR_CLIENT);

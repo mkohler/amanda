@@ -38,8 +38,9 @@
 
 typedef char string_t[STRMAX];
 typedef enum {
-    F_UNKNOWN = 0, F_WEIRD = -1, F_TAPESTART = 1, F_TAPEEND = 2, 
-    F_DUMPFILE = 3, F_CONT_DUMPFILE = 4, F_SPLIT_DUMPFILE = 5, F_EMPTY = -2
+    F_UNKNOWN = 0, F_WEIRD = -1, F_TAPESTART = 1, F_TAPEEND = 2,
+    F_DUMPFILE = 3, F_CONT_DUMPFILE = 4, F_SPLIT_DUMPFILE = 5, F_NOOP = 6,
+    F_EMPTY = -2
 } filetype_t;
 
 typedef struct file_s {
@@ -60,7 +61,6 @@ typedef struct file_s {
     string_t clnt_encrypt;
     string_t recover_cmd;
     string_t uncompress_cmd;
-    string_t encrypt_cmd;
     string_t decrypt_cmd;
     string_t srv_decrypt_opt;
     string_t clnt_decrypt_opt;
@@ -70,6 +70,7 @@ typedef struct file_s {
     int partnum;
     int totalparts; /* -1 == UNKNOWN */
     size_t blocksize;
+    off_t  orig_size;
 } dumpfile_t;
 
 /* local functions */
@@ -77,13 +78,20 @@ typedef struct file_s {
 /* Makes a serialized header from the dumpfile_t representation. The
  * return value is allocated using malloc(), so you must free it.
  *
- * Build_header guarantees that the buffer returned is exactly
- * 'size' bytes, with any extra bytes zeroed out. */
-char *  build_header        (const dumpfile_t *file, size_t size);
+ * Build_header returns NULL if the resulting header would be larger
+ * than max_size bytes.  If size is not NULL, then the resulting header
+ * will be *at least* this many bytes.  If size is NULL, then the
+ * header will be exactly max_size bytes.  Zero bytes are used to pad the
+ * header to the required length.
+ *
+ * If size is not NULL, *size is set to the actual size of the generated header.
+ */
+char *  build_header        (const dumpfile_t *file, size_t *size, size_t max_size);
 
 void	fh_init(dumpfile_t *file);
 void	parse_file_header(const char *buffer, dumpfile_t *file, size_t buflen);
 void	print_header(FILE *outf, const dumpfile_t *file);
+char   *summarize_header(const dumpfile_t *file);
 int	known_compress_type(const dumpfile_t *file);
 void	dump_dumpfile_t(const dumpfile_t *file);
 

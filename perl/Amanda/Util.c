@@ -1474,13 +1474,17 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 
 /* -------- TYPES TABLE (BEGIN) -------- */
 
-#define SWIGTYPE_p_char swig_types[0]
-#define SWIGTYPE_p_double swig_types[1]
-#define SWIGTYPE_p_float swig_types[2]
-#define SWIGTYPE_p_int swig_types[3]
-#define SWIGTYPE_p_unsigned_char swig_types[4]
-static swig_type_info *swig_types[6];
-static swig_module_info swig_module = {swig_types, 5, 0, 0, 0, 0};
+#define SWIGTYPE_p_GPtrArray swig_types[0]
+#define SWIGTYPE_p_char swig_types[1]
+#define SWIGTYPE_p_double swig_types[2]
+#define SWIGTYPE_p_file_lock swig_types[3]
+#define SWIGTYPE_p_float swig_types[4]
+#define SWIGTYPE_p_fs_usage swig_types[5]
+#define SWIGTYPE_p_in_port_t swig_types[6]
+#define SWIGTYPE_p_int swig_types[7]
+#define SWIGTYPE_p_unsigned_char swig_types[8]
+static swig_type_info *swig_types[10];
+static swig_module_info swig_module = {swig_types, 9, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1522,10 +1526,17 @@ SWIGEXPORT void SWIG_init (CV *cv, CPerlObj *);
 #include "amglue.h"
 
 
+#include <unistd.h>
+#include "amglue.h"
 #include "debug.h"
+#include "full-read.h"
+#include "full-write.h"
+#include "fsusage.h"
+#include "stream.h"
 /* use a relative path here to avoid conflicting with Perl's util.h. */
 #include "../common-src/util.h"
 #include "file.h"
+#include "sockaddr-util.h"
 
 
 SWIGINTERNINLINE SV *
@@ -1618,6 +1629,27 @@ SWIG_AsCharPtrAndSize(SV *obj, char** cptr, size_t* psize, int *alloc)
 
 
 
+
+
+char *perl_hexdecode_string(const char *str) {
+    GError *err = NULL;
+    char *tmp;
+    tmp = hexdecode_string(str, &err);
+    if (err) {
+        g_free(tmp);
+        croak_gerror("Amanda util: hexdecode", &err);
+    }
+    return tmp;
+}
+
+
+void get_fs_usage_(const char *file, struct fs_usage *fsp)
+{
+    int rv = get_fs_usage(file, NULL, fsp);
+    if (rv == -1)
+	/* signal an error to the typemap */
+	fsp->fsu_blocksize = 0;
+}
 
 
 #include <limits.h>
@@ -1747,6 +1779,130 @@ SWIG_AsVal_int SWIG_PERL_DECL_ARGS_2(SV * obj, int *val)
   return res;
 }
 
+
+int
+set_blocking(int fd, gboolean blocking)
+{
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags < 0)
+	return flags;
+    if (blocking)
+	flags &= ~O_NONBLOCK;
+    else
+	flags |= O_NONBLOCK;
+    flags = fcntl(fd, F_SETFL, flags);
+    if (flags < 0)
+	return flags;
+    return 0;
+}
+
+SWIGINTERN file_lock *new_file_lock(char const *filename){
+	    return file_lock_new(filename);
+	}
+
+SWIGINTERN int
+SWIG_AsVal_unsigned_SS_long SWIG_PERL_DECL_ARGS_2(SV *obj, unsigned long *val) 
+{
+  if (SvUOK(obj)) {
+    if (val) *val = SvUV(obj);
+    return SWIG_OK;
+  } else  if (SvIOK(obj)) {
+    long v = SvIV(obj);
+    if (v >= 0) {
+      if (val) *val = v;
+      return SWIG_OK;
+    } else {
+      return SWIG_OverflowError;
+    }
+  } else {
+    int dispatch = 0;
+    const char *nptr = SvPV_nolen(obj);
+    if (nptr) {
+      char *endptr;
+      unsigned long v;
+      errno = 0;
+      v = strtoul(nptr, &endptr,0);
+      if (errno == ERANGE) {
+	errno = 0;
+	return SWIG_OverflowError;
+      } else {
+	if (*endptr == '\0') {
+	  if (val) *val = v;
+	  return SWIG_Str2NumCast(SWIG_OK);
+	}
+      }
+    }
+    if (!dispatch) {
+      double d;
+      int res = SWIG_AddCast(SWIG_AsVal_double SWIG_PERL_CALL_ARGS_2(obj,&d));
+      if (SWIG_IsOK(res) && SWIG_CanCastAsInteger(&d, 0, ULONG_MAX)) {
+	if (val) *val = (unsigned long)(d);
+	return res;
+      }
+    }
+  }
+  return SWIG_TypeError;
+}
+
+
+SWIGINTERNINLINE int
+SWIG_AsVal_size_t SWIG_PERL_DECL_ARGS_2(SV * obj, size_t *val)
+{
+  unsigned long v;
+  int res = SWIG_AsVal_unsigned_SS_long SWIG_PERL_CALL_ARGS_2(obj, val ? &v : 0);
+  if (SWIG_IsOK(res) && val) *val = (size_t)(v);
+  return res;
+}
+
+SWIGINTERN SV *file_lock_data(file_lock *self){
+	    if (self->data) {
+		return newSVpvn(self->data, self->len);
+	    } else {
+		return &PL_sv_undef;
+	    }
+	}
+
+void weaken_ref(SV *rv) {
+    sv_rvweaken(rv);
+}
+
+
+static guint64 gettimeofday_for_perl(void)
+{
+    GTimeVal t;
+    g_get_current_time(&t);
+    return (guint64)t.tv_sec * G_USEC_PER_SEC + (guint64)t.tv_usec;
+}
+
+ typedef int socketfd; 
+
+char *check_security_fd(int fd, char *userstr)
+{
+    socklen_t_equiv i;
+    struct sockaddr_in addr;
+    char *errstr;
+
+    /* get the remote address */
+    i = SIZEOF(addr);
+    if (getpeername(fd, (struct sockaddr *)&addr, &i) == -1) {
+	return g_strdup_printf("getpeername: %s", strerror(errno));
+    }
+
+    /* require IPv4 and not port 20 -- apparently this was a common attack
+     * vector for much older Amandas */
+    if ((addr.sin_family != (sa_family_t)AF_INET)
+		|| (ntohs(addr.sin_port) == 20)) {
+	return g_strdup_printf("connection rejected from %s family %d port %d",
+             inet_ntoa(addr.sin_addr), addr.sin_family, htons(addr.sin_port));
+    }
+
+    /* call out to check_security */
+    if (!check_security((sockaddr_union *)&addr, userstr, 0, &errstr))
+	return errstr;
+
+    return NULL;
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -1789,6 +1945,64 @@ XS(_wrap_get_original_cwd) {
     ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
     XSRETURN(argvi);
   fail:
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_hexencode) {
+  {
+    char *arg1 = (char *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: hexencode(char *);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "hexencode" "', argument " "1"" of type '" "char *""'");
+    }
+    arg1 = (char *)(buf1);
+    result = (char *)hexencode_string(arg1);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_hexdecode) {
+  {
+    char *arg1 = (char *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: hexdecode(char *);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "hexdecode" "', argument " "1"" of type '" "char *""'");
+    }
+    arg1 = (char *)(buf1);
+    result = (char *)perl_hexdecode_string(arg1);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
     SWIG_croak_null();
   }
 }
@@ -1881,6 +2095,839 @@ XS(_wrap_unquote_string) {
 }
 
 
+XS(_wrap_expand_braced_alternates) {
+  {
+    char *arg1 = (char *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int argvi = 0;
+    GPtrArray *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: expand_braced_alternates(char *);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "expand_braced_alternates" "', argument " "1"" of type '" "char *""'");
+    }
+    arg1 = (char *)(buf1);
+    result = (GPtrArray *)expand_braced_alternates(arg1);
+    {
+      if (result) {
+        guint i;
+        for (i = 0; i < result->len; i++) {
+          ST(argvi) = sv_2mortal(newSVpv(g_ptr_array_index(result, i), 0));
+          argvi++;
+        }
+        g_ptr_array_free(result, TRUE);
+      } else {
+        ST(argvi) = &PL_sv_undef;
+        argvi++;
+      }
+    }
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_collapse_braced_alternates) {
+  {
+    GPtrArray *arg1 = (GPtrArray *) 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: collapse_braced_alternates(source);");
+    }
+    {
+      AV *av;
+      guint len;
+      int i;
+      
+      if (!SvROK(ST(0)) || SvTYPE(SvRV(ST(0))) != SVt_PVAV) {
+        SWIG_exception(SWIG_TypeError, "Expected an arrayref");
+      }
+      av = (AV *)SvRV(ST(0));
+      
+      len = av_len(av)+1; /* av_len(av) is like $#av */
+      arg1 = g_ptr_array_sized_new(len);
+      for (i = 0; i < len; i++) {
+        SV **elt = av_fetch(av, i, 0);
+        if (!elt || !SvPOK(*elt)) {
+          SWIG_exception(SWIG_TypeError, "Non-string in arrayref");
+        }
+        g_ptr_array_add(arg1, SvPV_nolen(*elt)); /* TODO: handle unicode here */
+      }
+    }
+    result = (char *)collapse_braced_alternates(arg1);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    {
+      g_ptr_array_free(arg1, FALSE);
+    }
+    free((char*)result);
+    XSRETURN(argvi);
+  fail:
+    {
+      g_ptr_array_free(arg1, FALSE);
+    }
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_split_quoted_strings) {
+  {
+    gchar *arg1 = (gchar *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int argvi = 0;
+    gchar **result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: split_quoted_strings(string);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "split_quoted_strings" "', argument " "1"" of type '" "gchar const *""'");
+    }
+    arg1 = (gchar *)(buf1);
+    result = (gchar **)split_quoted_strings((char const *)arg1);
+    {
+      gchar **iter;
+      
+      if (result) {
+        /* Count the DeviceProperties */
+        EXTEND(SP, g_strv_length(result)); /* make room for return values */
+        
+        /* Note that we set ST(argvi) several times. the nature of
+        	 * SWIG's wrapping is such that incrementing argvi points
+        	 * ST(argvi) to the next location in perl's argument stack.
+        	 */
+        
+        for (iter = result; *iter; iter++) {
+          ST(argvi) = sv_2mortal(newSVpv(*iter, 0));
+          argvi++;
+        }
+      }
+    }
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_get_fs_usage) {
+  {
+    char *arg1 = (char *) 0 ;
+    struct fs_usage *arg2 = (struct fs_usage *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    struct fs_usage fsu2 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    {
+      bzero(&fsu2, sizeof(fsu2));
+      arg2 = &fsu2;
+    }
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: get_fs_usage(file);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "get_fs_usage" "', argument " "1"" of type '" "char const *""'");
+    }
+    arg1 = (char *)(buf1);
+    get_fs_usage_((char const *)arg1,arg2);
+    ST(argvi) = sv_newmortal();
+    {
+      SV *sv;
+      HV *hv;
+      
+      /* if there was an error, assume that fsu_blocksize isn't changed,
+           * and return undef. */
+      if (arg2->fsu_blocksize) {
+        SP += argvi; PUTBACK; /* save the perl stack so amglue_newSVi64 doesn't kill it */
+        hv = (HV *)sv_2mortal((SV *)newHV());
+        hv_store(hv, "blocksize", 9, amglue_newSVi64(arg2->fsu_blocksize), 0);
+        hv_store(hv, "blocks", 6, amglue_newSVi64(arg2->fsu_blocks), 0);
+        hv_store(hv, "bfree", 5, amglue_newSVi64(arg2->fsu_bfree), 0);
+        hv_store(hv, "bavail", 6, amglue_newSVi64(arg2->fsu_bavail), 0);
+        hv_store(hv, "bavail_top_bit_set", 18, newSViv(arg2->fsu_bavail_top_bit_set), 0);
+        hv_store(hv, "files", 5, amglue_newSVi64(arg2->fsu_files), 0);
+        hv_store(hv, "ffree", 5, amglue_newSVi64(arg2->fsu_ffree), 0);
+        
+        ST(argvi) = newRV((SV *)hv);
+        SPAGAIN; SP -= argvi;
+        argvi++;
+      }
+    }
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_fsync) {
+  {
+    int arg1 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: fsync(fd);");
+    }
+    {
+      IO *io = NULL;
+      PerlIO *pio = NULL;
+      int fd = -1;
+      
+      if (SvIOK(ST(0))) {
+        /* plain old integer */
+        arg1 = SvIV(ST(0));
+      } else {
+        /* try extracting as filehandle */
+        
+        /* note: sv_2io may call die() */
+        io = sv_2io(ST(0));
+        if (io) {
+          pio = IoIFP(io);
+        }
+        if (pio) {
+          fd = PerlIO_fileno(pio);
+        }
+        if (fd >= 0) {
+          arg1 = fd;
+        } else {
+          SWIG_exception(SWIG_TypeError, "Expected integer file descriptor "
+            "or file handle for argument 1");
+        }
+      }
+    }
+    result = (int)fsync(arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_set_blocking) {
+  {
+    int arg1 ;
+    gboolean arg2 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: set_blocking(fd,blocking);");
+    }
+    {
+      IO *io = NULL;
+      PerlIO *pio = NULL;
+      int fd = -1;
+      
+      if (SvIOK(ST(0))) {
+        /* plain old integer */
+        arg1 = SvIV(ST(0));
+      } else {
+        /* try extracting as filehandle */
+        
+        /* note: sv_2io may call die() */
+        io = sv_2io(ST(0));
+        if (io) {
+          pio = IoIFP(io);
+        }
+        if (pio) {
+          fd = PerlIO_fileno(pio);
+        }
+        if (fd >= 0) {
+          arg1 = fd;
+        } else {
+          SWIG_exception(SWIG_TypeError, "Expected integer file descriptor "
+            "or file handle for argument 1");
+        }
+      }
+    }
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    result = (int)set_blocking(arg1,arg2);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_new_file_lock) {
+  {
+    char *arg1 = (char *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int argvi = 0;
+    file_lock *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: new_file_lock(filename);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "new_file_lock" "', argument " "1"" of type '" "char const *""'");
+    }
+    arg1 = (char *)(buf1);
+    result = (file_lock *)new_file_lock((char const *)arg1);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_file_lock, SWIG_OWNER | SWIG_SHADOW); argvi++ ;
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_file_lock_lock) {
+  {
+    file_lock *arg1 = (file_lock *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: file_lock_lock(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_file_lock, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "file_lock_lock" "', argument " "1"" of type '" "file_lock *""'"); 
+    }
+    arg1 = (file_lock *)(argp1);
+    result = (int)file_lock_lock(arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_file_lock_unlock) {
+  {
+    file_lock *arg1 = (file_lock *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: file_lock_unlock(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_file_lock, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "file_lock_unlock" "', argument " "1"" of type '" "file_lock *""'"); 
+    }
+    arg1 = (file_lock *)(argp1);
+    result = (int)file_lock_unlock(arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_file_lock_write) {
+  {
+    file_lock *arg1 = (file_lock *) 0 ;
+    char *arg2 = (char *) 0 ;
+    size_t arg3 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: file_lock_write(self,data,len);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_file_lock, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "file_lock_write" "', argument " "1"" of type '" "file_lock *""'"); 
+    }
+    arg1 = (file_lock *)(argp1);
+    {
+      arg2 = SvPV(ST(1), arg3);
+    }
+    result = (int)file_lock_write(arg1,(char const *)arg2,arg3);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_file_lock_data) {
+  {
+    file_lock *arg1 = (file_lock *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    SV *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: file_lock_data(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_file_lock, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "file_lock_data" "', argument " "1"" of type '" "file_lock *""'"); 
+    }
+    arg1 = (file_lock *)(argp1);
+    result = (SV *)file_lock_data(arg1);
+    {
+      ST(argvi) = result; argvi++; 
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_delete_file_lock) {
+  {
+    file_lock *arg1 = (file_lock *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: delete_file_lock(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_file_lock, SWIG_POINTER_DISOWN |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "delete_file_lock" "', argument " "1"" of type '" "file_lock *""'"); 
+    }
+    arg1 = (file_lock *)(argp1);
+    free((char *) arg1);
+    ST(argvi) = sv_newmortal();
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_weaken_ref) {
+  {
+    SV *arg1 = (SV *) 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: weaken_ref(rv);");
+    }
+    arg1 = ST(0);
+    weaken_ref(arg1);
+    ST(argvi) = sv_newmortal();
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_gettimeofday) {
+  {
+    int argvi = 0;
+    guint64 result;
+    dXSARGS;
+    
+    if ((items < 0) || (items > 0)) {
+      SWIG_croak("Usage: gettimeofday();");
+    }
+    result = gettimeofday_for_perl();
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    XSRETURN(argvi);
+  fail:
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_openbsd_fd_inform) {
+  {
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 0) || (items > 0)) {
+      SWIG_croak("Usage: openbsd_fd_inform();");
+    }
+    openbsd_fd_inform();
+    ST(argvi) = sv_newmortal();
+    XSRETURN(argvi);
+  fail:
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_stream_server) {
+  {
+    int arg1 ;
+    in_port_t *arg2 = (in_port_t *) 0 ;
+    size_t arg3 ;
+    size_t arg4 ;
+    gboolean arg5 ;
+    in_port_t port2 ;
+    int argvi = 0;
+    socketfd result;
+    dXSARGS;
+    
+    {
+      arg2 = &port2;
+    }
+    if ((items < 4) || (items > 4)) {
+      SWIG_croak("Usage: stream_server(family,sendsize,recvsize,privileged);");
+    }
+    {
+      if (sizeof(signed int) == 1) {
+        arg1 = amglue_SvI8(ST(0));
+      } else if (sizeof(signed int) == 2) {
+        arg1 = amglue_SvI16(ST(0));
+      } else if (sizeof(signed int) == 4) {
+        arg1 = amglue_SvI32(ST(0));
+      } else if (sizeof(signed int) == 8) {
+        arg1 = amglue_SvI64(ST(0));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    {
+      if (sizeof(size_t) == 1) {
+        arg3 = amglue_SvU8(ST(1));
+      } else if (sizeof(size_t) == 2) {
+        arg3 = amglue_SvU16(ST(1));
+      } else if (sizeof(size_t) == 4) {
+        arg3 = amglue_SvU32(ST(1));
+      } else if (sizeof(size_t) == 8) {
+        arg3 = amglue_SvU64(ST(1));
+      } else {
+        croak("Unexpected size_t >64 bits?"); /* should be optimized out unless sizeof(size_t) > 8 */
+      }
+    }
+    {
+      if (sizeof(size_t) == 1) {
+        arg4 = amglue_SvU8(ST(2));
+      } else if (sizeof(size_t) == 2) {
+        arg4 = amglue_SvU16(ST(2));
+      } else if (sizeof(size_t) == 4) {
+        arg4 = amglue_SvU32(ST(2));
+      } else if (sizeof(size_t) == 8) {
+        arg4 = amglue_SvU64(ST(2));
+      } else {
+        croak("Unexpected size_t >64 bits?"); /* should be optimized out unless sizeof(size_t) > 8 */
+      }
+    }
+    {
+      if (sizeof(signed int) == 1) {
+        arg5 = amglue_SvI8(ST(3));
+      } else if (sizeof(signed int) == 2) {
+        arg5 = amglue_SvI16(ST(3));
+      } else if (sizeof(signed int) == 4) {
+        arg5 = amglue_SvI32(ST(3));
+      } else if (sizeof(signed int) == 8) {
+        arg5 = amglue_SvI64(ST(3));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    result = stream_server(arg1,arg2,arg3,arg4,arg5);
+    {
+      ST(argvi) = sv_2mortal(newSViv(result));
+      argvi++;
+    }
+    {
+      ST(argvi) = sv_2mortal(newSViv(*arg2));
+      argvi++;
+    }
+    
+    
+    
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_stream_accept) {
+  {
+    int arg1 ;
+    int arg2 ;
+    size_t arg3 ;
+    size_t arg4 ;
+    int argvi = 0;
+    socketfd result;
+    dXSARGS;
+    
+    if ((items < 4) || (items > 4)) {
+      SWIG_croak("Usage: stream_accept(fd,timeout,sendsize,recvsize);");
+    }
+    {
+      IO *io = NULL;
+      PerlIO *pio = NULL;
+      int fd = -1;
+      
+      if (SvIOK(ST(0))) {
+        /* plain old integer */
+        arg1 = SvIV(ST(0));
+      } else {
+        /* try extracting as filehandle */
+        
+        /* note: sv_2io may call die() */
+        io = sv_2io(ST(0));
+        if (io) {
+          pio = IoIFP(io);
+        }
+        if (pio) {
+          fd = PerlIO_fileno(pio);
+        }
+        if (fd >= 0) {
+          arg1 = fd;
+        } else {
+          SWIG_exception(SWIG_TypeError, "Expected integer file descriptor "
+            "or file handle for argument 1");
+        }
+      }
+    }
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    {
+      if (sizeof(size_t) == 1) {
+        arg3 = amglue_SvU8(ST(2));
+      } else if (sizeof(size_t) == 2) {
+        arg3 = amglue_SvU16(ST(2));
+      } else if (sizeof(size_t) == 4) {
+        arg3 = amglue_SvU32(ST(2));
+      } else if (sizeof(size_t) == 8) {
+        arg3 = amglue_SvU64(ST(2));
+      } else {
+        croak("Unexpected size_t >64 bits?"); /* should be optimized out unless sizeof(size_t) > 8 */
+      }
+    }
+    {
+      if (sizeof(size_t) == 1) {
+        arg4 = amglue_SvU8(ST(3));
+      } else if (sizeof(size_t) == 2) {
+        arg4 = amglue_SvU16(ST(3));
+      } else if (sizeof(size_t) == 4) {
+        arg4 = amglue_SvU32(ST(3));
+      } else if (sizeof(size_t) == 8) {
+        arg4 = amglue_SvU64(ST(3));
+      } else {
+        croak("Unexpected size_t >64 bits?"); /* should be optimized out unless sizeof(size_t) > 8 */
+      }
+    }
+    result = stream_accept(arg1,arg2,arg3,arg4);
+    {
+      ST(argvi) = sv_2mortal(newSViv(result));
+      argvi++;
+    }
+    
+    
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_check_security) {
+  {
+    int arg1 ;
+    char *arg2 = (char *) 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: check_security(fd,userstr);");
+    }
+    {
+      IO *io = NULL;
+      PerlIO *pio = NULL;
+      int fd = -1;
+      
+      if (SvIOK(ST(0))) {
+        /* plain old integer */
+        arg1 = SvIV(ST(0));
+      } else {
+        /* try extracting as filehandle */
+        
+        /* note: sv_2io may call die() */
+        io = sv_2io(ST(0));
+        if (io) {
+          pio = IoIFP(io);
+        }
+        if (pio) {
+          fd = PerlIO_fileno(pio);
+        }
+        if (fd >= 0) {
+          arg1 = fd;
+        } else {
+          SWIG_exception(SWIG_TypeError, "Expected integer file descriptor "
+            "or file handle for argument 1");
+        }
+      }
+    }
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "check_security" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    result = (char *)check_security_fd(arg1,arg2);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    free((char*)result);
+    XSRETURN(argvi);
+  fail:
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_set_pname) {
   {
     char *arg1 = (char *) 0 ;
@@ -1904,6 +2951,24 @@ XS(_wrap_set_pname) {
     XSRETURN(argvi);
   fail:
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_get_pname) {
+  {
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 0) || (items > 0)) {
+      SWIG_croak("Usage: get_pname();");
+    }
+    result = (char *)get_pname();
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    XSRETURN(argvi);
+  fail:
     SWIG_croak_null();
   }
 }
@@ -1937,6 +3002,24 @@ XS(_wrap_set_ptype) {
 }
 
 
+XS(_wrap_get_ptype) {
+  {
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 0) || (items > 0)) {
+      SWIG_croak("Usage: get_ptype();");
+    }
+    result = (char *)get_ptype();
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    XSRETURN(argvi);
+  fail:
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_set_pcontext) {
   {
     pcontext_t arg1 ;
@@ -1965,6 +3048,31 @@ XS(_wrap_set_pcontext) {
     XSRETURN(argvi);
   fail:
     
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_get_pcontext) {
+  {
+    int argvi = 0;
+    pcontext_t result;
+    dXSARGS;
+    
+    if ((items < 0) || (items > 0)) {
+      SWIG_croak("Usage: get_pcontext();");
+    }
+    result = (pcontext_t)get_pcontext();
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    XSRETURN(argvi);
+  fail:
     SWIG_croak_null();
   }
 }
@@ -2023,30 +3131,46 @@ XS(_wrap_check_running_as) {
 
 /* -------- TYPE CONVERSION AND EQUIVALENCE RULES (BEGIN) -------- */
 
+static swig_type_info _swigt__p_GPtrArray = {"_p_GPtrArray", "GPtrArray *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_char = {"_p_char", "gchar *|char *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_file_lock = {"_p_file_lock", "struct file_lock *|file_lock *", 0, 0, (void*)"Amanda::Util::file_lock", 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *|gfloat *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_fs_usage = {"_p_fs_usage", "struct fs_usage *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_in_port_t = {"_p_in_port_t", "in_port_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_int = {"_p_int", "int *|pcontext_t *|gboolean *|running_as_flags *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "guchar *|unsigned char *", 0, 0, (void*)0, 0};
 
 static swig_type_info *swig_type_initial[] = {
+  &_swigt__p_GPtrArray,
   &_swigt__p_char,
   &_swigt__p_double,
+  &_swigt__p_file_lock,
   &_swigt__p_float,
+  &_swigt__p_fs_usage,
+  &_swigt__p_in_port_t,
   &_swigt__p_int,
   &_swigt__p_unsigned_char,
 };
 
+static swig_cast_info _swigc__p_GPtrArray[] = {  {&_swigt__p_GPtrArray, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_char[] = {  {&_swigt__p_char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_double[] = {  {&_swigt__p_double, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_file_lock[] = {  {&_swigt__p_file_lock, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_float[] = {  {&_swigt__p_float, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_fs_usage[] = {  {&_swigt__p_fs_usage, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_in_port_t[] = {  {&_swigt__p_in_port_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_int[] = {  {&_swigt__p_int, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_unsigned_char[] = {  {&_swigt__p_unsigned_char, 0, 0, 0},{0, 0, 0, 0}};
 
 static swig_cast_info *swig_cast_initial[] = {
+  _swigc__p_GPtrArray,
   _swigc__p_char,
   _swigc__p_double,
+  _swigc__p_file_lock,
   _swigc__p_float,
+  _swigc__p_fs_usage,
+  _swigc__p_in_port_t,
   _swigc__p_int,
   _swigc__p_unsigned_char,
 };
@@ -2065,12 +3189,35 @@ static swig_variable_info swig_variables[] = {
 };
 static swig_command_info swig_commands[] = {
 {"Amanda::Utilc::get_original_cwd", _wrap_get_original_cwd},
+{"Amanda::Utilc::hexencode", _wrap_hexencode},
+{"Amanda::Utilc::hexdecode", _wrap_hexdecode},
 {"Amanda::Utilc::sanitise_filename", _wrap_sanitise_filename},
 {"Amanda::Utilc::quote_string", _wrap_quote_string},
 {"Amanda::Utilc::unquote_string", _wrap_unquote_string},
+{"Amanda::Utilc::expand_braced_alternates", _wrap_expand_braced_alternates},
+{"Amanda::Utilc::collapse_braced_alternates", _wrap_collapse_braced_alternates},
+{"Amanda::Utilc::split_quoted_strings", _wrap_split_quoted_strings},
+{"Amanda::Utilc::get_fs_usage", _wrap_get_fs_usage},
+{"Amanda::Utilc::fsync", _wrap_fsync},
+{"Amanda::Utilc::set_blocking", _wrap_set_blocking},
+{"Amanda::Utilc::new_file_lock", _wrap_new_file_lock},
+{"Amanda::Utilc::file_lock_lock", _wrap_file_lock_lock},
+{"Amanda::Utilc::file_lock_unlock", _wrap_file_lock_unlock},
+{"Amanda::Utilc::file_lock_write", _wrap_file_lock_write},
+{"Amanda::Utilc::file_lock_data", _wrap_file_lock_data},
+{"Amanda::Utilc::delete_file_lock", _wrap_delete_file_lock},
+{"Amanda::Utilc::weaken_ref", _wrap_weaken_ref},
+{"Amanda::Utilc::gettimeofday", _wrap_gettimeofday},
+{"Amanda::Utilc::openbsd_fd_inform", _wrap_openbsd_fd_inform},
+{"Amanda::Utilc::stream_server", _wrap_stream_server},
+{"Amanda::Utilc::stream_accept", _wrap_stream_accept},
+{"Amanda::Utilc::check_security", _wrap_check_security},
 {"Amanda::Utilc::set_pname", _wrap_set_pname},
+{"Amanda::Utilc::get_pname", _wrap_get_pname},
 {"Amanda::Utilc::set_ptype", _wrap_set_ptype},
+{"Amanda::Utilc::get_ptype", _wrap_get_ptype},
 {"Amanda::Utilc::set_pcontext", _wrap_set_pcontext},
+{"Amanda::Utilc::get_pcontext", _wrap_get_pcontext},
 {"Amanda::Utilc::safe_cd", _wrap_safe_cd},
 {"Amanda::Utilc::check_running_as", _wrap_check_running_as},
 {0,0}
@@ -2415,6 +3562,17 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "CONTEXT_SCRIPTUTIL", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CONTEXT_SCRIPTUTIL)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  SWIG_TypeClientData(SWIGTYPE_p_file_lock, (void*) "Amanda::Util::file_lock");
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "AF_INET", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(AF_INET)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "STREAM_BUFSIZE", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(STREAM_BUFSIZE)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   ST(0) = &PL_sv_yes;

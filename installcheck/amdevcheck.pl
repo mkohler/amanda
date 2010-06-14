@@ -1,4 +1,4 @@
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2007, 2008, 2010 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -13,14 +13,15 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More tests => 10;
+use Test::More tests => 17;
 
 use lib "@amperldir@";
 use Installcheck::Config;
 use Installcheck::Run qw(run run_get run_err $diskname);
+use Installcheck::Dumpcache;
 use Amanda::Paths;
 
 my $testconf;
@@ -55,7 +56,7 @@ is_deeply([ sort split "\n", $Installcheck::Run::stdout],
 
 # this is re-created for each test
 $testconf = Installcheck::Run::setup();
-$testconf->add_param('label_new_tapes', '"TESTCONF%%"');
+$testconf->add_param('autolabel', '"TESTCONF%%" empty volume_error');
 $testconf->add_dle("localhost $diskname installcheck-test");
 $testconf->write();
 
@@ -64,16 +65,40 @@ is_deeply([ sort split "\n", $Installcheck::Run::stdout],
 	  [ sort "MESSAGE Error loading device header -- unlabeled volume?", "VOLUME_UNLABELED", "DEVICE_ERROR", "VOLUME_ERROR"],
 	  "..and output is correct");
 
-ok(run('amdevcheck', 'TESTCONF', "/dev/null"),
+ok(run('amdevcheck', 'TESTCONF', "--properties"),
+    "can list properties with --properties option");
+
+ok(run('amdevcheck', 'TESTCONF', "--properties", "BLOCK_SIZE"),
+    "check block_size property value");
+is_deeply([ sort split "\n", $Installcheck::Run::stdout],
+	  [ sort "BLOCK_SIZE=32768"],
+    ".. and confirm it is default value");
+
+ok(run('amdevcheck', 'TESTCONF', "--properties", "CANONICAL_NAME"),
+    "check canonical_name property value");
+is_deeply([ sort split "\n", $Installcheck::Run::stdout],
+	  [ sort "CANONICAL_NAME=file:" . Installcheck::Run::vtape_dir() ],
+    ".. and confirm it is set to default value");
+
+ok(run('amdevcheck', 'TESTCONF', "--properties", "BLOCK_SIZE,CANONICAL_NAME"),
+    "check a list of properties");
+is_deeply([ sort split "\n", $Installcheck::Run::stdout],
+	  [ sort "BLOCK_SIZE=32768",
+	  	 "CANONICAL_NAME=file:" . Installcheck::Run::vtape_dir() ],
+    ".. with correct results");
+
+ok(run('amdevcheck', 'TESTCONF', '/dev/null'),
     "can override device on the command line");
 is_deeply([ sort split "\n", $Installcheck::Run::stdout],
 	  [ sort "MESSAGE File /dev/null is not a tape device", "DEVICE_ERROR"],
     ".. and produce a corresponding error message");
 
-BAIL_OUT("amdump failed")
-    unless run('amdump', 'TESTCONF');
+Installcheck::Dumpcache::load("basic");
 
-is_deeply([ sort split "\n", run_get('amdevcheck', 'TESTCONF') ],
+# the 'basic' dumpcache uses a changer, not a tapedev, and amdevcheck doesn't
+# understand that, so we have to give an explicit device here
+is_deeply([ sort split "\n",
+	    run_get('amdevcheck', 'TESTCONF', 'file:'.$Installcheck::Run::taperoot) ],
 	  [ sort "SUCCESS" ],
     "used vtape described as SUCCESS");
 

@@ -30,7 +30,6 @@
  */
 
 #include "amanda.h"
-#include "version.h"
 #include "stream.h"
 #include "amfeatures.h"
 #include "amrecover.h"
@@ -41,6 +40,7 @@
 #include "protocol.h"
 #include "event.h"
 #include "security.h"
+#include "conffile.h"
 
 #define amrecover_debug(i, ...) do {	\
 	if ((i) <= debug_amrecover) {	\
@@ -74,6 +74,7 @@ am_feature_t *our_features = NULL;
 char *our_features_string = NULL;
 am_feature_t *indexsrv_features = NULL;
 am_feature_t *tapesrv_features = NULL;
+proplist_t proplist = NULL;
 static char *errstr = NULL;
 char *authopt;
 int amindexd_alive = 0;
@@ -89,7 +90,6 @@ static struct {
 
 static void amindexd_response(void *, pkt_t *, security_handle_t *);
 void stop_amindexd(void);
-char *amindexd_client_get_security_conf(char *, void *);
 
 static char* mesg_buffer = NULL;
 /* gets a "line" from server and put in server_line */
@@ -128,6 +128,7 @@ get_line(void)
 	newbuf[strlen(mesg_buffer)+size] = '\0';
 	amfree(mesg_buffer);
 	mesg_buffer = newbuf;
+	amfree(buf);
     }
 
     s = strstr(mesg_buffer,"\r\n");
@@ -146,6 +147,8 @@ get_line(void)
 /* return -1 if error */
 /* return code returned by server always occupies first 3 bytes of global
    variable server_line */
+/* show == 0: Print the reply if it is an error */
+/* show == 1: Always print the reply            */
 int
 grab_reply(
     int show)
@@ -154,7 +157,9 @@ grab_reply(
 	if (get_line() == -1) {
 	    return -1;
 	}
-	if(show) puts(server_line);
+	if (show || server_line[0] == '5') {
+	    puts(server_line);
+	}
     } while (server_line[3] == '-');
     if(show) fflush(stdout);
 
@@ -209,6 +214,7 @@ send_command(
     buffer[strlen(cmd)+1] = '\n';
     buffer[strlen(cmd)+2] = '\0';
 
+    g_debug("sending: %s\n", buffer);
     if(security_stream_write(streams[MESGFD].fd, buffer, strlen(buffer)) < 0) {
 	return -1;
     }
@@ -318,7 +324,7 @@ main(
     char *req = NULL;
     int response_error;
     struct tm *tm;
-    config_overwrites_t *cfg_ovr;
+    config_overrides_t *cfg_ovr;
 
     /*
      * Configure program for internationalization:
@@ -345,25 +351,15 @@ main(
     }
     localhost[MAX_HOSTNAME_LENGTH] = '\0';
 
-    /* load the base client configuration */
-    config_init(CONFIG_INIT_CLIENT, NULL);
-
-    if (config_errors(NULL) >= CFGERR_WARNINGS) {
-	config_print_errors();
-	if (config_errors(NULL) >= CFGERR_ERRORS) {
-	    g_critical(_("errors processing config file"));
-	}
-    }
-
     /* treat amrecover-specific command line options as the equivalent
      * -o command-line options to set configuration values */
-    cfg_ovr = new_config_overwrites(argc/2);
+    cfg_ovr = new_config_overrides(argc/2);
 
     /* If the first argument is not an option flag, then we assume
      * it is a configuration name to match the syntax of the other
      * Amanda utilities. */
     if (argc > 1 && argv[1][0] != '-') {
-	add_config_overwrite(cfg_ovr, "conf", argv[1]);
+	add_config_override(cfg_ovr, "conf", argv[1]);
 
 	/* remove that option from the command line */
 	argv[1] = argv[0];
@@ -374,23 +370,23 @@ main(
     while ((i = getopt(argc, argv, "o:C:s:t:d:U")) != EOF) {
 	switch (i) {
 	    case 'C':
-		add_config_overwrite(cfg_ovr, "conf", optarg);
+		add_config_override(cfg_ovr, "conf", optarg);
 		break;
 
 	    case 's':
-		add_config_overwrite(cfg_ovr, "index_server", optarg);
+		add_config_override(cfg_ovr, "index_server", optarg);
 		break;
 
 	    case 't':
-		add_config_overwrite(cfg_ovr, "tape_server", optarg);
+		add_config_override(cfg_ovr, "tape_server", optarg);
 		break;
 
 	    case 'd':
-		add_config_overwrite(cfg_ovr, "tapedev", optarg);
+		add_config_override(cfg_ovr, "tapedev", optarg);
 		break;
 
 	    case 'o':
-		add_config_overwrite_opt(cfg_ovr, optarg);
+		add_config_override_opt(cfg_ovr, optarg);
 		break;
 
 	    case 'U':
@@ -404,8 +400,18 @@ main(
 	exit(1);
     }
 
+    /* load the base client configuration */
+    set_config_overrides(cfg_ovr);
+    config_init(CONFIG_INIT_CLIENT, NULL);
+
+    if (config_errors(NULL) >= CFGERR_WARNINGS) {
+	config_print_errors();
+	if (config_errors(NULL) >= CFGERR_ERRORS) {
+	    g_critical(_("errors processing config file"));
+	}
+    }
+
     /* and now try to load the configuration named in that file */
-    apply_config_overwrites(cfg_ovr);
     config_init(CONFIG_INIT_CLIENT | CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_OVERLAY,
 		getconf_str(CNF_CONF));
 
@@ -489,6 +495,8 @@ main(
 	/*NOTREACHED*/
     }
 
+    proplist = g_hash_table_new_full(g_str_hash, g_str_equal, &g_free, &free_property_t);
+
     protocol_init();
 
     /* We assume that amindexd support fe_amindexd_options_features */
@@ -512,7 +520,7 @@ main(
     protocol_run();
 
     g_printf(_("AMRECOVER Version %s. Contacting server on %s ...\n"),
-	   version(), server_name);
+	   VERSION, server_name);
 
     if(response_error != 0) {
 	g_fprintf(stderr,"%s\n",errstr);
@@ -816,23 +824,4 @@ stop_amindexd(void)
             streams[i].fd = NULL;
         }
     }
-}
-
-char *
-amindexd_client_get_security_conf(
-    char *	string,
-    void *	arg)
-{
-    (void)arg;	/* Quiet unused parameter warning */
-
-    if(!string || !*string)
-	return(NULL);
-
-    if(strcmp(string, "auth")==0) {
-	return(getconf_str(CNF_AUTH));
-    }
-    else if(strcmp(string, "ssh_keys")==0) {
-	return(getconf_str(CNF_SSH_KEYS));
-    }
-    return(NULL);
 }

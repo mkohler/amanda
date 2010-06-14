@@ -2,12 +2,12 @@
 .\"     Title: amserverconfig
 .\"    Author: Kevin Till <kevin.till@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMSERVERCONFIG" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMSERVERCONFIG" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,7 +19,7 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amserverconfig \- program to setup initial \fIAmanda\fR configuration
+amserverconfig \- program to setup initial Amanda configuration
 .SH "SYNOPSIS"
 .HP \w'\fBamserverconfig\fR\ 'u
 \fBamserverconfig\fR \fIconfig\fR [\-\-template\ \fItemplate\fR] [\-\-no\-vtape] [\-\-tapetype\ \fItapetype\fR] [\-\-tpchanger\ \fItpchanger\fR] [\-\-tapedev\ \fItapedev\fR] [\-\-changerfile\ \fIchangerfile\fR] [\-\-changerdev\ \fIchangerdev\fR] [\-\-labelstr\ \fIlabelstr\fR] [\-\-mailto\ \fImailto\fR] [\-\-dumpcycle\ \fIdumpcycle\fR] [\-\-runspercycle\ \fIrunspercycle\fR] [\-\-runtapes\ \fIruntapes\fR] [\-\-tapecycle\ \fItapecycle\fR] [\-\-help]
@@ -27,13 +27,9 @@ amserverconfig \- program to setup initial \fIAmanda\fR configuration
 .PP
 After Amanda rpms are successfully installed,
 \fBamserverconfig\fR
-will setup initial
-\fIAmanda\fR
-configuration files\&. It will create /var/lib/amanda/guntar\-lists directory if one does not exist\&.
+will setup initial Amanda configuration files\&. It will create /var/lib/amanda/guntar\-lists directory if one does not exist\&.
 \fBamserverconfig\fR
-does not change existing
-\fIAmanda\fR
-configurations\&.
+does not change existing Amanda configurations\&.
 \fBamserverconfig\fR
 must be run by user amandabackup\&.
 .SH "OPTIONS"
@@ -42,15 +38,11 @@ Options may be abbreviated, as long as the abbreviation is not ambiguous\&. Opti
 .PP
 
 \fBamserverconfig\fR
-builds a new "config"
-\fIAmanda\fR
-configuration\&. Customize the configuration with the options below\&.
+builds a new "config" Amanda configuration\&. Customize the configuration with the options below\&.
 .PP
 \fB\-\-template template\fR
 .RS 4
-build
-\fIAmanda\fR
-configuration with pre\-configured template files\&. Currently,
+build Amanda configuration with pre\-configured template files\&. Currently,
 \fBharddisk\fR,
 \fBsingle\-tape\fR,
 \fBtape\-changer\fR
@@ -152,28 +144,22 @@ A directory which contains backup timestamp and list of files backed up\&.
 .PP
 \fB/etc/amanda/$config\fR
 .RS 4
-\fIAmanda\fR
-configuration files location for $config(e\&.g: DailySet1)\&.
+Amanda configuration files location for $config(e\&.g: DailySet1)\&.
 .RE
 .PP
 \fB/etc/amanda/template\&.d\fR
 .RS 4
-A directory contains dumptypes and tapetypes files used by all
-\fIAmanda\fR
-configurations\&.
+A directory contains dumptypes and tapetypes files used by all Amanda configurations\&.
 .RE
 .PP
 \fB/etc/amandates\fR
 .RS 4
-\fIAmanda\fR
-file on the client\&. It keeps track of structures of previous dumps\&.
+Amanda file on the client\&. It keeps track of structures of previous dumps\&.
 .RE
 .PP
 \fB/tmp/amanda\fR
 .RS 4
-directory contains
-\fIAmanda\fR
-debug log files\&.
+directory contains Amanda debug log files\&.
 .RE
 .SH "RETURN VALUE"
 
@@ -182,8 +168,10 @@ On success, zero is returned\&.  On error, 1 is returned\&.
 .PP
 \fBamanda\fR(8),
 \fBamanda.conf\fR(5),
-\fBamaddclient\fR(8),
-: http://wiki.zmanda.com
+\fBamaddclient\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHOR"
 .PP
 \fBKevin Till\fR <\&kevin\&.till@zmanda\&.com\&>

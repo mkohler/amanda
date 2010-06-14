@@ -2,12 +2,12 @@
 .\"     Title: amaddclient
 .\"    Author: Kevin Till <kevin.till@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMADDCLIENT" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMADDCLIENT" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,7 +19,7 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amaddclient \- program to add client to an existing \fIAmanda\fR configuration
+amaddclient \- program to add client to an existing Amanda configuration
 .SH "SYNOPSIS"
 .HP \w'\fBamaddclient\fR\ 'u
 \fBamaddclient\fR \-\-config \fIconfig\fR ||
@@ -31,12 +31,9 @@ After Amanda rpms are successfully installed and
 \fBamserverconfig\fR
 is run,
 \fBamaddclient\fR
-will add client to the
-\fIAmanda\fR
-configuration\&.
+will add client to the Amanda configuration\&.
 \fBamaddclient\fR
-create or update
-\fIAmanda\fR
+create or update Amanda
 \fBdisklist\fR(5)
 file and create or update /var/lib/amanda/\&.amandahosts file on the server\&.
 .PP
@@ -63,8 +60,7 @@ Example: \-\-conf=v253, \-\-client client8\&.zmanda\&.com
 .PP
 \fB\-\-config config\fR
 .RS 4
-\fIAmanda\fR
-configuration which this program will add the client to\&.
+Amanda configuration which this program will add the client to\&.
 .RE
 .PP
 \fB\-\-client client\fR
@@ -74,9 +70,7 @@ The name of the client machine to add\&. FQDN name recommended\&.
 .PP
 \fB\-\-diskdev diskdev\fR
 .RS 4
-Directory for this
-\fIAmanda\fR
-configuration to backup\&.
+Directory for this Amanda configuration to backup\&.
 .RE
 .PP
 \fB\-\-m\fR
@@ -174,8 +168,7 @@ amandabackup home directory
 .PP
 \fB/var/lib/amanda/\&.amandahosts\fR
 .RS 4
-\fIAmanda\fR
-authentication file\&.
+Amanda authentication file\&.
 .RE
 .PP
 \fB/var/lib/amanda/gnutar\-lists\fR
@@ -185,28 +178,22 @@ A directory which contains backup timestamp and list of files backed up\&.
 .PP
 \fB/etc/amanda/$config\fR
 .RS 4
-\fIAmanda\fR
-configuration files location for $config(e\&.g: DailySet1)\&.
+Amanda configuration files location for $config(e\&.g: DailySet1)\&.
 .RE
 .PP
 \fB/etc/amanda/template\&.d\fR
 .RS 4
-A directory contains dumptypes and tapetypes files used by all
-\fIAmanda\fR
-configurations\&.
+A directory contains dumptypes and tapetypes files used by all Amanda configurations\&.
 .RE
 .PP
 \fB/etc/amandates\fR
 .RS 4
-\fIAmanda\fR
-file on the client\&. It keeps track of structures of previous dumps\&.
+Amanda file on the client\&. It keeps track of structures of previous dumps\&.
 .RE
 .PP
 \fB/tmp/amanda\fR
 .RS 4
-directory contains
-\fIAmanda\fR
-debug log files\&.
+directory contains Amanda debug log files\&.
 .RE
 .SH "RETURN VALUE"
 
@@ -215,11 +202,13 @@ On success, zero is returned\&.  On error, 1 is returned\&.
 .PP
 \fBamanda\fR(8),
 \fBamanda.conf\fR(5),
-\fBamserverconfig\fR(8)
-\fBssh-keygen\fR(1)
-\fBssh-add\fR(1)
+\fBamserverconfig\fR(8),
+\fBssh-keygen\fR(1),
+\fBssh-add\fR(1),
 \fBscp\fR(1)
-: http://wiki.zmanda.com
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHOR"
 .PP
 \fBKevin Till\fR <\&kevin\&.till@zmanda\&.com\&>

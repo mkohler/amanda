@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -37,25 +37,27 @@ see http://wiki.zmanda.com/index.php/Script_API.</para>
 
 <refsect1><title>SCRIPTS</title>
 
-<para>This section lists the scripts included with &A;, see the individual man page for instructions on using them.  For complete How-To information, consult the Amanda wiki at http://wiki.zmanda.com.</para>
+<para>This section lists the scripts included with Amanda, see the individual man page for instructions on using them.  For complete How-To information, consult the Amanda wiki at http://wiki.zmanda.com.</para>
 
 <itemizedlist>
 <listitem>
-<citerefentry><refentrytitle>amzfs-snapshot</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+<manref name="amzfs-snapshot" vol="8"/>,
 - create/destroy zfs snapshot.
 </listitem>
 <listitem>
-<citerefentry><refentrytitle>script-email</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+<manref name="script-email" vol="8"/>,
 - send email.
 </listitem>
 </itemizedlist>
 
-</refsect1>
-
-<refsect1><title>SEE ALSO</title>
-<para>
-<citerefentry><refentrytitle>amanda.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>
-</para>
+<para>Script properties work just like application properties: they are
+insensitive to case, and <literal>-</literal> (dash) and
+<literal>_</literal> (underscore) may be used interchangeably.</para>
 
 </refsect1>
+
+<seealso>
+<manref name="amanda.conf" vol="5"/>
+</seealso>
+
 </refentry>

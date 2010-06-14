@@ -1,6 +1,6 @@
 #!@PERL@
 #
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2007,2008 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -15,7 +15,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 #
 
@@ -39,16 +39,8 @@ my $def_dumptype="user-tar";
 
 my $sp_diskfile=0;
 
-# Get the version suffix.
-my $USE_VERSION_SUFFIXES = '@USE_VERSION_SUFFIXES@';
-my $suf = '';
-if ( $USE_VERSION_SUFFIXES =~ /^yes$/i ) {
-        $suf='-@VERSION@';
-}
-
-
 sub usage {
-        print "$0 $suf\n";      
+        print "$0\n";      
         print "\t\t--config <config>         Required. Ex: DailySet1\n";       
 	print "\t\t--client <FQDN-name>      Required. Ex: server.zmanda.com\n";
         print "\t\t--diskdev <directory>     Required. Ex: /home\n";

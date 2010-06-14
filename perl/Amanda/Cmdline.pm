@@ -51,6 +51,7 @@ package Amanda::Cmdline;
 
 *format_dumpspec_components = *Amanda::Cmdlinec::format_dumpspec_components;
 *parse_dumpspecs = *Amanda::Cmdlinec::parse_dumpspecs;
+*header_matches_dumpspecs = *Amanda::Cmdlinec::header_matches_dumpspecs;
 
 ############# Class : Amanda::Cmdline::dumpspec_t ##############
 
@@ -109,6 +110,7 @@ package Amanda::Cmdline;
 @EXPORT_OK = ();
 %EXPORT_TAGS = ();
 
+
 =head1 NAME
 
 Amanda::Cmdline - utilities for handling command lines
@@ -122,10 +124,6 @@ Amanda::Cmdline - utilities for handling command lines
 
   my @specs = Amanda::Cmdline::parse_dumpspecs(["host", "disk", "date"],
 			    $Amanda::Cmdline::CMDLINE_PARSE_DATESTAMP);
-
-=head1 API STATUS
-
-Will change.
 
 =head1 Amanda::Cmdline::dumpspec_t Objects
 
@@ -159,23 +157,33 @@ Format the dumpspec as a string.
 
 =item C<format_dumpspec_components($host, $disk, $datestamp, $level)>
 
-This function returns a string representing the formatted form of the given dumpspec.  This formatting
-is the same as performed by C<format_dumpspec_components>, but does not need a C<dumpspec_t>.
+This function returns a string representing the formatted form of the
+given dumpspec.  This formatting is the same as performed by
+C<format_dumpspec_components>, but does not need a C<dumpspec_t>.
 
-=item C<parse_dumpspecs(@cmdline, $flags)> 
+=item C<parse_dumpspecs([@cmdline], $flags)>
 
 This function parses C<@cmdline> into a list of C<dumpspec_t> objects,
-according to C<$flags>, which is a logical combination of zero or
-more of C<$CMDLINE_PARSE_DATESTAMP> to recognize datestamps and
+according to C<$flags>, which is a logical combination of zero or more
+of C<$CMDLINE_PARSE_DATESTAMP> to recognize datestamps and
 C<$CMDLINE_PARSE_LEVEL> to recognize levels.
+
+=item C<header_matches_dumpspecs($hdr, [@dumpspecs])>
+
+This function compares a header to a list of dumpspecs, returning true if the
+header matches at least one dumpspec.  If C<@dumpspecs> is empty, the function
+returns false.
 
 =back
 
 =head1 SEE ALSO
 
-L<Amanda::Config> handles C<-o> options itself, through C<config_overwrites>.
+L<Amanda::Config> handles C<-o> options itself, through
+C<config_overrides>.
 
 =cut
+
+
 
 push @EXPORT_OK, qw(cmdline_parse_dumpspecs_flags_to_strings);
 push @{$EXPORT_TAGS{"cmdline_parse_dumpspecs_flags"}}, qw(cmdline_parse_dumpspecs_flags_to_strings);
@@ -217,4 +225,6 @@ push @EXPORT_OK, qw($CMDLINE_EMPTY_TO_WILDCARD);
 push @{$EXPORT_TAGS{"cmdline_parse_dumpspecs_flags"}}, qw($CMDLINE_EMPTY_TO_WILDCARD);
 
 $_cmdline_parse_dumpspecs_flags_VALUES{"CMDLINE_EMPTY_TO_WILDCARD"} = $CMDLINE_EMPTY_TO_WILDCARD;
+
+push @EXPORT_OK, qw(header_matches_dumpspecs);
 1;

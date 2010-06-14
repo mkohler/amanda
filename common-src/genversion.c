@@ -24,12 +24,11 @@
  * file named AUTHORS, in the root directory of this distribution.
  */
 /*
- * $Id: genversion.c 1168 2008-07-03 14:15:21Z djmitche $
+ * $Id: genversion.c 2031 2009-07-09 14:44:32Z djmitche $
  *
  * dump the current Amanda version info
  */
 #include "amanda.h"
-#include "version.h"
 
 /* distribution-time information */
 #include "svn-info.h"
@@ -178,7 +177,7 @@ main(
     g_printf("const char * const version_info[] = {\n");
 
     startline("build:");
-    v = version();
+    v = VERSION;
     v_len = SIZEOF("Amanda-") + strlen(v) + 1;
     verstr = malloc(v_len);
     if (!verstr) {
@@ -403,10 +402,6 @@ main(
     prstr("BSD_SECURITY");
 #endif
 
-#ifdef KRB4_SECURITY
-    prstr("KRB4_SECURITY");
-#endif
-
 #ifdef KRB5_SECURITY
     prstr("KRB5_SECURITY");
 #endif
@@ -427,10 +422,6 @@ main(
 
 #ifdef CHECK_USERID
     prstr("CHECK_USERID");
-#endif
-
-#ifdef USE_VERSION_SUFFIXES
-    prstr("USE_VERSION_SUFFIXES");
 #endif
 
 #ifdef HAVE_GZIP

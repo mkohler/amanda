@@ -2,12 +2,12 @@
 .\"     Title: amstar
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMSTAR" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMSTAR" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,19 +22,38 @@
 amstar \- Amanda Application to interface with star
 .SH "DESCRIPTION"
 .PP
-Amstar is an
-\fIAmanda\fR
-Application API script\&. It should not be run by users directly\&. It uses star to backup and restore data\&.
+Amstar is an Amanda Application API script\&. It should not be run by users directly\&. It uses star to backup and restore data\&.
 .SH "PROPERTIES"
 .PP
 This section lists the properties that control amstar\'s functionality\&. See
 \fBamanda-applications\fR(7)
 for information on application properties and how they are configured\&.
 .PP
+COMMAND\-OPTIONS
+.RS 4
+If set, theses options are passed asis to star\&. Each option must be a different value of the property\&. Some option can break how amanda do backup, use it with care\&.
+
+Use:
+.nf
+  property "COMMAND\-OPTIONS" "\-\-foo" "bar"
+.fi
+
+Do not use:
+.nf
+  property "COMMAND\-OPTIONS" "\-\-foo bar"
+.fi
+.RE
+.PP
+DIRECTORY
+.RS 4
+
+If set, gnutar will backup from that directory instead of the \fIdiskdevice\fR set by the DLE\&. On restore, the data is restore in that directpory instead of the current working directory\&.
+.RE
+.PP
 ONE\-FILE\-SYSTEM
 .RS 4
 
-If "YES" (the default), do not allow star to cross filesystem boundaries\&. If "NO", star will cross filesystem boundaries\&.  This corresponds to the \fI\-xdev\fR option of star\&.
+The default is "YES"\&. This property is deprecated and the default value can\'t be changed\&. star requires it when it works in dump mode\&.  This corresponds to the \fI\-xdev\fR option of star\&.
 .RE
 .PP
 SPARSE
@@ -52,19 +71,60 @@ If "YES", amstar will use a different tardump file for each DLE\&. The default i
 STAR\-PATH
 .RS 4
 
-The path to the star binary\&.  The default is set when \fIAmanda\fR is built\&.
+The path to the star binary\&. The default is set when Amanda is built by the
+\-\-with\-star configure option\&.
 .RE
 .PP
 STAR\-TARDUMP
 .RS 4
 
-The directory where star stores the database it uses to generate incremental dumps\&.  The default is set when \fIAmanda\fR is built\&.
+The directory where star stores the database it uses to generate incremental
+dumps\&.  The default is /etc/tardumps\&.
+.RE
+.PP
+NORMAL
+.RS 4
+
+List all regex (POSIX Extended Regular Expression syntax) that are normal output from star\&. These output are in the "FAILED DUMP DETAILS" section of the email report if the dump result is STRANGE or FAILED\&. Default values:
+.nf
+  "^could not open conf file"
+  "^Type of this level "
+  "^Date of this level "
+  "^Date of last level "
+  "^Dump record  level "
+  "^Throughput"
+  "^\&.*is sparse$"
+  "^star: dumped [0\-9][0\-9]* (tar )?files"
+  "^\&.*The following problems occurred during \&.* processing\&.*$"
+  "^\&.*Processed all possible files, despite earlier errors\&.*$"
+  "^\&.*not written due to problems during backup\&.*$"
+.fi
+To treat one of these default patterns differently, specify it explicitly in a different property\&.
+.RE
+.PP
+IGNORE
+.RS 4
+
+List all regex (POSIX Extended Regular Expression syntax) that amanda ignore\&. These output are never in the email report\&. 
+.RE
+.PP
+STRANGE
+.RS 4
+
+List all regex (POSIX Extended Regular Expression syntax) that are strange output from star\&. All star output that doesn\'t match a normal or ignore regex are strange by default\&. The result of the dump is STRANGE if star produce a strange output\&. These output are in the "FAILED DUMP DETAILS" section of the email report\&.
+.nf
+  "^Perform a level 0 dump first\&.*$"
+.fi
+To treat one of these default patterns differently, specify it explicitly in a different property\&.
 .RE
 .SH "SEE ALSO"
 .PP
-
+\fBamanda\fR(8),
 \fBamanda.conf\fR(5),
 \fBamanda-applications\fR(7)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBJean\-Louis Martineau\fR <\&martineau@zmanda\&.com\&>

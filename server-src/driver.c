@@ -43,7 +43,6 @@
 #include "infofile.h"
 #include "logfile.h"
 #include "fsusage.h"
-#include "version.h"
 #include "driverio.h"
 #include "server_util.h"
 #include "timestamp.h"
@@ -175,6 +174,7 @@ main(
     char *newdir = NULL;
     struct fs_usage fsusage;
     holdingdisk_t *hdp;
+    identlist_t    il;
     unsigned long reserve = 100;
     char *conf_diskfile;
     cmd_t cmd;
@@ -186,7 +186,7 @@ main(
     char *line;
     char hostname[1025];
     intmax_t kb_avail;
-    config_overwrites_t *cfg_ovr = NULL;
+    config_overrides_t *cfg_ovr = NULL;
     char *cfg_opt = NULL;
     holdalloc_t *ha, *ha_last;
 
@@ -213,20 +213,21 @@ main(
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
-    erroutput_type = (ERR_AMANDALOG|ERR_INTERACTIVE);
-    set_logerror(logerror);
+    add_amanda_log_handler(amanda_log_stderr);
+    add_amanda_log_handler(amanda_log_trace_log);
 
     startclock();
 
-    cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
+    cfg_ovr = extract_commandline_config_overrides(&argc, &argv);
 
     if (argc > 1)
 	cfg_opt = argv[1];
+    set_config_overrides(cfg_ovr);
     config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_USE_CWD, cfg_opt);
-    apply_config_overwrites(cfg_ovr);
 
     conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
     read_diskfile(conf_diskfile, &origq);
+    disable_skip_disk(&origq);
     amfree(conf_diskfile);
 
     if (config_errors(NULL) >= CFGERR_WARNINGS) {
@@ -238,7 +239,7 @@ main(
 
     log_add(L_INFO, "%s pid %ld", get_pname(), (long)getpid());
     g_printf(_("%s: pid %ld executable %s version %s\n"),
-	   get_pname(), (long) getpid(), argv[0], version());
+	   get_pname(), (long) getpid(), argv[0], VERSION);
 
     if(argc > 2) {
         if(strncmp(argv[2], "nodump", 6) == 0) {
@@ -292,11 +293,9 @@ main(
 	hd_driver_timestamp = stralloc(driver_timestamp);
     }
 
-    taper_program = vstralloc(amlibexecdir, "/", "taper", versionsuffix(), NULL);
-    dumper_program = vstralloc(amlibexecdir, "/", "dumper", versionsuffix(),
-			       NULL);
-    chunker_program = vstralloc(amlibexecdir, "/", "chunker", versionsuffix(),
-			       NULL);
+    taper_program = vstralloc(amlibexecdir, "/", "taper", NULL);
+    dumper_program = vstralloc(amlibexecdir, "/", "dumper", NULL);
+    chunker_program = vstralloc(amlibexecdir, "/", "chunker", NULL);
 
     conf_taperalgo = getconf_taperalgo(CNF_TAPERALGO);
     conf_tapetype = getconf_str(CNF_TAPETYPE);
@@ -325,7 +324,10 @@ main(
     total_disksize = (off_t)0;
     ha_last = NULL;
     num_holdalloc = 0;
-    for(hdp = getconf_holdingdisks(), dsk = 0; hdp != NULL; hdp = holdingdisk_next(hdp), dsk++) {
+    for (il = getconf_identlist(CNF_HOLDINGDISK), dsk = 0;
+	 il != NULL;
+	 il = il->next, dsk++) {
+	hdp = lookup_holdingdisk(il->data);
 	ha = alloc(SIZEOF(holdalloc_t));
 	num_holdalloc++;
 
@@ -1027,6 +1029,10 @@ start_some_dumps(
 	holdp = holdp_accept;
 
 	idle_reason = max(idle_reason, cur_idle);
+	if (diskp == NULL && idle_reason == IDLE_NO_DISKSPACE) {
+	    /* continue flush waiting for new tape */
+	    startaflush();
+	}
 
 	/*
 	 * If we have no disk at this point, and there are disks that
@@ -1050,6 +1056,7 @@ start_some_dumps(
 	    diskp->inprogress = 1;
 	    sched(diskp)->dumper = dumper;
 	    sched(diskp)->timestamp = now;
+	    amfree(diskp->dataport_list);
 
 	    dumper->busy = 1;		/* dumper is now busy */
 	    dumper->dp = diskp;		/* link disk to dumper */
@@ -1100,6 +1107,8 @@ start_some_dumps(
 		chunker->ev_read = event_register((event_id_t)chunker->fd, EV_READFD,
 						   handle_chunker_result, chunker);
 		dumper->output_port = atoi(result_argv[1]);
+		amfree(diskp->dataport_list);
+		diskp->dataport_list = stralloc(result_argv[2]);
 
 		if (diskp->host->pre_script == 0) {
 		    for (dp=diskp->host->disks; dp != NULL; dp = dp->hostnext) {
@@ -1247,15 +1256,11 @@ continue_port_dumps(void)
      * a) diskspace has been allocated for other dumps which are
      *    still running or already being written to tape
      * b) all other dumps have been suspended due to lack of diskspace
-     * c) this dump doesn't fit on all the holding disks
      * Case a) is not a problem. We just wait for the diskspace to
      * be freed by moving the current disk to a queue.
      * If case b) occurs, we have a deadlock situation. We select
      * a dump from the queue to be aborted and abort it. It will
-     * be retried later dumping to disk.
-     * If case c) is detected, the dump is aborted. Next time
-     * it will be dumped directly to tape. Actually, case c is a special
-     * manifestation of case b) where only one dumper is busy.
+     * be retried directly to tape.
      */
     for(dp=NULL, dumper = dmptable; dumper < (dmptable+inparallel); dumper++) {
 	if( dumper->busy ) {
@@ -1270,11 +1275,8 @@ continue_port_dumps(void)
     }
     if((dp != NULL) && (active_dumpers == 0) && (busy_dumpers > 0) && 
         ((!taper_busy && empty(tapeq)) || degraded_mode) &&
-	pending_aborts == 0 ) { /* not case a */
-	if( busy_dumpers == 1 ) { /* case c */
-	    sched(dp)->no_space = 1;
-	}
-	/* case b */
+	pending_aborts == 0 ) { /* case b */
+	sched(dp)->no_space = 1;
 	/* At this time, dp points to the dump with the smallest est_size.
 	 * We abort that dump, hopefully not wasting too much time retrying it.
 	 */
@@ -1435,7 +1437,10 @@ handle_taper_result(
 	    taper_state &= ~TAPER_STATE_TAPE_STARTED;
 
 	    if (current_tape >= conf_runtapes) {
-		taper_cmd(NO_NEW_TAPE, "runtapes volumes already written", NULL, 0, NULL);
+		char *usermsg = g_strdup_printf(_("%d tapes filled; runtapes=%d "
+		    "does not allow additional tapes"), current_tape, conf_runtapes);
+		taper_cmd(NO_NEW_TAPE, usermsg, NULL, 0, NULL);
+		g_free(usermsg);
 		log_add(L_WARNING,
 			_("Out of tapes; going into degraded mode."));
 		start_degraded_mode(&runq);
@@ -1480,17 +1485,18 @@ handle_taper_result(
 
 	case DUMPER_STATUS:  /* DUMPER-STATUS <handle> */
             if (result_argc != 2) {
-                error(_("error [taper NO_NEW_TAPE result_argc != 2: %d]"),
+                error(_("error [taper DUMPER_STATUS result_argc != 2: %d]"),
                       result_argc);
 		/*NOTREACHED*/
             }
+            dp = serial2disk(result_argv[1]);
 	    if (taper_dumper->result == LAST_TOK) {
 		taper_sendresult = 1;
 	    } else {
 		if( taper_dumper->result == DONE) {
-		    taper_cmd(DONE, NULL, NULL, 0, NULL);
+		    taper_cmd(DONE, dp, NULL, 0, NULL);
 		} else {
-		    taper_cmd(FAILED, NULL, NULL, 0, NULL);
+		    taper_cmd(FAILED, dp, NULL, 0, NULL);
 		}
 	    }
 	    break;
@@ -1775,6 +1781,7 @@ dumper_chunker_result(
 
     is_partial = dumper->result != DONE || chunker->result != DONE;
     rename_tmp_holding(sched(dp)->destname, !is_partial);
+    holding_set_origsize(sched(dp)->destname, sched(dp)->origsize);
 
     dummy = (off_t)0;
     for( i = 0, h = sched(dp)->holdp; i < activehd; i++ ) {
@@ -1945,10 +1952,25 @@ handle_dumper_result(
 
 	if (cmd != BOGUS) {
 	    int last_dump = 1;
+	    dumper_t *dumper;
+
 	    run_server_scripts(EXECUTE_ON_POST_DLE_BACKUP,
 			       get_config_name(), dp, sched(dp)->level);
+	    /* check dump not yet started */
 	    for (dp1=runq.head; dp1 != NULL; dp1 = dp1->next) {
-		if (dp1 != dp) last_dump = 0;
+		if (dp1->host == dp->host)
+		    last_dump = 0;
+	    }
+	    /* check direct to tape dump */
+	    for (dp1=directq.head; dp1 != NULL; dp1 = dp1->next) {
+		if (dp1->host == dp->host)
+		    last_dump = 0;
+	    }
+	    /* check dumping dle */
+	    for (dumper = dmptable; dumper < dmptable + inparallel; dumper++) {
+		if (dumper->busy && dumper->dp != dp &&
+		    dumper->dp->host == dp->host)
+		 last_dump = 0;
 	    }
 	    if (last_dump && dp->host->post_script == 0) {
 		if (dp->host->post_script == 0) {
@@ -1978,9 +2000,9 @@ handle_dumper_result(
 	} else { /* send the dumper result to the taper */
 	    if (taper_sendresult) {
 		if (cmd == DONE) {
-		    taper_cmd(DONE, driver_timestamp, NULL, 0, NULL);
+		    taper_cmd(DONE, dp, NULL, 0, NULL);
 		} else {
-		    taper_cmd(FAILED, driver_timestamp, NULL, 0, NULL);
+		    taper_cmd(FAILED, dp, NULL, 0, NULL);
 		}
 		taper_sendresult = 0;
 	    }
@@ -2112,6 +2134,8 @@ handle_chunker_result(
 		     * determined in continue_port_dumps(). */
 		    enqueue_disk( &roomq, dp );
 		    continue_port_dumps();
+		    /* continue flush waiting for new tape */
+		    startaflush();
 		} else {
 		    /* OK, allocate space for disk and have chunker continue */
 		    sched(dp)->activehd = assign_holdingdisk( h, dp );
@@ -2193,8 +2217,15 @@ read_flush(void)
     disklist_t tq;
     char *qname = NULL;
     char *qdestname = NULL;
+    char *conf_infofile;
 
     tq.head = tq.tail = NULL;
+
+    conf_infofile = config_dir_relative(getconf_str(CNF_INFOFILE));
+    if (open_infofile(conf_infofile)) {
+	error(_("could not open info db \"%s\""), conf_infofile);
+	/*NOTREACHED*/
+    }
 
     for(line = 0; (inpline = agets(stdin)) != NULL; free(inpline)) {
 	dumpfile_t file;
@@ -2343,6 +2374,7 @@ read_flush(void)
 	sp->est_csize = (off_t)0;
 	sp->est_time = 0;
 	sp->est_kps = 10;
+	sp->origsize = file.orig_size;
 	sp->priority = 0;
 	sp->degr_level = -1;
 	sp->dump_attempted = 0;
@@ -2359,6 +2391,7 @@ read_flush(void)
 	dumpfile_free_data(&file);
     }
     amfree(inpline);
+    close_infofile();
 
     /*@i@*/ return tq;
 }
@@ -2388,6 +2421,7 @@ read_schedule(
     long long csize_;
     long long degr_nsize_;
     long long degr_csize_;
+    GPtrArray *errarray;
 
     (void)cookie;	/* Quiet unused parameter warning */
 
@@ -2636,12 +2670,32 @@ read_schedule(
 	    }
 	}
 	remove_disk(&waitq, dp);
-	if (dp->to_holdingdisk == HOLD_NEVER) {
-	    enqueue_disk(&directq, dp);
+
+	errarray = validate_optionstr(dp);
+	if (errarray->len > 0) {
+	    guint i;
+	    for (i=0; i < errarray->len; i++) {
+		log_add(L_FAIL, _("%s %s %s 0 [%s]"),
+			dp->host->hostname, qname,
+			sp->datestamp,
+			(char *)g_ptr_array_index(errarray, i));
+	    }
+	    amfree(qname);
 	} else {
-	    enqueue_disk(&runq, dp);
+
+	    if (dp->data_path == DATA_PATH_DIRECTTCP &&
+		dp->to_holdingdisk == HOLD_AUTO) {
+		/* planner already logged a warning. */
+		dp->to_holdingdisk = HOLD_NEVER;
+	    }
+
+	    if (dp->to_holdingdisk == HOLD_NEVER) {
+		enqueue_disk(&directq, dp);
+	    } else {
+		enqueue_disk(&runq, dp);
+	    }
+	    flush_size += sp->act_size;
 	}
-	flush_size += sp->act_size;
 	amfree(diskname);
     }
     g_printf(_("driver: flush size %lld\n"), (long long)flush_size);
@@ -2651,6 +2705,7 @@ read_schedule(
     if(need_degraded==1) start_degraded_mode(&runq);
     schedule_done = 1;
     start_some_dumps(&runq);
+    startaflush();
 }
 
 static unsigned long
@@ -3149,7 +3204,7 @@ dump_to_tape(
 
     taper_cmd(PORT_WRITE, dp, NULL, sched(dp)->level, sched(dp)->datestamp);
     cmd = getresult(taper, 1, &result_argc, &result_argv);
-    if(cmd != PORT) {
+    if (cmd != PORT) {
 	g_printf(_("driver: did not get PORT from taper for %s:%s\n"),
 		dp->host->hostname, qname);
 	fflush(stdout);
@@ -3162,6 +3217,8 @@ dump_to_tape(
 
     /* copy port number */
     dumper->output_port = atoi(result_argv[1]);
+    amfree(dp->dataport_list);
+    dp->dataport_list = stralloc(result_argv[2]);
 
     dumper->dp = dp;
     dumper->chunker = NULL;
@@ -3182,6 +3239,7 @@ dump_to_tape(
     /* tell the dumper to dump to a port */
     dumper_cmd(dumper, PORT_DUMP, dp, NULL);
     dp->host->start_t = time(NULL) + 15;
+    amfree(dp->dataport_list);
 
     /* update statistics & print state */
 
@@ -3321,13 +3379,7 @@ static TapeAction tape_action(char **why_no_new_tape)
 		 dump_to_disk_terminated))		//  or all dump to disk terminated
 	      ) {
 	result |= TAPE_ACTION_NO_NEW_TAPE;
-	if (flush_threshold_dumped >= tapeq_size) {
-	    *why_no_new_tape = _("flush-threshold-dumped criteria not met");
-	} else if (flush_threshold_scheduled >= sched_size) {
-	    *why_no_new_tape = _("flush-threshold-scheduled criteria not met");
-	} else {
-	    *why_no_new_tape = _("taperflush criteria not met");
-	}
+	*why_no_new_tape = _("taperflush criteria not met");
     }
 
     // when to start a flush

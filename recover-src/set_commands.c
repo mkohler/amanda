@@ -30,6 +30,7 @@
  */
 
 #include "amanda.h"
+#include "match.h"
 #include "util.h"
 #include "amrecover.h"
 #include "amxml.h"
@@ -283,6 +284,7 @@ set_disk(
 	} else {
 	    dle_str = unquote_string(dle_str+4);
 	    dump_dle = amxml_parse_node_CHAR(dle_str, &errmsg);
+	    amfree(dle_str);
 	}
     }
 }
@@ -312,6 +314,93 @@ list_disk(
     }
 }
 
+static GSList *prop_values = NULL;
+
+void
+set_property_name(
+    char *name,
+    int   append)
+{
+    property_t *prop;
+    char       *property_name, *pn;
+
+    pn = unquote_string(name);
+    property_name = amandaify_property_name(pn);
+    amfree(pn);
+
+    if (!append) {
+	g_hash_table_remove(proplist, property_name);
+	prop = NULL;
+    } else {
+	prop = g_hash_table_lookup(proplist, property_name);
+    }
+    
+    if (!prop) {
+	prop = malloc(sizeof(property_t));
+	prop->append = 0;
+	prop->priority = 1;
+	prop->values = NULL;
+	g_hash_table_insert(proplist, stralloc(property_name), prop);
+    }
+
+    /* add prop_values to prop->values */
+    if (!prop->values) {
+	prop->values = prop_values;
+	prop_values = NULL;
+    } else {
+	GSList *pv;
+
+	for(pv = prop_values; pv != NULL; pv = pv->next) {
+	    prop->values = g_slist_append(prop->values, pv->data);
+	}
+	g_slist_free(prop_values);
+	prop_values = NULL;
+    }
+    amfree(property_name);
+}
+
+void
+add_property_value(
+    char *value)
+{
+    if (value) {
+	prop_values = g_slist_prepend(prop_values, unquote_string(value));
+    }
+}
+
+/* A GHFunc (callback for g_hash_table_foreach) */
+static void list_one_property(
+    gpointer key_p,
+    gpointer value_p,
+    gpointer user_data_p G_GNUC_UNUSED)
+{
+    char       *property_s = key_p;
+    char       *qproperty;
+    property_t *property = value_p;
+    GSList     *value;
+    char       *qvalue;
+
+    qproperty = quote_string_always(property_s);
+    printf("property %s", qproperty);
+    amfree(qproperty);
+    for (value = property->values; value != NULL; value = value->next) {
+	qvalue = quote_string_always((char*)value->data);
+	printf(" %s", qvalue);
+	amfree(qvalue);
+    }
+    printf("\n");
+}
+
+void
+list_property(void)
+{
+    if (proplist) {
+	g_hash_table_foreach(proplist, list_one_property, NULL);
+    } else {
+	printf("No property set\n");
+    }
+}
+
 void
 local_cd(
     char *dir)
@@ -323,20 +412,22 @@ local_cd(
     amfree(uqdir);
 }
 
-void
+int
 cd_glob(
-    char *	glob)
+    char *	glob,
+    int		verbose)
 {
     char *regex;
     char *regex_path;
     char *s;
     char *uqglob;
+    int   result;
 
     char *path_on_disk = NULL;
 
     if (disk_name == NULL) {
 	g_printf(_("Must select disk before changing directory\n"));
-	return;
+	return 0;
     }
 
     uqglob = unquote_string(glob);
@@ -347,7 +438,7 @@ cd_glob(
         puts(s);
 	amfree(regex);
 	amfree(uqglob);
-        return;
+        return 0;
     }
     /*
      * glob_to_regex() anchors the beginning of the pattern with ^,
@@ -366,32 +457,36 @@ cd_glob(
     if (strcmp(disk_path, "/") == 0)
         path_on_disk = stralloc2("/", regex_path);
     else {
-        char *clean_disk_path = clean_regex(disk_path);
+        char *clean_disk_path = clean_regex(disk_path, 0);
         path_on_disk = vstralloc(clean_disk_path, "/", regex_path, NULL);
         amfree(clean_disk_path);
     }
 
-    cd_dir(path_on_disk, uqglob);
+    result = cd_dir(path_on_disk, uqglob, verbose);
 
     amfree(regex_path);
     amfree(path_on_disk);
     amfree(uqglob);
+
+    return result;
 }
 
-void
+int
 cd_regex(
-    char *	regex)
+    char *	regex,
+    int		verbose)
 {
     char *s;
     char *uq_orig_regex;
     char *uqregex;
     int  len_uqregex;
+    int  result;
 
     char *path_on_disk = NULL;
 
     if (disk_name == NULL) {
 	g_printf(_("Must select disk before changing directory\n"));
-	return;
+	return 0;
     }
 
     uq_orig_regex = unquote_string(regex);
@@ -413,40 +508,44 @@ cd_regex(
 	amfree(uqregex);
 	amfree(uq_orig_regex);
 	puts(s);
-	return;
+	return 0;
     }
 
     /* convert path (assumed in cwd) to one on disk */
     if (strcmp(disk_path, "/") == 0)
         path_on_disk = stralloc2("/", uqregex);
     else {
-        char *clean_disk_path = clean_regex(disk_path);
+        char *clean_disk_path = clean_regex(disk_path, 0);
         path_on_disk = vstralloc(clean_disk_path, "/", regex, NULL);
         amfree(clean_disk_path);
     }
 
-    cd_dir(path_on_disk, uq_orig_regex);
+    result = cd_dir(path_on_disk, uq_orig_regex, verbose);
 
     amfree(path_on_disk);
     amfree(uqregex);
     amfree(uq_orig_regex);
+
+    return result;
 }
 
-void
+int
 cd_dir(
     char *	path_on_disk,
-    char *	default_dir)
+    char *	default_dir,
+    int		verbose)
 {
     char *dir = NULL;
     char *s;
     int nb_found;
+    int result;
     size_t i;
 
     DIR_ITEM *ditem;
 
     if ((s = validate_regexp(path_on_disk)) != NULL) {
-	set_directory(default_dir);
-	return;
+	result = set_directory(default_dir, verbose);
+	return result;
     }
 
     nb_found = 0;
@@ -478,37 +577,41 @@ cd_dir(
     }
 
     if(nb_found==0) {
-	set_directory(default_dir);
+	result = set_directory(default_dir, verbose);
     }
     else if(nb_found==1) {
-	set_directory(dir);
+	result = set_directory(dir, verbose);
     }
     else {
-	g_printf(_("Too many directories\n"));
+	g_printf(_("Too many directories matching '%s'\n"), default_dir);
+	result = 0;
     }
     amfree(dir);
+    return result;
 }
 
-void
+int
 set_directory(
-    char *	dir)
+    char *	dir,
+    int		verbose)
 {
     char *cmd = NULL;
     char *new_dir = NULL;
     char *qnew_dir;
     char *dp, *de;
     char *ldir = NULL;
+    int   result;
 
     /* do nothing if "." */
     if(strcmp(dir,".")==0) {
 	show_directory();		/* say where we are */
-	return;
+	return 1;
 	/*NOTREACHED*/
     }
 
     if (disk_name == NULL) {
 	g_printf(_("Must select disk before setting directory\n"));
-	return;
+	return 0;
 	/*NOTREACHED*/
     }
 
@@ -530,7 +633,7 @@ set_directory(
 		g_printf(_("Invalid directory - Can't cd outside mount point \"%s\"\n"),
 		       mount_point);
 		amfree(ldir);
-		return;
+		return 0;
 		/*NOTREACHED*/
 	    }
 	    new_dir = stralloc(ldir+strlen(mount_point));
@@ -569,7 +672,7 @@ set_directory(
 		amfree(new_dir);
 		/*@end@*/
 		amfree(ldir);
-		return;
+		return 0;
 		/*NOTREACHED*/
 	    }
 	    de = strrchr(new_dir, '/');	/* always at least 1 */
@@ -605,17 +708,22 @@ set_directory(
     {
 	disk_path = newstralloc(disk_path, new_dir);
 	suck_dir_list_from_server();	/* get list of directory contents */
-	show_directory();		/* say where we moved to */
+	if (verbose)
+	    show_directory();		/* say where we moved to */
+	result = 1;
     }
     else
     {
 	g_printf(_("Invalid directory - %s\n"), dir);
+	result = 0;
     }
 
     /*@ignore@*/
     amfree(new_dir);
     amfree(ldir);
     /*@end@*/
+
+    return result;
 }
 
 

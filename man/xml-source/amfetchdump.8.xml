@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -18,7 +18,7 @@
 </refmeta>
 <refnamediv>
 <refname>amfetchdump</refname>
-<refpurpose>extract backup images from multiple &A; tapes.</refpurpose>
+<refpurpose>extract backup images from multiple Amanda tapes.</refpurpose>
 </refnamediv>
 <refentryinfo>
 &author.jstange;
@@ -28,10 +28,13 @@
 <refsynopsisdiv>
 <cmdsynopsis>
   <command>amfetchdump</command>
-    <arg choice='opt'>-pcClawns</arg>
+    <arg choice='opt'>-phcClawns</arg>
     <arg choice='opt'>-d <replaceable>device</replaceable></arg>
     <arg choice='opt'>-O <replaceable>directory</replaceable></arg>
     <arg choice='opt'>-b <replaceable>blocksize</replaceable></arg>
+    <arg choice='opt'>--header-fd <replaceable>fd</replaceable></arg>
+    <arg choice='opt'>--header-file <replaceable>filename</replaceable></arg>
+    <arg choice='plain' rep='repeat'><group><arg choice='plain'>-o </arg><replaceable>configoption</replaceable></group></arg>
     <arg choice='plain'><replaceable>config</replaceable></arg>
     <arg choice='plain'><replaceable>hostname</replaceable></arg>
     <arg choice='opt'>
@@ -47,7 +50,6 @@
         </arg>
       </arg>
     </arg>
-    <arg choice='plain' rep='repeat'><group><arg choice='plain'>-o </arg><replaceable>configoption</replaceable></group></arg>
 </cmdsynopsis>
 </refsynopsisdiv>
 
@@ -59,10 +61,10 @@ handling the reassembly of multi-tape split dump files as well as any
 tape autochanger operations.</para>
 
 <para>It will automatically use the logs created by
-<citerefentry><refentrytitle>amdump</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+<manref name="amdump" vol="8"/>
 to locate available dumps on tape, in the same way that the <emphasis
 remap='B'>find</emphasis> feature of
-<citerefentry><refentrytitle>amadmin</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+<manref name="amadmin" vol="8"/>
 lists available dumps. If these logs are unavailable, it can search
 tape-by-tape to find what it needs, and can generate new logs to serve
 as an emergency tape inventory.</para>
@@ -73,13 +75,16 @@ as an emergency tape inventory.</para>
 <emphasis remap='I'>datestamp</emphasis>,
 and
 <emphasis remap='I'>level</emphasis> dump pattern-matching works as in
-<citerefentry><refentrytitle>amrestore</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
+<manref name="amrestore" vol="8"/>,
 with the added requirement that at minimum a <emphasis
 remap='I'>hostname</emphasis> must be specified when not in inventory mode.</para>
 
 <para>Unless
 <option>-p</option>
 is used, backup images are extracted to files in the current directory named:</para>
+
+<para>If a changer error occurs, or the <option>-d</option> option is given,
+then amfetchdump prompts for each required volume.</para>
 
 <!-- .RS -->
 <para><emphasis remap='I'>hostname.diskname.datestamp.dumplevel</emphasis></para>
@@ -97,8 +102,22 @@ will restore only the first matching dumpfile (where
 facility).</para></listitem>
   </varlistentry>
   <varlistentry>
-    <term><option>-d</option> <replaceable>device</replaceable></term>
-<listitem><para> Restore from this tape device instead of the default.</para></listitem>
+    <term><option>-h</option></term>
+<listitem><para>Output the amanda header as a 32K block to same output as the image.</para></listitem>
+  </varlistentry>
+  <varlistentry>
+    <term><option>--header-fd</option> <replaceable>fd</replaceable></term>
+<listitem><para>Output the amanda header to the numbered file
+ descriptor.</para></listitem>
+  </varlistentry>
+  <varlistentry>
+    <term><option>--header-file</option> <replaceable>filename</replaceable></term>
+<listitem><para>Output the amanda header to the filename.</para></listitem>
+  </varlistentry>
+  <varlistentry>
+    <term><option>-d</option> <replaceable>device_or_changer</replaceable></term>
+    <listitem><para> Restore from this device or changer instead of the default,
+prompting for each volume.</para></listitem>
   </varlistentry>
   <varlistentry>
     <term><option>-O</option>
@@ -129,49 +148,18 @@ restoring.</para></listitem>
 otherwise, instead of prompting the operator to ensure that all tapes
 are loaded.</para></listitem>
   </varlistentry>
-  <varlistentry>
-    <term><option>-w</option></term>
-<listitem><para>Wait to put split dumps together until all chunks have been
-restored. Normally, <emphasis remap='B'>amfetchdump</emphasis> will
-attempt to read pieces of a split file from tape in order, so that it
-can assemble them simply by appending each file to the first. This
-option disables the appending behavior, and instead restores each
-piece as an individual file and reassembles them only after all have
-been restored.</para>
 
-<note><para>This requires at least double the size of your dump in free
-disk space, in order to build the final assembled dumpfile.</para>
-</note>
-
-<para>This behavior is implicitly invoked in circumstances where knowing the
-location of all dumps on tape in advance is not possible, such as when
-you are restoring without log files.</para></listitem>
-  </varlistentry>
   <varlistentry>
     <term><option>-n</option></term>
 <listitem><para>Do not reassemble split dump files at all, just restore each
 piece as an individual file.</para></listitem>
   </varlistentry>
-  <varlistentry>
-    <term><option>-s</option></term>
-<listitem><para>Do not fast-forward straight to needed files on tape. This will
-slow down most restores substantially. Only use this option if your
-tape drive does not properly support the fast-forward
-operation.</para></listitem>
-  </varlistentry>
-  <varlistentry>
-    <term><option>-b</option>
-    <replaceable>blocksize</replaceable></term>
-<listitem><para>Force a particular block size when reading from tapes. This
-    value will usually be autodetected, and should not normally need
-    to be set.</para></listitem>
-  </varlistentry>
 
   <varlistentry>
-  <term><emphasis remap='B'>-o</emphasis> <replaceable>configoption</replaceable></term>
+  <term><option>-o</option> <replaceable>configoption</replaceable></term>
   <listitem>
 <para>See the "<emphasis remap='B'>CONFIGURATION OVERRIDE</emphasis>"
- section in <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>.</para>
+ section in <manref name="amanda" vol="8"/>.</para>
   </listitem>
   </varlistentry>
 
@@ -204,20 +192,18 @@ the most useful tool when those have all been wiped out and you
 desperately need to pull things from your tape. Pains have been taken
 to make it as capable as possible, but for seriously minimialist
 restores, look to
-<citerefentry><refentrytitle>amrestore</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+<manref name="amrestore" vol="8"/>
 or
-<citerefentry><refentrytitle>dd</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+<manref name="dd" vol="8"/>
 instead.</para>
 </refsect1>
 
-<refsect1><title>SEE ALSO</title>
-<para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amadmin</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amrestore</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>tar</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>restore</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<ulink url="http://wiki.zmanda.com"/>
-</para>
-</refsect1>
+<seealso>
+<manref name="amadmin" vol="8"/>,
+<manref name="amrestore" vol="8"/>,
+<manref name="tar" vol="1"/>
+<manref name="restore" vol="8"/>
+</seealso>
+
 </refentry>
 

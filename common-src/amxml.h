@@ -45,18 +45,23 @@ typedef struct script_s {
 
 typedef GSList *scriptlist_t;
 
+typedef struct level_s {
+    int level;
+    int server;			/* if server can do the estimate */
+} level_t;
+typedef GSList *levellist_t;	/* A list where each element is a (level_t *) */
+
 typedef struct a_dle_s {
     char   *disk;
     char   *device;
     int     program_is_application_api;
     char   *program;
-    int     calcsize;
-    estimate_t     estimate;
+    estimatelist_t estimatelist;
     int     spindle;
     int     compress;
     int     encrypt;
     int     kencrypt;
-    GSList *level;
+    levellist_t levellist;
     int     nb_level;
     char   *dumpdate;
     char   *compprog;
@@ -75,6 +80,8 @@ typedef struct a_dle_s {
     int     include_optional;
     proplist_t application_property;
     scriptlist_t scriptlist;
+    data_path_t  data_path;
+    GSList      *directtcp_list;
     struct a_dle_s *next;
 } dle_t;
 

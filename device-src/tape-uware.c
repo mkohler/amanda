@@ -1,21 +1,21 @@
 /*
- * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
- * 
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1 as 
- * published by the Free Software Foundation.
- * 
- * This library is distributed in the hope that it will be useful, but
+ * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
- * 
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 /* Tape operations for SVR4 systems. Most of this stuff is based on
@@ -37,6 +37,7 @@
 #define T_RDBLKLEN 0
 #define T_WRBLKLEN 0
 #define T_SETCOMP 0
+#define T_UNLOAD 0
 
 struct blklen {
     int min_blen, max_blen;
@@ -64,6 +65,10 @@ gboolean tape_bsr(int fd, guint count) {
     return 0 == ioctl(fd, T_SBB, count);
 }
 
+gint tape_fileno(int fd) {
+    return TAPE_POSITION_UNKNOWN;
+}
+
 gint tape_eod(int fd G_GNUC_UNUSED) {
     g_assert_not_reached();
     return TAPE_OP_ERROR;
@@ -71,6 +76,10 @@ gint tape_eod(int fd G_GNUC_UNUSED) {
 
 gboolean tape_weof(int fd, guint8 count) {
     return 0 == ioctl(fd, T_WRFILEM, count);
+}
+
+gboolean tape_offl(int fd) {
+    return 0 == ioctl(fd, T_UNLOAD);
 }
 
 gboolean tape_setcompression(int fd, gboolean on) {

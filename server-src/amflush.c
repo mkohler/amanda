@@ -30,12 +30,12 @@
  */
 #include "amanda.h"
 
+#include "match.h"
 #include "conffile.h"
 #include "diskfile.h"
 #include "tapefile.h"
 #include "logfile.h"
 #include "clock.h"
-#include "version.h"
 #include "holding.h"
 #include "driverio.h"
 #include "server_util.h"
@@ -90,7 +90,7 @@ main(
     char *tpchanger;
     char *qdisk, *qhname;
     GSList *datestamp_list = NULL;
-    config_overwrites_t *cfg_ovr;
+    config_overrides_t *cfg_ovr;
     char **config_options;
 
     /*
@@ -112,14 +112,14 @@ main(
 
     dbopen(DBG_SUBDIR_SERVER);
 
-    erroutput_type = ERR_INTERACTIVE;
+    add_amanda_log_handler(amanda_log_stderr);
     foreground = 0;
     batch = 0;
     redirect = 1;
 
     /* process arguments */
 
-    cfg_ovr = new_config_overwrites(argc/2);
+    cfg_ovr = new_config_overrides(argc/2);
     while((opt = getopt(argc, argv, "bfso:D:")) != EOF) {
 	switch(opt) {
 	case 'b': batch = 1;
@@ -128,7 +128,7 @@ main(
 		  break;
 	case 's': redirect = 0;
 		  break;
-	case 'o': add_config_overwrite_opt(cfg_ovr, optarg);
+	case 'o': add_config_override_opt(cfg_ovr, optarg);
 		  break;
 	case 'D': if (datearg == NULL)
 		      datearg = alloc(21*SIZEOF(char *));
@@ -149,13 +149,13 @@ main(
     }
 
     if(argc < 1) {
-	error(_("Usage: amflush%s [-b] [-f] [-s] [-D date]* <confdir> [host [disk]* ]* [-o configoption]*"), versionsuffix());
+	error(_("Usage: amflush [-b] [-f] [-s] [-D date]* [-o configoption]* <confdir> [host [disk]* ]*"));
 	/*NOTREACHED*/
     }
 
+    set_config_overrides(cfg_ovr);
     config_init(CONFIG_INIT_EXPLICIT_NAME,
 		argv[0]);
-    apply_config_overwrites(cfg_ovr);
 
     conf_diskfile = config_dir_relative(getconf_str(CNF_DISKFILE));
     read_diskfile(conf_diskfile, &diskq);
@@ -205,15 +205,10 @@ main(
 	error(_("%s exists: %s is already running, or you must run amcleanup"), conf_logfile, process_name);
 	/*NOTREACHED*/
     }
-    amfree(conf_logfile);
 
-    log_add(L_INFO, "%s pid %ld", get_pname(), (long)getpid());
-    driver_program = vstralloc(amlibexecdir, "/", "driver", versionsuffix(),
-			       NULL);
-    reporter_program = vstralloc(sbindir, "/", "amreport", versionsuffix(),
-				 NULL);
-    logroll_program = vstralloc(amlibexecdir, "/", "amlogroll", versionsuffix(),
-				NULL);
+    driver_program = vstralloc(amlibexecdir, "/", "driver", NULL);
+    reporter_program = vstralloc(sbindir, "/", "amreport", NULL);
+    logroll_program = vstralloc(amlibexecdir, "/", "amlogroll", NULL);
 
     tapedev = getconf_str(CNF_TAPEDEV);
     tpchanger = getconf_str(CNF_TPCHANGER);
@@ -265,6 +260,13 @@ main(
 	exit(1);
     }
 
+    if (access(conf_logfile, F_OK) == 0) {
+	char *process_name = get_master_process(conf_logfile);
+	error(_("%s exists: someone started %s"), conf_logfile, process_name);
+	/*NOTREACHED*/
+    }
+    log_add(L_INFO, "%s pid %ld", get_pname(), (long)getpid());
+
     if(!batch) confirm(datestamp_list);
 
     for(dp = diskq.head; dp != NULL; dp = dp->next) {
@@ -285,8 +287,8 @@ main(
 
     if(!foreground) detach();
 
-    erroutput_type = (ERR_AMANDALOG|ERR_INTERACTIVE);
-    set_logerror(logerror);
+    add_amanda_log_handler(amanda_log_stderr);
+    add_amanda_log_handler(amanda_log_trace_log);
     today = time(NULL);
     tm = localtime(&today);
     if (tm) {
@@ -454,9 +456,10 @@ main(
 	/*
 	 * This is the child process.
 	 */
-	config_options = get_config_options(2);
+	config_options = get_config_options(3);
 	config_options[0] = "amreport";
 	config_options[1] = get_config_name();
+        config_options[2] = "--from-amdump";
 	safe_fd(-1, 0);
 	execve(reporter_program, config_options, safe_env());
 	error(_("cannot exec %s: %s"), reporter_program, strerror(errno));

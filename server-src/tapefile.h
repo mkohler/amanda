@@ -46,16 +46,18 @@ typedef struct tape_s {
 int read_tapelist(char *tapefile);
 int write_tapelist(char *tapefile);
 void clear_tapelist(void);
-tape_t *lookup_tapelabel(char *label);
+tape_t *lookup_tapelabel(const char *label);
 tape_t *lookup_tapepos(int pos);
 tape_t *lookup_tapedate(char *datestamp);
 int lookup_nb_tape(void);
+char *get_last_reusable_tape_label(int skip);
 tape_t *lookup_last_reusable_tape(int skip);
 void remove_tapelabel(char *label);
 tape_t *add_tapelabel(char *datestamp, char *label, char *comment);
 int reusable_tape(tape_t *tp);
 
 int guess_runs_from_tapelist(void);
+char *list_new_tapes(int nb);
 void print_new_tapes(FILE *output, int nb);
 
 #endif /* !TAPEFILE_H */

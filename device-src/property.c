@@ -1,21 +1,21 @@
 /*
- * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
- * 
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1 as 
- * published by the Free Software Foundation.
- * 
- * This library is distributed in the hope that it will be useful, but
+ * Copyright (c) 2007,2008,2009 Zmanda, Inc.  All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
- * 
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 #include "amanda.h"
@@ -31,7 +31,7 @@ static const GEnumValue _concurrency_paradigm_values[] = {
         { CONCURRENCY_PARADIGM_EXCLUSIVE,
           "CONCURRENCY_PARADIGM_EXCLUSIVE",
           "exclusive" },
-        { CONCURRENCY_PARADIGM_SHARED_READ, 
+        { CONCURRENCY_PARADIGM_SHARED_READ,
           "CONCURRENCY_PARADIGM_SHARED_READ",
           "shared-read" },
         { CONCURRENCY_PARADIGM_RANDOM_ACCESS,
@@ -229,8 +229,8 @@ void device_property_init(void) {
     device_property_fill_and_register(&device_property_max_block_size,
                                       G_TYPE_UINT, "max_block_size",
       "Maximum supported blocking factor.");
-    device_property_fill_and_register(&device_property_read_buffer_size,
-                                      G_TYPE_UINT, "read_buffer_size",
+    device_property_fill_and_register(&device_property_read_block_size,
+                                      G_TYPE_UINT, "read_block_size",
       "Minimum size of a read for this device (maximum expected block size)");
     device_property_fill_and_register(&device_property_appendable,
                                       G_TYPE_BOOLEAN, "appendable",
@@ -245,6 +245,9 @@ void device_property_init(void) {
     device_property_fill_and_register(&device_property_partial_deletion,
                                      G_TYPE_BOOLEAN, "partial_deletion",
       "Does this device support recycling just part of a volume?" );
+    device_property_fill_and_register(&device_property_full_deletion,
+                                     G_TYPE_BOOLEAN, "full_deletion",
+      "Does this device support recycling the entire volume?" );
     device_property_fill_and_register(&device_property_free_space,
                                       QUALIFIED_SIZE_TYPE, "free_space",
       "Remaining capacity of the device.");
@@ -254,6 +257,9 @@ void device_property_init(void) {
     device_property_fill_and_register(&device_property_verbose,
                                      G_TYPE_BOOLEAN, "verbose",
        "Should the device produce verbose output?");
+    device_property_fill_and_register(&device_property_comment,
+                                     G_TYPE_STRING, "comment",
+       "User-specified comment for the device");
 }
 
 DevicePropertyBase device_property_concurrency;
@@ -263,11 +269,13 @@ DevicePropertyBase device_property_compression_rate;
 DevicePropertyBase device_property_block_size;
 DevicePropertyBase device_property_min_block_size;
 DevicePropertyBase device_property_max_block_size;
-DevicePropertyBase device_property_read_buffer_size;
+DevicePropertyBase device_property_read_block_size;
 DevicePropertyBase device_property_appendable;
 DevicePropertyBase device_property_canonical_name;
 DevicePropertyBase device_property_medium_access_type;
 DevicePropertyBase device_property_partial_deletion;
+DevicePropertyBase device_property_full_deletion;
 DevicePropertyBase device_property_free_space;
 DevicePropertyBase device_property_max_volume_usage;
 DevicePropertyBase device_property_verbose;
+DevicePropertyBase device_property_comment;

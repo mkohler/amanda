@@ -2,12 +2,12 @@
 .\"     Title: amcheckdump
 .\"    Author: Ian Turner <ian@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMCHECKDUMP" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMCHECKDUMP" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,22 +19,18 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amcheckdump \- check the results of an \fIAmanda\fR dump
+amcheckdump \- check the results of an Amanda dump
 .SH "SYNOPSIS"
 .HP \w'\fBamcheckdump\fR\ 'u
-\fBamcheckdump\fR \fIconfig\fR [\-\-timestamp|\-t\ \fItimestamp\fR] [\-o\ \fIconfigoption\fR]...
+\fBamcheckdump\fR \fIconfig\fR [\-\-timestamp|\-t\ \fItimestamp\fR] [\-\-verbose] [{\fB\-o\fR\ \fIconfigoption\fR}...]
 .SH "DESCRIPTION"
 .PP
 \fBAmcheckdump\fR
-verifies
-\fIAmanda\fR
-dump images by reading them from storage volume(s) and verifying that the images can be parsed by the appropriate application (if available)\&. For example, a GNUTAR image is passed to GNU Tar for parsing, and any errors (e\&.g\&., corrupt or missing data) are noted\&.
+verifies Amanda dump images by reading them from storage volume(s) and verifying that the images can be parsed by the appropriate application (if available)\&. For example, a GNUTAR image is passed to GNU Tar for parsing, and any errors (e\&.g\&., corrupt or missing data) are noted\&.
 .PP
 The application runs on the most recent dump or, if
 \fI\-\-timestamp\fR
-is specified, on the most recent dump with that timestamp\&. Note that the verification is local to the
-\fIAmanda\fR
-server; if the dump application is not available, or is configured differently on the server than on the client, then the verification will most likely fail\&.
+is specified, on the most recent dump with that timestamp\&. Note that the verification is local to the Amanda server; if the dump application is not available, or is configured differently on the server than on the client, then the verification will most likely fail\&.
 .PP
 If a changer is available, it is used to load the required tapes\&. Otherwise, the application interactively requests the tapes\&.
 .PP
@@ -56,6 +52,13 @@ amcheckdump MYCONFIG \-\-timestamp 19780615
 .PP
 \fBamanda\fR(8),
 : http://wiki.zmanda.com
+.SH "SEE ALSO"
+.PP
+\fBamanda\fR(8),
+\fBamcheck\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHOR"
 .PP
 \fBIan Turner\fR <\&ian@zmanda\&.com\&>

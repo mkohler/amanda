@@ -1,21 +1,21 @@
 /*
- * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
- * 
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1 as 
- * published by the Free Software Foundation.
- * 
- * This library is distributed in the hope that it will be useful, but
+ * Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
- * 
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 /* TODO
@@ -92,6 +92,8 @@
     <LocationConstraint>%s</LocationConstraint>\n\
   </CreateBucketConfiguration>"
 
+#define AMAZON_WILDCARD_LOCATION "*"
+
 /* parameters for exponential backoff in the face of retriable errors */
 
 /* start at 0.01s */
@@ -106,18 +108,18 @@
 
 /* Results which should always be retried */
 #define RESULT_HANDLING_ALWAYS_RETRY \
-        { 400,  S3_ERROR_RequestTimeout,     0,                         S3_RESULT_RETRY }, \
-        { 404,  S3_ERROR_NoSuchBucket,       0,                         S3_RESULT_RETRY }, \
-        { 409,  S3_ERROR_OperationAborted,   0,                         S3_RESULT_RETRY }, \
-        { 412,  S3_ERROR_PreconditionFailed, 0,                         S3_RESULT_RETRY }, \
-        { 500,  S3_ERROR_InternalError,      0,                         S3_RESULT_RETRY }, \
-        { 501,  S3_ERROR_NotImplemented,     0,                         S3_RESULT_RETRY }, \
-        { 0,    0,                           CURLE_COULDNT_CONNECT,     S3_RESULT_RETRY }, \
-        { 0,    0,                           CURLE_PARTIAL_FILE,        S3_RESULT_RETRY }, \
-        { 0,    0,                           CURLE_OPERATION_TIMEOUTED, S3_RESULT_RETRY }, \
-        { 0,    0,                           CURLE_SEND_ERROR,          S3_RESULT_RETRY }, \
-        { 0,    0,                           CURLE_RECV_ERROR,          S3_RESULT_RETRY }, \
-        { 0,    0,                           CURLE_GOT_NOTHING,         S3_RESULT_RETRY }
+        { 400,  S3_ERROR_RequestTimeout,     0,                          S3_RESULT_RETRY }, \
+        { 409,  S3_ERROR_OperationAborted,   0,                          S3_RESULT_RETRY }, \
+        { 412,  S3_ERROR_PreconditionFailed, 0,                          S3_RESULT_RETRY }, \
+        { 500,  S3_ERROR_InternalError,      0,                          S3_RESULT_RETRY }, \
+        { 501,  S3_ERROR_NotImplemented,     0,                          S3_RESULT_RETRY }, \
+        { 0,    0,                           CURLE_COULDNT_CONNECT,      S3_RESULT_RETRY }, \
+        { 0,    0,                           CURLE_COULDNT_RESOLVE_HOST, S3_RESULT_RETRY }, \
+        { 0,    0,                           CURLE_PARTIAL_FILE,         S3_RESULT_RETRY }, \
+        { 0,    0,                           CURLE_OPERATION_TIMEOUTED,  S3_RESULT_RETRY }, \
+        { 0,    0,                           CURLE_SEND_ERROR,           S3_RESULT_RETRY }, \
+        { 0,    0,                           CURLE_RECV_ERROR,           S3_RESULT_RETRY }, \
+        { 0,    0,                           CURLE_GOT_NOTHING,          S3_RESULT_RETRY }
 
 /*
  * Data structures and associated functions
@@ -132,10 +134,15 @@ struct S3Handle {
 
     char *bucket_location;
 
+    char *ca_info;
+
     CURL *curl;
 
     gboolean verbose;
     gboolean use_ssl;
+
+    guint64 max_send_speed;
+    guint64 max_recv_speed;
 
     /* information from the last request */
     char *last_message;
@@ -159,7 +166,7 @@ typedef struct {
 } S3InternalData;
 
 /* Callback function to examine headers one-at-a-time
- * 
+ *
  * @note this is the same as CURLOPT_HEADERFUNCTION
  *
  * @param data: The pointer to read data from
@@ -253,6 +260,13 @@ static regex_t etag_regex, error_name_regex, message_regex, subdomain_regex,
  * Utility functions
  */
 
+/* Check if a string is non-empty
+ *
+ * @param str: string to check
+ * @returns: true iff str is non-NULL and not "\0"
+ */
+static gboolean is_non_empty_string(const char *str);
+
 /* Construct the URL for an Amazon S3 REST request.
  *
  * A new string is allocated and returned; it is the responsiblity of the caller.
@@ -307,7 +321,7 @@ authenticate_request(S3Handle *hdl,
  * @param body: the response body
  * @param body_len: the length of the response body
  * @param etag: The response's ETag header
- * @param content_md5: The hex-encoded MD5 hash of the request body, 
+ * @param content_md5: The hex-encoded MD5 hash of the request body,
  *     which will be checked against the response's ETag header.
  *     If NULL, the header is not checked.
  *     If non-NULL, then the body should have the response headers at its beginnning.
@@ -324,11 +338,11 @@ interpret_response(S3Handle *hdl,
 
 /* Perform an S3 operation.  This function handles all of the details
  * of retryig requests and so on.
- * 
+ *
  * The concepts of bucket and keys are defined by the Amazon S3 API.
  * See: "Components of Amazon S3" - API Version 2006-03-01 pg. 8
  *
- * Individual sub-resources are defined in several places. In the REST API, 
+ * Individual sub-resources are defined in several places. In the REST API,
  * they they are represented by a "flag" in the "query string".
  * See: "Constructing the CanonicalizedResource Element" - API Version 2006-03-01 pg. 60
  *
@@ -375,7 +389,7 @@ perform_request(S3Handle *hdl,
                 const result_handling_t *result_handling);
 
 /*
- * a CURLOPT_WRITEFUNCTION to save part of the response in memory and 
+ * a CURLOPT_WRITEFUNCTION to save part of the response in memory and
  * call an external function if one was provided.
  */
 static size_t
@@ -443,6 +457,21 @@ s3_curl_supports_ssl(void)
     return supported;
 }
 
+static gboolean
+s3_curl_throttling_compat(void)
+{
+/* CURLOPT_MAX_SEND_SPEED_LARGE added in 7.15.5 */
+#if LIBCURL_VERSION_NUM >= 0x070f05
+    curl_version_info_data *info;
+
+    /* check the runtime version too */
+    info = curl_version_info(CURLVERSION_NOW);
+    return info->version_num >= 0x070f05;
+#else
+    return FALSE;
+#endif
+}
+
 static s3_result_t
 lookup_result(const result_handling_t *result_handling,
               guint response_code,
@@ -450,7 +479,7 @@ lookup_result(const result_handling_t *result_handling,
               CURLcode curl_code)
 {
     while (result_handling->response_code
-        || result_handling->s3_error_code 
+        || result_handling->s3_error_code
         || result_handling->curl_code) {
         if ((result_handling->response_code && result_handling->response_code != response_code)
          || (result_handling->s3_error_code && result_handling->s3_error_code != s3_error_code)
@@ -464,6 +493,12 @@ lookup_result(const result_handling_t *result_handling,
 
     /* return the result for the terminator, as the default */
     return result_handling->result;
+}
+
+static gboolean
+is_non_empty_string(const char *str)
+{
+    return str && str[0] != '\0';
 }
 
 static char *
@@ -489,7 +524,7 @@ build_url(const char *bucket,
         g_string_append_printf(url, "%s.s3.amazonaws.com/", bucket);
     else
         g_string_append(url, "s3.amazonaws.com/");
-    
+
     /* path */
     if (!use_subdomain && bucket) {
         esc_bucket = curl_escape(bucket, 0);
@@ -532,11 +567,11 @@ authenticate_request(S3Handle *hdl,
                      const char *key,
                      const char *subresource,
                      const char *md5_hash,
-             gboolean use_subdomain) 
+                     gboolean use_subdomain)
 {
     time_t t;
     struct tm tmp;
-    char date[100];
+    char *date = NULL;
     char *buf = NULL;
     HMAC_CTX ctx;
     GByteArray *md = NULL;
@@ -545,14 +580,21 @@ authenticate_request(S3Handle *hdl,
     char *esc_bucket = NULL, *esc_key = NULL;
     GString *auth_string = NULL;
 
+    /* From RFC 2616 */
+    static const char *wkday[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+    static const char *month[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+
+
     /* Build the string to sign, per the S3 spec.
      * See: "Authenticating REST Requests" - API Version 2006-03-01 pg 58
      */
-    
+
     /* verb */
     auth_string = g_string_new(verb);
     g_string_append(auth_string, "\n");
-    
+
     /* Content-MD5 header */
     if (md5_hash)
         g_string_append(auth_string, md5_hash);
@@ -565,17 +607,18 @@ authenticate_request(S3Handle *hdl,
     /* calculate the date */
     t = time(NULL);
 #ifdef _WIN32
-    if (!localtime_s(&tmp, &t)) g_debug("localtime error");
+    if (!gmtime_s(&tmp, &t)) g_debug("localtime error");
 #else
-    if (!localtime_r(&t, &tmp)) perror("localtime");
+    if (!gmtime_r(&t, &tmp)) perror("localtime");
 #endif
-    if (!strftime(date, sizeof(date), "%a, %d %b %Y %H:%M:%S %Z", &tmp)) 
-        perror("strftime");
+    date = g_strdup_printf("%s, %02d %s %04d %02d:%02d:%02d GMT",
+        wkday[tmp.tm_wday], tmp.tm_mday, month[tmp.tm_mon], 1900+tmp.tm_year,
+        tmp.tm_hour, tmp.tm_min, tmp.tm_sec);
 
     g_string_append(auth_string, date);
     g_string_append(auth_string, "\n");
 
-    if (hdl->user_token) {
+    if (is_non_empty_string(hdl->user_token)) {
         g_string_append(auth_string, AMAZON_SECURITY_HEADER);
         g_string_append(auth_string, ":");
         g_string_append(auth_string, hdl->user_token);
@@ -620,7 +663,7 @@ authenticate_request(S3Handle *hdl,
     auth_base64 = s3_base64_encode(md);
 
     /* append the new headers */
-    if (hdl->user_token) {
+    if (is_non_empty_string(hdl->user_token)) {
         /* Devpay headers are included in hash. */
         buf = g_strdup_printf(AMAZON_SECURITY_HEADER ": %s", hdl->user_token);
         headers = curl_slist_append(headers, buf);
@@ -635,7 +678,7 @@ authenticate_request(S3Handle *hdl,
                           hdl->access_key, auth_base64);
     headers = curl_slist_append(headers, buf);
     g_free(buf);
-    
+
     if (md5_hash && '\0' != md5_hash[0]) {
         buf = g_strdup_printf("Content-MD5: %s", md5_hash);
         headers = curl_slist_append(headers, buf);
@@ -646,6 +689,7 @@ authenticate_request(S3Handle *hdl,
     headers = curl_slist_append(headers, buf);
     g_free(buf);
 cleanup:
+    g_free(date);
     g_free(esc_bucket);
     g_free(esc_key);
     g_byte_array_free(md, TRUE);
@@ -892,7 +936,7 @@ s3_file_md5_func(void *stream)
     g_assert(INVALID_SET_FILE_POINTER != SetFilePointer(hFile, 0, NULL, FILE_BEGIN));
 
     ret = g_byte_array_sized_new(S3_MD5_HASH_BYTE_LEN);
-    g_byte_array_set_size(ret, S3_MD5_HASH_BYTE_LEN);    
+    g_byte_array_set_size(ret, S3_MD5_HASH_BYTE_LEN);
     MD5_Init(&md5_ctx);
 
     while (ReadFile(hFile, buf, S3_MD5_BUF_SIZE, &bytes_read, NULL)) {
@@ -923,11 +967,11 @@ s3_file_write_func(void *ptr, size_t size, size_t nmemb, void *stream)
 }
 #endif
 
-static int 
-curl_debug_message(CURL *curl G_GNUC_UNUSED, 
-           curl_infotype type, 
-           char *s, 
-           size_t len, 
+static int
+curl_debug_message(CURL *curl G_GNUC_UNUSED,
+           curl_infotype type,
+           char *s,
+           size_t len,
            void *unused G_GNUC_UNUSED)
 {
     char *lineprefix;
@@ -1009,7 +1053,7 @@ perform_request(S3Handle *hdl,
 
     s3_reset(hdl);
 
-    use_subdomain = hdl->bucket_location? TRUE : FALSE;
+    use_subdomain = is_non_empty_string(hdl->bucket_location);
     url = build_url(bucket, key, subresource, query, use_subdomain, hdl->use_ssl);
     if (!url) goto cleanup;
 
@@ -1068,12 +1112,17 @@ perform_request(S3Handle *hdl,
 
         /* set up the request */
         headers = authenticate_request(hdl, verb, bucket, key, subresource,
-            md5_hash_b64, hdl->bucket_location? TRUE : FALSE);
+            md5_hash_b64, is_non_empty_string(hdl->bucket_location));
+
+        if (hdl->use_ssl && hdl->ca_info) {
+            if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_CAINFO, hdl->ca_info)))
+                goto curl_error;
+        }
 
         if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_VERBOSE, hdl->verbose)))
             goto curl_error;
         if (hdl->verbose) {
-            if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_DEBUGFUNCTION, 
+            if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_DEBUGFUNCTION,
                               curl_debug_message)))
                 goto curl_error;
         }
@@ -1089,27 +1138,40 @@ perform_request(S3Handle *hdl,
         if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_HTTPHEADER,
                                           headers)))
             goto curl_error;
-        if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_WRITEFUNCTION, s3_internal_write_func))) 
+        if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_WRITEFUNCTION, s3_internal_write_func)))
             goto curl_error;
-        if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_WRITEDATA, &int_writedata))) 
+        if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_WRITEDATA, &int_writedata)))
             goto curl_error;
         /* Note: we always have to set this apparently, for consistent "end of header" detection */
-        if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_HEADERFUNCTION, s3_internal_header_func))) 
+        if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_HEADERFUNCTION, s3_internal_header_func)))
             goto curl_error;
         /* Note: if set, CURLOPT_HEADERDATA seems to also be used for CURLOPT_WRITEDATA ? */
-        if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_HEADERDATA, &int_writedata))) 
+        if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_HEADERDATA, &int_writedata)))
             goto curl_error;
-        if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_PROGRESSFUNCTION, progress_func))) 
+        if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_PROGRESSFUNCTION, progress_func)))
             goto curl_error;
-        if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_PROGRESSDATA, progress_data))) 
+        if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_PROGRESSDATA, progress_data)))
             goto curl_error;
 
-#ifdef CURLOPT_INFILESIZE_LARGE
+/* CURLOPT_INFILESIZE_LARGE added in 7.11.0 */
+#if LIBCURL_VERSION_NUM >= 0x070b00
         if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)request_body_size)))
             goto curl_error;
 #else
         if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_INFILESIZE, (long)request_body_size)))
             goto curl_error;
+#endif
+/* CURLOPT_MAX_{RECV,SEND}_SPEED_LARGE added in 7.15.5 */
+#if LIBCURL_VERSION_NUM >= 0x070f05
+	if (s3_curl_throttling_compat()) {
+	    if (hdl->max_send_speed)
+		if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_MAX_SEND_SPEED_LARGE, (curl_off_t)hdl->max_send_speed)))
+		    goto curl_error;
+
+	    if (hdl->max_recv_speed)
+		if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_MAX_SEND_SPEED_LARGE, (curl_off_t)hdl->max_recv_speed)))
+		    goto curl_error;
+	}
 #endif
 
         if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_HTTPGET, curlopt_httpget)))
@@ -1126,16 +1188,16 @@ perform_request(S3Handle *hdl,
 
 
         if (curlopt_upload) {
-            if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_READFUNCTION, read_func))) 
+            if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_READFUNCTION, read_func)))
                 goto curl_error;
-            if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_READDATA, read_data))) 
+            if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_READDATA, read_data)))
                 goto curl_error;
         } else {
             /* Clear request_body options. */
             if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_READFUNCTION,
                                               NULL)))
                 goto curl_error;
-            if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_READDATA, 
+            if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_READDATA,
                                               NULL)))
                 goto curl_error;
         }
@@ -1146,12 +1208,12 @@ perform_request(S3Handle *hdl,
 
         /* interpret the response into hdl->last* */
     curl_error: /* (label for short-circuiting the curl_easy_perform call) */
-        should_retry = interpret_response(hdl, curl_code, curl_error_buffer, 
+        should_retry = interpret_response(hdl, curl_code, curl_error_buffer,
             int_writedata.resp_buf.buffer, int_writedata.resp_buf.buffer_pos, int_writedata.etag, md5_hash_hex);
-        
+
         /* and, unless we know we need to retry, see what we're to do now */
         if (!should_retry) {
-            result = lookup_result(result_handling, hdl->last_response_code, 
+            result = lookup_result(result_handling, hdl->last_response_code,
                                    hdl->last_s3_error_code, hdl->last_curl_code);
 
             /* break out of the while(1) unless we're retrying */
@@ -1177,7 +1239,7 @@ perform_request(S3Handle *hdl,
     if (result != S3_RESULT_OK) {
         g_debug(_("%s %s failed with %d/%s"), verb, url,
                 hdl->last_response_code,
-                s3_error_name_from_code(hdl->last_s3_error_code)); 
+                s3_error_name_from_code(hdl->last_s3_error_code));
     }
 
 cleanup:
@@ -1185,7 +1247,7 @@ cleanup:
     if (headers) curl_slist_free_all(headers);
     g_free(md5_hash_b64);
     g_free(md5_hash_hex);
-    
+
     /* we don't deallocate the response body -- we keep it for later */
     hdl->last_response_body = int_writedata.resp_buf.buffer;
     hdl->last_response_body_size = int_writedata.resp_buf.buffer_pos;
@@ -1262,7 +1324,7 @@ compile_regexes(void)
         {"<Code>[[:space:]]*([^<]*)[[:space:]]*</Code>", REG_EXTENDED | REG_ICASE, &error_name_regex},
         {"^ETag:[[:space:]]*\"([^\"]+)\"[[:space:]]*$", REG_EXTENDED | REG_ICASE | REG_NEWLINE, &etag_regex},
         {"<Message>[[:space:]]*([^<]*)[[:space:]]*</Message>", REG_EXTENDED | REG_ICASE, &message_regex},
-        {"^[a-z0-9]((-*[a-z0-9])|(\\.[a-z0-9])){2,62}$", REG_EXTENDED | REG_NOSUB, &subdomain_regex},
+        {"^[a-z0-9](-*[a-z0-9]){2,62}$", REG_EXTENDED | REG_NOSUB, &subdomain_regex},
         {"(/>)|(>([^<]*)</LocationConstraint>)", REG_EXTENDED | REG_ICASE, &location_con_regex},
         {NULL, 0, NULL}
     };
@@ -1321,7 +1383,7 @@ gboolean s3_init(void)
 {
     static GStaticMutex mutex = G_STATIC_MUTEX_INIT;
     static gboolean init = FALSE, ret;
-    
+
     /* n.b. curl_global_init is called in common-src/glib-util.c:glib_init() */
 
     g_static_mutex_lock (&mutex);
@@ -1352,7 +1414,8 @@ S3Handle *
 s3_open(const char *access_key,
         const char *secret_key,
         const char *user_token,
-        const char *bucket_location
+        const char *bucket_location,
+        const char *ca_info
         ) {
     S3Handle *hdl;
 
@@ -1371,6 +1434,9 @@ s3_open(const char *access_key,
 
     /* NULL is okay */
     hdl->bucket_location = g_strdup(bucket_location);
+
+    /* NULL is okay */
+    hdl->ca_info = g_strdup(ca_info);
 
     hdl->curl = curl_easy_init();
     if (!hdl->curl) goto error;
@@ -1458,6 +1524,28 @@ s3_verbose(S3Handle *hdl, gboolean verbose)
 }
 
 gboolean
+s3_set_max_send_speed(S3Handle *hdl, guint64 max_send_speed)
+{
+    if (!s3_curl_throttling_compat())
+	return FALSE;
+
+    hdl->max_send_speed = max_send_speed;
+
+    return TRUE;
+}
+
+gboolean
+s3_set_max_recv_speed(S3Handle *hdl, guint64 max_recv_speed)
+{
+    if (!s3_curl_throttling_compat())
+	return FALSE;
+
+    hdl->max_recv_speed = max_recv_speed;
+
+    return TRUE;
+}
+
+gboolean
 s3_use_ssl(S3Handle *hdl, gboolean use_ssl)
 {
     gboolean ret = TRUE;
@@ -1485,7 +1573,7 @@ s3_strerror(S3Handle *hdl)
 
     s3_error(hdl, &message, &response_code, NULL, &s3_error_name, &curl_code, &num_retries);
 
-    if (!message) 
+    if (!message)
         message = "Unknown S3 error";
     if (s3_error_name)
         g_snprintf(s3_info, sizeof(s3_info), " (%s)", s3_error_name);
@@ -1493,7 +1581,7 @@ s3_strerror(S3Handle *hdl)
         g_snprintf(response_info, sizeof(response_info), " (HTTP %d)", response_code);
     if (curl_code)
         g_snprintf(curl_info, sizeof(curl_info), " (CURLcode %d)", curl_code);
-    if (num_retries) 
+    if (num_retries)
         g_snprintf(retries_info, sizeof(retries_info), " (after %d retries)", num_retries);
 
     return g_strdup_printf("%s%s%s%s%s", message, s3_info, curl_info, response_info, retries_info);
@@ -1512,7 +1600,7 @@ s3_strerror(S3Handle *hdl)
 gboolean
 s3_upload(S3Handle *hdl,
           const char *bucket,
-          const char *key, 
+          const char *key,
           s3_read_func read_func,
           s3_reset_func reset_func,
           s3_size_func size_func,
@@ -1523,9 +1611,9 @@ s3_upload(S3Handle *hdl,
 {
     s3_result_t result = S3_RESULT_FAIL;
     static result_handling_t result_handling[] = {
-        { 200,  0,          0,                   S3_RESULT_OK },
+        { 200,  0, 0, S3_RESULT_OK },
         RESULT_HANDLING_ALWAYS_RETRY,
-        { 0, 0,    0,                /* default: */ S3_RESULT_FAIL }
+        { 0,    0, 0, /* default: */ S3_RESULT_FAIL }
         };
 
     g_assert(hdl != NULL);
@@ -1551,7 +1639,7 @@ struct list_keys_thunk {
     gchar *next_marker;
 
     gboolean want_text;
-    
+
     gchar *text;
     gsize text_len;
 };
@@ -1559,11 +1647,11 @@ struct list_keys_thunk {
 /* Functions for a SAX parser to parse the XML from Amazon */
 
 static void
-list_start_element(GMarkupParseContext *context G_GNUC_UNUSED, 
-                   const gchar *element_name, 
-                   const gchar **attribute_names G_GNUC_UNUSED, 
-                   const gchar **attribute_values G_GNUC_UNUSED, 
-                   gpointer user_data, 
+list_start_element(GMarkupParseContext *context G_GNUC_UNUSED,
+                   const gchar *element_name,
+                   const gchar **attribute_names G_GNUC_UNUSED,
+                   const gchar **attribute_values G_GNUC_UNUSED,
+                   gpointer user_data,
                    GError **error G_GNUC_UNUSED)
 {
     struct list_keys_thunk *thunk = (struct list_keys_thunk *)user_data;
@@ -1585,9 +1673,9 @@ list_start_element(GMarkupParseContext *context G_GNUC_UNUSED,
 }
 
 static void
-list_end_element(GMarkupParseContext *context G_GNUC_UNUSED, 
+list_end_element(GMarkupParseContext *context G_GNUC_UNUSED,
                  const gchar *element_name,
-                 gpointer user_data, 
+                 gpointer user_data,
                  GError **error G_GNUC_UNUSED)
 {
     struct list_keys_thunk *thunk = (struct list_keys_thunk *)user_data;
@@ -1614,9 +1702,9 @@ list_end_element(GMarkupParseContext *context G_GNUC_UNUSED,
 
 static void
 list_text(GMarkupParseContext *context G_GNUC_UNUSED,
-          const gchar *text, 
-          gsize text_len, 
-          gpointer user_data, 
+          const gchar *text,
+          gsize text_len,
+          gpointer user_data,
           GError **error G_GNUC_UNUSED)
 {
     struct list_keys_thunk *thunk = (struct list_keys_thunk *)user_data;
@@ -1632,17 +1720,17 @@ list_text(GMarkupParseContext *context G_GNUC_UNUSED,
 static s3_result_t
 list_fetch(S3Handle *hdl,
            const char *bucket,
-           const char *prefix, 
-           const char *delimiter, 
+           const char *prefix,
+           const char *delimiter,
            const char *marker,
            const char *max_keys,
            CurlBuffer *buf)
 {
-    s3_result_t result = S3_RESULT_FAIL;    
+    s3_result_t result = S3_RESULT_FAIL;
     static result_handling_t result_handling[] = {
-        { 200,  0,          0,                   S3_RESULT_OK },
+        { 200, 0, 0, S3_RESULT_OK },
         RESULT_HANDLING_ALWAYS_RETRY,
-        { 0, 0,    0,                /* default: */ S3_RESULT_FAIL  }
+        { 0,   0, 0, /* default: */ S3_RESULT_FAIL  }
         };
    const char* pos_parts[][2] = {
         {"prefix", prefix},
@@ -1742,7 +1830,7 @@ s3_list_keys(S3Handle *hdl,
             result = S3_RESULT_FAIL;
             goto cleanup;
         }
-        
+
         g_markup_parse_context_free(ctxt);
         ctxt = NULL;
     } while (thunk.next_marker);
@@ -1775,9 +1863,9 @@ s3_read(S3Handle *hdl,
 {
     s3_result_t result = S3_RESULT_FAIL;
     static result_handling_t result_handling[] = {
-        { 200,  0,          0,                   S3_RESULT_OK },
+        { 200, 0, 0, S3_RESULT_OK },
         RESULT_HANDLING_ALWAYS_RETRY,
-        { 0, 0,    0,                /* default: */ S3_RESULT_FAIL  }
+        { 0,   0, 0, /* default: */ S3_RESULT_FAIL  }
         };
 
     g_assert(hdl != NULL);
@@ -1797,9 +1885,10 @@ s3_delete(S3Handle *hdl,
 {
     s3_result_t result = S3_RESULT_FAIL;
     static result_handling_t result_handling[] = {
-        { 204,  0,          0,                   S3_RESULT_OK },
+        { 204,  0,                     0, S3_RESULT_OK },
+        { 404,  S3_ERROR_NoSuchBucket, 0, S3_RESULT_OK },
         RESULT_HANDLING_ALWAYS_RETRY,
-        { 0, 0,    0,                /* default: */ S3_RESULT_FAIL  }
+        { 0,    0,                     0, /* default: */ S3_RESULT_FAIL  }
         };
 
     g_assert(hdl != NULL);
@@ -1818,9 +1907,10 @@ s3_make_bucket(S3Handle *hdl,
     char *body = NULL;
     s3_result_t result = S3_RESULT_FAIL;
     static result_handling_t result_handling[] = {
-        { 200,  0,          0,                   S3_RESULT_OK },
+        { 200,  0,                    0, S3_RESULT_OK },
+        { 404, S3_ERROR_NoSuchBucket, 0, S3_RESULT_RETRY },
         RESULT_HANDLING_ALWAYS_RETRY,
-        { 0, 0,    0,                /* default: */ S3_RESULT_FAIL  }
+        { 0, 0,                       0, /* default: */ S3_RESULT_FAIL  }
         };
     regmatch_t pmatch[4];
     char *loc_end_open, *loc_content;
@@ -1831,8 +1921,9 @@ s3_make_bucket(S3Handle *hdl,
     s3_size_func size_func = NULL;
 
     g_assert(hdl != NULL);
-    
-    if (hdl->bucket_location && hdl->bucket_location[0]) {
+
+    if (is_non_empty_string(hdl->bucket_location) &&
+        0 != strcmp(AMAZON_WILDCARD_LOCATION, hdl->bucket_location)) {
         if (s3_bucket_location_compat(bucket)) {
             ptr = &buf;
             buf.buffer = g_strdup_printf(AMAZON_BUCKET_CONF_TEMPLATE, hdl->bucket_location);
@@ -1856,7 +1947,7 @@ s3_make_bucket(S3Handle *hdl,
                  NULL, NULL, NULL, NULL, NULL, result_handling);
 
    if (result == S3_RESULT_OK ||
-        (hdl->bucket_location && result != S3_RESULT_OK 
+       (is_non_empty_string(hdl->bucket_location) && result != S3_RESULT_OK
          && hdl->last_s3_error_code == S3_ERROR_BucketAlreadyOwnedByYou)) {
         /* verify the that the location constraint on the existing bucket matches
          * the one that's configured.
@@ -1868,7 +1959,7 @@ s3_make_bucket(S3Handle *hdl,
         /* note that we can check only one of the three AND conditions above 
          * and infer that the others are true
          */
-        if (result == S3_RESULT_OK && hdl->bucket_location) {
+        if (result == S3_RESULT_OK && is_non_empty_string(hdl->bucket_location)) {
             /* return to the default state of failure */
             result = S3_RESULT_FAIL;
 
@@ -1878,8 +1969,11 @@ s3_make_bucket(S3Handle *hdl,
             if (!body) {
                 hdl->last_message = g_strdup(_("No body received for location request"));
                 goto cleanup;
+            } else if ('\0' == body[0]) {
+                hdl->last_message = g_strdup(_("Empty body received for location request"));
+                goto cleanup;
             }
-            
+
             if (!s3_regexec_wrap(&location_con_regex, body, 4, pmatch, 0)) {
                 loc_end_open = find_regex_substring(body, pmatch[1]);
                 loc_content = find_regex_substring(body, pmatch[3]);
@@ -1887,11 +1981,13 @@ s3_make_bucket(S3Handle *hdl,
                 /* The case of an empty string is special because XML allows
                  * "self-closing" tags
                  */
-                if ('\0' == hdl->bucket_location[0] &&
-                    '/' != loc_end_open[0] && '\0' != hdl->bucket_location[0])
-                    hdl->last_message = g_strdup(_("An empty location constraint is "
+                if (0 == strcmp(AMAZON_WILDCARD_LOCATION, hdl->bucket_location) &&
+                    '/' != loc_end_open[0])
+                    hdl->last_message = g_strdup(_("A wildcard location constraint is "
                         "configured, but the bucket has a non-empty location constraint"));
-                else if (strncmp(loc_content, hdl->bucket_location, strlen(hdl->bucket_location)))
+                else if (strcmp(AMAZON_WILDCARD_LOCATION, hdl->bucket_location)?
+                    strncmp(loc_content, hdl->bucket_location, strlen(hdl->bucket_location)) :
+                    ('\0' != loc_content[0]))
                     hdl->last_message = g_strdup(_("The location constraint configured "
                         "does not match the constraint currently on the bucket"));
                 else
@@ -1904,7 +2000,14 @@ s3_make_bucket(S3Handle *hdl,
 
 cleanup:
     if (body) g_free(body);
-    
+
     return result == S3_RESULT_OK;
 
+}
+
+gboolean
+s3_delete_bucket(S3Handle *hdl,
+                 const char *bucket)
+{
+    return s3_delete(hdl, bucket, NULL);
 }

@@ -67,7 +67,6 @@ typedef enum {
      *
      *	auth=BSD
      *	auth=RSH
-     *	auth=KRB4
      *	auth=krb5
      *
      * and so on.
@@ -179,12 +178,24 @@ typedef enum {
     fe_xml_estimate,
     fe_xml_property_priority,
     fe_sendsize_rep_warning,
+    fe_xml_estimatelist,
+    fe_xml_level_server,
+    fe_xml_data_path,
+    fe_xml_directtcp_list,
+    fe_amidxtaped_datapath,
+    fe_sendbackup_noop,
+    fe_amrecover_origsize_in_header,
+    fe_amidxtaped_abort,
+    fe_amrecover_correct_disk_quoting,
 
     /*
      * All new features must be inserted immediately *before* this entry.
      */
     last_feature
 } am_feature_e;
+
+/* don't include this struct or the subsequent functions in Amanda::Feature SWIG */
+#ifndef AMANDA_FEATURE_SWG
 
 typedef struct am_feature_s {
     size_t		size;
@@ -194,6 +205,7 @@ typedef struct am_feature_s {
 /*
  * Functions.
  */
+
 extern am_feature_t *am_init_feature_set(void);
 extern am_feature_t *am_set_default_feature_set(void);
 extern am_feature_t *am_allocate_feature_set(void);
@@ -203,5 +215,7 @@ extern int am_remove_feature(am_feature_t *f, am_feature_e n);
 extern int am_has_feature(am_feature_t *f, am_feature_e n);
 extern char *am_feature_to_string(am_feature_t *f);
 extern am_feature_t *am_string_to_feature(char *s);
+
+#endif
 
 #endif	/* !AMFEATURES_H */

@@ -18,93 +18,26 @@
 # Makefile for Amanda archive library
 
 # vim:ft=automake
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
-# 
-# This library is free software; you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License version 2.1 as 
-# published by the Free Software Foundation.
-# 
-# This library is distributed in the hope that it will be useful, but
+# Copyright (c) 2007,2008,2009 Zmanda, Inc.  All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published
+# by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-# or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
-# License for more details.
-# 
-# You should have received a copy of the GNU Lesser General Public License
-# along with this library; if not, write to the Free Software Foundation,
-# Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
-# 
-# Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
-# Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+# or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+# for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+#
+# Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+# Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
 
 # simple include file to pre-define variables which are then +='d by other
 # scripts in this directory.
-
-# vim:ft=automake
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
-# 
-# This library is free software; you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License version 2.1 as 
-# published by the Free Software Foundation.
-# 
-# This library is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-# or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
-# License for more details.
-# 
-# You should have received a copy of the GNU Lesser General Public License
-# along with this library; if not, write to the Free Software Foundation,
-# Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
-# 
-# Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
-# Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
-
-# SYNOPSIS:
-#
-# Automake magic to handle the various tasks of building scripts.  Scripts can
-# be built down to extensionless executables (e.g., foo.pl -> foo), or to 
-# files with the usual extension (foo-lib.sh.in -> foo.sh).
-#
-# Files which support it are syntax-checked when the user invokes 'make check'.
-#
-# All *target* filenames must be listed in SCRIPTS_SHELL, SCRIPTS_PERL, and 
-# SCRIPTS_AWK to support 'make check', 'make dist', and 'make distclean'. No
-# files which are not substituted by config.status should be included in
-# SCRIPTS_PERL, SCRIPTS_SHELL, or SCRIPTS_AWK.  If non-generated files are listed
-# for installation, then Automake will figure out that they should be distributed;
-# otherwise, include them in EXTRA_DIST.
-#
-# USAGE:
-#
-#   include $(top_srcdir)/config/automake/vars.am
-#   include $(top_srcdir)/config/automake/scripts.am
-#   ...
-#   SCRIPTS_PERL = fooscript barscript perl-lib.pl perlmod.pm
-#   SCRIPTS_SHELL = shell1 shell2 sh-lib.sh
-#   SCRIPTS_AWK = talk balk chalk awk-lib.awk
-#   sbin_SCRIPTS = not-subbed
-#   EXTRA_DIST = util-script.pl
-#
-# with the corresponding files in the repository:
-#
-#   fooscript.pl barscript.pl perl-lib.pl.in perlmod.pm.in
-#   shell1.sh shell2.sh sh-lib.sh.in
-#   talk.awk balk.awk chalk.awk awk-lib.awk.in
-#   not-subbed util-script.pl
-#
-# by default, all shell and perl scripts are syntax checked.  If this is
-# a problem (for example, perl scripts depending on Amanda extension 
-# modules), then assign to CHECK_{PERL,SHELL} the list of files you wish
-# to be checked (which can be empty).
-#
-# To add extra flags to the perl checks (e.g., to add new -I flags), set
-# CHECK_PERL_FLAGS.
-
-# Implementation note:
-#
-# This file uses config.status to substitute @foo@ in those scripts while
-# converting them. It also adds the executable bits (a+x) to extensionless
-# files.  The substitution works even though the files are not listed in 
-# configure.in
 
 # vim:ft=automake
 #
@@ -176,12 +109,10 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-target_triplet = @target@
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in \
 	$(top_srcdir)/config/automake/installperms.am \
 	$(top_srcdir)/config/automake/precompile.am \
-	$(top_srcdir)/config/automake/scripts.am \
 	$(top_srcdir)/config/automake/vars.am
 @WANT_INSTALLPERMS_FALSE@am__append_1 = $(installperms_sh)
 sbin_PROGRAMS = amarchiver$(EXEEXT)
@@ -213,16 +144,17 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/amanda/dirs.m4 \
 	$(top_srcdir)/config/amanda/documentation.m4 \
 	$(top_srcdir)/config/amanda/dumpers.m4 \
+	$(top_srcdir)/config/amanda/dvdrw-device.m4 \
 	$(top_srcdir)/config/amanda/flags.m4 \
 	$(top_srcdir)/config/amanda/flock.m4 \
 	$(top_srcdir)/config/amanda/funcs.m4 \
 	$(top_srcdir)/config/amanda/getfsent.m4 \
 	$(top_srcdir)/config/amanda/i18n.m4 \
 	$(top_srcdir)/config/amanda/ipv6.m4 \
-	$(top_srcdir)/config/amanda/krb4-security.m4 \
 	$(top_srcdir)/config/amanda/krb5-security.m4 \
 	$(top_srcdir)/config/amanda/lfs.m4 \
 	$(top_srcdir)/config/amanda/libs.m4 \
+	$(top_srcdir)/config/amanda/ndmp-device.m4 \
 	$(top_srcdir)/config/amanda/net.m4 \
 	$(top_srcdir)/config/amanda/progs.m4 \
 	$(top_srcdir)/config/amanda/ps.m4 \
@@ -240,30 +172,50 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/amanda/types.m4 \
 	$(top_srcdir)/config/amanda/userid.m4 \
 	$(top_srcdir)/config/amanda/version.m4 \
+	$(top_srcdir)/config/gnulib/00gnulib.m4 \
 	$(top_srcdir)/config/gnulib/alloca.m4 \
 	$(top_srcdir)/config/gnulib/arpa_inet_h.m4 \
 	$(top_srcdir)/config/gnulib/base64.m4 \
-	$(top_srcdir)/config/gnulib/eoverflow.m4 \
+	$(top_srcdir)/config/gnulib/btowc.m4 \
+	$(top_srcdir)/config/gnulib/errno_h.m4 \
 	$(top_srcdir)/config/gnulib/extensions.m4 \
 	$(top_srcdir)/config/gnulib/float_h.m4 \
+	$(top_srcdir)/config/gnulib/fseeko.m4 \
 	$(top_srcdir)/config/gnulib/fsusage.m4 \
+	$(top_srcdir)/config/gnulib/ftello.m4 \
+	$(top_srcdir)/config/gnulib/ftruncate.m4 \
 	$(top_srcdir)/config/gnulib/getaddrinfo.m4 \
 	$(top_srcdir)/config/gnulib/getopt.m4 \
 	$(top_srcdir)/config/gnulib/gettimeofday.m4 \
 	$(top_srcdir)/config/gnulib/gnulib-common.m4 \
 	$(top_srcdir)/config/gnulib/gnulib-comp.m4 \
+	$(top_srcdir)/config/gnulib/hostent.m4 \
 	$(top_srcdir)/config/gnulib/include_next.m4 \
 	$(top_srcdir)/config/gnulib/inet_ntop.m4 \
 	$(top_srcdir)/config/gnulib/intmax_t.m4 \
+	$(top_srcdir)/config/gnulib/localcharset.m4 \
+	$(top_srcdir)/config/gnulib/locale-fr.m4 \
+	$(top_srcdir)/config/gnulib/locale-ja.m4 \
+	$(top_srcdir)/config/gnulib/locale-zh.m4 \
 	$(top_srcdir)/config/gnulib/lock.m4 \
 	$(top_srcdir)/config/gnulib/longlong.m4 \
+	$(top_srcdir)/config/gnulib/lseek.m4 \
+	$(top_srcdir)/config/gnulib/lstat.m4 \
 	$(top_srcdir)/config/gnulib/malloc.m4 \
+	$(top_srcdir)/config/gnulib/mbrtowc.m4 \
+	$(top_srcdir)/config/gnulib/mbsinit.m4 \
+	$(top_srcdir)/config/gnulib/mbstate_t.m4 \
 	$(top_srcdir)/config/gnulib/mkdtemp.m4 \
+	$(top_srcdir)/config/gnulib/multiarch.m4 \
+	$(top_srcdir)/config/gnulib/netdb_h.m4 \
 	$(top_srcdir)/config/gnulib/netinet_in_h.m4 \
-	$(top_srcdir)/config/gnulib/onceonly_2_57.m4 \
+	$(top_srcdir)/config/gnulib/onceonly.m4 \
 	$(top_srcdir)/config/gnulib/physmem.m4 \
+	$(top_srcdir)/config/gnulib/printf.m4 \
+	$(top_srcdir)/config/gnulib/regex.m4 \
 	$(top_srcdir)/config/gnulib/safe-read.m4 \
 	$(top_srcdir)/config/gnulib/safe-write.m4 \
+	$(top_srcdir)/config/gnulib/servent.m4 \
 	$(top_srcdir)/config/gnulib/snprintf.m4 \
 	$(top_srcdir)/config/gnulib/socklen.m4 \
 	$(top_srcdir)/config/gnulib/sockpfaf.m4 \
@@ -272,17 +224,21 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/gnulib/stdint.m4 \
 	$(top_srcdir)/config/gnulib/stdio_h.m4 \
 	$(top_srcdir)/config/gnulib/stdlib_h.m4 \
-	$(top_srcdir)/config/gnulib/strdup.m4 \
-	$(top_srcdir)/config/gnulib/string_h.m4 \
 	$(top_srcdir)/config/gnulib/sys_socket_h.m4 \
 	$(top_srcdir)/config/gnulib/sys_stat_h.m4 \
 	$(top_srcdir)/config/gnulib/sys_time_h.m4 \
 	$(top_srcdir)/config/gnulib/tempname.m4 \
+	$(top_srcdir)/config/gnulib/threadlib.m4 \
 	$(top_srcdir)/config/gnulib/unistd_h.m4 \
 	$(top_srcdir)/config/gnulib/vasnprintf.m4 \
 	$(top_srcdir)/config/gnulib/visibility.m4 \
 	$(top_srcdir)/config/gnulib/wchar.m4 \
+	$(top_srcdir)/config/gnulib/wcrtomb.m4 \
+	$(top_srcdir)/config/gnulib/wctype.m4 \
+	$(top_srcdir)/config/gnulib/write.m4 \
+	$(top_srcdir)/config/gettext-macros/codeset.m4 \
 	$(top_srcdir)/config/gettext-macros/gettext.m4 \
+	$(top_srcdir)/config/gettext-macros/glibc21.m4 \
 	$(top_srcdir)/config/gettext-macros/iconv.m4 \
 	$(top_srcdir)/config/gettext-macros/inttypes_h.m4 \
 	$(top_srcdir)/config/gettext-macros/lib-ld.m4 \
@@ -296,7 +252,11 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/gettext-macros/wchar_t.m4 \
 	$(top_srcdir)/config/gettext-macros/wint_t.m4 \
 	$(top_srcdir)/config/gettext-macros/xsize.m4 \
-	$(top_srcdir)/config/libtool.m4 $(top_srcdir)/configure.in
+	$(top_srcdir)/config/libtool.m4 \
+	$(top_srcdir)/config/ltoptions.m4 \
+	$(top_srcdir)/config/ltsugar.m4 \
+	$(top_srcdir)/config/ltversion.m4 \
+	$(top_srcdir)/config/lt~obsolete.m4 $(top_srcdir)/configure.in
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/config/mkinstalldirs
@@ -367,9 +327,11 @@ ACLOCAL = @ACLOCAL@
 AIX_BACKUP = @AIX_BACKUP@
 ALLOCA = @ALLOCA@
 ALLOCA_H = @ALLOCA_H@
+AMANDA_COMPONENTS = @AMANDA_COMPONENTS@
 AMANDA_DBGDIR = @AMANDA_DBGDIR@
 AMANDA_DEBUG_DAYS = @AMANDA_DEBUG_DAYS@
 AMANDA_STATIC_LDFLAGS = @AMANDA_STATIC_LDFLAGS@
+AMANDA_SWIG_PERL_CFLAGS = @AMANDA_SWIG_PERL_CFLAGS@
 AMANDA_TMPDIR = @AMANDA_TMPDIR@
 AMANDA_WARNING_CFLAGS = @AMANDA_WARNING_CFLAGS@
 AMLINT = @AMLINT@
@@ -379,6 +341,7 @@ AMPLOT_CAT_GZIP = @AMPLOT_CAT_GZIP@
 AMPLOT_CAT_PACK = @AMPLOT_CAT_PACK@
 AMPLOT_COMPRESS = @AMPLOT_COMPRESS@
 AMTAR = @AMTAR@
+APPLE_UNIVERSAL_BUILD = @APPLE_UNIVERSAL_BUILD@
 APPLICATION_DIR = @APPLICATION_DIR@
 AR = @AR@
 ARPA_INET_H = @ARPA_INET_H@
@@ -405,9 +368,6 @@ CFLAG_VISIBILITY = @CFLAG_VISIBILITY@
 CHECK_USERID = @CHECK_USERID@
 CHIO = @CHIO@
 CHS = @CHS@
-CLIENT_HOST_INSTANCE = @CLIENT_HOST_INSTANCE@
-CLIENT_HOST_KEY_FILE = @CLIENT_HOST_KEY_FILE@
-CLIENT_HOST_PRINCIPAL = @CLIENT_HOST_PRINCIPAL@
 CLIENT_LOGIN = @CLIENT_LOGIN@
 CLIENT_SCRIPTS_OPT = @CLIENT_SCRIPTS_OPT@
 COMPRESS = @COMPRESS@
@@ -420,14 +380,9 @@ CONFIG_DIR = @CONFIG_DIR@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CURL_CONFIG = @CURL_CONFIG@
-CXX = @CXX@
-CXXCPP = @CXXCPP@
-CXXDEPMODE = @CXXDEPMODE@
-CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DD = @DD@
 DEFAULT_AMANDATES_FILE = @DEFAULT_AMANDATES_FILE@
-DEFAULT_CHANGER_DEVICE = @DEFAULT_CHANGER_DEVICE@
 DEFAULT_CONFIG = @DEFAULT_CONFIG@
 DEFAULT_MAILER = @DEFAULT_MAILER@
 DEFAULT_SERVER = @DEFAULT_SERVER@
@@ -436,155 +391,216 @@ DEFAULT_TAPE_SERVER = @DEFAULT_TAPE_SERVER@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DOC_BUILD_DATE = @DOC_BUILD_DATE@
+DSYMUTIL = @DSYMUTIL@
 DUMP = @DUMP@
+DUMPBIN = @DUMPBIN@
 DUMP_RETURNS_1 = @DUMP_RETURNS_1@
-ECHO = @ECHO@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
-EOVERFLOW = @EOVERFLOW@
+EMULTIHOP_HIDDEN = @EMULTIHOP_HIDDEN@
+EMULTIHOP_VALUE = @EMULTIHOP_VALUE@
+ENOLINK_HIDDEN = @ENOLINK_HIDDEN@
+ENOLINK_VALUE = @ENOLINK_VALUE@
+EOVERFLOW_HIDDEN = @EOVERFLOW_HIDDEN@
+EOVERFLOW_VALUE = @EOVERFLOW_VALUE@
+ERRNO_H = @ERRNO_H@
 EXAMPLE_TAPEDEV = @EXAMPLE_TAPEDEV@
 EXEEXT = @EXEEXT@
-F77 = @F77@
-FFLAGS = @FFLAGS@
+FGREP = @FGREP@
 FLOAT_H = @FLOAT_H@
+GETADDRINFO_LIB = @GETADDRINFO_LIB@
 GETCONF = @GETCONF@
 GETOPT_H = @GETOPT_H@
 GETTEXT = @GETTEXT@
+GIT = @GIT@
+GLIBC21 = @GLIBC21@
 GLIB_CFLAGS = @GLIB_CFLAGS@
 GLIB_GENMARSHAL = @GLIB_GENMARSHAL@
 GLIB_LIBS = @GLIB_LIBS@
 GLIB_MKENUMS = @GLIB_MKENUMS@
 GMSGFMT = @GMSGFMT@
 GMSGFMT_015 = @GMSGFMT_015@
+GNULIB_ACCEPT = @GNULIB_ACCEPT@
+GNULIB_ATOLL = @GNULIB_ATOLL@
+GNULIB_BIND = @GNULIB_BIND@
+GNULIB_BTOWC = @GNULIB_BTOWC@
 GNULIB_CALLOC_POSIX = @GNULIB_CALLOC_POSIX@
 GNULIB_CHOWN = @GNULIB_CHOWN@
+GNULIB_CLOSE = @GNULIB_CLOSE@
+GNULIB_CONNECT = @GNULIB_CONNECT@
+GNULIB_DPRINTF = @GNULIB_DPRINTF@
 GNULIB_DUP2 = @GNULIB_DUP2@
 GNULIB_ENVIRON = @GNULIB_ENVIRON@
+GNULIB_EUIDACCESS = @GNULIB_EUIDACCESS@
 GNULIB_FCHDIR = @GNULIB_FCHDIR@
+GNULIB_FCLOSE = @GNULIB_FCLOSE@
 GNULIB_FFLUSH = @GNULIB_FFLUSH@
 GNULIB_FOPEN = @GNULIB_FOPEN@
+GNULIB_FPRINTF = @GNULIB_FPRINTF@
 GNULIB_FPRINTF_POSIX = @GNULIB_FPRINTF_POSIX@
+GNULIB_FPUTC = @GNULIB_FPUTC@
+GNULIB_FPUTS = @GNULIB_FPUTS@
 GNULIB_FREOPEN = @GNULIB_FREOPEN@
 GNULIB_FSEEK = @GNULIB_FSEEK@
 GNULIB_FSEEKO = @GNULIB_FSEEKO@
+GNULIB_FSYNC = @GNULIB_FSYNC@
 GNULIB_FTELL = @GNULIB_FTELL@
 GNULIB_FTELLO = @GNULIB_FTELLO@
 GNULIB_FTRUNCATE = @GNULIB_FTRUNCATE@
+GNULIB_FWRITE = @GNULIB_FWRITE@
+GNULIB_GETADDRINFO = @GNULIB_GETADDRINFO@
 GNULIB_GETCWD = @GNULIB_GETCWD@
 GNULIB_GETDELIM = @GNULIB_GETDELIM@
+GNULIB_GETDOMAINNAME = @GNULIB_GETDOMAINNAME@
+GNULIB_GETDTABLESIZE = @GNULIB_GETDTABLESIZE@
+GNULIB_GETHOSTNAME = @GNULIB_GETHOSTNAME@
 GNULIB_GETLINE = @GNULIB_GETLINE@
+GNULIB_GETLOADAVG = @GNULIB_GETLOADAVG@
 GNULIB_GETLOGIN_R = @GNULIB_GETLOGIN_R@
 GNULIB_GETPAGESIZE = @GNULIB_GETPAGESIZE@
+GNULIB_GETPEERNAME = @GNULIB_GETPEERNAME@
+GNULIB_GETSOCKNAME = @GNULIB_GETSOCKNAME@
+GNULIB_GETSOCKOPT = @GNULIB_GETSOCKOPT@
 GNULIB_GETSUBOPT = @GNULIB_GETSUBOPT@
+GNULIB_GETUSERSHELL = @GNULIB_GETUSERSHELL@
+GNULIB_INET_NTOP = @GNULIB_INET_NTOP@
+GNULIB_INET_PTON = @GNULIB_INET_PTON@
+GNULIB_LCHMOD = @GNULIB_LCHMOD@
 GNULIB_LCHOWN = @GNULIB_LCHOWN@
+GNULIB_LINK = @GNULIB_LINK@
+GNULIB_LISTEN = @GNULIB_LISTEN@
 GNULIB_LSEEK = @GNULIB_LSEEK@
+GNULIB_LSTAT = @GNULIB_LSTAT@
 GNULIB_MALLOC_POSIX = @GNULIB_MALLOC_POSIX@
-GNULIB_MBSCASECMP = @GNULIB_MBSCASECMP@
-GNULIB_MBSCASESTR = @GNULIB_MBSCASESTR@
-GNULIB_MBSCHR = @GNULIB_MBSCHR@
-GNULIB_MBSCSPN = @GNULIB_MBSCSPN@
-GNULIB_MBSLEN = @GNULIB_MBSLEN@
-GNULIB_MBSNCASECMP = @GNULIB_MBSNCASECMP@
-GNULIB_MBSNLEN = @GNULIB_MBSNLEN@
-GNULIB_MBSPBRK = @GNULIB_MBSPBRK@
-GNULIB_MBSPCASECMP = @GNULIB_MBSPCASECMP@
-GNULIB_MBSRCHR = @GNULIB_MBSRCHR@
-GNULIB_MBSSEP = @GNULIB_MBSSEP@
-GNULIB_MBSSPN = @GNULIB_MBSSPN@
-GNULIB_MBSSTR = @GNULIB_MBSSTR@
-GNULIB_MBSTOK_R = @GNULIB_MBSTOK_R@
-GNULIB_MEMMEM = @GNULIB_MEMMEM@
-GNULIB_MEMPCPY = @GNULIB_MEMPCPY@
-GNULIB_MEMRCHR = @GNULIB_MEMRCHR@
+GNULIB_MBRLEN = @GNULIB_MBRLEN@
+GNULIB_MBRTOWC = @GNULIB_MBRTOWC@
+GNULIB_MBSINIT = @GNULIB_MBSINIT@
+GNULIB_MBSNRTOWCS = @GNULIB_MBSNRTOWCS@
+GNULIB_MBSRTOWCS = @GNULIB_MBSRTOWCS@
 GNULIB_MKDTEMP = @GNULIB_MKDTEMP@
 GNULIB_MKSTEMP = @GNULIB_MKSTEMP@
+GNULIB_OBSTACK_PRINTF = @GNULIB_OBSTACK_PRINTF@
+GNULIB_OBSTACK_PRINTF_POSIX = @GNULIB_OBSTACK_PRINTF_POSIX@
+GNULIB_PERROR = @GNULIB_PERROR@
+GNULIB_PRINTF = @GNULIB_PRINTF@
 GNULIB_PRINTF_POSIX = @GNULIB_PRINTF_POSIX@
+GNULIB_PUTC = @GNULIB_PUTC@
+GNULIB_PUTCHAR = @GNULIB_PUTCHAR@
 GNULIB_PUTENV = @GNULIB_PUTENV@
+GNULIB_PUTS = @GNULIB_PUTS@
+GNULIB_RANDOM_R = @GNULIB_RANDOM_R@
 GNULIB_READLINK = @GNULIB_READLINK@
 GNULIB_REALLOC_POSIX = @GNULIB_REALLOC_POSIX@
+GNULIB_RECV = @GNULIB_RECV@
+GNULIB_RECVFROM = @GNULIB_RECVFROM@
+GNULIB_RPMATCH = @GNULIB_RPMATCH@
+GNULIB_SEND = @GNULIB_SEND@
+GNULIB_SENDTO = @GNULIB_SENDTO@
 GNULIB_SETENV = @GNULIB_SETENV@
+GNULIB_SETSOCKOPT = @GNULIB_SETSOCKOPT@
+GNULIB_SHUTDOWN = @GNULIB_SHUTDOWN@
 GNULIB_SLEEP = @GNULIB_SLEEP@
 GNULIB_SNPRINTF = @GNULIB_SNPRINTF@
+GNULIB_SOCKET = @GNULIB_SOCKET@
 GNULIB_SPRINTF_POSIX = @GNULIB_SPRINTF_POSIX@
-GNULIB_STPCPY = @GNULIB_STPCPY@
-GNULIB_STPNCPY = @GNULIB_STPNCPY@
-GNULIB_STRCASESTR = @GNULIB_STRCASESTR@
-GNULIB_STRCHRNUL = @GNULIB_STRCHRNUL@
-GNULIB_STRDUP = @GNULIB_STRDUP@
-GNULIB_STRERROR = @GNULIB_STRERROR@
-GNULIB_STRNDUP = @GNULIB_STRNDUP@
-GNULIB_STRNLEN = @GNULIB_STRNLEN@
-GNULIB_STRPBRK = @GNULIB_STRPBRK@
-GNULIB_STRSEP = @GNULIB_STRSEP@
-GNULIB_STRSIGNAL = @GNULIB_STRSIGNAL@
-GNULIB_STRSTR = @GNULIB_STRSTR@
-GNULIB_STRTOK_R = @GNULIB_STRTOK_R@
+GNULIB_STDIO_H_SIGPIPE = @GNULIB_STDIO_H_SIGPIPE@
+GNULIB_STRTOD = @GNULIB_STRTOD@
+GNULIB_STRTOLL = @GNULIB_STRTOLL@
+GNULIB_STRTOULL = @GNULIB_STRTOULL@
+GNULIB_UNISTD_H_SIGPIPE = @GNULIB_UNISTD_H_SIGPIPE@
 GNULIB_UNSETENV = @GNULIB_UNSETENV@
 GNULIB_VASPRINTF = @GNULIB_VASPRINTF@
+GNULIB_VDPRINTF = @GNULIB_VDPRINTF@
+GNULIB_VFPRINTF = @GNULIB_VFPRINTF@
 GNULIB_VFPRINTF_POSIX = @GNULIB_VFPRINTF_POSIX@
+GNULIB_VPRINTF = @GNULIB_VPRINTF@
 GNULIB_VPRINTF_POSIX = @GNULIB_VPRINTF_POSIX@
 GNULIB_VSNPRINTF = @GNULIB_VSNPRINTF@
 GNULIB_VSPRINTF_POSIX = @GNULIB_VSPRINTF_POSIX@
+GNULIB_WCRTOMB = @GNULIB_WCRTOMB@
+GNULIB_WCSNRTOMBS = @GNULIB_WCSNRTOMBS@
+GNULIB_WCSRTOMBS = @GNULIB_WCSRTOMBS@
+GNULIB_WCTOB = @GNULIB_WCTOB@
 GNULIB_WCWIDTH = @GNULIB_WCWIDTH@
+GNULIB_WRITE = @GNULIB_WRITE@
 GNUPLOT = @GNUPLOT@
 GNUTAR = @GNUTAR@
 GNUTAR_LISTED_INCREMENTAL_DIR = @GNUTAR_LISTED_INCREMENTAL_DIR@
 GOBJECT_QUERY = @GOBJECT_QUERY@
 GREP = @GREP@
 GZIP = @GZIP@
+HAVE_ARPA_INET_H = @HAVE_ARPA_INET_H@
+HAVE_ATOLL = @HAVE_ATOLL@
+HAVE_BTOWC = @HAVE_BTOWC@
 HAVE_CALLOC_POSIX = @HAVE_CALLOC_POSIX@
 HAVE_DECL_ENVIRON = @HAVE_DECL_ENVIRON@
+HAVE_DECL_FREEADDRINFO = @HAVE_DECL_FREEADDRINFO@
+HAVE_DECL_GAI_STRERROR = @HAVE_DECL_GAI_STRERROR@
+HAVE_DECL_GETADDRINFO = @HAVE_DECL_GETADDRINFO@
 HAVE_DECL_GETDELIM = @HAVE_DECL_GETDELIM@
 HAVE_DECL_GETLINE = @HAVE_DECL_GETLINE@
+HAVE_DECL_GETLOADAVG = @HAVE_DECL_GETLOADAVG@
 HAVE_DECL_GETLOGIN_R = @HAVE_DECL_GETLOGIN_R@
-HAVE_DECL_MEMMEM = @HAVE_DECL_MEMMEM@
-HAVE_DECL_MEMRCHR = @HAVE_DECL_MEMRCHR@
-HAVE_DECL_MKDIR = @HAVE_DECL_MKDIR@
+HAVE_DECL_GETNAMEINFO = @HAVE_DECL_GETNAMEINFO@
+HAVE_DECL_INET_NTOP = @HAVE_DECL_INET_NTOP@
+HAVE_DECL_INET_PTON = @HAVE_DECL_INET_PTON@
+HAVE_DECL_OBSTACK_PRINTF = @HAVE_DECL_OBSTACK_PRINTF@
 HAVE_DECL_SNPRINTF = @HAVE_DECL_SNPRINTF@
-HAVE_DECL_STRDUP = @HAVE_DECL_STRDUP@
-HAVE_DECL_STRERROR = @HAVE_DECL_STRERROR@
-HAVE_DECL_STRNDUP = @HAVE_DECL_STRNDUP@
-HAVE_DECL_STRNLEN = @HAVE_DECL_STRNLEN@
-HAVE_DECL_STRSIGNAL = @HAVE_DECL_STRSIGNAL@
-HAVE_DECL_STRTOK_R = @HAVE_DECL_STRTOK_R@
 HAVE_DECL_VSNPRINTF = @HAVE_DECL_VSNPRINTF@
+HAVE_DECL_WCTOB = @HAVE_DECL_WCTOB@
 HAVE_DECL_WCWIDTH = @HAVE_DECL_WCWIDTH@
+HAVE_DPRINTF = @HAVE_DPRINTF@
 HAVE_DUP2 = @HAVE_DUP2@
+HAVE_EUIDACCESS = @HAVE_EUIDACCESS@
 HAVE_FSEEKO = @HAVE_FSEEKO@
+HAVE_FSYNC = @HAVE_FSYNC@
 HAVE_FTELLO = @HAVE_FTELLO@
 HAVE_FTRUNCATE = @HAVE_FTRUNCATE@
+HAVE_GETDOMAINNAME = @HAVE_GETDOMAINNAME@
+HAVE_GETDTABLESIZE = @HAVE_GETDTABLESIZE@
+HAVE_GETHOSTNAME = @HAVE_GETHOSTNAME@
 HAVE_GETPAGESIZE = @HAVE_GETPAGESIZE@
 HAVE_GETSUBOPT = @HAVE_GETSUBOPT@
+HAVE_GETUSERSHELL = @HAVE_GETUSERSHELL@
 HAVE_GZIP = @HAVE_GZIP@
 HAVE_INTTYPES_H = @HAVE_INTTYPES_H@
-HAVE_IO_H = @HAVE_IO_H@
+HAVE_ISWCNTRL = @HAVE_ISWCNTRL@
+HAVE_LCHMOD = @HAVE_LCHMOD@
+HAVE_LINK = @HAVE_LINK@
 HAVE_LONG_LONG_INT = @HAVE_LONG_LONG_INT@
 HAVE_LSTAT = @HAVE_LSTAT@
 HAVE_MALLOC_POSIX = @HAVE_MALLOC_POSIX@
-HAVE_MEMPCPY = @HAVE_MEMPCPY@
+HAVE_MBRLEN = @HAVE_MBRLEN@
+HAVE_MBRTOWC = @HAVE_MBRTOWC@
+HAVE_MBSINIT = @HAVE_MBSINIT@
+HAVE_MBSNRTOWCS = @HAVE_MBSNRTOWCS@
+HAVE_MBSRTOWCS = @HAVE_MBSRTOWCS@
 HAVE_MKDTEMP = @HAVE_MKDTEMP@
+HAVE_NETDB_H = @HAVE_NETDB_H@
 HAVE_NETINET_IN_H = @HAVE_NETINET_IN_H@
 HAVE_OS_H = @HAVE_OS_H@
+HAVE_RANDOM_H = @HAVE_RANDOM_H@
+HAVE_RANDOM_R = @HAVE_RANDOM_R@
 HAVE_READLINK = @HAVE_READLINK@
 HAVE_REALLOC_POSIX = @HAVE_REALLOC_POSIX@
+HAVE_RPMATCH = @HAVE_RPMATCH@
 HAVE_SETENV = @HAVE_SETENV@
 HAVE_SIGNED_SIG_ATOMIC_T = @HAVE_SIGNED_SIG_ATOMIC_T@
 HAVE_SIGNED_WCHAR_T = @HAVE_SIGNED_WCHAR_T@
 HAVE_SIGNED_WINT_T = @HAVE_SIGNED_WINT_T@
 HAVE_SLEEP = @HAVE_SLEEP@
 HAVE_STDINT_H = @HAVE_STDINT_H@
-HAVE_STPCPY = @HAVE_STPCPY@
-HAVE_STPNCPY = @HAVE_STPNCPY@
-HAVE_STRCASESTR = @HAVE_STRCASESTR@
-HAVE_STRCHRNUL = @HAVE_STRCHRNUL@
-HAVE_STRNDUP = @HAVE_STRNDUP@
-HAVE_STRPBRK = @HAVE_STRPBRK@
-HAVE_STRSEP = @HAVE_STRSEP@
+HAVE_STRTOD = @HAVE_STRTOD@
+HAVE_STRTOLL = @HAVE_STRTOLL@
+HAVE_STRTOULL = @HAVE_STRTOULL@
+HAVE_STRUCT_ADDRINFO = @HAVE_STRUCT_ADDRINFO@
+HAVE_STRUCT_RANDOM_DATA = @HAVE_STRUCT_RANDOM_DATA@
 HAVE_STRUCT_TIMEVAL = @HAVE_STRUCT_TIMEVAL@
 HAVE_SYS_BITYPES_H = @HAVE_SYS_BITYPES_H@
 HAVE_SYS_INTTYPES_H = @HAVE_SYS_INTTYPES_H@
+HAVE_SYS_LOADAVG_H = @HAVE_SYS_LOADAVG_H@
 HAVE_SYS_PARAM_H = @HAVE_SYS_PARAM_H@
 HAVE_SYS_SOCKET_H = @HAVE_SYS_SOCKET_H@
 HAVE_SYS_TIME_H = @HAVE_SYS_TIME_H@
@@ -593,12 +609,20 @@ HAVE_UNISTD_H = @HAVE_UNISTD_H@
 HAVE_UNSETENV = @HAVE_UNSETENV@
 HAVE_UNSIGNED_LONG_LONG_INT = @HAVE_UNSIGNED_LONG_LONG_INT@
 HAVE_VASPRINTF = @HAVE_VASPRINTF@
+HAVE_VDPRINTF = @HAVE_VDPRINTF@
 HAVE_VISIBILITY = @HAVE_VISIBILITY@
 HAVE_WCHAR_H = @HAVE_WCHAR_H@
+HAVE_WCRTOMB = @HAVE_WCRTOMB@
+HAVE_WCSNRTOMBS = @HAVE_WCSNRTOMBS@
+HAVE_WCSRTOMBS = @HAVE_WCSRTOMBS@
+HAVE_WCTYPE_H = @HAVE_WCTYPE_H@
 HAVE_WINSOCK2_H = @HAVE_WINSOCK2_H@
+HAVE_WINT_T = @HAVE_WINT_T@
 HAVE_WS2TCPIP_H = @HAVE_WS2TCPIP_H@
 HAVE__BOOL = @HAVE__BOOL@
+HOSTENT_LIB = @HOSTENT_LIB@
 INCLUDE_NEXT = @INCLUDE_NEXT@
+INCLUDE_NEXT_AS_FIRST_DIRECTIVE = @INCLUDE_NEXT_AS_FIRST_DIRECTIVE@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -606,8 +630,8 @@ INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 INTLLIBS = @INTLLIBS@
 INTL_MACOSX_LIBS = @INTL_MACOSX_LIBS@
-KRB4_SECURITY = @KRB4_SECURITY@
 KRB5_SECURITY = @KRB5_SECURITY@
+LD = @LD@
 LDFLAGS = @LDFLAGS@
 LEX = @LEX@
 LEXLIB = @LEXLIB@
@@ -623,9 +647,18 @@ LIBS = @LIBS@
 LIBTHREAD = @LIBTHREAD@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
+LIPO = @LIPO@
 LN_S = @LN_S@
+LOCALCHARSET_TESTS_ENVIRONMENT = @LOCALCHARSET_TESTS_ENVIRONMENT@
+LOCALE_FR = @LOCALE_FR@
+LOCALE_FR_UTF8 = @LOCALE_FR_UTF8@
+LOCALE_JA = @LOCALE_JA@
+LOCALE_ZH_CN = @LOCALE_ZH_CN@
 LOCKING = @LOCKING@
 LOW_TCPPORTRANGE = @LOW_TCPPORTRANGE@
+LPR = @LPR@
+LPRFLAG = @LPRFLAG@
+LTALLOCA = @LTALLOCA@
 LTLIBICONV = @LTLIBICONV@
 LTLIBINTL = @LTLIBINTL@
 LTLIBMULTITHREAD = @LTLIBMULTITHREAD@
@@ -642,19 +675,27 @@ MSGMERGE = @MSGMERGE@
 MT = @MT@
 MTX = @MTX@
 MT_FILE_FLAG = @MT_FILE_FLAG@
+NETDB_H = @NETDB_H@
 NETINET_IN_H = @NETINET_IN_H@
+NEXT_ARPA_INET_H = @NEXT_ARPA_INET_H@
+NEXT_ERRNO_H = @NEXT_ERRNO_H@
 NEXT_FLOAT_H = @NEXT_FLOAT_H@
+NEXT_NETDB_H = @NEXT_NETDB_H@
 NEXT_NETINET_IN_H = @NEXT_NETINET_IN_H@
 NEXT_STDINT_H = @NEXT_STDINT_H@
 NEXT_STDIO_H = @NEXT_STDIO_H@
 NEXT_STDLIB_H = @NEXT_STDLIB_H@
-NEXT_STRING_H = @NEXT_STRING_H@
 NEXT_SYS_SOCKET_H = @NEXT_SYS_SOCKET_H@
 NEXT_SYS_STAT_H = @NEXT_SYS_STAT_H@
 NEXT_SYS_TIME_H = @NEXT_SYS_TIME_H@
 NEXT_UNISTD_H = @NEXT_UNISTD_H@
 NEXT_WCHAR_H = @NEXT_WCHAR_H@
+NEXT_WCTYPE_H = @NEXT_WCTYPE_H@
+NM = @NM@
+NMEDIT = @NMEDIT@
 OBJEXT = @OBJEXT@
+OTOOL = @OTOOL@
+OTOOL64 = @OTOOL64@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -668,14 +709,19 @@ PERLEXTLIBS = @PERLEXTLIBS@
 PERL_INC = @PERL_INC@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
-PRINT = @PRINT@
+PRAGMA_SYSTEM_HEADER = @PRAGMA_SYSTEM_HEADER@
 PS = @PS@
 PS_ARGUMENT = @PS_ARGUMENT@
+PS_ARGUMENT_ARGS = @PS_ARGUMENT_ARGS@
 PTRDIFF_T_SUFFIX = @PTRDIFF_T_SUFFIX@
 RANLIB = @RANLIB@
 READLINE_LIBS = @READLINE_LIBS@
+REPLACE_BTOWC = @REPLACE_BTOWC@
 REPLACE_CHOWN = @REPLACE_CHOWN@
+REPLACE_CLOSE = @REPLACE_CLOSE@
+REPLACE_DPRINTF = @REPLACE_DPRINTF@
 REPLACE_FCHDIR = @REPLACE_FCHDIR@
+REPLACE_FCLOSE = @REPLACE_FCLOSE@
 REPLACE_FFLUSH = @REPLACE_FFLUSH@
 REPLACE_FOPEN = @REPLACE_FOPEN@
 REPLACE_FPRINTF = @REPLACE_FPRINTF@
@@ -688,30 +734,43 @@ REPLACE_GETCWD = @REPLACE_GETCWD@
 REPLACE_GETLINE = @REPLACE_GETLINE@
 REPLACE_GETPAGESIZE = @REPLACE_GETPAGESIZE@
 REPLACE_GETTIMEOFDAY = @REPLACE_GETTIMEOFDAY@
+REPLACE_ISWCNTRL = @REPLACE_ISWCNTRL@
 REPLACE_LCHOWN = @REPLACE_LCHOWN@
 REPLACE_LSEEK = @REPLACE_LSEEK@
-REPLACE_MEMMEM = @REPLACE_MEMMEM@
+REPLACE_LSTAT = @REPLACE_LSTAT@
+REPLACE_MBRLEN = @REPLACE_MBRLEN@
+REPLACE_MBRTOWC = @REPLACE_MBRTOWC@
+REPLACE_MBSINIT = @REPLACE_MBSINIT@
+REPLACE_MBSNRTOWCS = @REPLACE_MBSNRTOWCS@
+REPLACE_MBSRTOWCS = @REPLACE_MBSRTOWCS@
+REPLACE_MBSTATE_T = @REPLACE_MBSTATE_T@
+REPLACE_MKDIR = @REPLACE_MKDIR@
 REPLACE_MKSTEMP = @REPLACE_MKSTEMP@
+REPLACE_OBSTACK_PRINTF = @REPLACE_OBSTACK_PRINTF@
+REPLACE_PERROR = @REPLACE_PERROR@
 REPLACE_PRINTF = @REPLACE_PRINTF@
 REPLACE_PUTENV = @REPLACE_PUTENV@
 REPLACE_SNPRINTF = @REPLACE_SNPRINTF@
 REPLACE_SPRINTF = @REPLACE_SPRINTF@
-REPLACE_STRCASESTR = @REPLACE_STRCASESTR@
-REPLACE_STRERROR = @REPLACE_STRERROR@
-REPLACE_STRSIGNAL = @REPLACE_STRSIGNAL@
-REPLACE_STRSTR = @REPLACE_STRSTR@
+REPLACE_STDIO_WRITE_FUNCS = @REPLACE_STDIO_WRITE_FUNCS@
+REPLACE_STRTOD = @REPLACE_STRTOD@
 REPLACE_VASPRINTF = @REPLACE_VASPRINTF@
+REPLACE_VDPRINTF = @REPLACE_VDPRINTF@
 REPLACE_VFPRINTF = @REPLACE_VFPRINTF@
 REPLACE_VPRINTF = @REPLACE_VPRINTF@
 REPLACE_VSNPRINTF = @REPLACE_VSNPRINTF@
 REPLACE_VSPRINTF = @REPLACE_VSPRINTF@
+REPLACE_WCRTOMB = @REPLACE_WCRTOMB@
+REPLACE_WCSRTOMBS = @REPLACE_WCSRTOMBS@
+REPLACE_WCTOB = @REPLACE_WCTOB@
 REPLACE_WCWIDTH = @REPLACE_WCWIDTH@
+REPLACE_WRITE = @REPLACE_WRITE@
 RESTORE = @RESTORE@
+RPCGEN = @RPCGEN@
 RSH_SECURITY = @RSH_SECURITY@
 SAMBA_CLIENT = @SAMBA_CLIENT@
-SERVER_HOST_INSTANCE = @SERVER_HOST_INSTANCE@
-SERVER_HOST_KEY_FILE = @SERVER_HOST_KEY_FILE@
-SERVER_HOST_PRINCIPAL = @SERVER_HOST_PRINCIPAL@
+SED = @SED@
+SERVENT_LIB = @SERVENT_LIB@
 SERVICE_SUFFIX = @SERVICE_SUFFIX@
 SETUID_GROUP = @SETUID_GROUP@
 SET_MAKE = @SET_MAKE@
@@ -722,6 +781,7 @@ SNAPSHOT_STAMP = @SNAPSHOT_STAMP@
 SORT = @SORT@
 SSH = @SSH@
 SSH_SECURITY = @SSH_SECURITY@
+STAR = @STAR@
 STDBOOL_H = @STDBOOL_H@
 STDINT_H = @STDINT_H@
 STRIP = @STRIP@
@@ -732,27 +792,26 @@ SYS_SOCKET_H = @SYS_SOCKET_H@
 SYS_STAT_H = @SYS_STAT_H@
 SYS_TIME_H = @SYS_TIME_H@
 TCPPORTRANGE = @TCPPORTRANGE@
-TICKET_LIFETIME = @TICKET_LIFETIME@
 UDPPORTRANGE = @UDPPORTRANGE@
 UNCOMPRESS_OPT = @UNCOMPRESS_OPT@
 UNCOMPRESS_PATH = @UNCOMPRESS_PATH@
+UNISTD_H_HAVE_WINSOCK2_H = @UNISTD_H_HAVE_WINSOCK2_H@
 USE_AMANDAHOSTS = @USE_AMANDAHOSTS@
 USE_NLS = @USE_NLS@
 USE_RUNDUMP = @USE_RUNDUMP@
-USE_VERSION_SUFFIXES = @USE_VERSION_SUFFIXES@
 VDUMP = @VDUMP@
 VERSION = @VERSION@
 VERSION_COMMENT = @VERSION_COMMENT@
 VERSION_MAJOR = @VERSION_MAJOR@
 VERSION_MINOR = @VERSION_MINOR@
 VERSION_PATCH = @VERSION_PATCH@
-VERSION_SUFFIX = @VERSION_SUFFIX@
 VOID_UNSETENV = @VOID_UNSETENV@
 VRESTORE = @VRESTORE@
 VXDUMP = @VXDUMP@
 VXRESTORE = @VXRESTORE@
 WCHAR_H = @WCHAR_H@
 WCHAR_T_SUFFIX = @WCHAR_T_SUFFIX@
+WCTYPE_H = @WCTYPE_H@
 WINT_T_SUFFIX = @WINT_T_SUFFIX@
 XFSDUMP = @XFSDUMP@
 XFSRESTORE = @XFSRESTORE@
@@ -769,8 +828,7 @@ abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
 abs_top_srcdir = @abs_top_srcdir@
 ac_ct_CC = @ac_ct_CC@
-ac_ct_CXX = @ac_ct_CXX@
-ac_ct_F77 = @ac_ct_F77@
+ac_ct_DUMPBIN = @ac_ct_DUMPBIN@
 am__include = @am__include@
 am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
@@ -810,6 +868,7 @@ libdir = @libdir@
 libexecdir = @libexecdir@
 localedir = @localedir@
 localstatedir = @localstatedir@
+lt_ECHO = @lt_ECHO@
 mandir = @mandir@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
@@ -821,11 +880,7 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 srcdir = @srcdir@
 sysconfdir = @sysconfdir@
-target = @target@
 target_alias = @target_alias@
-target_cpu = @target_cpu@
-target_os = @target_os@
-target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
@@ -833,17 +888,9 @@ SUFFIXES =
 EXTRA_DIST = 
 BUILT_SOURCES = 
 MOSTLYCLEANFILES = 
-
-# config.status leaves config.log files around
-CLEANFILES = config.log
-
-# and we'll need to clean up our generated files for distclean
-DISTCLEANFILES = $(SCRIPTS_SHELL) $(SCRIPTS_PERL) $(SCRIPTS_AWK) \
-	$(SCRIPTS_INCLUDE) $(am__append_1)
+CLEANFILES = 
+DISTCLEANFILES = $(am__append_1)
 MAINTAINERCLEANFILES = 
-
-# syntax-check shell scripts on 'make check'
-CHECK_SHELL = $(SCRIPTS_SHELL)
 
 # sed expression to strip leading directories from a filename; this converts e.g.,
 # src/foo/bar.so to bar.so.
@@ -888,12 +935,15 @@ amar_test_SOURCES = amar-test.c
 amar_test_LDADD = libamar.la \
 	../common-src/libtestutils.la
 
+INSTALLPERMS_exec = \
+	dest=$(sbindir) chown=amanda chmod=0750 $(sbin_PROGRAMS)
+
 all: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
 .SUFFIXES:
 .SUFFIXES: .c .lo .o .obj
-$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(top_srcdir)/config/automake/vars.am $(top_srcdir)/config/automake/scripts.am $(top_srcdir)/config/automake/installperms.am $(top_srcdir)/config/automake/precompile.am $(am__configure_deps)
+$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(top_srcdir)/config/automake/vars.am $(top_srcdir)/config/automake/installperms.am $(top_srcdir)/config/automake/precompile.am $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -1226,11 +1276,8 @@ distdir: $(DISTFILES)
 	    || exit 1; \
 	  fi; \
 	done
-	$(MAKE) $(AM_MAKEFLAGS) \
-	  top_distdir="$(top_distdir)" distdir="$(distdir)" \
-	  dist-hook
 check-am: all-am
-	$(MAKE) $(AM_MAKEFLAGS) check-TESTS check-local
+	$(MAKE) $(AM_MAKEFLAGS) check-TESTS
 check: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) check-am
 all-am: Makefile $(LTLIBRARIES) $(PROGRAMS) $(HEADERS)
@@ -1320,7 +1367,7 @@ install-ps: install-ps-am
 
 install-ps-am:
 
-installcheck-am: installcheck-local
+installcheck-am:
 
 maintainer-clean: maintainer-clean-am
 	-rm -rf ./$(DEPDIR)
@@ -1345,115 +1392,23 @@ uninstall-am: uninstall-amlibLTLIBRARIES uninstall-sbinPROGRAMS
 .MAKE: all check check-am install install-am install-data-am \
 	install-exec-am install-strip
 
-.PHONY: CTAGS GTAGS all all-am check check-TESTS check-am check-local \
-	clean clean-amlibLTLIBRARIES clean-generic clean-libtool \
-	clean-noinstPROGRAMS clean-sbinPROGRAMS ctags dist-hook \
-	distclean distclean-compile distclean-generic \
-	distclean-libtool distclean-tags distdir dvi dvi-am html \
-	html-am info info-am install install-am \
-	install-amlibLTLIBRARIES install-data install-data-am \
-	install-data-hook install-dvi install-dvi-am install-exec \
-	install-exec-am install-exec-hook install-html install-html-am \
-	install-info install-info-am install-man install-pdf \
-	install-pdf-am install-ps install-ps-am install-sbinPROGRAMS \
-	install-strip installcheck installcheck-am installcheck-local \
-	installdirs maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-compile mostlyclean-generic \
-	mostlyclean-libtool pdf pdf-am ps ps-am tags uninstall \
-	uninstall-am uninstall-amlibLTLIBRARIES uninstall-sbinPROGRAMS
+.PHONY: CTAGS GTAGS all all-am check check-TESTS check-am clean \
+	clean-amlibLTLIBRARIES clean-generic clean-libtool \
+	clean-noinstPROGRAMS clean-sbinPROGRAMS ctags distclean \
+	distclean-compile distclean-generic distclean-libtool \
+	distclean-tags distdir dvi dvi-am html html-am info info-am \
+	install install-am install-amlibLTLIBRARIES install-data \
+	install-data-am install-data-hook install-dvi install-dvi-am \
+	install-exec install-exec-am install-exec-hook install-html \
+	install-html-am install-info install-info-am install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-sbinPROGRAMS install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am uninstall-amlibLTLIBRARIES \
+	uninstall-sbinPROGRAMS
 
-
-# Perl
-%: %.pl $(top_builddir)/config.status
-	$(top_builddir)/config.status --file=$@:$<
-	chmod a+x $@
-	@if test -f $(top_builddir)/perl/.libs/libCmdline.so -o -f $(top_builddir)/perl/libCmdline.so; then \
-		grep -v '^use lib' $@ > $@.nouselib; \
-		$(PERL) $(CHECK_PERL_FLAGS) -I$(top_builddir)/perl -I$(top_builddir)/perl/.libs -I$(top_srcdir)/perl -c -w -T $@.nouselib || exit 1; \
-		rm $@.nouselib; \
-	fi
-
-%.pl: %.pl.in $(top_builddir)/config.status
-	$(top_builddir)/config.status --file=$@:$<
-
-%.pm: %.pm.in $(top_builddir)/config.status
-	$(top_builddir)/config.status --file=$@:$<
-
-# Shell
-%: %.sh $(top_builddir)/config.status
-	$(top_builddir)/config.status --file=$@:$<
-	chmod a+x $@
-
-%.sh: %.sh.in $(top_builddir)/config.status
-	$(top_builddir)/config.status --file=$@:$<
-
-# Awk
-%: %.awk $(top_builddir)/config.status
-	$(top_builddir)/config.status --file=$@:$<
-	chmod a+x $@
-
-%.awk: %.awk.in $(top_builddir)/config.status
-	$(top_builddir)/config.status --file=$@:$<
-
-# syntax-check perl scripts on 'make check'
-check-perl: $(CHECK_PERL)
-	@CHECK_PERL="$(CHECK_PERL)"; \
-	if test -f $(top_builddir)/perl/.libs/libCmdline.so -o -f $(top_builddir)/perl/libCmdline.so; then \
-		if test -n "$(PERL)"; then \
-			for perlobj in $$CHECK_PERL; do \
-				grep -v '^use lib' $$perlobj > $$perlobj.nouselib; \
-				$(PERL) $(CHECK_PERL_FLAGS) -I$(top_builddir)/perl -I$(top_builddir)/perl/.libs -I$(top_srcdir)/perl -c -w -T $$perlobj.nouselib || exit 1; \
-				rm $$perlobj.nouselib; \
-			done; \
-		fi \
-	fi
-check-local: check-perl
-
-# syntax-check perl scripts on 'make installcheck'
-installcheck-perl: $(CHECK_PERL)
-	@CHECK_PERL="$(CHECK_PERL)"; \
-	if test -n "$(PERL)"; then \
-		for perlobj in $$CHECK_PERL; do \
-			$(PERL) $(CHECK_PERL_FLAGS) -c -w -T $$perlobj || exit 1; \
-		done; \
-	fi
-installcheck-local: installcheck-perl
-check-shell: $(CHECK_SHELL)
-	@CHECK_SHELL="$(CHECK_SHELL)"; \
-	if test -n "$$CHECK_SHELL"; then \
-		if test -n "$(BASH)"; then \
-			for shobj in $$CHECK_SHELL; do \
-				if $(BASH) -n $$shobj; then \
-					echo "$$shobj syntax OK"; \
-				else \
-					echo "$$shobj syntax error"; \
-					exit 1; \
-				fi; \
-			done; \
-		else \
-			echo "No 'bash' available -- cannot syntax-check shell scripts"; \
-		fi; \
-	fi
-check-local: check-shell
-
-# make sure that the sources for all shell and perl scripts get included
-# in the distribution
-dist-scripts:
-	SCRIPTS_PERL="$(SCRIPTS_PERL)"; SCRIPTS_SHELL="$(SCRIPTS_SHELL)"; SCRIPTS_AWK="$(SCRIPTS_AWK)"; \
-	for script in $$SCRIPTS_PERL; do \
-		test -f $(srcdir)/$${script}.pl && { cp -p $(srcdir)/$${script}.pl $(distdir)/ || exit 1; } \
-	done; \
-	for script in $$SCRIPTS_SHELL; do \
-		test -f $(srcdir)/$${script}.sh && { cp -p $(srcdir)/$${script}.sh $(distdir)/ || exit 1; } \
-	done; \
-	for script in $$SCRIPTS_AWK; do \
-		test -f $(srcdir)/$${script}.awk && { cp -p $(srcdir)/$${script}.awk $(distdir)/ || exit 1; } \
-	done; \
-	for script in $$SCRIPTS_SHELL $$SCRIPTS_PERL $$SCRIPTS_AWK; do \
-		test -f $(srcdir)/$${script}.in && { cp -p $(srcdir)/$${script}.in $(distdir)/ || exit 1; } \
-	done; \
-	true
-dist-hook: dist-scripts
 
 installperms-exec:
 	@installperms="$(INSTALLPERMS_exec)"; \

@@ -1,21 +1,21 @@
 /*
- * Copyright (c) Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
  *
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1
- * as published by the Free Software Foundation.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  *
- * This library is distributed in the hope that it will be useful, but
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 %{
@@ -129,13 +129,26 @@ typemap_in_signed(intmax_t)
 /* All conversions from C to Perl create Math::BigInt objects, even when the
  * C datatype is 32 bits or smaller.  This is to ensure that Perl's automatic
  * promotion to double does not silently corrupt arithmetic on large numbers.
+ *
+ * The complex typemaps here are to ensure that the argument stack is protected
+ * against stomping by amglue_newSV*64, which may invoke a significant amount
+ * of perl code.  "SP += argvi; PUTBACK;" increments the global stack pointer
+ * to cover the arguments processed so far, while "SPAGAIN; SP -= argvi;"
+ * restores the local stack pointer.  The latter must be done before the newest
+ * argument is added to the stack.  This whole process is a hack around SWIG's
+ * habit of invoking (out) typemaps while building the stack, instead of doing
+ * so in advance.
  */
 
 /* (these all use newSV*64, relying on C to upcast to a 64-bit integer) */
 
 %define typemap_out_unsigned(type)
 %typemap(out) type {
-    $result = sv_2mortal(amglue_newSVu64($1));
+    SV *for_stack;
+    SP += argvi; PUTBACK;
+    for_stack = sv_2mortal(amglue_newSVu64($1));
+    SPAGAIN; SP -= argvi;
+    $result = for_stack;
     argvi++;
 }
 %enddef
@@ -159,7 +172,11 @@ typemap_out_unsigned(uintmax_t)
 
 %define typemap_out_signed(type)
 %typemap(out) type {
-    $result = sv_2mortal(amglue_newSVi64($1));
+    SV *for_stack;
+    SP += argvi; PUTBACK;
+    for_stack = sv_2mortal(amglue_newSVi64($1));
+    SPAGAIN; SP -= argvi;
+    $result = for_stack;
     argvi++;
 }
 %enddef

@@ -1,21 +1,21 @@
 /*
- * Copyright (c) Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
  *
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1
- * as published by the Free Software Foundation.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  *
- * This library is distributed in the hope that it will be useful, but
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 %module "Amanda::Logfile"
@@ -24,6 +24,8 @@
 %include "amglue/dumpspecs.swg"
 %import "Amanda/Cmdline.swg"
 
+%include "Amanda/Logfile.pod"
+
 %{
 #include <glib.h>
 #include "logfile.h"
@@ -31,143 +33,9 @@
 #include "diskfile.h" /* for the gross hack, below */
 %}
 
-%perlcode %{
-=head1 NAME
-
-Amanda::Logfile - manage Amanda trace logs
-
-=head1 SYNOPSIS
-
-  use Amanda::Logfile qw(:logtype_t);
-  use Amanda::Config qw( :getconf config_dir_relative );
-
-  for my $logfile (Amanda::Logfile::find_log()) {
-    $logfile = config_dir_relative(getconf($CNF_LOGDIR)) . "/" . $logfile;
-
-    my $hdl = Amanda::Logfile::open_logfile($logfile);
-    while (my ($type, $prog, $str) = Amanda::Logfile::get_logline($hdl)) {
-      if ($type == $L_INFO) {
-        my $pname = Amanda::Logfile::program_t_to_string($prog);
-        print "Found info line from $pname: $str\n";
-      }
-    }
-    Amanda::Logfile::close_logfile($log);
-
-    my @dumps = Amanda::Logfile::search_logfile("TapeLabel-001", "19780615", $logfile, 1);
-
-    my @matching = Amanda::Logfile::dumps_match([@dumps], "myhost", "/usr", undef, undef, 0);
-    for my $dump (@matching) {
-      print "$dump->{'label'}:$dump->{'filenum'} = $dump->{'hostname'}:$dump->{'disk'}\n";
-    }
-  }
-
-=head1 API STATUS
-
-Stabilizing
-
-=head1 RAW LOGFILE ACCESS
-
-This section corresponds to the C C<logfile> module. 
-
-Raw access to logfiles is accomplished by opening a logfile and
-fetching log lines one by one via the C<get_logline> function.
-
-A log line is represented by a list C<($type, $prog, $string)>
-where C<$type> is one of the C<L_*> constants (available in export
-tag C<logtype_t>), C<$prog> is one of the C<P_*> constants (available
-in export tag C<program_t>), and C<$str> is the remainder of the line.
-
-Both families of constants can be converted to symbolic names with
-C<logtype_t_to_string> and C<program_t_to_string>, respectively.
-
-=head2 FUNCTIONS
-
-=over
-
-=item C<open_logfile($filename)>
-
-Opens a logfile for reading, returning an opaque log file handle.
-
-=item C<close_logfile($handle)>
-
-Closes a log file handle.
-
-=item C<get_logline($handle)>
-
-Return a list as described above representing the next log line in
-C<$handle>, or nothing at the end of the logfile. 
-
-=back
-
-All of these functions can be imported by name if desired.
-
-=head1 Amanda::Find::find_result_t objects
-
-These objects contain information about dumps, as read from logfiles.
-Instance variables are:
-
-=over
-
-=item C<timestamp>
-
-=item C<hostname>
-
-=item C<diskname>
-
-=item C<level>
-
-=item C<label>
-
-=item C<filenum>
-
-=item C<status>
-
-=item C<partnum>
-
-=item C<sec>
-
-=item C<kb>
-
-=back
-
-Note that the format for these variables are based on that found in the
-logfiles.  In particular, C<partnum> is a string, usually with a slash (C</>)
-in it.  Also, C<timestamp> is the timestamp for the run in which the client
-dump took place, and not for the timestamp of the logfile.
-
-=head1 HIGHER-LEVEL FUNCTIONS
-
-Functions in this section extract information from logfiles.
-
-=over
-
-=item C<find_log()>
-
-Return a list of logfiles for active tapes.  The tapelist must be loaded before
-this function is called (see L<Amanda::Tapelist>).
-
-=item C<search_logfile($label, $datestamp, $logfile, $add_missing_disks)>
-
-Return all results in C<$logfile> matching C<$label> and C<$datestamp>.
-If C<$add_missing_disks> is true, then any disks in the logfile
-not present in the disklist are added to the disklist; otherwise,
-such dumps are skipped.
-
-=item C<dumps_match([@results], $hostname, $diskname, $datestamp, $level, $ok)>
-
-Return a filtered version of C<@results> containing only results that match the 
-given expressions.  If C<$ok> is true, don't match partial results.  Note that
-C<$level> is given as a string, since it is a match expression.
-
-All of these functions can be imported by name.
-
-=back
-
-=cut
-%}
-
 amglue_export_ok(
     open_logfile get_logline close_logfile
+    log_add
 );
 
 
@@ -193,6 +61,7 @@ amglue_add_constant(L_CHUNKSUCCESS, logtype_t);
 amglue_add_constant(L_STATS, logtype_t);
 amglue_add_constant(L_MARKER, logtype_t);
 amglue_add_constant(L_CONT, logtype_t);
+amglue_copy_to_tag(logtype_t, constants);
 
 amglue_add_enum_tag_fns(program_t);
 amglue_add_constant(P_UNKNOWN, program_t);
@@ -203,6 +72,11 @@ amglue_add_constant(P_DUMPER, program_t);
 amglue_add_constant(P_CHUNKER, program_t);
 amglue_add_constant(P_TAPER, program_t);
 amglue_add_constant(P_AMFLUSH, program_t);
+amglue_add_constant(P_AMDUMP, program_t);
+amglue_add_constant(P_AMIDXTAPED, program_t);
+amglue_add_constant(P_AMFETCHDUMP, program_t);
+amglue_add_constant(P_AMCHECKDUMP, program_t);
+amglue_copy_to_tag(program_t, constants);
 
 /* TODO: support for writing logfiles is omitted for the moment. */
 
@@ -210,13 +84,13 @@ amglue_add_constant(P_AMFLUSH, program_t);
 /* open_ and close_logfile are both simple wrappers around fopen/fclose. */
 typedef FILE loghandle;
 
-loghandle *open_logfile(char *filename) {
+static loghandle *open_logfile(char *filename) {
     return fopen(filename, "r");
 }
 %}
 
 %inline %{
-void close_logfile(loghandle *logfile) {
+static void close_logfile(loghandle *logfile) {
     if (logfile) fclose(logfile);
 }
 %}
@@ -240,6 +114,14 @@ typedef int LOGLINE_RETURN;
 }
 LOGLINE_RETURN get_logline(FILE *logfile);
 
+%rename(log_add) log_add_;
+%inline %{
+static void log_add_(logtype_t typ, char *message)
+{
+    log_add(typ, "%s", message);
+}
+%}
+
 typedef struct {
     %extend {
 	/* destructor */
@@ -257,9 +139,13 @@ typedef struct {
     char *label;
     off_t filenum;
     char *status;
-    char *partnum;
+    char *dump_status;
+    char *message;
+    int partnum;
+    int totalparts;
     double sec;
-    size_t kb;
+    off_t kb;
+    off_t orig_kb;
     %mutable;
 } find_result_t;
 
@@ -355,13 +241,14 @@ typedef struct {
 
 amglue_export_ok(
     find_log search_logfile dumps_match
+    match_host match_disk match_datestamp match_level
 );
 
 char **find_log(void);
 
 %rename(search_logfile) search_logfile_wrap;
 %inline %{
-find_result_t *search_logfile_wrap(char *label, char *datestamp, 
+static find_result_t *search_logfile_wrap(char *label, char *datestamp,
 				   char *logfile, int add_missing_disks) {
     find_result_t *rv = NULL;
 
@@ -375,9 +262,59 @@ find_result_t *search_logfile_wrap(char *label, char *datestamp,
 }
 %}
 
+%rename(search_holding_disk) search_holding_disk_wrap;
+%inline %{
+static find_result_t *search_holding_disk_wrap(void) {
+    find_result_t *rv = NULL;
+    static disklist_t unrecognized_disks = { NULL, NULL };
+    search_holding_disk(&rv, &unrecognized_disks);
+    return rv;
+}
+%}
+
 find_result_t *dumps_match(find_result_t *output_find, char *hostname,
 			   char *diskname, char *datestamp, char *level, int ok);
 
 find_result_t *dumps_match_dumpspecs(find_result_t *output_find,
     amglue_dumpspec_list *dumpspecs,
     gboolean ok);
+
+/* these are actually available for clients as well, but they do not deserve
+ * their own perl module, so they're stuck here */
+gboolean match_host(char *pat, char *value);
+gboolean match_disk(char *pat, char *value);
+gboolean match_datestamp(char *pat, char *value);
+gboolean match_level(char *pat, char *value);
+
+%immutable;
+amanda_log_handler_t *amanda_log_trace_log;
+%mutable;
+amglue_export_ok(
+    $amanda_log_trace_log
+);
+
+
+amglue_export_ok(
+    find_all_logs find_latest_log
+);
+
+%perlcode %{
+
+sub find_all_logs
+{
+    my $logdir = shift @_ || config_dir_relative(getconf($CNF_LOGDIR));
+
+    opendir my $logdh, $logdir or die("can't read $logdir");
+    my @logfiles = sort grep { m{^log\.\d+\.\d+$} } readdir $logdh;
+
+    return @logfiles;
+}
+
+sub find_latest_log
+{
+    my $logdir = shift @_;
+    my @logs = find_all_logs($logdir || ());
+    return $logs[-1];
+}
+
+%}

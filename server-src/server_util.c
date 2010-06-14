@@ -36,8 +36,8 @@
 #include "conffile.h"
 #include "diskfile.h"
 #include "pipespawn.h"
-#include "version.h"
 #include "conffile.h"
+#include "infofile.h"
 #include "sys/wait.h"
 
 const char *cmdstr[] = {
@@ -49,7 +49,7 @@ const char *cmdstr[] = {
      
     "PARTDONE", "PORT-WRITE", "DUMPER-STATUS",		    /* taper cmds */
     "PORT", "TAPE-ERROR", "TAPER-OK",			 /* taper results */
-    "REQUEST-NEW-TAPE",
+    "REQUEST-NEW-TAPE", "DIRECTTCP-PORT",
     "LAST_TOK",
     NULL
 };
@@ -155,6 +155,8 @@ amhost_get_security_conf(
 	return ((am_host_t *)arg)->disks->amandad_path;
     else if(strcmp(string, "client_username")==0)
 	return ((am_host_t *)arg)->disks->client_username;
+    else if(strcmp(string, "client_port")==0)
+	return ((am_host_t *)arg)->disks->client_port;
     else if(strcmp(string, "ssh_keys")==0)
 	return ((am_host_t *)arg)->disks->ssh_keys;
 
@@ -230,15 +232,15 @@ run_server_script(
     disk_t	 *dp,
     int           level)
 {
-    pid_t   scriptpid;
-    int     scriptin, scriptout, scripterr;
-    char   *cmd;
-    char  **argvchild;
-    int     i, k;
-    FILE   *streamout;
-    char   *line;
-    char   *plugin;
-    char    level_number[NUM_STR_SIZE];
+    pid_t      scriptpid;
+    int        scriptin, scriptout, scripterr;
+    char      *cmd;
+    char      *command = NULL;
+    GPtrArray *argv_ptr = g_ptr_array_new();
+    FILE      *streamout;
+    char      *line;
+    char      *plugin;
+    char       level_number[NUM_STR_SIZE];
 
     if ((pp_script_get_execute_on(pp_script) & execute_on) == 0)
 	return;
@@ -246,37 +248,46 @@ run_server_script(
 	return;
 
     plugin = pp_script_get_plugin(pp_script);
-    k = property_argv_size(pp_script_get_property(pp_script));
-    argvchild = g_new0(char *, 16+k);
     cmd = vstralloc(APPLICATION_DIR, "/", plugin, NULL);
-    i = 0;
-    argvchild[i++] = plugin;
+    g_ptr_array_add(argv_ptr, stralloc(plugin));
 
     switch (execute_on) {
     case EXECUTE_ON_PRE_DLE_AMCHECK:
-	argvchild[i++] = "PRE-DLE-AMCHECK"; break;
+	command = "PRE-DLE-AMCHECK";
+	break;
     case EXECUTE_ON_PRE_HOST_AMCHECK:
-	argvchild[i++] = "PRE-HOST-AMCHECK"; break;
+	command = "PRE-HOST-AMCHECK";
+	break;
     case EXECUTE_ON_POST_DLE_AMCHECK:
-	argvchild[i++] = "POST-DLE-AMCHECK"; break;
+	command = "POST-DLE-AMCHECK";
+	break;
     case EXECUTE_ON_POST_HOST_AMCHECK:
-	argvchild[i++] = "POST-HOST-AMCHECK"; break;
+	command = "POST-HOST-AMCHECK";
+	break;
     case EXECUTE_ON_PRE_DLE_ESTIMATE:
-	argvchild[i++] = "PRE-DLE-ESTIMATE"; break;
+	command = "PRE-DLE-ESTIMATE";
+	break;
     case EXECUTE_ON_PRE_HOST_ESTIMATE:
-	argvchild[i++] = "PRE-HOST-ESTIMATE"; break;
+	command = "PRE-HOST-ESTIMATE";
+	break;
     case EXECUTE_ON_POST_DLE_ESTIMATE:
-	argvchild[i++] = "POST-DLE-ESTIMATE"; break;
+	command = "POST-DLE-ESTIMATE";
+	break;
     case EXECUTE_ON_POST_HOST_ESTIMATE:
-	argvchild[i++] = "POST-HOST-ESTIMATE"; break;
+	command = "POST-HOST-ESTIMATE";
+	break;
     case EXECUTE_ON_PRE_DLE_BACKUP:
-	argvchild[i++] = "PRE-DLE-BACKUP"; break;
+	command = "PRE-DLE-BACKUP";
+	break;
     case EXECUTE_ON_PRE_HOST_BACKUP:
-	argvchild[i++] = "PRE-HOST-BACKUP"; break;
+	command = "PRE-HOST-BACKUP";
+	break;
     case EXECUTE_ON_POST_DLE_BACKUP:
-	argvchild[i++] = "POST-DLE-BACKUP"; break;
+	command = "POST-DLE-BACKUP";
+	break;
     case EXECUTE_ON_POST_HOST_BACKUP:
-	argvchild[i++] = "POST-HOST-BACKUP"; break;
+	command = "POST-HOST-BACKUP";
+	break;
     case EXECUTE_ON_PRE_RECOVER:
     case EXECUTE_ON_POST_RECOVER:
     case EXECUTE_ON_PRE_LEVEL_RECOVER:
@@ -288,37 +299,39 @@ run_server_script(
 	}
     }
 
-    argvchild[i++] = "--execute-where";
-    argvchild[i++] = "server";
+    g_ptr_array_add(argv_ptr, stralloc(command));
+    g_ptr_array_add(argv_ptr, stralloc("--execute-where"));
+    g_ptr_array_add(argv_ptr, stralloc("server"));
 
     if (config) {
-	argvchild[i++] = "--config";
-	argvchild[i++] = config;
+	g_ptr_array_add(argv_ptr, stralloc("--config"));
+	g_ptr_array_add(argv_ptr, stralloc(config));
     }
     if (dp->host->hostname) {
-	argvchild[i++] = "--host";
-	argvchild[i++] = dp->host->hostname;
+	g_ptr_array_add(argv_ptr, stralloc("--host"));
+	g_ptr_array_add(argv_ptr, stralloc(dp->host->hostname));
     }
     if (dp->name) {
-	argvchild[i++] = "--disk";
-	argvchild[i++] = dp->name;
+	g_ptr_array_add(argv_ptr, stralloc("--disk"));
+	g_ptr_array_add(argv_ptr, stralloc(dp->name));
     }
     if (dp->device) {
-	argvchild[i++] = "--device";
-	argvchild[i++] = dp->device;
+	g_ptr_array_add(argv_ptr, stralloc("--device"));
+	g_ptr_array_add(argv_ptr, stralloc(dp->device));
     }
     if (level >= 0) {
 	g_snprintf(level_number, SIZEOF(level_number), "%d", level);
-	argvchild[i++] = "--level";
-	argvchild[i++] = level_number;
+	g_ptr_array_add(argv_ptr, stralloc("--level"));
+	g_ptr_array_add(argv_ptr, stralloc(level_number));
     }
 
-    i += property_add_to_argv(&argvchild[i], pp_script_get_property(pp_script));
-    argvchild[i++] = NULL;
+    property_add_to_argv(argv_ptr, pp_script_get_property(pp_script));
+    g_ptr_array_add(argv_ptr, NULL);
 
     scripterr = fileno(stderr);
     scriptpid = pipespawnv(cmd, STDIN_PIPE|STDOUT_PIPE, 0, &scriptin,
-			   &scriptout, &scripterr, argvchild);
+			   &scriptout, &scripterr,
+			   (char **)argv_ptr->pdata);
     close(scriptin);
 
     streamout = fdopen(scriptout, "r");
@@ -329,6 +342,7 @@ run_server_script(
     }
     fclose(streamout);
     waitpid(scriptpid, NULL, 0);
+    g_ptr_array_free_full(argv_ptr);
 }
 
 
@@ -339,11 +353,13 @@ run_server_scripts(
     disk_t	 *dp,
     int           level)
 {
-    GSList   *pp_scriptlist;
+    identlist_t pp_scriptlist;
 
     for (pp_scriptlist = dp->pp_scriptlist; pp_scriptlist != NULL;
 	 pp_scriptlist = pp_scriptlist->next) {
-	run_server_script(pp_scriptlist->data, execute_on, config, dp, level);
+	pp_script_t *pp_script = lookup_pp_script((char *)pp_scriptlist->data);
+	g_assert(pp_script != NULL);
+	run_server_script(pp_script, execute_on, config, dp, level);
     }
 }
 
@@ -360,7 +376,7 @@ run_amcleanup(
 	    return;
 	    break;
 	case  0: /* child process */
-	    amcleanup_program = vstralloc(sbindir, "/", "amcleanup", versionsuffix(), NULL);
+	    amcleanup_program = vstralloc(sbindir, "/", "amcleanup", NULL);
 	    amcleanup_options[0] = amcleanup_program;
 	    amcleanup_options[1] = "-p";
 	    amcleanup_options[2] = config_name;
@@ -408,3 +424,144 @@ get_master_process(
     fclose(log);
     return stralloc("UNKNOWN");
 }
+
+
+gint64
+internal_server_estimate(
+    disk_t *dp,
+    info_t *info,
+    int     level,
+    int    *stats)
+{
+    int    j;
+    gint64 size = 0;
+
+    *stats = 0;
+
+    if (level == 0) { /* use latest level 0, should do extrapolation */
+	gint64 est_size = (gint64)0;
+	int nb_est = 0;
+
+	for (j=NB_HISTORY-2; j>=0; j--) {
+	    if (info->history[j].level == 0) {
+		if (info->history[j].size < (gint64)0) continue;
+		est_size = info->history[j].size;
+		nb_est++;
+	    }
+	}
+	if (nb_est > 0) {
+	    size = est_size;
+	    *stats = 1;
+	} else if (info->inf[level].size > (gint64)1000) { /* stats */
+	    size = info->inf[level].size;
+	    *stats = 1;
+	} else {
+	    char *conf_tapetype = getconf_str(CNF_TAPETYPE);
+	    tapetype_t *tape = lookup_tapetype(conf_tapetype);
+	    size = (gint64)1000000;
+	    if (size > tapetype_get_length(tape)/2)
+		size = tapetype_get_length(tape)/2;
+	    *stats = 0;
+	}
+    } else if (level == info->last_level) {
+	/* means of all X day at the same level */
+	#define NB_DAY 30
+	int nb_day = 0;
+	gint64 est_size_day[NB_DAY];
+	int nb_est_day[NB_DAY];
+
+	for (j=0; j<NB_DAY; j++) {
+	    est_size_day[j] = (gint64)0;
+	    nb_est_day[j] = 0;
+	}
+
+	for (j=NB_HISTORY-2; j>=0; j--) {
+	    if (info->history[j].level <= 0) continue;
+	    if (info->history[j].size < (gint64)0) continue;
+	    if (info->history[j].level == info->history[j+1].level) {
+		if (nb_day <NB_DAY-1) nb_day++;
+		est_size_day[nb_day] += info->history[j].size;
+		nb_est_day[nb_day]++;
+	    } else {
+		nb_day=0;
+	    }
+	}
+	nb_day = info->consecutive_runs + 1;
+	if (nb_day > NB_DAY-1) nb_day = NB_DAY-1;
+
+	while (nb_day > 0 && nb_est_day[nb_day] == 0) nb_day--;
+
+	if (nb_est_day[nb_day] > 0) {
+	    size = est_size_day[nb_day] / (gint64)nb_est_day[nb_day];
+	    *stats = 1;
+	}
+	else if (info->inf[level].size > (gint64)1000) { /* stats */
+	    size = info->inf[level].size;
+	    *stats = 1;
+	}
+	else {
+	    int level0_stat;
+	    gint64 level0_size;
+	    char *conf_tapetype = getconf_str(CNF_TAPETYPE);
+	    tapetype_t *tape = lookup_tapetype(conf_tapetype);
+
+            level0_size = internal_server_estimate(dp, info, 0, &level0_stat);
+	    size = (gint64)10000;
+	    if (size > tapetype_get_length(tape)/2)
+		size = tapetype_get_length(tape)/2;
+	    if (size > level0_size/2)
+		size = level0_size/2;
+	    *stats = 0;
+	}
+    }
+    else if (level == info->last_level + 1) {
+	/* means of all first day at a new level */
+	gint64 est_size = (gint64)0;
+	int nb_est = 0;
+
+	for (j=NB_HISTORY-2; j>=0; j--) {
+	    if (info->history[j].level <= 0) continue;
+	    if (info->history[j].size < (gint64)0) continue;
+	    if (info->history[j].level == info->history[j+1].level + 1 ) {
+		est_size += info->history[j].size;
+		nb_est++;
+	    }
+	}
+	if (nb_est > 0) {
+	    size = est_size / (gint64)nb_est;
+	    *stats = 1;
+	} else if (info->inf[level].size > (gint64)1000) { /* stats */
+	    size = info->inf[level].size;
+	    *stats = 1;
+	} else {
+	    int level0_stat;
+	    gint64 level0_size;
+	    char *conf_tapetype = getconf_str(CNF_TAPETYPE);
+	    tapetype_t *tape = lookup_tapetype(conf_tapetype);
+
+            level0_size = internal_server_estimate(dp, info, 0, &level0_stat);
+	    size = (gint64)100000;
+	    if (size > tapetype_get_length(tape)/2)
+		size = tapetype_get_length(tape)/2;
+	    if (size > level0_size/2)
+		size = level0_size/2;
+	    *stats = 0;
+	}
+    }
+
+    return size;
+}
+
+int
+server_can_do_estimate(
+    disk_t *dp,
+    info_t *info,
+    int     level)
+{
+    gint64  size;
+    int     stats;
+
+    size = internal_server_estimate(dp, info, level, &stats);
+    return stats;
+}
+

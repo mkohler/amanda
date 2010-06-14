@@ -2,12 +2,12 @@
 .\"     Title: amcryptsimple
 .\"    Author: Kevin Till <kevin.till@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMCRYPTSIMPLE" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMCRYPTSIMPLE" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,46 +19,39 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amcryptsimple \- reference simple crypt program for \fIAmanda\fR symmetric data encryption
+amcryptsimple \- reference simple crypt program for Amanda symmetric data encryption
 .SH "SYNOPSIS"
 .HP \w'\fBamcryptsimple\fR\ 'u
-\fBamcryptsimple\fR  to be called by \fIAmanda\fR only 
+\fBamcryptsimple\fR  to be called by Amanda only 
 .SH "DESCRIPTION"
 .PP
 
 \fBamcryptsimple\fR
 calls
 \fBgpg\fR
-to perform symmetric data encryption on
-\fIAmanda\fR
-backup\&.
+to perform symmetric data encryption on Amanda backup\&.
 \fBamcryptsimple\fR
 will search for the gpg program in the following directories: /usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
 .PP
 
 \fBamcryptsimple\fR
-uses one passphrase to encrypt the
-\fIAmanda\fR
-data and uses the same passphrase to decrypt the
-\fIAmanda\fR
-backup data\&.
+uses one passphrase to encrypt the Amanda data and uses the same passphrase to decrypt the Amanda backup data\&.
 \fBamcryptsimple\fR
 uses AES256 as the symmetric cipher\&.
 .SH "HOW TO CREATE PASSPHRASE"
-
-
-Store  the  passphrase  inside the home\-directory of the AMANDA\-user($amanda_user) and protect it with proper permissions:
-
-   echo my_secret_passphrase > ~$amanda_user/\&.am_passphrase
-   chown $amanda_user:disk ~$amanda_user/\&.am_passphrase
-   chmod 700 ~$amanda_user/\&.am_passphrase
+.PP
+Store the passphrase inside the home\-directory of the Amanda user ($amanda_user) and protect it with proper permissions:
+.sp
+.nf
+echo my_secret_passphrase > ~$amanda_user/\&.am_passphrase
+chown $amanda_user:disk ~$amanda_user/\&.am_passphrase
+chmod 700 ~$amanda_user/\&.am_passphrase
+.fi
 .SH "NOTES"
 .PP
 Choose a good passphrase and protect it properly\&. Backup data can only be restored with the passphrase\&. There is no backdoor\&.
 .PP
-If storing and securing passphrase in your environment presents challenges,
-\fIAmanda\fR
-provide public\-key data encryption through
+If storing and securing passphrase in your environment presents challenges, Amanda provide public\-key data encryption through
 \fBamgpgcrypt\fR\&. Public\-key encryption uses the public key to encrypt and uses the private key to decrypt\&.
 .SH "SEE ALSO"
 .PP
@@ -67,8 +60,10 @@ provide public\-key data encryption through
 \fBamcrypt\fR(8),
 \fBamgpgcrypt\fR(8),
 \fBamrestore\fR(8),
-\fBgpg\fR(1),
-: http://wiki.zmanda.com
+\fBgpg\fR(1)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHOR"
 .PP
 \fBKevin Till\fR <\&kevin\&.till@zmanda\&.com\&>

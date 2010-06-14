@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -18,7 +18,7 @@
 </refmeta>
 <refnamediv>
   <refname>amcrypt-ossl</refname>
-  <refpurpose>crypt program for &A; symmetric data encryption using OpenSSL</refpurpose>
+  <refpurpose>crypt program for Amanda symmetric data encryption using OpenSSL</refpurpose>
 </refnamediv>
 <refentryinfo>
 &author.ktill;
@@ -68,34 +68,17 @@
       <term>/var/lib/amanda/.am_passphrase</term>
       <listitem>
 	<para>
-	  File containing the pass phrase. It should not be readable by any user other than the &A; user.
+	  File containing the pass phrase. It should not be readable by any user other than the Amanda user.
 	</para>
       </listitem>
     </varlistentry>
   </variablelist>
 </refsect1>
 
-<refsect1>
-  <title>SEE ALSO</title>
-  <para>
-    <citerefentry>
-      <refentrytitle>amanda</refentrytitle>
-      <manvolnum>8</manvolnum>
-    </citerefentry>,
-    <citerefentry>
-      <refentrytitle>amanda.conf</refentrytitle>
-      <manvolnum>5</manvolnum>
-    </citerefentry>,
-    <citerefentry>
-      <refentrytitle>openssl</refentrytitle>
-      <manvolnum>1</manvolnum>
-    </citerefentry>,
-    <citerefentry>
-      <refentrytitle>amcrypt-ossl-asym</refentrytitle>
-      <manvolnum>8</manvolnum>
-    </citerefentry>,
-    <ulink url="http://wiki.zmanda.com"/>
-  </para>
-</refsect1>
+<seealso>
+<manref name="amanda.conf" vol="5"/>,
+<manref name="openssl" vol="1"/>,
+<manref name="amcrypt-ossl-asym" vol="8"/>
+</seealso>
 
 </refentry>

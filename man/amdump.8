@@ -2,12 +2,12 @@
 .\"     Title: amdump
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMDUMP" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMDUMP" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,16 +19,14 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amdump \- back up all disks in an \fIAmanda\fR configuration
+amdump \- back up all disks in an Amanda configuration
 .SH "SYNOPSIS"
 .HP \w'\fBamdump\fR\ 'u
-\fBamdump\fR \fIconfig\fR [\fIhost\fR\ [\fIdisk\fR...]...] [\-o\ \fIconfigoption\fR]...
+\fBamdump\fR \fIconfig\fR [\fIhost\fR\ [\fIdisk\fR...]...] [{\fB\-o\fR\ \fIconfigoption\fR}...]
 .SH "DESCRIPTION"
 .PP
 \fBAmdump\fR
-switches to the appropriate
-\fIAmanda\fR
-configuration directory, e\&.g\&. /usr/local/etc/amanda/\fIconfig\fR, then attempts to back up every disk specified by the
+switches to the appropriate Amanda configuration directory, e\&.g\&. /usr/local/etc/amanda/\fIconfig\fR, then attempts to back up every disk specified by the
 \fIamanda\&.conf\fR
 file\&.
 \fBAmdump\fR
@@ -45,8 +43,7 @@ checks for the hold file every minute\&.
 .PP
 See the
 \fBamanda\fR(8)
-man page for more details about
-\fIAmanda\fR\&.
+man page for more details about Amanda\&.
 .SH "OPTIONS"
 .PP
 \fIhost\fR [\fIdisk\fR]*
@@ -54,9 +51,9 @@ man page for more details about
 Specify the host and disk on which the command will work\&.
 .RE
 .PP
-\fB\-o\fR \fIconfigoption\fR
+\fB\-o \fR\fB\fIconfigoption\fR\fR
 .RS 4
-See the "\fBCONFIGURATION OVERRIDE\fR" section in
+See the "CONFIGURATION OVERRIDE" section in
 \fBamanda\fR(8)\&.
 .RE
 .SH "EXAMPLE"
@@ -111,14 +108,15 @@ The exit code of \fBamdump\fR is the ORed value of:
 .fi
 .SH "SEE ALSO"
 .PP
-
 \fBamanda\fR(8),
 \fBamcheck\fR(8),
 \fBamcleanup\fR(8),
 \fBamrestore\fR(8),
 \fBamflush\fR(8),
-\fBcron\fR(8),
-: http://wiki.zmanda.com
+\fBcron\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBJames da Silva\fR <\&jds@amanda\&.org\&>

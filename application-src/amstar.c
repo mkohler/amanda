@@ -36,19 +36,24 @@
  * STAR-DLE-TARDUMP
  * ONE-FILE-SYSTEM
  * SPARSE
+ * NORMAL
+ * IGNORE
+ * STRANGE
+ * INCLUDE-LIST		(for restore only)
+ * EXCLUDE-LIST		(for restore only)
+ * DIRECTORY
  */
 
 #include "amanda.h"
+#include "match.h"
 #include "pipespawn.h"
 #include "amfeatures.h"
 #include "amandates.h"
 #include "clock.h"
 #include "util.h"
 #include "getfsent.h"
-#include "version.h"
 #include "client_util.h"
 #include "conffile.h"
-#include "amandad.h"
 #include "getopt.h"
 #include "sendbackup.h"
 
@@ -59,7 +64,7 @@ int debug_application = 1;
 	}				\
 } while (0)
 
-static amregex_t re_table[] = {
+static amregex_t init_re_table[] = {
   /* tar prints the size in bytes */
   AM_SIZE_RE("star: [0-9][0-9]* blocks", 10240, 1),
   AM_NORMAL_RE("^could not open conf file"),
@@ -90,6 +95,7 @@ static amregex_t re_table[] = {
   /* catch-all: DMP_STRANGE is returned for all other lines */
   AM_STRANGE_RE(NULL)
 };
+static amregex_t *re_table;
 
 /* local functions */
 int main(int argc, char **argv);
@@ -101,6 +107,7 @@ typedef struct application_argument_s {
     int        collection;
     int        calcsize;
     GSList    *level;
+    GSList    *command_options;
     dle_t      dle;
     int        argc;
     char     **argv;
@@ -114,14 +121,19 @@ static void amstar_estimate(application_argument_t *argument);
 static void amstar_backup(application_argument_t *argument);
 static void amstar_restore(application_argument_t *argument);
 static void amstar_validate(application_argument_t *argument);
-static char **amstar_build_argv(application_argument_t *argument,
+static GPtrArray *amstar_build_argv(application_argument_t *argument,
 				int level,
 				int command);
-char *star_path;
-char *star_tardumps;
-int   star_dle_tardumps;
-int   star_onefilesystem;
-int   star_sparse;
+
+static char *star_path;
+static char *star_tardumps;
+static int   star_dle_tardumps;
+static int   star_onefilesystem;
+static int   star_sparse;
+static char *star_directory;
+static GSList *normal_message = NULL;
+static GSList *ignore_message = NULL;
+static GSList *strange_message = NULL;
 
 static struct option long_options[] = {
     {"config"          , 1, NULL,  1},
@@ -139,6 +151,13 @@ static struct option long_options[] = {
     {"one-file-system" , 1, NULL, 13},
     {"sparse"          , 1, NULL, 14},
     {"calcsize"        , 0, NULL, 15},
+    {"normal"          , 1, NULL, 16},
+    {"ignore"          , 1, NULL, 17},
+    {"strange"         , 1, NULL, 18},
+    {"include-list"    , 1, NULL, 19},
+    {"exclude-list"    , 1, NULL, 20},
+    {"directory"       , 1, NULL, 21},
+    {"command-options" , 1, NULL, 22},
     { NULL, 0, NULL, 0}
 };
 
@@ -161,6 +180,7 @@ main(
     star_dle_tardumps = 0;
     star_onefilesystem = 1;
     star_sparse = 1;
+    star_directory = NULL;
 
     /* initialize */
 
@@ -169,13 +189,20 @@ main(
      *   1) Only set the message locale for now.
      *   2) Set textdomain for all amanda related programs to "amanda"
      *      We don't want to be forced to support dozens of message catalogs.
-     */  
+     */
     setlocale(LC_MESSAGES, "C");
-    textdomain("amanda"); 
+    textdomain("amanda");
+
+    if (argc < 2) {
+	printf("ERROR no command given to amstar\n");
+	error(_("No command given to amstar"));
+    }
 
     /* drop root privileges */
-
     if (!set_root_privs(0)) {
+	if (strcmp(argv[1], "selfcheck") == 0) {
+	    printf("ERROR amstar must be run setuid root\n");
+	}
 	error(_("amstar must be run setuid root"));
     }
 
@@ -190,10 +217,11 @@ main(
     malloc_size_1 = malloc_inuse(&malloc_hist_1);
 #endif
 
-    erroutput_type = (ERR_INTERACTIVE|ERR_SYSLOG);
+    add_amanda_log_handler(amanda_log_stderr);
+    add_amanda_log_handler(amanda_log_syslog);
     dbopen(DBG_SUBDIR_CLIENT);
     startclock();
-    dbprintf(_("version %s\n"), version());
+    dbprintf(_("version %s\n"), VERSION);
 
     config_init(CONFIG_INIT_CLIENT, NULL);
 
@@ -210,6 +238,7 @@ main(
     argument.collection = 0;
     argument.calcsize   = 0;
     argument.level      = NULL;
+    argument.command_options = NULL;
     init_dle(&argument.dle);
 
     opterr = 0;
@@ -243,22 +272,63 @@ main(
 		 break;
 	case 11: star_tardumps = stralloc(optarg);
 		 break;
-	case 12: if (optarg && strcasecmp(optarg, "YES") == 0)
+	case 12: if (optarg && strcasecmp(optarg, "NO") == 0)
+		     star_dle_tardumps = 0;
+		 else if (optarg && strcasecmp(optarg, "YES") == 0)
 		     star_dle_tardumps = 1;
+		 else if (strcasecmp(command, "selfcheck") == 0)
+		     printf(_("ERROR [%s: bad STAR-DLE-TARDUMP property value (%s)]\n"), get_pname(), optarg);
 		 break;
-	case 13: if (optarg && strcasecmp(optarg, "YES") != 0)
-		     star_onefilesystem = 0;
+	case 13: if (optarg && strcasecmp(optarg, "YES") != 0) {
+		     /* This option is required to be YES */
+		     /* star_onefilesystem = 0; */
+		 }
 		 break;
-	case 14: if (optarg && strcasecmp(optarg, "YES") != 0)
+	case 14: if (optarg && strcasecmp(optarg, "NO") == 0)
+		     star_sparse = 0;
+		 else if (optarg && strcasecmp(optarg, "YES") == 0)
 		     star_sparse = 1;
+		 else if (strcasecmp(command, "selfcheck") == 0)
+		     printf(_("ERROR [%s: bad SPARSE property value (%s)]\n"), get_pname(), optarg);
 		 break;
 	case 15: argument.calcsize = 1;
 		 break;
+        case 16: if (optarg)
+                     normal_message =
+                         g_slist_append(normal_message, optarg);
+                 break;
+        case 17: if (optarg)
+                     ignore_message =
+                         g_slist_append(ignore_message, optarg);
+                 break;
+        case 18: if (optarg)
+                     strange_message =
+                         g_slist_append(strange_message, optarg);
+                 break;
+	case 19: if (optarg)
+		     argument.dle.include_list =
+			 append_sl(argument.dle.include_list, optarg);
+		 break;
+	case 20: if (optarg)
+		     argument.dle.exclude_list =
+			 append_sl(argument.dle.exclude_list, optarg);
+		 break;
+	case 21: if (optarg)
+		     star_directory = stralloc(optarg);
+		 break;
+	case 22: argument.command_options =
+			g_slist_append(argument.command_options,
+				       stralloc(optarg));
 	case ':':
 	case '?':
 		break;
 	}
     }
+
+    if (!argument.dle.disk && argument.dle.device)
+	argument.dle.disk = stralloc(argument.dle.device);
+    if (!argument.dle.device && argument.dle.disk)
+	argument.dle.device = stralloc(argument.dle.disk);
 
     argument.argc = argc - optind;
     argument.argv = argv + optind;
@@ -274,6 +344,9 @@ main(
     if (config_errors(NULL) >= CFGERR_ERRORS) {
 	g_critical(_("errors processing config file"));
     }
+
+    re_table = build_re_table(init_re_table, normal_message, ignore_message,
+			      strange_message);
 
     if (strcmp(command, "support") == 0) {
 	amstar_support(&argument);
@@ -309,30 +382,56 @@ amstar_support(
     fprintf(stdout, "MESSAGE-XML NO\n");
     fprintf(stdout, "RECORD YES\n");
     fprintf(stdout, "INCLUDE-FILE NO\n");
-    fprintf(stdout, "INCLUDE-LIST NO\n");
+    fprintf(stdout, "INCLUDE-LIST YES\n");
     fprintf(stdout, "EXCLUDE-FILE YES\n");
     fprintf(stdout, "EXCLUDE-LIST YES\n");
     fprintf(stdout, "COLLECTION NO\n");
     fprintf(stdout, "MULTI-ESTIMATE YES\n");
     fprintf(stdout, "CALCSIZE YES\n");
+    fprintf(stdout, "CLIENT-ESTIMATE YES\n");
 }
 
 static void
 amstar_selfcheck(
     application_argument_t *argument)
 {
-    char   *qdisk;
-    char   *qdevice;
+    fprintf(stdout, "OK amstar\n");
+    if (argument->dle.disk) {
+	char *qdisk = quote_string(argument->dle.disk);
+	fprintf(stdout, "OK %s\n", qdisk);
+	amfree(qdisk);
+    }
+    if (argument->dle.device) {
+	char *qdevice = quote_string(argument->dle.device);
+	fprintf(stdout, "OK %s\n", qdevice);
+	amfree(qdevice);
+    }
+    if (star_directory) {
+	char *qdirectory = quote_string(star_directory);
+	fprintf(stdout, "OK %s\n", qdirectory);
+	amfree(qdirectory);
+    }
 
-    qdisk = quote_string(argument->dle.disk);
-    qdevice = quote_string(argument->dle.device);
-    fprintf(stdout, "OK %s\n", qdisk);
-    fprintf(stdout, "OK %s\n", qdevice);
+    if (argument->dle.include_list &&
+	argument->dle.include_list->nb_element >= 0) {
+	fprintf(stdout, "ERROR include-list not supported for backup\n");
+    }
+    if (argument->dle.exclude_list &&
+	argument->dle.exclude_list->nb_element >= 0) {
+	fprintf(stdout, "ERROR exclude-list not supported for backup\n");
+    }
 
     if (!star_path) {
 	fprintf(stdout, "ERROR STAR-PATH not defined\n");
     } else {
 	check_file(star_path, X_OK);
+    }
+
+    if (argument->calcsize) {
+	char *calcsize = vstralloc(amlibexecdir, "/", "calcsize", NULL);
+	check_file(calcsize, X_OK);
+	check_suid(calcsize);
+	amfree(calcsize);
     }
 
     {
@@ -347,28 +446,54 @@ static void
 amstar_estimate(
     application_argument_t *argument)
 {
-    char **my_argv = NULL;
-    char  *cmd = NULL;
-    int    nullfd;
-    int    pipefd;
-    FILE  *dumpout = NULL;
-    off_t  size = -1;
-    char   line[32768];
-    char  *errmsg = NULL;
-    char  *qerrmsg;
-    char  *qdisk;
-    amwait_t wait_status;
-    int    starpid;
-    amregex_t *rp;
-    times_t start_time;
-    int     level = 0;
-    GSList *levels = NULL;
+    GPtrArray  *argv_ptr;
+    char       *cmd = NULL;
+    int         nullfd;
+    int         pipefd;
+    FILE       *dumpout = NULL;
+    off_t       size = -1;
+    char        line[32768];
+    char       *errmsg = NULL;
+    char       *qerrmsg;
+    char       *qdisk;
+    amwait_t    wait_status;
+    int         starpid;
+    amregex_t  *rp;
+    times_t     start_time;
+    int         level = 0;
+    GSList     *levels = NULL;
+
+    if (!argument->level) {
+	fprintf(stderr, "ERROR No level argument\n");
+	error(_("No level argument"));
+    }
+    if (!argument->dle.disk) {
+	fprintf(stderr, "ERROR No disk argument\n");
+	error(_("No disk argument"));
+    }
+    if (!argument->dle.device) {
+	fprintf(stderr, "ERROR No device argument\n");
+	error(_("No device argument"));
+    }
+
+    if (argument->dle.include_list &&
+	argument->dle.include_list->nb_element >= 0) {
+	fprintf(stderr, "ERROR include-list not supported for backup\n");
+    }
+    if (argument->dle.exclude_list &&
+	argument->dle.exclude_list->nb_element >= 0) {
+	fprintf(stderr, "ERROR exclude-list not supported for backup\n");
+    }
 
     qdisk = quote_string(argument->dle.disk);
     if (argument->calcsize) {
 	char *dirname;
 
-	dirname = amname_to_dirname(argument->dle.device);
+	if (star_directory) {
+	    dirname = amname_to_dirname(star_directory);
+	} else {
+	    dirname = amname_to_dirname(argument->dle.device);
+	}
 	run_calcsize(argument->config, "STAR", argument->dle.disk, dirname,
 		     argument->level, NULL, NULL);
 	return;
@@ -384,7 +509,7 @@ amstar_estimate(
 
     for (levels = argument->level; levels != NULL; levels = levels->next) {
 	level = GPOINTER_TO_INT(levels->data);
-	my_argv = amstar_build_argv(argument, level, CMD_ESTIMATE);
+	argv_ptr = amstar_build_argv(argument, level, CMD_ESTIMATE);
 
 	if ((nullfd = open("/dev/null", O_RDWR)) == -1) {
 	    errmsg = vstrallocf(_("Cannot access /dev/null : %s"),
@@ -393,7 +518,8 @@ amstar_estimate(
 	}
 
 	starpid = pipespawnv(cmd, STDERR_PIPE, 1,
-			     &nullfd, &nullfd, &pipefd, my_argv);
+			     &nullfd, &nullfd, &pipefd,
+			     (char **)argv_ptr->pdata);
 
 	dumpout = fdopen(pipefd,"r");
 	if (!dumpout) {
@@ -434,12 +560,12 @@ amstar_estimate(
 		 walltime_str(timessub(curclock(), start_time)));
 	if(size == (off_t)-1) {
 	    errmsg = vstrallocf(_("no size line match in %s output"),
-				my_argv[0]);
+				cmd);
 	    dbprintf(_("%s for %s\n"), errmsg, qdisk);
 	    dbprintf(".....\n");
 	} else if(size == (off_t)0 && argument->level == 0) {
 	    dbprintf(_("possible %s problem -- is \"%s\" really empty?\n"),
-		      my_argv[0], argument->dle.disk);
+		     cmd, argument->dle.disk);
 	    dbprintf(".....\n");
 	}
 	dbprintf(_("estimate size for %s level %d: %lld KB\n"),
@@ -449,7 +575,7 @@ amstar_estimate(
 
 	kill(-starpid, SIGTERM);
 
-	dbprintf(_("waiting for %s \"%s\" child\n"), my_argv[0], qdisk);
+	dbprintf(_("waiting for %s \"%s\" child\n"), cmd, qdisk);
 	waitpid(starpid, &wait_status, 0);
 	if (WIFSIGNALED(wait_status)) {
 	    errmsg = vstrallocf(_("%s terminated with signal %d: see %s"),
@@ -464,9 +590,9 @@ amstar_estimate(
 	} else {
 	    errmsg = vstrallocf(_("%s got bad exit: see %s"), cmd, dbfn());
 	}
-	dbprintf(_("after %s %s wait\n"), my_argv[0], qdisk);
+	dbprintf(_("after %s %s wait\n"), cmd, qdisk);
 
-	amfree(my_argv);
+	g_ptr_array_free_full(argv_ptr);
 
 	aclose(nullfd);
 	afclose(dumpout);
@@ -492,34 +618,70 @@ static void
 amstar_backup(
     application_argument_t *argument)
 {
-    int dumpin;
-    char *cmd = NULL;
-    char *qdisk;
-    char  line[32768];
+    int        dumpin;
+    char      *cmd = NULL;
+    char      *qdisk;
+    char       line[32768];
     amregex_t *rp;
-    off_t dump_size = -1;
-    char *type;
-    char startchr;
-    char **my_argv;
-    int starpid;
-    int dataf = 1;
-    int mesgf = 3;
-    int indexf = 4;
-    int outf;
-    FILE *mesgstream;
-    FILE *indexstream = NULL;
-    FILE *outstream;
-    int level = GPOINTER_TO_INT(argument->level->data);
+    off_t      dump_size = -1;
+    char      *type;
+    char       startchr;
+    GPtrArray *argv_ptr;
+    int        starpid;
+    int        dataf = 1;
+    int        mesgf = 3;
+    int        indexf = 4;
+    int        outf;
+    FILE      *mesgstream;
+    FILE      *indexstream = NULL;
+    FILE      *outstream;
+    int        level;
+    regex_t    regex_root;
+    regex_t    regex_dir;
+    regex_t    regex_file;
+    regex_t    regex_special;
+    regex_t    regex_symbolic;
+    regex_t    regex_hard;
+
+    mesgstream = fdopen(mesgf, "w");
+    if (!mesgstream) {
+	error(_("error mesgstream(%d): %s\n"), mesgf, strerror(errno));
+    }
+
+    if (!argument->level) {
+	fprintf(mesgstream, "? No level argument\n");
+	error(_("No level argument"));
+    }
+    if (!argument->dle.disk) {
+	fprintf(mesgstream, "? No disk argument\n");
+	error(_("No disk argument"));
+    }
+    if (!argument->dle.device) {
+	fprintf(mesgstream, "? No device argument\n");
+	error(_("No device argument"));
+    }
+
+    if (argument->dle.include_list &&
+	argument->dle.include_list->nb_element >= 0) {
+	fprintf(mesgstream, "? include-list not supported for backup\n");
+    }
+    if (argument->dle.exclude_list &&
+	argument->dle.exclude_list->nb_element >= 0) {
+	fprintf(mesgstream, "? exclude-list not supported for backup\n");
+    }
+
+    level = GPOINTER_TO_INT(argument->level->data);
 
     qdisk = quote_string(argument->dle.disk);
 
-    my_argv = amstar_build_argv(argument, level, CMD_BACKUP);
+    argv_ptr = amstar_build_argv(argument, level, CMD_BACKUP);
 
     cmd = stralloc(star_path);
 
     starpid = pipespawnv(cmd, STDIN_PIPE|STDERR_PIPE, 1,
-			 &dumpin, &dataf, &outf, my_argv);
+			 &dumpin, &dataf, &outf, (char **)argv_ptr->pdata);
 
+    g_ptr_array_free_full(argv_ptr);
     /* close the write ends of the pipes */
     aclose(dumpin);
     aclose(dataf);
@@ -529,81 +691,60 @@ amstar_backup(
 	    error(_("error indexstream(%d): %s\n"), indexf, strerror(errno));
 	}
     }
-    mesgstream = fdopen(mesgf, "w");
-    if (!mesgstream) {
-	error(_("error mesgstream(%d): %s\n"), mesgf, strerror(errno));
-    }
     outstream = fdopen(outf, "r");
     if (!outstream) {
 	error(_("error outstream(%d): %s\n"), outf, strerror(errno));
     }
 
+    regcomp(&regex_root, "^a \\.\\/ directory$", REG_EXTENDED|REG_NEWLINE);
+    regcomp(&regex_dir, "^a (.*) directory$", REG_EXTENDED|REG_NEWLINE);
+    regcomp(&regex_file, "^a (.*) (.*) bytes", REG_EXTENDED|REG_NEWLINE);
+    regcomp(&regex_special, "^a (.*) special", REG_EXTENDED|REG_NEWLINE);
+    regcomp(&regex_symbolic, "^a (.*) symbolic", REG_EXTENDED|REG_NEWLINE);
+    regcomp(&regex_hard, "^a (.*) link to", REG_EXTENDED|REG_NEWLINE);
+
     while ((fgets(line, sizeof(line), outstream)) != NULL) {
 	regmatch_t regmatch[3];
-	regex_t regex;
-        int got_match = 0;
 
 	if (line[strlen(line)-1] == '\n') /* remove trailling \n */
 	    line[strlen(line)-1] = '\0';
 
-	regcomp(&regex, "^a \\.\\/ directory$", REG_EXTENDED|REG_NEWLINE);
-	if (regexec(&regex, line, 1, regmatch, 0) == 0) {
-	    got_match = 1;
+	if (regexec(&regex_root, line, 1, regmatch, 0) == 0) {
 	    if (argument->dle.create_index)
-		fprintf(indexstream, "%s\n", "/\n");
+		fprintf(indexstream, "%s\n", "/");
+	    continue;
 	}
-	regfree(&regex);
 
-	regcomp(&regex, "^a (.*) directory$", REG_EXTENDED|REG_NEWLINE);
-	if (regexec(&regex, line, 3, regmatch, 0) == 0) {
-	    got_match = 1;
+	if (regexec(&regex_dir, line, 3, regmatch, 0) == 0) {
 	    if (argument->dle.create_index && regmatch[1].rm_so == 2) {
 		line[regmatch[1].rm_eo+1]='\0';
 		fprintf(indexstream, "/%s\n", &line[regmatch[1].rm_so]);
 	    }
+	    continue;
 	}
-	regfree(&regex);
 
-	regcomp(&regex, "^a (.*) (.*) bytes", REG_EXTENDED|REG_NEWLINE);
-	if (regexec(&regex, line, 3, regmatch, 0) == 0) {
-	    got_match = 1;
+	if (regexec(&regex_file, line, 3, regmatch, 0) == 0 ||
+	    regexec(&regex_special, line, 3, regmatch, 0) == 0 ||
+	    regexec(&regex_symbolic, line, 3, regmatch, 0) == 0 ||
+	    regexec(&regex_hard, line, 3, regmatch, 0) == 0) {
 	    if (argument->dle.create_index && regmatch[1].rm_so == 2) {
 		line[regmatch[1].rm_eo]='\0';
 		fprintf(indexstream, "/%s\n", &line[regmatch[1].rm_so]);
 	    }
+	    continue;
 	}
-	regfree(&regex);
 
-	regcomp(&regex, "^a (.*) special", REG_EXTENDED|REG_NEWLINE);
-	if (regexec(&regex, line, 3, regmatch, 0) == 0) {
-	    got_match = 1;
-	    if (argument->dle.create_index && regmatch[1].rm_so == 2) {
-		line[regmatch[1].rm_eo]='\0';
-		fprintf(indexstream, "/%s\n", &line[regmatch[1].rm_so]);
+	for (rp = re_table; rp->regex != NULL; rp++) {
+	    if (match(rp->regex, line)) {
+		break;
 	    }
 	}
-	regfree(&regex);
-
-	regcomp(&regex, "^a (.*) symbolic", REG_EXTENDED|REG_NEWLINE);
-	if (regexec(&regex, line, 3, regmatch, 0) == 0) {
-	    got_match = 1;
-	    if (argument->dle.create_index && regmatch[1].rm_so == 2) {
-		line[regmatch[1].rm_eo]='\0';
-		fprintf(indexstream, "/%s\n", &line[regmatch[1].rm_so]);
-	    }
+	if (rp->typ == DMP_SIZE) {
+	    dump_size = (long)((the_num(line, rp->field)* rp->scale+1023.0)/1024.0);
 	}
-	regfree(&regex);
-
-	if (got_match == 0) { /* message */
-	    for(rp = re_table; rp->regex != NULL; rp++) {
-		if(match(rp->regex, line)) {
-		    break;
-		}
-	    }
-	    if(rp->typ == DMP_SIZE) {
-		dump_size = (long)((the_num(line, rp->field)* rp->scale+1023.0)/1024.0);
-	    }
-	    switch(rp->typ) {
+	switch (rp->typ) {
+	    case DMP_IGNORE:
+		continue;
 	    case DMP_NORMAL:
 		type = "normal";
 		startchr = '|';
@@ -624,11 +765,17 @@ amstar_backup(
 		type = "unknown";
 		startchr = '!';
 		break;
-	    }
-	    dbprintf("%3d: %7s(%c): %s\n", rp->srcline, type, startchr, line);
-	    fprintf(mesgstream,"%c %s\n", startchr, line);
-        }
+	}
+	dbprintf("%3d: %7s(%c): %s\n", rp->srcline, type, startchr, line);
+	fprintf(mesgstream,"%c %s\n", startchr, line);
     }
+
+    regfree(&regex_root);
+    regfree(&regex_dir);
+    regfree(&regex_file);
+    regfree(&regex_special);
+    regfree(&regex_symbolic);
+    regfree(&regex_hard);
 
     dbprintf(_("gnutar: %s: pid %ld\n"), cmd, (long)starpid);
 
@@ -649,36 +796,67 @@ static void
 amstar_restore(
     application_argument_t *argument)
 {
-    char  *cmd;
-    char **my_argv;
-    char **env;
-    int    i, j;
-    char  *e;
+    char       *cmd;
+    GPtrArray  *argv_ptr = g_ptr_array_new();
+    char      **env;
+    int         j;
+    char       *e;
 
     if (!star_path) {
 	error(_("STAR-PATH not defined"));
     }
 
     cmd = stralloc(star_path);
-    my_argv = alloc(SIZEOF(char *) * (11 + argument->argc));
-    i = 0;
-    my_argv[i++] = stralloc(star_path);
-    my_argv[i++] = stralloc("-x");
-    my_argv[i++] = stralloc("-v");
-    my_argv[i++] = stralloc("-xattr");
-    my_argv[i++] = stralloc("-acl");
-    my_argv[i++] = stralloc("errctl=WARN|SAMEFILE|SETTIME|DIFF|SETACL|SETXATTR|SETMODE|BADACL *");
-    my_argv[i++] = stralloc("-no-fifo");
-    my_argv[i++] = stralloc("-f");
-    my_argv[i++] = stralloc("-");
 
+    g_ptr_array_add(argv_ptr, stralloc(star_path));
+    if (star_directory) {
+	struct stat stat_buf;
+	if(stat(star_directory, &stat_buf) != 0) {
+	    fprintf(stderr,"can not stat directory %s: %s\n", star_directory, strerror(errno));
+	    exit(1);
+	}
+	if (!S_ISDIR(stat_buf.st_mode)) {
+	    fprintf(stderr,"%s is not a directory\n", star_directory);
+	    exit(1);
+	}
+	if (access(star_directory, W_OK) != 0 ) {
+	    fprintf(stderr, "Can't write to %s: %s\n", star_directory, strerror(errno));
+	    exit(1);
+	}
+
+	g_ptr_array_add(argv_ptr, stralloc("-C"));
+	g_ptr_array_add(argv_ptr, stralloc(star_directory));
+    }
+    g_ptr_array_add(argv_ptr, stralloc("-x"));
+    g_ptr_array_add(argv_ptr, stralloc("-v"));
+    g_ptr_array_add(argv_ptr, stralloc("-xattr"));
+    g_ptr_array_add(argv_ptr, stralloc("-acl"));
+    g_ptr_array_add(argv_ptr, stralloc("errctl=WARN|SAMEFILE|SETTIME|DIFF|SETACL|SETXATTR|SETMODE|BADACL *"));
+    g_ptr_array_add(argv_ptr, stralloc("-no-fifo"));
+    g_ptr_array_add(argv_ptr, stralloc("-f"));
+    g_ptr_array_add(argv_ptr, stralloc("-"));
+
+    if (argument->dle.exclude_list &&
+	argument->dle.exclude_list->nb_element == 1) {
+	g_ptr_array_add(argv_ptr, stralloc("-exclude-from"));
+	g_ptr_array_add(argv_ptr,
+			stralloc(argument->dle.exclude_list->first->name));
+    }
+
+    if (argument->dle.include_list &&
+	argument->dle.include_list->nb_element == 1) {
+	g_ptr_array_add(argv_ptr,
+			stralloc2("list=",
+				  argument->dle.include_list->first->name));
+    }
     for (j=1; j< argument->argc; j++)
-	my_argv[i++] = stralloc(argument->argv[j]+2); /* remove ./ */
-    my_argv[i++] = NULL;
+	g_ptr_array_add(argv_ptr, stralloc(argument->argv[j]+2));/*remove ./ */
+    g_ptr_array_add(argv_ptr, NULL);
 
+    debug_executing(argv_ptr);
     env = safe_env();
     become_root();
-    execve(cmd, my_argv, env);
+    execve(cmd, (char **)argv_ptr->pdata, env);
     e = strerror(errno);
     error(_("error [exec %s: %s]"), cmd, e);
 
@@ -688,46 +866,56 @@ static void
 amstar_validate(
     application_argument_t *argument G_GNUC_UNUSED)
 {
-    char  *cmd;
-    char **my_argv;
-    char **env;
-    int    i;
-    char  *e;
+    char       *cmd;
+    GPtrArray  *argv_ptr = g_ptr_array_new();
+    char      **env;
+    char       *e;
+    char        buf[32768];
 
     if (!star_path) {
-	error(_("STAR-PATH not defined"));
+	dbprintf("STAR-PATH not set; Piping to /dev/null\n");
+	fprintf(stderr,"STAR-PATH not set; Piping to /dev/null\n");
+	goto pipe_to_null;
     }
 
     cmd = stralloc(star_path);
-    my_argv = alloc(SIZEOF(char *) * 5);
-    i = 0;
-    my_argv[i++] = stralloc(star_path);
-    my_argv[i++] = stralloc("-t");
-    my_argv[i++] = stralloc("-f");
-    my_argv[i++] = stralloc("-");
-    my_argv[i++] = NULL;
 
+    g_ptr_array_add(argv_ptr, stralloc(star_path));
+    g_ptr_array_add(argv_ptr, stralloc("-t"));
+    g_ptr_array_add(argv_ptr, stralloc("-f"));
+    g_ptr_array_add(argv_ptr, stralloc("-"));
+    g_ptr_array_add(argv_ptr, NULL);
+
+    debug_executing(argv_ptr);
     env = safe_env();
-    execve(cmd, my_argv, env);
+    execve(cmd, (char **)argv_ptr->pdata, env);
     e = strerror(errno);
-    error(_("error [exec %s: %s]"), cmd, e);
+    dbprintf("failed to execute %s: %s; Piping to /dev/null\n", cmd, e);
+    fprintf(stderr,"failed to execute %s: %s; Piping to /dev/null\n", cmd, e);
+pipe_to_null:
+    while (read(0, buf, 32768) > 0) {
+    }
 
 }
 
-char **amstar_build_argv(
+static GPtrArray *amstar_build_argv(
     application_argument_t *argument,
     int   level,
     int   command)
 {
-    int    i;
-    char  *dirname;
-    char  *fsname;
-    char  levelstr[NUM_STR_SIZE+7];
-    char **my_argv;
-    char *s;
-    char *tardumpfile;
+    char      *dirname;
+    char      *fsname;
+    char       levelstr[NUM_STR_SIZE+7];
+    GPtrArray *argv_ptr = g_ptr_array_new();
+    char      *s;
+    char      *tardumpfile;
+    GSList    *copt;
 
-    dirname = amname_to_dirname(argument->dle.device);
+    if (star_directory) {
+	dirname = amname_to_dirname(star_directory);
+    } else {
+	dirname = amname_to_dirname(argument->dle.device);
+    }
     fsname = vstralloc("fs-name=", dirname, NULL);
     for (s = fsname; *s != '\0'; s++) {
 	if (iscntrl((int)*s))
@@ -743,55 +931,56 @@ char **amstar_build_argv(
 	tardumpfile = stralloc(star_tardumps);
     }
 
-    my_argv = alloc(SIZEOF(char *) * 32);
-    i = 0;
-    
-    my_argv[i++] = star_path;
+    g_ptr_array_add(argv_ptr, stralloc(star_path));
 
-    my_argv[i++] = stralloc("-c");
-    my_argv[i++] = stralloc("-f");
+    g_ptr_array_add(argv_ptr, stralloc("-c"));
+    g_ptr_array_add(argv_ptr, stralloc("-f"));
     if (command == CMD_ESTIMATE) {
-	my_argv[i++] = stralloc("/dev/null");
+	g_ptr_array_add(argv_ptr, stralloc("/dev/null"));
     } else {
-	my_argv[i++] = stralloc("-");
+	g_ptr_array_add(argv_ptr, stralloc("-"));
     }
-    my_argv[i++] = stralloc("-C");
+    g_ptr_array_add(argv_ptr, stralloc("-C"));
 #if defined(__CYGWIN__)
     {
 	char tmppath[PATH_MAX];
 
 	cygwin_conv_to_full_posix_path(dirname, tmppath);
-	my_argv[i++] = stralloc(tmppath);
+	g_ptr_array_add(argv_ptr, stralloc(tmppath));
     }
 #else
-    my_argv[i++] = stralloc(dirname);
+    g_ptr_array_add(argv_ptr, stralloc(dirname));
 #endif
-    my_argv[i++] = stralloc(fsname);
+    g_ptr_array_add(argv_ptr, stralloc(fsname));
     if (star_onefilesystem)
-	my_argv[i++] = stralloc("-xdev");
-    my_argv[i++] = stralloc("-link-dirs");
-    my_argv[i++] = stralloc(levelstr);
-    my_argv[i++] = stralloc2("tardumps=", tardumpfile);
+	g_ptr_array_add(argv_ptr, stralloc("-xdev"));
+    g_ptr_array_add(argv_ptr, stralloc("-link-dirs"));
+    g_ptr_array_add(argv_ptr, stralloc(levelstr));
+    g_ptr_array_add(argv_ptr, stralloc2("tardumps=", tardumpfile));
     if (command == CMD_BACKUP)
-	my_argv[i++] = stralloc("-wtardumps");
-    my_argv[i++] = stralloc("-xattr");
-    my_argv[i++] = stralloc("-acl");
-    my_argv[i++] = stralloc("H=exustar");
-    my_argv[i++] = stralloc("errctl=WARN|SAMEFILE|DIFF|GROW|SHRINK|SPECIALFILE|GETXATTR|BADACL *");
+	g_ptr_array_add(argv_ptr, stralloc("-wtardumps"));
+    g_ptr_array_add(argv_ptr, stralloc("-xattr"));
+    g_ptr_array_add(argv_ptr, stralloc("-acl"));
+    g_ptr_array_add(argv_ptr, stralloc("H=exustar"));
+    g_ptr_array_add(argv_ptr, stralloc("errctl=WARN|SAMEFILE|DIFF|GROW|SHRINK|SPECIALFILE|GETXATTR|BADACL *"));
     if (star_sparse)
-	my_argv[i++] = stralloc("-sparse");
-    my_argv[i++] = stralloc("-dodesc");
+	g_ptr_array_add(argv_ptr, stralloc("-sparse"));
+    g_ptr_array_add(argv_ptr, stralloc("-dodesc"));
+
+    for (copt = argument->command_options; copt != NULL; copt = copt->next) {
+	g_ptr_array_add(argv_ptr, stralloc((char *)copt->data));
+    }
 
     if (command == CMD_BACKUP && argument->dle.create_index)
-	my_argv[i++] = stralloc("-v");
+	g_ptr_array_add(argv_ptr, stralloc("-v"));
 
-    my_argv[i++] = stralloc(".");
+    g_ptr_array_add(argv_ptr, stralloc("."));
 
-    my_argv[i] = NULL;
+    g_ptr_array_add(argv_ptr, NULL);
 
     amfree(tardumpfile);
     amfree(fsname);
     amfree(dirname);
 
-    return(my_argv);
+    return(argv_ptr);
 }

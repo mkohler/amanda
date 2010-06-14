@@ -2,12 +2,12 @@
 .\"     Title: amrestore
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMRESTORE" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMRESTORE" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,170 +19,103 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amrestore \- extract backup images from an \fIAmanda\fR tape
+amrestore \- low\-level data\-extraction from Amanda volumes
 .SH "SYNOPSIS"
 .HP \w'\fBamrestore\fR\ 'u
-\fBamrestore\fR [\-r | \-c | \-C] [\-b | \fIblocksize\fR] [\-f | \fIfileno\fR] [\-l | \fIlabel\fR] [\-p] [\-h] \fItapedevice\fR|\ \fIholdingfile\fR  [\fIhostname\fR [\fIdiskname\fR [\fIdatestamp\fR [\fIhostname\fR [\fIdiskname\fR [\fIdatestamp\fR | \&.\&.\&.]]]]]]
+\fBamrestore\fR [\-\-config\ \fIconfig\fR] [\-r | \-c | \-C] [\-b\ \fIblocksize\fR] [\-f\ \fIfilenum\fR] [\-l\ \fIlabel\fR] [\-p] [\-h] [{\fB\-o\fR\ \fIconfigoption\fR}...] [{\fIchangerspec\fR} | {[\-\-holding]\ \fIholdingfile\fR}] [\fIhostname\fR\ [\ \fIdiskname\fR\ [\ \fIdatestamp\fR\ [\ \fIhostname\fR\ [\ \fIdiskname\fR\ [\ \fIdatestamp\fR\ \&.\&.\&.\ ]\ ]\ ]\ ]\ ]]
+.PP
+Note that this is the only Amanda command which does not take a configuration name as its first argument\&.
 .SH "DESCRIPTION"
 .PP
-\fBAmrestore\fR
-extracts backup images from the tape mounted on
-\fItapedevice\fR
-or from the holding disk file
-\fIholdingfile\fR
-that match
-\fIhostname\fR,
-\fIdiskname\fR
+\fIAmrestore\fR
+is a very low\-level tool for extracting data from Amanda volumes\&. It does not consult any catalog information or other metadata, basing its operations only on the headers found on the volume\&. This makes it an appropriate tool for bare\-metal restores of an Amanda server, or other situations where the catalog is not available\&.
+.PP
+See
+\fBamfetchdump\fR(8)
 and
-\fIdatestamp\fR
-patterns given on the command line\&. The tape or holding file must be in a format written by the
-\fBamdump\fR
+\fBamrecover\fR(8)
+for higher\-level recoveries\&.
+.PP
+The tool does not reassemble split dumps, but can uncompress compressed dumps\&. Note that decompression may fail for split parts after the first\&. If this occurs, extract the parts without decompressing, concatenate them, and decompress the result\&.
+.PP
+Data is restored from the current volume in
+\fIchangerspec\fR, or from the holding file
+\fIholdingfile\fR\&. In most cases,
+\fIchangerspec\fR
+will name a particular device, e\&.g\&.,
+tape:/dev/nst0
 or
-\fBamflush\fR
-program\&.
+s3:mybucket/tape\-1\&.
 .PP
-If
-\fIdiskname\fR
-is not specified, all backups on the tape for the previous
+Only dumps matching the dump specification beginning with
 \fIhostname\fR
-are candidates\&. If
-\fIdatestamp\fR
-is not specified, all backups on the tape for the previous
+are extracted\&. If no specification is given, every file on the volume (or the entire holdingfile) is restored\&. See the "HOST & DISK EXPRESSIONS" section of
+\fBamanda\fR(8)
+for the format of the
 \fIhostname\fR
 and
 \fIdiskname\fR
-are candidates\&. If no
-\fIhostname\fR,
-\fIdiskname\fR
-or
+parameters, and the "DATESTAMP EXPRESSIONS" section for the format of the
 \fIdatestamp\fR
-are specified, every backup on the tape is a candidate\&.
-.PP
-\fIHostname\fR
-and
-\fIdiskname\fR
-are special expressions described in the "HOST & DISK EXPRESSION" section of
-\fBamanda\fR(8)\&.
-\fIDatestamp\fR
-are special expression described in the "DATESTAMP EXPRESSION" section of
-\fBamanda\fR(8)\&. For example, if
-\fIdiskname\fR
-is "rz[23]a", it would match disks
-\fBrz2a\fR
-and
-\fBrz3a\fR\&.
-.PP
-\fIDatestamp\fR
-is useful if
-\fBamflush\fR
-writes multiple backup runs to a single tape\&.
+parameters\&.
 .PP
 Unless
 \fB\-p\fR
 is used, candidate backup images are extracted to files in the current directory named:
-.PP
-\fIhostname\&.diskname\&.datestamp\&.dumplevel\fR
-.PP
-Amrestore doesn\'t use a changer, it restore from the tape already loaded in the
-\fItapedevice\&.\fR
+hostname\&.diskname\&.datestamp\&.dumplevel
 .SH "OPTIONS"
 .PP
-\fB\-b\fR
+\fB\-b \fR\fB\fIblocksize\fR\fR
 .RS 4
-Set the blocksize used to read the tape or holding file\&. All holding files must be read with a blocksize of 32 KBytes\&.
-\fBAmrestore\fR
-should normally be able to determine the blocksize for tapes on its own and not need this parameter\&.
+Use the given blocksize to read the volume\&. The default is defined by the device\&.
 .RE
 .PP
-The default is 32 KBytes\&.
-.PP
-\fB\-f\fR
+\fB\-f \fR\fB\fIfilenum\fR\fR
 .RS 4
-Do a rewind followed by a fsf <fileno> before trying to restore an image\&.
+Seek to file
+\fIfilenum\fR
+before beginning the restore operation\&.
 .RE
 .PP
-\fB\-l\fR
+\fB\-l \fR\fB\fIlabel\fR\fR
 .RS 4
-Check if we restoring from the tape with the right
-\fIlabel\fR
+Check that the volume has label
+\fIlabel\fR\&.
 .RE
 .PP
 \fB\-p\fR
 .RS 4
-Pipe output\&. The first matching backup image is sent to standard output, which is normally a pipe to
-\fBrestore\fR
-or
-\fBtar\fR, then
+Pipe the first matching file to standard output\&. This is typically used in a shell pipeline to send the data to a process like
+\fBtar\fR
+for extraction\&.
+.RE
+.PP
+\fB\-c\fR, \fB\-C\fR
+.RS 4
+If the file is not already compressed, compress it using the fastest (\fB\-c\fR) or best (\fB\-C\fR) compression algorithm\&. Note that
 \fBamrestore\fR
-quits\&. It may be run again to continue selecting backups to process\&. Make sure you specify the no\-rewind
-\fItapedevice\fR
-when doing this\&.
-.RE
-.PP
-Note:
-\fBrestore\fR
-may report "short read" errors when reading from a pipe\&. Most versions of
-\fBrestore\fR
-support a blocking factor option to let you set the read block size, and you should set it to 2\&. See the example below\&.
-.PP
-\fB\-c\fR
-.RS 4
-Compress output using the fastest method the compression program provides\&.
-\fBAmrestore\fR
-normally writes output files in a format understood by
-\fBrestore\fR
-or
-\fBtar\fR, even if the backups on the tape are compressed\&. With the
-\fB\-c\fR
-or
-\fB\-C\fR
-option,
+will not re\-compress an already\-compressed file\&. Without either of these options,
 \fBamrestore\fR
-writes all files in compressed format, even if the backups on the tape are not compressed\&. Output file names will have a
-\fB\&.Z\fR
-or
-\fB\&.gz\fR
-extension depending on whether
-\fBcompress\fR
-or
-\fBgzip\fR
-is the preferred compression program\&. This option is useful when the current directory disk is small\&.
-.RE
-.PP
-\fB\-C\fR
-.RS 4
-Compress output using the best method the compression program provides (may be very CPU intensive)\&. See the notes above about the
-\fB\-c\fR
-option\&.
-.RE
-.PP
-\fB\-r\fR
-.RS 4
-Raw output\&. Backup images are output exactly as they are on the tape, including the
-\fBamdump\fR
-headers\&. Output file names will have a
-\fB\&.RAW\fR
-extension\&. This option is only useful for debugging and other strange circumstances\&.
+will automatically uncompress any compressed files\&. This option is useful when the destination disk is small\&.
 .RE
 .PP
 \fB\-h\fR
 .RS 4
-Header output\&. The tape header block is output at the beginning of each file\&. This is like
-\fB\-r\fR
-except
-\fB\-c\fR
-or
-\fB\-C\fR
-may also be used to compress the result\&.
-\fBAmrecover\fR
-uses the header to determine the restore program to use\&.
+Include 32k headers on all output files, similar to a holding file\&. This header can be read by another application or utility (see
+\fBAmanda::Header\fR) during the next phase of processing\&.
 .RE
 .PP
-If a header is written (\-r or \-h), only 32 KBytes are output regardless of the tape blocksize\&. This makes the resulting image usable as a holding file\&.
-.PP
-\fB\-o\fR \fIconfigoption\fR
+\fB\-r\fR
 .RS 4
-See the "\fBCONFIGURATION OVERRIDE\fR" section in
+Output raw files\&. This is similar to
+\fB\-h\fR, but also disables any automatic decompression\&. Output file names will have a
+\&.RAW
+extension\&.
+.RE
+.PP
+\fB\-o \fR\fB\fIconfigoption\fR\fR
+.RS 4
+See the "CONFIGURATION OVERRIDE" section in
 \fBamanda\fR(8)\&.
 .RE
 .SH "EXAMPLES"
@@ -191,35 +124,21 @@ The following does an interactive restore of disk
 \fIrz3g\fR
 from host
 \fIseine\fR, to restore particular files\&. Note the use of the
-\fBb\fR
+\fIb\fR
 option to
-\fBrestore\fR, which causes it to read in units of two 512\-byte blocks (1 Kbyte) at a time\&. This helps keep it from complaining about short reads\&.
-.sp
-.if n \{\
-.RS 4
-.\}
+\fIrestore\fR, which causes it to read in units of two 512\-byte blocks (1 Kbyte) at a time\&. This helps keep it from complaining about short reads\&.
 .nf
-% amrestore \-p /dev/nrmt9 seine rz3g | restore \-ivbf 2 \-
+  amrestore \-p /dev/nrmt9 seine rz3g | tar \-xv
 .fi
-.if n \{\
-.RE
-.\}
 .PP
 The next example extracts all backup images for host
-\fIseine\fR\&. This is the usual way to extract all data for a host after a disk crash\&.
-.sp
-.if n \{\
-.RS 4
-.\}
+\fIseine\fR\&. This is a typical way to extract all data for a host after a disk crash\&.
 .nf
-% amrestore /dev/nrmt9 seine
+  amrestore /dev/nrmt9 seine
 .fi
-.if n \{\
-.RE
-.\}
 .PP
 If the backup datestamp in the above example is
-19910125
+20070125
 and
 \fIseine\fR
 has level 0 backups of disks
@@ -227,64 +146,36 @@ has level 0 backups of disks
 and
 \fIrz1g\fR
 on the tape, these files will be created in the current directory:
-.sp
-.if n \{\
-.RS 4
-.\}
 .nf
-seine\&.rz1a\&.19910125\&.0
-seine\&.rz1g\&.19910125\&.0
+  seine\&.rz1a\&.19910125\&.0
+  seine\&.rz1g\&.19910125\&.0
 .fi
-.if n \{\
-.RE
-.\}
 .PP
 You may also use
 \fBamrestore\fR
 to extract a backup image from a holding disk file that has not yet been flushed to tape:
-.sp
-.if n \{\
-.RS 4
-.\}
 .nf
-% amrestore \-p /amanda/20001119/seine\&.rz1a\&.2 | restore \-ivbf 2 \-
+  amrestore \-p /amanda/20001119/seine\&.rz1a\&.2 | tar \-xv
 .fi
-.if n \{\
-.RE
-.\}
-.PP
-\fBAmrestore\fR
-may be used to generate a listing of images on a tape:
-.sp
-.if n \{\
-.RS 4
-.\}
-.nf
-% mt \-f /dev/nrmt9 rewind
-% amrestore \-p /dev/nrmt9 no\-such\-host > /dev/null
-.fi
-.if n \{\
-.RE
-.\}
-.PP
-This asks
-\fBamrestore\fR
-to find images for host
-\fBno\-such\-host\fR\&. It will not find any entries that match, but along the way will report each image it skips\&.
 .SH "CAVEATS"
 .PP
 \fBGNU\-tar\fR
-must be used to restore files from backup images created with the GNUTAR dumptype\&. Vendor tar programs sometimes fail to read GNU tar images\&.
+must be used to restore files from backup images created with the GNUTAR dumptype\&. Vendor tar programs sometimes fail to read GNU Tar images\&.
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
-\fBamdump\fR(8),
-\fBamflush\fR(8),
-\fBtar\fR(1),
-\fBrestore\fR(8),
-: http://wiki.zmanda.com
+\fBamfetchdump\fR(8),
+\fBamrecover\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBJames da Silva\fR <\&jds@amanda\&.org\&>
 .PP
 \fBStefan G\&. Weichinger\fR <\&sgw@amanda\&.org\&>
+.PP
+\fBDustin J\&. Mitchell\fR <\&dustin@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (http://www\&.zmanda\&.com)
+.RE

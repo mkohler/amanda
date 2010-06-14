@@ -44,10 +44,6 @@
 /*
  * Force large file source even if configure guesses wrong.
  */
-#ifndef _LARGE_FILE_SOURCE
-#define _LARGE_FILES 1
-#endif
-
 #ifndef _LARGEFILE64_SOURCE
 #define _LARGEFILE64_SOURCE 1
 #endif
@@ -60,8 +56,9 @@
 #  include <sys/types.h>
 #endif
 
-/* gnulib creates this header locally if the system doesn't provide it */
-#include <stdint.h>
+/* gnulib creates this header locally if the system doesn't provide it,
+ * so it uses a local ("") include */
+#include "stdint.h"
 
 /*
  * I would prefer that each Amanda module include only those system headers
@@ -138,10 +135,6 @@
 #endif
 #endif
 #endif
-#endif
-
-#ifdef HAVE_NETDB_H
-#  include <netdb.h>
 #endif
 
 #ifdef TIME_WITH_SYS_TIME
@@ -294,10 +287,6 @@ struct iovec {
 #include <stdio.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
-
-#ifdef HAVE_ARPA_INET_H
-#include <arpa/inet.h>
-#endif
 
 #ifdef WORKING_IPV6
 #define INET6
@@ -482,19 +471,7 @@ extern int debug_amtable_alloc(const char *file,
 extern void amtable_free(void **, size_t *);
 
 char **	safe_env(void);
-char *	validate_regexp(const char *regex);
-char *	validate_glob(const char *glob);
-char *	clean_regex(const char *regex);
-int	match(const char *regex, const char *str);
-int	match_no_newline(const char *regex, const char *str);
-int	match_glob(const char *glob, const char *str);
-char *	glob_to_regex(const char *glob);
-int	match_tar(const char *glob, const char *str);
-char *	tar_to_regex(const char *glob);
-int	match_host(const char *glob, const char *host);
-int	match_disk(const char *glob, const char *disk);
-int	match_datestamp(const char *dateexp, const char *datestamp);
-int	match_level(const char *levelexp, const char *level);
+
 time_t	unctime(char *timestr);
 
 /*
@@ -1067,9 +1044,12 @@ extern int vfprintf(FILE *stream, const char *format, va_list ap);
 extern int vprintf(const char *format, va_list ap);
 #endif
 
-/* gnulib-only includes (hence "" instead of <>) */
-#include "getaddrinfo.h"
-#include "inet_ntop.h"
+/* these system headers are added by gnulib if they
+ * do not exist */
+#include "netdb.h"
+#include "arpa/inet.h"
+
+/* gnulib-only includes */
 #include "safe-read.h"
 #include "full-read.h"
 #include "full-write.h"
@@ -1193,5 +1173,14 @@ typedef enum {
 		           protocol stream is closed */
     KENCRYPT_YES	/* krb5 encryption enabled on all stream */
 } kencrypt_type;
+
+#define DUMP_LEVELS    400
+
+/* Constants to define the number of pre-opened pipes between amandad and
+ * its services */
+
+/* If you change these (don't!), change them in perl/Amanda/Constants.pm, too */
+#define DATA_FD_COUNT   3               /* number of general-use pipes */
+#define DATA_FD_OFFSET  50
 
 #endif	/* !AMANDA_H */

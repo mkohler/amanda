@@ -1,5 +1,5 @@
 #! @PERL@
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2007,2008,2009 Zmanda, Inc.  All Rights Reserved.
 # 
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published 
@@ -14,7 +14,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 # 
-# Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 use lib '@amperldir@';
@@ -22,17 +22,23 @@ use strict;
 
 use File::Basename;
 use Getopt::Long;
+use IPC::Open3;
+use Symbol;
 
 use Amanda::Device qw( :constants );
 use Amanda::Debug qw( :logging );
 use Amanda::Config qw( :init :getconf config_dir_relative );
+use Amanda::Tapelist;
 use Amanda::Logfile;
 use Amanda::Util qw( :constants );
 use Amanda::Changer;
+use Amanda::Recovery::Scan;
 use Amanda::Constants;
+use Amanda::MainLoop;
 
 # Have all images been verified successfully so far?
 my $all_success = 1;
+my $verbose = 0;
 
 sub usage {
     print <<EOF;
@@ -52,42 +58,13 @@ EOF
     exit(1);
 }
 
-# Find the most recent logfile name matching the given timestamp
-sub find_logfile_name($) {
-    my $timestamp = shift @_;
-    my $rval;
-    my $config_dir = config_dir_relative(getconf($CNF_LOGDIR));
-    # First try log.$datestamp.$seq
-    for (my $seq = 0;; $seq ++) {
-        my $logfile = sprintf("%s/log.%s.%u", $config_dir, $timestamp, $seq);
-        if (-f $logfile) {
-            $rval = $logfile;
-        } else {
-            last;
-        }
-    }
-    return $rval if defined $rval;
-
-    # Next try log.$datestamp.amflush
-    $rval = sprintf("%s/log.%s.amflush", $config_dir, $timestamp);
-
-    return $rval if -f $rval;
-
-    # Finally try log.datestamp.
-    $rval = sprintf("%s/log.%s.amflush", $config_dir, $timestamp);
-    
-    return $rval if -f $rval;
-
-    # No dice.
-    return undef;
-}
-
 ## Device management
 
-my $changer;
+my $scan;
 my $reservation;
 my $current_device;
 my $current_device_label;
+my $current_command;
 
 sub find_next_device {
     my $label = shift;
@@ -95,19 +72,24 @@ sub find_next_device {
     my $find_done_cb;
     my ($slot, $tapedev);
 
-    # if the changer hasn't been created yet, set it up
-    if (!$changer) {
-	$changer = Amanda::Changer->new();
+    # if the scan hasn't been created yet, set it up
+    if (!$scan) {
+	my $inter = Amanda::Interactive->new(name => 'stdin');
+	$scan = Amanda::Recovery::Scan->new(interactive => $inter);
+	if ($scan->isa("Amanda::Changer::Error")) {
+	    print "$scan\n";
+	    exit 1;
+	}
     }
 
-    my $load_sub = sub {
+    my $load_sub = make_cb(load_sub => sub {
 	my ($err) = @_;
 	if ($err) {
 	    print STDERR $err, "\n";
 	    exit 1;
 	}
 
-	$changer->load(
+	$scan->find_volume(
 	    label => $label,
 	    res_cb => sub {
 		(my $err, $reservation) = @_;
@@ -118,25 +100,29 @@ sub find_next_device {
 		Amanda::MainLoop::quit();
 	    },
 	);
-    };
+    });
 
-    if (defined $reservation) {
-	$reservation->release(finished_cb => $load_sub);
-    } else {
-	$load_sub->(undef);
-    }
+    my $start = make_cb(start => sub {
+	if (defined $reservation) {
+	    $reservation->release(finished_cb => $load_sub);
+	} else {
+	    $load_sub->(undef);
+	}
+    });
 
     # let the mainloop run until the find is done.  This is a temporary
     # hack until all of amcheckdump is event-based.
+    Amanda::MainLoop::call_later($start);
     Amanda::MainLoop::run();
 
-    return $reservation->{device_name};
+    return $reservation->{'device'};
 }
 
-# Try to open a device containing a volume with the given label.  Returns undef
-# if there is a problem.
+# Try to open a device containing a volume with the given label.
+# return ($device, undef) on success
+# return (undef, $err) on error
 sub try_open_device {
-    my ($label) = @_;
+    my ($label, $timestamp) = @_;
 
     # can we use the same device as last time?
     if ($current_device_label eq $label) {
@@ -146,53 +132,51 @@ sub try_open_device {
     # nope -- get rid of that device
     close_device();
 
-    my $device_name = find_next_device($label);
-    if ( !$device_name ) {
-	print "Could not find a device for label '$label'.\n";
-        return undef;
-    }
+    my $device = find_next_device($label);
+    my $device_name = $device->device_name;
 
-    my $device = Amanda::Device->new($device_name);
-    if ($device->status() != $DEVICE_STATUS_SUCCESS) {
-	print "Could not open device $device_name: ",
-	      $device->error(), ".\n";
-	return undef;
-    }
-    if (!$device->configure(1)) {
-	print "Could not configure device $device_name: ",
-	      $device->error(), ".\n";
-	return undef;
-    }
-
-    my $label_status = $device->read_label();
+    my $label_status = $device->status;
     if ($label_status != $DEVICE_STATUS_SUCCESS) {
-	if ($device->error() ) {
-	    print "Could not read device $device_name: ",
-		  $device->error(), ".\n";
+	if ($device->error_or_status() ) {
+	    return (undef, "Could not read device $device_name: " .
+			    $device->error_or_status());
 	} else {
-	    print "Could not read device $device_name: one of ",
-	         join(", ", DevicestatusFlags_to_strings($label_status)),
-	         "\n";
+	    return (undef, "Could not read device $device_name: one of " .
+	            join(", ", DevicestatusFlags_to_strings($label_status)));
 	}
-	return undef;
     }
+
+    my $start = make_cb(start => sub {
+	$reservation->set_label(label => $device->volume_label(),
+				finished_cb => sub {
+					Amanda::MainLoop::quit();
+				});
+    });
+
+    Amanda::MainLoop::call_later($start);
+    Amanda::MainLoop::run();
 
     if ($device->volume_label() ne $label) {
-	printf("Labels do not match: Expected '%s', but the device contains '%s'.\n",
-		     $label, $device->volume_label());
-	return undef;
+	return (undef, "Labels do not match: Expected '$label', but the " .
+		       "device contains '" . $device->volume_label() . "'");
+    }
+
+    if ($device->volume_time() ne $timestamp) {
+	return (undef, "Timestamps do not match: Expected '$timestamp', " .
+		       "but the device contains '" .
+		       $device->volume_time() . "'");
     }
 
     if (!$device->start($ACCESS_READ, undef, undef)) {
-	printf("Error reading device %s: %s.\n", $device_name,
-	       $device->error_message());
+	return (undef, "Error reading device $device_name: " .
+		       $device->error_or_status());
 	return undef;
     }
 
     $current_device = $device;
     $current_device_label = $device->volume_label();
 
-    return $device;
+    return ($device, undef);
 }
 
 sub close_device {
@@ -203,6 +187,15 @@ sub close_device {
 ## Validation application
 
 my ($current_validation_pid, $current_validation_pipeline, $current_validation_image);
+
+sub is_part_of_same_image {
+    my ($image, $header) = @_;
+
+    return ($image->{timestamp} eq $header->{datestamp}
+        and $image->{hostname} eq $header->{name}
+        and $image->{diskname} eq $header->{disk}
+        and $image->{level} == $header->{dumplevel});
+}
 
 # Return a filehandle for the validation application that will handle this
 # image.  This function takes care of split dumps.  At the moment, we have
@@ -218,50 +211,104 @@ sub open_validation_app {
 	and $current_validation_image->{diskname} eq $image->{diskname}
 	and $current_validation_image->{level} == $image->{level}) {
 	# TODO: also check that the part number is correct
-        print "Continuing with previously started validation process.\n";
-	return $current_validation_pipeline;
+        Amanda::Debug::debug("Continuing with previously started validation process");
+	return $current_validation_pipeline, $current_command;
     }
 
-    # nope, new image.  close the previous pipeline
-    close_validation_app();
-	
-    my $validation_command = find_validation_command($header);
-    print "  using '$validation_command'.\n";
-    $current_validation_pid = open($current_validation_pipeline, "|-", $validation_command);
+    my @command = find_validation_command($header);
+
+    if ($#command == 0) {
+	$command[0]->{fd} = Symbol::gensym;
+	$command[0]->{pid} = open3($current_validation_pipeline, "/dev/null", $command[0]->{stderr}, $command[0]->{pgm});
+    } else {
+	my $nb = $#command;
+	$command[$nb]->{fd} = "VAL_GLOB_$nb";
+	$command[$nb]->{stderr} = Symbol::gensym;
+	$command[$nb]->{pid} = open3($command[$nb]->{fd}, "/dev/null", $command[$nb]->{stderr}, $command[$nb]->{pgm});
+	close($command[$nb]->{stderr});
+	while ($nb-- > 1) {
+	    $command[$nb]->{fd} = "VAL_GLOB_$nb";
+	    $command[$nb]->{stderr} = Symbol::gensym;
+	    $command[$nb]->{pid} = open3($command[$nb]->{fd}, ">&". $command[$nb+1]->{fd}, $command[$nb]->{stderr}, $command[$nb]->{pgm});
+	    close($command[$nb+1]->{fd});
+	}
+	$command[$nb]->{stderr} = Symbol::gensym;
+	$command[$nb]->{pid} = open3($current_validation_pipeline, ">&".$command[$nb+1]->{fd}, $command[$nb]->{stderr}, $command[$nb]->{pgm});
+	close($command[$nb+1]->{fd});
+    }
+
+    my @com;
+    for my $i (0..$#command) {
+	push @com, $command[$i]->{pgm};
+    }
+    my $validation_command = join (" | ", @com);
+    Amanda::Debug::debug("  using '$validation_command'");
+    print "  using '$validation_command'\n" if $verbose;
         
-    if (!$current_validation_pid) {
-	print "Can't execute validation command: $!\n";
-	undef $current_validation_pid;
-	undef $current_validation_pipeline;
-	return undef;
-    }
-
     $current_validation_image = $image;
-    return $current_validation_pipeline;
+    return $current_validation_pipeline, \@command;
 }
 
 # Close any running validation app, checking its exit status for errors.  Sets
 # $all_success to false if there is an error.
 sub close_validation_app {
+    my $command = shift;
+
     if (!defined($current_validation_pipeline)) {
 	return;
     }
 
     # first close the applications standard input to signal it to stop
-    if (!close($current_validation_pipeline)) {
-	my $exit_value = $? >> 8;
-	print "Validation process returned $exit_value (full status $?)\n";
-	$all_success = 0; # flag this as a failure
+    close($current_validation_pipeline);
+    my $result = 0;
+    while (my $cmd = shift @$command) {
+	#read its stderr
+	my $fd = $cmd->{stderr};
+	while(<$fd>) {
+	    print $_;
+	    $result++;
+	}
+	waitpid $cmd->{pid}, 0;
+	my $err = $?;
+	my $res = $!;
+
+	if ($err == -1) {
+	    Amanda::Debug::debug("failed to execute $cmd->{pgm}: $res");
+	    print "failed to execute $cmd->{pgm}: $res\n";
+	    $result++;
+	} elsif ($err & 127) {
+	    Amanda::Debug::debug(sprintf("$cmd->{pgm} died with signal %d, %s coredump",
+		($err & 127), ($err & 128) ? 'with' : 'without'));
+	    printf "$cmd->{pgm} died with signal %d, %s coredump\n",
+		($err & 127), ($err & 128) ? 'with' : 'without';
+	    $result++;
+	} elsif ($err > 0) {
+	    Amanda::Debug::debug(sprintf("$cmd->{pgm} exited with value %d", $err >> 8));
+	    printf "$cmd->{pgm} exited with value %d %d\n", $err >> 8, $err;
+	    $result++;
+	}
+
     }
 
-    $current_validation_pid = undef;
+    if ($result) {
+	Amanda::Debug::debug("Image was not successfully validated");
+	print "Image was not successfully validated\n\n";
+	$all_success = 0; # flag this as a failure
+    } else {
+        Amanda::Debug::debug("Image was successfully validated");
+        print("Image was successfully validated.\n\n") if $verbose;
+    }
+
     $current_validation_pipeline = undef;
     $current_validation_image = undef;
 }
 
 # Given a dumpfile_t, figure out the command line to validate.
+# return an array of command to execute
 sub find_validation_command {
     my ($header) = @_;
+
+    my @result = ();
 
     # We base the actual archiver on our own table, but just trust
     # whatever is listed as the decrypt/uncompress commands.
@@ -282,45 +329,70 @@ sub find_validation_command {
             "SMBCLIENT" => "$Amanda::Constants::GNUTAR tf -",
         );
         $validation_program = $validation_programs{$program};
+	if (!defined $validation_program) {
+	    Amanda::Debug::debug("Unknown program '$program'");
+	    print "Unknown program '$program'.\n" if $program ne "PKZIP";
+	}
     } else {
 	if (!defined $header->{application}) {
-            print STDERR "Application not set; ".
-	                 "Will send dumps to /dev/null instead.";
-            $validation_program = "cat > /dev/null";
+	    Amanda::Debug::debug("Application not set");
+            print "Application not set\n";
 	} else {
 	    my $program_path = $Amanda::Paths::APPLICATION_DIR . "/" .
                                $header->{application};
             if (!-x $program_path) {
-                print STDERR "Application '" , $header->{application},
+                Amanda::Debug::debug("Application '" . $header->{application}.
 			     "($program_path)' not available on the server; ".
-	                     "Will send dumps to /dev/null instead.";
-                $validation_program = "cat > /dev/null";
+	                     "Will send dumps to /dev/null instead.");
+		Amanda::Debug::debug("Application '$header->{application}' in path $program_path not available on server");
 	    } else {
 	        $validation_program = $program_path . " validate";
 	    }
 	}
     }
-    if (!defined $validation_program) {
-        print STDERR "Could not determine validation for dumper $program; ".
-	             "Will send dumps to /dev/null instead.";
-        $validation_program = "cat > /dev/null";
-    } else {
-        # This is to clean up any extra output the program doesn't read.
-        $validation_program .= " > /dev/null && cat > /dev/null";
-    }
-    
-    my $cmdline = "";
+
     if (defined $header->{decrypt_cmd} && 
         length($header->{decrypt_cmd}) > 0) {
-        $cmdline .= $header->{decrypt_cmd};
+	if ($header->{dle_str} =~ /<encrypt>CUSTOM/) {
+	    # Can't decrypt client encrypted image
+	    my $cmd;
+            $cmd->{pgm} = "cat";
+	    push @result, $cmd;
+	    return @result;
+	}
+	my $cmd;
+	$cmd->{pgm} = $header->{decrypt_cmd};
+	$cmd->{pgm} =~ s/ *\|$//g;
+	push @result, $cmd;
     }
     if (defined $header->{uncompress_cmd} && 
         length($header->{uncompress_cmd}) > 0) {
-        $cmdline .= $header->{uncompress_cmd};
+	#If the image is not compressed, the decryption is here
+	if ((!defined $header->{decrypt_cmd} ||
+	     length($header->{decrypt_cmd}) == 0 ) and
+	    $header->{dle_str} =~ /<encrypt>CUSTOM/) {
+	    # Can't decrypt client encrypted image
+	    my $cmd;
+            $cmd->{pgm} = "cat";
+	    push @result, $cmd;
+	    return @result;
+	}
+	my $cmd;
+	$cmd->{pgm} = $header->{uncompress_cmd};
+	$cmd->{pgm} =~ s/ *\|$//g;
+	push @result, $cmd;
     }
-    $cmdline .= $validation_program;
 
-    return $cmdline;
+    my $command;
+    if (!defined $validation_program) {
+        $command->{pgm} = "cat";
+    } else {
+	$command->{pgm} = $validation_program;
+    }
+
+    push @result, $command;
+
+    return @result;
 }
 
 ## Application initialization
@@ -328,13 +400,14 @@ sub find_validation_command {
 Amanda::Util::setup_application("amcheckdump", "server", $CONTEXT_CMDLINE);
 
 my $timestamp = undef;
-my $config_overwrites = new_config_overwrites($#ARGV+1);
+my $config_overrides = new_config_overrides($#ARGV+1);
 
 Getopt::Long::Configure(qw(bundling));
 GetOptions(
     'timestamp|t=s' => \$timestamp,
-    'help|usage|?' => \&usage,
-    'o=s' => sub { add_config_overwrite_opt($config_overwrites, $_[1]); },
+    'verbose|v'     => \$verbose,
+    'help|usage|?'  => \&usage,
+    'o=s' => sub { add_config_override_opt($config_overrides, $_[1]); },
 ) or usage();
 
 usage() if (@ARGV < 1);
@@ -343,8 +416,8 @@ my $timestamp_argument = 0;
 if (defined $timestamp) { $timestamp_argument = 1; }
 
 my $config_name = shift @ARGV;
+set_config_overrides($config_overrides);
 config_init($CONFIG_INIT_EXPLICIT_NAME, $config_name);
-apply_config_overwrites($config_overwrites);
 my ($cfgerr_level, @cfgerr_errors) = config_errors();
 if ($cfgerr_level >= $CFGERR_WARNINGS) {
     config_print_errors();
@@ -354,6 +427,9 @@ if ($cfgerr_level >= $CFGERR_WARNINGS) {
 }
 
 Amanda::Util::finish_setup($RUNNING_AS_DUMPUSER);
+
+my $tapelist_file = config_dir_relative(getconf($CNF_TAPELIST));
+my $tl = Amanda::Tapelist::read_tapelist($tapelist_file);
 
 # If we weren't given a timestamp, find the newer of
 # amdump.1 or amflush.1 and extract the datestamp from it.
@@ -419,16 +495,25 @@ for my $logfile (@logfiles) {
     push @images, Amanda::Logfile::search_logfile(undef, $timestamp,
                                                   "$logfile_dir/$logfile", 1);
 }
+my $nb_images = @images;
 
 # filter only "ok" dumps, removing partial and failed dumps
 @images = Amanda::Logfile::dumps_match([@images],
 	undef, undef, undef, undef, 1);
 
 if (!@images) {
-    if ($timestamp_argument) {
-	print STDERR "No backup written on timestamp $timestamp.\n";
+    if ($nb_images == 0) {
+        if ($timestamp_argument) {
+	    print STDERR "No backup written on timestamp $timestamp.\n";
+        } else {
+	    print STDERR "No backup written on latest run.\n";
+        }
     } else {
-	print STDERR "No backup written on latest run.\n";
+        if ($timestamp_argument) {
+	    print STDERR "No complete backup available on timestamp $timestamp.\n";
+        } else {
+	    print STDERR "No complete backup available on latest run.\n";
+        }
     }
     exit 1;
 }
@@ -444,41 +529,63 @@ if (!@tapes) {
 
 printf("You will need the following tape%s: %s\n", (@tapes > 1) ? "s" : "",
        join(", ", @tapes));
+print "Press enter when ready\n";
+<STDIN>;
 
 # Now loop over the images, verifying each one.  
 
+my $header;
+
 IMAGE:
 for my $image (@images) {
-    # Currently, L_PART results will be n/x, n >= 1, x >= -1
-    # In the past (before split dumps), L_PART could be --
-    # Headers can give partnum >= 0, where 0 means not split.
-    my $logfile_part = 1; # assume this is not a split dump
-    if ($image->{partnum} =~ m$(\d+)/(-?\d+)$) {
-        $logfile_part = $1;
+    my $check = sub {
+	my ($ok, $msg) = @_;
+	if (!$ok) {
+	    $all_success = 0;
+	    Amanda::Debug::debug("Image was not successfully validated: $msg");
+	    print "Image was not successfully validated: $msg.\n";
+	    next IMAGE;
+	}
+    };
+
+    # If it's a new image
+    my $new_image = !(defined $header);
+    if (!$new_image) {
+	if (!is_part_of_same_image($image, $header)) {
+	close_validation_app($current_command);
+	$new_image = 1;
+}
     }
 
-    printf("Validating image %s:%s datestamp %s level %s part %s on tape %s file #%d\n",
+    Amanda::Debug::debug("Validating image " . $image->{hostname} . ":" .
+	$image->{diskname} . " datestamp " . $image->{timestamp} . " level ".
+	$image->{level} . " part " . $image->{partnum} . "/" .
+	$image->{totalparts} . "on tape " . $image->{label} . " file #" .
+	$image->{filenum});
+
+    if ($new_image) {
+    printf("Validating image %s:%s datestamp %s level %s part %d/%d on tape %s file #%d\n",
            $image->{hostname}, $image->{diskname}, $image->{timestamp},
-           $image->{level}, $logfile_part, $image->{label}, $image->{filenum});
+           $image->{level}, $image->{partnum}, $image->{totalparts},
+	   $image->{label}, $image->{filenum});
+    } else {
+    printf("           part  %s:%s datestamp %s level %s part %d/%d on tape %s file #%d\n",
+           $image->{hostname}, $image->{diskname}, $image->{timestamp},
+           $image->{level}, $image->{partnum}, $image->{totalparts},
+	   $image->{label}, $image->{filenum});
+    }
 
     # note that if there is a device failure, we may try the same device
     # again for the next image.  That's OK -- it may give a user with an
     # intermittent drive some indication of such.
-    my $device = try_open_device($image->{label});
-    if (!defined $device) {
-	# error message already printed
-	$all_success = 0;
-	next IMAGE;
-    }
+    my ($device, $err) = try_open_device($image->{label}, $timestamp);
+    $check->(defined $device, "Could not open device: $err");
 
     # Now get the header from the device
-    my $header = $device->seek_file($image->{filenum});
-    if (!defined $header) {
-        printf("Could not seek to file %d of volume %s.\n",
-                     $image->{filenum}, $image->{label});
-	$all_success = 0;
-        next IMAGE;
-    }
+    $header = $device->seek_file($image->{filenum});
+    $check->(defined $header,
+      "Could not seek to file $image->{filenum} of volume $image->{label}: " .
+        $device->error_or_status());
 
     # Make sure that the on-device header matches what the logfile
     # told us we'd find.
@@ -492,31 +599,54 @@ for my $image (@images) {
         $image->{hostname} ne $header->{name} ||
         $image->{diskname} ne $header->{disk} ||
         $image->{level} != $header->{dumplevel} ||
-        $logfile_part != $volume_part) {
-        printf("Details of dump at file %d of volume %s do not match logfile.\n",
-                     $image->{filenum}, $image->{label});
-	$all_success = 0;
-        next IMAGE;
+        $image->{partnum} != $volume_part) {
+        printf("Volume image is %s:%s datestamp %s level %s part %s\n",
+               $header->{name}, $header->{disk}, $header->{datestamp},
+               $header->{dumplevel}, $volume_part);
+        $check->(0, sprintf("Details of dump at file %d of volume %s do not match logfile",
+                     $image->{filenum}, $image->{label}));
     }
     
     # get the validation application pipeline that will process this dump.
-    my $pipeline = open_validation_app($image, $header);
+    (my $pipeline, $current_command) = open_validation_app($image, $header);
 
     # send the datastream from the device straight to the application
     my $queue_fd = Amanda::Device::queue_fd_t->new(fileno($pipeline));
-    if (!$device->read_to_fd($queue_fd)) {
-        print "Error reading device or writing data to validation command.\n";
-	$all_success = 0;
-	next IMAGE;
+    my $read_ok = $device->read_to_fd($queue_fd);
+    $check->($device->status() == $DEVICE_STATUS_SUCCESS,
+      "Error reading device: " . $device->error_or_status());
+    # if we make it here, the device was ok, but the read perhaps wasn't
+    if (!$read_ok) {
+        my $errmsg = $queue_fd->{errmsg};
+        if (defined $errmsg && length($errmsg) > 0) {
+            $check->($read_ok, "Error writing data to validation command: $errmsg");
+	} else {
+            $check->($read_ok, "Error writing data to validation command: Unknown reason");
+	}
     }
 }
 
 if (defined $reservation) {
-    $reservation->release();
+    my $release = make_cb(start => sub {
+	$reservation->release(finished_cb => sub {
+				Amanda::MainLoop::quit()});
+    });
+
+    Amanda::MainLoop::call_later($release);
+    Amanda::MainLoop::run();
 }
 
 # clean up
-close_validation_app();
+close_validation_app($current_command);
 close_device();
 
+if ($all_success) {
+    Amanda::Debug::debug("All images successfully validated");
+    print "All images successfully validated\n";
+} else {
+    Amanda::Debug::debug("Some images failed to be correclty validated");
+    print "Some images failed to be correclty validated.\n";
+}
+
+Amanda::Util::finish_application();
 exit($all_success? 0 : 1);

@@ -49,8 +49,10 @@ sub this {
 
 package Amanda::Config;
 
+*data_path_from_string = *Amanda::Configc::data_path_from_string;
 *getconf = *Amanda::Configc::getconf;
 *getconf_seen = *Amanda::Configc::getconf_seen;
+*getconf_linenum = *Amanda::Configc::getconf_linenum;
 *getconf_byname = *Amanda::Configc::getconf_byname;
 *getconf_list = *Amanda::Configc::getconf_list;
 *getconf_byname_strs = *Amanda::Configc::getconf_byname_strs;
@@ -68,7 +70,6 @@ package Amanda::Config;
 *interface_seen = *Amanda::Configc::interface_seen;
 *lookup_holdingdisk = *Amanda::Configc::lookup_holdingdisk;
 *getconf_holdingdisks = *Amanda::Configc::getconf_holdingdisks;
-*holdingdisk_next = *Amanda::Configc::holdingdisk_next;
 *holdingdisk_getconf = *Amanda::Configc::holdingdisk_getconf;
 *holdingdisk_name = *Amanda::Configc::holdingdisk_name;
 *holdingdisk_seen = *Amanda::Configc::holdingdisk_seen;
@@ -98,15 +99,16 @@ package Amanda::Config;
 *config_print_errors = *Amanda::Configc::config_print_errors;
 *config_clear_errors = *Amanda::Configc::config_clear_errors;
 *config_errors = *Amanda::Configc::config_errors;
-*new_config_overwrites = *Amanda::Configc::new_config_overwrites;
-*free_config_overwrites = *Amanda::Configc::free_config_overwrites;
-*add_config_overwrite = *Amanda::Configc::add_config_overwrite;
-*add_config_overwrite_opt = *Amanda::Configc::add_config_overwrite_opt;
-*apply_config_overwrites = *Amanda::Configc::apply_config_overwrites;
+*new_config_overrides = *Amanda::Configc::new_config_overrides;
+*free_config_overrides = *Amanda::Configc::free_config_overrides;
+*add_config_override = *Amanda::Configc::add_config_override;
+*add_config_override_opt = *Amanda::Configc::add_config_override_opt;
+*set_config_overrides = *Amanda::Configc::set_config_overrides;
 *dump_configuration = *Amanda::Configc::dump_configuration;
 *config_dir_relative = *Amanda::Configc::config_dir_relative;
 *taperalgo2str = *Amanda::Configc::taperalgo2str;
 *find_multiplier = *Amanda::Configc::find_multiplier;
+*C_string_to_boolean = *Amanda::Configc::C_string_to_boolean;
 
 # ------- VARIABLE STUBS --------
 
@@ -120,6 +122,7 @@ package Amanda::Config;
 *CNF_SSH_KEYS = *Amanda::Configc::CNF_SSH_KEYS;
 *CNF_AMANDAD_PATH = *Amanda::Configc::CNF_AMANDAD_PATH;
 *CNF_CLIENT_USERNAME = *Amanda::Configc::CNF_CLIENT_USERNAME;
+*CNF_CLIENT_PORT = *Amanda::Configc::CNF_CLIENT_PORT;
 *CNF_GNUTAR_LIST_DIR = *Amanda::Configc::CNF_GNUTAR_LIST_DIR;
 *CNF_AMANDATES = *Amanda::Configc::CNF_AMANDATES;
 *CNF_MAILER = *Amanda::Configc::CNF_MAILER;
@@ -131,6 +134,7 @@ package Amanda::Config;
 *CNF_CHANGERDEV = *Amanda::Configc::CNF_CHANGERDEV;
 *CNF_CHANGERFILE = *Amanda::Configc::CNF_CHANGERFILE;
 *CNF_LABELSTR = *Amanda::Configc::CNF_LABELSTR;
+*CNF_AUTOLABEL = *Amanda::Configc::CNF_AUTOLABEL;
 *CNF_TAPELIST = *Amanda::Configc::CNF_TAPELIST;
 *CNF_DISKFILE = *Amanda::Configc::CNF_DISKFILE;
 *CNF_INFOFILE = *Amanda::Configc::CNF_INFOFILE;
@@ -176,6 +180,7 @@ package Amanda::Config;
 *CNF_CONNECT_TRIES = *Amanda::Configc::CNF_CONNECT_TRIES;
 *CNF_REQ_TRIES = *Amanda::Configc::CNF_REQ_TRIES;
 *CNF_DEBUG_AMANDAD = *Amanda::Configc::CNF_DEBUG_AMANDAD;
+*CNF_DEBUG_RECOVERY = *Amanda::Configc::CNF_DEBUG_RECOVERY;
 *CNF_DEBUG_AMIDXTAPED = *Amanda::Configc::CNF_DEBUG_AMIDXTAPED;
 *CNF_DEBUG_AMINDEXD = *Amanda::Configc::CNF_DEBUG_AMINDEXD;
 *CNF_DEBUG_AMRECOVER = *Amanda::Configc::CNF_DEBUG_AMRECOVER;
@@ -194,6 +199,8 @@ package Amanda::Config;
 *CNF_RESERVED_UDP_PORT = *Amanda::Configc::CNF_RESERVED_UDP_PORT;
 *CNF_RESERVED_TCP_PORT = *Amanda::Configc::CNF_RESERVED_TCP_PORT;
 *CNF_UNRESERVED_TCP_PORT = *Amanda::Configc::CNF_UNRESERVED_TCP_PORT;
+*CNF_HOLDINGDISK = *Amanda::Configc::CNF_HOLDINGDISK;
+*CNF_SEND_AMREPORT_ON = *Amanda::Configc::CNF_SEND_AMREPORT_ON;
 *TAPETYPE_COMMENT = *Amanda::Configc::TAPETYPE_COMMENT;
 *TAPETYPE_LBL_TEMPL = *Amanda::Configc::TAPETYPE_LBL_TEMPL;
 *TAPETYPE_BLOCKSIZE = *Amanda::Configc::TAPETYPE_BLOCKSIZE;
@@ -210,8 +217,9 @@ package Amanda::Config;
 *DUMPTYPE_CLNT_ENCRYPT = *Amanda::Configc::DUMPTYPE_CLNT_ENCRYPT;
 *DUMPTYPE_AMANDAD_PATH = *Amanda::Configc::DUMPTYPE_AMANDAD_PATH;
 *DUMPTYPE_CLIENT_USERNAME = *Amanda::Configc::DUMPTYPE_CLIENT_USERNAME;
+*DUMPTYPE_CLIENT_PORT = *Amanda::Configc::DUMPTYPE_CLIENT_PORT;
 *DUMPTYPE_SSH_KEYS = *Amanda::Configc::DUMPTYPE_SSH_KEYS;
-*DUMPTYPE_SECURITY_DRIVER = *Amanda::Configc::DUMPTYPE_SECURITY_DRIVER;
+*DUMPTYPE_AUTH = *Amanda::Configc::DUMPTYPE_AUTH;
 *DUMPTYPE_EXCLUDE = *Amanda::Configc::DUMPTYPE_EXCLUDE;
 *DUMPTYPE_INCLUDE = *Amanda::Configc::DUMPTYPE_INCLUDE;
 *DUMPTYPE_PRIORITY = *Amanda::Configc::DUMPTYPE_PRIORITY;
@@ -224,7 +232,7 @@ package Amanda::Config;
 *DUMPTYPE_BUMPMULT = *Amanda::Configc::DUMPTYPE_BUMPMULT;
 *DUMPTYPE_STARTTIME = *Amanda::Configc::DUMPTYPE_STARTTIME;
 *DUMPTYPE_STRATEGY = *Amanda::Configc::DUMPTYPE_STRATEGY;
-*DUMPTYPE_ESTIMATE = *Amanda::Configc::DUMPTYPE_ESTIMATE;
+*DUMPTYPE_ESTIMATELIST = *Amanda::Configc::DUMPTYPE_ESTIMATELIST;
 *DUMPTYPE_COMPRESS = *Amanda::Configc::DUMPTYPE_COMPRESS;
 *DUMPTYPE_ENCRYPT = *Amanda::Configc::DUMPTYPE_ENCRYPT;
 *DUMPTYPE_SRV_DECRYPT_OPT = *Amanda::Configc::DUMPTYPE_SRV_DECRYPT_OPT;
@@ -241,8 +249,9 @@ package Amanda::Config;
 *DUMPTYPE_IGNORE = *Amanda::Configc::DUMPTYPE_IGNORE;
 *DUMPTYPE_INDEX = *Amanda::Configc::DUMPTYPE_INDEX;
 *DUMPTYPE_APPLICATION = *Amanda::Configc::DUMPTYPE_APPLICATION;
-*DUMPTYPE_PP_SCRIPTLIST = *Amanda::Configc::DUMPTYPE_PP_SCRIPTLIST;
+*DUMPTYPE_SCRIPTLIST = *Amanda::Configc::DUMPTYPE_SCRIPTLIST;
 *DUMPTYPE_PROPERTY = *Amanda::Configc::DUMPTYPE_PROPERTY;
+*DUMPTYPE_DATA_PATH = *Amanda::Configc::DUMPTYPE_DATA_PATH;
 *INTER_COMMENT = *Amanda::Configc::INTER_COMMENT;
 *INTER_MAXUSAGE = *Amanda::Configc::INTER_MAXUSAGE;
 *HOLDING_COMMENT = *Amanda::Configc::HOLDING_COMMENT;
@@ -257,6 +266,7 @@ package Amanda::Config;
 *PP_SCRIPT_PROPERTY = *Amanda::Configc::PP_SCRIPT_PROPERTY;
 *PP_SCRIPT_EXECUTE_ON = *Amanda::Configc::PP_SCRIPT_EXECUTE_ON;
 *PP_SCRIPT_EXECUTE_WHERE = *Amanda::Configc::PP_SCRIPT_EXECUTE_WHERE;
+*PP_SCRIPT_ORDER = *Amanda::Configc::PP_SCRIPT_ORDER;
 *DEVICE_CONFIG_COMMENT = *Amanda::Configc::DEVICE_CONFIG_COMMENT;
 *DEVICE_CONFIG_TAPEDEV = *Amanda::Configc::DEVICE_CONFIG_TAPEDEV;
 *DEVICE_CONFIG_DEVICE_PROPERTY = *Amanda::Configc::DEVICE_CONFIG_DEVICE_PROPERTY;
@@ -265,6 +275,8 @@ package Amanda::Config;
 *CHANGER_CONFIG_TPCHANGER = *Amanda::Configc::CHANGER_CONFIG_TPCHANGER;
 *CHANGER_CONFIG_CHANGERDEV = *Amanda::Configc::CHANGER_CONFIG_CHANGERDEV;
 *CHANGER_CONFIG_CHANGERFILE = *Amanda::Configc::CHANGER_CONFIG_CHANGERFILE;
+*CHANGER_CONFIG_PROPERTY = *Amanda::Configc::CHANGER_CONFIG_PROPERTY;
+*CHANGER_CONFIG_DEVICE_PROPERTY = *Amanda::Configc::CHANGER_CONFIG_DEVICE_PROPERTY;
 *HOLD_NEVER = *Amanda::Configc::HOLD_NEVER;
 *HOLD_AUTO = *Amanda::Configc::HOLD_AUTO;
 *HOLD_REQUIRED = *Amanda::Configc::HOLD_REQUIRED;
@@ -289,6 +301,10 @@ package Amanda::Config;
 *ES_CLIENT = *Amanda::Configc::ES_CLIENT;
 *ES_SERVER = *Amanda::Configc::ES_SERVER;
 *ES_CALCSIZE = *Amanda::Configc::ES_CALCSIZE;
+*AL_OTHER_CONFIG = *Amanda::Configc::AL_OTHER_CONFIG;
+*AL_NON_AMANDA = *Amanda::Configc::AL_NON_AMANDA;
+*AL_VOLUME_ERROR = *Amanda::Configc::AL_VOLUME_ERROR;
+*AL_EMPTY = *Amanda::Configc::AL_EMPTY;
 *ALGO_FIRST = *Amanda::Configc::ALGO_FIRST;
 *ALGO_FIRSTFIT = *Amanda::Configc::ALGO_FIRSTFIT;
 *ALGO_LARGEST = *Amanda::Configc::ALGO_LARGEST;
@@ -311,7 +327,10 @@ package Amanda::Config;
 *SEND_AMREPORT_STRANGE = *Amanda::Configc::SEND_AMREPORT_STRANGE;
 *SEND_AMREPORT_ERROR = *Amanda::Configc::SEND_AMREPORT_ERROR;
 *SEND_AMREPORT_NEVER = *Amanda::Configc::SEND_AMREPORT_NEVER;
+*DATA_PATH_AMANDA = *Amanda::Configc::DATA_PATH_AMANDA;
+*DATA_PATH_DIRECTTCP = *Amanda::Configc::DATA_PATH_DIRECTTCP;
 *debug_amandad = *Amanda::Configc::debug_amandad;
+*debug_recovery = *Amanda::Configc::debug_recovery;
 *debug_amidxtaped = *Amanda::Configc::debug_amidxtaped;
 *debug_amindexd = *Amanda::Configc::debug_amindexd;
 *debug_amrecover = *Amanda::Configc::debug_amrecover;
@@ -338,25 +357,30 @@ package Amanda::Config;
 @EXPORT_OK = ();
 %EXPORT_TAGS = ();
 
+
 =head1 NAME
 
 Amanda::Config - access to Amanda configuration parameters
 
 =head1 SYNOPSIS
 
-  use Amanda::Config qw( :init :getconf );
+    use Amanda::Config qw( :init :getconf );
 
-  config_init($CONFIG_INIT_EXPLICIT_NAME, $ARGV[1])
-    or die("errors processing config file " . $Amanda::Config::get_config_filename());
+    my $config_name = shift @ARGV;
+    config_init($CONFIG_INIT_EXPLICIT_NAME, $config_name);
+    apply_config_overrides($config_overrides);
+    my ($cfgerr_level, @cfgerr_errors) = config_errors();
+    if ($cfgerr_level >= $CFGERR_WARNINGS) {
+	config_print_errors();
+	if ($cfgerr_level >= $CFGERR_ERRORS) {
+	    die("errors processing config file");
+	}
+    }
 
-  print "tape device is ", getconf($CNF_TAPEDEV), "\n";
+    print "tape device is ", getconf($CNF_TAPEDEV), "\n";
 
-This API closely parallels the C API.  See F<conffile.h> for details
-on the functions and constants available here.
-
-=head1 API STATUS
-
-Stable
+This API closely parallels the C API.  See F<conffile.h> for details on the
+configuration parameter constants.
 
 =head1 INITIALIZATION
 
@@ -376,8 +400,9 @@ of flags that affect its behavior.  These flags can be OR'd together.
 
 =over
 
-=item If C<CONFIG_INIT_EXPLICIT_NAME> is given, then the C<$name>
-parameter can contain the name of a configuration to load.
+=item If C<CONFIG_INIT_EXPLICIT_NAME> is given, then the C<$name> parameter can
+contain the name of a configuration to load.  Note that if the parameter is
+C<".">, this is equivalent to C<CONFIG_INIT_USE_CWD>.
 
 =item If C<CONFIG_INIT_USE_CWD> is given, and if the current directory
 contains C<amanda.conf>, then that file is loaded.
@@ -407,10 +432,10 @@ C<get_config_filename()>, respectively.
 This module collects configuration errors and warnings in a list, and also
 tracks the overall error level with an enumeration: C<$CFGERR_OK>,
 C<$CFGERR_WARNINGS>, and C<$CFGERR_ERRORS>.  C<config_init> and
-C<apply_config_overwrites> both return the current level.  The level and the
+C<apply_config_overrides> both return the current level.  The level and the
 list of error messages are available from C<config_errors>:
 
-  my ($cfgerr_level, @errors) = Amanda::Configconfig_errors();
+  my ($cfgerr_level, @errors) = Amanda::Config::config_errors();
 
 As a convenience, C<config_print_errors> will print all error messages to
 stderr.  The error state can be cleared with C<config_clear_errors>.
@@ -420,28 +445,28 @@ stderr.  The error state can be cleared with C<config_clear_errors>.
 Most Amanda applications accept the command-line option C<-o>
 to "overwrite" configuration values in C<amanda.conf>.  In Perl
 applications, these options should be parsed with L<Getopt::Long|Getopt::Long>, with
-the action being a call to C<add_config_overwrite_opt>.  For example:
+the action being a call to C<add_config_override_opt>.  For example:
 
-  my $config_overwrites = new_config_overwrites($#ARGV+1);
+  my $config_overrides = new_config_overrides($#ARGV+1);
     GetOptions(
 	# ...
-	'o=s' => sub { add_config_overwrite_opt($config_overwrites, $_[1]); },
+	'o=s' => sub { add_config_override_opt($config_overrides, $_[1]); },
     ) or usage();
   my $cfg_ok = config_init($CONFIG_INIT_EXPLICIT_NAME | $CONFIG_INIT_USE_CWD, $config_name);
-  apply_config_overwrites($config_overwrites);
+  apply_config_overrides($config_overrides);
 
-C<new_config_overwrites($size_estimate)> creates a new
+C<new_config_overrides($size_estimate)> creates a new
 overwrites object, using the given size as an estimate of
 the number of items it will contain (C<$#ARGC/2> is a good
 estimate).  Individual configuration options are then added via
-C<add_config_overwrite($co, $key, $value)> (which takes a key/value
-pair) or C<add_config_overwrite_opt($co, $optarg)>, which parses a
+C<add_config_override($co, $key, $value)> (which takes a key/value
+pair) or C<add_config_override_opt($co, $optarg)>, which parses a
 string following C<-o> on the command line.
 
 Once the overwrites are gathered, they are applied with
-C<apply_config_overwrites($co)>, which applies the overwrites to the
+C<apply_config_overrides($co)>, which applies the overwrites to the
 active configuration.  No further operations can be performed on the
-overwrites object after C<apply_config_overwrites> has been called.
+overwrites object after C<apply_config_overrides> has been called.
 
 The utility function C<get_config_options()> returns a list of
 command-line arguments to represent any overwrites that were used
@@ -454,12 +479,14 @@ Amanda configurations consist of "global" parameters and several
 sets of "subsections" -- one set for dumptypes, one for tapetypes,
 and so on.
 
-All of the global parameters are represented by a constant beginning
-with C<$CNF_>, e.g., C<$CNF_LABELSTR>.  The function C<getconf($cnf)>
-returns the value of parameter C<$cnf>, in whatever format is
-appropriate for the parameter.  C<getconf_seen($cnf)> returns a true
-value if C<$cnf> was seen in the configuration file.  If it was not
-seen, then it will have its default value.
+All of the global parameters are represented by a constant beginning with
+C<$CNF_>, e.g., C<$CNF_LABELSTR>.  The function C<getconf($cnf)> returns the
+value of parameter C<$cnf>, in whatever format is appropriate for the parameter
+(see DATA FORMATS, below).  C<getconf_seen($cnf)> returns a true value if
+C<$cnf> was seen in the configuration file.  If it was not seen, then it will
+have its default value.  C<getconf_linenum($cnf)> returns the line number in
+the configuration file where it is set, 0 if it is not in a configuration file,
+or -2 if it is set in a command line argument.
 
 Some parameters have enumerated types.  The values for those
 enumerations are available from this module with the same name as
@@ -467,7 +494,7 @@ in C<conffile.h>.  For example, C<$CNF_TAPERALGO> will yield a value
 from the enumeration C<taperalgo_t>, the constants for which all
 begin with C<$ALGO_>.  See C<conffile.h> for the details.
 
-Each subsection type has the following functions:
+Each subsection type C<TYP> has the following functions:
 
 =over
 
@@ -531,16 +558,78 @@ with constants beginning with C<$CHANGER_CONFIG_>.
 
 See C<conffile.h> for the names of the constants themselves.
 
+=head2 DATA FORMATS
+
+Each configuration parameter has a "conftype", as assigned in
+C<common-src/conffile.c>.  The translation of most of these types into Perl
+values is straightforward:
+
+  CONFTYPE_INT                        Math::BigInt
+  CONFTYPE_INT64                      Math::BigInt
+  CONFTYPE_REAL                       floating-point value
+  CONFTYPE_STR                        string
+  CONFTYPE_IDENT                      string
+  CONFTYPE_TIME                       Math::BigInt (epoch value)
+  CONFTYPE_SIZE                       Math::BigInt
+  CONFTYPE_BOOLEAN                    Math::BigInt
+  CONFTYPE_COMPRESS                   Math::BigInt
+  CONFTYPE_ENCRYPT                    Math::BigInt
+  CONFTYPE_HOLDING                    Math::BigInt
+  CONFTYPE_ESTIMATELIST               [ Math::BigInt, .. ]
+  CONFTYPE_STRATEGY                   Math::BigInt
+  CONFTYPE_TAPERALGO                  Math::BigInt
+  CONFTYPE_PRIORITY                   Math::BigInt
+  CONFTYPE_RATE                       float, float
+  CONFTYPE_INTRANGE                   Math::BigInt, Math::BigInt
+  CONFTYPE_APPLICATION                string
+  CONFTYPE_EXECUTE_ON                 string
+  CONFTYPE_EXECUTE_WHERE              Math::BigInt
+  CONFTYPE_SEND_AMREPORT_ON           Math::BigInt
+  CONFTYPE_IDENTLIST                  [ string, .. ]
+
+Note that C<CONFTYPE_INTRANGE> and C<CONFTYPE_RATE> each return two values, not
+an array reference.
+
+Include and exclude lists with type C<CONFTYPE_EXINCLUDE> return a hash giving
+all listed filenames (in the C<list> key), include/exclude files (C<files>),
+and a boolean indicating that the list is optional (C<optional>):
+
+  { list => [ str, .. ], file => [ str, .. ], optional => Math::BigInt }
+
+Properties are represented as a hash of hashes.  The keys are the property
+names, converted to ASCII lowercase.  Each property has a C<values> array
+giving all values specified for this property, as well as booleans C<priority>
+and C<append> that are true if the corresponding keyword was supplied.
+
+  { prop1 => { values => [ str, .. ] priority => int, append => int },
+    prop2 => { .. } .. }
+
+Note that integer types of all sizes become C<Math::BigInt> objects rather than
+Perl integers, as is the habit throughout Amanda.
+
+The C<CNF_AUTOLABEL> value is a hash with the following keys
+
+  template	label template, or undef
+  other_config	boolean
+  non_amanda	boolean
+  volume_error	boolean
+  empty		boolean
+
+=head2 OTHER ACCESS
+
 Parameter values are available by name from C<getconf_byname($name)> and
 C<getconf_byname_strs($name, $str_needs_quotes)>.  These functions implement
 the C<TYP:NAME:PARAM> syntax advertised by C<amgetconf> to access values in
-subsections.  The first function returns a perl value, while the second returns
-a string suitable for use in C<amanda.conf>, including quotes around strings if
-C<$str_needs_quotes> is true.
+subsections.  The first function returns a Perl value (see DATA FORMATS,
+above), while the second returns a list of strings suitable for use in
+C<amanda.conf>, including quotes around strings if C<$str_needs_quotes> is
+true.
 
 C<getconf_list($typ)> returns a list of the names of all subsections of the
 given type.  C<%subsection_names> is a hash whose keys are allowed subsection
 names.
+
+=head2 DERIVED VALUES
 
 The C<$CNF_DISPLAYUNIT> implies a certain divisor to convert from
 kilobytes to the desired unit.  This divisor is available from
@@ -571,7 +660,13 @@ Several parts of Amanda need to convert unit modifier value like
 returns the unit multiplier for such a string.  For example, "mbytes"
 is converted to 1048576 (1024*1024).
 
+C<string_to_boolean()> takes a string and returns 0 if it matches any of
+Amanda's names for false, or 1 if matches a name for true. If it can't be
+interpreted, C<undef> is returned.
+
 =cut
+
+
 
 push @EXPORT_OK, qw(confparm_key_to_string);
 push @{$EXPORT_TAGS{"confparm_key"}}, qw(confparm_key_to_string);
@@ -634,6 +729,11 @@ push @{$EXPORT_TAGS{"confparm_key"}}, qw($CNF_CLIENT_USERNAME);
 
 $_confparm_key_VALUES{"CNF_CLIENT_USERNAME"} = $CNF_CLIENT_USERNAME;
 
+push @EXPORT_OK, qw($CNF_CLIENT_PORT);
+push @{$EXPORT_TAGS{"confparm_key"}}, qw($CNF_CLIENT_PORT);
+
+$_confparm_key_VALUES{"CNF_CLIENT_PORT"} = $CNF_CLIENT_PORT;
+
 push @EXPORT_OK, qw($CNF_GNUTAR_LIST_DIR);
 push @{$EXPORT_TAGS{"confparm_key"}}, qw($CNF_GNUTAR_LIST_DIR);
 
@@ -688,6 +788,11 @@ push @EXPORT_OK, qw($CNF_LABELSTR);
 push @{$EXPORT_TAGS{"confparm_key"}}, qw($CNF_LABELSTR);
 
 $_confparm_key_VALUES{"CNF_LABELSTR"} = $CNF_LABELSTR;
+
+push @EXPORT_OK, qw($CNF_AUTOLABEL);
+push @{$EXPORT_TAGS{"confparm_key"}}, qw($CNF_AUTOLABEL);
+
+$_confparm_key_VALUES{"CNF_AUTOLABEL"} = $CNF_AUTOLABEL;
 
 push @EXPORT_OK, qw($CNF_TAPELIST);
 push @{$EXPORT_TAGS{"confparm_key"}}, qw($CNF_TAPELIST);
@@ -914,6 +1019,11 @@ push @{$EXPORT_TAGS{"confparm_key"}}, qw($CNF_DEBUG_AMANDAD);
 
 $_confparm_key_VALUES{"CNF_DEBUG_AMANDAD"} = $CNF_DEBUG_AMANDAD;
 
+push @EXPORT_OK, qw($CNF_DEBUG_RECOVERY);
+push @{$EXPORT_TAGS{"confparm_key"}}, qw($CNF_DEBUG_RECOVERY);
+
+$_confparm_key_VALUES{"CNF_DEBUG_RECOVERY"} = $CNF_DEBUG_RECOVERY;
+
 push @EXPORT_OK, qw($CNF_DEBUG_AMIDXTAPED);
 push @{$EXPORT_TAGS{"confparm_key"}}, qw($CNF_DEBUG_AMIDXTAPED);
 
@@ -1003,6 +1113,16 @@ push @EXPORT_OK, qw($CNF_UNRESERVED_TCP_PORT);
 push @{$EXPORT_TAGS{"confparm_key"}}, qw($CNF_UNRESERVED_TCP_PORT);
 
 $_confparm_key_VALUES{"CNF_UNRESERVED_TCP_PORT"} = $CNF_UNRESERVED_TCP_PORT;
+
+push @EXPORT_OK, qw($CNF_HOLDINGDISK);
+push @{$EXPORT_TAGS{"confparm_key"}}, qw($CNF_HOLDINGDISK);
+
+$_confparm_key_VALUES{"CNF_HOLDINGDISK"} = $CNF_HOLDINGDISK;
+
+push @EXPORT_OK, qw($CNF_SEND_AMREPORT_ON);
+push @{$EXPORT_TAGS{"confparm_key"}}, qw($CNF_SEND_AMREPORT_ON);
+
+$_confparm_key_VALUES{"CNF_SEND_AMREPORT_ON"} = $CNF_SEND_AMREPORT_ON;
 
 #copy symbols in confparm_key to getconf
 push @{$EXPORT_TAGS{"getconf"}},  @{$EXPORT_TAGS{"confparm_key"}};
@@ -1132,15 +1252,20 @@ push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_CLIENT_USERNAME);
 
 $_dumptype_key_VALUES{"DUMPTYPE_CLIENT_USERNAME"} = $DUMPTYPE_CLIENT_USERNAME;
 
+push @EXPORT_OK, qw($DUMPTYPE_CLIENT_PORT);
+push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_CLIENT_PORT);
+
+$_dumptype_key_VALUES{"DUMPTYPE_CLIENT_PORT"} = $DUMPTYPE_CLIENT_PORT;
+
 push @EXPORT_OK, qw($DUMPTYPE_SSH_KEYS);
 push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_SSH_KEYS);
 
 $_dumptype_key_VALUES{"DUMPTYPE_SSH_KEYS"} = $DUMPTYPE_SSH_KEYS;
 
-push @EXPORT_OK, qw($DUMPTYPE_SECURITY_DRIVER);
-push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_SECURITY_DRIVER);
+push @EXPORT_OK, qw($DUMPTYPE_AUTH);
+push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_AUTH);
 
-$_dumptype_key_VALUES{"DUMPTYPE_SECURITY_DRIVER"} = $DUMPTYPE_SECURITY_DRIVER;
+$_dumptype_key_VALUES{"DUMPTYPE_AUTH"} = $DUMPTYPE_AUTH;
 
 push @EXPORT_OK, qw($DUMPTYPE_EXCLUDE);
 push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_EXCLUDE);
@@ -1202,10 +1327,10 @@ push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_STRATEGY);
 
 $_dumptype_key_VALUES{"DUMPTYPE_STRATEGY"} = $DUMPTYPE_STRATEGY;
 
-push @EXPORT_OK, qw($DUMPTYPE_ESTIMATE);
-push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_ESTIMATE);
+push @EXPORT_OK, qw($DUMPTYPE_ESTIMATELIST);
+push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_ESTIMATELIST);
 
-$_dumptype_key_VALUES{"DUMPTYPE_ESTIMATE"} = $DUMPTYPE_ESTIMATE;
+$_dumptype_key_VALUES{"DUMPTYPE_ESTIMATELIST"} = $DUMPTYPE_ESTIMATELIST;
 
 push @EXPORT_OK, qw($DUMPTYPE_COMPRESS);
 push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_COMPRESS);
@@ -1287,15 +1412,20 @@ push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_APPLICATION);
 
 $_dumptype_key_VALUES{"DUMPTYPE_APPLICATION"} = $DUMPTYPE_APPLICATION;
 
-push @EXPORT_OK, qw($DUMPTYPE_PP_SCRIPTLIST);
-push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_PP_SCRIPTLIST);
+push @EXPORT_OK, qw($DUMPTYPE_SCRIPTLIST);
+push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_SCRIPTLIST);
 
-$_dumptype_key_VALUES{"DUMPTYPE_PP_SCRIPTLIST"} = $DUMPTYPE_PP_SCRIPTLIST;
+$_dumptype_key_VALUES{"DUMPTYPE_SCRIPTLIST"} = $DUMPTYPE_SCRIPTLIST;
 
 push @EXPORT_OK, qw($DUMPTYPE_PROPERTY);
 push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_PROPERTY);
 
 $_dumptype_key_VALUES{"DUMPTYPE_PROPERTY"} = $DUMPTYPE_PROPERTY;
+
+push @EXPORT_OK, qw($DUMPTYPE_DATA_PATH);
+push @{$EXPORT_TAGS{"dumptype_key"}}, qw($DUMPTYPE_DATA_PATH);
+
+$_dumptype_key_VALUES{"DUMPTYPE_DATA_PATH"} = $DUMPTYPE_DATA_PATH;
 
 #copy symbols in dumptype_key to getconf
 push @{$EXPORT_TAGS{"getconf"}},  @{$EXPORT_TAGS{"dumptype_key"}};
@@ -1463,6 +1593,11 @@ push @{$EXPORT_TAGS{"pp_script_key"}}, qw($PP_SCRIPT_EXECUTE_WHERE);
 
 $_pp_script_key_VALUES{"PP_SCRIPT_EXECUTE_WHERE"} = $PP_SCRIPT_EXECUTE_WHERE;
 
+push @EXPORT_OK, qw($PP_SCRIPT_ORDER);
+push @{$EXPORT_TAGS{"pp_script_key"}}, qw($PP_SCRIPT_ORDER);
+
+$_pp_script_key_VALUES{"PP_SCRIPT_ORDER"} = $PP_SCRIPT_ORDER;
+
 #copy symbols in pp_script_key to getconf
 push @{$EXPORT_TAGS{"getconf"}},  @{$EXPORT_TAGS{"pp_script_key"}};
 
@@ -1550,6 +1685,16 @@ push @EXPORT_OK, qw($CHANGER_CONFIG_CHANGERFILE);
 push @{$EXPORT_TAGS{"changer_config_key"}}, qw($CHANGER_CONFIG_CHANGERFILE);
 
 $_changer_config_key_VALUES{"CHANGER_CONFIG_CHANGERFILE"} = $CHANGER_CONFIG_CHANGERFILE;
+
+push @EXPORT_OK, qw($CHANGER_CONFIG_PROPERTY);
+push @{$EXPORT_TAGS{"changer_config_key"}}, qw($CHANGER_CONFIG_PROPERTY);
+
+$_changer_config_key_VALUES{"CHANGER_CONFIG_PROPERTY"} = $CHANGER_CONFIG_PROPERTY;
+
+push @EXPORT_OK, qw($CHANGER_CONFIG_DEVICE_PROPERTY);
+push @{$EXPORT_TAGS{"changer_config_key"}}, qw($CHANGER_CONFIG_DEVICE_PROPERTY);
+
+$_changer_config_key_VALUES{"CHANGER_CONFIG_DEVICE_PROPERTY"} = $CHANGER_CONFIG_DEVICE_PROPERTY;
 
 #copy symbols in changer_config_key to getconf
 push @{$EXPORT_TAGS{"getconf"}},  @{$EXPORT_TAGS{"changer_config_key"}};
@@ -1794,6 +1939,50 @@ $_estimate_t_VALUES{"ES_CALCSIZE"} = $ES_CALCSIZE;
 #copy symbols in estimate_t to getconf
 push @{$EXPORT_TAGS{"getconf"}},  @{$EXPORT_TAGS{"estimate_t"}};
 
+push @EXPORT_OK, qw(autolabel_enum_t_to_string);
+push @{$EXPORT_TAGS{"autolabel_enum_t"}}, qw(autolabel_enum_t_to_string);
+
+my %_autolabel_enum_t_VALUES;
+#Convert an enum value to a single string
+sub autolabel_enum_t_to_string {
+    my ($enumval) = @_;
+
+    for my $k (keys %_autolabel_enum_t_VALUES) {
+	my $v = $_autolabel_enum_t_VALUES{$k};
+
+	#is this a matching flag?
+	if ($enumval == $v) {
+	    return $k;
+	}
+    }
+
+#default, just return the number
+    return $enumval;
+}
+
+push @EXPORT_OK, qw($AL_OTHER_CONFIG);
+push @{$EXPORT_TAGS{"autolabel_enum_t"}}, qw($AL_OTHER_CONFIG);
+
+$_autolabel_enum_t_VALUES{"AL_OTHER_CONFIG"} = $AL_OTHER_CONFIG;
+
+push @EXPORT_OK, qw($AL_NON_AMANDA);
+push @{$EXPORT_TAGS{"autolabel_enum_t"}}, qw($AL_NON_AMANDA);
+
+$_autolabel_enum_t_VALUES{"AL_NON_AMANDA"} = $AL_NON_AMANDA;
+
+push @EXPORT_OK, qw($AL_VOLUME_ERROR);
+push @{$EXPORT_TAGS{"autolabel_enum_t"}}, qw($AL_VOLUME_ERROR);
+
+$_autolabel_enum_t_VALUES{"AL_VOLUME_ERROR"} = $AL_VOLUME_ERROR;
+
+push @EXPORT_OK, qw($AL_EMPTY);
+push @{$EXPORT_TAGS{"autolabel_enum_t"}}, qw($AL_EMPTY);
+
+$_autolabel_enum_t_VALUES{"AL_EMPTY"} = $AL_EMPTY;
+
+#copy symbols in autolabel_enum_t to getconf
+push @{$EXPORT_TAGS{"getconf"}},  @{$EXPORT_TAGS{"autolabel_enum_t"}};
+
 push @EXPORT_OK, qw(taperalgo_t_to_string);
 push @{$EXPORT_TAGS{"taperalgo_t"}}, qw(taperalgo_t_to_string);
 
@@ -1976,10 +2165,44 @@ $_send_amreport_on_t_VALUES{"SEND_AMREPORT_NEVER"} = $SEND_AMREPORT_NEVER;
 #copy symbols in send_amreport_on_t to getconf
 push @{$EXPORT_TAGS{"getconf"}},  @{$EXPORT_TAGS{"send_amreport_on_t"}};
 
-push @EXPORT_OK, qw(getconf getconf_seen 
+push @EXPORT_OK, qw(data_path_t_to_string);
+push @{$EXPORT_TAGS{"data_path_t"}}, qw(data_path_t_to_string);
+
+my %_data_path_t_VALUES;
+#Convert an enum value to a single string
+sub data_path_t_to_string {
+    my ($enumval) = @_;
+
+    for my $k (keys %_data_path_t_VALUES) {
+	my $v = $_data_path_t_VALUES{$k};
+
+	#is this a matching flag?
+	if ($enumval == $v) {
+	    return $k;
+	}
+    }
+
+#default, just return the number
+    return $enumval;
+}
+
+push @EXPORT_OK, qw($DATA_PATH_AMANDA);
+push @{$EXPORT_TAGS{"data_path_t"}}, qw($DATA_PATH_AMANDA);
+
+$_data_path_t_VALUES{"DATA_PATH_AMANDA"} = $DATA_PATH_AMANDA;
+
+push @EXPORT_OK, qw($DATA_PATH_DIRECTTCP);
+push @{$EXPORT_TAGS{"data_path_t"}}, qw($DATA_PATH_DIRECTTCP);
+
+$_data_path_t_VALUES{"DATA_PATH_DIRECTTCP"} = $DATA_PATH_DIRECTTCP;
+
+#copy symbols in data_path_t to getconf
+push @{$EXPORT_TAGS{"getconf"}},  @{$EXPORT_TAGS{"data_path_t"}};
+
+push @EXPORT_OK, qw(getconf getconf_seen getconf_linenum
     getconf_byname getconf_byname_strs
     getconf_list);
-push @{$EXPORT_TAGS{"getconf"}}, qw(getconf getconf_seen 
+push @{$EXPORT_TAGS{"getconf"}}, qw(getconf getconf_seen getconf_linenum
     getconf_byname getconf_byname_strs
     getconf_list);
 
@@ -1999,10 +2222,10 @@ push @{$EXPORT_TAGS{"getconf"}}, qw(lookup_interface interface_getconf interface
     interface_seen interface_seen);
 
 push @EXPORT_OK, qw(lookup_holdingdisk holdingdisk_getconf holdingdisk_name
-    getconf_holdingdisks holdingdisk_next
+    getconf_holdingdisks
     holdingdisk_seen holdingdisk_seen);
 push @{$EXPORT_TAGS{"getconf"}}, qw(lookup_holdingdisk holdingdisk_getconf holdingdisk_name
-    getconf_holdingdisks holdingdisk_next
+    getconf_holdingdisks
     holdingdisk_seen holdingdisk_seen);
 
 push @EXPORT_OK, qw(lookup_application application_getconf application_name
@@ -2025,13 +2248,17 @@ push @EXPORT_OK, qw(lookup_changer_config changer_config_getconf changer_config_
 push @{$EXPORT_TAGS{"getconf"}}, qw(lookup_changer_config changer_config_getconf changer_config_name
     changer_config_seen changer_config_seen);
 
+# only those keys with a value of '1' should be shown; the
+# others are deprecated
 our %subsection_names = (
     "tapetype" => 1,
     "dumptype" => 1,
     "interface" => 1,
     "holdingdisk" => 1,
-    "application-tool" => 1,
-    "script-tool" => 1,
+    "application" => 1,
+    "script" => 1,
+    "application-tool" => 0,
+    "script-tool" => 0,
     "device" => 1,
     "changer" => 1,
 );
@@ -2041,13 +2268,13 @@ push @{$EXPORT_TAGS{"getconf"}}, qw(%subsection_names);
 
 push @EXPORT_OK, qw(getconf_unit_divisor
 
-    $debug_amandad $debug_amidxtaped $debug_amindexd $debug_amrecover
+    $debug_amandad $debug_recovery $debug_amidxtaped $debug_amindexd $debug_amrecover
     $debug_auth $debug_event $debug_holding $debug_protocol
     $debug_planner $debug_driver $debug_dumper $debug_chunker
     $debug_taper $debug_selfcheck $debug_sendsize $debug_sendbackup);
 push @{$EXPORT_TAGS{"getconf"}}, qw(getconf_unit_divisor
 
-    $debug_amandad $debug_amidxtaped $debug_amindexd $debug_amrecover
+    $debug_amandad $debug_recovery $debug_amidxtaped $debug_amindexd $debug_amrecover
     $debug_auth $debug_event $debug_holding $debug_protocol
     $debug_planner $debug_driver $debug_dumper $debug_chunker
     $debug_taper $debug_selfcheck $debug_sendsize $debug_sendbackup);
@@ -2143,13 +2370,24 @@ push @{$EXPORT_TAGS{"init"}},  @{$EXPORT_TAGS{"config_init_flags"}};
 push @EXPORT_OK, qw(config_init config_uninit get_config_options
     get_config_name get_config_dir get_config_filename
     config_print_errors config_clear_errors config_errors
-    new_config_overwrites free_config_overwrites add_config_overwrite
-    add_config_overwrite_opt apply_config_overwrites);
+    new_config_overrides free_config_overrides add_config_override
+    add_config_override_opt set_config_overrides);
 push @{$EXPORT_TAGS{"init"}}, qw(config_init config_uninit get_config_options
     get_config_name get_config_dir get_config_filename
     config_print_errors config_clear_errors config_errors
-    new_config_overwrites free_config_overwrites add_config_overwrite
-    add_config_overwrite_opt apply_config_overwrites);
+    new_config_overrides free_config_overrides add_config_override
+    add_config_override_opt set_config_overrides);
 
 push @EXPORT_OK, qw(dump_configuration config_dir_relative taperalgo2str find_multiplier);
+
+
+sub string_to_boolean {
+    my ($str) = @_;
+    my $ret = C_string_to_boolean($str);
+    return undef unless $ret >= 0;
+    return $ret;
+}
+
+
+push @EXPORT_OK, qw(string_to_boolean);
 1;

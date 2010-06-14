@@ -1,159 +1,35 @@
 /*
- * Copyright (c) Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
  *
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1
- * as published by the Free Software Foundation.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  *
- * This library is distributed in the hope that it will be useful, but
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 %module "Amanda::Device"
 %include "amglue/amglue.swg"
 %include "exception.i"
+%import "Amanda/Header.swg";
+
+%include "Amanda/Device.pod"
 
 %{
 #include "device.h"
 #include "property.h"
 #include "fileheader.h"
-%}
-
-/* import dumptype_t, among others */
-%import "Amanda/Types.swg";
-
-%perlcode %{
-=head1 NAME
-
-Amanda::Device - interact with Amanda data-storage devices
-
-=head1 SYNOPSIS
-
-  use Amanda::Device qw( :constants );
-
-  my $dev = Amanda::Device->new($device_name);
-  if ($dev->read_label() == $DEVICE_STATUS_SUCCESS) {
-      print "Label on $device_name is '$dev->volume_label'\n";
-  }
-  
-See http://wiki.zmanda.com/index.php/Device_API for details on how Devices are used.
-
-=head1 API STATUS
-
-Stable
-
-=head1 Amanda::Device Objects
-
-See the wiki for descriptions of these functions.  Note that C instance variables
-are represented by accessor functions of the same name.
-
-=over
-
-=item C<configure($use_global_config)>
-
-=item C<read_label()>
-
-=item C<start($mode, $label, $timestamp)>
-
-=item C<finish()>
-
-=item C<start_file($jobinfo)>
-
-where C<$jobinfo> is a C<dumpfile_t> (see L<Amanda::Types>)
-
-=item C<write_block($size, $data, $short_block)>
-
-Note that Perl code is not expected to handle on-device data, so there
-is currently no way to provide data to this function from Perl.  This may
-change in future revisions.
-
-=item C<write_from_fd($queue_fd)>
-
-where C<$fd> is an integer file descriptor, not a filehandle
-
-=item C<finish_file()>
-
-=item C<seek_file($file)>
-
-=item C<seek_block($block)>
-
-=item C<read_block($size)>
-
-=item C<read_to_fd($queue_fd)>
-
-where C<$fd> is an integer file descriptor, not a filehandle
-
-Note that Perl code is not expected to handle on-device data, so there
-is currently no way to access the data this function returns.  This may
-change in future revisions.
-
-=item C<property_list()>
-
-returns a list of properties, each represented as a hash:
-
-  { 'access' => $access_flags,
-    'name' => $property_name,
-    'description' => $property_description }
-
-=item C<property_get($property_name)>
-
-returns the property, with the appropriate Perl type, or undef.  In array
-context, returns the list C<($value, $surety, $source)>.
-
-=item C<property_set($property_name, $value)>
-
-=item C<property_set_ex($property_name, $value, $surety, $source)>
-
-where C<$value> is of an appropriate type for the given property, C<$surety> is
-a C<$PROPERTY_SURETY_*> constant, and C<$source> is a C<$PROPERTY_SOURCE_*>
-constant.
-
-=item C<recycle_file($filenum)>
-
-=item C<file()> (accessor function)
-
-=item C<block()> (accessor function)
-
-=item C<in_file()> (accessor function)
-
-=item C<device_name()> (accessor function)
-
-=item C<access_mode()> (accessor function)
-
-=item C<is_eof()> (accessor function)
-
-=item C<volume_label()> (accessor function)
-
-=item C<volume_time()> (accessor function)
-
-=item C<min_block_size()> (accessor function)
-
-=item C<max_block_size()> (accessor function)
-
-=item C<block_size()> (accessor function)
-
-=item C<volume_header()> (accessor function)
-
-=back
-
-=head1 CONSTANTS
-
-This module defines a large number of constants.  Again, consult the
-wiki or C<device.h> for the details on their meaning.  These constants
-are available from the package namespace (e.g.,
-C<Amanda::Device::ACCESS_WRITE>), or imported with the C<:constant>
-import tag.
-
-=cut
+#include "glib-util.h"
 %}
 
 %init %{
@@ -165,6 +41,11 @@ import tag.
 
 /* Utility functions for typemaps, below */
 
+/* return a new, mortal SV corresponding to the given GValue
+ *
+ * @param value: the value to convert
+ * @returns: a new, mortal SV
+ */
 static SV *
 set_sv_from_gvalue(GValue *value)
 {
@@ -174,20 +55,16 @@ set_sv_from_gvalue(GValue *value)
     /* complex reference types */
     switch (fundamental) {
 	case G_TYPE_LONG:
-	    sv = sv_2mortal(amglue_newSVi64(g_value_get_long(value)));
-	    break;
+	    return sv_2mortal(amglue_newSVi64(g_value_get_long(value)));
 
 	case G_TYPE_ULONG:
-	    sv = sv_2mortal(amglue_newSVu64(g_value_get_ulong(value)));
-	    break;
+	    return sv_2mortal(amglue_newSVu64(g_value_get_ulong(value)));
 
 	case G_TYPE_INT64:
-	    sv = sv_2mortal(amglue_newSVi64(g_value_get_int64(value)));
-	    break;
+	    return sv_2mortal(amglue_newSVi64(g_value_get_int64(value)));
 
 	case G_TYPE_UINT64:
-	    sv = sv_2mortal(amglue_newSVu64(g_value_get_uint64(value)));
-	    break;
+	    return sv_2mortal(amglue_newSVu64(g_value_get_uint64(value)));
 
 	case G_TYPE_BOXED: {
 	    GType boxed_type = G_VALUE_TYPE(value);
@@ -196,7 +73,7 @@ set_sv_from_gvalue(GValue *value)
 
 	    if (boxed_type == QUALIFIED_SIZE_TYPE) {
 		qs = *(QualifiedSize*)(g_value_get_boxed(value));
-		
+
 		/* build a hash */
 		hv = (HV *)sv_2mortal((SV *)newHV());
 		hv_store(hv, "accuracy", 8, newSViv(qs.accuracy), 0);
@@ -271,89 +148,108 @@ set_sv_from_gvalue(GValue *value)
     return sv;
 }
 
+/* Given an SV and an initialized GValue, set the GValue to the value
+ * represented by the SV.  The GValue's type must already be set.
+ *
+ * For basic corresponding types (string -> string, integer -> integer),
+ * the translation is straightforward.  However, if the GValue is not a
+ * string, but the SV has a string value, then g_value_set_from_string will
+ * be used to parse the string.
+ *
+ * @param sv: SV to convert
+ * @param value: (input/output) destination
+ * @returns: TRUE on success
+ */
 static gboolean
 set_gvalue_from_sv(SV *sv, GValue *value)
 {
     GType fundamental = G_TYPE_FUNDAMENTAL(G_VALUE_TYPE(value));
+
+    /* if we got a string, use g_value_set_from_string to parse any funny
+     * values or suffixes */
+    if (SvPOK(sv)) {
+	if (g_value_set_from_string(value, SvPV_nolen(sv)))
+	    return TRUE;
+    }
+
+    /* otherwise, handle numeric types with SvIV, SvNV, or the amglue_* functions */
     switch (fundamental) {
+	case G_TYPE_BOOLEAN:
+	    g_value_set_boolean(value, SvIV(sv));
+	    return TRUE;
+
 	case G_TYPE_CHAR:
-	    if (!SvIOK(sv)) return FALSE;
-	    g_value_set_char(value, SvIV(sv));
-	    break;
+	    g_value_set_char(value, amglue_SvI8(sv));
+	    return TRUE;
 
 	case G_TYPE_UCHAR:
-	    if (!SvIOK(sv)) return FALSE;
-	    g_value_set_uchar(value, SvUV(sv));
-	    break;
-
-	case G_TYPE_BOOLEAN:
-	    if (!SvIOK(sv)) return FALSE;
-	    g_value_set_boolean(value, SvIV(sv));
-	    break;
+	    g_value_set_uchar(value, amglue_SvU8(sv));
+	    return TRUE;
 
 	case G_TYPE_INT:
 	    g_value_set_int(value, amglue_SvI32(sv));
-	    break;
+	    return TRUE;
 
 	case G_TYPE_UINT:
 	    g_value_set_uint(value, amglue_SvU32(sv));
-	    break;
+	    return TRUE;
 
 	case G_TYPE_LONG:
 	    g_value_set_int64(value, amglue_SvI64(sv));
-	    break;
+	    return TRUE;
 
 	case G_TYPE_ULONG:
 	    g_value_set_uint64(value, amglue_SvU64(sv));
-	    break;
+	    return TRUE;
 
 	case G_TYPE_INT64:
 	    g_value_set_int64(value, amglue_SvI64(sv));
-	    break;
+	    return TRUE;
 
 	case G_TYPE_UINT64:
 	    g_value_set_uint64(value, amglue_SvU64(sv));
-	    break;
+	    return TRUE;
 
 	case G_TYPE_FLOAT:
-	    if (!SvNOK(sv)) return FALSE;
 	    g_value_set_float(value, SvNV(sv));
-	    break;
+	    return TRUE;
 
 	case G_TYPE_DOUBLE:
-	    if (!SvNOK(sv)) return FALSE;
 	    g_value_set_double(value, SvNV(sv));
-	    break;
+	    return TRUE;
 
-	case G_TYPE_STRING:
-	    if (!SvPOK(sv)) return FALSE;
-	    g_value_set_string(value, SvPV_nolen(sv));
-	    break;
-
-	case G_TYPE_ENUM: 
-	    if (!SvIOK(sv)) return FALSE;
+	case G_TYPE_ENUM:
 	    g_value_set_enum(value, SvIV(sv));
-	    break;
+	    return TRUE;
 
 	case G_TYPE_FLAGS:
-	    if (!SvIOK(sv)) return FALSE;
 	    g_value_set_flags(value, SvIV(sv));
-	    break;
+	    return TRUE;
 
-	/* Unsupported */
 	default:
-	case G_TYPE_POINTER:
-	case G_TYPE_INTERFACE:
-	case G_TYPE_BOXED: /* note: *getting* boxed values is supported */
-	case G_TYPE_OBJECT:
-	case G_TYPE_PARAM:
-	    return FALSE;
+	    /* for anything else, let perl stringify it for us and try parsing it */
+	    return g_value_set_from_string(value, SvPV_nolen(sv));
     }
-
-    return TRUE;
 }
 
 %}
+
+/*
+ * DirectTCPConnection object
+ */
+
+typedef struct DirectTCPConnection {
+    %extend {
+	~DirectTCPConnection() {
+	    g_object_unref(self);
+	};
+
+	%newobject close;
+	char *close() {
+	    return directtcp_connection_close(self);
+	}
+    };
+} DirectTCPConnection;
 
 /*
  * Device struct, %extend-ed into a Perl class
@@ -381,6 +277,8 @@ typedef struct queue_fd_t {
 	}
     }
 } queue_fd_t;
+
+%name(unaliased_name) extern char *device_unaliased_name(char *);
 
 typedef struct Device {
 
@@ -469,6 +367,67 @@ typedef struct Device {
 	    return device_read_to_fd(self, queue_fd);
 	}
 
+	gboolean
+	erase() {
+	    return device_erase(self);
+	}
+
+	gboolean
+	eject() {
+	    return device_eject(self);
+	}
+
+	gboolean
+	directtcp_supported() {
+	    return device_directtcp_supported(self);
+	}
+
+	void
+	listen(gboolean for_writing, DirectTCPAddr **addrs) {
+	    /* ensure that the addresses are empty if there was an error */
+	    if (!device_listen(self, for_writing, addrs))
+		*addrs = NULL;
+	}
+
+	%newobject accept; /* connection is already ref'd, so we own it */
+	DirectTCPConnection *
+	accept() {
+	    DirectTCPConnection *conn = NULL;
+	    gboolean rv;
+
+	    rv = device_accept(self, &conn, NULL, NULL);
+	    if (!rv && conn) {
+		/* conn is ref'd for our convenience, but we don't want it */
+		g_object_unref(conn);
+		conn = NULL;
+	    }
+	    return conn;
+	}
+
+	gboolean
+	use_connection(DirectTCPConnection *conn) {
+	    return device_use_connection(self, conn);
+	}
+
+	%typemap(in,numinputs=0) guint64 *actual_size (guint64 sz) {
+	    sz = 0;
+	    $1 = &sz;
+	}
+	%typemap(argout) guint64 *actual_size {
+	    SP += argvi; PUTBACK;
+	    $result = sv_2mortal(amglue_newSVu64(*$1));
+	    SPAGAIN; SP -= argvi; argvi++;
+	}
+	gboolean
+	write_from_connection(guint64 size, guint64 *actual_size) {
+	    return device_write_from_connection(self, size, actual_size);
+	}
+
+	gboolean
+	read_to_connection(guint64 size, guint64 *actual_size) {
+	    return device_read_to_connection(self, size, actual_size);
+	}
+
 	%typemap(out) const GSList * {
 	    GSList *iter;
 
@@ -535,9 +494,11 @@ typedef struct Device {
 			  PropertySource *source, gboolean *val_found) {
 	    /* if the result is valid */
 	    if (*$4) {
-		/* move data from $1 to $result, somehow */
+		/* move data from $1 to $result, somehow, being careful to
+		 * save the perl stack while doing so */
+		SP += argvi; PUTBACK;
 		$result = set_sv_from_gvalue($1);
-		argvi++;
+		SPAGAIN; SP -= argvi; argvi++;
 
 		/* free any memory for the GValue */
 		g_value_unset($1);
@@ -607,7 +568,7 @@ typedef struct Device {
 	gboolean recycle_file(guint filenum) {
 	    return device_recycle_file(self, filenum);
 	}
-	
+
 	/* accessor functions */
 
 	int file(void) { return self->file; }
@@ -616,6 +577,7 @@ typedef struct Device {
 	char * device_name(void) { return self->device_name; }
 	DeviceAccessMode access_mode(void) { return self->access_mode; }
 	gboolean is_eof(void) { return self->is_eof; }
+	gboolean is_eom(void) { return self->is_eom; }
 	char * volume_label(void) { return self->volume_label; }
 	char * volume_time(void) { return self->volume_time; }
 	DeviceStatusFlags status(void) { return self->status; }
@@ -626,6 +588,43 @@ typedef struct Device {
     };
 
 } Device;
+
+/* An alternate constructor for RAIT devices */
+%typemap(in) GSList *child_devices {
+    AV *av;
+    int i, len;
+
+    if (!SvROK($input) || SvTYPE(SvRV($input)) != SVt_PVAV) {
+	SWIG_exception(SWIG_TypeError, "Expected an arrayref");
+    }
+    av = (AV *)SvRV($input);
+
+    $1 = NULL;
+    len = av_len(av);
+    for (i = 0; i <= len; i++) {
+	SV **elt = av_fetch(av, i, 0);
+	Device *d;
+
+	if (elt && !SvOK(*elt)) {
+	    $1 = g_slist_append($1, NULL); /* 'undef' => NULL */
+	} else if (!elt || SWIG_ConvertPtr(*elt, (void **)&d, $descriptor(Device *), 0) == -1) {
+	    SWIG_exception(SWIG_TypeError, "array member is not a Device");
+	} else {
+	    $1 = g_slist_append($1, d);
+	}
+    }
+}
+%typemap(freearg) GSList *child_devices {
+    g_slist_free($1);
+}
+%newobject rait_device_open_from_children;
+Device *rait_device_open_from_children(GSList *child_devices);
+%perlcode %{
+sub new_rait_from_children {
+    my $class = shift; # strip the $class from the arguments
+    return rait_device_open_from_children([@_]);
+}
+%}
 
 /*
  * Constants
@@ -664,25 +663,25 @@ amglue_add_constant_noshort(PROPERTY_PHASE_SHIFT, PropertyPhaseFlags);
 amglue_copy_to_tag(PropertyPhaseFlags, constants);
 
 amglue_add_flag_tag_fns(PropertyAccessFlags);
-amglue_add_constant_short(PROPERTY_ACCESS_GET_BEFORE_START, 
+amglue_add_constant_short(PROPERTY_ACCESS_GET_BEFORE_START,
 		    "GET_BEFORE_START", PropertyAccessFlags);
-amglue_add_constant_short(PROPERTY_ACCESS_GET_BETWEEN_FILE_WRITE, 
+amglue_add_constant_short(PROPERTY_ACCESS_GET_BETWEEN_FILE_WRITE,
 		    "GET_BETWEEN_FILE_WRITE", PropertyAccessFlags);
-amglue_add_constant_short(PROPERTY_ACCESS_GET_INSIDE_FILE_WRITE, 
+amglue_add_constant_short(PROPERTY_ACCESS_GET_INSIDE_FILE_WRITE,
 		    "GET_INSIDE_FILE_WRITE", PropertyAccessFlags);
-amglue_add_constant_short(PROPERTY_ACCESS_GET_BETWEEN_FILE_READ, 
+amglue_add_constant_short(PROPERTY_ACCESS_GET_BETWEEN_FILE_READ,
 		    "GET_BETWEEN_FILE_READ", PropertyAccessFlags);
-amglue_add_constant_short(PROPERTY_ACCESS_GET_INSIDE_FILE_READ, 
+amglue_add_constant_short(PROPERTY_ACCESS_GET_INSIDE_FILE_READ,
 		    "GET_INSIDE_FILE_READ", PropertyAccessFlags);
-amglue_add_constant_short(PROPERTY_ACCESS_SET_BEFORE_START, 
+amglue_add_constant_short(PROPERTY_ACCESS_SET_BEFORE_START,
 		    "SET_BEFORE_START", PropertyAccessFlags);
-amglue_add_constant_short(PROPERTY_ACCESS_SET_BETWEEN_FILE_WRITE, 
+amglue_add_constant_short(PROPERTY_ACCESS_SET_BETWEEN_FILE_WRITE,
 		    "SET_BETWEEN_FILE_WRITE", PropertyAccessFlags);
-amglue_add_constant_short(PROPERTY_ACCESS_SET_INSIDE_FILE_WRITE, 
+amglue_add_constant_short(PROPERTY_ACCESS_SET_INSIDE_FILE_WRITE,
 		    "SET_INSIDE_FILE_WRITE", PropertyAccessFlags);
-amglue_add_constant_short(PROPERTY_ACCESS_SET_BETWEEN_FILE_READ, 
+amglue_add_constant_short(PROPERTY_ACCESS_SET_BETWEEN_FILE_READ,
 		    "SET_BETWEEN_FILE_READ", PropertyAccessFlags);
-amglue_add_constant_short(PROPERTY_ACCESS_SET_INSIDE_FILE_READ, 
+amglue_add_constant_short(PROPERTY_ACCESS_SET_INSIDE_FILE_READ,
 		    "SET_INSIDE_FILE_READ", PropertyAccessFlags);
 amglue_add_constant_noshort(PROPERTY_ACCESS_GET_MASK, PropertyAccessFlags);
 amglue_add_constant_noshort(PROPERTY_ACCESS_SET_MASK, PropertyAccessFlags);
@@ -726,7 +725,7 @@ amglue_copy_to_tag(PropertySource, constants);
 
 %perlcode %{
 
-# SWIG produces a sub-package for the Device "class", in this case named 
+# SWIG produces a sub-package for the Device "class", in this case named
 # Amanda::Device::Device.  For user convenience, we allow Amanda::Device->new(..) to
 # do the same thing.  This is a wrapper function, and not just a typeglob assignment,
 # because we want to get the right blessing.

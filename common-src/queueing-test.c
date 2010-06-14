@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008 Zmanda Inc.  All Rights Reserved.
+ * Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -14,7 +14,7 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * Contact information: Zmanda Inc, 465 N Mathlida Ave, Suite 300
+ * Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
  * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  *
  * Author: Dustin J. Mitchell <dustin@zmanda.com>
@@ -301,10 +301,10 @@ int
 main(int argc, char **argv)
 {
     static TestUtilsTest tests[] = {
-	TU_TEST(test_queue_simple_STREAMING_REQUIREMENT_NONE, 15),
-	TU_TEST(test_queue_simple_STREAMING_REQUIREMENT_DESIRED, 15),
-	TU_TEST(test_queue_simple_STREAMING_REQUIREMENT_REQUIRED, 15),
-	TU_TEST(test_fd_consumer_producer, 60), /* runs slowly on old kernels */
+	TU_TEST(test_queue_simple_STREAMING_REQUIREMENT_NONE, 90),
+	TU_TEST(test_queue_simple_STREAMING_REQUIREMENT_DESIRED, 90),
+	TU_TEST(test_queue_simple_STREAMING_REQUIREMENT_REQUIRED, 90),
+	TU_TEST(test_fd_consumer_producer, 120), /* runs slowly on old kernels */
 	TU_END()
     };
 

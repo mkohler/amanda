@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -33,20 +33,20 @@
     <arg choice='plain'><replaceable>auth</replaceable></arg>
     <arg choice='plain'><replaceable>service</replaceable></arg>
     <arg choice='opt'><arg choice='plain'>-f</arg><arg choice='plain'><replaceable>input_file</replaceable></arg></arg>
-    <arg choice='plain' rep='repeat'><group><arg choice='plain'>-o </arg><replaceable>configoption</replaceable></group></arg>
+    &configoverride.synopsis;
 </cmdsynopsis>
 </refsynopsisdiv>
 
 
 <refsect1><title>DESCRIPTION</title>
 <para><emphasis remap='B'>Amservice</emphasis>
-execute an &A; service on a client.
+execute an Amanda service on a client.
 It can be used without amanda server configuration (amanda.conf and disklist).
 It can be used to check communication between a server and a client.
 Amservice reads stdin to capture the REQ packet to send to the client.</para>
 <para>See the
-<citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
-man page for more details about &A;.</para>
+<manref name="amanda" vol="8"/>
+man page for more details about Amanda.</para>
 </refsect1>
 
 <refsect1><title>OPTIONS</title>
@@ -77,12 +77,7 @@ The client must be configured with this auth.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
-  <term><emphasis remap='B'>-o</emphasis> <replaceable>configoption</replaceable></term>
-  <listitem>
-<para>See the "<emphasis remap='B'>CONFIGURATION OVERRIDE</emphasis>" section in <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>.</para>
-  </listitem>
-  </varlistentry>
+  &configoverride.varlistentry;
 
 </variablelist>
 </refsect1>
@@ -111,11 +106,12 @@ is not authorized to execute the service.  An error message will be printed.
 </para>
 </refsect1>
 
-<refsect1><title>SEE ALSO</title>
-<para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amcheck</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amdump</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amadmin</refentrytitle><manvolnum>8</manvolnum></citerefentry></para>
-</refsect1>
+<seealso>
+<manref name="amanda" vol="8"/>,
+<manref name="amcheck" vol="8"/>,
+<manref name="amdump" vol="8"/>,
+<manref name="amadmin" vol="8"/>
+</seealso>
+
 </refentry>
 

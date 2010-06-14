@@ -30,16 +30,15 @@
  */
 
 #include "amanda.h"
+#include "match.h"
 #include "pipespawn.h"
 #include "amfeatures.h"
 #include "amandates.h"
 #include "clock.h"
 #include "util.h"
 #include "getfsent.h"
-#include "version.h"
 #include "client_util.h"
 #include "conffile.h"
-#include "amandad.h"
 
 #ifdef SAMBA_CLIENT
 #include "findpass.h"
@@ -79,6 +78,7 @@ typedef struct level_estimates_s {
     time_t dumpsince;
     int estsize;
     int needestimate;
+    int server;		/* server can do estimate */
 } level_estimate_t;
 
 typedef struct disk_estimates_s {
@@ -134,6 +134,7 @@ main(
     char *qamdevice = NULL;
     dle_t *dle;
     GSList *errlist;
+    level_t *alevel;
 
     (void)argc;	/* Quiet unused parameter warning */
     (void)argv;	/* Quiet unused parameter warning */
@@ -150,6 +151,7 @@ main(
     textdomain("amanda"); 
 
     safe_fd(-1, 0);
+    openbsd_fd_inform();
     safe_cd();
 
     set_pname("sendsize");
@@ -157,10 +159,11 @@ main(
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
-    erroutput_type = (ERR_INTERACTIVE|ERR_SYSLOG);
+    add_amanda_log_handler(amanda_log_stderr);
+    add_amanda_log_handler(amanda_log_syslog);
     dbopen(DBG_SUBDIR_CLIENT);
     startclock();
-    dbprintf(_("version %s\n"), version());
+    dbprintf(_("version %s\n"), VERSION);
 
     our_features = am_init_feature_set();
     our_feature_string = am_feature_to_string(our_features);
@@ -238,7 +241,8 @@ main(
 		err_extra = stralloc(_("no program name"));
 		goto err;
 	    }
-	    dle->calcsize = 1;
+	    dle->estimatelist = g_slist_append(dle->estimatelist,
+					       GINT_TO_POINTER(ES_CALCSIZE));
 	    dle->program = s - 1;
 	    skip_non_whitespace(s, ch);
 	    s[-1] = '\0';
@@ -254,7 +258,8 @@ main(
 	    }
 	}
 	else {
-	    dle->calcsize = 0;
+	    dle->estimatelist = g_slist_append(dle->estimatelist,
+					       GINT_TO_POINTER(ES_CLIENT));
 	    if (strcmp(dle->program,"APPLICATION") == 0) {
 		dle->program_is_application_api=1;
 		skip_whitespace(s, ch);		/* find dumper name */
@@ -311,7 +316,9 @@ main(
 	    goto err;
 	}
 	skip_integer(s, ch);
-	dle->level = g_slist_append(dle->level, GINT_TO_POINTER(level));
+	alevel = g_new0(level_t, 1);
+	alevel->level = level;
+	dle->levellist = g_slist_append(dle->levellist, alevel);
 
 	skip_whitespace(s, ch);			/* find the dump date */
 	if(ch == '\0') {
@@ -564,19 +571,23 @@ dle_add_diskest(
     amandates_t *amdp;
     int dumplev, estlev;
     time_t dumpdate;
-    GSList *level;
+    levellist_t levellist;
     char *amandates_file;
     gboolean need_amandates = FALSE;
+    estimatelist_t el;
 
-    level = dle->level;
-    if (level == NULL) {
+    if (dle->levellist == NULL) {
 	g_printf(_("ERROR Missing level in request\n"));
 	return;
     }
 
     /* should we use amandates for this? */
-    if (dle->calcsize)
-	need_amandates = TRUE;
+    for (el = dle->estimatelist; el != NULL; el=el->next) {
+	estimate_t estimate = (estimate_t)GPOINTER_TO_INT(el->data);
+	if (estimate == ES_CALCSIZE)
+	    need_amandates = TRUE;
+    }
+
     if (strcmp(dle->program, "GNUTAR") == 0) {
 	/* GNUTAR only needs amandates if gnutar_list_dir is NULL */
 	char *gnutar_list_dir = getconf_str(CNF_GNUTAR_LIST_DIR);
@@ -604,21 +615,26 @@ dle_add_diskest(
 	}
     }
 
-    while (level != NULL) {
-	if (GPOINTER_TO_INT(level->data) < 0)
-	    level->data = GINT_TO_POINTER(0);
-	if (GPOINTER_TO_INT(level->data) >= DUMP_LEVELS)
-	    level->data = GINT_TO_POINTER(DUMP_LEVELS - 1);
-	level = g_slist_next(level);
+    levellist = dle->levellist;
+    while (levellist != NULL) {
+	level_t *alevel = (level_t *)levellist->data;
+	if (alevel->level < 0)
+	    alevel->level = 0;
+	if (alevel->level >= DUMP_LEVELS)
+	    alevel->level = DUMP_LEVELS - 1;
+	levellist = g_slist_next(levellist);
     }
 
     for(curp = est_list; curp != NULL; curp = curp->next) {
 	if(strcmp(curp->dle->disk, dle->disk) == 0) {
 	    /* already have disk info, just note the level request */
-	    level = dle->level;
-	    while (level != NULL) {
-		curp->est[GPOINTER_TO_INT(level->data)].needestimate = 1;
-		level = g_slist_next(level);
+	    levellist = dle->levellist;
+	    while (levellist != NULL) {
+		level_t *alevel = (level_t *)levellist->data;
+		int      level  = alevel->level;
+		curp->est[level].needestimate = 1;
+		curp->est[level].server = alevel->server;
+		levellist = g_slist_next(levellist);
 	    }
 
 	    return;
@@ -639,10 +655,12 @@ dle_add_diskest(
 	newp->dirname = stralloc("");
 	newp->qdirname = stralloc("");
     }
-    level = dle->level;
-    while (level != NULL) {
-	newp->est[GPOINTER_TO_INT(level->data)].needestimate = 1;
-	level = g_slist_next(level);
+    levellist = dle->levellist;
+    while (levellist != NULL) {
+	level_t *alevel = (level_t *)levellist->data;
+	newp->est[alevel->level].needestimate = 1;
+	newp->est[alevel->level].server = alevel->server;
+	levellist = g_slist_next(levellist);
     }
     newp->dle = dle;
 
@@ -690,36 +708,73 @@ calc_estimates(
     disk_estimates_t *	est)
 {
     dbprintf(_("calculating for amname %s, dirname %s, spindle %d %s\n"),
-	      est->qamname, est->qdirname, est->dle->spindle, est->dle->program);
+	     est->qamname, est->qdirname, est->dle->spindle, est->dle->program);
 
     if(est->dle->program_is_application_api ==  1)
 	application_api_calc_estimate(est);
-    else
-    if(est->dle->calcsize ==  1)
-	if (est->dle->device[0] == '/' && est->dle->device[1] == '/')
+    else {
+	estimatelist_t el;
+	estimate_t     estimate;
+	int            level;
+	estimate_t     estimate_method = ES_ES;
+	estimate_t     client_method = ES_ES;
+
+	/* find estimate method to use */
+	for (el = est->dle->estimatelist; el != NULL; el = el->next) {
+	    estimate = (estimate_t)GPOINTER_TO_INT(el->data);
+	    if (estimate == ES_SERVER) {
+		if (estimate_method == ES_ES)
+		    estimate_method = ES_SERVER;
+	    }
+	    if (estimate == ES_CLIENT || 
+		(estimate == ES_CALCSIZE &&
+		 (est->dle->device[0] != '/' || est->dle->device[1] != '/'))) {
+		if (client_method == ES_ES)
+		    client_method = estimate;
+		if (estimate_method == ES_ES)
+		    estimate_method = estimate;
+	    }
+	}
+
+	/* do server estimate */
+	if (estimate_method == ES_SERVER) {
+	    for (level = 0; level < DUMP_LEVELS; level++) {
+		if (est->est[level].needestimate) {
+		    if (est->est[level].server || client_method == ES_ES) {
+			g_printf(_("%s %d SIZE -1\n"), est->qamname, level);
+			est->est[level].needestimate = 0;
+		    }
+		}
+	    }
+	}
+
+	if (client_method == ES_ES && estimate_method != ES_SERVER) {
+	    g_printf(_("%s %d SIZE -2\n"), est->qamname, 0);
 	    dbprintf(_("Can't use CALCSIZE for samba estimate: %s %s\n"),
 		     est->qamname, est->qdirname);
-	else
+	} else if (client_method == ES_CALCSIZE) {
 	    generic_calc_estimates(est);
-    else
+	} else if (client_method == ES_CLIENT) {
 #ifndef USE_GENERIC_CALCSIZE
-    if(strcmp(est->dle->program, "DUMP") == 0)
-	dump_calc_estimates(est);
-    else
+	    if (strcmp(est->dle->program, "DUMP") == 0)
+		dump_calc_estimates(est);
+	    else
 #endif
 #ifdef SAMBA_CLIENT
-      if (strcmp(est->dle->program, "GNUTAR") == 0 &&
-	  est->dle->device[0] == '/' && est->dle->device[1] == '/')
-	smbtar_calc_estimates(est);
-      else
+	    if (strcmp(est->dle->program, "GNUTAR") == 0 &&
+		est->dle->device[0] == '/' && est->dle->device[1] == '/')
+		smbtar_calc_estimates(est);
+	    else
 #endif
 #ifdef GNUTAR
-	if (strcmp(est->dle->program, "GNUTAR") == 0)
-	  gnutar_calc_estimates(est);
-	else
+	    if (strcmp(est->dle->program, "GNUTAR") == 0)
+		gnutar_calc_estimates(est);
+	    else
 #endif
-	    dbprintf(_("Invalid program: %s %s %s\n"),
-		      est->qamname, est->qdirname, est->dle->program);
+		dbprintf(_("Invalid program: %s %s %s\n"),
+			 est->qamname, est->qdirname, est->dle->program);
+	}
+    }
 
     dbprintf(_("done with amname %s dirname %s spindle %d\n"),
 	      est->qamname, est->qdirname, est->dle->spindle);
@@ -734,7 +789,6 @@ calc_estimates(
 off_t getsize_dump(dle_t *dle, int level, char **errmsg);
 off_t getsize_smbtar(dle_t *dle, int level, char **errmsg);
 off_t getsize_gnutar(dle_t *dle, int level, time_t dumpsince, char **errmsg);
-off_t getsize_star(dle_t *dle, int level, time_t dumpsince, char **errmsg);
 off_t getsize_application_api(disk_estimates_t *est, int nb_level,
 			      int *levels, backup_support_option_t *bsu);
 off_t handle_dumpline(char *str);
@@ -750,6 +804,12 @@ application_api_calc_estimate(
     int    nb_level = 0;
     backup_support_option_t *bsu;
     GPtrArray               *errarray;
+    estimatelist_t el;
+    estimate_t     estimate;
+    estimate_t     estimate_method = ES_ES;
+    estimate_t     client_method = ES_ES;
+    int            has_calcsize = 0;
+    int            has_client = 0;
 
     bsu = backup_support_option(est->dle->program, g_options, est->dle->disk,
 				est->dle->device, &errarray);
@@ -769,7 +829,7 @@ application_api_calc_estimate(
 		    if (est->est[level].needestimate) {
 			g_printf(_("%s %d ERROR %s\n"),
 				 est->dle->disk, level, qerrmsg);
-			dbprintf(_("%s %d ERROR A %s\n"),
+			dbprintf(_("%s %d ERROR %s\n"),
 				 est->qamname, level, qerrmsg);
 		    }
 		}
@@ -801,6 +861,37 @@ application_api_calc_estimate(
 	g_ptr_array_free(errarray, TRUE);
     }
 
+    if (est->dle->data_path == DATA_PATH_AMANDA &&
+	(bsu->data_path_set & DATA_PATH_AMANDA)==0) {
+	g_printf("%s %d ERROR application %s doesn't support amanda data-path\n", est->qamname, 0, est->dle->program);
+	return;
+    }
+    if (est->dle->data_path == DATA_PATH_DIRECTTCP &&
+	(bsu->data_path_set & DATA_PATH_DIRECTTCP)==0) {
+	g_printf("%s %d ERROR application %s doesn't support directtcp data-path\n", est->qamname, 0, est->dle->program);
+	return;
+    }
+
+    /* find estimate method to use */
+    for (el = est->dle->estimatelist; el != NULL; el = el->next) {
+	estimate = (estimate_t)GPOINTER_TO_INT(el->data);
+	if (estimate == ES_CLIENT)
+	    has_client = 1;
+	if (estimate == ES_CALCSIZE)
+	    has_calcsize = 1;
+	if (estimate == ES_SERVER) {
+	    if (estimate_method == ES_ES)
+		estimate_method = ES_SERVER;
+	}
+	if ((estimate == ES_CLIENT && bsu->client_estimate) || 
+	    (estimate == ES_CALCSIZE && bsu->calcsize)) {
+	    if (client_method == ES_ES)
+		client_method = estimate;
+	    if (estimate_method == ES_ES)
+		estimate_method = estimate;
+	}
+    }
+
     for(level = 0; level < DUMP_LEVELS; level++) {
 	if (est->est[level].needestimate) {
 	    if (level > bsu->max_level) {
@@ -808,13 +899,45 @@ application_api_calc_estimate(
 		g_printf("%s %d SIZE %lld\n", est->qamname, level,
 			 (long long)-2);
 		est->est[level].needestimate = 0;
-	    } else if (est->dle->estimate == ES_SERVER) {
+		dbprintf(_("Application '%s' can't estimate level %d\n"),
+                         est->dle->program, level);
+	    } else if (estimate_method == ES_ES) {
+		g_printf("%s %d SIZE %lld\n", est->qamname, level,
+			 (long long)-2);
+		est->est[level].needestimate = 0;
+		if (am_has_feature(g_options->features,
+				   fe_rep_sendsize_quoted_error)) {
+		    char *errmsg, *qerrmsg;
+		    if (has_client && !bsu->client_estimate &&
+			has_calcsize && !bsu->calcsize) {
+			errmsg = vstrallocf(_("Application '%s' can't do CLIENT or CALCSIZE estimate"),
+					    est->dle->program);
+		    } else if (has_client && !bsu->client_estimate) {
+			errmsg = vstrallocf(_("Application '%s' can't do CLIENT estimate"),
+					    est->dle->program);
+		    } else if (has_calcsize && !bsu->calcsize) {
+			errmsg = vstrallocf(_("Application '%s' can't do CALCSIZE estimate"),
+					    est->dle->program);
+		    } else {
+			errmsg = vstrallocf(_("Application '%s' can't do estimate"),
+					    est->dle->program);
+		    }
+		    qerrmsg = quote_string(errmsg);
+		    dbprintf(_("errmsg is %s\n"), errmsg);
+		    g_printf("%s %d ERROR %s\n",
+			     est->qamname, 0, qerrmsg);
+		    amfree(errmsg);
+		    amfree(qerrmsg);
+		}
+	    } else if (estimate_method == ES_SERVER &&
+		       (est->est[level].server || client_method == ES_ES)) {
 		/* planner will consider this level, */
 		/* but use a server-side estimate    */
-		g_printf("%s %d SIZE %lld\n", est->qamname, level,
-			 (long long)-1);
+		g_printf("%s %d SIZE -1\n", est->qamname, level);
 		est->est[level].needestimate = 0;
-	    } else {
+	    } else if (client_method == ES_CLIENT) {
+		levels[nb_level++] = level;
+	    } else if (client_method == ES_CALCSIZE) {
 		levels[nb_level++] = level;
 	    }
 	}
@@ -851,9 +974,11 @@ generic_calc_estimates(
     int pipefd = -1, nullfd = -1;
     char *cmd;
     char *cmdline;
-    char *my_argv[DUMP_LEVELS*2+22];
+    char *command;
+    GPtrArray *argv_ptr = g_ptr_array_new();
     char number[NUM_STR_SIZE];
-    int i, level, my_argc;
+    unsigned int i;
+    int level;
     pid_t calcpid;
     int nb_exclude = 0;
     int nb_include = 0;
@@ -869,21 +994,19 @@ generic_calc_estimates(
     char tmppath[PATH_MAX];
     int len;
 
-    cmd = vstralloc(amlibexecdir, "/", "calcsize", versionsuffix(), NULL);
+    cmd = vstralloc(amlibexecdir, "/", "calcsize", NULL);
 
-    my_argc = 0;
-
-    my_argv[my_argc++] = stralloc("calcsize");
+    g_ptr_array_add(argv_ptr, stralloc("calcsize"));
     if (g_options->config)
-	my_argv[my_argc++] = stralloc(g_options->config);
+	g_ptr_array_add(argv_ptr, stralloc(g_options->config));
     else
-	my_argv[my_argc++] = stralloc("NOCONFIG");
+	g_ptr_array_add(argv_ptr, stralloc("NOCONFIG"));
 
-    my_argv[my_argc++] = stralloc(est->dle->program);
+    g_ptr_array_add(argv_ptr, stralloc(est->dle->program));
     canonicalize_pathname(est->dle->disk, tmppath);
-    my_argv[my_argc++] = stralloc(tmppath);
+    g_ptr_array_add(argv_ptr, stralloc(tmppath));
     canonicalize_pathname(est->dirname, tmppath);
-    my_argv[my_argc++] = stralloc(tmppath);
+    g_ptr_array_add(argv_ptr, stralloc(tmppath));
 
     if (est->dle->exclude_file)
 	nb_exclude += est->dle->exclude_file->nb_element;
@@ -900,34 +1023,37 @@ generic_calc_estimates(
 	file_include = build_include(est->dle, 0);
 
     if(file_exclude) {
-	my_argv[my_argc++] = stralloc("-X");
-	my_argv[my_argc++] = file_exclude;
+	g_ptr_array_add(argv_ptr, stralloc("-X"));
+	g_ptr_array_add(argv_ptr, stralloc(file_exclude));
     }
 
     if(file_include) {
-	my_argv[my_argc++] = stralloc("-I");
-	my_argv[my_argc++] = file_include;
+	g_ptr_array_add(argv_ptr, stralloc("-I"));
+	g_ptr_array_add(argv_ptr, stralloc(file_include));
     }
     start_time = curclock();
 
-    cmdline = stralloc(my_argv[0]);
-    for(i = 1; i < my_argc; i++)
-	cmdline = vstrextend(&cmdline, " ", my_argv[i], NULL);
+    command = (char *)g_ptr_array_index(argv_ptr, 0);
+    cmdline = stralloc(command);
+    for(i = 1; i < argv_ptr->len-1; i++) {
+	cmdline = vstrextend(&cmdline, " ",
+			     (char *)g_ptr_array_index(argv_ptr, i), NULL);
+    }
     dbprintf(_("running: \"%s\"\n"), cmdline);
     amfree(cmdline);
 
     for(level = 0; level < DUMP_LEVELS; level++) {
 	if(est->est[level].needestimate) {
 	    g_snprintf(number, SIZEOF(number), "%d", level);
-	    my_argv[my_argc++] = stralloc(number); 
+	    g_ptr_array_add(argv_ptr, stralloc(number));
 	    dbprintf(" %s", number);
 	    g_snprintf(number, SIZEOF(number),
 			"%ld", (long)est->est[level].dumpsince);
-	    my_argv[my_argc++] = stralloc(number); 
+	    g_ptr_array_add(argv_ptr, stralloc(number));
 	    dbprintf(" %s", number);
 	}
     }
-    my_argv[my_argc] = NULL;
+    g_ptr_array_add(argv_ptr, NULL);
     dbprintf("\n");
 
     fflush(stderr); fflush(stdout);
@@ -940,7 +1066,7 @@ generic_calc_estimates(
     }
 
     calcpid = pipespawnv(cmd, STDERR_PIPE, 0,
-			 &nullfd, &nullfd, &pipefd, my_argv);
+			 &nullfd, &nullfd, &pipefd, (char **)argv_ptr->pdata);
     amfree(cmd);
 
     dumpout = fdopen(pipefd,"r");
@@ -968,7 +1094,7 @@ generic_calc_estimates(
     amfree(match_expr);
 
     dbprintf(_("waiting for %s %s child (pid=%d)\n"),
-	      my_argv[0], est->qamdevice, (int)calcpid);
+	     command, est->qamdevice, (int)calcpid);
     waitpid(calcpid, &wait_status, 0);
     if (WIFSIGNALED(wait_status)) {
 	errmsg = vstrallocf(_("%s terminated with signal %d: see %s"),
@@ -987,7 +1113,7 @@ generic_calc_estimates(
 			     "calcsize", dbfn());
     }
     dbprintf(_("after %s %s wait: child pid=%d status=%d\n"),
-	      my_argv[0], est->qamdevice,
+	     command, est->qamdevice,
 	      (int)calcpid, WEXITSTATUS(wait_status));
 
     dbprintf(_(".....\n"));
@@ -1006,9 +1132,7 @@ common_exit:
 	}
     }
     amfree(errmsg);
-    for(i = 0; i < my_argc; i++) {
-	amfree(my_argv[i]);
-    }
+    g_ptr_array_free_full(argv_ptr);
     amfree(cmd);
 }
 
@@ -1127,7 +1251,7 @@ gnutar_calc_estimates(
 }
 #endif
 
-typedef struct regex_s {
+typedef struct regex_scale_s {
     char *regex;
     int scale;
 } regex_scale_t;
@@ -1221,9 +1345,6 @@ getsize_dump(
 
     if (level > 9)
 	return -2; /* planner will not even consider this level */
-    if (dle->estimate == ES_SERVER)
-	return -1; /* planner will consider this level, */
-		   /* but use a server-side estimate    */
 
     g_snprintf(level_str, SIZEOF(level_str), "%d", level);
 
@@ -1234,7 +1355,7 @@ getsize_dump(
     dbprintf(_("calculating for device %s with %s\n"),
 	      qdevice, fstype);
 
-    cmd = vstralloc(amlibexecdir, "/rundump", versionsuffix(), NULL);
+    cmd = vstralloc(amlibexecdir, "/rundump", NULL);
     rundump_cmd = stralloc(cmd);
     if (g_options->config)
         config = g_options->config;
@@ -1406,8 +1527,7 @@ getsize_dump(
 	    default:
 	    {
 		char *config;
-		char *killpgrp_cmd = vstralloc(amlibexecdir, "/killpgrp",
-					       versionsuffix(), NULL);
+		char *killpgrp_cmd = vstralloc(amlibexecdir, "/killpgrp", NULL);
 		dbprintf(_("running %s\n"), killpgrp_cmd);
 		dup2(killctl[0], 0);
 		dup2(nullfd, 1);
@@ -1669,9 +1789,6 @@ getsize_smbtar(
 
     if (level > 1)
 	return -2; /* planner will not even consider this level */
-    if (dle->estimate == ES_SERVER)
-	return -1; /* planner will consider this level, */
-		   /* but use a server-side estimate    */
 
     parsesharename(dle->device, &share, &subdir);
     if (!share) {
@@ -1900,12 +2017,12 @@ getsize_gnutar(
     FILE *out = NULL;
     char *line = NULL;
     char *cmd = NULL;
+    char *command = NULL;
     char dumptimestr[80];
     struct tm *gmtm;
     int nb_exclude = 0;
     int nb_include = 0;
-    char **my_argv;
-    int i;
+    GPtrArray *argv_ptr = g_ptr_array_new();
     char *file_exclude = NULL;
     char *file_include = NULL;
     times_t start_time;
@@ -1919,9 +2036,6 @@ getsize_gnutar(
 
     if (level > 9)
 	return -2; /* planner will not even consider this level */
-    if (dle->estimate == ES_SERVER)
-	return -1; /* planner will consider this level, */
-		   /* but use a server-side estimate    */
 
     if(dle->exclude_file) nb_exclude += dle->exclude_file->nb_element;
     if(dle->exclude_list) nb_exclude += dle->exclude_list->nb_element;
@@ -1930,9 +2044,6 @@ getsize_gnutar(
 
     if(nb_exclude > 0) file_exclude = build_exclude(dle, 0);
     if(nb_include > 0) file_include = build_include(dle, 0);
-
-    my_argv = alloc(SIZEOF(char *) * 22);
-    i = 0;
 
     gnutar_list_dir = getconf_str(CNF_GNUTAR_LIST_DIR);
     if (strlen(gnutar_list_dir) == 0)
@@ -2031,35 +2142,35 @@ getsize_gnutar(
 
     dirname = amname_to_dirname(dle->device);
 
-    cmd = vstralloc(amlibexecdir, "/", "runtar", versionsuffix(), NULL);
-    my_argv[i++] = "runtar";
+    cmd = vstralloc(amlibexecdir, "/", "runtar", NULL);
+    g_ptr_array_add(argv_ptr, stralloc("runtar"));
     if (g_options->config)
-	my_argv[i++] = g_options->config;
+	g_ptr_array_add(argv_ptr, stralloc(g_options->config));
     else
-	my_argv[i++] = "NOCONFIG";
+	g_ptr_array_add(argv_ptr, stralloc("NOCONFIG"));
 
 #ifdef GNUTAR
-    my_argv[i++] = GNUTAR;
+    g_ptr_array_add(argv_ptr, stralloc(GNUTAR));
 #else
-    my_argv[i++] = "tar";
+    g_ptr_array_add(argv_ptr, stralloc("tar"));
 #endif
-    my_argv[i++] = "--create";
-    my_argv[i++] = "--file";
-    my_argv[i++] = "/dev/null";
+    g_ptr_array_add(argv_ptr, stralloc("--create"));
+    g_ptr_array_add(argv_ptr, stralloc("--file"));
+    g_ptr_array_add(argv_ptr, stralloc("/dev/null"));
     /* use --numeric-owner for estimates, to reduce the number of user/group
      * lookups required */
-    my_argv[i++] = "--numeric-owner";
-    my_argv[i++] = "--directory";
+    g_ptr_array_add(argv_ptr, stralloc("--numeric-owner"));
+    g_ptr_array_add(argv_ptr, stralloc("--directory"));
     canonicalize_pathname(dirname, tmppath);
-    my_argv[i++] = tmppath;
-    my_argv[i++] = "--one-file-system";
+    g_ptr_array_add(argv_ptr, stralloc(tmppath));
+    g_ptr_array_add(argv_ptr, stralloc("--one-file-system"));
     if (gnutar_list_dir) {
-	    my_argv[i++] = "--listed-incremental";
-	    my_argv[i++] = incrname;
+	g_ptr_array_add(argv_ptr, stralloc("--listed-incremental"));
+	g_ptr_array_add(argv_ptr, stralloc(incrname));
     } else {
-	my_argv[i++] = "--incremental";
-	my_argv[i++] = "--newer";
-	my_argv[i++] = dumptimestr;
+	g_ptr_array_add(argv_ptr, stralloc("--incremental"));
+	g_ptr_array_add(argv_ptr, stralloc("--newer"));
+	g_ptr_array_add(argv_ptr, stralloc(dumptimestr));
     }
 #ifdef ENABLE_GNUTAR_ATIME_PRESERVE
     /* --atime-preserve causes gnutar to call
@@ -2067,25 +2178,25 @@ getsize_gnutar(
      * adjust their atime.  However, utime()
      * updates the file's ctime, so incremental
      * dumps will think the file has changed. */
-    my_argv[i++] = "--atime-preserve";
+    g_ptr_array_add(argv_ptr, stralloc("--atime-preserve"));
 #endif
-    my_argv[i++] = "--sparse";
-    my_argv[i++] = "--ignore-failed-read";
-    my_argv[i++] = "--totals";
+    g_ptr_array_add(argv_ptr, stralloc("--sparse"));
+    g_ptr_array_add(argv_ptr, stralloc("--ignore-failed-read"));
+    g_ptr_array_add(argv_ptr, stralloc("--totals"));
 
     if(file_exclude) {
-	my_argv[i++] = "--exclude-from";
-	my_argv[i++] = file_exclude;
+	g_ptr_array_add(argv_ptr, stralloc("--exclude-from"));
+	g_ptr_array_add(argv_ptr, stralloc(file_exclude));
     }
 
     if(file_include) {
-	my_argv[i++] = "--files-from";
-	my_argv[i++] = file_include;
+	g_ptr_array_add(argv_ptr, stralloc("--files-from"));
+	g_ptr_array_add(argv_ptr, stralloc(file_include));
     }
     else {
-	my_argv[i++] = ".";
+	g_ptr_array_add(argv_ptr, stralloc("."));
     }
-    my_argv[i++] = NULL;
+    g_ptr_array_add(argv_ptr, NULL);
 
     start_time = curclock();
 
@@ -2096,8 +2207,9 @@ getsize_gnutar(
 	goto common_exit;
     }
 
+    command = (char *)g_ptr_array_index(argv_ptr, 0);
     dumppid = pipespawnv(cmd, STDERR_PIPE, 0,
-			 &nullfd, &nullfd, &pipefd, my_argv);
+			 &nullfd, &nullfd, &pipefd, (char **)argv_ptr->pdata);
 
     dumpout = fdopen(pipefd,"r");
     if (!dumpout) {
@@ -2133,12 +2245,13 @@ getsize_gnutar(
 	      level,
 	      walltime_str(timessub(curclock(), start_time)));
     if(size == (off_t)-1) {
-	*errmsg = vstrallocf(_("no size line match in %s output"), my_argv[0]);
+	*errmsg = vstrallocf(_("no size line match in %s output"),
+			     command);
 	dbprintf(_("%s for %s\n"), *errmsg, qdisk);
 	dbprintf(".....\n");
     } else if(size == (off_t)0 && level == 0) {
 	dbprintf(_("possible %s problem -- is \"%s\" really empty?\n"),
-		  my_argv[0], dle->disk);
+		  command, dle->disk);
 	dbprintf(".....\n");
     }
     dbprintf(_("estimate size for %s level %d: %lld KB\n"),
@@ -2148,7 +2261,8 @@ getsize_gnutar(
 
     kill(-dumppid, SIGTERM);
 
-    dbprintf(_("waiting for %s \"%s\" child\n"), my_argv[0], qdisk);
+    dbprintf(_("waiting for %s \"%s\" child\n"),
+	     command, qdisk);
     waitpid(dumppid, &wait_status, 0);
     if (WIFSIGNALED(wait_status)) {
 	*errmsg = vstrallocf(_("%s terminated with signal %d: see %s"),
@@ -2164,7 +2278,7 @@ getsize_gnutar(
 	*errmsg = vstrallocf(_("%s got bad exit: see %s"),
 			     cmd, dbfn());
     }
-    dbprintf(_("after %s %s wait\n"), my_argv[0], qdisk);
+    dbprintf(_("after %s %s wait\n"), command, qdisk);
 
 common_exit:
 
@@ -2175,7 +2289,7 @@ common_exit:
     amfree(basename);
     amfree(dirname);
     amfree(inputname);
-    amfree(my_argv);
+    g_ptr_array_free_full(argv_ptr);
     amfree(qdisk);
     amfree(cmd);
     amfree(file_exclude);
@@ -2206,8 +2320,9 @@ getsize_application_api(
     char *line = NULL;
     char *cmd = NULL;
     char *cmdline;
-    int  i, j, k;
-    char **argvchild;
+    guint i;
+    int   j;
+    GPtrArray *argv_ptr = g_ptr_array_new();
     char *newoptstr = NULL;
     off_t size1, size2;
     times_t start_time;
@@ -2218,64 +2333,65 @@ getsize_application_api(
     GSList   *scriptlist;
     script_t *script;
     char     *errmsg = NULL;
+    estimate_t     estimate;
+    estimatelist_t el;
 
     cmd = vstralloc(APPLICATION_DIR, "/", dle->program, NULL);
 
-    i=0;
-    k = application_property_argv_size(dle);
-    for (scriptlist = dle->scriptlist; scriptlist != NULL;
-	 scriptlist = scriptlist->next) {
-	script = (script_t *)scriptlist->data;
-	if (script->result && script->result->proplist) {
-	    k += property_argv_size(script->result->proplist);
-	}
-    }
-    argvchild = g_new0(char *, 16 + k + DUMP_LEVELS*2);
-    argvchild[i++] = dle->program;
-    argvchild[i++] = "estimate";
+    g_ptr_array_add(argv_ptr, stralloc(dle->program));
+    g_ptr_array_add(argv_ptr, stralloc("estimate"));
     if (bsu->message_line == 1) {
-	argvchild[i++] = "--message";
-	argvchild[i++] = "line";
+	g_ptr_array_add(argv_ptr, stralloc("--message"));
+	g_ptr_array_add(argv_ptr, stralloc("line"));
     }
     if (g_options->config && bsu->config == 1) {
-	argvchild[i++] = "--config";
-	argvchild[i++] = g_options->config;
+	g_ptr_array_add(argv_ptr, stralloc("--config"));
+	g_ptr_array_add(argv_ptr, stralloc(g_options->config));
     }
     if (g_options->hostname && bsu->host == 1) {
-	argvchild[i++] = "--host";
-	argvchild[i++] = g_options->hostname;
+	g_ptr_array_add(argv_ptr, stralloc("--host"));
+	g_ptr_array_add(argv_ptr, stralloc(g_options->hostname));
     }
-    argvchild[i++] = "--device";
-    argvchild[i++] = dle->device;
+    g_ptr_array_add(argv_ptr, stralloc("--device"));
+    g_ptr_array_add(argv_ptr, stralloc(dle->device));
     if (dle->disk && bsu->disk == 1) {
-	argvchild[i++] = "--disk";
-	argvchild[i++] = dle->disk;
+	g_ptr_array_add(argv_ptr, stralloc("--disk"));
+	g_ptr_array_add(argv_ptr, stralloc(dle->disk));
     }
     for (j=0; j < nb_level; j++) {
-	argvchild[i++] = "--level";
+	g_ptr_array_add(argv_ptr, stralloc("--level"));
 	g_snprintf(levelstr,SIZEOF(levelstr),"%d", levels[j]);
-	argvchild[i++] = stralloc(levelstr);
+	g_ptr_array_add(argv_ptr, stralloc(levelstr));
     }
-    if (dle->calcsize && bsu->calcsize) {
-	argvchild[i++] = "--calcsize";
+    /* find the first in ES_CLIENT and ES_CALCSIZE */
+    estimate = ES_CLIENT;
+    for (el = dle->estimatelist; el != NULL; el = el->next) {
+	estimate = (estimate_t)GPOINTER_TO_INT(el->data);
+	if ((estimate == ES_CLIENT && bsu->client_estimate) ||
+	    (estimate == ES_CALCSIZE && bsu->calcsize))
+	    break;
+	estimate = ES_CLIENT;
+    }
+    if (estimate == ES_CALCSIZE && bsu->calcsize) {
+	g_ptr_array_add(argv_ptr, stralloc("--calcsize"));
     }
 
-    i += application_property_add_to_argv(&argvchild[i], dle, bsu);
+    application_property_add_to_argv(argv_ptr, dle, bsu, g_options->features);
 
     for (scriptlist = dle->scriptlist; scriptlist != NULL;
 	 scriptlist = scriptlist->next) {
 	script = (script_t *)scriptlist->data;
 	if (script->result && script->result->proplist) {
-	    i += property_add_to_argv(&argvchild[i],
-				      script->result->proplist);
+	    property_add_to_argv(argv_ptr, script->result->proplist);
 	}
     }
 
-    argvchild[i] = NULL;
+    g_ptr_array_add(argv_ptr, NULL);
 
     cmdline = stralloc(cmd);
-    for(j = 1; j < i; j++)
-	cmdline = vstrextend(&cmdline, " ", argvchild[j], NULL);
+    for(i = 1; i < argv_ptr->len-1; i++)
+	cmdline = vstrextend(&cmdline, " ",
+			     (char *)g_ptr_array_index(argv_ptr, i), NULL);
     dbprintf("running: \"%s\"\n", cmdline);
     amfree(cmdline);
 
@@ -2314,7 +2430,7 @@ getsize_application_api(
       aclose(pipeerrfd[0]);
       safe_fd(-1, 0);
 
-      execve(cmd, argvchild, safe_env());
+      execve(cmd, (char **)argv_ptr->pdata, safe_env());
       error(_("exec %s failed: %s"), cmd, strerror(errno));
       /*NOTREACHED*/
     }
@@ -2434,6 +2550,7 @@ getsize_application_api(
 common_exit:
 
     amfree(cmd);
+    g_ptr_array_free_full(argv_ptr);
     amfree(newoptstr);
     amfree(qdisk);
     amfree(qamdevice);

@@ -19,6 +19,7 @@ libamanda_la_SOURCES =		\
 	alloc.c			\
 	amfeatures.c		\
 	amflock.c		\
+	ipc-binary.c		\
 	amxml.c			\
 	clock.c			\
 	columnar.c		\
@@ -43,8 +44,7 @@ libamanda_la_SOURCES =		\
 	stream.c		\
 	tapelist.c		\
 	timestamp.c		\
-	util.c			\
-	versuff.c
+	util.c
 # version.c is generated; see below
 nodist_libamanda_la_SOURCES = version.c
 
@@ -83,9 +83,6 @@ endif
 if WANT_BSDUDP_SECURITY
 libamanda_la_SOURCES += bsdudp-security.c
 endif
-if WANT_KRB4_SECURITY
-libamanda_la_SOURCES += krb4-security.c	
-endif
 if WANT_KRB5_SECURITY
 libamanda_la_SOURCES += krb5-security.c
 endif
@@ -97,10 +94,12 @@ libamanda_la_LDFLAGS =  -release $(VERSION)
 noinst_HEADERS =		\
 	amanda.h		\
 	amfeatures.h		\
+	ipc-binary.h		\
 	amxml.h			\
 	arglist.h		\
 	clock.h			\
 	columnar.h		\
+	directtcp.h		\
 	amflock.h		\
 	conffile.h		\
 	debug.h			\
@@ -109,10 +108,10 @@ noinst_HEADERS =		\
 	file.h			\
 	fileheader.h		\
 	glib-util.h		\
+	match.h			\
 	packet.h		\
 	pipespawn.h		\
 	protocol.h		\
-	queue.h			\
 	queueing.h		\
 	semaphore.h		\
 	security.h		\
@@ -139,7 +138,6 @@ EXTRA_PROGRAMS = genversion $(TEST_PROGS)
 
 genversion_SOURCES = genversion.c svn-info.h
 genversion_LDADD = $(libamanda_la_LIBADD)	\
-    	versuff.lo				\
 	../gnulib/libgnu.la
 
 genversion.h: $(top_builddir)/config.status
@@ -156,7 +154,7 @@ version.c: genversion$(EXEEXT)
 BUILT_SOURCES += genversion.h version.c
 
 # these are used for testing only:
-TEST_PROGS = file bsdsecurity amfeatures
+TEST_PROGS = file bsdsecurity
 
 CLEANFILES += *.test.c
 DISTCLEANFILES += version.c genversion genversion.h
@@ -166,10 +164,14 @@ DISTCLEANFILES += version.c genversion genversion.h
 STANDARD_COMMON_STUFF_NOT_FILE = \
 	alloc.lo \
 	clock.lo \
+	conffile.lo \
 	debug.lo \
+	glib-util.lo \
 	util.lo \
 	match.lo \
-	sl.lo
+	sl.lo \
+	sockaddr-util.lo \
+	timestamp.lo
 
 STANDARD_COMMON_STUFF = \
 	$(STANDARD_COMMON_STUFF_NOT_FILE) \
@@ -188,11 +190,7 @@ bsdsecurity_LDADD = $(libamanda_a_LIBADD) \
 		    file.lo \
 		    packet.lo \
 		    security.lo \
-		    ssh-security.lo \
-		    versuff.lo
-
-amfeatures_SOURCES = amfeatures.test.c
-amfeatures_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF)
+		    ssh-security.lo
 
 # libtestutils.la
 #
@@ -207,7 +205,8 @@ libtestutils_la_SOURCES = \
 
 # automake-style tests
 
-TESTS = amflock-test event-test semaphore-test queueing-test quoting-test
+TESTS = amflock-test event-test semaphore-test queueing-test quoting-test \
+	ipc-binary-test hexencode-test fileheader-test match-test
 noinst_PROGRAMS = $(TESTS)
 
 amflock_test_SOURCES = amflock-test.c
@@ -225,21 +224,27 @@ queueing_test_LDADD = libamanda.la libtestutils.la
 quoting_test_SOURCES = quoting-test.c
 quoting_test_LDADD = libamanda.la libtestutils.la
 
+ipc_binary_test_SOURCES = ipc-binary-test.c
+ipc_binary_test_LDADD = libamanda.la libtestutils.la
+
+hexencode_test_SOURCES = hexencode-test.c
+hexencode_test_LDADD = libamanda.la libtestutils.la
+
+fileheader_test_SOURCES = fileheader-test.c
+fileheader_test_LDADD = libamanda.la libtestutils.la
+
+match_test_SOURCES = match-test.c
+match_test_LDADD = libamanda.la libtestutils.la
+
 # scripts
 
-# divide scripts up both by language, by destination directory, and by whether they
-# should get checked (stuff in *_SCRIPTS_* isn't syntax checked; this is necessary
-# for perl scripts that use Amanda::* packages)
-sbin_CHECK_PERL = \
+# divide scripts up both by language and destination directory
+sbin_SCRIPTS_PERL = \
 	    amgpgcrypt \
 	    amcryptsimple \
 	    amgetconf
-sbin_SCRIPTS_PERL = \
-	    $(sbin_CHECK_PERL)
 
-amlibexec_CHECK_PERL =
-amlibexec_SCRIPTS_PERL = \
-	    $(amlibexec_CHECK_PERL)
+amlibexec_SCRIPTS_PERL =
 
 sbin_SCRIPTS_SHELL = \
 	    amcrypt \
@@ -254,7 +259,6 @@ SCRIPTS_INCLUDE = \
 
 EXTRA_DIST += amanda-sh-lib.sh.in
 
-CHECK_PERL = $(sbin_CHECK_PERL) $(amlibexec_CHECK_PERL)
 SCRIPTS_PERL = $(sbin_SCRIPTS_PERL) $(amlibexec_SCRIPTS_PERL)
 SCRIPTS_SHELL = $(sbin_SCRIPTS_SHELL) $(amlibexec_SCRIPTS_SHELL)
 

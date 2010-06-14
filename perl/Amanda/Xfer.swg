@@ -1,225 +1,34 @@
 /*
- * Copyright (c) Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
  *
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1
- * as published by the Free Software Foundation.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  *
- * This library is distributed in the hope that it will be useful, but
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 %module "Amanda::Xfer"
 %include "amglue/amglue.swg"
 %include "exception.i"
+%include "cstring.i"
 %import "Amanda/MainLoop.swg"
-%import "Amanda/Device.swg"
+
+%include "Xfer.pod"
 
 %{
 #include "glib-util.h"
 #include "amxfer.h"
-%}
-
-%perlcode %{
-=head1 NAME
-
-Amanda::Xfer - the transfer architecture
-
-=head1 SYNOPSIS
-
-  use Amanda::MainLoop;
-  use Amanda::Xfer qw( :constants );
-  use POSIX;
-
-  my $infd = POSIX::open("input", POSIX::O_RDONLY, 0);
-  my $outfd = POSIX::open("output", POSIX::O_CREAT|POSIX::O_WRONLY, 0640);
-  my $xfer = Amanda::Xfer->new([
-    Amanda::Xfer::Source::Fd->new($infd),
-    Amanda::Xfer::Dest::Fd->new($outfd)
-  ]);
-  $xfer->get_source()->set_callback(sub {
-      my ($src, $xmsg, $xfer) = @_;
-      print "Message from $xfer: $xmsg\n"; # use stringify operations
-      if ($xfer->get_status() == $XFER_DONE) {
-	  $src->remove();
-	  Amanda::MainLoop::quit();
-      }
-  });
-  $xfer->start();
-  Amanda::MainLoop::run();
-  
-See L<http://wiki.zmanda.com/index.php/XFA> for background on the transfer
-architecture.
-
-=head1 API STATUS
-
-Fluid.
-
-=head1 Amanda::Xfer Objects
-
-A new transfer is created with C<< Amanda::Xfer->new() >>, which takes an arrayref
-giving the transfer elements which should compose the transfer.
-
-The resulting object has the following methods:
-
-=over
-
-=item get_source()
-
-Get the L<Amanda::MainLoop> event source through which messages will be
-delivered for this transfer.  Use its C<set_callback> method to connect a perl
-sub for processing events.  You I<must> C<release> the source when the
-transfer is complete!
-
-The callback from this event source receives three arguments: the event source,
-the message, and a reference to the controlling transfer.  See the description of
-C<Amanda::Xfer::Msg>, below, for details.
-
-=item start()
-
-Start this transfer.  Processing takes place asynchronously, and messages will
-begin queueing up immediately.
-
-=item cancel()
-
-Stop transferring data.  The transfer will send an C<XMSG_CANCEL>, "drain" any
-buffered data as best it can, and then complete normally with an C<XMSG_DONE>.
-
-=item get_status()
-
-Get the transfer's status.  The result will be one of C<$XFER_INIT>,
-C<$XFER_START>, C<$XFER_RUNNING>, or C<$XFER_DONE>.  These symbols are
-available for import with the tag C<:constants>.
-
-=item repr()
-
-Return a string representation of this transfer, suitable for use in debugging
-messages.  This method is automatically invoked when a transfer is interpolated
-into a string:
-  print "Starting $xfer\n";
-
-=back
-
-=head1 Amanda::Xfer::Element objects
-
-The individual transfer elements that compose a transfer are instances of
-subclasses of Amanda::Xfer::Element.  All such objects have a C<repr()> method,
-similar to that for transfers, and support a similar kind of string
-interpolation.
-
-Note that the names of these classes contain the words "Source", "Filter", and
-"Dest".  This is merely suggestive of their intended purpose -- there are no
-such abstract classes.
-
-=head2 Transfer Sources
-
-=head3 Amanda::Xfer::Source::Device
-
-  Amanda::Xfer::Source::Device->new($device);
-
-This source reads data from a device.  The device should already be queued up
-for reading (C<$device->seek_file(..)>).  The element will read until the end
-of the device file.
-
-=head3 Amanda::Xfer::Source::Fd
-
-  Amanda::Xfer::Source::Fd->new(fileno($fh));
-
-This source reads data from a file descriptor.  It reads until EOF, but does
-not close the descriptor.  Be careful not to let Perl close the file for you!
-
-=head3 Amanda::Xfer::Source::Random
-
-  Amanda::Xfer::Source::Random->new($length, $seed);
-
-This source provides I<length> bytes of random data (or an unlimited amount
-of data if I<length> is zero).  C<$seed> is the seed used
-to generate the random numbers; this seed can be used in a destination to
-check for correct output.
-
-=head3 Amanda::Xfer::Source::Pattern
-
-  Amanda::Xfer::Source::Pattern->new($length, $pattern);
-
-This source provides I<length> bytes containing copies of
-I<pattern>. If I<length> is zero, the source provides an unlimited
-number of bytes.
-
-=head2 Transfer Filters
-
-=head3 Amanda::Xfer::Filter:Xor
-
-  Amanda::Xfer::Filter::Xor->new($key);
-
-This filter applies a bytewise XOR operation to the data flowing through it.
-
-=head2 Transfer Destinations
-
-=head3 Amanda::Xfer::Dest::Device
-
-  Amanda::Xfer::Dest::Device->new($device, $max_memory);
-
-This source writes data to a device.  The device should already be queued up
-for writing (C<$device->start_file(..)>).  No more than C<$max_memory> will be
-used for buffers.  Use zero for the default buffer size.  On completion of the
-transfer, the file will be finished.
-
-=head3 Amanda::Xfer::Dest::Fd
-
-  Amanda::Xfer::Dest::Fd->new(fileno($fh));
-
-This destination writes data to a file descriptor.  The file is not closed
-after the transfer is completed.  Be careful not to let Perl close the file
-for you!
-
-=head3 Amanda::Xfer::Dest::Null
-
-  Amanda::Xfer::Dest::Null->new($seed);
-
-This destination discards the data it receives.  If C<$seed> is nonzero, then
-the element will validate that it receives the data that
-C<Amanda::Xfer::Source::Random> produced with the same seed.  No validation is
-performed if C<$seed> is zero.
-
-=head1 Amanda::Xfer::Msg objects
-
-Messages are simple hashrefs, with a few convenience methods.  Like transfers,
-they have a C<repr()> method that formats the message nicely, and is available
-through string interpolation:
-  print "Received message $msg\n";
-
-Every message has the following keys:
-
-=over
-
-=item type
-
-The message type -- one of the C<xmsg_type> constants available from the import
-tag C<:constants>.
-
-=item elt
-
-The transfer element that sent the message.
-
-=item version
-
-The version of the message.  This is used to support extensibility of the protocol.
-
-=back
-
-The canonical description of the message types and keys is in C<xfer-src/xmsg.h>, and is
-not duplicated here.
-
-=cut
 %}
 
 /* The SWIGging of the transfer architecture.
@@ -274,6 +83,8 @@ amglue_add_constant(XMSG_INFO, xmsg_type);
 amglue_add_constant(XMSG_ERROR, xmsg_type);
 amglue_add_constant(XMSG_DONE, xmsg_type);
 amglue_add_constant(XMSG_CANCEL, xmsg_type);
+amglue_add_constant(XMSG_PART_DONE, xmsg_type);
+amglue_add_constant(XMSG_READY, xmsg_type);
 amglue_copy_to_tag(xmsg_type, constants);
 
 /*
@@ -281,118 +92,6 @@ amglue_copy_to_tag(xmsg_type, constants);
  */
 
 %{
-/* Return a new SV with refcount 1 representing the given C object
- * with the given class.
- *
- * @param c_obj: the object to represent
- * @param perl_class: the perl with which to bless and tie the SV
- */
-static SV *
-new_sv_for_c_obj(
-    gpointer c_obj,
-    const char *perl_class)
-{
-    SV *sv = newSV(0);
-
-    /* Make an SV that contains a pointer to the object, and bless it
-     * with the appropriate class. */
-    sv_setref_pv(sv, perl_class, c_obj);
-
-    return sv;
-}
-
-/* Return a new SV representing a transfer.
- *
- * @param xfer: the transfer to represent
- */
-static SV *
-new_sv_for_xfer(
-    Xfer *xfer)
-{
-    if (!xfer) return &PL_sv_undef;
-
-    xfer_ref(xfer);
-    return new_sv_for_c_obj(xfer, "Amanda::Xfer::Xfer");
-}
-
-/* Return a new SV representing a transfer element.
- *
- * @param xe: the transfer element to represent
- */
-static SV *
-new_sv_for_xfer_element(
-    XferElement *xe)
-{
-    const char *perl_class;
-
-    if (!xe) return &PL_sv_undef;
-
-    perl_class = XFER_ELEMENT_GET_CLASS(xe)->perl_class;
-    if (!perl_class) die("Attempt to wrap an XferElementClass with no perl class!");
-    g_object_ref(xe);
-    return new_sv_for_c_obj(xe, perl_class);
-}
-
-/* Return the C object buried in an SV, asserting that the perl SV is
- * derived from derived_from.  Returns NULL for undefined perl values.
- *
- * This function is based on SWIG's SWIG_Perl_ConvertPtr.  The INT2PTR
- * situation certainly looks strange, but is documented in perlxs.
- *
- * @param sv: the SV to convert
- * @param derived_from: perl class from which the SV should be derived
- * @return: underlying pointer
- */
-static gpointer
-c_obj_from_sv(
-    SV *sv,
-    const char *derived_from)
-{
-    SV *referent;
-    IV tmp;
-
-    if (!sv) return NULL;
-    if (!SvOK(sv)) return NULL;
-
-    /* Peel back the layers.  The sv should be a blessed reference to a PV,
-     * and we check the class against derived_from to ensure we have the right
-     * stuff. */
-    if (!sv_isobject(sv) || !sv_derived_from(sv, derived_from)) {
-	croak("Value is not an object of type %s", derived_from);
-	return NULL;
-    }
-
-    referent = (SV *)SvRV(sv);
-    tmp = SvIV(referent);
-    return INT2PTR(gpointer, tmp);
-}
-
-/* Convert an SV to an Xfer.  The Xfer's reference count is not
- * incremented -- this is a "borrowed" reference.
- *
- * @param sv: the perl value
- * @returns: pointer to the corresponding transfer, or NULL
- */
-static Xfer *
-xfer_from_sv(
-    SV *sv)
-{
-    return (Xfer *)c_obj_from_sv(sv, "Amanda::Xfer::Xfer");
-}
-
-/* Convert an SV to an XferElement.  The element's reference count is
- * not incremented -- this is a "borrowed" reference.
- *
- * @param sv: the perl value
- * @returns: pointer to the corresponding transfer element, or NULL.
- */
-static XferElement *
-xfer_element_from_sv(
-    SV *sv)
-{
-    return (XferElement *)c_obj_from_sv(sv, "Amanda::Xfer::Element");
-}
-
 /* Given an XMsg, return a hashref representing the message as a pure-perl
  * object.  The object is new, has refcount 1, and is totally independent of
  * the underlying XMsg.
@@ -435,6 +134,27 @@ new_sv_for_xmsg(
     /* message */
     if (msg->message)
 	hv_store(hash, "message", 7, newSVpv(msg->message, 0), 0);
+
+    /* successful */
+    hv_store(hash, "successful", 10, newSViv(msg->successful), 0);
+
+    /* eom */
+    hv_store(hash, "eom", 3, newSViv(msg->eom), 0);
+
+    /* eof */
+    hv_store(hash, "eof", 3, newSViv(msg->eof), 0);
+
+    /* size */
+    hv_store(hash, "size", 4, amglue_newSVu64(msg->size), 0);
+
+    /* duration */
+    hv_store(hash, "duration", 8, newSVnv(msg->duration), 0);
+
+    /* partnum */
+    hv_store(hash, "partnum", 7, amglue_newSVu64(msg->partnum), 0);
+
+    /* fileno */
+    hv_store(hash, "fileno", 6, amglue_newSVu64(msg->fileno), 0);
 
     return rv;
 }
@@ -517,6 +237,25 @@ void xfer_cancel(Xfer *xfer);
 #define xfer_get_status(xfer) ((xfer)->status)
 %}
 
+/* upgrade the start method to optionally take a callback, which is
+ * passed to the GSource's set_callback */
+%perlcode %{
+sub xfer_start_with_callback {
+    my ($xfer, $cb) = @_;
+    if (defined $cb) {
+	my $releasing_cb = sub {
+	    my ($src, $msg, $xfer) = @_;
+	    my $done = $msg->{'type'} == $XMSG_DONE;
+	    $src->remove() if $done;
+	    $cb->(@_);
+	    $cb = undef if $done; # break potential reference loop
+	};
+	$xfer->get_source()->set_callback($releasing_cb);
+    }
+    xfer_start($xfer);
+}
+%}
+
 /*
  * XferElement functions
  *
@@ -530,19 +269,27 @@ char *xfer_element_repr(XferElement *elt);
 /* xfer_element_start -- private */
 /* xfer_element_cancel -- private */
 
+%inline %{
+static gboolean same_elements(
+	XferElement *a,
+	XferElement *b)
+{
+    return a == b;
+}
+%}
+
 /* subclass constructors */
 
 /* N.B. When adding new classes, ensure that the class_init function
  * sets perl_class to the appropriate value. */
 
-%newobject xfer_source_device;
-XferElement *xfer_source_device(
-    Device *device);
-
 %newobject xfer_source_random;
 XferElement *xfer_source_random(
     guint64 length,
     guint32 seed);
+
+guint32 xfer_source_random_get_seed(
+    XferElement *self);
 
 %typemap(in) (void * pattern, size_t pattern_length) {
  size_t len;
@@ -553,7 +300,35 @@ XferElement *xfer_source_random(
  $2 = len;
 }
 
-%newobject xfer_source_random;
+%typemap(in) (gchar **argv) {
+    AV *av;
+    unsigned int len;
+    unsigned int i;
+
+    /* check that it's an arrayref */
+    if (!SvROK($input) || SvTYPE(SvRV($input)) != SVt_PVAV) {
+	SWIG_exception(SWIG_TypeError, "Expected a non-empty arrayref");
+    }
+    av = (AV *)SvRV($input);
+
+    /* allocate memory for $1 */
+    len = av_len(av)+1; /* av_len(av) is like $#av */
+    if (!len) {
+	SWIG_exception(SWIG_TypeError, "Expected a non-empty arrayref");
+    }
+    $1 = g_new0(gchar *, len+1);
+
+    for (i = 0; i < len; i++) {
+	SV **sv = av_fetch(av, i, 0);
+	g_assert(sv != NULL);
+	$1[i] = g_strdup(SvPV_nolen(*sv));
+    }
+
+    /* final element is already NULL due to g_new0; xfer_filter_process takes
+     * care of freeing this array, so we don't have to */
+}
+
+%newobject xfer_source_pattern;
 XferElement *xfer_source_pattern(
     guint64 length,
     void * pattern,
@@ -563,22 +338,58 @@ XferElement *xfer_source_pattern(
 XferElement *xfer_source_fd(
     int fd);
 
+%newobject xfer_source_directtcp_listen;
+XferElement *xfer_source_directtcp_listen(void);
+
+%inline %{
+static DirectTCPAddr *
+xfer_source_directtcp_listen_get_addrs(XferElement *elt) {
+    return elt->input_listen_addrs;
+}
+%}
+
+%newobject xfer_source_directtcp_connect;
+XferElement *xfer_source_directtcp_connect(DirectTCPAddr *addrs);
+
 %newobject xfer_filter_xor;
 XferElement *xfer_filter_xor(
     unsigned char xor_key);
 
-%newobject xfer_dest_device;
-XferElement *xfer_dest_device(
-    Device *device,
-    size_t max_memory);
+%newobject xfer_filter_process;
+XferElement *xfer_filter_process(
+    gchar **argv,
+    gboolean need_root);
 
 %newobject xfer_dest_null;
 XferElement *xfer_dest_null(
     guint32 prng_seed);
 
+%newobject xfer_dest_buffer;
+XferElement *xfer_dest_buffer(
+    gsize max_size);
+
+%cstring_output_allocate_size(gpointer *buf, gsize *size, );
+void xfer_dest_buffer_get(
+    XferElement *elt,
+    gpointer *buf,
+    gsize *size);
+
 %newobject xfer_dest_fd;
 XferElement *xfer_dest_fd(
     int fd);
+
+%newobject xfer_dest_directtcp_listen;
+XferElement *xfer_dest_directtcp_listen(void);
+
+%inline %{
+static DirectTCPAddr *
+xfer_dest_directtcp_listen_get_addrs(XferElement *elt) {
+    return elt->output_listen_addrs;
+}
+%}
+
+%newobject xfer_dest_directtcp_connect;
+XferElement *xfer_dest_directtcp_connect(DirectTCPAddr *addrs);
 
 /*
  * Callback handling
@@ -595,23 +406,30 @@ xmsgsource_perl_callback(
     dSP;
     amglue_Source *src = (amglue_Source *)data;
     SV *src_sv = NULL;
+    SV *msg_sv = NULL;
+    SV *xfer_sv = NULL;
 
+    /* keep the source around long enough for the call to finish */
+    amglue_source_ref(src);
     g_assert(src->callback_sv != NULL);
 
     ENTER;
     SAVETMPS;
 
     /* create a new SV pointing to 'src', and increase its refcount
-     * accordingly.  The SV is mortal, so FREETMPS will decrease the 
-     * refcount, unless the callee keeps a copy of it somewhere */
+     * accordingly. */
     amglue_source_ref(src);
     src_sv = SWIG_NewPointerObj(src, SWIGTYPE_p_amglue_Source,
 				 SWIG_OWNER | SWIG_SHADOW);
+    SvREFCNT_inc(src_sv);
+
+    msg_sv = new_sv_for_xmsg(msg);
+    xfer_sv = new_sv_for_xfer(xfer);
 
     PUSHMARK(SP);
-    XPUSHs(src_sv);
-    XPUSHs(sv_2mortal(new_sv_for_xmsg(msg)));
-    XPUSHs(sv_2mortal(new_sv_for_xfer(xfer)));
+    XPUSHs(sv_2mortal(src_sv));
+    XPUSHs(sv_2mortal(msg_sv));
+    XPUSHs(sv_2mortal(xfer_sv));
     PUTBACK;
 
     call_sv(src->callback_sv, G_EVAL|G_DISCARD);
@@ -619,9 +437,14 @@ xmsgsource_perl_callback(
     FREETMPS;
     LEAVE;
 
-    /* these may have been freed, so don't use them after this point */
-    src_sv = NULL;
+    /* we no longer need the src */
+    amglue_source_unref(src);
     src = NULL;
+
+    /* these may be gone, so NULL them out */
+    src_sv = NULL;
+    msg_sv = NULL;
+    xfer_sv = NULL;
 
     /* check for an uncaught 'die'.  If we don't do this, then Perl will longjmp()
      * over the GMainLoop mechanics, leaving GMainLoop in an inconsistent (locked)
@@ -665,11 +488,15 @@ package PKG;
 }
 %enddef
 
-%define XFER_ELEMENT_SUBCLASS()
+%define XFER_ELEMENT_SUBCLASS_OF(PARENT)
 %perlcode {
 use vars qw(@ISA);
-@ISA = qw( Amanda::Xfer::Element );
+@ISA = qw( PARENT );
 }
+%enddef
+
+%define XFER_ELEMENT_SUBCLASS()
+XFER_ELEMENT_SUBCLASS_OF(Amanda::Xfer::Element)
 %enddef
 
 %define DECLARE_CONSTRUCTOR(C_CONSTRUCTOR)
@@ -678,39 +505,43 @@ sub new {
     my $pkg = shift;
     # The C function adds the proper blessing -- this function
     # just gets $pkg out of the way.
-    Amanda::Xfer::C_CONSTRUCTOR(@_);
+    C_CONSTRUCTOR(@_);
 }
 }
 %enddef
 
 %define OVERLOAD_REPR()
-%perlcode {use overload '""' => sub { $_[0]->repr(); };
+%perlcode {
+use overload '""' => sub { $_[0]->repr(); };
+# overload comparison, so users can ask if one obj == another
+use overload '==' => sub {     Amanda::Xfer::same_elements($_[0], $_[1]); };
+use overload '!=' => sub { not Amanda::Xfer::same_elements($_[0], $_[1]); };
 }
 %enddef
 
 %define DECLARE_METHOD(METHOD_NAME, C_FUNCTION)
-%perlcode {*METHOD_NAME = *Amanda::Xfer::C_FUNCTION;
+%perlcode {*METHOD_NAME = *C_FUNCTION;
 }
 %enddef
 
 /* And now define the required perl classes */
 
 PACKAGE(Amanda::Xfer::Xfer)
-DECLARE_CONSTRUCTOR(xfer_new);
-DECLARE_METHOD(DESTROY, xfer_unref);
+DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_new);
+DECLARE_METHOD(DESTROY, Amanda::Xfer::xfer_unref);
 OVERLOAD_REPR()
-DECLARE_METHOD(repr, xfer_repr);
-DECLARE_METHOD(get_status, xfer_get_status);
-DECLARE_METHOD(get_source, xfer_get_amglue_source);
-DECLARE_METHOD(start, xfer_start);
-DECLARE_METHOD(cancel, xfer_cancel);
+DECLARE_METHOD(repr, Amanda::Xfer::xfer_repr);
+DECLARE_METHOD(get_status, Amanda::Xfer::xfer_get_status);
+DECLARE_METHOD(get_source, Amanda::Xfer::xfer_get_amglue_source);
+DECLARE_METHOD(start, Amanda::Xfer::xfer_start_with_callback);
+DECLARE_METHOD(cancel, Amanda::Xfer::xfer_cancel);
 
 /* ---- */
 
 PACKAGE(Amanda::Xfer::Element)
-DECLARE_METHOD(DESTROY, xfer_element_unref);
+DECLARE_METHOD(DESTROY, Amanda::Xfer::xfer_element_unref);
 OVERLOAD_REPR()
-DECLARE_METHOD(repr, xfer_element_repr);
+DECLARE_METHOD(repr, Amanda::Xfer::xfer_element_repr);
 
 /* ---- */
 
@@ -720,51 +551,79 @@ XFER_ELEMENT_SUBCLASS()
 
 /* ---- */
 
-PACKAGE(Amanda::Xfer::Source::Device)
-XFER_ELEMENT_SUBCLASS()
-DECLARE_CONSTRUCTOR(xfer_source_device)
-
-/* ---- */
-
 PACKAGE(Amanda::Xfer::Source::Fd)
 XFER_ELEMENT_SUBCLASS()
-DECLARE_CONSTRUCTOR(xfer_source_fd)
+DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_source_fd)
 
 /* ---- */
 
 PACKAGE(Amanda::Xfer::Source::Random)
 XFER_ELEMENT_SUBCLASS()
-DECLARE_CONSTRUCTOR(xfer_source_random)
+DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_source_random)
+DECLARE_METHOD(get_seed, Amanda::Xfer::xfer_source_random_get_seed)
+
+/* ---- */
+
+PACKAGE(Amanda::Xfer::Source::DirectTCPListen)
+XFER_ELEMENT_SUBCLASS()
+DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_source_directtcp_listen)
+DECLARE_METHOD(get_addrs, Amanda::Xfer::xfer_source_directtcp_listen_get_addrs)
+
+/* ---- */
+
+PACKAGE(Amanda::Xfer::Source::DirectTCPConnect)
+XFER_ELEMENT_SUBCLASS()
+DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_source_directtcp_connect)
 
 /* ---- */
 
 PACKAGE(Amanda::Xfer::Source::Pattern)
 XFER_ELEMENT_SUBCLASS()
-DECLARE_CONSTRUCTOR(xfer_source_pattern)
+DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_source_pattern)
 
 /* ---- */
 
 PACKAGE(Amanda::Xfer::Filter::Xor)
 XFER_ELEMENT_SUBCLASS()
-DECLARE_CONSTRUCTOR(xfer_filter_xor)
+DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_filter_xor)
 
 /* ---- */
 
-PACKAGE(Amanda::Xfer::Dest::Device)
+PACKAGE(Amanda::Xfer::Filter::Process)
 XFER_ELEMENT_SUBCLASS()
-DECLARE_CONSTRUCTOR(xfer_dest_device)
+DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_filter_process)
 
 /* ---- */
 
 PACKAGE(Amanda::Xfer::Dest::Fd)
 XFER_ELEMENT_SUBCLASS()
-DECLARE_CONSTRUCTOR(xfer_dest_fd)
+DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_dest_fd)
 
 /* ---- */
 
 PACKAGE(Amanda::Xfer::Dest::Null)
 XFER_ELEMENT_SUBCLASS()
-DECLARE_CONSTRUCTOR(xfer_dest_null)
+DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_dest_null)
+
+/* ---- */
+
+PACKAGE(Amanda::Xfer::Dest::Buffer)
+XFER_ELEMENT_SUBCLASS()
+DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_dest_buffer)
+DECLARE_METHOD(get, Amanda::Xfer::xfer_dest_buffer_get)
+
+/* ---- */
+
+PACKAGE(Amanda::Xfer::Dest::DirectTCPListen)
+XFER_ELEMENT_SUBCLASS()
+DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_dest_directtcp_listen)
+DECLARE_METHOD(get_addrs, Amanda::Xfer::xfer_dest_directtcp_listen_get_addrs)
+
+/* ---- */
+
+PACKAGE(Amanda::Xfer::Dest::DirectTCPConnect)
+XFER_ELEMENT_SUBCLASS()
+DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_dest_directtcp_connect)
 
 /* ---- */
 
@@ -802,4 +661,10 @@ PACKAGE(Amanda::Xfer)
 # make Amanda::Xfer->new equivalent to Amanda::Xfer::Xfer->new (don't
 # worry, the blessings work out just fine)
 *new = *Amanda::Xfer::Xfer::new;
+
+# try to load Amanda::XferServer, which is server-only.  If it's not found, then
+# its classes just remain undefined.
+BEGIN {
+    eval "use Amanda::XferServer;";
+}
 %}

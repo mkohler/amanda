@@ -1,5 +1,7 @@
 # Makefile for amanda man-pages
 
+.SECONDARY:
+
 transform =	s,x,x,;
 
 AMPLOT_MAN_PAGES =  amplot.8
@@ -16,14 +18,19 @@ COMMON_MAN_PAGES =  amanda.8 \
 CLIENT_MAN_PAGES = \
     amanda-applications.7 \
     amgtar.8 \
+    ampgsql.8 \
+    amraw.8 \
     amsamba.8 \
     amstar.8 \
+    amsuntar.8 \
     amzfs-snapshot.8 \
     amzfs-sendrecv.8
 
 SERVER_MAN_PAGES =  \
     amanda-devices.7 \
+    amanda-compatibility.7 \
     amanda-changers.7 \
+    amanda-taperscan.7 \
     amaddclient.8    \
     amadmin.8 \
     amaespipe.8 \
@@ -113,14 +120,14 @@ entities/global.entities: entities/global.entities.in $(top_builddir)/config.sta
 if   ENABLE_MANPAGE_BUILD
 # phase one of the documentation build expands some macros.
 xml-source/%.proc.xml: $(SRCMANPAGEDIR)/%.xml $(srcdir)/xslt/expand-sambadoc.xsl entities/global.entities
-	$(XSLTPROC) $(XSLTPROC_FLAGS) --path $(srcdir)/xslt/ --xinclude --stringparam latex.imagebasedir "$*/" --stringparam noreference 1 --output $@ $(srcdir)/xslt/expand-sambadoc.xsl $<
+	$(XSLTPROC) $(XSLTPROC_FLAGS) --path "$(srcdir)/xslt/:$(builddir)/entities/" --xinclude --stringparam latex.imagebasedir "$*/" --stringparam noreference 1 --output $@ $(srcdir)/xslt/expand-sambadoc.xsl $<
 
 # phase two generates a manpage from the resulting "expanded" docbook XML
 %: xml-source/%.proc.xml $(srcdir)/xslt/man.xsl entities/global.entities
-	$(XSLTPROC) $(XSLTPROC_FLAGS) --path $(srcdir)/xslt/ --output $@ xslt/man.xsl $<
+	$(XSLTPROC) $(XSLTPROC_FLAGS) --path "$(srcdir)/xslt/:$(builddir)/entities/" --output $@ xslt/man.xsl $<
 
 %.html: xml-source/%.proc.xml $(srcdir)/xslt/html.xsl entities/global.entities
-	$(XSLTPROC) $(XSLTPROC_FLAGS) --path $(srcdir)/xslt/ --output $@ xslt/html.xsl $<
+	$(XSLTPROC) $(XSLTPROC_FLAGS) --path "$(srcdir)/xslt/:$(builddir)/entities/" --output $@ xslt/html.xsl $<
 
 else	!ENABLE_MANPAGE_BUILD
 

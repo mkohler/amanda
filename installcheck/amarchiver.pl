@@ -1,4 +1,4 @@
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -13,18 +13,19 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 use Test::More tests => 18;
 
 use lib "@amperldir@";
+use Installcheck;
 use Installcheck::Run qw( run run_get );
 use Amanda::Paths;
 use Amanda::Constants;
 use File::Path qw( mkpath rmtree );
 
-my $tmpdir = "$AMANDA_TMPDIR/amarchiver-installcheck";
+my $tmpdir = "$Installcheck::TMP/amarchiver-installcheck";
 my $archfile = "$tmpdir/test.amar";
 my $data = "abcd" x 500;
 my $fh;
@@ -71,7 +72,7 @@ like($Installcheck::Run::stdout,
 ok(run('amarchiver', '--create', '--verbose', $archfile),
     "archive creation with --verbose and without --file succeeds");
 like($Installcheck::Run::stderr,
-    qr{$archfile},
+    qr{\Q$archfile\E},
     "..and output goes to stderr");
 
 unlink($archfile);

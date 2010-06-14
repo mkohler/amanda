@@ -89,7 +89,6 @@ am_init_feature_set(void)
 	am_add_feature(f, fe_options_include_list);
 	am_add_feature(f, fe_options_multiple_include);
 	am_add_feature(f, fe_options_optional_include);
-	am_add_feature(f, fe_options_krb4_auth);
 	am_add_feature(f, fe_options_kencrypt);
 
 	am_add_feature(f, fe_req_options_maxdumps);
@@ -107,7 +106,6 @@ am_init_feature_set(void)
 	am_add_feature(f, fe_amidxtaped_disk);
 	am_add_feature(f, fe_amidxtaped_datestamp);
 	am_add_feature(f, fe_amidxtaped_header);
-	am_add_feature(f, fe_amidxtaped_nargs);
 	am_add_feature(f, fe_amidxtaped_config);
 
 	am_add_feature(f, fe_recover_splits);
@@ -154,6 +152,15 @@ am_init_feature_set(void)
 	am_add_feature(f, fe_xml_estimate);
 	am_add_feature(f, fe_xml_property_priority);
 	am_add_feature(f, fe_sendsize_rep_warning);
+	am_add_feature(f, fe_xml_estimatelist);
+	am_add_feature(f, fe_xml_level_server);
+	am_add_feature(f, fe_xml_data_path);
+	am_add_feature(f, fe_xml_directtcp_list);
+	am_add_feature(f, fe_amidxtaped_datapath);
+	am_add_feature(f, fe_sendbackup_noop);
+	am_add_feature(f, fe_amrecover_origsize_in_header);
+	am_add_feature(f, fe_amidxtaped_abort);
+	am_add_feature(f, fe_amrecover_correct_disk_quoting);
     }
     return f;
 }
@@ -194,7 +201,6 @@ am_set_default_feature_set(void)
 	am_add_feature(f, fe_options_index);
 	am_add_feature(f, fe_options_exclude_file);
 	am_add_feature(f, fe_options_exclude_list);
-	am_add_feature(f, fe_options_krb4_auth);
 	am_add_feature(f, fe_options_kencrypt);
 
 	am_add_feature(f, fe_req_options_maxdumps);
@@ -449,77 +455,3 @@ bad:
     am_release_feature_set(f);
     return NULL;
 }
-
-#if defined(TEST)
-int
-main(
-    int		argc,
-    char **	argv)
-{
-    am_feature_t		*f;
-    am_feature_t		*f1;
-    char			*s;
-    char			*s1;
-    int				i;
-    int				n;
-
-    /*
-     * Configure program for internationalization:
-     *   1) Only set the message locale for now.
-     *   2) Set textdomain for all amanda related programs to "amanda"
-     *      We don't want to be forced to support dozens of message catalogs.
-     */  
-    setlocale(LC_MESSAGES, "C");
-    textdomain("amanda"); 
-
-    f = am_init_feature_set();
-    if (f == NULL) {
-	g_fprintf(stderr, _("cannot initialize feature set\n"));
-	return 1;
-    }
-
-    s = am_feature_to_string(f);
-    g_printf(_("base features=%s\n"), s);
-
-    f1 = am_string_to_feature(s);
-    s1 = am_feature_to_string(f1);
-    if (strcmp(s, s1) != 0) {
-	g_fprintf(stderr, _("base feature -> string -> feature set mismatch\n"));
-	g_fprintf(stderr, _("conv features=%s\n"), s);
-    }
-
-    amfree(s1);
-    amfree(s);
-
-    for (i = 1; i < argc; i++) {
-	if (argv[i][0] == '+') {
-	    n = atoi(&argv[i][1]);
-	    if (am_add_feature(f, (am_feature_e)n)) {
-		g_printf(_("added feature number %d\n"), n);
-	    } else {
-		g_printf(_("could not add feature number %d\n"), n);
-	    }
-	} else if (argv[i][0] == '-') {
-	    n = atoi(&argv[i][1]);
-	    if (am_remove_feature(f, (am_feature_e)n)) {
-		g_printf(_("removed feature number %d\n"), n);
-	    } else {
-		g_printf(_("could not remove feature number %d\n"), n);
-	    }
-	} else {
-	    n = atoi(argv[i]);
-	    if (am_has_feature(f, (am_feature_e)n)) {
-		g_printf(_("feature %d is set\n"), n);
-	    } else {
-		g_printf(_("feature %d is not set\n"), n);
-	    }
-	}
-    }
-
-    s = am_feature_to_string(f);
-    g_printf(_(" new features=%s\n"), s);
-    amfree(s);
-
-    return 0;
-}
-#endif

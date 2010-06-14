@@ -2,12 +2,12 @@
 .\"     Title: amanda-client.conf
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: File formats and conventions
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMANDA\-CLIENT\&.CON" "5" "11/05/2009" "Amanda 2\&.6\&.1p2" "File formats and conventions"
+.TH "AMANDA\-CLIENT\&.CON" "5" "06/01/2010" "Amanda 3\&.1\&.0" "File formats and conventions"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,12 +19,11 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amanda-client.conf \- Client configuration file for \fIAmanda\fR, the Advanced Maryland Automatic Network Disk Archiver
+amanda-client.conf \- Client configuration file for Amanda, the Advanced Maryland Automatic Network Disk Archiver
 .SH "DESCRIPTION"
 .PP
 \fBamanda-client.conf\fR(5)
-is the client configuration file for
-\fIAmanda\fR\&. This manpage lists the relevant sections and parameters of this file for quick reference\&.
+is the client configuration file for Amanda\&. This manpage lists the relevant sections and parameters of this file for quick reference\&.
 .PP
 The files
 \fB<CONFIG_DIR>/amanda\-client\&.conf\fR
@@ -38,13 +37,13 @@ The syntax of \fBamanda-client.conf\fR(5) is identical to that for
 \fBamanda.conf\fR(5)\&.
 .SH "GLOBAL PARAMETERS"
 .PP
-\fBconf\fR \fI string\fR
+\fBconf\fR \fIstring\fR
 .RS 4
 Default:
 \fISet by configure\fR\&. The conf use by amrecover\&.
 .RE
 .PP
-\fBclient_username\fR \fI string\fR
+\fBclient_username\fR \fIstring\fR
 .RS 4
 Default:
 \fICLIENT_LOGIN\fR\&. Similar to the parameter of the same name in
@@ -55,193 +54,202 @@ should send when connecting to the server\&. It should match the username specif
 on the server\&.
 .RE
 .PP
-\fBindex_server\fR \fI string\fR
+\fBclient_port\fR [ \fIint\fR | \fIstring\fR ]
+.RS 4
+Default:
+\fI"amanda"\fR\&. Similar to the parameter of the same name in
+\fBamanda.conf\fR(5), this specifies the port to connect on the server\&. It can be a service name or a numeric port number\&.
+.RE
+.PP
+\fBindex_server\fR \fIstring\fR
 .RS 4
 Default:
 \fISet by configure\fR\&. The amindexd server amrecover will connect to\&.
 .RE
 .PP
-\fBtape_server\fR \fI string\fR
+\fBtape_server\fR \fIstring\fR
 .RS 4
 Default:
 \fISet by configure\fR\&. The amidxtaped server amrecover will connect to\&.
 .RE
 .PP
-\fBtapedev\fR \fI string\fR
+\fBtapedev\fR \fIstring\fR
 .RS 4
 Default:
 \fISet by configure\fR\&. The tapedev amrecover will use\&.
 .RE
 .PP
-\fBauth\fR \fI string\fR
+\fBauth\fR \fIstring\fR
 .RS 4
 Default:
-\fIbsd\fR\&. Type of authorization to perform between tape server and backup client hosts\&.
+\fB"bsd"\fR\&. Type of authorization to perform between tape server and backup client hosts\&.
 .sp
-\fBbsd\fR, bsd authorization with udp initial connection and one tcp connection by data stream\&.
+\fB"bsd"\fR, bsd authorization with udp initial connection and one tcp connection by data stream\&.
 .sp
-\fBbsdtcp\fR, bsd authorization but use only one tcp connection\&.
+\fB"bsdtcp"\fR, bsd authorization but use only one tcp connection\&.
 .sp
-\fBbsdudp\fR, like bsd, but will use only one tcp connection for all data stream\&.
+\fB"bsdudp"\fR, like bsd, but will use only one tcp connection for all data stream\&.
 .sp
-\fBkrb4\fR
-to use Kerberos\-IV authorization\&.
-.sp
-\fBkrb5\fR
+\fB"krb5"\fR
 to use Kerberos\-V authorization\&.
 .sp
-\fBlocal\fR, if the client is the server, it doesn\'t require authencation setup\&.
+\fB"local"\fR, if the client is the server, it doesn\'t require authencation setup\&.
 .sp
-\fBrsh\fR
+\fB"rsh"\fR
 to use rsh authorization\&.
 .sp
-\fBssh\fR
+\fB"ssh"\fR
 to use OpenSSH authorization\&.
 .RE
 .PP
-\fBssh_keys\fR \fI string\fR
+\fBssh_keys\fR \fIstring\fR
 .RS 4
 Default:
 \fINo default\fR\&. The key file the ssh auth will use, it must be the private key\&. If this parameter is not specified, then the default ssh key will be used\&.
 .RE
 .PP
-\fBgnutar_list_dir\fR \fI string\fR
+\fBgnutar_list_dir\fR \fIstring\fR
 .RS 4
 Default from configure
 \fI\-\-with\-gnutar\-listdir=DIR\fR\&. The directory where gnutar keep its state file\&.
 .RE
 .PP
-\fBmailer\fR \fI string\fR
+\fBmailer\fR \fIstring\fR
 .RS 4
 Default found by configure\&. A mail program that can send mail with \'\fIMAILER \-s "subject" user < message_file\fR\'\&.
 .RE
 .PP
-\fBamandates\fR \fI string\fR
+\fBamandates\fR \fIstring\fR
 .RS 4
 Default:
 \fI/etc/amandates\fR\&. The file where amanda keep the last date of each dumplevel\&.
 .RE
 .PP
-\fBconnect_tries\fR int
+\fBconnect_tries\fR \fIint\fR
 .RS 4
 Default:
 \fI3\fR\&. How many times the server will try a connection\&.
 .RE
 .PP
-\fBrep_tries\fR int
+\fBrep_tries\fR \fIint\fR
 .RS 4
 Default:
 \fI5\fR\&. How many times amandad will resend a REP packet if it doesn\'t get the ACK packet\&.
 .RE
 .PP
-\fBdebug_amandad\fR int
+\fBdebug_days\fR \fIint\fR
+.RS 4
+Default:
+\fI3\fR\&. The number of days the debug files are kept\&.
+.RE
+.PP
+\fBdebug_amandad\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the amandad process
 .RE
 .PP
-\fBdebug_amidxtaped\fR int
+\fBdebug_amidxtaped\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the amidxtaped process
 .RE
 .PP
-\fBdebug_amindexd\fR int
+\fBdebug_amindexd\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the amindexd process
 .RE
 .PP
-\fBdebug_amrecover\fR int
+\fBdebug_amrecover\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the amrecover process
 .RE
 .PP
-\fBdebug_auth\fR int
+\fBdebug_auth\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the auth module
 .RE
 .PP
-\fBdebug_event\fR int
+\fBdebug_event\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the event module
 .RE
 .PP
-\fBdebug_holding\fR int
+\fBdebug_holding\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the holdingdisk module
 .RE
 .PP
-\fBdebug_protocol\fR int
+\fBdebug_protocol\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the protocol module
 .RE
 .PP
-\fBdebug_selfcheck\fR int
+\fBdebug_selfcheck\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the selfcheck process
 .RE
 .PP
-\fBdebug_sendsize\fR int
+\fBdebug_sendsize\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the sendsize process
 .RE
 .PP
-\fBdebug_sendbackup\fR int
+\fBdebug_sendbackup\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the sendbackup process
 .RE
 .PP
-\fBreserved\-udp\-port\fR int,int
+\fBreserved\-udp\-port\fR \fIint\fR,\fIint\fR
 .RS 4
 Default: \-\-with\-udpportrange or
 \fI512,1023\fR\&. Reserved udp port that will be used (amrecover with bsd or bsdudp)
 .RE
 .PP
-\fBreserved\-tcp\-port\fR int,int
+\fBreserved\-tcp\-port\fR \fIint\fR,\fIint\fR
 .RS 4
 Default: \-\-with\-low\-tcpportrange or
 \fI512,1023\fR\&. Reserved tcp port that will be used (amrecover with bsdtcp)
 .RE
 .PP
-\fBunreserved\-tcp\-port\fR int,int
+\fBunreserved\-tcp\-port\fR \fIint\fR,\fIint\fR
 .RS 4
 Default: \-\-with\-tcpportrange or
 \fI1025,65536\fR\&. Unreserved tcp port that will be used (bsd, bsdudp)
 .RE
 .PP
-\fBproperty\fR "name" "value"
+\fBproperty\fR \fIstring\fR \fIstring\fR+
 .RS 4
-Adds a global property for this client host, useful for e\&.g\&., Application API plugins\&.
+Adds a global property for this client host, useful for e\&.g\&., Application API plugins\&. The first string is the property name, the following strings are the property values
 .RE
 .SH "APPLICATION SECTION"
 .PP
 The
 \fBamanda\&.conf\fR
 file may define multiple types of application\&. The information is entered in a
-\fBapplication\-tool\fR
+\fBapplication\fR
 section, which looks like this:
 .nf
-define application\-tool "\fIname\fR" {
-    \fIapplication\-option\fR \fIappli
-cation\-value\fR
+define application "\fIname\fR" {
+    \fIapplication\-option\fR \fIapplication\-value\fR
     \&.\&.\&.
 }
 .fi
 .PP
 \fIname\fR
 is the name of this type of application\&. It is referenced from the
-\fIdumptype\fR
+\fBdumptype\fR
 .PP
-The application\-tool options and values are:
+The application options and values are:
 .PP
 \fBcomment\fR \fIstring\fR
 .RS 4
@@ -256,7 +264,7 @@ No default\&. Must be set to the name of the program\&. This program must be in 
 directory on the client\&.
 .RE
 .PP
-\fBproperty\fR [append] [priority] \fIstring\fR \fIstring\fR+
+\fBproperty\fR [\fBappend\fR] [\fBpriority\fR] \fIstring\fR \fIstring\fR+
 .RS 4
 No default\&. You can set property for the application, each application have a different set of property\&. Both strings are quoted; the first string contains the name of the property to set, and the others contains its values\&.
 \fBappend\fR
@@ -269,10 +277,10 @@ keyword disallow the setting of that property on the server\&.
 The
 \fBamanda\&.conf\fR
 file may define multiple types of script\&. The information is entered in a
-\fBscript\-tool\fR
+\fBscript\fR
 section, which looks like this:
 .nf
-define script\-tool "\fIname\fR" {
+define script "\fIname\fR" {
     \fIscript\-option\fR \fIscript\-value\fR
     \&.\&.\&.
 }
@@ -280,9 +288,9 @@ define script\-tool "\fIname\fR" {
 .PP
 \fIname\fR
 is the name of this type of script\&. It is referenced from the
-\fIdumptype\fR
+\fBdumptype\fR
 .PP
-The script\-tool options and values are:
+The script options and values are:
 .PP
 \fBcomment\fR \fIstring\fR
 .RS 4
@@ -297,11 +305,11 @@ No default\&. Must be set to the name of the program\&. This program must be in 
 directory on the client and/or server\&.
 .RE
 .PP
-\fBexecute_where\fR [client|server]
+\fBexecute_where\fR [ \fBclient\fR | \fBserver\fR ]
 .RS 4
 Default:
-\fIclient\fR\&. Where the script must be executed, on the client or server\&. Only
-\fIclient\fR
+\fBclient\fR\&. Where the script must be executed, on the client or server\&. Only
+\fBclient\fR
 is valid\&.
 .RE
 .PP
@@ -395,7 +403,7 @@ Execute between two levels of recovery\&.
 .RE
 .RE
 .PP
-\fBproperty\fR [append] [priority] \fIstring\fR \fIstring\fR+
+\fBproperty\fR [\fBappend\fR] [\fBpriority\fR] \fIstring\fR \fIstring\fR+
 .RS 4
 No default\&. You can set property for the script, each script have a different set of property\&. Both strings are quoted; the first string contains the name of the property to set, and the others contains its values\&.
 \fBappend\fR
@@ -405,12 +413,13 @@ keyword disallow the setting of that property on the server\&.
 .RE
 .SH "SEE ALSO"
 .PP
-
 \fBamanda\fR(8),
 \fBamanda.conf\fR(5),
 \fBamcrypt\fR(8),
-\fBaespipe\fR(1),
-: http://wiki.zmanda.com
+\fBaespipe\fR(1)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBJames da Silva\fR <\&jds@amanda\&.org\&>

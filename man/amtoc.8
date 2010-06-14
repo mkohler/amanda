@@ -2,12 +2,12 @@
 .\"     Title: amtoc
 .\"    Author: Nicolas Mayencourt <Nicolas.Mayencourt@cui.unige.ch>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMTOC" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMTOC" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,16 +19,14 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amtoc \- generate TOC (Table Of Contents) for an \fIAmanda\fR run
+amtoc \- generate TOC (Table Of Contents) for an Amanda run
 .SH "SYNOPSIS"
 .HP \w'\fBamtoc\fR\ 'u
 \fBamtoc\fR [\-a] [\-i] [\-t] [\-f\ \fIfile\fR] [\-s\ \fIsubs\fR] [\-w] [\-\-] \fIlogfile\fR
 .SH "DESCRIPTION"
 .PP
 \fIAmtoc\fR
-generates a table of contents for an
-\fIAmanda\fR
-run\&. It\'s a perl script (if you don\'t have perl, install it first!)\&.
+generates a table of contents for an Amanda run\&. It\'s a perl script (if you don\'t have perl, install it first!)\&.
 .SH "OPTIONS"
 .PP
 \fB\-a\fR
@@ -124,8 +122,10 @@ after an
 \fBamanda\fR(8),
 \fBamdump\fR(8),
 \fBamflush\fR(8),
-\fBamgetconf\fR(8), cron, perl,
-: http://wiki.zmanda.com
+\fBamgetconf\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBNicolas Mayencourt\fR <\&Nicolas\&.Mayencourt@cui\&.unige\&.ch\&>

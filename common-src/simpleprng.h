@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+ * Copyright (c) 2008, 2010 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -14,7 +14,7 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+ * Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
  * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
  */
 
@@ -23,11 +23,14 @@
 
 #include "amanda.h"
 
-/* A very simple, thread-safe PRNG.  This is intended for use in reproducable
- * generating bytestreams for testing purposes.  It is *not* cryptographically
- * secure! */
+/* A very simple, thread-safe PRNG.  This is intended for use in generating
+ * reproducable bytestreams for testing purposes.  It is *not*
+ * cryptographically secure! */
 
-typedef guint32 simpleprng_state_t;
+typedef struct {
+    guint32 val;
+    guint64 count;
+} simpleprng_state_t;
 
 /* Initialize and seed the PRNG
  *
@@ -37,6 +40,14 @@ typedef guint32 simpleprng_state_t;
 void simpleprng_seed(
     simpleprng_state_t *state,
     guint32 seed);
+
+/* Get a seed that will reproduce the PRNG's current state
+ *
+ * @param state: pointer to PRNG state
+ * @returns: seed;
+ */
+guint32 simpleprng_get_seed(
+    simpleprng_state_t *state);
 
 /* Get a random guint32
  *

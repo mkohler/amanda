@@ -41,74 +41,82 @@
    enum yytokentype {
      LISTHOST = 258,
      LISTDISK = 259,
-     SETHOST = 260,
-     SETDISK = 261,
-     SETDATE = 262,
-     SETTAPE = 263,
-     SETMODE = 264,
-     SETDEVICE = 265,
-     CD = 266,
-     CDX = 267,
-     QUIT = 268,
-     DHIST = 269,
-     LS = 270,
-     ADD = 271,
-     ADDX = 272,
-     EXTRACT = 273,
-     DASH_H = 274,
-     LIST = 275,
-     DELETE = 276,
-     DELETEX = 277,
-     PWD = 278,
-     CLEAR = 279,
-     HELP = 280,
-     LCD = 281,
-     LPWD = 282,
-     MODE = 283,
-     SMB = 284,
-     TAR = 285,
-     PATH = 286,
-     DATE = 287
+     LISTPROPERTY = 260,
+     SETHOST = 261,
+     SETDISK = 262,
+     SETDATE = 263,
+     SETTAPE = 264,
+     SETMODE = 265,
+     SETDEVICE = 266,
+     SETPROPERTY = 267,
+     CD = 268,
+     CDX = 269,
+     QUIT = 270,
+     DHIST = 271,
+     LS = 272,
+     ADD = 273,
+     ADDX = 274,
+     EXTRACT = 275,
+     DASH_H = 276,
+     LIST = 277,
+     DELETE = 278,
+     DELETEX = 279,
+     PWD = 280,
+     CLEAR = 281,
+     HELP = 282,
+     LCD = 283,
+     LPWD = 284,
+     MODE = 285,
+     SMB = 286,
+     TAR = 287,
+     APPEND = 288,
+     PRIORITY = 289,
+     NL = 290,
+     STRING = 291
    };
 #endif
 /* Tokens.  */
 #define LISTHOST 258
 #define LISTDISK 259
-#define SETHOST 260
-#define SETDISK 261
-#define SETDATE 262
-#define SETTAPE 263
-#define SETMODE 264
-#define SETDEVICE 265
-#define CD 266
-#define CDX 267
-#define QUIT 268
-#define DHIST 269
-#define LS 270
-#define ADD 271
-#define ADDX 272
-#define EXTRACT 273
-#define DASH_H 274
-#define LIST 275
-#define DELETE 276
-#define DELETEX 277
-#define PWD 278
-#define CLEAR 279
-#define HELP 280
-#define LCD 281
-#define LPWD 282
-#define MODE 283
-#define SMB 284
-#define TAR 285
-#define PATH 286
-#define DATE 287
+#define LISTPROPERTY 260
+#define SETHOST 261
+#define SETDISK 262
+#define SETDATE 263
+#define SETTAPE 264
+#define SETMODE 265
+#define SETDEVICE 266
+#define SETPROPERTY 267
+#define CD 268
+#define CDX 269
+#define QUIT 270
+#define DHIST 271
+#define LS 272
+#define ADD 273
+#define ADDX 274
+#define EXTRACT 275
+#define DASH_H 276
+#define LIST 277
+#define DELETE 278
+#define DELETEX 279
+#define PWD 280
+#define CLEAR 281
+#define HELP 282
+#define LCD 283
+#define LPWD 284
+#define MODE 285
+#define SMB 286
+#define TAR 287
+#define APPEND 288
+#define PRIORITY 289
+#define NL 290
+#define STRING 291
 
 
 
 
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 typedef union YYSTYPE
-#line 42 "uparse.y"
+#line 43 "uparse.y"
 {
 	int	intval;
 	double	floatval;
@@ -116,7 +124,7 @@ typedef union YYSTYPE
 	int	subtok;
 }
 /* Line 1489 of yacc.c.  */
-#line 120 "uparse.h"
+#line 128 "uparse.h"
 	YYSTYPE;
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1

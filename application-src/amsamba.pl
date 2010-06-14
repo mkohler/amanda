@@ -1,5 +1,5 @@
 #!@PERL@ 
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -14,7 +14,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 use lib '@amperldir@';
@@ -38,8 +38,8 @@ use Amanda::Util qw( :constants :quoting);
 
 sub new {
     my $class = shift;
-    my ($config, $host, $disk, $device, $level, $index, $message, $collection, $record, $calcsize, $gnutar_path, $smbclient_path, $amandapass, $exclude_file, $exclude_list, $exclude_optional, $include_file, $include_list, $include_optional, $recover_mode) = @_;
-    my $self = $class->SUPER::new();
+    my ($config, $host, $disk, $device, $level, $index, $message, $collection, $record, $calcsize, $gnutar_path, $smbclient_path, $amandapass, $exclude_file, $exclude_list, $exclude_optional, $include_file, $include_list, $include_optional, $recover_mode, $allow_anonymous, $directory) = @_;
+    my $self = $class->SUPER::new($config);
 
     if (defined $gnutar_path) {
 	$self->{gnutar}     = $gnutar_path;
@@ -52,15 +52,28 @@ sub new {
 	$self->{smbclient}  = $Amanda::Constants::SAMBA_CLIENT;
     }
     if (defined $amandapass) {
-	$self->{amandapass}  = $amandapass;
+	$self->{amandapass}  = config_dir_relative($amandapass);
     } else {
-	$self->{amandapass}  = "$Amanda::Paths::sysconfdir/amandapass";
+	$self->{amandapass}  = "$Amanda::Paths::CONFIG_DIR/amandapass";
     }
 
     $self->{config}           = $config;
     $self->{host}             = $host;
-    $self->{disk}             = $disk;
-    $self->{device}           = $device;
+    if (defined $disk) {
+	$self->{disk}         = $disk;
+    } else {
+	$self->{disk}         = $device;
+    }
+    if (defined $device) {
+	$self->{device}       = $device;
+    } else {
+	$self->{device}       = $disk;
+    }
+    if ($self->{disk} =~ /^\\\\/) {
+	$self->{unc}          = 1;
+    } else {
+	$self->{unc}          = 0;
+    }
     $self->{level}            = [ @{$level} ];
     $self->{index}            = $index;
     $self->{message}          = $message;
@@ -74,6 +87,8 @@ sub new {
     $self->{include_list}     = [ @{$include_list} ];
     $self->{include_optional} = $include_optional;
     $self->{recover_mode}     = $recover_mode;
+    $self->{allow_anonymous}  = $allow_anonymous;
+    $self->{directory}        = $directory;
 
     return $self;
 }
@@ -91,8 +106,7 @@ sub validate_inexclude {
 
     if ($#{$self->{exclude_file}} + $#{$self->{exclude_list}} >= -1 &&
 	$#{$self->{include_file}} + $#{$self->{include_list}} >= -1) {
-	$self->print_to_server_and_die($self->{action},
-				       "Can't have both include and exclude",
+	$self->print_to_server_and_die("Can't have both include and exclude",
 				       $Amanda::Script_App::ERROR);
     }
 
@@ -102,8 +116,7 @@ sub validate_inexclude {
     foreach my $file (@{$self->{exclude_list}}) {
 	if (!open(FF, $file)) {
 	    if ($self->{action} eq 'check' && !$self->{exclude_optional}) {
-		$self->print_to_server($self->{action},
-				       "Open of '$file' failed: $!",
+		$self->print_to_server("Open of '$file' failed: $!",
 				       $Amanda::Script_App::ERROR);
 	    }
 	    next;
@@ -118,10 +131,9 @@ sub validate_inexclude {
 	$self->{include} = [ @{$self->{include_file}} ];
     }
     foreach my $file (@{$self->{include_list}}) {
-	if (open(FF, $file)) {
-	    if ($self->{action} eq 'check') {
-		$self->print_to_server($self->{action},
-				       "Open of '$file' failed: $!",
+	if (!open(FF, $file)) {
+	    if ($self->{action} eq 'check' && !$self->{include_optional}) {
+		$self->print_to_server("Open of '$file' failed: $!",
 				       $Amanda::Script_App::ERROR);
 	    }
 	    next;
@@ -135,32 +147,49 @@ sub validate_inexclude {
 }
 
 # on entry:
-#   $self->disk == //host/share/subdir
+#   $self->{directory} == //host/share/subdir           \\host\share\subdir
+#   or
+#   $self->{device}    == //host/share/subdir		\\host\share\subdir
 # on exit:
-#   self->{cifshost} = //host
-#   $self->{share} = //host/share
-#   $self->{sambashare} = \\host\share
-#   $self->{subdir} = subdir
+#   $self->{cifshost}   = //host			\\host
+#   $self->{share}      = //host/share			\\host\share
+#   $self->{sambashare} = \\host\share			\\host\share
+#   $self->{subdir}     = subdir			subdir
 sub parsesharename {
     my $self = shift;
+    my $to_parse = $self->{directory};
+    $to_parse = $self->{device} if !defined $to_parse;;
 
-    return if !defined $self->{disk};
+    return if !defined $to_parse;
 
-    if ($self->{disk} =~ m,^(//[^/]+/[^/]+)/(.*)$,) {
-	$self->{share} = $1;
-	$self->{subdir} = $2
+    if ($self->{unc}) {
+	if ($to_parse =~ m,^(\\\\[^\\]+\\[^\\]+)\\(.*)$,) {
+	    $self->{share} = $1;
+	    $self->{subdir} = $2
+	} else {
+	    $self->{share} = $to_parse
+	}
+	$self->{sambashare} = $self->{share};
+	$to_parse =~ m,^(\\\\[^\\]+)\\[^\\]+,;
+	$self->{cifshost} = $1;
     } else {
-	$self->{share} = $self->{disk};
+	if ($to_parse =~ m,^(//[^/]+/[^/]+)/(.*)$,) {
+	    $self->{share} = $1;
+	    $self->{subdir} = $2
+	} else {
+	    $self->{share} = $to_parse
+	}
+	$self->{sambashare} = $self->{share};
+	$self->{sambashare} =~ s,/,\\,g;
+	$to_parse =~ m,^(//[^/]+)/[^/]+,;
+	$self->{cifshost} = $1;
     }
-    $self->{sambashare} = $self->{share};
-    $self->{sambashare} =~ s,/,\\,g;
-    $self->{disk} =~ m,^(//[^/]+)/[^/]+,;
-    $self->{cifshost} = $1;
 }
 
 
 # Read $self->{amandapass} file.
 # on entry:
+#   $self->{cifshost} == //host/share
 #   $self->{share} == //host/share
 # on exit:
 #   $self->{domain}   = domain to connect to.
@@ -172,27 +201,72 @@ sub findpass {
     my $amandapass;
     my $line;
 
-    open($amandapass, $self->{amandapass});
+    $self->{domain} = undef;
+    $self->{username} = undef;
+    $self->{password} = undef;
+
+    debug("amandapass: $self->{amandapass}");
+    if (!open($amandapass, $self->{amandapass})) {
+	if ($self->{allow_anonymous}) {
+	    $self->{username} = $self->{allow_anonymous};
+	    debug("cannot open password file '$self->{amandapass}': $!\n");
+	    debug("Using anonymous user: $self->{username}");
+	    return;
+	} else {
+	    $self->print_to_server_and_die(
+			"cannot open password file '$self->{amandapass}': $!",
+			$Amanda::Script_App::ERROR);
+	}
+    }
+
     while ($line = <$amandapass>) {
 	chomp $line;
 	next if $line =~ /^#/;
-	my ($diskname, $userdomain) = Amanda::Util::skip_quoted_string($line);
+	my ($diskname, $userpasswd, $domain, $extra);
+	($diskname, $userpasswd)   = Amanda::Util::skip_quoted_string($line);
+	if ($userpasswd) {
+	    ($userpasswd, $domain) =
+				Amanda::Util::skip_quoted_string($userpasswd);
+	}
+	if ($domain) {
+	    ($domain, $extra) =
+				Amanda::Util::skip_quoted_string($domain);
+	}
+	if ($extra) {
+	    debug("Trailling characters ignored in amandapass line");
+	}
+	$diskname = Amanda::Util::unquote_string($diskname);
+	$userpasswd = Amanda::Util::unquote_string($userpasswd);
+	$domain = Amanda::Util::unquote_string($domain);
 	if (defined $diskname &&
 	    ($diskname eq '*' ||
-	     ($diskname =~ m,^(//[^/]+)/\*$, && $1 eq $self->{cifshost}) ||
+	     ($self->{unc}==0 && $diskname =~ m,^(//[^/]+)/\*$, && $1 eq $self->{cifshost}) ||
+	     ($self->{unc}==1 && $diskname =~ m,^(\\\\[^\\]+)\\\*$, && $1 eq $self->{cifshost}) ||
 	     $diskname eq $self->{share} ||
 	     $diskname eq $self->{sambashare})) {
-	    my ($userpasswd, $domain) = split ' ', $userdomain;
-	    $self->{domain} = $domain;
-	    my ($username, $password) = split('%', $userpasswd);
-	    $self->{username} = $username;
-	    $self->{password} = $password;
+	    if (defined $userpasswd && $userpasswd ne "") {
+	        $self->{domain} = $domain if ($domain ne "");
+	        my ($username, $password) = split('%', $userpasswd, 2);
+	        $self->{username} = $username;
+	        $self->{password} = $password;
+		$self->{password} = undef if (defined $password && $password eq "");
+            } else {
+	        $self->{username} = "guest";
+            }
 	    close($amandapass);
 	    return;
 	}
     }
     close($amandapass);
-    $self->print_to_server_and_die($self->{action},"Cannot find password for share $self->{share} in $self->{amandapass}", $Amanda::Script_App::ERROR);
+    if ($self->{allow_anonymous}) {
+	$self->{username} = $self->{allow_anonymous};
+	debug("Cannot find password for share $self->{share} in $self->{amandapass}");
+	debug("Using anonymous user: $self->{username}");
+	return;
+    }
+    $self->print_to_server_and_die(
+	"Cannot find password for share $self->{share} in $self->{amandapass}",
+	$Amanda::Script_App::ERROR);
 }
 
 sub command_support {
@@ -210,6 +284,7 @@ sub command_support {
     print "COLLECTION NO\n";
     print "MULTI-ESTIMATE NO\n";
     print "CALCSIZE NO\n";
+    print "CLIENT-ESTIMATE YES\n";
     print "EXCLUDE-FILE YES\n";
     print "EXCLUDE-LIST YES\n";
     print "EXCLUDE-OPTIONAL YES\n";
@@ -222,7 +297,25 @@ sub command_support {
 sub command_selfcheck {
     my $self = shift;
 
-    $self->{action} = 'check';
+    #check binary
+    if (!defined($self->{smbclient}) || $self->{smbclient} eq "") {
+	$self->print_to_server(
+	    "smbclient not set; you must define the SMBCLIENT-PATH property",
+	    $Amanda::Script_App::ERROR);
+    }
+    elsif (! -e $self->{smbclient}) {
+	$self->print_to_server("$self->{smbclient} doesn't exist",
+			       $Amanda::Script_App::ERROR);
+    }
+    elsif (! -x $self->{smbclient}) {
+	$self->print_to_server("$self->{smbclient} is not executable",
+			       $Amanda::Script_App::ERROR);
+    }
+    $self->print_to_server("$self->{smbclient}",
+			   $Amanda::Script_App::GOOD);
+    if (!defined $self->{disk} || !defined $self->{device}) {
+	return;
+    }
     $self->parsesharename();
     $self->findpass();
     $self->validate_inexclude();
@@ -230,25 +323,33 @@ sub command_selfcheck {
     print "OK " . $self->{share} . "\n";
     print "OK " . $self->{disk} . "\n";
     print "OK " . $self->{device} . "\n";
+    print "OK " . $self->{directory} . "\n" if defined $self->{directory};
 
     my ($child_rdr, $parent_wtr);
-    $^F=10;
-    pipe($child_rdr,  $parent_wtr);
-    $parent_wtr->autoflush(1);
+    if (defined $self->{password}) {
+	# Don't set close-on-exec
+        $^F=10;
+        pipe($child_rdr, $parent_wtr);
+        $^F=2;
+        $parent_wtr->autoflush(1);
+    }
     my($wtr, $rdr, $err);
     $err = Symbol::gensym;
     my $pid = open3($wtr, $rdr, $err, "-");
     if ($pid == 0) {
 	#child
-	my $ff = $child_rdr->fileno;
-	debug("child_rdr $ff");
-	$parent_wtr->close();
-	$ENV{PASSWD_FD} = $child_rdr->fileno;
+        if (defined $self->{password}) {
+	    my $ff = $child_rdr->fileno;
+	    debug("child_rdr $ff");
+	    $parent_wtr->close();
+	    $ENV{PASSWD_FD} = $child_rdr->fileno;
+	}
 	close(1);
 	close(2);
 	my @ARGV = ();
-	push @ARGV, $self->{smbclient}, $self->{share},
-		    "-U", $self->{username},
+	push @ARGV, $self->{smbclient}, $self->{share};
+	push @ARGV, "" if (!defined $self->{password});
+	push @ARGV, "-U", $self->{username},
 		    "-E";
 	if (defined $self->{domain}) {
 	    push @ARGV, "-W", $self->{domain},
@@ -262,24 +363,28 @@ sub command_selfcheck {
 	exec {$self->{smbclient}} @ARGV;
     }
     #parent
-    my $ff = $parent_wtr->fileno;
-    debug("parent_wtr $ff");
-    debug("password $self->{password}");
-    $parent_wtr->print($self->{password});
-    $parent_wtr->close();
-    $child_rdr->close();
+    if (defined $self->{password}) {
+        my $ff = $parent_wtr->fileno;
+        debug("parent_wtr $ff");
+        $parent_wtr->print($self->{password});
+        $parent_wtr->close();
+        $child_rdr->close();
+    } else {
+	debug("No password");
+    }
     close($wtr);
     close($rdr);
     while (<$err>) {
 	chomp;
 	debug("stderr: " . $_);
 	next if /^Domain=/;
-	$self->print_to_server($self->{action}, "smbclient: $_",
+	# message if samba server is configured with 'security = share'
+	next if /Server not using user level security and no password supplied./;
+	$self->print_to_server("smbclient: $_",
 			       $Amanda::Script_App::ERROR);
     }
     close($err);
     waitpid($pid, 0);
-    #check binary
     #check statefile
     #check amdevice
 }
@@ -287,30 +392,36 @@ sub command_selfcheck {
 sub command_estimate {
     my $self = shift;
 
-    $self->{action} = 'estimate';
     $self->parsesharename();
     $self->findpass();
     $self->validate_inexclude();
 
     my $level = $self->{level}[0];
     my ($child_rdr, $parent_wtr);
-    $^F=10;
-    pipe($child_rdr,  $parent_wtr);
-    $parent_wtr->autoflush(1);
+    if (defined $self->{password}) {
+	# Don't set close-on-exec
+        $^F=10;
+        pipe($child_rdr,  $parent_wtr);
+        $^F=2;
+        $parent_wtr->autoflush(1);
+    }
     my($wtr, $rdr, $err);
     $err = Symbol::gensym;
     my $pid = open3($wtr, $rdr, $err, "-");
     if ($pid == 0) {
 	#child
-	my $ff = $child_rdr->fileno;
-	debug("child_rdr $ff");
-	$parent_wtr->close();
-	$ENV{PASSWD_FD} = $child_rdr->fileno;
+        if (defined $self->{password}) {
+	    my $ff = $child_rdr->fileno;
+	    debug("child_rdr $ff");
+	    $parent_wtr->close();
+	    $ENV{PASSWD_FD} = $child_rdr->fileno;
+	}
 	close(0);
 	close(1);
 	my @ARGV = ();
-	push @ARGV, $self->{smbclient}, $self->{share},
-		    "-d", "0",
+	push @ARGV, $self->{smbclient}, $self->{share};
+	push @ARGV, "" if (!defined($self->{password}));
+	push @ARGV, "-d", "0",
 		    "-U", $self->{username},
 		    "-E";
 	if (defined $self->{domain}) {
@@ -329,12 +440,14 @@ sub command_estimate {
 	exec {$self->{smbclient}} @ARGV;
     }
     #parent
-    my $ff = $parent_wtr->fileno;
-    debug("parent_wtr $ff");
-    debug("password $self->{password}");
-    $parent_wtr->print($self->{password});
-    $parent_wtr->close();
-    $child_rdr->close();
+    if (defined $self->{password}) {
+        my $ff = $parent_wtr->fileno;
+        debug("parent_wtr $ff");
+        debug("password $self->{password}");
+        $parent_wtr->print($self->{password});
+        $parent_wtr->close();
+        $child_rdr->close();
+    }
     close($wtr);
     close($rdr);
     my $size = $self->parse_estimate($err);
@@ -355,12 +468,14 @@ sub parse_estimate {
 	next if /^\s*$/;
 	next if /^Domain=/;
 	next if /dumped \d+ files and directories/;
+	# message if samba server is configured with 'security = share'
+	next if /Server not using user level security and no password supplied./;
 	debug("stderr: $_");
 	if ($_ =~ /^Total number of bytes: (\d*)/) {
 	    $size = $1;
 	    last;
 	} else {
-	    $self->print_to_server($self->{action}, "smbclient: $_",
+	    $self->print_to_server("smbclient: $_",
 				   $Amanda::Script_App::ERROR);
 	}
     }
@@ -384,15 +499,16 @@ sub output_size {
 sub command_backup {
     my $self = shift;
 
-    $self->{action} = 'backup';
+    my $level = $self->{level}[0];
+    my $mesgout_fd;
+    open($mesgout_fd, '>&=3') ||
+	$self->print_to_server_and_die("Can't open mesgout_fd: $!",
+				       $Amanda::Script_App::ERROR);
+    $self->{mesgout} = $mesgout_fd;
+
     $self->parsesharename();
     $self->findpass();
     $self->validate_inexclude();
-
-    my $level = $self->{level}[0];
-    my $mesgout_fd;
-    open($mesgout_fd, '>&=3') || die();
-    $self->{mesgout} = $mesgout_fd;
 
     my $pid_tee = open3(\*INDEX_IN, '>&STDOUT', \*INDEX_TEE, "-");
     if ($pid_tee == 0) {
@@ -407,23 +523,29 @@ sub command_backup {
 	exit 0;
     }
     my ($child_rdr, $parent_wtr);
-    $^F=10;
-    pipe($child_rdr,  $parent_wtr);
-    $^F=2;
-    $parent_wtr->autoflush(1);
+    if (defined $self->{password}) {
+	# Don't set close-on-exec
+        $^F=10;
+        pipe($child_rdr,  $parent_wtr);
+        $^F=2;
+        $parent_wtr->autoflush(1);
+    }
     my($wtr, $err);
     $err = Symbol::gensym;
     my $pid = open3($wtr, ">&INDEX_IN", $err, "-");
     if ($pid == 0) {
 	#child
-	my $ff = $child_rdr->fileno;
-	debug("child_rdr $ff");
-	$parent_wtr->close();
-	$ENV{PASSWD_FD} = $child_rdr->fileno;
+	if (defined $self->{password}) {
+	    my $ff = $child_rdr->fileno;
+	    debug("child_rdr $ff");
+	    $parent_wtr->close();
+	    $ENV{PASSWD_FD} = $child_rdr->fileno;
+	}
 	close(0);
 	my @ARGV = ();
-	push @ARGV, $self->{smbclient}, $self->{share},
-		    "-d", "0",
+	push @ARGV, $self->{smbclient}, $self->{share};
+	push @ARGV, "" if (!defined($self->{password}));
+	push @ARGV, "-d", "0",
 		    "-U", $self->{username},
 		    "-E";
 	if (defined $self->{domain}) {
@@ -432,36 +554,43 @@ sub command_backup {
 	if (defined $self->{subdir}) {
 	    push @ARGV, "-D", $self->{subdir},
 	}
+
 	my $comm ;
 	if ($level == 0) {
-	    $comm = "-Tqca";
+	    $comm = "tarmode full reset hidden system quiet;";
 	} else {
-	    $comm = "-Tqcg";
+	    $comm = "tarmode inc noreset hidden system quiet;";
 	}
+	$comm .= " tar c";
 	if ($#{$self->{exclude}} >= 0) {
 	    $comm .= "X";
 	}
 	if ($#{$self->{include}} >= 0) {
 	    $comm .= "I";
 	}
-	push @ARGV, $comm, "-";
+	$comm .= " -";
 	if ($#{$self->{exclude}} >= 0) {
-	    push @ARGV, @{$self->{exclude}};
+	    $comm .= " " . join(" ", @{$self->{exclude}});
 	}
 	if ($#{$self->{include}} >= 0) {
-	    push @ARGV, @{$self->{include}};
+	    $comm .= " " . join(" ", @{$self->{include}});
 	}
+	push @ARGV, "-c", $comm;
 	debug("execute: " . $self->{smbclient} . " " .
 	      join(" ", @ARGV));
 	exec {$self->{smbclient}} @ARGV;
     }
 
-    my $ff = $parent_wtr->fileno;
-    debug("parent_wtr $ff");
-    debug("password $self->{password}");
-    $parent_wtr->print($self->{password});
-    $parent_wtr->close();
-    $child_rdr->close();
+    if (defined $self->{password}) {
+        my $ff = $parent_wtr->fileno;
+        debug("parent_wtr $ff");
+        debug("password $self->{password}");
+        $parent_wtr->print($self->{password});
+        $parent_wtr->close();
+        $child_rdr->close();
+    } else {
+	debug("No password");
+    }
     close($wtr);
 
     #index process 
@@ -474,7 +603,9 @@ sub command_backup {
     debug("index $index_fd");
     if (defined($self->{index})) {
 	my $indexout_fd;
-	open($indexout_fd, '>&=4') || die();
+	open($indexout_fd, '>&=4') ||
+	    $self->print_to_server_and_die("Can't open indexout_fd: $!",
+					   $Amanda::Script_App::ERROR);
 	$self->parse_backup($index, $mesgout_fd, $indexout_fd);
 	close($indexout_fd);
     }
@@ -487,11 +618,14 @@ sub command_backup {
 	chomp;
 	debug("stderr: " . $_);
 	next if /^Domain=/;
+	next if /^tarmode is now /;
 	next if /dumped (\d+) files and directories/;
+	# message if samba server is configured with 'security = share'
+	next if /Server not using user level security and no password supplied./;
 	if (/^Total bytes written: (\d*)/) {
 	    $size = $1;
 	} else {
-	    $self->print_to_server($self->{action}, "smbclient: $_",
+	    $self->print_to_server("smbclient: $_",
 			           $Amanda::Script_App::ERROR);
 	}
     }
@@ -506,8 +640,7 @@ sub command_backup {
 
     waitpid $pid, 0;
     if ($? != 0) {
-	$self->print_to_server_and_die($self->{action},
-				       "smbclient returned error",
+	$self->print_to_server_and_die("smbclient returned error",
 				       $Amanda::Script_App::ERROR);
     }
     exit 0;
@@ -551,7 +684,9 @@ sub index_from_output {
 sub command_index_from_image {
    my $self = shift;
    my $index_fd;
-   open($index_fd, "$self->{gnutar} --list --file - |") || die();
+   open($index_fd, "$self->{gnutar} --list --file - |") ||
+      $self->print_to_server_and_die("Can't run $self->{gnutar}: $!",
+				     $Amanda::Script_App::ERROR);
    index_from_output($index_fd, 1);
 }
 
@@ -559,29 +694,37 @@ sub command_restore {
     my $self = shift;
     my @cmd = ();
 
-    $self->{restore} = 'backup';
     $self->parsesharename();
     chdir(Amanda::Util::get_original_cwd());
 
     if ($self->{recover_mode} eq "smb") {
+	$self->validate_inexclude();
 	$self->findpass();
-	push @cmd, $self->{smbclient}, $self->{share},
-		   "-d", "0",
+	push @cmd, $self->{smbclient}, $self->{share};
+	push @cmd, "" if (!defined $self->{password});
+	push @cmd, "-d", "0",
 		   "-U", $self->{username};
 	
 	if (defined $self->{domain}) {
 	    push @cmd, "-W", $self->{domain};
 	}
 	push @cmd, "-Tx", "-";
+	if ($#{$self->{include}} >= 0) {
+	    push @cmd, @{$self->{include}};
+        }
 	for(my $i=1;defined $ARGV[$i]; $i++) {
 	    my $param = $ARGV[$i];
 	    $param =~ /^(.*)$/;
 	    push @cmd, $1;
 	}
 	my ($parent_rdr, $child_wtr);
-	$^F=10;
-	pipe($parent_rdr,  $child_wtr);
-	$child_wtr->autoflush(1);
+	if (defined $self->{password}) {
+	    # Don't set close-on-exec
+	    $^F=10;
+	    pipe($parent_rdr,  $child_wtr);
+            $^F=2;
+	    $child_wtr->autoflush(1);
+	}
 	my($wtr, $rdr, $err);
 	$err = Symbol::gensym;
 	my $pid = open3($wtr, $rdr, $err, "-");
@@ -590,13 +733,34 @@ sub command_restore {
 	    $child_wtr->close();
 	    exit 0;
 	}
-	$child_wtr->close();
-	$ENV{PASSWD_FD} = $parent_rdr->fileno;
+	if (defined $self->{password}) {
+	    $child_wtr->close();
+	    $ENV{PASSWD_FD} = $parent_rdr->fileno;
+	}
 	debug("cmd:" . join(" ", @cmd));
 	exec { $cmd[0] } @cmd;
 	die("Can't exec '", $cmd[0], "'");
     } else {
 	push @cmd, $self->{gnutar}, "-xpvf", "-";
+	if (defined $self->{directory}) {
+	    if (!-d $self->{directory}) {
+		$self->print_to_server_and_die(
+				       "Directory $self->{directory}: $!",
+				       $Amanda::Script_App::ERROR);
+	    }
+	    if (!-w $self->{directory}) {
+		$self->print_to_server_and_die(
+				       "Directory $self->{directory}: $!",
+				       $Amanda::Script_App::ERROR);
+	    }
+	    push @cmd, "--directory", $self->{directory};
+	}
+	if ($#{$self->{include_list}} == 0) {
+	    push @cmd, "--files-from", $self->{include_list}[0];
+	}
+	if ($#{$self->{exclude_list}} == 0) {
+	    push @cmd, "--exclude-from", $self->{exclude_list}[0];
+	}
 	for(my $i=1;defined $ARGV[$i]; $i++) {
 	    my $param = $ARGV[$i];
 	    $param =~ /^(.*)$/;
@@ -611,13 +775,19 @@ sub command_restore {
 sub command_validate {
    my $self = shift;
 
-   $self->{validate} = 'backup';
+   if (!defined($self->{gnutar}) || !-x $self->{gnutar}) {
+      return $self->default_validate();
+   }
+
    my(@cmd) = ($self->{gnutar}, "-tf", "-");
    debug("cmd:" . join(" ", @cmd));
-   my $pid = open3('>&STDIN', '>&STDOUT', '>&STDERR', @cmd) || die("validate", "Unable to run @cmd");
+   my $pid = open3('>&STDIN', '>&STDOUT', '>&STDERR', @cmd) ||
+	$self->print_to_server_and_die("Unable to run @cmd: $!",
+				       $Amanda::Script_App::ERROR);
    waitpid $pid, 0;
    if( $? != 0 ){
-       die("validate", "$self->{gnutar} returned error");
+	$self->print_to_server_and_die("$self->{gnutar} returned error",
+				       $Amanda::Script_App::ERROR);
    }
    exit(0);
 }
@@ -655,6 +825,8 @@ my @opt_include_file;
 my @opt_include_list;
 my $opt_include_optional;
 my $opt_recover_mode;
+my $opt_allow_anonymous;
+my $opt_directory;
 
 Getopt::Long::Configure(qw{bundling});
 GetOptions(
@@ -669,9 +841,9 @@ GetOptions(
     'collection=s'       => \$opt_collection,
     'record'             => \$opt_record,
     'calcsize'           => \$opt_calcsize,
-    'gnutar_path'        => \$opt_gnutar_path,
-    'smbclient_path'     => \$opt_smbclient_path,
-    'amandapass'         => \$opt_amandapass,
+    'gnutar-path=s'      => \$opt_gnutar_path,
+    'smbclient-path=s'   => \$opt_smbclient_path,
+    'amandapass=s'       => \$opt_amandapass,
     'exclude-file=s'     => \@opt_exclude_file,
     'exclude-list=s'     => \@opt_exclude_list,
     'exclude-optional=s' => \$opt_exclude_optional,
@@ -679,6 +851,8 @@ GetOptions(
     'include-list=s'     => \@opt_include_list,
     'include-optional=s' => \$opt_include_optional,
     'recover-mode=s'     => \$opt_recover_mode,
+    'allow-anonymous=s'  => \$opt_allow_anonymous,
+    'directory=s'        => \$opt_directory,
 ) or usage();
 
 if (defined $opt_version) {
@@ -686,6 +860,6 @@ if (defined $opt_version) {
     exit(0);
 }
 
-my $application = Amanda::Application::Amsamba->new($opt_config, $opt_host, $opt_disk, $opt_device, \@opt_level, $opt_index, $opt_message, $opt_collection, $opt_record, $opt_calcsize, $opt_gnutar_path, $opt_smbclient_path, $opt_amandapass, \@opt_exclude_file, \@opt_exclude_list, $opt_exclude_optional, \@opt_include_file, \@opt_include_list, $opt_include_optional, $opt_recover_mode);
+my $application = Amanda::Application::Amsamba->new($opt_config, $opt_host, $opt_disk, $opt_device, \@opt_level, $opt_index, $opt_message, $opt_collection, $opt_record, $opt_calcsize, $opt_gnutar_path, $opt_smbclient_path, $opt_amandapass, \@opt_exclude_file, \@opt_exclude_list, $opt_exclude_optional, \@opt_include_file, \@opt_include_list, $opt_include_optional, $opt_recover_mode, $opt_allow_anonymous, $opt_directory);
 
 $application->do($ARGV[0]);

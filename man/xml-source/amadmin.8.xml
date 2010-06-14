@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -20,7 +20,7 @@
 </refmeta>
 <refnamediv>
 <refname>amadmin</refname>
-<refpurpose>administrative interface to control &A; backups</refpurpose>
+<refpurpose>administrative interface to control Amanda backups</refpurpose>
 </refnamediv>
 <refentryinfo>
 &author.jds;
@@ -33,7 +33,7 @@
     <arg choice='plain'><replaceable>config</replaceable></arg>
     <arg choice='plain'><replaceable>command</replaceable></arg>
     <arg choice='opt' rep='repeat'><replaceable>command_options</replaceable></arg>
-    <arg choice='plain' rep='repeat'><group><option>-o </option><replaceable>configoption</replaceable></group></arg>
+    &configoverride.synopsis;
 </cmdsynopsis>
 </refsynopsisdiv>
 
@@ -42,11 +42,11 @@
 <para><emphasis remap='B'>Amadmin</emphasis>
 performs various administrative tasks on the
 <emphasis remap='I'>config</emphasis>
-&A; configuration.</para>
+Amanda configuration.</para>
 
 <para>See the
-<citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
-man page for more details about &A;.</para>
+<manref name="amanda" vol="8"/>
+man page for more details about Amanda.</para>
 </refsect1>
 
 <refsect1><title>COMMANDS</title>
@@ -57,13 +57,13 @@ parameter pair operate on all disks in the &disklist; for that
 the command operates on all hosts and disks in the &disklist;.
 Both <emphasis remap='I'>hostname</emphasis> and <emphasis remap='I'>disks</emphasis>
 are special expressions; see the &quot;HOST &amp; DISK EXPRESSION&quot; section
-of <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+of <manref name="amanda" vol="8"/>
 for a description.</para>
 
 <para>Commands that take one or more <emphasis remap='I'>dumpspec</emphasis> parameters operate
 on the set of dumps specified by all of the expressions.  See the &quot;DUMP SPECIFICATIONS&quot;
 section of
-<citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+<manref name="amanda" vol="8"/>
 for a description.</para>
 
 <variablelist remap='TP'>
@@ -77,13 +77,44 @@ parameter must be present but is ignored.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
+  <term><emphasis remap='B'>estimate</emphasis> [ <emphasis remap='I'>hostname</emphasis> [ <emphasis remap='I'>disks</emphasis> ]* ]*</term>
+  <listitem>
+<para>Print the server estimate for the dles, each output lines have the following format:</para>
+<programlisting>
+  hostname diskname level size
+</programlisting>
+<variablelist remap='TP'>
+<varlistentry>
+<term>hostname</term>
+<listitem>The quoted hostname
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>diskname</term>
+<listitem>The quoted diskname
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>level</term>
+<listitem>The level of the estimate
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>size</term>
+<listitem>The estimate size in kbytes
+</listitem>
+</varlistentry>
+</variablelist>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
   <term><emphasis remap='B'>force-bump</emphasis> [ <emphasis remap='I'>hostname</emphasis> [ <emphasis remap='I'>disks</emphasis> ]* ]+</term>
   <listitem>
 <para>Force the
 <emphasis remap='I'>disks</emphasis>
 on
 <emphasis remap='I'>hostname</emphasis>
-to bump to a new incremental level during the next &A; run.</para>
+to bump to a new incremental level during the next Amanda run.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -93,7 +124,7 @@ to bump to a new incremental level during the next &A; run.</para>
 <emphasis remap='I'>disks</emphasis>
 on
 <emphasis remap='I'>hostname</emphasis>
-to not bump to a new incremental level during the next &A; run.</para>
+to not bump to a new incremental level during the next Amanda run.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -113,7 +144,7 @@ command.</para>
 <emphasis remap='I'>disks</emphasis>
 on
 <emphasis remap='I'>hostname</emphasis>
-to do a full (level 0) backup during the next &A; run.</para>
+to do a full (level 0) backup during the next Amanda run.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -139,7 +170,7 @@ will not be reused when their turn comes up again in the tape cycle.
 Note that if this causes the number of reusable tapes to drop below the
 <emphasis remap='B'>amanda.conf</emphasis>
 <emphasis remap='I'>tapecycle</emphasis>
-value, &A; will request new tapes until the count is satisfied again.</para>
+value, Amanda will request new tapes until the count is satisfied again.</para>
 <para>Tape marked <emphasis remap='I'>no-reuse</emphasis> are available
 for recovery, marking them <emphasis remap='I'>no-reuse</emphasis> is a
 security to be sure amanda will not overwrite them.</para>
@@ -213,9 +244,9 @@ The default sort order is <emphasis remap='B'>hkdlpbfw</emphasis>.</para>
 <emphasis remap='I'>disks</emphasis>
 on
 <emphasis remap='I'>hostname</emphasis>
-from the &A; database.</para>
+from the Amanda database.</para>
 <note><para>If you do not also remove the disk from the &disklist;
-file, &A; will treat it as a new disk during the next run.</para>
+file, Amanda will treat it as a new disk during the next run.</para>
 </note>
   </listitem>
   </varlistentry>
@@ -223,9 +254,9 @@ file, &A; will treat it as a new disk during the next run.</para>
   <varlistentry>
   <term><emphasis remap='B'>tape</emphasis></term>
   <listitem>
-<para>Display the tape(s) &A; expects to write to during the next run.
+<para>Display the tape(s) Amanda expects to write to during the next run.
 See also
-<citerefentry><refentrytitle>amcheck</refentrytitle><manvolnum>8</manvolnum></citerefentry>.</para>
+<manref name="amcheck" vol="8"/>.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -244,8 +275,8 @@ levels.</para>
   <varlistentry>
   <term><emphasis remap='B'>export</emphasis> [ <emphasis remap='I'>hostname</emphasis> [ <emphasis remap='I'>disks</emphasis> ]* ]*</term>
   <listitem>
-<para>Convert records from the &A; database
-to a text format that may be transmitted to another &A; machine and
+<para>Convert records from the Amanda database
+to a text format that may be transmitted to another Amanda machine and
 <emphasis remap='B'>import</emphasis>ed.</para>
   </listitem>
   </varlistentry>
@@ -254,7 +285,7 @@ to a text format that may be transmitted to another &A; machine and
   <listitem>
 <para>Convert
 <emphasis remap='B'>export</emphasis>ed
-records read from standard input to a form &A; uses
+records read from standard input to a form Amanda uses
 and insert them into the database on this machine.</para>
   </listitem>
   </varlistentry>
@@ -283,13 +314,7 @@ Mostly used for debugging.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
-  <term><emphasis remap='B'>-o</emphasis> <replaceable>configoption</replaceable></term>
-  <listitem>
-<para>See the "<emphasis remap='B'>CONFIGURATION OVERRIDE</emphasis>"
- section in <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>.</para>
-  </listitem>
-  </varlistentry>
+  &configoverride.varlistentry;
 
 </variablelist>
 </refsect1>
@@ -297,7 +322,7 @@ Mostly used for debugging.</para>
 <refsect1><title>EXAMPLES</title>
 <para>Request three specific file systems on
 <emphasis remap='I'>machine-a</emphasis>
-get a full level 0 backup during the next &A; run.</para>
+get a full level 0 backup during the next Amanda run.</para>
 
 <programlisting>
 $ amadmin daily force machine-a / /var /usr
@@ -308,7 +333,7 @@ amadmin: machine-a:/usr is set to a forced level 0 tonight.
 
 <para>Request all file systems on
 <emphasis remap='I'>machine-b</emphasis>
-get a full level 0 backup during the next &A; run.</para>
+get a full level 0 backup during the next Amanda run.</para>
 
 <programlisting>
 $ amadmin daily force machine-b
@@ -370,7 +395,7 @@ date        host      disk lv tape or file                 file part  status
 disk on
 <emphasis remap='I'>machine-d</emphasis>.
 If you do not also remove the disk from the &disklist;
-file, &A; will treat it as a new disk during the next run.</para>
+file, Amanda will treat it as a new disk during the next run.</para>
 
 <programlisting remap='.nf'>
 $ amadmin daily delete machine-d /workspace
@@ -378,11 +403,11 @@ amadmin: machine-d:/workspace deleted from database.
 amadmin: NOTE: you'll have to remove these from the &disklist; yourself.
 </programlisting>
 
-<para>Find the next tape &A; will use (in this case, <literal>123456</literal>).</para>
+<para>Find the next tape Amanda will use (in this case, <literal>123456</literal>).</para>
 
 <programlisting>
 $ amadmin daily tape
-The next &A; run should go onto tape 123456 or a new tape.
+The next Amanda run should go onto tape 123456 or a new tape.
 </programlisting>
 
 <para>Show how well full backups are balanced across the dump cycle.
@@ -401,17 +426,17 @@ before and after any compression, respectively.</para>
 <emphasis remap='I'>balance</emphasis>
 column shows how far off that night's backups are from the average size
 (shown at the bottom of the balance column).
-&A; tries to keep the backups within +/- 5%,
+Amanda tries to keep the backups within +/- 5%,
 but since the amount of data on each filesystem is always changing,
-and &A; will never delay backups just to rebalance the schedule,
+and Amanda will never delay backups just to rebalance the schedule,
 it is common for the schedule to fluctuate by larger percentages.
 In particular, in the case of a tape or backup failure, a bump will occur the following night,
 which will not be smoothed out until the next pass through the schedule.</para>
 
-<para>The last line also shows an estimate of how many &A; runs will be
+<para>The last line also shows an estimate of how many Amanda runs will be
 made between full backups for a file system.
 In the example, a file system will probably have a full backup done
-every eight times &A; is run (e.g. every eight days).</para>
+every eight times Amanda is run (e.g. every eight days).</para>
 
 <programlisting>
 $ amadmin daily balance
@@ -436,13 +461,12 @@ TOTAL      241  12412187   7316312   731631  (estimated 8 runs per dumpcycle)
 <para>/usr/local/etc/amanda/<emphasis remap='I'>config</emphasis>/amanda.conf</para>
 </refsect1>
 
-<refsect1><title>SEE ALSO</title>
-<para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amcheck</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amdump</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amrestore</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amfetchdump</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<ulink url="http://wiki.zmanda.com"/>
-</para>
-</refsect1>
+<seealso>
+<manref name="amanda" vol="8"/>,
+<manref name="amcheck" vol="8"/>,
+<manref name="amdump" vol="8"/>,
+<manref name="amrestore" vol="8"/>,
+<manref name="amfetchdump" vol="8"/>
+</seealso>
+
 </refentry>

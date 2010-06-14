@@ -1,5 +1,5 @@
 # vim:ft=perl
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -14,10 +14,11 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 package Installcheck::Config;
+use Installcheck;
 use Amanda::Paths;
 use Amanda::Constants;
 use File::Path;
@@ -33,7 +34,9 @@ Installcheck::Config - set up amanda configurations for installcheck testing
 
   my $testconf = Installcheck::Config->new();
   $testconf->add_param("runtapes", "5");
-  $testconf->add_subsec("tapetype", "DUCKTAPE", { length => "10G", filemark => "4096k" });
+  $testconf->add_tapetype("DUCKTAPE", [
+    length => "10G", filemark => "4096k",
+  ]);
   # ...
   $testconf->write();
 
@@ -41,7 +44,7 @@ The resulting configuration is always named "TESTCONF".  The basic
 configuration contains only a few parameters that are necessary
 just to run Amanda applications in the test environment.  It also
 contains a tapetype, C<TEST-TAPE>.  To change tapetype parameters,
-call C<$cf->add_tapetype> with a new definition of C<TEST-TAPE>.
+call C<< $cf->add_tapetype >> with a new definition of C<TEST-TAPE>.
 
 Note that it's quite possible to produce an invalid configuration with this
 package (and, in fact, some of the tests do just that).
@@ -69,6 +72,7 @@ sub new {
     my $infofile = "$CONFIG_DIR/TESTCONF/curinfo";
     my $logdir = "$CONFIG_DIR/TESTCONF/log";
     my $indexdir = "$CONFIG_DIR/TESTCONF/index";
+    my $org = "DailySet1";
 
     my $self = {
 	'infofile' => $infofile,
@@ -85,6 +89,7 @@ sub new {
 	    'infofile' => "\"$infofile\"",
 	    'logdir' => "\"$logdir\"",
 	    'indexdir' => "\"$indexdir\"",
+	    'org' => "\"$org\"",
 
 	    # (this is actually added while writing the config file, if not
 	    # overridden by the caller)
@@ -93,8 +98,8 @@ sub new {
 
 	# global client config
 	'client_params' => [
-	    'amandates' => "\"$AMANDA_TMPDIR/TESTCONF/amandates\"",
-	    'gnutar_list_dir' => "\"$AMANDA_TMPDIR/TESTCONF/gnutar_listdir\"",
+	    'amandates' => "\"$Installcheck::TMP/TESTCONF/amandates\"",
+	    'gnutar_list_dir' => "\"$Installcheck::TMP/TESTCONF/gnutar_listdir\"",
 	],
 
 	# config-specific client config
@@ -108,10 +113,11 @@ sub new {
 	'dumptypes' => [ ],
 	'interfaces' => [ ],
 	'holdingdisks' => [ ],
-	'application-tool' => [ ],
-	'script-tool' => [ ],
+	'application' => [ ],
+	'script' => [ ],
 	'devices' => [ ],
 	'changers' => [ ],
+	'text' => '',
 
 	'dles' => [ ],
     };
@@ -126,9 +132,9 @@ sub new {
 
 =item C<add_param($param, $value)>
 
-Add the given parameter to the configuration file, overriding any
-previous value.  Note that strings which should be quoted in the configuration
-file itself must be double-quoted here, e.g.,
+Add the given parameter to the configuration file.  Note that strings which
+should be quoted in the configuration file itself must be double-quoted here,
+e.g.,
 
   $testconf->add_param('org' => '"MyOrganization"');
 
@@ -143,11 +149,10 @@ sub add_param {
 
 =item C<add_client_param($param, $value)>, C<add_client_config_param($param, $value)>
 
-Add the given parameter to the client configuration file, overriding any
-previous value, as C<add_param> does for the server configuration file.
-C<add_client_param> addresses the global client configuration file, while
-C<add_client_config_param> inserts parmeters into
-C<TESTCONF/amanda-client.conf>.
+Add the given parameter to the client configuration file, as C<add_param> does
+for the server configuration file.  C<add_client_param> addresses the global
+client configuration file, while C<add_client_config_param> inserts parmeters
+into C<TESTCONF/amanda-client.conf>.
 
   $testconf->add_client_param('auth' => '"krb2"');
   $testconf->add_client_config_param('client_username' => '"freddy"');
@@ -168,70 +173,121 @@ sub add_client_config_param {
     push @{$self->{'client_config_params'}}, $param, $value;
 }
 
+=item C<remove_param($param)>
+
+Remove the given parameter from the config file.
+
+=cut
+
+sub remove_param {
+    my $self = shift;
+    my ($param) = @_;
+
+    my @new_params;
+
+    while (@{$self->{'params'}}) {
+	my ($p, $v) = (shift @{$self->{'params'}}, shift @{$self->{'params'}});
+	next if $p eq $param;
+	push @new_params, $p, $v;
+    }
+
+    $self->{'params'} = \@new_params;
+}
+
 =item C<add_tapetype($name, $values_arrayref)>
 =item C<add_dumptype($name, $values_arrayref)>
 =item C<add_holdingdisk($name, $values_arrayref)>
+=item C<add_holdingdisk_def($name, $values_arrayref)>
 =item C<add_interface($name, $values_arrayref)>
 =item C<add_application($name, $values_arrayref)>
 =item C<add_script($name, $values_arrayref)>
 =item C<add_device($name, $values_arrayref)>
 =item C<add_changer($name, $values_arrayref)>
 
-Add the given subsection to the configuration file, including all
-values in the arrayref.  The values should be specified as alternating
-key/value pairs.
+Add the given subsection to the configuration file, including all values in the
+arrayref.  The values should be specified as alternating key/value pairs.
+Since holdingdisk definitions usually don't have a "define" keyword,
+C<add_holdingdisk> does not add one, but C<add_holdingdisk_def> does.
 
 =cut
 
 sub _add_subsec {
     my $self = shift;
-    my ($subsec, $name, $values_arrayref) = @_;
+    my ($subsec, $name, $use_define, $values) = @_;
 
     # first delete any existing subsections with that name
     @{$self->{$subsec}} = grep { $_->[0] ne $name } @{$self->{$subsec}};
     
     # and now push the new subsection definition on the end
-    push @{$self->{$subsec}}, [$name, @$values_arrayref];
+    push @{$self->{$subsec}}, [$name, $use_define, $values];
 }
 
 sub add_tapetype {
     my $self = shift;
-    $self->_add_subsec("tapetypes", @_);
+    my ($name, $values) = @_;
+    $self->_add_subsec("tapetypes", $name, 1, $values);
 }
 
 sub add_dumptype {
     my $self = shift;
-    $self->_add_subsec("dumptypes", @_);
+    my ($name, $values) = @_;
+    $self->_add_subsec("dumptypes", $name, 1, $values);
 }
 
+# by default, holdingdisks don't have the "define" keyword
 sub add_holdingdisk {
     my $self = shift;
-    $self->_add_subsec("holdingdisks", @_);
+    my ($name, $values) = @_;
+    $self->_add_subsec("holdingdisks", $name, 0, $values);
+}
+
+# add a holdingdisk definition only (use "define" keyword)
+sub add_holdingdisk_def {
+    my $self = shift;
+    my ($name, $values) = @_;
+    $self->_add_subsec("holdingdisks", $name, 1, $values);
 }
 
 sub add_interface {
     my $self = shift;
-    $self->_add_subsec("interfaces", @_);
+    my ($name, $values) = @_;
+    $self->_add_subsec("interfaces", $name, 1, $values);
 }
 
 sub add_application {
     my $self = shift;
-    $self->_add_subsec("application-tool", @_);
+    my ($name, $values) = @_;
+    $self->_add_subsec("application", $name, 1, $values);
 }
 
 sub add_script {
     my $self = shift;
-    $self->_add_subsec("script-tool", @_);
+    my ($name, $values) = @_;
+    $self->_add_subsec("script", $name, 1, $values);
 }
 
 sub add_device {
     my $self = shift;
-    $self->_add_subsec("devices", @_);
+    my ($name, $values) = @_;
+    $self->_add_subsec("devices", $name, 1, $values);
 }
 
 sub add_changer {
     my $self = shift;
-    $self->_add_subsec("changers", @_);
+    my ($name, $values) = @_;
+    $self->_add_subsec("changers", $name, 1, $values);
+}
+
+=item C<add_text($text)>
+
+Add arbitrary text to the config file.
+
+=cut
+
+sub add_text {
+    my $self = shift;
+    my ($text) = @_;
+    $self->{'text'} .= $text;
 }
 
 =item C<add_dle($line)>
@@ -256,18 +312,17 @@ files necessary to run Amanda.
 sub write {
     my $self = shift;
 
+    cleanup();
+
     my $testconf_dir = "$CONFIG_DIR/TESTCONF";
-    if (-e $testconf_dir) {
-	rmtree($testconf_dir) or die("Could not remove '$testconf_dir'");
-    }
     mkpath($testconf_dir);
 
     # set up curinfo dir, etc.
     mkpath($self->{'infofile'}) or die("Could not create infofile directory");
     mkpath($self->{'logdir'}) or die("Could not create logdir directory");
     mkpath($self->{'indexdir'}) or die("Could not create indexdir directory");
-    my $amandates = $AMANDA_TMPDIR . "/TESTCONF/amandates";
-    my $gnutar_listdir = $AMANDA_TMPDIR . "/TESTCONF/gnutar_listdir";
+    my $amandates = $Installcheck::TMP . "/TESTCONF/amandates";
+    my $gnutar_listdir = $Installcheck::TMP . "/TESTCONF/gnutar_listdir";
     if (! -d $gnutar_listdir) {
 	mkpath($gnutar_listdir)
 	    or die("Could not create '$gnutar_listdir'");
@@ -330,13 +385,14 @@ sub _write_amanda_conf {
 
     # write out subsections
     $self->_write_amanda_conf_subsection($amanda_conf, "tapetype", $self->{"tapetypes"});
-    $self->_write_amanda_conf_subsection($amanda_conf, "application-tool", $self->{"application-tool"});
-    $self->_write_amanda_conf_subsection($amanda_conf, "script-tool", $self->{"script-tool"});
+    $self->_write_amanda_conf_subsection($amanda_conf, "application", $self->{"application"});
+    $self->_write_amanda_conf_subsection($amanda_conf, "script", $self->{"script"});
     $self->_write_amanda_conf_subsection($amanda_conf, "dumptype", $self->{"dumptypes"});
     $self->_write_amanda_conf_subsection($amanda_conf, "interface", $self->{"interfaces"});
     $self->_write_amanda_conf_subsection($amanda_conf, "holdingdisk", $self->{"holdingdisks"});
     $self->_write_amanda_conf_subsection($amanda_conf, "device", $self->{"devices"});
     $self->_write_amanda_conf_subsection($amanda_conf, "changer", $self->{"changers"});
+    print $amanda_conf "\n", $self->{'text'}, "\n";
 
     close($amanda_conf);
 }
@@ -346,18 +402,20 @@ sub _write_amanda_conf_subsection {
     my ($amanda_conf, $subsec_type, $subsec_ref) = @_;
 
     for my $subsec_info (@$subsec_ref) {
-	my ($subsec_name, @values) = @$subsec_info;
+	my ($subsec_name, $use_define, $values) = @$subsec_info;
 	
-	if ($subsec_type eq "holdingdisk") {
-	    print $amanda_conf "\nholdingdisk $subsec_name {\n";
-	} else {
-	    print $amanda_conf "\ndefine $subsec_type $subsec_name {\n";
-	}
+	my $define = $use_define? "define " : "";
+	print $amanda_conf "\n$define$subsec_type $subsec_name {\n";
 
+	my @values = @$values; # make a copy
 	while (@values) {
 	    $param = shift @values;
 	    $value = shift @values;
-	    print $amanda_conf "$param $value\n";
+	    if ($param eq "inherit") {
+		print $amanda_conf "$value\n";
+	    } else {
+	        print $amanda_conf "$param $value\n";
+	    }
 	}
 	print $amanda_conf "}\n";
     }
@@ -411,6 +469,19 @@ sub _write_amanda_client_config_conf {
     }
 
     close($amanda_client_conf);
+}
+
+=item C<cleanup()> (callable as a package method too)
+
+Clean up by deleting the configuration directory.
+
+=cut
+
+sub cleanup {
+    my $testconf_dir = "$CONFIG_DIR/TESTCONF";
+    if (-e $testconf_dir) {
+	rmtree($testconf_dir) or die("Could not remove '$testconf_dir'");
+    }
 }
 
 1;

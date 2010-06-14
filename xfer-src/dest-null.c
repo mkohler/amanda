@@ -1,20 +1,22 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 2008 Zmanda Inc.
+ * Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 #include "amxfer.h"
@@ -49,6 +51,7 @@ typedef struct XferDestNull {
 
     gboolean do_verify;
     simpleprng_state_t prng;
+    guint64 byte_position;
 } XferDestNull;
 
 /*
@@ -76,13 +79,15 @@ push_buffer_impl(
 
     if (self->do_verify && !elt->cancelled) {
 	if (!simpleprng_verify_buffer(&self->prng, buf, len)) {
-	    xfer_element_handle_error(elt,
-		_("verification of incoming bytestream failed"));
+	    xfer_cancel_with_error(elt,
+		"verification of incoming bytestream failed; see stderr for details"),
+	    wait_until_xfer_cancelled(elt->xfer);
 	    amfree(buf);
 	    return;
 	}
     }
 
+    self->byte_position += len;
     if (!self->sent_info) {
 	/* send a superfluous message (this is a testing XferElement,
 	 * after all) */

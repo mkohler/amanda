@@ -32,6 +32,7 @@
 
 #include "util.h"
 #include "diskfile.h"
+#include "infofile.h"
 
 #define MAX_ARGS 32
 
@@ -48,7 +49,7 @@ enum {
     START_TAPER, FILE_WRITE, NEW_TAPE, NO_NEW_TAPE,     /* taper... */
     PARTDONE, PORT_WRITE, DUMPER_STATUS,                /* ... cmds */
     PORT, TAPE_ERROR, TAPER_OK,				/* taper results */
-    REQUEST_NEW_TAPE,
+    REQUEST_NEW_TAPE, DIRECTTCP_PORT,
     LAST_TOK
 };
 extern const char *cmdstr[];
@@ -89,5 +90,9 @@ void run_server_scripts(execute_on_t  execute_on,
 
 void run_amcleanup(char *config_name);
 char *get_master_process(char *logfile);
+
+gint64 internal_server_estimate(disk_t *dp, info_t *info,
+                                int level, int *stats);
+int server_can_do_estimate(disk_t *dp, info_t *info, int level);
 
 #endif	/* SERVER_UTIL_H */

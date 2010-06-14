@@ -16,8 +16,6 @@ AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
 LINT=$(AMLINT)
 LINTFLAGS=$(AMLINTFLAGS)
 
-LIB_EXTENSION = la
-
 sbin_PROGRAMS =		amrecover
 
 ###
@@ -27,11 +25,11 @@ sbin_PROGRAMS =		amrecover
 # routines, and second to pick up any references in the other libraries.
 ###
 
-LDADD = ../common-src/libamanda.$(LIB_EXTENSION) \
+LDADD = ../common-src/libamanda.la \
 	@LEXLIB@ \
 	$(READLINE_LIBS) \
-	../client-src/libamclient.$(LIB_EXTENSION) \
-	../common-src/libamanda.$(LIB_EXTENSION)
+	../client-src/libamclient.la \
+	../common-src/libamanda.la
 
 amrecover_CSRC =	amrecover.c					\
 			display_commands.c		extract_list.c	\
@@ -49,10 +47,10 @@ uscan.c: uparse.h
 
 # these two commands are specially defined to omit $(AMANDA_WARNING_CFLAGS)
 # since we don't want warnings for generated code
-uscan.$(OBJEXT): uscan.c
+uscan.$(OBJEXT): uscan.c ../common-src/amanda.h uparse.h
 	$(CC) $(CFLAGS) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CPPFLAGS) -c $<
 
-uparse.$(OBJEXT): uparse.c
+uparse.$(OBJEXT): uparse.c ../common-src/amanda.h amrecover.h
 	$(CC) $(CFLAGS) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CPPFLAGS) -c $<
 
 INSTALLPERMS_exec = \

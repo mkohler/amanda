@@ -2,12 +2,12 @@
 .\"     Title: amservice
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMSERVICE" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMSERVICE" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,18 +22,15 @@
 amservice \- run an amanda service on a client
 .SH "SYNOPSIS"
 .HP \w'\fBamservice\fR\ 'u
-\fBamservice\fR \fIhostname\fR \fIauth\fR \fIservice\fR [\-f\ \fIinput_file\fR] [\-o\ \fIconfigoption\fR]...
+\fBamservice\fR \fIhostname\fR \fIauth\fR \fIservice\fR [\-f\ \fIinput_file\fR] [{\fB\-o\fR\ \fIconfigoption\fR}...]
 .SH "DESCRIPTION"
 .PP
 \fBAmservice\fR
-execute an
-\fIAmanda\fR
-service on a client\&. It can be used without amanda server configuration (amanda\&.conf and disklist)\&. It can be used to check communication between a server and a client\&. Amservice reads stdin to capture the REQ packet to send to the client\&.
+execute an Amanda service on a client\&. It can be used without amanda server configuration (amanda\&.conf and disklist)\&. It can be used to check communication between a server and a client\&. Amservice reads stdin to capture the REQ packet to send to the client\&.
 .PP
 See the
 \fBamanda\fR(8)
-man page for more details about
-\fIAmanda\fR\&.
+man page for more details about Amanda\&.
 .SH "OPTIONS"
 .PP
 \fBhostname\fR
@@ -56,9 +53,9 @@ The amanda service to execute on the client\&. One of noop, selfcheck or sendsiz
 Use the file input_file instead of stdin to read the REQ packet from\&.
 .RE
 .PP
-\fB\-o\fR \fIconfigoption\fR
+\fB\-o \fR\fB\fIconfigoption\fR\fR
 .RS 4
-See the "\fBCONFIGURATION OVERRIDE\fR" section in
+See the "CONFIGURATION OVERRIDE" section in
 \fBamanda\fR(8)\&.
 .RE
 .SH "EXAMPLE"
@@ -86,9 +83,13 @@ can exit with value 0 even if the user is not authorized to execute the service\
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
+\fBamanda\fR(8),
 \fBamcheck\fR(8),
 \fBamdump\fR(8),
 \fBamadmin\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHOR"
 .PP
 \fBJean\-Louis Martineau\fR <\&martineau@zmanda\&.com\&>

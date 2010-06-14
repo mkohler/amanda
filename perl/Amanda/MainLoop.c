@@ -1570,12 +1570,13 @@ SWIGINTERN void amglue_Source_set_callback(amglue_Source *self,SV *callback_sub)
 	     * that we make a copy of this SV, in case the user later
 	     * modifies it. */
 	    if (self->callback_sv) {
-		SvSetSV(self->callback_sv, callback_sub);
-	    } else {
-		self->callback_sv = newSVsv(callback_sub);
-		g_source_set_callback(self->src, self->callback,
-		    (gpointer)self, NULL);
+		SvREFCNT_dec(self->callback_sv);
+		self->callback_sv = NULL;
 	    }
+	    self->callback_sv = newSVsv(callback_sub);
+	    SvREFCNT_inc(self->callback_sv);
+	    g_source_set_callback(self->src, self->callback,
+		(gpointer)self, NULL);
 	}
 SWIGINTERN void amglue_Source_remove(amglue_Source *self){
 	    amglue_source_remove(self);
@@ -1618,6 +1619,8 @@ amglue_source_callback_simple(
     amglue_Source *src = (amglue_Source *)data;
     SV *src_sv = NULL;
 
+    /* keep the source around long enough for the call to finish */
+    amglue_source_ref(src);
     g_assert(src->callback_sv != NULL);
 
     ENTER;
@@ -1639,9 +1642,12 @@ amglue_source_callback_simple(
     FREETMPS;
     LEAVE;
 
-    /* these may have been freed, so don't use them after this point */
-    src_sv = NULL;
+    /* we no longer need the src */
+    amglue_source_unref(src);
     src = NULL;
+
+    /* this may have been freed, so don't use them after this point */
+    src_sv = NULL;
 
     /* check for an uncaught 'die'.  If we don't do this, then Perl will longjmp()
      * over the GMainLoop mechanics, leaving GMainLoop in an inconsistent (locked)
@@ -1688,6 +1694,8 @@ child_watch_source_callback(
     amglue_Source *src = (amglue_Source *)data;
     SV *src_sv;
 
+    /* keep the source around long enough for the call to finish */
+    amglue_source_ref(src);
     g_assert(src->callback_sv != NULL);
 
     ENTER;
@@ -1715,9 +1723,12 @@ child_watch_source_callback(
     FREETMPS;
     LEAVE;
 
-    /* these may have been freed, so don't use them after this point */
-    src_sv = NULL;
+    /* we no longer need the src */
+    amglue_source_unref(src);
     src = NULL;
+
+    /* this may have been freed, so don't use them after this point */
+    src_sv = NULL;
 
     /* check for an uncaught 'die'.  If we don't do this, then Perl will longjmp()
      * over the GMainLoop mechanics, leaving GMainLoop in an inconsistent (locked)
@@ -1762,7 +1773,7 @@ SWIG_From_int  SWIG_PERL_DECL_ARGS_1(int value)
 
 amglue_Source *
 fd_source(
-    gint fd,
+    int fd,
     GIOCondition events)
 {
     GSource *fdsource = new_fdsource(fd, events);
@@ -2162,7 +2173,7 @@ XS(_wrap_child_watch_source) {
 
 XS(_wrap_fd_source) {
   {
-    gint arg1 ;
+    int arg1 ;
     GIOCondition arg2 ;
     int argvi = 0;
     amglue_Source *result = 0 ;
@@ -2172,16 +2183,30 @@ XS(_wrap_fd_source) {
       SWIG_croak("Usage: fd_source(fd,events);");
     }
     {
-      if (sizeof(gint) == 1) {
-        arg1 = amglue_SvI8(ST(0));
-      } else if (sizeof(gint) == 2) {
-        arg1 = amglue_SvI16(ST(0));
-      } else if (sizeof(gint) == 4) {
-        arg1 = amglue_SvI32(ST(0));
-      } else if (sizeof(gint) == 8) {
-        arg1 = amglue_SvI64(ST(0));
+      IO *io = NULL;
+      PerlIO *pio = NULL;
+      int fd = -1;
+      
+      if (SvIOK(ST(0))) {
+        /* plain old integer */
+        arg1 = SvIV(ST(0));
       } else {
-        g_critical("Unexpected gint >64 bits?"); /* should be optimized out unless sizeof(gint) > 8 */
+        /* try extracting as filehandle */
+        
+        /* note: sv_2io may call die() */
+        io = sv_2io(ST(0));
+        if (io) {
+          pio = IoIFP(io);
+        }
+        if (pio) {
+          fd = PerlIO_fileno(pio);
+        }
+        if (fd >= 0) {
+          arg1 = fd;
+        } else {
+          SWIG_exception(SWIG_TypeError, "Expected integer file descriptor "
+            "or file handle for argument 1");
+        }
       }
     }
     {
@@ -2200,8 +2225,10 @@ XS(_wrap_fd_source) {
     result = (amglue_Source *)fd_source(arg1,arg2);
     ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_amglue_Source, SWIG_OWNER | SWIG_SHADOW); argvi++ ;
     
+    
     XSRETURN(argvi);
   fail:
+    
     
     SWIG_croak_null();
   }

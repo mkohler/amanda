@@ -18,45 +18,45 @@
 # Makefile for Amanda library.
 
 # vim:ft=automake
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
-# 
-# This library is free software; you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License version 2.1 as 
-# published by the Free Software Foundation.
-# 
-# This library is distributed in the hope that it will be useful, but
+# Copyright (c) 2007,2008,2009 Zmanda, Inc.  All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published
+# by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-# or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
-# License for more details.
-# 
-# You should have received a copy of the GNU Lesser General Public License
-# along with this library; if not, write to the Free Software Foundation,
-# Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
-# 
-# Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
-# Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+# or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+# for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+#
+# Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+# Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
 
 # simple include file to pre-define variables which are then +='d by other
 # scripts in this directory.
 
 # vim:ft=automake
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
-# 
-# This library is free software; you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License version 2.1 as 
-# published by the Free Software Foundation.
-# 
-# This library is distributed in the hope that it will be useful, but
+# Copyright (c) 2007,2008,2009 Zmanda, Inc.  All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published
+# by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-# or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
-# License for more details.
-# 
-# You should have received a copy of the GNU Lesser General Public License
-# along with this library; if not, write to the Free Software Foundation,
-# Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
-# 
-# Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
-# Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+# or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+# for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+#
+# Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+# Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
 
 # SYNOPSIS:
 #
@@ -64,14 +64,23 @@
 # be built down to extensionless executables (e.g., foo.pl -> foo), or to 
 # files with the usual extension (foo-lib.sh.in -> foo.sh).
 #
-# Files which support it are syntax-checked when the user invokes 'make check'.
+# Files which support it are syntax-checked when the user invokes 'make check',
+# unless the Makefile.am defines SKIP_CHECKS.
 #
-# All *target* filenames must be listed in SCRIPTS_SHELL, SCRIPTS_PERL, and 
-# SCRIPTS_AWK to support 'make check', 'make dist', and 'make distclean'. No
-# files which are not substituted by config.status should be included in
-# SCRIPTS_PERL, SCRIPTS_SHELL, or SCRIPTS_AWK.  If non-generated files are listed
-# for installation, then Automake will figure out that they should be distributed;
+# All *target* filenames must be listed in SCRIPTS_SHELL, SCRIPTS_PERL, and
+# SCRIPTS_AWK to support 'make dist', and 'make distclean'. No files which are
+# not substituted by config.status should be included in SCRIPTS_PERL,
+# SCRIPTS_SHELL, or SCRIPTS_AWK.  If non-generated files are listed for
+# installation, then Automake will figure out that they should be distributed;
 # otherwise, include them in EXTRA_DIST.
+#
+# All SCRIPTS_SHELL and SCRIPTS_PERL are syntax-checked on 'make check'.  There is
+# a fix in place to run these syntax checks against the perl modules in the build
+# tree, rather than against the (potentially old) installed perl modules.
+#
+# To emulate EXTRA_DIST for scripts, use SCRIPTS_EXTRA_DIST, e.g.,
+#   SCRIPTS_SHELL = $(selected_scripts)
+#   SCRIPTS_EXTRA_DIST = $(all_scripts)
 #
 # USAGE:
 #
@@ -82,7 +91,7 @@
 #   SCRIPTS_SHELL = shell1 shell2 sh-lib.sh
 #   SCRIPTS_AWK = talk balk chalk awk-lib.awk
 #   sbin_SCRIPTS = not-subbed
-#   EXTRA_DIST = util-script.pl
+#   SCRIPTS_EXTRA_DIST = util-script
 #
 # with the corresponding files in the repository:
 #
@@ -90,11 +99,6 @@
 #   shell1.sh shell2.sh sh-lib.sh.in
 #   talk.awk balk.awk chalk.awk awk-lib.awk.in
 #   not-subbed util-script.pl
-#
-# by default, all shell and perl scripts are syntax checked.  If this is
-# a problem (for example, perl scripts depending on Amanda extension 
-# modules), then assign to CHECK_{PERL,SHELL} the list of files you wish
-# to be checked (which can be empty).
 #
 # To add extra flags to the perl checks (e.g., to add new -I flags), set
 # CHECK_PERL_FLAGS.
@@ -178,9 +182,8 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-target_triplet = @target@
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
-	$(srcdir)/Makefile.in $(srcdir)/versuff.c.in \
+	$(srcdir)/Makefile.in \
 	$(top_srcdir)/config/automake/installperms.am \
 	$(top_srcdir)/config/automake/precompile.am \
 	$(top_srcdir)/config/automake/scripts.am \
@@ -195,12 +198,13 @@ DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 @WANT_BSD_SECURITY_TRUE@am__append_8 = bsd-security.c
 @WANT_BSDTCP_SECURITY_TRUE@am__append_9 = bsdtcp-security.c
 @WANT_BSDUDP_SECURITY_TRUE@am__append_10 = bsdudp-security.c
-@WANT_KRB4_SECURITY_TRUE@am__append_11 = krb4-security.c	
-@WANT_KRB5_SECURITY_TRUE@am__append_12 = krb5-security.c
+@WANT_KRB5_SECURITY_TRUE@am__append_11 = krb5-security.c
 EXTRA_PROGRAMS = genversion$(EXEEXT) $(am__EXEEXT_1)
 TESTS = amflock-test$(EXEEXT) event-test$(EXEEXT) \
 	semaphore-test$(EXEEXT) queueing-test$(EXEEXT) \
-	quoting-test$(EXEEXT)
+	quoting-test$(EXEEXT) ipc-binary-test$(EXEEXT) \
+	hexencode-test$(EXEEXT) fileheader-test$(EXEEXT) \
+	match-test$(EXEEXT)
 noinst_PROGRAMS = $(am__EXEEXT_2)
 subdir = common-src
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -228,16 +232,17 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/amanda/dirs.m4 \
 	$(top_srcdir)/config/amanda/documentation.m4 \
 	$(top_srcdir)/config/amanda/dumpers.m4 \
+	$(top_srcdir)/config/amanda/dvdrw-device.m4 \
 	$(top_srcdir)/config/amanda/flags.m4 \
 	$(top_srcdir)/config/amanda/flock.m4 \
 	$(top_srcdir)/config/amanda/funcs.m4 \
 	$(top_srcdir)/config/amanda/getfsent.m4 \
 	$(top_srcdir)/config/amanda/i18n.m4 \
 	$(top_srcdir)/config/amanda/ipv6.m4 \
-	$(top_srcdir)/config/amanda/krb4-security.m4 \
 	$(top_srcdir)/config/amanda/krb5-security.m4 \
 	$(top_srcdir)/config/amanda/lfs.m4 \
 	$(top_srcdir)/config/amanda/libs.m4 \
+	$(top_srcdir)/config/amanda/ndmp-device.m4 \
 	$(top_srcdir)/config/amanda/net.m4 \
 	$(top_srcdir)/config/amanda/progs.m4 \
 	$(top_srcdir)/config/amanda/ps.m4 \
@@ -255,30 +260,50 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/amanda/types.m4 \
 	$(top_srcdir)/config/amanda/userid.m4 \
 	$(top_srcdir)/config/amanda/version.m4 \
+	$(top_srcdir)/config/gnulib/00gnulib.m4 \
 	$(top_srcdir)/config/gnulib/alloca.m4 \
 	$(top_srcdir)/config/gnulib/arpa_inet_h.m4 \
 	$(top_srcdir)/config/gnulib/base64.m4 \
-	$(top_srcdir)/config/gnulib/eoverflow.m4 \
+	$(top_srcdir)/config/gnulib/btowc.m4 \
+	$(top_srcdir)/config/gnulib/errno_h.m4 \
 	$(top_srcdir)/config/gnulib/extensions.m4 \
 	$(top_srcdir)/config/gnulib/float_h.m4 \
+	$(top_srcdir)/config/gnulib/fseeko.m4 \
 	$(top_srcdir)/config/gnulib/fsusage.m4 \
+	$(top_srcdir)/config/gnulib/ftello.m4 \
+	$(top_srcdir)/config/gnulib/ftruncate.m4 \
 	$(top_srcdir)/config/gnulib/getaddrinfo.m4 \
 	$(top_srcdir)/config/gnulib/getopt.m4 \
 	$(top_srcdir)/config/gnulib/gettimeofday.m4 \
 	$(top_srcdir)/config/gnulib/gnulib-common.m4 \
 	$(top_srcdir)/config/gnulib/gnulib-comp.m4 \
+	$(top_srcdir)/config/gnulib/hostent.m4 \
 	$(top_srcdir)/config/gnulib/include_next.m4 \
 	$(top_srcdir)/config/gnulib/inet_ntop.m4 \
 	$(top_srcdir)/config/gnulib/intmax_t.m4 \
+	$(top_srcdir)/config/gnulib/localcharset.m4 \
+	$(top_srcdir)/config/gnulib/locale-fr.m4 \
+	$(top_srcdir)/config/gnulib/locale-ja.m4 \
+	$(top_srcdir)/config/gnulib/locale-zh.m4 \
 	$(top_srcdir)/config/gnulib/lock.m4 \
 	$(top_srcdir)/config/gnulib/longlong.m4 \
+	$(top_srcdir)/config/gnulib/lseek.m4 \
+	$(top_srcdir)/config/gnulib/lstat.m4 \
 	$(top_srcdir)/config/gnulib/malloc.m4 \
+	$(top_srcdir)/config/gnulib/mbrtowc.m4 \
+	$(top_srcdir)/config/gnulib/mbsinit.m4 \
+	$(top_srcdir)/config/gnulib/mbstate_t.m4 \
 	$(top_srcdir)/config/gnulib/mkdtemp.m4 \
+	$(top_srcdir)/config/gnulib/multiarch.m4 \
+	$(top_srcdir)/config/gnulib/netdb_h.m4 \
 	$(top_srcdir)/config/gnulib/netinet_in_h.m4 \
-	$(top_srcdir)/config/gnulib/onceonly_2_57.m4 \
+	$(top_srcdir)/config/gnulib/onceonly.m4 \
 	$(top_srcdir)/config/gnulib/physmem.m4 \
+	$(top_srcdir)/config/gnulib/printf.m4 \
+	$(top_srcdir)/config/gnulib/regex.m4 \
 	$(top_srcdir)/config/gnulib/safe-read.m4 \
 	$(top_srcdir)/config/gnulib/safe-write.m4 \
+	$(top_srcdir)/config/gnulib/servent.m4 \
 	$(top_srcdir)/config/gnulib/snprintf.m4 \
 	$(top_srcdir)/config/gnulib/socklen.m4 \
 	$(top_srcdir)/config/gnulib/sockpfaf.m4 \
@@ -287,17 +312,21 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/gnulib/stdint.m4 \
 	$(top_srcdir)/config/gnulib/stdio_h.m4 \
 	$(top_srcdir)/config/gnulib/stdlib_h.m4 \
-	$(top_srcdir)/config/gnulib/strdup.m4 \
-	$(top_srcdir)/config/gnulib/string_h.m4 \
 	$(top_srcdir)/config/gnulib/sys_socket_h.m4 \
 	$(top_srcdir)/config/gnulib/sys_stat_h.m4 \
 	$(top_srcdir)/config/gnulib/sys_time_h.m4 \
 	$(top_srcdir)/config/gnulib/tempname.m4 \
+	$(top_srcdir)/config/gnulib/threadlib.m4 \
 	$(top_srcdir)/config/gnulib/unistd_h.m4 \
 	$(top_srcdir)/config/gnulib/vasnprintf.m4 \
 	$(top_srcdir)/config/gnulib/visibility.m4 \
 	$(top_srcdir)/config/gnulib/wchar.m4 \
+	$(top_srcdir)/config/gnulib/wcrtomb.m4 \
+	$(top_srcdir)/config/gnulib/wctype.m4 \
+	$(top_srcdir)/config/gnulib/write.m4 \
+	$(top_srcdir)/config/gettext-macros/codeset.m4 \
 	$(top_srcdir)/config/gettext-macros/gettext.m4 \
+	$(top_srcdir)/config/gettext-macros/glibc21.m4 \
 	$(top_srcdir)/config/gettext-macros/iconv.m4 \
 	$(top_srcdir)/config/gettext-macros/inttypes_h.m4 \
 	$(top_srcdir)/config/gettext-macros/lib-ld.m4 \
@@ -311,12 +340,16 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/gettext-macros/wchar_t.m4 \
 	$(top_srcdir)/config/gettext-macros/wint_t.m4 \
 	$(top_srcdir)/config/gettext-macros/xsize.m4 \
-	$(top_srcdir)/config/libtool.m4 $(top_srcdir)/configure.in
+	$(top_srcdir)/config/libtool.m4 \
+	$(top_srcdir)/config/ltoptions.m4 \
+	$(top_srcdir)/config/ltsugar.m4 \
+	$(top_srcdir)/config/ltversion.m4 \
+	$(top_srcdir)/config/lt~obsolete.m4 $(top_srcdir)/configure.in
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/config/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config/config.h
-CONFIG_CLEAN_FILES = versuff.c
+CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
 am__vpath_adj = case $$p in \
@@ -343,15 +376,15 @@ am__installdirs = "$(DESTDIR)$(amlibdir)" "$(DESTDIR)$(amlibexecdir)" \
 	"$(DESTDIR)$(sbindir)" "$(DESTDIR)$(amlibexecdir)"
 LTLIBRARIES = $(amlib_LTLIBRARIES) $(noinst_LTLIBRARIES)
 libamanda_la_DEPENDENCIES = ../gnulib/libgnu.la
-am__libamanda_la_SOURCES_DIST = alloc.c amfeatures.c amflock.c amxml.c \
-	clock.c columnar.c conffile.c debug.c dgram.c event.c file.c \
-	fileheader.c glib-util.c match.c packet.c pipespawn.c \
-	protocol.c queueing.c semaphore.c security.c security-util.c \
-	simpleprng.c sl.c sockaddr-util.c stream.c tapelist.c \
-	timestamp.c util.c versuff.c amflock-posix.c amflock-flock.c \
-	amflock-lockf.c amflock-lnlock.c rsh-security.c ssh-security.c \
-	bsd-security.c bsdtcp-security.c bsdudp-security.c \
-	krb4-security.c krb5-security.c local-security.c
+am__libamanda_la_SOURCES_DIST = alloc.c amfeatures.c amflock.c \
+	ipc-binary.c amxml.c clock.c columnar.c conffile.c debug.c \
+	dgram.c event.c file.c fileheader.c glib-util.c match.c \
+	packet.c pipespawn.c protocol.c queueing.c semaphore.c \
+	security.c security-util.c simpleprng.c sl.c sockaddr-util.c \
+	stream.c tapelist.c timestamp.c util.c amflock-posix.c \
+	amflock-flock.c amflock-lockf.c amflock-lnlock.c \
+	rsh-security.c ssh-security.c bsd-security.c bsdtcp-security.c \
+	bsdudp-security.c krb5-security.c local-security.c
 @WANT_AMFLOCK_POSIX_TRUE@am__objects_1 = amflock-posix.lo
 @WANT_AMFLOCK_FLOCK_TRUE@am__objects_2 = amflock-flock.lo
 @WANT_AMFLOCK_LOCKF_TRUE@am__objects_3 = amflock-lockf.lo
@@ -361,18 +394,17 @@ am__libamanda_la_SOURCES_DIST = alloc.c amfeatures.c amflock.c amxml.c \
 @WANT_BSD_SECURITY_TRUE@am__objects_7 = bsd-security.lo
 @WANT_BSDTCP_SECURITY_TRUE@am__objects_8 = bsdtcp-security.lo
 @WANT_BSDUDP_SECURITY_TRUE@am__objects_9 = bsdudp-security.lo
-@WANT_KRB4_SECURITY_TRUE@am__objects_10 = krb4-security.lo
-@WANT_KRB5_SECURITY_TRUE@am__objects_11 = krb5-security.lo
-am_libamanda_la_OBJECTS = alloc.lo amfeatures.lo amflock.lo amxml.lo \
-	clock.lo columnar.lo conffile.lo debug.lo dgram.lo event.lo \
-	file.lo fileheader.lo glib-util.lo match.lo packet.lo \
-	pipespawn.lo protocol.lo queueing.lo semaphore.lo security.lo \
-	security-util.lo simpleprng.lo sl.lo sockaddr-util.lo \
-	stream.lo tapelist.lo timestamp.lo util.lo versuff.lo \
+@WANT_KRB5_SECURITY_TRUE@am__objects_10 = krb5-security.lo
+am_libamanda_la_OBJECTS = alloc.lo amfeatures.lo amflock.lo \
+	ipc-binary.lo amxml.lo clock.lo columnar.lo conffile.lo \
+	debug.lo dgram.lo event.lo file.lo fileheader.lo glib-util.lo \
+	match.lo packet.lo pipespawn.lo protocol.lo queueing.lo \
+	semaphore.lo security.lo security-util.lo simpleprng.lo sl.lo \
+	sockaddr-util.lo stream.lo tapelist.lo timestamp.lo util.lo \
 	$(am__objects_1) $(am__objects_2) $(am__objects_3) \
 	$(am__objects_4) $(am__objects_5) $(am__objects_6) \
 	$(am__objects_7) $(am__objects_8) $(am__objects_9) \
-	$(am__objects_10) $(am__objects_11) local-security.lo
+	$(am__objects_10) local-security.lo
 nodist_libamanda_la_OBJECTS = version.lo
 libamanda_la_OBJECTS = $(am_libamanda_la_OBJECTS) \
 	$(nodist_libamanda_la_OBJECTS)
@@ -382,23 +414,20 @@ libamanda_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 libtestutils_la_LIBADD =
 am_libtestutils_la_OBJECTS = testutils.lo
 libtestutils_la_OBJECTS = $(am_libtestutils_la_OBJECTS)
-am__EXEEXT_1 = file$(EXEEXT) bsdsecurity$(EXEEXT) amfeatures$(EXEEXT)
+am__EXEEXT_1 = file$(EXEEXT) bsdsecurity$(EXEEXT)
 am__EXEEXT_2 = amflock-test$(EXEEXT) event-test$(EXEEXT) \
 	semaphore-test$(EXEEXT) queueing-test$(EXEEXT) \
-	quoting-test$(EXEEXT)
+	quoting-test$(EXEEXT) ipc-binary-test$(EXEEXT) \
+	hexencode-test$(EXEEXT) fileheader-test$(EXEEXT) \
+	match-test$(EXEEXT)
 PROGRAMS = $(noinst_PROGRAMS)
-am_amfeatures_OBJECTS = amfeatures.test.$(OBJEXT)
-amfeatures_OBJECTS = $(am_amfeatures_OBJECTS)
-amfeatures_DEPENDENCIES = $(libamanda_la_LIBADD) \
-	$(STANDARD_COMMON_STUFF)
 am_amflock_test_OBJECTS = amflock-test.$(OBJEXT)
 amflock_test_OBJECTS = $(am_amflock_test_OBJECTS)
 amflock_test_DEPENDENCIES = libamanda.la libtestutils.la
 am_bsdsecurity_OBJECTS = bsd-security.test.$(OBJEXT)
 bsdsecurity_OBJECTS = $(am_bsdsecurity_OBJECTS)
 bsdsecurity_DEPENDENCIES = alloc.lo clock.lo debug.lo dgram.lo \
-	event.lo file.lo packet.lo security.lo ssh-security.lo \
-	versuff.lo
+	event.lo file.lo packet.lo security.lo ssh-security.lo
 am_event_test_OBJECTS = event-test.$(OBJEXT)
 event_test_OBJECTS = $(am_event_test_OBJECTS)
 event_test_DEPENDENCIES = libamanda.la libtestutils.la
@@ -406,10 +435,21 @@ am_file_OBJECTS = file.test.$(OBJEXT)
 file_OBJECTS = $(am_file_OBJECTS)
 file_DEPENDENCIES = $(libamanda_la_LIBADD) \
 	$(STANDARD_COMMON_STUFF_NOT_FILE)
+am_fileheader_test_OBJECTS = fileheader-test.$(OBJEXT)
+fileheader_test_OBJECTS = $(am_fileheader_test_OBJECTS)
+fileheader_test_DEPENDENCIES = libamanda.la libtestutils.la
 am_genversion_OBJECTS = genversion.$(OBJEXT)
 genversion_OBJECTS = $(am_genversion_OBJECTS)
-genversion_DEPENDENCIES = $(libamanda_la_LIBADD) versuff.lo \
-	../gnulib/libgnu.la
+genversion_DEPENDENCIES = $(libamanda_la_LIBADD) ../gnulib/libgnu.la
+am_hexencode_test_OBJECTS = hexencode-test.$(OBJEXT)
+hexencode_test_OBJECTS = $(am_hexencode_test_OBJECTS)
+hexencode_test_DEPENDENCIES = libamanda.la libtestutils.la
+am_ipc_binary_test_OBJECTS = ipc-binary-test.$(OBJEXT)
+ipc_binary_test_OBJECTS = $(am_ipc_binary_test_OBJECTS)
+ipc_binary_test_DEPENDENCIES = libamanda.la libtestutils.la
+am_match_test_OBJECTS = match-test.$(OBJEXT)
+match_test_OBJECTS = $(am_match_test_OBJECTS)
+match_test_DEPENDENCIES = libamanda.la libtestutils.la
 am_queueing_test_OBJECTS = queueing-test.$(OBJEXT)
 queueing_test_OBJECTS = $(am_queueing_test_OBJECTS)
 queueing_test_DEPENDENCIES = libamanda.la libtestutils.la
@@ -434,17 +474,19 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
 SOURCES = $(libamanda_la_SOURCES) $(nodist_libamanda_la_SOURCES) \
-	$(libtestutils_la_SOURCES) $(amfeatures_SOURCES) \
-	$(amflock_test_SOURCES) $(bsdsecurity_SOURCES) \
-	$(event_test_SOURCES) $(file_SOURCES) $(genversion_SOURCES) \
-	$(queueing_test_SOURCES) $(quoting_test_SOURCES) \
-	$(semaphore_test_SOURCES)
+	$(libtestutils_la_SOURCES) $(amflock_test_SOURCES) \
+	$(bsdsecurity_SOURCES) $(event_test_SOURCES) $(file_SOURCES) \
+	$(fileheader_test_SOURCES) $(genversion_SOURCES) \
+	$(hexencode_test_SOURCES) $(ipc_binary_test_SOURCES) \
+	$(match_test_SOURCES) $(queueing_test_SOURCES) \
+	$(quoting_test_SOURCES) $(semaphore_test_SOURCES)
 DIST_SOURCES = $(am__libamanda_la_SOURCES_DIST) \
-	$(libtestutils_la_SOURCES) $(amfeatures_SOURCES) \
-	$(amflock_test_SOURCES) $(bsdsecurity_SOURCES) \
-	$(event_test_SOURCES) $(file_SOURCES) $(genversion_SOURCES) \
-	$(queueing_test_SOURCES) $(quoting_test_SOURCES) \
-	$(semaphore_test_SOURCES)
+	$(libtestutils_la_SOURCES) $(amflock_test_SOURCES) \
+	$(bsdsecurity_SOURCES) $(event_test_SOURCES) $(file_SOURCES) \
+	$(fileheader_test_SOURCES) $(genversion_SOURCES) \
+	$(hexencode_test_SOURCES) $(ipc_binary_test_SOURCES) \
+	$(match_test_SOURCES) $(queueing_test_SOURCES) \
+	$(quoting_test_SOURCES) $(semaphore_test_SOURCES)
 DATA = $(amlibexec_DATA)
 HEADERS = $(noinst_HEADERS)
 ETAGS = etags
@@ -456,9 +498,11 @@ ACLOCAL = @ACLOCAL@
 AIX_BACKUP = @AIX_BACKUP@
 ALLOCA = @ALLOCA@
 ALLOCA_H = @ALLOCA_H@
+AMANDA_COMPONENTS = @AMANDA_COMPONENTS@
 AMANDA_DBGDIR = @AMANDA_DBGDIR@
 AMANDA_DEBUG_DAYS = @AMANDA_DEBUG_DAYS@
 AMANDA_STATIC_LDFLAGS = @AMANDA_STATIC_LDFLAGS@
+AMANDA_SWIG_PERL_CFLAGS = @AMANDA_SWIG_PERL_CFLAGS@
 AMANDA_TMPDIR = @AMANDA_TMPDIR@
 AMANDA_WARNING_CFLAGS = @AMANDA_WARNING_CFLAGS@
 AMLINT = @AMLINT@
@@ -468,6 +512,7 @@ AMPLOT_CAT_GZIP = @AMPLOT_CAT_GZIP@
 AMPLOT_CAT_PACK = @AMPLOT_CAT_PACK@
 AMPLOT_COMPRESS = @AMPLOT_COMPRESS@
 AMTAR = @AMTAR@
+APPLE_UNIVERSAL_BUILD = @APPLE_UNIVERSAL_BUILD@
 APPLICATION_DIR = @APPLICATION_DIR@
 AR = @AR@
 ARPA_INET_H = @ARPA_INET_H@
@@ -494,9 +539,6 @@ CFLAG_VISIBILITY = @CFLAG_VISIBILITY@
 CHECK_USERID = @CHECK_USERID@
 CHIO = @CHIO@
 CHS = @CHS@
-CLIENT_HOST_INSTANCE = @CLIENT_HOST_INSTANCE@
-CLIENT_HOST_KEY_FILE = @CLIENT_HOST_KEY_FILE@
-CLIENT_HOST_PRINCIPAL = @CLIENT_HOST_PRINCIPAL@
 CLIENT_LOGIN = @CLIENT_LOGIN@
 CLIENT_SCRIPTS_OPT = @CLIENT_SCRIPTS_OPT@
 COMPRESS = @COMPRESS@
@@ -509,14 +551,9 @@ CONFIG_DIR = @CONFIG_DIR@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CURL_CONFIG = @CURL_CONFIG@
-CXX = @CXX@
-CXXCPP = @CXXCPP@
-CXXDEPMODE = @CXXDEPMODE@
-CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DD = @DD@
 DEFAULT_AMANDATES_FILE = @DEFAULT_AMANDATES_FILE@
-DEFAULT_CHANGER_DEVICE = @DEFAULT_CHANGER_DEVICE@
 DEFAULT_CONFIG = @DEFAULT_CONFIG@
 DEFAULT_MAILER = @DEFAULT_MAILER@
 DEFAULT_SERVER = @DEFAULT_SERVER@
@@ -525,155 +562,216 @@ DEFAULT_TAPE_SERVER = @DEFAULT_TAPE_SERVER@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DOC_BUILD_DATE = @DOC_BUILD_DATE@
+DSYMUTIL = @DSYMUTIL@
 DUMP = @DUMP@
+DUMPBIN = @DUMPBIN@
 DUMP_RETURNS_1 = @DUMP_RETURNS_1@
-ECHO = @ECHO@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
-EOVERFLOW = @EOVERFLOW@
+EMULTIHOP_HIDDEN = @EMULTIHOP_HIDDEN@
+EMULTIHOP_VALUE = @EMULTIHOP_VALUE@
+ENOLINK_HIDDEN = @ENOLINK_HIDDEN@
+ENOLINK_VALUE = @ENOLINK_VALUE@
+EOVERFLOW_HIDDEN = @EOVERFLOW_HIDDEN@
+EOVERFLOW_VALUE = @EOVERFLOW_VALUE@
+ERRNO_H = @ERRNO_H@
 EXAMPLE_TAPEDEV = @EXAMPLE_TAPEDEV@
 EXEEXT = @EXEEXT@
-F77 = @F77@
-FFLAGS = @FFLAGS@
+FGREP = @FGREP@
 FLOAT_H = @FLOAT_H@
+GETADDRINFO_LIB = @GETADDRINFO_LIB@
 GETCONF = @GETCONF@
 GETOPT_H = @GETOPT_H@
 GETTEXT = @GETTEXT@
+GIT = @GIT@
+GLIBC21 = @GLIBC21@
 GLIB_CFLAGS = @GLIB_CFLAGS@
 GLIB_GENMARSHAL = @GLIB_GENMARSHAL@
 GLIB_LIBS = @GLIB_LIBS@
 GLIB_MKENUMS = @GLIB_MKENUMS@
 GMSGFMT = @GMSGFMT@
 GMSGFMT_015 = @GMSGFMT_015@
+GNULIB_ACCEPT = @GNULIB_ACCEPT@
+GNULIB_ATOLL = @GNULIB_ATOLL@
+GNULIB_BIND = @GNULIB_BIND@
+GNULIB_BTOWC = @GNULIB_BTOWC@
 GNULIB_CALLOC_POSIX = @GNULIB_CALLOC_POSIX@
 GNULIB_CHOWN = @GNULIB_CHOWN@
+GNULIB_CLOSE = @GNULIB_CLOSE@
+GNULIB_CONNECT = @GNULIB_CONNECT@
+GNULIB_DPRINTF = @GNULIB_DPRINTF@
 GNULIB_DUP2 = @GNULIB_DUP2@
 GNULIB_ENVIRON = @GNULIB_ENVIRON@
+GNULIB_EUIDACCESS = @GNULIB_EUIDACCESS@
 GNULIB_FCHDIR = @GNULIB_FCHDIR@
+GNULIB_FCLOSE = @GNULIB_FCLOSE@
 GNULIB_FFLUSH = @GNULIB_FFLUSH@
 GNULIB_FOPEN = @GNULIB_FOPEN@
+GNULIB_FPRINTF = @GNULIB_FPRINTF@
 GNULIB_FPRINTF_POSIX = @GNULIB_FPRINTF_POSIX@
+GNULIB_FPUTC = @GNULIB_FPUTC@
+GNULIB_FPUTS = @GNULIB_FPUTS@
 GNULIB_FREOPEN = @GNULIB_FREOPEN@
 GNULIB_FSEEK = @GNULIB_FSEEK@
 GNULIB_FSEEKO = @GNULIB_FSEEKO@
+GNULIB_FSYNC = @GNULIB_FSYNC@
 GNULIB_FTELL = @GNULIB_FTELL@
 GNULIB_FTELLO = @GNULIB_FTELLO@
 GNULIB_FTRUNCATE = @GNULIB_FTRUNCATE@
+GNULIB_FWRITE = @GNULIB_FWRITE@
+GNULIB_GETADDRINFO = @GNULIB_GETADDRINFO@
 GNULIB_GETCWD = @GNULIB_GETCWD@
 GNULIB_GETDELIM = @GNULIB_GETDELIM@
+GNULIB_GETDOMAINNAME = @GNULIB_GETDOMAINNAME@
+GNULIB_GETDTABLESIZE = @GNULIB_GETDTABLESIZE@
+GNULIB_GETHOSTNAME = @GNULIB_GETHOSTNAME@
 GNULIB_GETLINE = @GNULIB_GETLINE@
+GNULIB_GETLOADAVG = @GNULIB_GETLOADAVG@
 GNULIB_GETLOGIN_R = @GNULIB_GETLOGIN_R@
 GNULIB_GETPAGESIZE = @GNULIB_GETPAGESIZE@
+GNULIB_GETPEERNAME = @GNULIB_GETPEERNAME@
+GNULIB_GETSOCKNAME = @GNULIB_GETSOCKNAME@
+GNULIB_GETSOCKOPT = @GNULIB_GETSOCKOPT@
 GNULIB_GETSUBOPT = @GNULIB_GETSUBOPT@
+GNULIB_GETUSERSHELL = @GNULIB_GETUSERSHELL@
+GNULIB_INET_NTOP = @GNULIB_INET_NTOP@
+GNULIB_INET_PTON = @GNULIB_INET_PTON@
+GNULIB_LCHMOD = @GNULIB_LCHMOD@
 GNULIB_LCHOWN = @GNULIB_LCHOWN@
+GNULIB_LINK = @GNULIB_LINK@
+GNULIB_LISTEN = @GNULIB_LISTEN@
 GNULIB_LSEEK = @GNULIB_LSEEK@
+GNULIB_LSTAT = @GNULIB_LSTAT@
 GNULIB_MALLOC_POSIX = @GNULIB_MALLOC_POSIX@
-GNULIB_MBSCASECMP = @GNULIB_MBSCASECMP@
-GNULIB_MBSCASESTR = @GNULIB_MBSCASESTR@
-GNULIB_MBSCHR = @GNULIB_MBSCHR@
-GNULIB_MBSCSPN = @GNULIB_MBSCSPN@
-GNULIB_MBSLEN = @GNULIB_MBSLEN@
-GNULIB_MBSNCASECMP = @GNULIB_MBSNCASECMP@
-GNULIB_MBSNLEN = @GNULIB_MBSNLEN@
-GNULIB_MBSPBRK = @GNULIB_MBSPBRK@
-GNULIB_MBSPCASECMP = @GNULIB_MBSPCASECMP@
-GNULIB_MBSRCHR = @GNULIB_MBSRCHR@
-GNULIB_MBSSEP = @GNULIB_MBSSEP@
-GNULIB_MBSSPN = @GNULIB_MBSSPN@
-GNULIB_MBSSTR = @GNULIB_MBSSTR@
-GNULIB_MBSTOK_R = @GNULIB_MBSTOK_R@
-GNULIB_MEMMEM = @GNULIB_MEMMEM@
-GNULIB_MEMPCPY = @GNULIB_MEMPCPY@
-GNULIB_MEMRCHR = @GNULIB_MEMRCHR@
+GNULIB_MBRLEN = @GNULIB_MBRLEN@
+GNULIB_MBRTOWC = @GNULIB_MBRTOWC@
+GNULIB_MBSINIT = @GNULIB_MBSINIT@
+GNULIB_MBSNRTOWCS = @GNULIB_MBSNRTOWCS@
+GNULIB_MBSRTOWCS = @GNULIB_MBSRTOWCS@
 GNULIB_MKDTEMP = @GNULIB_MKDTEMP@
 GNULIB_MKSTEMP = @GNULIB_MKSTEMP@
+GNULIB_OBSTACK_PRINTF = @GNULIB_OBSTACK_PRINTF@
+GNULIB_OBSTACK_PRINTF_POSIX = @GNULIB_OBSTACK_PRINTF_POSIX@
+GNULIB_PERROR = @GNULIB_PERROR@
+GNULIB_PRINTF = @GNULIB_PRINTF@
 GNULIB_PRINTF_POSIX = @GNULIB_PRINTF_POSIX@
+GNULIB_PUTC = @GNULIB_PUTC@
+GNULIB_PUTCHAR = @GNULIB_PUTCHAR@
 GNULIB_PUTENV = @GNULIB_PUTENV@
+GNULIB_PUTS = @GNULIB_PUTS@
+GNULIB_RANDOM_R = @GNULIB_RANDOM_R@
 GNULIB_READLINK = @GNULIB_READLINK@
 GNULIB_REALLOC_POSIX = @GNULIB_REALLOC_POSIX@
+GNULIB_RECV = @GNULIB_RECV@
+GNULIB_RECVFROM = @GNULIB_RECVFROM@
+GNULIB_RPMATCH = @GNULIB_RPMATCH@
+GNULIB_SEND = @GNULIB_SEND@
+GNULIB_SENDTO = @GNULIB_SENDTO@
 GNULIB_SETENV = @GNULIB_SETENV@
+GNULIB_SETSOCKOPT = @GNULIB_SETSOCKOPT@
+GNULIB_SHUTDOWN = @GNULIB_SHUTDOWN@
 GNULIB_SLEEP = @GNULIB_SLEEP@
 GNULIB_SNPRINTF = @GNULIB_SNPRINTF@
+GNULIB_SOCKET = @GNULIB_SOCKET@
 GNULIB_SPRINTF_POSIX = @GNULIB_SPRINTF_POSIX@
-GNULIB_STPCPY = @GNULIB_STPCPY@
-GNULIB_STPNCPY = @GNULIB_STPNCPY@
-GNULIB_STRCASESTR = @GNULIB_STRCASESTR@
-GNULIB_STRCHRNUL = @GNULIB_STRCHRNUL@
-GNULIB_STRDUP = @GNULIB_STRDUP@
-GNULIB_STRERROR = @GNULIB_STRERROR@
-GNULIB_STRNDUP = @GNULIB_STRNDUP@
-GNULIB_STRNLEN = @GNULIB_STRNLEN@
-GNULIB_STRPBRK = @GNULIB_STRPBRK@
-GNULIB_STRSEP = @GNULIB_STRSEP@
-GNULIB_STRSIGNAL = @GNULIB_STRSIGNAL@
-GNULIB_STRSTR = @GNULIB_STRSTR@
-GNULIB_STRTOK_R = @GNULIB_STRTOK_R@
+GNULIB_STDIO_H_SIGPIPE = @GNULIB_STDIO_H_SIGPIPE@
+GNULIB_STRTOD = @GNULIB_STRTOD@
+GNULIB_STRTOLL = @GNULIB_STRTOLL@
+GNULIB_STRTOULL = @GNULIB_STRTOULL@
+GNULIB_UNISTD_H_SIGPIPE = @GNULIB_UNISTD_H_SIGPIPE@
 GNULIB_UNSETENV = @GNULIB_UNSETENV@
 GNULIB_VASPRINTF = @GNULIB_VASPRINTF@
+GNULIB_VDPRINTF = @GNULIB_VDPRINTF@
+GNULIB_VFPRINTF = @GNULIB_VFPRINTF@
 GNULIB_VFPRINTF_POSIX = @GNULIB_VFPRINTF_POSIX@
+GNULIB_VPRINTF = @GNULIB_VPRINTF@
 GNULIB_VPRINTF_POSIX = @GNULIB_VPRINTF_POSIX@
 GNULIB_VSNPRINTF = @GNULIB_VSNPRINTF@
 GNULIB_VSPRINTF_POSIX = @GNULIB_VSPRINTF_POSIX@
+GNULIB_WCRTOMB = @GNULIB_WCRTOMB@
+GNULIB_WCSNRTOMBS = @GNULIB_WCSNRTOMBS@
+GNULIB_WCSRTOMBS = @GNULIB_WCSRTOMBS@
+GNULIB_WCTOB = @GNULIB_WCTOB@
 GNULIB_WCWIDTH = @GNULIB_WCWIDTH@
+GNULIB_WRITE = @GNULIB_WRITE@
 GNUPLOT = @GNUPLOT@
 GNUTAR = @GNUTAR@
 GNUTAR_LISTED_INCREMENTAL_DIR = @GNUTAR_LISTED_INCREMENTAL_DIR@
 GOBJECT_QUERY = @GOBJECT_QUERY@
 GREP = @GREP@
 GZIP = @GZIP@
+HAVE_ARPA_INET_H = @HAVE_ARPA_INET_H@
+HAVE_ATOLL = @HAVE_ATOLL@
+HAVE_BTOWC = @HAVE_BTOWC@
 HAVE_CALLOC_POSIX = @HAVE_CALLOC_POSIX@
 HAVE_DECL_ENVIRON = @HAVE_DECL_ENVIRON@
+HAVE_DECL_FREEADDRINFO = @HAVE_DECL_FREEADDRINFO@
+HAVE_DECL_GAI_STRERROR = @HAVE_DECL_GAI_STRERROR@
+HAVE_DECL_GETADDRINFO = @HAVE_DECL_GETADDRINFO@
 HAVE_DECL_GETDELIM = @HAVE_DECL_GETDELIM@
 HAVE_DECL_GETLINE = @HAVE_DECL_GETLINE@
+HAVE_DECL_GETLOADAVG = @HAVE_DECL_GETLOADAVG@
 HAVE_DECL_GETLOGIN_R = @HAVE_DECL_GETLOGIN_R@
-HAVE_DECL_MEMMEM = @HAVE_DECL_MEMMEM@
-HAVE_DECL_MEMRCHR = @HAVE_DECL_MEMRCHR@
-HAVE_DECL_MKDIR = @HAVE_DECL_MKDIR@
+HAVE_DECL_GETNAMEINFO = @HAVE_DECL_GETNAMEINFO@
+HAVE_DECL_INET_NTOP = @HAVE_DECL_INET_NTOP@
+HAVE_DECL_INET_PTON = @HAVE_DECL_INET_PTON@
+HAVE_DECL_OBSTACK_PRINTF = @HAVE_DECL_OBSTACK_PRINTF@
 HAVE_DECL_SNPRINTF = @HAVE_DECL_SNPRINTF@
-HAVE_DECL_STRDUP = @HAVE_DECL_STRDUP@
-HAVE_DECL_STRERROR = @HAVE_DECL_STRERROR@
-HAVE_DECL_STRNDUP = @HAVE_DECL_STRNDUP@
-HAVE_DECL_STRNLEN = @HAVE_DECL_STRNLEN@
-HAVE_DECL_STRSIGNAL = @HAVE_DECL_STRSIGNAL@
-HAVE_DECL_STRTOK_R = @HAVE_DECL_STRTOK_R@
 HAVE_DECL_VSNPRINTF = @HAVE_DECL_VSNPRINTF@
+HAVE_DECL_WCTOB = @HAVE_DECL_WCTOB@
 HAVE_DECL_WCWIDTH = @HAVE_DECL_WCWIDTH@
+HAVE_DPRINTF = @HAVE_DPRINTF@
 HAVE_DUP2 = @HAVE_DUP2@
+HAVE_EUIDACCESS = @HAVE_EUIDACCESS@
 HAVE_FSEEKO = @HAVE_FSEEKO@
+HAVE_FSYNC = @HAVE_FSYNC@
 HAVE_FTELLO = @HAVE_FTELLO@
 HAVE_FTRUNCATE = @HAVE_FTRUNCATE@
+HAVE_GETDOMAINNAME = @HAVE_GETDOMAINNAME@
+HAVE_GETDTABLESIZE = @HAVE_GETDTABLESIZE@
+HAVE_GETHOSTNAME = @HAVE_GETHOSTNAME@
 HAVE_GETPAGESIZE = @HAVE_GETPAGESIZE@
 HAVE_GETSUBOPT = @HAVE_GETSUBOPT@
+HAVE_GETUSERSHELL = @HAVE_GETUSERSHELL@
 HAVE_GZIP = @HAVE_GZIP@
 HAVE_INTTYPES_H = @HAVE_INTTYPES_H@
-HAVE_IO_H = @HAVE_IO_H@
+HAVE_ISWCNTRL = @HAVE_ISWCNTRL@
+HAVE_LCHMOD = @HAVE_LCHMOD@
+HAVE_LINK = @HAVE_LINK@
 HAVE_LONG_LONG_INT = @HAVE_LONG_LONG_INT@
 HAVE_LSTAT = @HAVE_LSTAT@
 HAVE_MALLOC_POSIX = @HAVE_MALLOC_POSIX@
-HAVE_MEMPCPY = @HAVE_MEMPCPY@
+HAVE_MBRLEN = @HAVE_MBRLEN@
+HAVE_MBRTOWC = @HAVE_MBRTOWC@
+HAVE_MBSINIT = @HAVE_MBSINIT@
+HAVE_MBSNRTOWCS = @HAVE_MBSNRTOWCS@
+HAVE_MBSRTOWCS = @HAVE_MBSRTOWCS@
 HAVE_MKDTEMP = @HAVE_MKDTEMP@
+HAVE_NETDB_H = @HAVE_NETDB_H@
 HAVE_NETINET_IN_H = @HAVE_NETINET_IN_H@
 HAVE_OS_H = @HAVE_OS_H@
+HAVE_RANDOM_H = @HAVE_RANDOM_H@
+HAVE_RANDOM_R = @HAVE_RANDOM_R@
 HAVE_READLINK = @HAVE_READLINK@
 HAVE_REALLOC_POSIX = @HAVE_REALLOC_POSIX@
+HAVE_RPMATCH = @HAVE_RPMATCH@
 HAVE_SETENV = @HAVE_SETENV@
 HAVE_SIGNED_SIG_ATOMIC_T = @HAVE_SIGNED_SIG_ATOMIC_T@
 HAVE_SIGNED_WCHAR_T = @HAVE_SIGNED_WCHAR_T@
 HAVE_SIGNED_WINT_T = @HAVE_SIGNED_WINT_T@
 HAVE_SLEEP = @HAVE_SLEEP@
 HAVE_STDINT_H = @HAVE_STDINT_H@
-HAVE_STPCPY = @HAVE_STPCPY@
-HAVE_STPNCPY = @HAVE_STPNCPY@
-HAVE_STRCASESTR = @HAVE_STRCASESTR@
-HAVE_STRCHRNUL = @HAVE_STRCHRNUL@
-HAVE_STRNDUP = @HAVE_STRNDUP@
-HAVE_STRPBRK = @HAVE_STRPBRK@
-HAVE_STRSEP = @HAVE_STRSEP@
+HAVE_STRTOD = @HAVE_STRTOD@
+HAVE_STRTOLL = @HAVE_STRTOLL@
+HAVE_STRTOULL = @HAVE_STRTOULL@
+HAVE_STRUCT_ADDRINFO = @HAVE_STRUCT_ADDRINFO@
+HAVE_STRUCT_RANDOM_DATA = @HAVE_STRUCT_RANDOM_DATA@
 HAVE_STRUCT_TIMEVAL = @HAVE_STRUCT_TIMEVAL@
 HAVE_SYS_BITYPES_H = @HAVE_SYS_BITYPES_H@
 HAVE_SYS_INTTYPES_H = @HAVE_SYS_INTTYPES_H@
+HAVE_SYS_LOADAVG_H = @HAVE_SYS_LOADAVG_H@
 HAVE_SYS_PARAM_H = @HAVE_SYS_PARAM_H@
 HAVE_SYS_SOCKET_H = @HAVE_SYS_SOCKET_H@
 HAVE_SYS_TIME_H = @HAVE_SYS_TIME_H@
@@ -682,12 +780,20 @@ HAVE_UNISTD_H = @HAVE_UNISTD_H@
 HAVE_UNSETENV = @HAVE_UNSETENV@
 HAVE_UNSIGNED_LONG_LONG_INT = @HAVE_UNSIGNED_LONG_LONG_INT@
 HAVE_VASPRINTF = @HAVE_VASPRINTF@
+HAVE_VDPRINTF = @HAVE_VDPRINTF@
 HAVE_VISIBILITY = @HAVE_VISIBILITY@
 HAVE_WCHAR_H = @HAVE_WCHAR_H@
+HAVE_WCRTOMB = @HAVE_WCRTOMB@
+HAVE_WCSNRTOMBS = @HAVE_WCSNRTOMBS@
+HAVE_WCSRTOMBS = @HAVE_WCSRTOMBS@
+HAVE_WCTYPE_H = @HAVE_WCTYPE_H@
 HAVE_WINSOCK2_H = @HAVE_WINSOCK2_H@
+HAVE_WINT_T = @HAVE_WINT_T@
 HAVE_WS2TCPIP_H = @HAVE_WS2TCPIP_H@
 HAVE__BOOL = @HAVE__BOOL@
+HOSTENT_LIB = @HOSTENT_LIB@
 INCLUDE_NEXT = @INCLUDE_NEXT@
+INCLUDE_NEXT_AS_FIRST_DIRECTIVE = @INCLUDE_NEXT_AS_FIRST_DIRECTIVE@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -695,8 +801,8 @@ INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 INTLLIBS = @INTLLIBS@
 INTL_MACOSX_LIBS = @INTL_MACOSX_LIBS@
-KRB4_SECURITY = @KRB4_SECURITY@
 KRB5_SECURITY = @KRB5_SECURITY@
+LD = @LD@
 LDFLAGS = @LDFLAGS@
 LEX = @LEX@
 LEXLIB = @LEXLIB@
@@ -712,9 +818,18 @@ LIBS = @LIBS@
 LIBTHREAD = @LIBTHREAD@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
+LIPO = @LIPO@
 LN_S = @LN_S@
+LOCALCHARSET_TESTS_ENVIRONMENT = @LOCALCHARSET_TESTS_ENVIRONMENT@
+LOCALE_FR = @LOCALE_FR@
+LOCALE_FR_UTF8 = @LOCALE_FR_UTF8@
+LOCALE_JA = @LOCALE_JA@
+LOCALE_ZH_CN = @LOCALE_ZH_CN@
 LOCKING = @LOCKING@
 LOW_TCPPORTRANGE = @LOW_TCPPORTRANGE@
+LPR = @LPR@
+LPRFLAG = @LPRFLAG@
+LTALLOCA = @LTALLOCA@
 LTLIBICONV = @LTLIBICONV@
 LTLIBINTL = @LTLIBINTL@
 LTLIBMULTITHREAD = @LTLIBMULTITHREAD@
@@ -731,19 +846,27 @@ MSGMERGE = @MSGMERGE@
 MT = @MT@
 MTX = @MTX@
 MT_FILE_FLAG = @MT_FILE_FLAG@
+NETDB_H = @NETDB_H@
 NETINET_IN_H = @NETINET_IN_H@
+NEXT_ARPA_INET_H = @NEXT_ARPA_INET_H@
+NEXT_ERRNO_H = @NEXT_ERRNO_H@
 NEXT_FLOAT_H = @NEXT_FLOAT_H@
+NEXT_NETDB_H = @NEXT_NETDB_H@
 NEXT_NETINET_IN_H = @NEXT_NETINET_IN_H@
 NEXT_STDINT_H = @NEXT_STDINT_H@
 NEXT_STDIO_H = @NEXT_STDIO_H@
 NEXT_STDLIB_H = @NEXT_STDLIB_H@
-NEXT_STRING_H = @NEXT_STRING_H@
 NEXT_SYS_SOCKET_H = @NEXT_SYS_SOCKET_H@
 NEXT_SYS_STAT_H = @NEXT_SYS_STAT_H@
 NEXT_SYS_TIME_H = @NEXT_SYS_TIME_H@
 NEXT_UNISTD_H = @NEXT_UNISTD_H@
 NEXT_WCHAR_H = @NEXT_WCHAR_H@
+NEXT_WCTYPE_H = @NEXT_WCTYPE_H@
+NM = @NM@
+NMEDIT = @NMEDIT@
 OBJEXT = @OBJEXT@
+OTOOL = @OTOOL@
+OTOOL64 = @OTOOL64@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -757,14 +880,19 @@ PERLEXTLIBS = @PERLEXTLIBS@
 PERL_INC = @PERL_INC@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
-PRINT = @PRINT@
+PRAGMA_SYSTEM_HEADER = @PRAGMA_SYSTEM_HEADER@
 PS = @PS@
 PS_ARGUMENT = @PS_ARGUMENT@
+PS_ARGUMENT_ARGS = @PS_ARGUMENT_ARGS@
 PTRDIFF_T_SUFFIX = @PTRDIFF_T_SUFFIX@
 RANLIB = @RANLIB@
 READLINE_LIBS = @READLINE_LIBS@
+REPLACE_BTOWC = @REPLACE_BTOWC@
 REPLACE_CHOWN = @REPLACE_CHOWN@
+REPLACE_CLOSE = @REPLACE_CLOSE@
+REPLACE_DPRINTF = @REPLACE_DPRINTF@
 REPLACE_FCHDIR = @REPLACE_FCHDIR@
+REPLACE_FCLOSE = @REPLACE_FCLOSE@
 REPLACE_FFLUSH = @REPLACE_FFLUSH@
 REPLACE_FOPEN = @REPLACE_FOPEN@
 REPLACE_FPRINTF = @REPLACE_FPRINTF@
@@ -777,30 +905,43 @@ REPLACE_GETCWD = @REPLACE_GETCWD@
 REPLACE_GETLINE = @REPLACE_GETLINE@
 REPLACE_GETPAGESIZE = @REPLACE_GETPAGESIZE@
 REPLACE_GETTIMEOFDAY = @REPLACE_GETTIMEOFDAY@
+REPLACE_ISWCNTRL = @REPLACE_ISWCNTRL@
 REPLACE_LCHOWN = @REPLACE_LCHOWN@
 REPLACE_LSEEK = @REPLACE_LSEEK@
-REPLACE_MEMMEM = @REPLACE_MEMMEM@
+REPLACE_LSTAT = @REPLACE_LSTAT@
+REPLACE_MBRLEN = @REPLACE_MBRLEN@
+REPLACE_MBRTOWC = @REPLACE_MBRTOWC@
+REPLACE_MBSINIT = @REPLACE_MBSINIT@
+REPLACE_MBSNRTOWCS = @REPLACE_MBSNRTOWCS@
+REPLACE_MBSRTOWCS = @REPLACE_MBSRTOWCS@
+REPLACE_MBSTATE_T = @REPLACE_MBSTATE_T@
+REPLACE_MKDIR = @REPLACE_MKDIR@
 REPLACE_MKSTEMP = @REPLACE_MKSTEMP@
+REPLACE_OBSTACK_PRINTF = @REPLACE_OBSTACK_PRINTF@
+REPLACE_PERROR = @REPLACE_PERROR@
 REPLACE_PRINTF = @REPLACE_PRINTF@
 REPLACE_PUTENV = @REPLACE_PUTENV@
 REPLACE_SNPRINTF = @REPLACE_SNPRINTF@
 REPLACE_SPRINTF = @REPLACE_SPRINTF@
-REPLACE_STRCASESTR = @REPLACE_STRCASESTR@
-REPLACE_STRERROR = @REPLACE_STRERROR@
-REPLACE_STRSIGNAL = @REPLACE_STRSIGNAL@
-REPLACE_STRSTR = @REPLACE_STRSTR@
+REPLACE_STDIO_WRITE_FUNCS = @REPLACE_STDIO_WRITE_FUNCS@
+REPLACE_STRTOD = @REPLACE_STRTOD@
 REPLACE_VASPRINTF = @REPLACE_VASPRINTF@
+REPLACE_VDPRINTF = @REPLACE_VDPRINTF@
 REPLACE_VFPRINTF = @REPLACE_VFPRINTF@
 REPLACE_VPRINTF = @REPLACE_VPRINTF@
 REPLACE_VSNPRINTF = @REPLACE_VSNPRINTF@
 REPLACE_VSPRINTF = @REPLACE_VSPRINTF@
+REPLACE_WCRTOMB = @REPLACE_WCRTOMB@
+REPLACE_WCSRTOMBS = @REPLACE_WCSRTOMBS@
+REPLACE_WCTOB = @REPLACE_WCTOB@
 REPLACE_WCWIDTH = @REPLACE_WCWIDTH@
+REPLACE_WRITE = @REPLACE_WRITE@
 RESTORE = @RESTORE@
+RPCGEN = @RPCGEN@
 RSH_SECURITY = @RSH_SECURITY@
 SAMBA_CLIENT = @SAMBA_CLIENT@
-SERVER_HOST_INSTANCE = @SERVER_HOST_INSTANCE@
-SERVER_HOST_KEY_FILE = @SERVER_HOST_KEY_FILE@
-SERVER_HOST_PRINCIPAL = @SERVER_HOST_PRINCIPAL@
+SED = @SED@
+SERVENT_LIB = @SERVENT_LIB@
 SERVICE_SUFFIX = @SERVICE_SUFFIX@
 SETUID_GROUP = @SETUID_GROUP@
 SET_MAKE = @SET_MAKE@
@@ -811,6 +952,7 @@ SNAPSHOT_STAMP = @SNAPSHOT_STAMP@
 SORT = @SORT@
 SSH = @SSH@
 SSH_SECURITY = @SSH_SECURITY@
+STAR = @STAR@
 STDBOOL_H = @STDBOOL_H@
 STDINT_H = @STDINT_H@
 STRIP = @STRIP@
@@ -821,27 +963,26 @@ SYS_SOCKET_H = @SYS_SOCKET_H@
 SYS_STAT_H = @SYS_STAT_H@
 SYS_TIME_H = @SYS_TIME_H@
 TCPPORTRANGE = @TCPPORTRANGE@
-TICKET_LIFETIME = @TICKET_LIFETIME@
 UDPPORTRANGE = @UDPPORTRANGE@
 UNCOMPRESS_OPT = @UNCOMPRESS_OPT@
 UNCOMPRESS_PATH = @UNCOMPRESS_PATH@
+UNISTD_H_HAVE_WINSOCK2_H = @UNISTD_H_HAVE_WINSOCK2_H@
 USE_AMANDAHOSTS = @USE_AMANDAHOSTS@
 USE_NLS = @USE_NLS@
 USE_RUNDUMP = @USE_RUNDUMP@
-USE_VERSION_SUFFIXES = @USE_VERSION_SUFFIXES@
 VDUMP = @VDUMP@
 VERSION = @VERSION@
 VERSION_COMMENT = @VERSION_COMMENT@
 VERSION_MAJOR = @VERSION_MAJOR@
 VERSION_MINOR = @VERSION_MINOR@
 VERSION_PATCH = @VERSION_PATCH@
-VERSION_SUFFIX = @VERSION_SUFFIX@
 VOID_UNSETENV = @VOID_UNSETENV@
 VRESTORE = @VRESTORE@
 VXDUMP = @VXDUMP@
 VXRESTORE = @VXRESTORE@
 WCHAR_H = @WCHAR_H@
 WCHAR_T_SUFFIX = @WCHAR_T_SUFFIX@
+WCTYPE_H = @WCTYPE_H@
 WINT_T_SUFFIX = @WINT_T_SUFFIX@
 XFSDUMP = @XFSDUMP@
 XFSRESTORE = @XFSRESTORE@
@@ -858,8 +999,7 @@ abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
 abs_top_srcdir = @abs_top_srcdir@
 ac_ct_CC = @ac_ct_CC@
-ac_ct_CXX = @ac_ct_CXX@
-ac_ct_F77 = @ac_ct_F77@
+ac_ct_DUMPBIN = @ac_ct_DUMPBIN@
 am__include = @am__include@
 am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
@@ -899,6 +1039,7 @@ libdir = @libdir@
 libexecdir = @libexecdir@
 localedir = @localedir@
 localstatedir = @localstatedir@
+lt_ECHO = @lt_ECHO@
 mandir = @mandir@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
@@ -910,11 +1051,7 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 srcdir = @srcdir@
 sysconfdir = @sysconfdir@
-target = @target@
 target_alias = @target_alias@
-target_cpu = @target_cpu@
-target_os = @target_os@
-target_vendor = @target_vendor@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
@@ -931,9 +1068,6 @@ DISTCLEANFILES = $(SCRIPTS_SHELL) $(SCRIPTS_PERL) $(SCRIPTS_AWK) \
 	$(SCRIPTS_INCLUDE) $(am__append_1) version.c genversion \
 	genversion.h
 MAINTAINERCLEANFILES = svn-info.h
-
-# syntax-check shell scripts on 'make check'
-CHECK_SHELL = $(SCRIPTS_SHELL)
 
 # sed expression to strip leading directories from a filename; this converts e.g.,
 # src/foo/bar.so to bar.so.
@@ -963,16 +1097,15 @@ AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
 amlib_LTLIBRARIES = libamanda.la
 LINT = $(AMLINT)
 LINTFLAGS = $(AMLINTFLAGS)
-libamanda_la_SOURCES = alloc.c amfeatures.c amflock.c amxml.c clock.c \
-	columnar.c conffile.c debug.c dgram.c event.c file.c \
-	fileheader.c glib-util.c match.c packet.c pipespawn.c \
+libamanda_la_SOURCES = alloc.c amfeatures.c amflock.c ipc-binary.c \
+	amxml.c clock.c columnar.c conffile.c debug.c dgram.c event.c \
+	file.c fileheader.c glib-util.c match.c packet.c pipespawn.c \
 	protocol.c queueing.c semaphore.c security.c security-util.c \
 	simpleprng.c sl.c sockaddr-util.c stream.c tapelist.c \
-	timestamp.c util.c versuff.c $(am__append_2) $(am__append_3) \
+	timestamp.c util.c $(am__append_2) $(am__append_3) \
 	$(am__append_4) $(am__append_5) $(am__append_6) \
 	$(am__append_7) $(am__append_8) $(am__append_9) \
-	$(am__append_10) $(am__append_11) $(am__append_12) \
-	local-security.c
+	$(am__append_10) $(am__append_11) local-security.c
 # version.c is generated; see below
 nodist_libamanda_la_SOURCES = version.c
 libamanda_la_LIBADD = \
@@ -982,10 +1115,12 @@ libamanda_la_LDFLAGS = -release $(VERSION)
 noinst_HEADERS = \
 	amanda.h		\
 	amfeatures.h		\
+	ipc-binary.h		\
 	amxml.h			\
 	arglist.h		\
 	clock.h			\
 	columnar.h		\
+	directtcp.h		\
 	amflock.h		\
 	conffile.h		\
 	debug.h			\
@@ -994,10 +1129,10 @@ noinst_HEADERS = \
 	file.h			\
 	fileheader.h		\
 	glib-util.h		\
+	match.h			\
 	packet.h		\
 	pipespawn.h		\
 	protocol.h		\
-	queue.h			\
 	queueing.h		\
 	semaphore.h		\
 	security.h		\
@@ -1022,21 +1157,24 @@ noinst_HEADERS = \
 # 5. version.c is compiled into libamanda normally
 genversion_SOURCES = genversion.c svn-info.h
 genversion_LDADD = $(libamanda_la_LIBADD)	\
-    	versuff.lo				\
 	../gnulib/libgnu.la
 
 
 # these are used for testing only:
-TEST_PROGS = file bsdsecurity amfeatures
+TEST_PROGS = file bsdsecurity
 
 # used for testing only
 STANDARD_COMMON_STUFF_NOT_FILE = \
 	alloc.lo \
 	clock.lo \
+	conffile.lo \
 	debug.lo \
+	glib-util.lo \
 	util.lo \
 	match.lo \
-	sl.lo
+	sl.lo \
+	sockaddr-util.lo \
+	timestamp.lo
 
 STANDARD_COMMON_STUFF = \
 	$(STANDARD_COMMON_STUFF_NOT_FILE) \
@@ -1054,11 +1192,8 @@ bsdsecurity_LDADD = $(libamanda_a_LIBADD) \
 		    file.lo \
 		    packet.lo \
 		    security.lo \
-		    ssh-security.lo \
-		    versuff.lo
+		    ssh-security.lo
 
-amfeatures_SOURCES = amfeatures.test.c
-amfeatures_LDADD = $(libamanda_la_LIBADD) $(STANDARD_COMMON_STUFF)
 
 # libtestutils.la
 #
@@ -1078,24 +1213,24 @@ queueing_test_SOURCES = queueing-test.c
 queueing_test_LDADD = libamanda.la libtestutils.la
 quoting_test_SOURCES = quoting-test.c
 quoting_test_LDADD = libamanda.la libtestutils.la
+ipc_binary_test_SOURCES = ipc-binary-test.c
+ipc_binary_test_LDADD = libamanda.la libtestutils.la
+hexencode_test_SOURCES = hexencode-test.c
+hexencode_test_LDADD = libamanda.la libtestutils.la
+fileheader_test_SOURCES = fileheader-test.c
+fileheader_test_LDADD = libamanda.la libtestutils.la
+match_test_SOURCES = match-test.c
+match_test_LDADD = libamanda.la libtestutils.la
 
 # scripts
 
-# divide scripts up both by language, by destination directory, and by whether they
-# should get checked (stuff in *_SCRIPTS_* isn't syntax checked; this is necessary
-# for perl scripts that use Amanda::* packages)
-sbin_CHECK_PERL = \
+# divide scripts up both by language and destination directory
+sbin_SCRIPTS_PERL = \
 	    amgpgcrypt \
 	    amcryptsimple \
 	    amgetconf
 
-sbin_SCRIPTS_PERL = \
-	    $(sbin_CHECK_PERL)
-
-amlibexec_CHECK_PERL = 
-amlibexec_SCRIPTS_PERL = \
-	    $(amlibexec_CHECK_PERL)
-
+amlibexec_SCRIPTS_PERL = 
 sbin_SCRIPTS_SHELL = \
 	    amcrypt \
 	    amaespipe \
@@ -1106,7 +1241,6 @@ amlibexec_SCRIPTS_SHELL =
 SCRIPTS_INCLUDE = \
 	    amanda-sh-lib.sh
 
-CHECK_PERL = $(sbin_CHECK_PERL) $(amlibexec_CHECK_PERL)
 SCRIPTS_PERL = $(sbin_SCRIPTS_PERL) $(amlibexec_SCRIPTS_PERL)
 SCRIPTS_SHELL = $(sbin_SCRIPTS_SHELL) $(amlibexec_SCRIPTS_SHELL)
 amlibexec_DATA = $(SCRIPTS_INCLUDE)
@@ -1152,8 +1286,6 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
-versuff.c: $(top_builddir)/config.status $(srcdir)/versuff.c.in
-	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 install-amlibLTLIBRARIES: $(amlib_LTLIBRARIES)
 	@$(NORMAL_INSTALL)
 	test -z "$(amlibdir)" || $(MKDIR_P) "$(DESTDIR)$(amlibdir)"
@@ -1207,9 +1339,6 @@ clean-noinstPROGRAMS:
 	list=`for p in $$list; do echo "$$p"; done | sed 's/$(EXEEXT)$$//'`; \
 	echo " rm -f" $$list; \
 	rm -f $$list
-amfeatures$(EXEEXT): $(amfeatures_OBJECTS) $(amfeatures_DEPENDENCIES) 
-	@rm -f amfeatures$(EXEEXT)
-	$(LINK) $(amfeatures_OBJECTS) $(amfeatures_LDADD) $(LIBS)
 amflock-test$(EXEEXT): $(amflock_test_OBJECTS) $(amflock_test_DEPENDENCIES) 
 	@rm -f amflock-test$(EXEEXT)
 	$(LINK) $(amflock_test_OBJECTS) $(amflock_test_LDADD) $(LIBS)
@@ -1222,9 +1351,21 @@ event-test$(EXEEXT): $(event_test_OBJECTS) $(event_test_DEPENDENCIES)
 file$(EXEEXT): $(file_OBJECTS) $(file_DEPENDENCIES) 
 	@rm -f file$(EXEEXT)
 	$(LINK) $(file_OBJECTS) $(file_LDADD) $(LIBS)
+fileheader-test$(EXEEXT): $(fileheader_test_OBJECTS) $(fileheader_test_DEPENDENCIES) 
+	@rm -f fileheader-test$(EXEEXT)
+	$(LINK) $(fileheader_test_OBJECTS) $(fileheader_test_LDADD) $(LIBS)
 genversion$(EXEEXT): $(genversion_OBJECTS) $(genversion_DEPENDENCIES) 
 	@rm -f genversion$(EXEEXT)
 	$(LINK) $(genversion_OBJECTS) $(genversion_LDADD) $(LIBS)
+hexencode-test$(EXEEXT): $(hexencode_test_OBJECTS) $(hexencode_test_DEPENDENCIES) 
+	@rm -f hexencode-test$(EXEEXT)
+	$(LINK) $(hexencode_test_OBJECTS) $(hexencode_test_LDADD) $(LIBS)
+ipc-binary-test$(EXEEXT): $(ipc_binary_test_OBJECTS) $(ipc_binary_test_DEPENDENCIES) 
+	@rm -f ipc-binary-test$(EXEEXT)
+	$(LINK) $(ipc_binary_test_OBJECTS) $(ipc_binary_test_LDADD) $(LIBS)
+match-test$(EXEEXT): $(match_test_OBJECTS) $(match_test_DEPENDENCIES) 
+	@rm -f match-test$(EXEEXT)
+	$(LINK) $(match_test_OBJECTS) $(match_test_LDADD) $(LIBS)
 queueing-test$(EXEEXT): $(queueing_test_OBJECTS) $(queueing_test_DEPENDENCIES) 
 	@rm -f queueing-test$(EXEEXT)
 	$(LINK) $(queueing_test_OBJECTS) $(queueing_test_LDADD) $(LIBS)
@@ -1311,7 +1452,6 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/alloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amfeatures.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amfeatures.test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amflock-flock.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amflock-lnlock.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amflock-lockf.Plo@am__quote@
@@ -1332,12 +1472,16 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/event.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/file.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/file.test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fileheader-test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fileheader.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/genversion.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/glib-util.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/krb4-security.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hexencode-test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ipc-binary-test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ipc-binary.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/krb5-security.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/local-security.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/match-test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/match.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/packet.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pipespawn.Plo@am__quote@
@@ -1360,7 +1504,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/timestamp.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/util.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/version.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/versuff.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -1730,11 +1873,11 @@ uninstall-am: uninstall-amlibLTLIBRARIES uninstall-amlibexecDATA \
 %: %.pl $(top_builddir)/config.status
 	$(top_builddir)/config.status --file=$@:$<
 	chmod a+x $@
-	@if test -f $(top_builddir)/perl/.libs/libCmdline.so -o -f $(top_builddir)/perl/libCmdline.so; then \
-		grep -v '^use lib' $@ > $@.nouselib; \
-		$(PERL) $(CHECK_PERL_FLAGS) -I$(top_builddir)/perl -I$(top_builddir)/perl/.libs -I$(top_srcdir)/perl -c -w -T $@.nouselib || exit 1; \
-		rm $@.nouselib; \
-	fi
+@CHECK_SCRIPTS_AT_BUILD_TRUE@	@if test -f $(top_builddir)/perl/.libs/libCmdline.so -o -f $(top_builddir)/perl/libCmdline.so; then \
+@CHECK_SCRIPTS_AT_BUILD_TRUE@		sed "s,^use lib ['\"]$(amperldir)['\"],# use lib '$(amperldir)' # nouselib," < $@ > $@.nouselib; \
+@CHECK_SCRIPTS_AT_BUILD_TRUE@		$(PERL) $(CHECK_PERL_FLAGS) -I$(top_builddir)/perl -I$(top_builddir)/perl/.libs -I$(top_srcdir)/perl -c -w $@.nouselib || exit 1; \
+@CHECK_SCRIPTS_AT_BUILD_TRUE@		rm $@.nouselib; \
+@CHECK_SCRIPTS_AT_BUILD_TRUE@	fi
 
 %.pl: %.pl.in $(top_builddir)/config.status
 	$(top_builddir)/config.status --file=$@:$<
@@ -1759,33 +1902,38 @@ uninstall-am: uninstall-amlibLTLIBRARIES uninstall-amlibexecDATA \
 	$(top_builddir)/config.status --file=$@:$<
 
 # syntax-check perl scripts on 'make check'
-check-perl: $(CHECK_PERL)
-	@CHECK_PERL="$(CHECK_PERL)"; \
-	if test -f $(top_builddir)/perl/.libs/libCmdline.so -o -f $(top_builddir)/perl/libCmdline.so; then \
-		if test -n "$(PERL)"; then \
-			for perlobj in $$CHECK_PERL; do \
-				grep -v '^use lib' $$perlobj > $$perlobj.nouselib; \
-				$(PERL) $(CHECK_PERL_FLAGS) -I$(top_builddir)/perl -I$(top_builddir)/perl/.libs -I$(top_srcdir)/perl -c -w -T $$perlobj.nouselib || exit 1; \
-				rm $$perlobj.nouselib; \
-			done; \
-		fi \
+check-perl: $(SCRIPTS_PERL)
+	@SCRIPTS_PERL="$(SCRIPTS_PERL)"; \
+	if test x"$(SKIP_CHECKS)" = x"" && \
+	    test -f $(top_builddir)/perl/.libs/libCmdline.so -o -f $(top_builddir)/perl/libCmdline.so; then \
+	    if test -n "$(PERL)"; then \
+		    for perlobj in $$SCRIPTS_PERL; do \
+			    sed "s,^use lib ['\"]$(amperldir)['\"],# use lib '$(amperldir)' # nouselib," < $$perlobj > $$perlobj.nouselib; \
+			    $(PERL) $(CHECK_PERL_FLAGS) -I$(top_builddir)/perl -I$(top_builddir)/perl/.libs -I$(top_srcdir)/perl -c -w $$perlobj.nouselib || exit 1; \
+			    rm $$perlobj.nouselib; \
+		    done; \
+	    fi \
 	fi
 check-local: check-perl
 
 # syntax-check perl scripts on 'make installcheck'
-installcheck-perl: $(CHECK_PERL)
-	@CHECK_PERL="$(CHECK_PERL)"; \
-	if test -n "$(PERL)"; then \
-		for perlobj in $$CHECK_PERL; do \
-			$(PERL) $(CHECK_PERL_FLAGS) -c -w -T $$perlobj || exit 1; \
+installcheck-perl: $(SCRIPTS_PERL)
+	@SCRIPTS_PERL="$(SCRIPTS_PERL)"; \
+	if test x"$(SKIP_CHECKS)" = x"" && \
+	    test -n "$(PERL)"; then \
+		for perlobj in $$SCRIPTS_PERL; do \
+			$(PERL) $(CHECK_PERL_FLAGS) -c -w $$perlobj || exit 1; \
 		done; \
 	fi
 installcheck-local: installcheck-perl
-check-shell: $(CHECK_SHELL)
-	@CHECK_SHELL="$(CHECK_SHELL)"; \
-	if test -n "$$CHECK_SHELL"; then \
+
+# syntax-check shell scripts on 'make check'
+check-shell: $(SCRIPTS_SHELL)
+	@SCRIPTS_SHELL="$(SCRIPTS_SHELL)"; \
+	if test x"$(SKIP_CHECKS)" = x"" && \
+	    test -n "$$SCRIPTS_SHELL"; then \
 		if test -n "$(BASH)"; then \
-			for shobj in $$CHECK_SHELL; do \
+			for shobj in $$SCRIPTS_SHELL; do \
 				if $(BASH) -n $$shobj; then \
 					echo "$$shobj syntax OK"; \
 				else \
@@ -1802,18 +1950,34 @@ check-local: check-shell
 # make sure that the sources for all shell and perl scripts get included
 # in the distribution
 dist-scripts:
-	SCRIPTS_PERL="$(SCRIPTS_PERL)"; SCRIPTS_SHELL="$(SCRIPTS_SHELL)"; SCRIPTS_AWK="$(SCRIPTS_AWK)"; \
+	@SCRIPTS_PERL="$(SCRIPTS_PERL) $(SCRIPTS_EXTRA_DIST)"; \
+	SCRIPTS_SHELL="$(SCRIPTS_SHELL) $(SCRIPTS_EXTRA_DIST)"; \
+	SCRIPTS_AWK="$(SCRIPTS_AWK) $(SCRIPTS_EXTRA_DIST)"; \
+	SCRIPTS_DIST=; \
 	for script in $$SCRIPTS_PERL; do \
-		test -f $(srcdir)/$${script}.pl && { cp -p $(srcdir)/$${script}.pl $(distdir)/ || exit 1; } \
+		test -f $(srcdir)/$${script}.pl && \
+			SCRIPTS_DIST="$$SCRIPTS_DIST $${script}.pl"; \
 	done; \
 	for script in $$SCRIPTS_SHELL; do \
-		test -f $(srcdir)/$${script}.sh && { cp -p $(srcdir)/$${script}.sh $(distdir)/ || exit 1; } \
+		test -f $(srcdir)/$${script}.sh && \
+			SCRIPTS_DIST="$$SCRIPTS_DIST $${script}.sh"; \
 	done; \
 	for script in $$SCRIPTS_AWK; do \
-		test -f $(srcdir)/$${script}.awk && { cp -p $(srcdir)/$${script}.awk $(distdir)/ || exit 1; } \
+		test -f $(srcdir)/$${script}.awk && \
+			SCRIPTS_DIST="$$SCRIPTS_DIST $${script}.awk"; \
 	done; \
 	for script in $$SCRIPTS_SHELL $$SCRIPTS_PERL $$SCRIPTS_AWK; do \
-		test -f $(srcdir)/$${script}.in && { cp -p $(srcdir)/$${script}.in $(distdir)/ || exit 1; } \
+		test -f $(srcdir)/$${script}.in && \
+			SCRIPTS_DIST="$$SCRIPTS_DIST $${script}.in"; \
+	done; \
+	for script in $$SCRIPTS_DIST; do \
+		dir=`dirname $${script}`; \
+		if test -n "$$dir" && test ! -d "$(distdir)/$$dir"; then \
+			mkdir -p "$(distdir)/$$dir" || exit 1; \
+		fi; \
+		test -f "$(distdir)/$${script}" && continue; \
+		echo "distributing $${script}"; \
+		cp -p "$(srcdir)/$${script}" "$(distdir)/$${script}" || exit 1; \
 	done; \
 	true
 dist-hook: dist-scripts

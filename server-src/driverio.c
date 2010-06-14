@@ -37,6 +37,7 @@
 #include "diskfile.h"
 #include "infofile.h"
 #include "logfile.h"
+#include "timestamp.h"
 
 #define GLOBAL		/* the global variables defined here */
 #include "driverio.h"
@@ -292,6 +293,7 @@ taper_cmd(
     char number[NUM_STR_SIZE];
     char splitsize[NUM_STR_SIZE];
     char fallback_splitsize[NUM_STR_SIZE];
+    char orig_kb[NUM_STR_SIZE];
     char *diskbuffer = NULL;
     disk_t *dp;
     char *qname;
@@ -309,6 +311,8 @@ taper_cmd(
 	g_snprintf(number, SIZEOF(number), "%d", level);
 	g_snprintf(splitsize, SIZEOF(splitsize), "%lld",
 		 (long long)dp->tape_splitsize * 1024);
+	g_snprintf(orig_kb, SIZEOF(orig_kb), "%jd",
+		 (intmax_t)sched(dp)->origsize);
 	cmdline = vstralloc(cmdstr[cmd],
 			    " ", disk2serial(dp),
 			    " ", qdest,
@@ -317,6 +321,7 @@ taper_cmd(
 			    " ", number,
 			    " ", datestamp,
 			    " ", splitsize,
+			    " ", orig_kb,
 			    "\n", NULL);
 	amfree(qdest);
 	amfree(qname);
@@ -353,6 +358,14 @@ taper_cmd(
 	amfree(qname);
 	break;
     case DONE: /* handle */
+	dp = (disk_t *) ptr;
+	g_snprintf(number, SIZEOF(number), "%jd",
+		 (intmax_t)(sched(dp)->origsize));
+	cmdline = vstralloc(cmdstr[cmd],
+			    " ", disk2serial(dp),
+			    " ", number,
+			    "\n", NULL);
+	break;
     case FAILED: /* handle */
 	dp = (disk_t *) ptr;
 	cmdline = vstralloc(cmdstr[cmd],
@@ -422,28 +435,52 @@ dumper_cmd(
 	}
 
 	if (dp != NULL) {
+	    application_t *application = NULL;
+	    char *plugin;
+	    char *qplugin;
+	    char *qamandad_path;
+	    char *qclient_username;
+	    char *qclient_port;
+	    char *qssh_keys;
+
+	    if (dp->application != NULL) {
+		application = lookup_application(dp->application);
+		g_assert(application != NULL);
+	    }
+
 	    device = quote_string((dp->device) ? dp->device : "NODEVICE");
 	    qname = quote_string(dp->name);
 	    g_snprintf(number, SIZEOF(number), "%d", sched(dp)->level);
 	    g_snprintf(numberport, SIZEOF(numberport), "%d", dumper->output_port);
 	    features = am_feature_to_string(dp->host->features);
 	    if (am_has_feature(dp->host->features, fe_req_xml)) {
-		o = xml_optionstr(dp, dp->host->features, NULL, 1);
-		if (dp->application) {
-		    char *app = xml_application(dp->application,
-						dp->host->features);
-		    vstrextend(&o, app, NULL);
-		    amfree(app);
+		o = xml_optionstr(dp, 1);
+		if (application) {
+		    char *xml_app;
+		    xml_app = xml_application(dp, application,
+					      dp->host->features);
+		    vstrextend(&o, xml_app, NULL);
+		    amfree(xml_app);
 		}
 		o = quote_string(o);
 	    } else {
-		o = optionstr(dp, dp->host->features, NULL);
-	    }
-	    if ( o == NULL ) {
-	      error(_("problem with option string, check the dumptype definition.\n"));
+		o = optionstr(dp);
 	    }
 
-	    dbprintf("security_driver %s\n", dp->security_driver);
+	    g_assert(dp->program);
+	    if (0 == strcmp(dp->program, "APPLICATION")) {
+		g_assert(application != NULL);
+		plugin = application_get_plugin(application);
+	    } else {
+		plugin = dp->program;
+	    }
+	    qplugin = quote_string(plugin);
+	    qamandad_path = quote_string(dp->amandad_path);
+	    qclient_username = quote_string(dp->client_username);
+	    qclient_port = quote_string(dp->client_port);
+	    qssh_keys = quote_string(dp->ssh_keys);
+	    dbprintf("security_driver %s\n", dp->auth);
+
 	    cmdline = vstralloc(cmdstr[cmd],
 			    " ", disk2serial(dp),
 			    " ", numberport,
@@ -453,13 +490,21 @@ dumper_cmd(
 			    " ", device,
 			    " ", number,
 			    " ", sched(dp)->dumpdate,
-			    " ", dp->program && strcmp(dp->program,"APPLICATION")!=0 ? dp->program: application_get_plugin(dp->application),
-			    " ", dp->amandad_path,
-			    " ", dp->client_username,
-			    " ", dp->ssh_keys,
-			    " ", dp->security_driver,
+			    " ", qplugin,
+			    " ", qamandad_path,
+			    " ", qclient_username,
+			    " ", qclient_port,
+			    " ", qssh_keys,
+			    " ", dp->auth,
+			    " ", data_path_to_string(dp->data_path),
+			    " ", dp->dataport_list,
 			    " |", o,
 			    "\n", NULL);
+	    amfree(qplugin);
+	    amfree(qamandad_path);
+	    amfree(qclient_username);
+	    amfree(qclient_port);
+	    amfree(qssh_keys);
 	    amfree(features);
 	    amfree(o);
 	    amfree(qname);
@@ -540,10 +585,7 @@ chunker_cmd(
 	    g_snprintf(use, SIZEOF(use), "%lld",
 		    (long long)h[0]->reserved);
 	    features = am_feature_to_string(dp->host->features);
-	    o = optionstr(dp, dp->host->features, NULL);
-	    if ( o == NULL ) {
-	      error(_("problem with option string, check the dumptype definition.\n"));
-	    }
+	    o = optionstr(dp);
 	    cmdline = vstralloc(cmdstr[cmd],
 			    " ", disk2serial(dp),
 			    " ", qdest,
@@ -792,7 +834,7 @@ update_info_dumper(
     infp->size = origsize;
     infp->csize = dumpsize;
     infp->secs = dumptime;
-    infp->date = sched(dp)->timestamp;
+    infp->date = get_time_from_timestamp(sched(dp)->datestamp);
 
     if(level == 0) perfp = &info.full;
     else perfp = &info.incr;
@@ -827,12 +869,18 @@ update_info_dumper(
 	info.history[0].level = level;
 	info.history[0].size  = origsize;
 	info.history[0].csize = dumpsize;
-	info.history[0].date  = sched(dp)->timestamp;
+	info.history[0].date  = get_time_from_timestamp(sched(dp)->datestamp);
 	info.history[0].secs  = dumptime;
     }
 
-    if(put_info(dp->host->hostname, dp->name, &info)) {
-	error(_("infofile update failed (%s,'%s')\n"), dp->host->hostname, dp->name);
+    if (put_info(dp->host->hostname, dp->name, &info)) {
+	int save_errno = errno;
+	g_fprintf(stderr, _("infofile update failed (%s,'%s'): %s\n"),
+		  dp->host->hostname, dp->name, strerror(save_errno));
+	log_add(L_ERROR, _("infofile update failed (%s,'%s'): %s\n"),
+		dp->host->hostname, dp->name, strerror(save_errno));
+	error(_("infofile update failed (%s,'%s'): %s\n"),
+	      dp->host->hostname, dp->name, strerror(save_errno));
 	/*NOTREACHED*/
     }
 
@@ -867,8 +915,14 @@ update_info_taper(
 
     info.command = NO_COMMAND;
 
-    if(put_info(dp->host->hostname, dp->name, &info)) {
-	error(_("infofile update failed (%s,'%s')\n"), dp->host->hostname, dp->name);
+    if (put_info(dp->host->hostname, dp->name, &info)) {
+	int save_errno = errno;
+	g_fprintf(stderr, _("infofile update failed (%s,'%s'): %s\n"),
+		  dp->host->hostname, dp->name, strerror(save_errno));
+	log_add(L_ERROR, _("infofile update failed (%s,'%s'): %s\n"),
+		dp->host->hostname, dp->name, strerror(save_errno));
+	error(_("infofile update failed (%s,'%s'): %s\n"),
+	      dp->host->hostname, dp->name, strerror(save_errno));
 	/*NOTREACHED*/
     }
     close_infofile();

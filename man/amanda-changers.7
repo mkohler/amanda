@@ -2,12 +2,12 @@
 .\"     Title: amanda-changers
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMANDA\-CHANGERS" "7" "11/05/2009" "Amanda 2\&.6\&.1p2" "Miscellanea"
+.TH "AMANDA\-CHANGERS" "7" "06/01/2010" "Amanda 3\&.1\&.0" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -27,8 +27,10 @@ Amanda uses changers to arbitrate access to devices (\fBamanda-devices\fR(7)) an
 overview of the API, and does not address details that are only of concern to developers\&. For that purpose, consult the Amanda source code and http://wiki\&.zmanda\&.com\&.
 .SH "TRANSITION"
 .PP
-The Amanda Changer API is in transition from version 1\&.0 \- driven by shell scripts invoked for each changer operation \- to version 2\&.0, composed of perl objects that can manage parallel access to multiple devices and other complexity\&. When this transition is complete, Amanda devices will, in general, be specified via a changer, which will provide the necessary device specifier to access a requested volume\&. In the interim, support for the "new" changer syntax is limited to the experimental
-\fBamvault\fR(8)\&.
+The Amanda Changer API is in transition from version 1\&.0 \- driven by shell scripts invoked for each changer operation \- to version 2\&.0, composed of perl objects that can manage parallel access to multiple devices and other complexity\&. At this point, all Amanda programs use the new Changer API directly, although 1\&.0 changer scripts are still fully supported via
+chg\-compat\&.
+.PP
+The Changer API strives to treat all changers identically, so that Amanda\'s behavior is independent of the changer in use\&. However, some parts of Amanda operate differently depending on whether a changer can efficiently search for a volume with a given label\&. This distinction is really only apparent with tape libraries: those with barcode readers can quickly find a desired tape, while those without may fall back to an inefficient scan of each volume\&. The capability to perform quick searches is called "fast\-search", and each changer is annotated below to indicate its support\&.
 .SH "SPECIFYING CHANGERS"
 .PP
 Changer specifications are strings like
@@ -37,32 +39,71 @@ chg\-
 prefix serves to differentiate changers from devices (see
 \fBamanda-devices\fR(7))\&. The next portion (disk, in this case) identifies the particular changer driver to use, and everything that follows the
 :
-is interpreted by the driver\&.
+is interpreted by the driver\&. Note that the
+:
+character is required, even when nothing follows it\&. This is an easy way to distinguish new changer specifications from old\&.
 .PP
 A name which does not match this pattern, but which matches an old changer script (e\&.g\&.,
-chg\-zd\-mtx), invokes the backward\-compatibility changer driver as
+chg\-zd\-mtx), invokes the backward\-compatibility changer driver as e\&.g\&.,
 chg\-compat:chg\-zd\-mtx\&. If the name does not match an old changer, then it is treated as an Amanda device, and is wrapped by the single\-device changer, e\&.g\&.,
 chg\-single:tape:/dev/rmt/0\&.
 .PP
 Changers which require additional parameters can also be described in
 \fBamanda.conf\fR(5)
-with "changer" sections, for example,
+with "changer" sections\&. Such a changer defininition creates a changer "alias", in this case named
+\fIhp\-robot\fR, which can then be named where an application expects a changer \- for example, the target of the
+\fBamvault\fR
+command or in a global
+\fBtpchanger\fR
+parameter\&.
+.SS "CONFIGURATION"
+.PP
+The preferred method of specifying configuration for a changer is as a "changer" section in
+\fBamanda.conf\fR(5)\&. The
+\fItapedev\fR
+parameter then indicates, by name, the changer that will be used by default by most Amanda programs\&. For example:
 .sp
 .nf
 define changer hp\-robot {
     tapedev "chg\-robot:/dev/sg1"
-    property "drives" "0=/dev/nst0;1=/dev/nst0"
-    property "slots" "1\-10"
+    property "tape\-device" "0=tape:/dev/nst0"
+    property append "tape\-device" "1=tape:/dev/nst1"
+    device_property "BLOCK_SIZE" "512k"
 }
+# \&.\&.\&.
+tapedev "hp\-robot"
 .fi
-(note that "chg\-robot" is not yet implemented, so this is hypothetical)\&. A changer defininition creates a changer "alias", in this case named
-\fIhp\-robot\fR, which can then be named where an application expects a changer \- for example, the target of the
-\fBamvault\fR
-command\&.
+.PP
+Several changer drivers accept
+\fIchanger properties\fR
+which control the behavior of the changer\&. These properties must be specified in a changer definition, as in the
+\fIhp\-robot\fR
+example, above\&.
+.PP
+Devices, too, can take properties to control their behavior (see
+\fBamanda-devices\fR(7))\&. Device properties can come from four places: implicit device properties (from tapetype parameters), global device properties (from global
+\fIdevice_property\fR
+parameters), properties in device definitions, and properties in changer definitions\&. Properties are applied in this order, with later properties taking priority\&.
+.PP
+There are only three implicit properties:
+\fIMAX_VOLUME_USAGE\fR
+is set based on the tapetype
+\fIlength\fR
+parameter,
+\fIREAD_BLOCK_SIZE\fR
+is set if
+\fIreadblocksize\fR
+is set, and
+\fIBLOCK_SIZE\fR
+is set based on the
+\fIblocksize\fR
+parameter\&.
+.PP
+Global device properties always apply\&. If the changer specifies a device by alias, then device properties from the definition apply\&. If the changer is specified by an alias, then properties from that definition applied\&.
 .SH "CHANGER DRIVERS"
 .PP
 This section lists the changer drivers included with Amanda, and basic instructions for using them\&. For complete How\-To information, consult the Amanda wiki at http://wiki\&.zmanda\&.com\&.
-.SS "chg\-disk (new)"
+.SS "chg\-disk:VTAPEROOT (new)"
 .nf
 tpchanger "chg\-disk:/u01/vtapes"
 .fi
@@ -71,19 +112,91 @@ This changer driver replaces the old
 \fBchg\-disk\fR, supporting parallel access to vtapes stored in directories named
 slotN
 in the directory specified after
-chg\-disk:\&. It does so by creating numbered "drives" so that simultaneous processes can access distinct slots\&.
+chg\-disk:\&. It does so by creating numbered "drives" so that simultaneous processes can access distinct slots\&. This changer is fast\-search capable\&.
+.PP
+The current slot can be accessed using the device name
+file:VTAPEROOT\&. This is useful for the
+\fBamrestore\fR(8)
+command line\&.
 .SS "chg\-disk (old)"
 .nf
 tapedev "file:/u01/vtapes"
 tpchanger "chg\-disk"
+changerfile "chg\-disk\&.conf"     # optional file
 .fi
 .PP
 This changer script supports sequential access to vtapes stored in directories named
 slotN
 in the directory specified by the
 \fItapedev\fR
-parameter\&.
-.SS "chg\-multi"
+parameter\&. The configuration file parameter is:
+.sp
+.nf
+LASTSLOT=number    # The number of slots, default to tapecycle setting\&.
+.fi
+.PP
+This changer is not fast\-search capable\&.
+.SS "chg\-multi:DEVICE\-LIST"
+.nf
+tpchanger "chg\-multi:{/dev/nst0,/dev/nst1,/dev/nst2}"
+changerfile "chg\-multi\-state"
+.fi
+.PP
+This script simply round\-robins a number of distinct device names, as specified in the
+\fItpchanger\fR
+setting\&. It is useful when all volumes for a configuration have different device names \-\- for example, if you have many standalone drive\&. The
+\fIchangerfile\fR
+must exist; it is used to save the state file\&.
+.PP
+This changer is not fast\-search capable\&.
+.SS "Properties"
+.PP
+FIRST\-SLOT
+.RS 4
+
+This property gives the number of the first slot\&. The default value is "1"\&.
+.RE
+.SS "Special Operations"
+.PP
+A number of special operations are available for
+\fBchg\-multi\fR
+via
+\fBamtape\fR(8)
+subcommands\&.
+.PP
+The
+\fBreset\fR
+subcommand will change the current slot to the first available slot, but does not erase any stored state maintained by the changer\&.
+.PP
+The
+\fBeject\fR
+subcommand will eject the volume in the given drive
+.PP
+The
+\fBclean\fR
+subcommand is not yet implemented\&.
+.PP
+The
+\fBupdate\fR
+subcommand instructs the changer to update its state database\&. Given no arguments, the changer will scan all available slots, loading each tape and reading its label\&. Especially for large libraries, this can take a long time\&. If only a few slots have changed, they can be listed on the command line:
+.sp
+.nf
+amtape CONFIG update 1\-3,9
+.fi
+In this case, the changer will only scan the stated slots\&. Finally, the changer will not scan at all if it is given the tape label for the slot:
+.sp
+.nf
+amtape CONFIG update 2=DailySet\-028
+.fi
+In this case, the changer updates its state to indicate that
+DailySet\-028
+is in slot 2, without trying to load the tape\&.
+.sp
+.nf
+amtape CONFIG update 1\-3,9=
+.fi
+In this case, the changer marks the stated slots as an unknown state\&.
+.SS "chg\-multi (old)"
 .nf
 tpchanger "chg\-multi"
 changerfile "chg\-multi\-state"
@@ -92,6 +205,40 @@ changerfile "chg\-multi\-state"
 This script simply round\-robins a number of distinct device names, as specified in its configuration file\&. It is useful when all volumes for a configuration have different device names \-\- for example, with S3 devices\&. The
 \fIchangerfile\fR
 need not exist; it is used as a prefix for filenames of state files\&.
+.PP
+The configuration file has simple lines with a parameter and its value separated by a space\&. The # character introduces a comment\&. The configuration parameters are:
+.PP
+multieject
+.RS 4
+If this is 1, use an \'mt
+offline\' command to change to the next tape, or multiple such commands for
+skipping several tapes at a time\&.
+.RE
+.PP
+needeject
+.RS 4
+This option is incompatible with
+\'multieject\'\&. This should be 1 for changers accessed through several virtual
+tape devices, when the changer needs the current tape to be ejected before
+changing to another device\&.
+.RE
+.PP
+gravity
+.RS 4
+Set this to 1 if the
+changer/stacker is unable to loop back to the first tape after unloading the
+last one, or if you don\'t want amanda to go through the tape stack looking for
+the exact tape it wants instead of using the first acceptable one\&.
+.RE
+.PP
+slot X
+.RS 4
+The configuration file should list
+as many \'slot X\' statements as the number of slots supported by the changer or
+the number of separate tape drives used\&.
+.RE
+.PP
+This changer is not fast\-search capable\&.
 .SS "chg\-manual"
 .nf
 tpchanger "chg\-manual"
@@ -109,7 +256,9 @@ request="[type]"      # How to request a new tape (default "tty_email")
   request="email"     # Send an email to ask the user to change tape\&.
   request="tty_email" # Use the tty if it exist or send an email\&.
 .fi
-.SS "chg\-zd\-mtx"
+.PP
+This changer is not fast\-search capable\&.
+.SS "chg\-zd\-mtx (old)"
 .nf
 tpchanger "chg\-zd\-mtx"
 changerdev "/dev/sg0"         # used with \'mtx \-f\'
@@ -143,26 +292,333 @@ initial_poll_delay=NN       #### initial delay after load before polling for
 slotinfofile=FILENAME       #### record slot information to this file, in
                             #### the line\-based format "SLOT LABEL\en"
 .fi
-.SS "chg\-rait"
+.PP
+This changer is fast\-search capable if and only if
+\fBhavereader\fR
+is true\&.
+.SS "chg\-rait:{CHILD1,CHILD2,\&.\&.}"
 .nf
-tpchanger "chg\-rait"
-changerfile "chg\-rait\&.conf"
+define changer vtape {
+    tpcanger "chg\-disk:/path/to/vtape"
+}
+define changer robot {
+    tpchanger "chg\-robot:/dev/sg0"
+    tapedev "tape:/dev/nst0"
+}
+tpchanger "chg\-rait:{vtape,robot}"
 .fi
 .PP
-This changer script constructs RAIT devices out of the devices provided by several "sub\-changers"\&. The configuration file specifies
-nchangers, the number of subchangers, and then provides
-tpchanger,
-changerdev_N,
-changerfile_N, and
-tpchanger_N
-for each sub\-changer, 1 through N\&.
-.SS "chg\-null"
+This changer script constructs RAIT devices out of the devices provided by several "sub\-changers"\&. The sub\-changers are specified using the same shell\-like syntax as the RAIT device (see
+\fBamanda-devices\fR(7))\&.
+.PP
+Chg\-rait does not require that all of the child changers have the same slot names: compound slot names are created by combining the slot names supplied by the child changers using the same shell\-like syntax\&. For example, if the child changers return slots "top", "strange", and "3", then the RAIT changer will return "{top,strange,3}"\&. This makes it possible to, for example, mirror data on tapes in slots 1\-10 to tapes in slots 11\-20 of the same robot, using two
+\fBchg\-zd\-mtx\fR
+child changers (and, naturally, two tape drives)\&. In this arrangement, the first slot would be named
+{1,11}\&.
+.PP
+As a convenience to the user, the RAIT changer will also accept un\-braced slot names, and supply the same name to each child changer\&. Thus with a 4\-device RAIT changer, "17" is equivalent to "{17,17,17,17}"\&.
+.PP
+Drive names are parsed in a similar fashion, for operations that take drive names (clean and eject)\&.
+.PP
+This changer is fast\-search capable only if all of its child changers are fast\-search capable\&.
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+The old chg\-rait script is no longer supported nor shipped with Amanda, although the old script will continue to function via \fBchg\-compat\fR, giving users time to upgrade their configuration\&.
+.sp .5v
+.RE
+.SS "chg\-null:"
 .nf
-tpchanger "chg\-null"
+tpchanger "chg\-null:"
 .fi
 .PP
 This changer always provides the device "null:"\&. It is sometimes useful in conjunction with
-\fBchg\-rait\fR\&.
+\fBchg\-rait:\fR\&.
+.SS "chg\-robot:DEVICE"
+.nf
+define changer robot {
+    tpchanger "chg\-robot:/dev/sg0"
+    property "tape\-device" "0=tape:/dev/rmt/0" "1=tape:/dev/rmt/1"
+    property "eject\-before\-unload" "yes"
+    property "use\-slots" "1\-5,11\-20"
+}
+tpchanger "robot"
+.fi
+.PP
+This changer drives a robotic tape library using the operating system\'s
+\fBmtx\fR
+command\&. It replaces the ancient
+\fBchg\-zd\-mtx\fR
+script\&. The changer uses all of the information available to operate as efficiently as possible\&. Even without a barcode reader, the changer can usually load a tape immediately, without resorting to a sequential scan of many tapes\&. It is capable of sharing state across multiple Amanda configurations, avoiding conflicts and optimally tracking the contents of the library\&.
+.PP
+This changer does not accept a
+\fBchangerdev\fR
+parameter, but the
+\fBchangerfile\fR
+parameter can be used to specify a filename at which it should store its state\&. Ordinarily, this state is stored in a file named after the changer device under
+\fI$localstatedir/amanda\fR, e\&.g\&.,
+\fB/var/amanda/chg\-robot\-dev\-sg0\fR\&. There should be a single such statefile for each distinct tape library attached to the Amanda server, even if multiple Amanda configurations reference that library\&.
+.PP
+With a barcode reader present, it is possible for
+\fBchg\-robot\fR
+to track the state of the library reliably, even recognizing tapes that are removed and later re\-inserted (by remembering their barcodes)\&. Without barcodes, the changer can still remember the slot in which it last saw the tape with a particular label, although this information can become stale if the tapes are rearranged by an operator\&. In any case, the changer will never "hunt" for a tape by repeatedly loading slots and checking labels\&. If the changer\'s state is inaccurate, use the
+\fBamtape\fR(8)
+subcommand
+\fBupdate\fR\&.
+.PP
+This changer is fast\-search capable even without a barcode reader\&. For such libraries, it is the responsibility of the operator to
+\fBupdate\fR
+the changer when tapes are added to or removed from the library\&.
+.PP
+There is a shell script in the
+contrib/
+directory of Amanda\'s source distribution which can help you convert a
+\fBchg\-zd\-mtx\fR
+configuration into a
+\fBchg\-robot\fR
+configuration\&. Just give it your Amanda configuration name:
+.sp
+.nf
+  sh contrib/convert\-zd\-mtx\-to\-robot\&.sh $config
+.fi
+The script can be downloaded at
+http://github\&.com/zmanda/amanda/raw/master/contrib/convert\-zd\-mtx\-to\-robot\&.sh
+.SS "Special Operations"
+.PP
+A number of special operations are available for
+\fBchg\-robot\fR
+via
+\fBamtape\fR(8)
+subcommands\&.
+.PP
+The
+\fBreset\fR
+subcommand will change the current slot to the first available slot, but does not erase any stored state maintained by the changer\&.
+.PP
+The
+\fBeject\fR
+subcommand will unload the volume in the given drive, ejecting first if the changer properties dictate\&. Note that, despite the subcommand name, the changer attempts to avoid the state where a volume has been ejected from the drive but not unloaded back to a storage slot\&.
+.PP
+The
+\fBclean\fR
+subcommand is not yet implemented\&.
+.PP
+The
+\fBupdate\fR
+subcommand instructs the changer to update its state database\&. Given no arguments, the changer will scan all available slots, loading each tape and reading its label\&. Especially for large libraries, this can take a long time\&. If only a few slots have changed, they can be listed on the command line:
+.sp
+.nf
+amtape CONFIG update 1\-3,9
+.fi
+In this case, the changer will only scan the stated slots\&. Finally, the changer will not scan at all if it is given the tape label for the slot:
+.sp
+.nf
+amtape CONFIG update 2=DailySet\-028
+.fi
+In this case, the changer updates its state to indicate that
+DailySet\-028
+is in slot 2, without trying to load the tape\&.
+.sp
+.nf
+amtape CONFIG update 1\-3,9=
+.fi
+In this case, the changer marks the stated slots as an unknown state\&.
+.SS "Properties"
+.PP
+DRIVE\-CHOICE
+.RS 4
+
+This property controls the algorithm used to select a drive in which to load a
+tape\&.  If set to the default ("lru"), the changer attempts to use the least
+recently used drive, resulting in a round\-robin behavior\&.  The "firstavail"
+algorithm selects the first available drive, thus preferring the first drive
+specified via the TAPE\-DEVICE property\&.
+.RE
+.PP
+EJECT\-BEFORE\-UNLOAD
+.RS 4
+
+Set this boolean property to true if the library requires an
+\fBoffline\fR operation be performed on the tape drive before it
+can be unloaded\&.  If set, then \fBmt\fR will be invoked to
+perform this operation\&.  Most libraries do not require this workaround\&.
+.RE
+.PP
+EJECT\-DELAY
+.RS 4
+
+This is the time between ejecting a tape and unloading the volume to a storage slot, and
+defaults to 0 seconds\&.  It is only used if EJECT\-BEFORE\-UNLOAD is true\&.  See "Timing", below\&.
+.RE
+.PP
+FAST\-SEARCH
+.RS 4
+
+This boolean property indicates whether the changer advertises the ability to find
+volumes without sequential scanning\&.  The traditional taperscan algorithm alters its
+behavior based on this flag, so it is sometimes necessary to adjust it, although the
+changer will always search for a desired tape using the most efficient means
+available\&.  The default value is true\&.
+.RE
+.PP
+IGNORE\-BARCODES
+.RS 4
+
+If this boolean property is true, then chg\-robot will ignore any barcode information
+that the library provides\&.  This property is probably only useful when the library
+returns incorrect barcodes, for example due to a malfunction in the barcode reader\&.
+.RE
+.PP
+LOAD\-POLL
+.RS 4
+This property specifies the timing of Amanda\'s polling for the tape drive to be ready after loading a new tape\&. See "Timing", below\&.
+.sp
+The script "polls" by trying to open the tape device repeatedly until no error is encountered\&. The property specifies the time to wait before the first poll (D), the frequency at which to poll and retry on errors (P); and the time after which it should give up (U)\&. The format is
+.sp
+.nf
+"D [poll P [until U]]"
+.fi
+For a simple delay with no polling, use e\&.g\&.,
+.sp
+.nf
+property "load\-poll" "13s"
+.fi
+To delay and then poll, use e\&.g\&.,
+.sp
+.nf
+property "load\-poll" "13s poll 5s"
+.fi
+and to add a maximum total time, use e\&.g\&.,
+.sp
+.nf
+property "load\-poll" "0s poll 5s until 2m"
+.fi
+The default value is
+\fB"0s poll 3s until 2m"\fR\&.
+.RE
+.PP
+MTX
+.RS 4
+
+The path to the \'mtx\' binary\&.  The default value is defined at compile time\&.
+.RE
+.PP
+STATUS\-INTERVAL
+.RS 4
+
+This is the minimum time between invocations of \fBmtx status\fR
+to determine the state of the changer library\&.  The default value, 2 seconds,
+avoids back\-to\-back status invocations but ensures that the metadata is up to
+date\&.  For operating systems or libraries where the \fBmtx
+status\fR takes a considerable time to complete, this value should be
+increased\&.  See "Timing", below\&.
+.RE
+.PP
+TAPE\-DEVICE
+.RS 4
+
+This property describes the correspondance of drive numbers in the library to
+Amanda devices, in the format \fIDRIVE=DEVICE\fR\&.  The property
+can be specified multiple times to describe multiple devices\&.  The device will
+usually be a tape device name starting with \fBtape:\fR, but may
+also refer to a device alias (see \fBamanda-devices\fR(7))\&. As
+a shortcut, if the \fBtapedev\fR parameter is specified in the
+changer definition, then it is assumed to be the device name for drive 0\&.
+.RE
+.PP
+UNLOAD\-DELAY
+.RS 4
+
+This specifies the minimum time between an unload operation any any subsequent
+operation\&.  The default value is 0 seconds\&.  See "Timing", below\&.
+.RE
+.PP
+USE\-SLOTS
+.RS 4
+
+This property, if specifies, enumerates the slots to which this changer should
+limit itself\&.  The slots are specified as a comma\-separated list of ranges,
+e\&.g\&., "1\-5,11\-15,19,22"\&.  The property can be specified more than once, and
+the resulting sets will be combined\&.  The changer will refuse to load tapes
+not found in these slots, except for import/export purposes\&.
+.RE
+.SS "Timing"
+.PP
+Tape libraries are fickle, and in many cases will report that an operation is complete when it is still in progress\&. Chg\-robot takes several timing\-related properties to accomodate such behavior\&.
+.PP
+A typical sequence of operations performed during a load are: get library status, eject a tape, unload the tape back to a storage slot, load a new tape, and read the label on that tape to ensure the drive is ready\&.
+.PP
+On most systems, the library status check is nearly instantaneous \-\- the changer library provides its cached state to the host without initiating any robot motion\&. In order to keep its metadata up\-to\-date, chg\-robot runs this command very frequently, but this frequency can be reduced (at the cost of potentially stale metadata) by setting the STATUS\-INTERVAL property to a larger value\&.
+.PP
+Some tape libraries do not integrate the eject operation (performed by the embedded tape drive) with the unload operation (performed by the library robot), and can actually cause physical damage by attempting to remove the tape before the ejection is complete\&. For such changers, set the EJECT\-DELAY property to allow enough time for the eject to complete\&.
+.PP
+Once a tape is unloaded, if the library needs time to "quiesce" before processing another command, add that time to the UNLOAD\-DELAY parameter\&. No other operations will be performed on the library until this delay has elapsed\&.
+.PP
+Once a tape has been loaded, chg\-robot waits until the drive is ready before allowing Amanda to use the volume, as described for LOAD\-POLL, above\&.
+.PP
+Each of the times specified in these properties may be given as integers with the optional suffix
+\fBs\fR
+for seconds (the default) or
+\fBm\fR
+for minutes\&.
+.SS "chg\-ndmp:HOST[:PORT]@SCSIDEV"
+.nf
+    tpchanger "chg\-ndmp:filer\&.company\&.com@/dev/sg0"
+    property        "tape\-device" "0=ndmp:filer\&.company\&.com@/dev/rtape0"
+    property append "tape\-device" "1=ndmp:filer\&.company\&.com@/dev/rtape1"
+    property "use\-slots" "1\-12"
+    property "ndmp\-auth" "text"
+    property "ndmp\-username" "luke"
+    property "ndmp\-password" "leia"
+.fi
+.PP
+This changer is very similar to
+\fBchg\-robot\fR, but controls a tape changer on an NDMP server instead of a local device\&. The
+\fBHOST\fR
+in the
+\fBtpchanger\fR
+should be the hostname of the NDMP server\&. The
+\fBPORT\fR
+is optional\&. The
+\fBSCSIDEV\fR
+should specify the SCSI device on the NDMP server which controls the changer\&. The format of this parameter is implementation\-specific\&.
+.PP
+The appropriate authentication properties will be automatically set on any devices created by this changer\&.
+.SS "Properties"
+.PP
+This changer supports all of the properties supported by
+\fBchg\-robot\fR, although the value of
+\fBMTX\fR
+is ignored\&. The following properties are also recognized:
+.PP
+NDMP_AUTH
+.RS 4
+
+Authentication method to use to connect to the NDMP server\&.  One of
+"md5" (default), "text", "none" (for an empty authentication attempt) or "void" (for
+no authentication attempt at all)\&.
+.RE
+.PP
+NDMP\-PASSWORD
+.RS 4
+
+The password for the NDMP server\&.
+.RE
+.PP
+NDMP\-USERNAME
+.RS 4
+
+The username for the NDMP server\&.
+.RE
 .SS "Unmaintained Changers"
 .PP
 Amanda has many other changer scripts and programs beyond those described here (see the
@@ -170,10 +626,12 @@ changer\-src/
 in the source directory), but most of these scripts are unmaintained and undocumented, and will be removed when the new changer API is fully implemented\&.
 .SH "SEE ALSO"
 .PP
-
 \fBamanda\fR(8),
 \fBamanda.conf\fR(5),
-\fBamanda-devices\fR(7),
+\fBamanda-devices\fR(7)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHOR"
 .PP
 \fBDustin J\&. Mitchell\fR <\&dustin@zmanda\&.com\&>

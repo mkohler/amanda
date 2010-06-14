@@ -7,7 +7,6 @@
 package Amanda::Tests;
 use base qw(Exporter);
 use base qw(DynaLoader);
-require Amanda::Types;
 package Amanda::Testsc;
 bootstrap Amanda::Tests;
 package Amanda::Tests;
@@ -69,6 +68,7 @@ package Amanda::Tests;
 *sizeof_size_t = *Amanda::Testsc::sizeof_size_t;
 *write_random_file = *Amanda::Testsc::write_random_file;
 *verify_random_file = *Amanda::Testsc::verify_random_file;
+*try_threads = *Amanda::Testsc::try_threads;
 
 # ------- VARIABLE STUBS --------
 
@@ -78,14 +78,18 @@ package Amanda::Tests;
 @EXPORT_OK = ();
 %EXPORT_TAGS = ();
 
+
 =head1 NAME
 
 Amanda::Tests -- test functions for installchecks
 
 =head1 SYNOPSIS
 
-This module exists only to provide functions for installcheck scripts to call,
-mostly to test that various C-Perl interface techniques are working.
+This module exists only to provide functions for installcheck scripts
+to call, mostly to test that various C-Perl interface techniques are
+working.
 
 =cut
+
+
 1;

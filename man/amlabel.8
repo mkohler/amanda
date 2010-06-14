@@ -2,12 +2,12 @@
 .\"     Title: amlabel
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMLABEL" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMLABEL" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,155 +19,117 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amlabel \- label an \fIAmanda\fR tape
+amlabel \- label an Amanda tape
 .SH "SYNOPSIS"
 .HP \w'\fBamlabel\fR\ 'u
-\fBamlabel\fR [\-f] \fIconfig\fR \fIlabel\fR [slot\ \fIslot\fR] [\-o\ \fIconfigoption\fR]...
+\fBamlabel\fR \fIconfig\fR \fIlabel\fR [slot\ \fIslot\fR] [\fB\-f\fR] [\fB\-\-version\fR] [{\fB\-o\fR\ \fIconfigoption\fR}...]
 .SH "DESCRIPTION"
 .PP
-All
-\fIAmanda\fR
-tapes must be pre\-labeled before they are used\&.
-\fIAmanda\fR
-verifies the label in
-\fBamdump\fR
-and
-\fBamflush\fR
-before writing to make sure the proper tape is loaded\&.
+This command applies a label to an Amanda volume, erasing the volume in the process\&.
 .PP
-\fBAmlabel\fR
-writes an
-\fIAmanda\fR
-label on the tape in the device specified by the
-\fIamanda\&.conf\fR
-file in /usr/local/etc/amanda/\fIconfig\fR\&.
+Amanda uses labels to identify volumes:
+\fBamdump\fR(8)
+and
+\fBamflush\fR(8)
+verify the label before writing to make sure the proper volume is loaded, and the recovery programs use the label to ensure they are reading the data they expect\&.
+.PP
+If no
+[\fIslot\fR]
+is given, then
+\fBamlabel\fR
+labels the tape in the current slot of the default changer\&. If a slot is given, it labels the volume in that slot\&.
 \fILabel\fR
 may be any string that does not contain whitespace and that matches the
-\fIamanda\&.conf\fR
 \fBlabelstr\fR
-regular expression option\&. It is up to the system administrator to define a naming convention\&.
+(see
+\fBamanda.conf\fR(5))\&.
 .PP
-\fBAmlabel\fR
-appends the new tape to the
+This command also appends the new volume to the
 \fBtapelist\fR(5)
-file so it will be used by
-\fIAmanda\fR
-before it reuses any other tapes\&. When you
-\fBamlabel\fR
-multiple tapes, they will be used in the order you
-\fBamlabel\fR
-them\&.
+file, so that they will be used in the order they are labeled (depending on the taperscan in use \(em see
+\fBamanda-taperscan\fR(7))\&.
 .PP
-\fBAmlabel\fR
-will not write the label if the tape contains an active
-\fIAmanda\fR
-tape or if the label specified is on an active tape\&. The
-\fB\-f\fR
+As a precaution,
+\fBamlabel\fR
+will not write a label if the volume already contains an active label or if the label specified is on an active tape\&. The
+[\-f]
 (force) flag bypasses these verifications\&.
-.PP
-An optional
-\fIslot\fR
-may be specified after the tape label\&. If a tape changer is in use,
-\fBamlabel\fR
-will label the tape in the specified slot instead of the currently loaded tape\&.
-.PP
-See the
-\fBamanda\fR(8)
-man page for more details about
-\fIAmanda\fR\&.
 .SH "OPTIONS"
 .PP
-\fB\-o\fR \fIconfigoption\fR
+\fB\-f\fR
 .RS 4
-See the "\fBCONFIGURATION OVERRIDE\fR" section in
+Force the label operation; see above
+.RE
+.PP
+\fB\-\-version\fR
+.RS 4
+Output version information
+.RE
+.PP
+\fB\-o \fR\fB\fIconfigoption\fR\fR
+.RS 4
+See the "CONFIGURATION OVERRIDE" section in
 \fBamanda\fR(8)\&.
 .RE
 .SH "EXAMPLE"
 .PP
-Write an
-\fIAmanda\fR
-label with the string "DMP000" on the tape loaded in the device named in the
-\fBtapedev\fR
-option in /usr/local/etc/amanda/daily/amanda\&.conf:
+Write an Amanda label with the string "DMP000" on the current volume:
 .nf
 % amlabel daily DMP000 
 .fi
 .PP
-Label the tape in slot 3 of the currently configured tape changer with the string "DMP003":
+Label the tape in slot 3 of the changer with the label "DMP003":
 .nf
 % amlabel daily DMP003 slot 3 
 .fi
 .SH "MESSAGES"
 .PP
-label \fIlabel\fR doesn\'t match labelstr \fIstr\fR
+Label \'\fIlabel\fR\' doesn\'t match labelstr \'\fIlabelstr\fR\'
 .RS 4
-Label
-\fIlabel\fR
-on the command line does not match the
-\fIlabelstr\fR
-regular expression
-\fIstr\fR
-from
-\fIamanda\&.conf\fR\&.
+The given label does not match the configured labelstr\&. Even with
+\fB\-f\fR, this is an error\&.
 .RE
 .PP
-label \fIlabel\fR already on a tape
+Label \'\fIlabel\fR\' already on a volume
 .RS 4
-Label
-\fIlabel\fR
-is already listed as an active
-\fIAmanda\fR
-tape\&.
+The given label is already on another volume in the tapelist, and Amanda will not write it to this volume unless forced\&.
 .RE
 .PP
-no tpchanger specified in \fIpath\fR , so slot command invalid
+Found label \'\fIlabel\fR\', but it is not from configuration \fIconfig\fR\&.
 .RS 4
-The command line has the
-\fBslot\fR
-parameter but the
-\fIamanda\&.conf\fR
-file in
-\fIpath\fR
-does not have a tape changer configured\&.
-.RE
-.PP
-reading label \fIlabel\fR, tape is in another amanda configuration
-.RS 4
-This tape appears to be a valid
-\fIAmanda\fR
-tape, but label does not match
-\fBlabelstr\fR
-for this configuration so it is probably part of a different
-\fIAmanda\fR
-configuration\&.
-.RE
-.PP
-reading label \fIlabel\fR, tape is active
-.RS 4
-Tape
-\fIlabel\fR
-appears to already be part of this
-\fIAmanda\fR
-configuration and active, i\&.e\&. has valid data on it\&.
-.RE
-.PP
-no label found, are you sure \fItape\fR is non\-rewinding?
-.RS 4
-While checking that the label was written correctly,
+The label
 \fBamlabel\fR
-got an error that might be caused by mis\-configuring
-\fIAmanda\fR
-with a rewinding tape device name instead of a non\-rewinding device name for
-\fItape\&.\fR
+found on the volume does not match this configuration\'s
+\fBlabelstr\fR, so it is probably part of a different Amanda configuration\&. Amanda will not overwrite the label unless it is forced\&.
+.RE
+.PP
+Volume with label \'\fIlabel\fR\' contains data from this configuration\&.
+.RS 4
+The label
+\fBamlabel\fR
+found on the volume still has valid data on it and Amanda will not overwrite it unless forced\&. Note that this does not distinguish between active and inactive volumes\&.
+.RE
+.PP
+.RS 4
 .RE
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
+\fBamanda.conf\fR(5),
+\fBtapelist\fR(5),
+\fBamanda-taperscan\fR(7),
 \fBamdump\fR(8),
-\fBamflush\fR(8),
-: http://wiki.zmanda.com
+\fBamflush\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBJames da Silva\fR <\&jds@amanda\&.org\&>
 .PP
 \fBStefan G\&. Weichinger\fR <\&sgw@amanda\&.org\&>
+.PP
+\fBDustin J\&. Mitchell\fR <\&dustin@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (http://www\&.zmanda\&.com)
+.RE

@@ -2,12 +2,12 @@
 .\"     Title: amrecover
 .\"    Author: Alan M. McIvor <alan@kauri.auck.irl.cri.nz>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMRECOVER" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMRECOVER" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,16 +19,14 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amrecover \- \fIAmanda\fR index database browser
+amrecover \- Amanda index database browser
 .SH "SYNOPSIS"
 .HP \w'\fBamrecover\fR\ 'u
 \fBamrecover\fR [\-C\ \fIconfig\fR] [\-s\ \fIindex\-server\fR] [\-t\ \fItape\-server\fR] [\-d\ \fItape\-device\fR] [\-o\ \fIconfigoption\fR]...
 .SH "DESCRIPTION"
 .PP
 \fBAmrecover\fR
-browses the database of
-\fIAmanda\fR
-index files to determine which tapes contain files to recover\&. Furthermore, it is able to recover files\&.
+browses the database of Amanda index files to determine which tapes contain files to recover\&. Furthermore, it is able to recover files\&.
 .PP
 In order to restore files in place, you must invoke
 \fBamrecover\fR
@@ -45,8 +43,7 @@ file\&. If no configuration name is supplied on the command line, Amrecover will
 .PP
 See the
 \fBamanda\fR(8)
-man page for more details about
-\fIAmanda\fR\&.
+man page for more details about Amanda\&.
 .SH "OPTIONS"
 .if n \{\
 .sp
@@ -69,8 +66,7 @@ to recover client\-encrypted or client\-custom\-compressed tapes\&.
 .PP
 \fB[ \-C ] config\fR
 .RS 4
-\fIAmanda\fR
-configuration\&.
+Amanda configuration\&.
 .RE
 .PP
 \fB\-s index\-server\fR
@@ -184,6 +180,27 @@ List all
 \fBdiskname\fR
 .RE
 .PP
+\fBlistproperty\fR
+.RS 4
+List all
+\fBproperty\fR
+.RE
+.PP
+\fBsetproperty\fR [\fBappend\fR] [\fBpriority\fR] \fIname\fR [\fIvalue\fR \&.\&.\&.]
+.RS 4
+Set the property
+\fIname\fR
+to the value
+\fIvalue\fR\&. The
+\fBappend\fR
+keyword appends the
+\fIvalue\fR
+to the values already set for this property\&. Without
+\fIvalue\fR, the property is unset\&. The
+\fBpriority\fR
+keyword is unused, it is present for ease of copy/paste from application definition\&.
+.RE
+.PP
 \fBsetdevice\fR [[\-h \fItape\-server\fR] \fItapedev\fR]
 .RS 4
 Specifies the host to use as the tape server, and which of its tape devices to use\&. If the server is omitted, the server name reverts to the configure\-time default\&. If the tape device is omitted, the default is used\&.
@@ -293,9 +310,7 @@ Delete the specified files or directories from the restore list\&. Each item may
 .PP
 \fBlist\fR \fIfile\fR
 .RS 4
-Display the contents of the restore list\&. If a file name is specified, the restore list is written to that file\&. This can be used to manually extract the files from the
-\fIAmanda\fR
-tapes with
+Display the contents of the restore list\&. If a file name is specified, the restore list is written to that file\&. This can be used to manually extract the files from the Amanda tapes with
 \fBamrestore\fR\&.
 .RE
 .PP
@@ -338,7 +353,7 @@ file\&.
 syslog\&.7: No such file or directory
 # amrecover MyConfig
 AMRECOVER Version 2\&.4\&.2\&. Contacting server on oops \&.\&.\&.
-220 oops \fIAmanda\fR index server (2\&.4\&.2) ready\&.
+220 oops Amanda index server (2\&.4\&.2) ready\&.
 Setting restore date to today (1997\-12\-09)
 200 Working date set to 1997\-12\-09\&.
 200 Config set to MyConfig\&.
@@ -488,8 +503,10 @@ If set, $AMANDA_TAPE_SERVER will be used as tape\-server\&. The value will take 
 \fBamanda-client.conf\fR(5),
 \fBamrestore\fR(8),
 \fBamfetchdump\fR(8),
-\fBreadline\fR(3),
-: http://wiki.zmanda.com
+\fBreadline\fR(3)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHORS"
 .PP
 \fBAlan M\&. McIvor\fR <\&alan@kauri\&.auck\&.irl\&.cri\&.nz\&>

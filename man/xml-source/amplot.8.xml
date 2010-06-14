@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -18,7 +18,7 @@
 </refmeta>
 <refnamediv>
 <refname>amplot</refname>
-<refpurpose>visualize the behavior of &A;</refpurpose>
+<refpurpose>visualize the behavior of Amanda</refpurpose>
 </refnamediv>
 <refentryinfo>
 &author.ogud;
@@ -45,7 +45,7 @@
 <para><emphasis remap='B'>Amplot</emphasis>
 reads an
 <emphasis remap='B'>amdump</emphasis>
-output file that &A; generates each run (e.g.
+output file that Amanda generates each run (e.g.
 <emphasis remap='I'>amdump.1</emphasis>)
 and translates the information into a
 picture format that may be used to determine how your installation
@@ -70,13 +70,10 @@ It then executes a
 program
 <emphasis remap='I'></emphasis>(<emphasis remap='P->I'>amplot.g</emphasis>)
 to generate the graph.
-The
-<emphasis remap='B'>awk</emphasis>
+The <emphasis remap='B'>awk</emphasis>
 program is written in an enhanced version of awk,
-such as GNU awk
-<emphasis remap='B'></emphasis>(<emphasis remap='P->B'>gawk</emphasis>
-version 2.15 or later) or
-<emphasis remap='B'>nawk</emphasis>.</para>
+such as GNU awk (<manref name="gawk" vol="1" />
+version 2.15 or later) or <manref name="nawk" vol="1" />.</para>
 
 <para>During execution,
 <command>amplot</command>
@@ -86,8 +83,8 @@ uses.
 These files are deleted at the end of execution.</para>
 
 <para>See the
-<citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
-man page for more details about &A;.</para>
+<manref name="amanda" vol="8"/>
+man page for more details about Amanda.</para>
 </refsect1>
 
 <refsect1><title>OPTIONS</title>
@@ -150,7 +147,7 @@ hours.</para>
 <para>The
 <emphasis remap='I'>amdump_files</emphasis>
 may be in various compressed formats
-<emphasis remap='B'></emphasis>(<emphasis remap='P->B'>compress</emphasis>,
+(<emphasis remap='P->B'>compress</emphasis>,
 <emphasis remap='B'>gzip</emphasis>,
 <emphasis remap='B'>pact</emphasis>,
 <emphasis remap='B'>compact</emphasis>).</para>
@@ -200,18 +197,12 @@ or it takes them a long time to generate estimates.</para>
 legitimate lines the program needs to be taught about.</para>
 </refsect1>
 
-<refsect1><title>SEE ALSO</title>
-<para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amdump</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>gawk</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>nawk</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>awk</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>gnuplot</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>sh</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>compress</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>gzip</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
-<ulink url="http://wiki.zmanda.com"/>
-</para>
-</refsect1>
+<seealso>
+<manref name="amdump" vol="8"/>,
+<manref name="gnuplot" vol="1"/>,
+<manref name="compress" vol="1"/>,
+<manref name="gzip" vol="1"/>
+</seealso>
+
 </refentry>
 

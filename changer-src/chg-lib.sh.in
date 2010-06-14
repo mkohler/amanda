@@ -28,21 +28,12 @@ amlibexecdir="@amlibexecdir@"
 # Eponymous functions to access various amanda apps
 # TODO: move to amanda-sh-lib.sh
 
-if test "@USE_VERSION_SUFFIXES@" = "yes"; then
-    amgetconf() {
-        "${sbindir}/amgetconf-@VERSION@" "${@}"
-    }
-    amdevcheck() {
-        "${sbindir}/amdevcheck-@VERSION@" "${@}"
-    }
-else
-    amgetconf() {
-        "${sbindir}/amgetconf" "${@}"
-    }
-    amdevcheck() {
-        "${sbindir}/amdevcheck" "${@}"
-    }
-fi
+amgetconf() {
+    "${sbindir}/amgetconf" "${@}"
+}
+amdevcheck() {
+    "${sbindir}/amdevcheck" "${@}"
+}
 
 # This function tries to find a useable mt binary. If a fully-qualified path
 # was provided at configure time or via a config file, we check that it
@@ -102,9 +93,7 @@ tape_device_filename() {
 #               amdevcheck, suitable for use in higher-level error messages
 amdevcheck_status() {
     amdevcheck_message=
-    local amdevcheck_config_dir=`pwd`
-    local amdevcheck_config_name=`basename $amdevcheck_config_dir`
-    local amdevcheck_output=`amdevcheck $amdevcheck_config_name $@`
+    local amdevcheck_output=`amdevcheck . $@`
     local amdevcheck_status=$?
 
     test "$amdevcheck_status" -ne 0 && return 0

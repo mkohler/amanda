@@ -1,4 +1,4 @@
-# Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2008 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -13,10 +13,10 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 #
-# Contact information: Zmanda Inc, 465 S Mathlida Ave, Suite 300
+# Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More tests => 18;
+use Test::More tests => 20;
 use strict;
 
 use lib "@amperldir@";
@@ -112,27 +112,27 @@ SKIP: {
     $tl->add_tapelabel("20080112010203", "TESTCONF007", "seven");
     is(scalar @$tl, 5, "add_tapelabel adds a new element to the tapelist");
 
-    is_deeply($tl->lookup_tapepos(5),
+    is_deeply($tl->lookup_tapepos(1),
 	{ 'datestamp' => '20080112010203', 'label' => 'TESTCONF007',
-	  'reuse' => 1, 'position' => 5, 'comment' => 'seven' },
-	".. lookup_tapepos finds it");
+	  'reuse' => 1, 'position' => 1, 'comment' => 'seven' },
+	".. lookup_tapepos finds it at the beginning");
 
     is_deeply($tl->lookup_tapelabel("TESTCONF007"),
 	{ 'datestamp' => '20080112010203', 'label' => 'TESTCONF007',
-	  'reuse' => 1, 'position' => 5, 'comment' => 'seven' },
+	  'reuse' => 1, 'position' => 1, 'comment' => 'seven' },
 	".. lookup_tapelabel finds it");
 
     is_deeply($tl->lookup_tapedate("20080112010203"),
 	{ 'datestamp' => '20080112010203', 'label' => 'TESTCONF007',
-	  'reuse' => 1, 'position' => 5, 'comment' => 'seven' },
+	  'reuse' => 1, 'position' => 1, 'comment' => 'seven' },
 	".. lookup_tapedate finds it");
 
     $tl->remove_tapelabel("TESTCONF002");
     is(scalar @$tl, 4, "remove_tapelabel removes an element from the tapelist");
 
     is_deeply($tl->lookup_tapepos(4), # used to be in position 5
-	{ 'datestamp' => '20080112010203', 'label' => 'TESTCONF007',
-	  'reuse' => 1, 'position' => 4, 'comment' => 'seven' },
+	{ 'datestamp' => '20071108010001', 'label' => 'TESTCONF001',
+	  'reuse' => '', 'position' => 4, 'comment' => 'comment 1' },
 	".. tape positions are adjusted correctly");
 
     is_deeply($tl->lookup_tapelabel("TESTCONF002"), undef,
@@ -141,6 +141,19 @@ SKIP: {
     is_deeply($tl->lookup_tapedate("20071109010002"), undef,
 	".. lookup_tapedate no longer finds it");
 
+    ## set tapecycle to 0 to perform the next couple tests
+    config_uninit();
+    my $cor = new_config_overrides(1);
+    add_config_override_opt($cor, "tapecycle=1");
+    set_config_overrides($cor);
+    config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF") == $CFGERR_OK
+	or die("config_init failed");
+
+    is( Amanda::Tapelist::get_last_reusable_tape_label(0),
+        'TESTCONF002', ".. get_last_reusable_tape_labe for skip=0" );
+
+    is( Amanda::Tapelist::get_last_reusable_tape_label(2),
+        'TESTCONF004', ".. get_last_reusable_tape_labe for skip=2" );
 }
 
 # try parsing various invalid lines

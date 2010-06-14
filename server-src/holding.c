@@ -392,14 +392,16 @@ holding_walk(
     holding_walk_fn per_file_fn,
     holding_walk_fn per_chunk_fn)
 {
+    identlist_t    il;
     holdingdisk_t *hdisk_conf;
     char *hdisk;
     int proceed = 1;
 
-    for (hdisk_conf = getconf_holdingdisks(); 
-		hdisk_conf != NULL;
-		hdisk_conf = holdingdisk_next(hdisk_conf)) {
+    for (il = getconf_identlist(CNF_HOLDINGDISK);
+		il != NULL;
+		il = il->next) {
 	int is_cruft = 0;
+	hdisk_conf = lookup_holdingdisk(il->data);
 
 	hdisk = holdingdisk_get_diskdir(hdisk_conf);
 	if (!is_dir(hdisk))
@@ -858,6 +860,38 @@ holding_cleanup(
  * Application support
  */
 
+void
+holding_set_origsize(
+    char  *holding_file,
+    off_t  orig_size)
+{
+    int         fd;
+    size_t      buflen;
+    char        buffer[DISK_BLOCK_BYTES];
+    char       *read_buffer;
+    dumpfile_t  file;
+
+    if((fd = robust_open(holding_file, O_RDWR, 0)) == -1) {
+	dbprintf(_("holding_set_origsize: open of %s failed: %s\n"),
+		 holding_file, strerror(errno));
+	return;
+    }
+
+    buflen = full_read(fd, buffer, SIZEOF(buffer));
+    if (buflen <= 0) {
+	dbprintf(_("holding_set_origsize: %s: empty file?\n"), holding_file);
+	return;
+    }
+    parse_file_header(buffer, &file, (size_t)buflen);
+    lseek(fd, (off_t)0, SEEK_SET);
+    file.orig_size = orig_size;
+    read_buffer = build_header(&file, NULL, DISK_BLOCK_BYTES);
+    full_write(fd, read_buffer, DISK_BLOCK_BYTES);
+    dumpfile_free_data(&file);
+    amfree(read_buffer);
+    close(fd);
+}
+
 int
 rename_tmp_holding(
     char *	holding_file,
@@ -907,7 +941,11 @@ rename_tmp_holding(
 
 	    }
 	    file.is_partial = 1;
-            header = build_header(&file, DISK_BLOCK_BYTES);
+	    if (debug_holding > 1)
+		dump_dumpfile_t(&file);
+            header = build_header(&file, NULL, DISK_BLOCK_BYTES);
+	    if (!header) /* this shouldn't happen */
+		error(_("header does not fit in %zd bytes"), (size_t)DISK_BLOCK_BYTES);
 	    if (full_write(fd, header, DISK_BLOCK_BYTES) != DISK_BLOCK_BYTES) {
 		dbprintf(_("rename_tmp_holding: writing new header failed: %s"),
 			strerror(errno));

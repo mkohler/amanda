@@ -1,4 +1,4 @@
-#!@SHELL@ 
+#!@SHELL@
 #
 # Exit Status:
 # 0 Alles Ok
@@ -60,7 +60,7 @@ rc=0
 
 case x$1 in
 
-x-slot) 
+x-slot)
 
     #
     # handle special slots...

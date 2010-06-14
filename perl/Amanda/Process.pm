@@ -1,20 +1,20 @@
-# Copyright (c) 2005-2008 Zmanda, Inc.  All Rights Reserved.
-# 
-# This library is free software; you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License version 2.1 as 
-# published by the Free Software Foundation.
-# 
-# This library is distributed in the hope that it will be useful, but
+# Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published
+# by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-# or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
-# License for more details.
-# 
-# You should have received a copy of the GNU Lesser General Public License
-# along with this library; if not, write to the Free Software Foundation,
-# Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
-# 
-# Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
-# Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+# or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+# for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+#
+# Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+# Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
 
 package Amanda::Process;
 
@@ -27,12 +27,6 @@ use vars qw( @ISA @EXPORT_OK );
 use File::Basename;
 use Amanda::Constants;
 @ISA = qw( Exporter );
-
-use Amanda::Paths;
-use Amanda::Util;
-use Amanda::MainLoop qw( :GIOCondition );
-use Amanda::Config;
-use Amanda::Device qw( :constants );
 
 =head1 NAME
 
@@ -48,6 +42,8 @@ Amanda::Process -- interface to process
 
   Amanda::Process::add_child();
 
+  Amanda::Process::set_master_process(@pname);
+
   Amanda::Process::set_master($pname, $pid);
 
   Amanda::Process::kill_process($signal);
@@ -57,10 +53,6 @@ Amanda::Process -- interface to process
   my $count = Amanda::Process::count_process();
 
   my $alive = Amanda::Process::process_alive($pid, $pname);
-
-=head1 API STATUS
-
-Stable
 
 =head1 INTERFACE
 
@@ -88,6 +80,12 @@ Parse all 'pid' and 'pid-done' lines of the logfile.
   $Amanda_process->add_child();
 
 Add all children of already known amanda processes.
+
+=item set_master_process
+
+  $Amanda_process->set_master_process($arg, @pname);
+
+Search the process table to find a process in @pname and make it the master, $arg must be an argument of the process.
 
 =item set_master
 
@@ -179,8 +177,18 @@ sub load_ps_table() {
 	my $psline = <PSTABLE>; #header line
 	while($psline = <PSTABLE>) {
 	    chomp $psline;
-	    my ($pid, $ppid, $pname) = split " ", $psline;
+	    my ($pid, $ppid, $pname, $arg1, $arg2) = split " ", $psline;
 	    $pname = basename($pname);
+	    if ($pname =~ /^perl/ && defined $arg1) {
+		if ($arg1 !~ /^\-/) {
+		    $pname = $arg1;
+		} elsif (defined $arg2) {
+		    if ($arg2 !~ /^\-/) {
+			$pname = $arg2;
+		    }
+		}
+		$pname = basename($pname);
+	    }
 	    $self->{pstable}->{$pid} = $pname;
 	    $self->{ppid}->{$pid} = $ppid;
 	}
@@ -221,6 +229,9 @@ sub scan_log($) {
 		$first = 0;
 	    }
 	    if (defined $self->{pstable}->{$pid} && $pname eq $self->{pstable}->{$pid}) {
+		$self->{pids}->{$pid} = $pname;
+	    } elsif (defined $self->{pstable}->{$pid} && $self->{pstable}->{$pid} =~ /^perl/) {
+		# We can get 'perl' for a perl script.
 		$self->{pids}->{$pid} = $pname;
 	    } elsif (defined $self->{pstable}->{$pid}) {
 		print "pid $pid doesn't match: ", $pname, " != ", $self->{pstable}->{$pid}, "\n" if $self->{verbose};
@@ -295,7 +306,33 @@ sub add_child() {
 # Set master_pname and master_pid.
 #
 # Side-effects:
-# - sets $master_pname and $master_pid.
+# - sets $self->{master_pname} and $self->{master_pid}.
+#
+sub set_master_process {
+    my $self = shift;
+    my $arg = shift;
+    my @pname = @_;
+
+    my $ps_argument_args = $Amanda::Constants::PS_ARGUMENT_ARGS;
+    for my $pname (@pname) {
+	my $pid;
+
+	if ($ps_argument_args eq "CYGWIN") {
+	    $pid = `ps -ef|grep -w ${pname}|grep -w ${arg}| grep -v grep | awk '{print \$2}'`;
+	} else {
+	    $pid = `$Amanda::Constants::PS $ps_argument_args|grep -w ${pname}|grep -w ${arg}| grep -v grep | awk '{print \$1}'`;
+	}
+	chomp $pid;
+	if ($pid ne "") {
+	    $self->set_master($pname, $pid);
+	}
+    }
+}
+
+# Set master_pname and master_pid.
+#
+# Side-effects:
+# - sets $self->{master_pname} and $self->{master_pid}.
 #
 sub set_master($$) {
     my $self = shift;
@@ -306,7 +343,6 @@ sub set_master($$) {
     $self->{master_pid} = $pid;
     $self->{pids}->{$pid} = $pname;
 }
-
 # Send a signal to all amanda process
 #
 # Side-effects:

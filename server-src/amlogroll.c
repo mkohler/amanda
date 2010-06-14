@@ -33,7 +33,6 @@
 #include "amanda.h"
 #include "conffile.h"
 #include "logfile.h"
-#include "version.h"
 
 char *datestamp;
 
@@ -48,7 +47,7 @@ main(
     char *logfname;
     char *conf_logdir;
     FILE *logfile;
-    config_overwrites_t *cfg_ovr = NULL;
+    config_overrides_t *cfg_ovr = NULL;
     char *cfg_opt = NULL;
 
     /*
@@ -66,10 +65,10 @@ main(
 
     dbopen(DBG_SUBDIR_SERVER);
 
-    erroutput_type = ERR_INTERACTIVE;
+    add_amanda_log_handler(amanda_log_stderr);
 
     /* Process options */
-    cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
+    cfg_ovr = extract_commandline_config_overrides(&argc, &argv);
 
     if (argc >= 2) {
 	cfg_opt = argv[1];
@@ -77,8 +76,8 @@ main(
 
     /* read configuration files */
 
+    set_config_overrides(cfg_ovr);
     config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_USE_CWD, cfg_opt);
-    apply_config_overwrites(cfg_ovr);
 
     if (config_errors(NULL) >= CFGERR_WARNINGS) {
 	config_print_errors();
@@ -103,8 +102,7 @@ main(
     }
     amfree(logfname);
 
-    erroutput_type |= ERR_AMANDALOG;
-    set_logerror(logerror);
+    add_amanda_log_handler(amanda_log_trace_log);
 
     while(get_logline(logfile)) {
 	if(curlog == L_START) {

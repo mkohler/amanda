@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -19,7 +19,7 @@
 </refmeta>
 <refnamediv>
 <refname>amcheck</refname>
-<refpurpose>run &A; self-checks</refpurpose>
+<refpurpose>run Amanda self-checks</refpurpose>
 </refnamediv>
 <refentryinfo>
 &author.jds;
@@ -38,15 +38,15 @@
        <arg choice='plain'><replaceable>host</replaceable></arg>
        <arg choice='opt' rep='repeat'><replaceable>disk</replaceable></arg>
     </arg>
-    <arg choice='plain' rep='repeat'><group><arg choice='plain'>-o </arg><replaceable>configoption</replaceable></group></arg>
+    &configoverride.synopsis;
 </cmdsynopsis>
 </refsynopsisdiv>
 
 
 <refsect1><title>DESCRIPTION</title>
 <para><emphasis remap='B'>Amcheck</emphasis>
-runs a number of self-checks on both the &A; tape server host and
-the &A; client hosts.</para>
+runs a number of self-checks on both the Amanda tape server host and
+the Amanda client hosts.</para>
 
 <para>On the tape server host,
 <command>amcheck</command>
@@ -64,8 +64,8 @@ match an expression will be checked. All disks are checked if no
 expressions are given.</para>
 
 <para>See the
-<citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
-man page for more details about &A;.</para>
+<manref name="amanda" vol="8"/>
+man page for more details about Amanda.</para>
 </refsect1>
 
 <refsect1><title>OPTIONS</title>
@@ -156,12 +156,8 @@ Implies
   </listitem>
   </varlistentry>
 
-  <varlistentry>
-  <term><emphasis remap='B'>-o</emphasis> <replaceable>configoption</replaceable></term>
-  <listitem>
-<para>See the "<emphasis remap='B'>CONFIGURATION OVERRIDE</emphasis>" section in <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>.</para>
-  </listitem>
-  </varlistentry>
+  &configoverride.varlistentry;
+
 </variablelist>
 
 <para>The default is
@@ -174,21 +170,21 @@ The results are displayed on standard output.</para>
 
 <programlisting>
 % amcheck daily
-&A; Tape Server Host Check
+Amanda Tape Server Host Check
 -----------------------------
 /amanda2/amanda/work: 911475 KB disk space available, that's plenty.
 NOTE: skipping tape-writable test.
 Tape VOL10 label ok.
 Server check took 34.966 seconds.
 
-&A; Backup Client Hosts Check
+Amanda Backup Client Hosts Check
 --------------------------------
 WARNING: northstar: selfcheck request timed out.  Host down?
 WARNING: drinkme: selfcheck request timed out.  Host down?
 WARNING: scruffy: selfcheck request timed out.  Host down?
 Client check: 136 hosts checked in 51.945 seconds, 3 problems found.
 
-(brought to you by &A; 2.5.0) 
+(brought to you by Amanda 2.5.0) 
 </programlisting>
 
 <para>In this example, if the line
@@ -328,7 +324,7 @@ instead of
   <term>ERROR: program dir <emphasis remap='I'>directory</emphasis>: not accessible</term>
   <listitem>
 <para>(error)
-The directory &A; expects to find its auxiliary programs in,
+The directory Amanda expects to find its auxiliary programs in,
 <emphasis remap='I'>directory</emphasis>,
 is not accessible.</para>
   </listitem>
@@ -388,7 +384,7 @@ may be:</para>
       <varlistentry>
       <term>log</term>
       <listitem>
-<para>for the &A; log directory (see
+<para>for the Amanda log directory (see
 <emphasis remap='B'>logdir</emphasis>
 in
 <emphasis remap='B'>amanda.conf</emphasis>)</para>
@@ -406,7 +402,7 @@ in
       <varlistentry>
       <term>info</term>
       <listitem>
-<para>for an &A; database information directory (see
+<para>for an Amanda database information directory (see
 <emphasis remap='B'>curinfo</emphasis>
 in
 <emphasis remap='B'>amanda.conf</emphasis>)
@@ -416,7 +412,7 @@ or</para>
       <varlistentry>
       <term>index</term>
       <listitem>
-<para>for an &A; index directory (see
+<para>for an Amanda index directory (see
 <emphasis remap='B'>indexdir</emphasis>
 in
 <emphasis remap='B'>amanda.conf</emphasis>)</para>
@@ -530,7 +526,7 @@ parameter in
 <emphasis remap='B'>amanda.conf</emphasis>
 is set to
 <filename>/dev/null</filename>
-and &A; uses that when debugging to throw all the dump images away.</para>
+and Amanda uses that when debugging to throw all the dump images away.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -631,7 +627,7 @@ Holding disk
 <emphasis remap='I'>disk</emphasis>
 has
 <emphasis remap='I'>F</emphasis>
-KBytes of free space and &A; will be using up to
+KBytes of free space and Amanda will be using up to
 <emphasis remap='I'>U</emphasis>
 Kbytes.</para>
   </listitem>
@@ -825,7 +821,7 @@ to the status check request.</para>
 <emphasis remap='B'>Amcheck</emphasis>
 could not parse the negative acknowledgment error from
 <emphasis remap='I'>host</emphasis>.
-There might be an &A; version mismatch between the host running
+There might be an Amanda version mismatch between the host running
 <command>amcheck</command>
 and
 <emphasis remap='I'>host</emphasis>.</para>
@@ -860,11 +856,10 @@ The exit code of <command>amcheck</command> is one of:
 </programlisting>
 </refsect1>
 
-<refsect1><title>SEE ALSO</title>
-<para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amdump</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<ulink url="http://wiki.zmanda.com"/>
-</para>
-</refsect1>
+<seealso>
+<manref name="amanda.conf" vol="5"/>
+<manref name="amdump" vol="8"/>
+</seealso>
+
 </refentry>
 

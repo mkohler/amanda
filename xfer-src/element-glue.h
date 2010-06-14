@@ -1,20 +1,22 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 2008 Zmanda Inc.
+ * Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 #ifndef ELEMENT_GLUE_H
@@ -36,34 +38,6 @@ GType xfer_element_glue_get_type(void);
 #define XFER_ELEMENT_GLUE_CLASS(klass) G_TYPE_CHECK_CLASS_CAST((klass), xfer_element_glue_get_type(), XferElementGlueClass)
 #define IS_XFER_ELEMENT_GLUE(obj) G_TYPE_CHECK_INSTANCE_TYPE((obj), xfer_element_glue_get_type ())
 #define XFER_ELEMENT_GLUE_GET_CLASS(obj) G_TYPE_INSTANCE_GET_CLASS((obj), xfer_element_glue_get_type(), XferElementGlueClass)
-
-/*
- * Main object structure
- */
-
-typedef struct XferElementGlue {
-    XferElement __parent__;
-
-    /* the stuff we might use, depending on what flavor of glue we're
-     * providing.. */
-    int pipe[2];
-
-    /* for push/pull, a ring buffer of ptr/size pairs */
-    struct { gpointer buf; size_t size; } *ring;
-    semaphore_t *ring_used_sem, *ring_free_sem;
-    gint ring_head, ring_tail;
-
-    GThread *thread;
-    GThreadFunc threadfunc;
-} XferElementGlue;
-
-/*
- * Class definition
- */
-
-typedef struct {
-    XferElementClass __parent__;
-} XferElementGlueClass;
 
 /* Constructor */
 

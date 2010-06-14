@@ -1474,22 +1474,23 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 
 /* -------- TYPES TABLE (BEGIN) -------- */
 
-#define SWIGTYPE_p_Device swig_types[0]
+#define SWIGTYPE_p_DirectTCPAddr swig_types[0]
 #define SWIGTYPE_p_Xfer swig_types[1]
 #define SWIGTYPE_p_XferElement swig_types[2]
-#define SWIGTYPE_p_a_STRMAX__char swig_types[3]
-#define SWIGTYPE_p_amglue_Source swig_types[4]
-#define SWIGTYPE_p_char swig_types[5]
-#define SWIGTYPE_p_double swig_types[6]
-#define SWIGTYPE_p_float swig_types[7]
+#define SWIGTYPE_p_amglue_Source swig_types[3]
+#define SWIGTYPE_p_char swig_types[4]
+#define SWIGTYPE_p_double swig_types[5]
+#define SWIGTYPE_p_float swig_types[6]
+#define SWIGTYPE_p_gsize swig_types[7]
 #define SWIGTYPE_p_guint32 swig_types[8]
 #define SWIGTYPE_p_guint64 swig_types[9]
 #define SWIGTYPE_p_int swig_types[10]
 #define SWIGTYPE_p_p_XferElement swig_types[11]
-#define SWIGTYPE_p_queue_fd_t swig_types[12]
-#define SWIGTYPE_p_unsigned_char swig_types[13]
-static swig_type_info *swig_types[15];
-static swig_module_info swig_module = {swig_types, 14, 0, 0, 0, 0};
+#define SWIGTYPE_p_p_char swig_types[12]
+#define SWIGTYPE_p_p_void swig_types[13]
+#define SWIGTYPE_p_unsigned_char swig_types[14]
+static swig_type_info *swig_types[16];
+static swig_module_info swig_module = {swig_types, 15, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1551,118 +1552,6 @@ SWIG_From_int  SWIG_PERL_DECL_ARGS_1(int value)
 }
 
 
-/* Return a new SV with refcount 1 representing the given C object
- * with the given class.
- *
- * @param c_obj: the object to represent
- * @param perl_class: the perl with which to bless and tie the SV
- */
-static SV *
-new_sv_for_c_obj(
-    gpointer c_obj,
-    const char *perl_class)
-{
-    SV *sv = newSV(0);
-
-    /* Make an SV that contains a pointer to the object, and bless it
-     * with the appropriate class. */
-    sv_setref_pv(sv, perl_class, c_obj);
-
-    return sv;
-}
-
-/* Return a new SV representing a transfer.
- *
- * @param xfer: the transfer to represent
- */
-static SV *
-new_sv_for_xfer(
-    Xfer *xfer)
-{
-    if (!xfer) return &PL_sv_undef;
-
-    xfer_ref(xfer);
-    return new_sv_for_c_obj(xfer, "Amanda::Xfer::Xfer");
-}
-
-/* Return a new SV representing a transfer element.
- *
- * @param xe: the transfer element to represent
- */
-static SV *
-new_sv_for_xfer_element(
-    XferElement *xe)
-{
-    const char *perl_class;
-
-    if (!xe) return &PL_sv_undef;
-
-    perl_class = XFER_ELEMENT_GET_CLASS(xe)->perl_class;
-    if (!perl_class) die("Attempt to wrap an XferElementClass with no perl class!");
-    g_object_ref(xe);
-    return new_sv_for_c_obj(xe, perl_class);
-}
-
-/* Return the C object buried in an SV, asserting that the perl SV is
- * derived from derived_from.  Returns NULL for undefined perl values.
- *
- * This function is based on SWIG's SWIG_Perl_ConvertPtr.  The INT2PTR
- * situation certainly looks strange, but is documented in perlxs.
- *
- * @param sv: the SV to convert
- * @param derived_from: perl class from which the SV should be derived
- * @return: underlying pointer
- */
-static gpointer
-c_obj_from_sv(
-    SV *sv,
-    const char *derived_from)
-{
-    SV *referent;
-    IV tmp;
-
-    if (!sv) return NULL;
-    if (!SvOK(sv)) return NULL;
-
-    /* Peel back the layers.  The sv should be a blessed reference to a PV,
-     * and we check the class against derived_from to ensure we have the right
-     * stuff. */
-    if (!sv_isobject(sv) || !sv_derived_from(sv, derived_from)) {
-	croak("Value is not an object of type %s", derived_from);
-	return NULL;
-    }
-
-    referent = (SV *)SvRV(sv);
-    tmp = SvIV(referent);
-    return INT2PTR(gpointer, tmp);
-}
-
-/* Convert an SV to an Xfer.  The Xfer's reference count is not
- * incremented -- this is a "borrowed" reference.
- *
- * @param sv: the perl value
- * @returns: pointer to the corresponding transfer, or NULL
- */
-static Xfer *
-xfer_from_sv(
-    SV *sv)
-{
-    return (Xfer *)c_obj_from_sv(sv, "Amanda::Xfer::Xfer");
-}
-
-/* Convert an SV to an XferElement.  The element's reference count is
- * not incremented -- this is a "borrowed" reference.
- *
- * @param sv: the perl value
- * @returns: pointer to the corresponding transfer element, or NULL.
- */
-static XferElement *
-xfer_element_from_sv(
-    SV *sv)
-{
-    return (XferElement *)c_obj_from_sv(sv, "Amanda::Xfer::Element");
-}
-
 /* Given an XMsg, return a hashref representing the message as a pure-perl
  * object.  The object is new, has refcount 1, and is totally independent of
  * the underlying XMsg.
@@ -1705,6 +1594,27 @@ new_sv_for_xmsg(
     /* message */
     if (msg->message)
 	hv_store(hash, "message", 7, newSVpv(msg->message, 0), 0);
+
+    /* successful */
+    hv_store(hash, "successful", 10, newSViv(msg->successful), 0);
+
+    /* eom */
+    hv_store(hash, "eom", 3, newSViv(msg->eom), 0);
+
+    /* eof */
+    hv_store(hash, "eof", 3, newSViv(msg->eof), 0);
+
+    /* size */
+    hv_store(hash, "size", 4, amglue_newSVu64(msg->size), 0);
+
+    /* duration */
+    hv_store(hash, "duration", 8, newSVnv(msg->duration), 0);
+
+    /* partnum */
+    hv_store(hash, "partnum", 7, amglue_newSVu64(msg->partnum), 0);
+
+    /* fileno */
+    hv_store(hash, "fileno", 6, amglue_newSVu64(msg->fileno), 0);
 
     return rv;
 }
@@ -1870,6 +1780,14 @@ SWIG_FromCharPtr(const char *cptr)
 #define xfer_get_status(xfer) ((xfer)->status)
 
 
+static gboolean same_elements(
+	XferElement *a,
+	XferElement *b)
+{
+    return a == b;
+}
+
+
 SWIGINTERNINLINE int
 SWIG_AsVal_size_t SWIG_PERL_DECL_ARGS_2(SV * obj, size_t *val)
 {
@@ -1933,6 +1851,12 @@ SWIG_AsVal_int SWIG_PERL_DECL_ARGS_2(SV * obj, int *val)
 }
 
 
+static DirectTCPAddr *
+xfer_source_directtcp_listen_get_addrs(XferElement *elt) {
+    return elt->input_listen_addrs;
+}
+
+
 SWIGINTERN int
 SWIG_AsVal_unsigned_SS_char SWIG_PERL_DECL_ARGS_2(SV * obj, unsigned char *val)
 {
@@ -1949,6 +1873,12 @@ SWIG_AsVal_unsigned_SS_char SWIG_PERL_DECL_ARGS_2(SV * obj, unsigned char *val)
 }
 
 
+static DirectTCPAddr *
+xfer_dest_directtcp_listen_get_addrs(XferElement *elt) {
+    return elt->output_listen_addrs;
+}
+
+
 static gboolean
 xmsgsource_perl_callback(
     gpointer data,
@@ -1958,23 +1888,30 @@ xmsgsource_perl_callback(
     dSP;
     amglue_Source *src = (amglue_Source *)data;
     SV *src_sv = NULL;
+    SV *msg_sv = NULL;
+    SV *xfer_sv = NULL;
 
+    /* keep the source around long enough for the call to finish */
+    amglue_source_ref(src);
     g_assert(src->callback_sv != NULL);
 
     ENTER;
     SAVETMPS;
 
     /* create a new SV pointing to 'src', and increase its refcount
-     * accordingly.  The SV is mortal, so FREETMPS will decrease the 
-     * refcount, unless the callee keeps a copy of it somewhere */
+     * accordingly. */
     amglue_source_ref(src);
     src_sv = SWIG_NewPointerObj(src, SWIGTYPE_p_amglue_Source,
 				 SWIG_OWNER | SWIG_SHADOW);
+    SvREFCNT_inc(src_sv);
+
+    msg_sv = new_sv_for_xmsg(msg);
+    xfer_sv = new_sv_for_xfer(xfer);
 
     PUSHMARK(SP);
-    XPUSHs(src_sv);
-    XPUSHs(sv_2mortal(new_sv_for_xmsg(msg)));
-    XPUSHs(sv_2mortal(new_sv_for_xfer(xfer)));
+    XPUSHs(sv_2mortal(src_sv));
+    XPUSHs(sv_2mortal(msg_sv));
+    XPUSHs(sv_2mortal(xfer_sv));
     PUTBACK;
 
     call_sv(src->callback_sv, G_EVAL|G_DISCARD);
@@ -1982,9 +1919,14 @@ xmsgsource_perl_callback(
     FREETMPS;
     LEAVE;
 
-    /* these may have been freed, so don't use them after this point */
-    src_sv = NULL;
+    /* we no longer need the src */
+    amglue_source_unref(src);
     src = NULL;
+
+    /* these may be gone, so NULL them out */
+    src_sv = NULL;
+    msg_sv = NULL;
+    xfer_sv = NULL;
 
     /* check for an uncaught 'die'.  If we don't do this, then Perl will longjmp()
      * over the GMainLoop mechanics, leaving GMainLoop in an inconsistent (locked)
@@ -2136,7 +2078,11 @@ XS(_wrap_xfer_get_status) {
     }
     result = (xfer_status)xfer_get_status(arg1);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     
@@ -2265,34 +2211,36 @@ XS(_wrap_xfer_element_repr) {
 }
 
 
-XS(_wrap_xfer_source_device) {
+XS(_wrap_same_elements) {
   {
-    Device *arg1 = (Device *) 0 ;
-    void *argp1 = 0 ;
-    int res1 = 0 ;
+    XferElement *arg1 = (XferElement *) 0 ;
+    XferElement *arg2 = (XferElement *) 0 ;
     int argvi = 0;
-    XferElement *result = 0 ;
+    gboolean result;
     dXSARGS;
     
-    if ((items < 1) || (items > 1)) {
-      SWIG_croak("Usage: xfer_source_device(device);");
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: same_elements(a,b);");
     }
-    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_Device, 0 |  0 );
-    if (!SWIG_IsOK(res1)) {
-      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "xfer_source_device" "', argument " "1"" of type '" "Device *""'"); 
-    }
-    arg1 = (Device *)(argp1);
-    result = (XferElement *)xfer_source_device(arg1);
     {
-      ST(argvi) = sv_2mortal(new_sv_for_xfer_element(result));
+      arg1 = xfer_element_from_sv(ST(0));
+    }
+    {
+      arg2 = xfer_element_from_sv(ST(1));
+    }
+    result = (gboolean)same_elements(arg1,arg2);
+    {
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
       argvi++;
     }
     
-    {
-      xfer_element_unref(result);
-    }
+    
     XSRETURN(argvi);
   fail:
+    
     
     SWIG_croak_null();
   }
@@ -2331,6 +2279,37 @@ XS(_wrap_xfer_source_random) {
 }
 
 
+XS(_wrap_xfer_source_random_get_seed) {
+  {
+    XferElement *arg1 = (XferElement *) 0 ;
+    int argvi = 0;
+    guint32 result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: xfer_source_random_get_seed(self);");
+    }
+    {
+      arg1 = xfer_element_from_sv(ST(0));
+    }
+    result = xfer_source_random_get_seed(arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_xfer_source_pattern) {
   {
     guint64 arg1 ;
@@ -2359,6 +2338,9 @@ XS(_wrap_xfer_source_pattern) {
       ST(argvi) = sv_2mortal(new_sv_for_xfer_element(result));
       argvi++;
     }
+    {
+      xfer_element_unref(result);
+    }
     XSRETURN(argvi);
   fail:
     SWIG_croak_null();
@@ -2377,19 +2359,175 @@ XS(_wrap_xfer_source_fd) {
       SWIG_croak("Usage: xfer_source_fd(fd);");
     }
     {
-      if (sizeof(signed int) == 1) {
-        arg1 = amglue_SvI8(ST(0));
-      } else if (sizeof(signed int) == 2) {
-        arg1 = amglue_SvI16(ST(0));
-      } else if (sizeof(signed int) == 4) {
-        arg1 = amglue_SvI32(ST(0));
-      } else if (sizeof(signed int) == 8) {
-        arg1 = amglue_SvI64(ST(0));
+      IO *io = NULL;
+      PerlIO *pio = NULL;
+      int fd = -1;
+      
+      if (SvIOK(ST(0))) {
+        /* plain old integer */
+        arg1 = SvIV(ST(0));
       } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+        /* try extracting as filehandle */
+        
+        /* note: sv_2io may call die() */
+        io = sv_2io(ST(0));
+        if (io) {
+          pio = IoIFP(io);
+        }
+        if (pio) {
+          fd = PerlIO_fileno(pio);
+        }
+        if (fd >= 0) {
+          arg1 = fd;
+        } else {
+          SWIG_exception(SWIG_TypeError, "Expected integer file descriptor "
+            "or file handle for argument 1");
+        }
       }
     }
     result = (XferElement *)xfer_source_fd(arg1);
+    {
+      ST(argvi) = sv_2mortal(new_sv_for_xfer_element(result));
+      argvi++;
+    }
+    
+    {
+      xfer_element_unref(result);
+    }
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_xfer_source_directtcp_listen) {
+  {
+    int argvi = 0;
+    XferElement *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 0) || (items > 0)) {
+      SWIG_croak("Usage: xfer_source_directtcp_listen();");
+    }
+    result = (XferElement *)xfer_source_directtcp_listen();
+    {
+      ST(argvi) = sv_2mortal(new_sv_for_xfer_element(result));
+      argvi++;
+    }
+    {
+      xfer_element_unref(result);
+    }
+    XSRETURN(argvi);
+  fail:
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_xfer_source_directtcp_listen_get_addrs) {
+  {
+    XferElement *arg1 = (XferElement *) 0 ;
+    int argvi = 0;
+    DirectTCPAddr *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: xfer_source_directtcp_listen_get_addrs(elt);");
+    }
+    {
+      arg1 = xfer_element_from_sv(ST(0));
+    }
+    result = (DirectTCPAddr *)xfer_source_directtcp_listen_get_addrs(arg1);
+    {
+      /* we assume this is an *array* of addresses, and return an arrayref or, if
+           * the result is NULL, undef. */
+      DirectTCPAddr *iter = result;
+      AV *av;
+      int i;
+      
+      i = 0;
+      av = newAV();
+      while (iter && iter->ipv4) {
+        struct in_addr in;
+        char *addr;
+        AV *tuple;
+        
+        in.s_addr = htonl(iter->ipv4);
+        addr = inet_ntoa(in);
+        
+        tuple = newAV();
+        g_assert(NULL != av_store(tuple, 0,
+            newSVpv(addr, 0)));
+        g_assert(NULL != av_store(tuple, 1, newSViv(iter->port)));
+        g_assert(NULL != av_store(av, i++, newRV_noinc((SV *)tuple)));
+        iter++;
+      }
+      
+      ST(argvi) = newRV_noinc((SV *)av);
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_xfer_source_directtcp_connect) {
+  {
+    DirectTCPAddr *arg1 = (DirectTCPAddr *) 0 ;
+    int argvi = 0;
+    XferElement *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: xfer_source_directtcp_connect(addrs);");
+    }
+    {
+      AV *addrs_av;
+      int num_addrs, i;
+      
+      if (!SvROK(ST(0)) || SvTYPE(SvRV(ST(0))) != SVt_PVAV) {
+        SWIG_exception_fail(SWIG_TypeError, "must provide an arrayref of DirectTCPAddrs");
+      }
+      addrs_av = (AV *)SvRV(ST(0));
+      num_addrs = av_len(addrs_av)+1;
+      
+      arg1 = g_new0(DirectTCPAddr, num_addrs);
+      
+      for (i = 0; i < num_addrs; i++) {
+        SV **svp = av_fetch(addrs_av, i, 0);
+        AV *addr_av;
+        struct in_addr addr;
+        IV port;
+        
+        if (!svp || !SvROK(*svp) || SvTYPE(SvRV(*svp)) != SVt_PVAV
+          || av_len((AV *)SvRV(*svp))+1 != 2) {
+          SWIG_exception_fail(SWIG_TypeError, "each DirectTCPAddr must be a 2-element arrayref");
+        }
+        
+        addr_av = (AV *)SvRV(*svp);
+        
+        /* get address */
+        svp = av_fetch(addr_av, 0, 0);
+        if (!svp || !SvPOK(*svp) || !inet_aton(SvPV_nolen(*svp), &addr)) {
+          SWIG_exception_fail(SWIG_TypeError, "invalid IPv4 addr in address");
+        }
+        arg1[i].ipv4 = ntohl(addr.s_addr);
+        
+        /* get port */
+        svp = av_fetch(addr_av, 1, 0);
+        if (!svp || !SvIOK(*svp) || (port = SvIV(*svp)) <= 0 || port >= 65536) {
+          SWIG_exception_fail(SWIG_TypeError, "invalid port in address");
+        }
+        arg1[i].port = (guint16)port;
+      }
+    }
+    result = (XferElement *)xfer_source_directtcp_connect(arg1);
     {
       ST(argvi) = sv_2mortal(new_sv_for_xfer_element(result));
       argvi++;
@@ -2440,38 +2578,58 @@ XS(_wrap_xfer_filter_xor) {
 }
 
 
-XS(_wrap_xfer_dest_device) {
+XS(_wrap_xfer_filter_process) {
   {
-    Device *arg1 = (Device *) 0 ;
-    size_t arg2 ;
-    void *argp1 = 0 ;
-    int res1 = 0 ;
+    gchar **arg1 = (gchar **) 0 ;
+    gboolean arg2 ;
     int argvi = 0;
     XferElement *result = 0 ;
     dXSARGS;
     
     if ((items < 2) || (items > 2)) {
-      SWIG_croak("Usage: xfer_dest_device(device,max_memory);");
+      SWIG_croak("Usage: xfer_filter_process(argv,need_root);");
     }
-    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_Device, 0 |  0 );
-    if (!SWIG_IsOK(res1)) {
-      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "xfer_dest_device" "', argument " "1"" of type '" "Device *""'"); 
-    }
-    arg1 = (Device *)(argp1);
     {
-      if (sizeof(size_t) == 1) {
-        arg2 = amglue_SvU8(ST(1));
-      } else if (sizeof(size_t) == 2) {
-        arg2 = amglue_SvU16(ST(1));
-      } else if (sizeof(size_t) == 4) {
-        arg2 = amglue_SvU32(ST(1));
-      } else if (sizeof(size_t) == 8) {
-        arg2 = amglue_SvU64(ST(1));
+      AV *av;
+      unsigned int len;
+      unsigned int i;
+      
+      /* check that it's an arrayref */
+      if (!SvROK(ST(0)) || SvTYPE(SvRV(ST(0))) != SVt_PVAV) {
+        SWIG_exception(SWIG_TypeError, "Expected a non-empty arrayref");
+      }
+      av = (AV *)SvRV(ST(0));
+      
+      /* allocate memory for arg1 */
+      len = av_len(av)+1; /* av_len(av) is like $#av */
+      if (!len) {
+        SWIG_exception(SWIG_TypeError, "Expected a non-empty arrayref");
+      }
+      arg1 = g_new0(gchar *, len+1);
+      
+      for (i = 0; i < len; i++) {
+        SV **sv = av_fetch(av, i, 0);
+        g_assert(sv != NULL);
+        arg1[i] = g_strdup(SvPV_nolen(*sv));
+      }
+      
+      /* final element is already NULL due to g_new0; xfer_filter_process takes
+           * care of freeing this array, so we don't have to */
+    }
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
       } else {
-        croak("Unexpected size_t >64 bits?"); /* should be optimized out unless sizeof(size_t) > 8 */
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
       }
     }
-    result = (XferElement *)xfer_dest_device(arg1,arg2);
+    result = (XferElement *)xfer_filter_process(arg1,arg2);
     {
       ST(argvi) = sv_2mortal(new_sv_for_xfer_element(result));
       argvi++;
@@ -2518,6 +2676,78 @@ XS(_wrap_xfer_dest_null) {
 }
 
 
+XS(_wrap_xfer_dest_buffer) {
+  {
+    gsize arg1 ;
+    int argvi = 0;
+    XferElement *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: xfer_dest_buffer(max_size);");
+    }
+    {
+      if (sizeof(gsize) == 1) {
+        arg1 = amglue_SvU8(ST(0));
+      } else if (sizeof(gsize) == 2) {
+        arg1 = amglue_SvU16(ST(0));
+      } else if (sizeof(gsize) == 4) {
+        arg1 = amglue_SvU32(ST(0));
+      } else if (sizeof(gsize) == 8) {
+        arg1 = amglue_SvU64(ST(0));
+      } else {
+        croak("Unexpected gsize >64 bits?"); /* should be optimized out unless sizeof(gsize) > 8 */
+      }
+    }
+    result = (XferElement *)xfer_dest_buffer(arg1);
+    {
+      ST(argvi) = sv_2mortal(new_sv_for_xfer_element(result));
+      argvi++;
+    }
+    {
+      xfer_element_unref(result);
+    }
+    XSRETURN(argvi);
+  fail:
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_xfer_dest_buffer_get) {
+  {
+    XferElement *arg1 = (XferElement *) 0 ;
+    gpointer *arg2 = (gpointer *) 0 ;
+    gsize *arg3 = (gsize *) 0 ;
+    gpointer temp2 = 0 ;
+    gsize tempn2 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    arg2 = &temp2; arg3 = &tempn2;
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: xfer_dest_buffer_get(elt,size);");
+    }
+    {
+      arg1 = xfer_element_from_sv(ST(0));
+    }
+    xfer_dest_buffer_get(arg1,arg2,arg3);
+    ST(argvi) = sv_newmortal();
+    if (*arg2) {
+      if (argvi >= items) EXTEND(sp,1);  ST(argvi) = SWIG_FromCharPtrAndSize(*arg2,*arg3); argvi++  ;
+      ;
+    }
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_xfer_dest_fd) {
   {
     int arg1 ;
@@ -2529,19 +2759,175 @@ XS(_wrap_xfer_dest_fd) {
       SWIG_croak("Usage: xfer_dest_fd(fd);");
     }
     {
-      if (sizeof(signed int) == 1) {
-        arg1 = amglue_SvI8(ST(0));
-      } else if (sizeof(signed int) == 2) {
-        arg1 = amglue_SvI16(ST(0));
-      } else if (sizeof(signed int) == 4) {
-        arg1 = amglue_SvI32(ST(0));
-      } else if (sizeof(signed int) == 8) {
-        arg1 = amglue_SvI64(ST(0));
+      IO *io = NULL;
+      PerlIO *pio = NULL;
+      int fd = -1;
+      
+      if (SvIOK(ST(0))) {
+        /* plain old integer */
+        arg1 = SvIV(ST(0));
       } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+        /* try extracting as filehandle */
+        
+        /* note: sv_2io may call die() */
+        io = sv_2io(ST(0));
+        if (io) {
+          pio = IoIFP(io);
+        }
+        if (pio) {
+          fd = PerlIO_fileno(pio);
+        }
+        if (fd >= 0) {
+          arg1 = fd;
+        } else {
+          SWIG_exception(SWIG_TypeError, "Expected integer file descriptor "
+            "or file handle for argument 1");
+        }
       }
     }
     result = (XferElement *)xfer_dest_fd(arg1);
+    {
+      ST(argvi) = sv_2mortal(new_sv_for_xfer_element(result));
+      argvi++;
+    }
+    
+    {
+      xfer_element_unref(result);
+    }
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_xfer_dest_directtcp_listen) {
+  {
+    int argvi = 0;
+    XferElement *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 0) || (items > 0)) {
+      SWIG_croak("Usage: xfer_dest_directtcp_listen();");
+    }
+    result = (XferElement *)xfer_dest_directtcp_listen();
+    {
+      ST(argvi) = sv_2mortal(new_sv_for_xfer_element(result));
+      argvi++;
+    }
+    {
+      xfer_element_unref(result);
+    }
+    XSRETURN(argvi);
+  fail:
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_xfer_dest_directtcp_listen_get_addrs) {
+  {
+    XferElement *arg1 = (XferElement *) 0 ;
+    int argvi = 0;
+    DirectTCPAddr *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: xfer_dest_directtcp_listen_get_addrs(elt);");
+    }
+    {
+      arg1 = xfer_element_from_sv(ST(0));
+    }
+    result = (DirectTCPAddr *)xfer_dest_directtcp_listen_get_addrs(arg1);
+    {
+      /* we assume this is an *array* of addresses, and return an arrayref or, if
+           * the result is NULL, undef. */
+      DirectTCPAddr *iter = result;
+      AV *av;
+      int i;
+      
+      i = 0;
+      av = newAV();
+      while (iter && iter->ipv4) {
+        struct in_addr in;
+        char *addr;
+        AV *tuple;
+        
+        in.s_addr = htonl(iter->ipv4);
+        addr = inet_ntoa(in);
+        
+        tuple = newAV();
+        g_assert(NULL != av_store(tuple, 0,
+            newSVpv(addr, 0)));
+        g_assert(NULL != av_store(tuple, 1, newSViv(iter->port)));
+        g_assert(NULL != av_store(av, i++, newRV_noinc((SV *)tuple)));
+        iter++;
+      }
+      
+      ST(argvi) = newRV_noinc((SV *)av);
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_xfer_dest_directtcp_connect) {
+  {
+    DirectTCPAddr *arg1 = (DirectTCPAddr *) 0 ;
+    int argvi = 0;
+    XferElement *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: xfer_dest_directtcp_connect(addrs);");
+    }
+    {
+      AV *addrs_av;
+      int num_addrs, i;
+      
+      if (!SvROK(ST(0)) || SvTYPE(SvRV(ST(0))) != SVt_PVAV) {
+        SWIG_exception_fail(SWIG_TypeError, "must provide an arrayref of DirectTCPAddrs");
+      }
+      addrs_av = (AV *)SvRV(ST(0));
+      num_addrs = av_len(addrs_av)+1;
+      
+      arg1 = g_new0(DirectTCPAddr, num_addrs);
+      
+      for (i = 0; i < num_addrs; i++) {
+        SV **svp = av_fetch(addrs_av, i, 0);
+        AV *addr_av;
+        struct in_addr addr;
+        IV port;
+        
+        if (!svp || !SvROK(*svp) || SvTYPE(SvRV(*svp)) != SVt_PVAV
+          || av_len((AV *)SvRV(*svp))+1 != 2) {
+          SWIG_exception_fail(SWIG_TypeError, "each DirectTCPAddr must be a 2-element arrayref");
+        }
+        
+        addr_av = (AV *)SvRV(*svp);
+        
+        /* get address */
+        svp = av_fetch(addr_av, 0, 0);
+        if (!svp || !SvPOK(*svp) || !inet_aton(SvPV_nolen(*svp), &addr)) {
+          SWIG_exception_fail(SWIG_TypeError, "invalid IPv4 addr in address");
+        }
+        arg1[i].ipv4 = ntohl(addr.s_addr);
+        
+        /* get port */
+        svp = av_fetch(addr_av, 1, 0);
+        if (!svp || !SvIOK(*svp) || (port = SvIV(*svp)) <= 0 || port >= 65536) {
+          SWIG_exception_fail(SWIG_TypeError, "invalid port in address");
+        }
+        arg1[i].port = (guint16)port;
+      }
+    }
+    result = (XferElement *)xfer_dest_directtcp_connect(arg1);
     {
       ST(argvi) = sv_2mortal(new_sv_for_xfer_element(result));
       argvi++;
@@ -2585,67 +2971,71 @@ XS(_wrap_xfer_get_amglue_source) {
 
 /* -------- TYPE CONVERSION AND EQUIVALENCE RULES (BEGIN) -------- */
 
-static swig_type_info _swigt__p_Device = {"_p_Device", "struct Device *|Device *", 0, 0, (void*)"Amanda::Device::Device", 0};
+static swig_type_info _swigt__p_DirectTCPAddr = {"_p_DirectTCPAddr", "DirectTCPAddr *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_Xfer = {"_p_Xfer", "Xfer *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_XferElement = {"_p_XferElement", "XferElement *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_a_STRMAX__char = {"_p_a_STRMAX__char", "char (*)[STRMAX]|string_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_amglue_Source = {"_p_amglue_Source", "struct amglue_Source *|amglue_Source *", 0, 0, (void*)"Amanda::MainLoop::Source", 0};
 static swig_type_info _swigt__p_char = {"_p_char", "gchar *|char *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *|gfloat *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_gsize = {"_p_gsize", "gsize *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_guint32 = {"_p_guint32", "guint32 *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_guint64 = {"_p_guint64", "guint64 *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_int = {"_p_int", "SizeAccuracy *|xmsg_type *|int *|DeviceAccessMode *|MediaAccessMode *|ConcurrencyParadigm *|filetype_t *|gboolean *|GIOCondition *|PropertySource *|DeviceStatusFlags *|PropertyAccessFlags *|PropertyPhaseFlags *|xfer_status *|PropertySurety *|StreamingRequirement *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_int = {"_p_int", "xmsg_type *|int *|GIOCondition *|xfer_status *|gboolean *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_p_XferElement = {"_p_p_XferElement", "XferElement **", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_queue_fd_t = {"_p_queue_fd_t", "struct queue_fd_t *|queue_fd_t *", 0, 0, (void*)"Amanda::Device::queue_fd_t", 0};
+static swig_type_info _swigt__p_p_char = {"_p_p_char", "char **|gchar **", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_p_void = {"_p_p_void", "gpointer *|void **", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "guchar *|unsigned char *", 0, 0, (void*)0, 0};
 
 static swig_type_info *swig_type_initial[] = {
-  &_swigt__p_Device,
+  &_swigt__p_DirectTCPAddr,
   &_swigt__p_Xfer,
   &_swigt__p_XferElement,
-  &_swigt__p_a_STRMAX__char,
   &_swigt__p_amglue_Source,
   &_swigt__p_char,
   &_swigt__p_double,
   &_swigt__p_float,
+  &_swigt__p_gsize,
   &_swigt__p_guint32,
   &_swigt__p_guint64,
   &_swigt__p_int,
   &_swigt__p_p_XferElement,
-  &_swigt__p_queue_fd_t,
+  &_swigt__p_p_char,
+  &_swigt__p_p_void,
   &_swigt__p_unsigned_char,
 };
 
-static swig_cast_info _swigc__p_Device[] = {  {&_swigt__p_Device, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_DirectTCPAddr[] = {  {&_swigt__p_DirectTCPAddr, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_Xfer[] = {  {&_swigt__p_Xfer, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_XferElement[] = {  {&_swigt__p_XferElement, 0, 0, 0},{0, 0, 0, 0}};
-static swig_cast_info _swigc__p_a_STRMAX__char[] = {  {&_swigt__p_a_STRMAX__char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_amglue_Source[] = {  {&_swigt__p_amglue_Source, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_char[] = {  {&_swigt__p_char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_double[] = {  {&_swigt__p_double, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_float[] = {  {&_swigt__p_float, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_gsize[] = {  {&_swigt__p_gsize, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_guint32[] = {  {&_swigt__p_guint32, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_guint64[] = {  {&_swigt__p_guint64, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_int[] = {  {&_swigt__p_int, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_p_XferElement[] = {  {&_swigt__p_p_XferElement, 0, 0, 0},{0, 0, 0, 0}};
-static swig_cast_info _swigc__p_queue_fd_t[] = {  {&_swigt__p_queue_fd_t, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_p_char[] = {  {&_swigt__p_p_char, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_p_void[] = {  {&_swigt__p_p_void, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_unsigned_char[] = {  {&_swigt__p_unsigned_char, 0, 0, 0},{0, 0, 0, 0}};
 
 static swig_cast_info *swig_cast_initial[] = {
-  _swigc__p_Device,
+  _swigc__p_DirectTCPAddr,
   _swigc__p_Xfer,
   _swigc__p_XferElement,
-  _swigc__p_a_STRMAX__char,
   _swigc__p_amglue_Source,
   _swigc__p_char,
   _swigc__p_double,
   _swigc__p_float,
+  _swigc__p_gsize,
   _swigc__p_guint32,
   _swigc__p_guint64,
   _swigc__p_int,
   _swigc__p_p_XferElement,
-  _swigc__p_queue_fd_t,
+  _swigc__p_p_char,
+  _swigc__p_p_void,
   _swigc__p_unsigned_char,
 };
 
@@ -2670,14 +3060,23 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Xferc::xfer_cancel", _wrap_xfer_cancel},
 {"Amanda::Xferc::xfer_element_unref", _wrap_xfer_element_unref},
 {"Amanda::Xferc::xfer_element_repr", _wrap_xfer_element_repr},
-{"Amanda::Xferc::xfer_source_device", _wrap_xfer_source_device},
+{"Amanda::Xferc::same_elements", _wrap_same_elements},
 {"Amanda::Xferc::xfer_source_random", _wrap_xfer_source_random},
+{"Amanda::Xferc::xfer_source_random_get_seed", _wrap_xfer_source_random_get_seed},
 {"Amanda::Xferc::xfer_source_pattern", _wrap_xfer_source_pattern},
 {"Amanda::Xferc::xfer_source_fd", _wrap_xfer_source_fd},
+{"Amanda::Xferc::xfer_source_directtcp_listen", _wrap_xfer_source_directtcp_listen},
+{"Amanda::Xferc::xfer_source_directtcp_listen_get_addrs", _wrap_xfer_source_directtcp_listen_get_addrs},
+{"Amanda::Xferc::xfer_source_directtcp_connect", _wrap_xfer_source_directtcp_connect},
 {"Amanda::Xferc::xfer_filter_xor", _wrap_xfer_filter_xor},
-{"Amanda::Xferc::xfer_dest_device", _wrap_xfer_dest_device},
+{"Amanda::Xferc::xfer_filter_process", _wrap_xfer_filter_process},
 {"Amanda::Xferc::xfer_dest_null", _wrap_xfer_dest_null},
+{"Amanda::Xferc::xfer_dest_buffer", _wrap_xfer_dest_buffer},
+{"Amanda::Xferc::xfer_dest_buffer_get", _wrap_xfer_dest_buffer_get},
 {"Amanda::Xferc::xfer_dest_fd", _wrap_xfer_dest_fd},
+{"Amanda::Xferc::xfer_dest_directtcp_listen", _wrap_xfer_dest_directtcp_listen},
+{"Amanda::Xferc::xfer_dest_directtcp_listen_get_addrs", _wrap_xfer_dest_directtcp_listen_get_addrs},
+{"Amanda::Xferc::xfer_dest_directtcp_connect", _wrap_xfer_dest_directtcp_connect},
 {"Amanda::Xferc::xfer_get_amglue_source", _wrap_xfer_get_amglue_source},
 {0,0}
 };
@@ -3015,6 +3414,16 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "XMSG_CANCEL", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(XMSG_CANCEL)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "XMSG_PART_DONE", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(XMSG_PART_DONE)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "XMSG_READY", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(XMSG_READY)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   ST(0) = &PL_sv_yes;

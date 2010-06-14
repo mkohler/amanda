@@ -34,7 +34,6 @@
 
 #include "stream.h"
 #include "dgram.h"
-#include "queue.h"
 #include "conffile.h"
 #include "security.h"
 #include "event.h"
@@ -78,7 +77,6 @@ struct tcp_conn {
     int			event_id;		/* event ID fired when token read */
     void		(*accept_fn)(security_handle_t *, pkt_t *);
     sockaddr_union	peer;
-    TAILQ_ENTRY(tcp_conn) tq;			/* queue handle */
     int			(*recv_security_ok)(struct sec_handle *, pkt_t *);
     char *		(*prefix_packet)(void *, pkt_t *);
     int			toclose;
@@ -140,24 +138,6 @@ struct sec_stream {
     int			closed_by_me;
     int			closed_by_network;
 };
-
-struct connq_s {
-    TAILQ_HEAD(, tcp_conn) tailq;
-    int qlength;
-};
-extern struct connq_s connq;
-
-#define connq_first()           TAILQ_FIRST(&connq.tailq)
-#define connq_next(rc)          TAILQ_NEXT(rc, tq)
-#define connq_append(rc)        do {                                    \
-    TAILQ_INSERT_TAIL(&connq.tailq, rc, tq);                            \
-    connq.qlength++;                                                    \
-} while (0)
-#define connq_remove(rc)        do {                                    \
-    assert(connq.qlength > 0);                                          \
-    TAILQ_REMOVE(&connq.tailq, rc, tq);                                 \
-    connq.qlength--;                                                    \
-} while (0)
 
 /*
  * This is data local to the datagram socket.  We have one datagram
@@ -281,5 +261,7 @@ ssize_t net_read_fillbuf(int, int, void *, size_t);
 void	show_stat_info(char *a, char *b);
 int     check_name_give_sockaddr(const char *hostname, struct sockaddr *addr,
 				 char **errstr);
+in_port_t find_port_for_service(char *service, char *proto);
+
 
 #endif /* _SECURITY_INFO_H */

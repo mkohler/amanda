@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -18,7 +18,7 @@
 </refmeta>
 <refnamediv>
 <refname>tapelist</refname>
-<refpurpose>The list of &A; volumes in use</refpurpose>
+<refpurpose>The list of Amanda volumes in use</refpurpose>
 </refnamediv>
 <refentryinfo>
 &author.jds;
@@ -32,7 +32,7 @@
 <para>The <emphasis remap='I'>tapelist</emphasis> file contains the list of
 tapes in active use.  This file is not ordinarily ordinarily edited or examined
 manually.  Its format may change, or it may be removed altogether, in future
-versions of &A;.  It contains lines of the form:</para>
+versions of Amanda.  It contains lines of the form:</para>
 
 <para><programlisting>YYYYMMDD label flags [#comment]
 </programlisting></para>
@@ -45,15 +45,17 @@ is a label for the tape as written by
 <emphasis remap='B'>amlabel</emphasis>
 and
 <emphasis remap='I'>flags</emphasis>
-is one of "reuse" or "no-reuse" and tells &A; whether the tape may be reused.
+is one of "reuse" or "no-reuse" and tells Amanda whether the tape may be reused.
 A non-reusable tape will not be overwritten, even if it is older than <emphasis
 remap='B'>dumpcycle</emphasis> dumps.  See the
 <emphasis remap='B'>reuse</emphasis>
 options of
-<citerefentry><refentrytitle>amadmin</refentrytitle><manvolnum>8</manvolnum></citerefentry>.
+<manref name="amadmin" vol="8"/>.
 The optional comment is prefixed with a '#' and continues to the end of the line.  Amanda
 will maintain this comment until the tape is overwritten.  Note that comments are not
 allowed on blank lines.</para>
+
+<para>The file is sorted such that the most-recently used tape appears on the first line, and the oldest tape appears on the last line.</para>
 
 <para><emphasis remap='B'>Amdump</emphasis>
 and
@@ -66,5 +68,9 @@ option) than there are runs in the backup cycle (see the
 <emphasis remap='B'>dumpcycle</emphasis>
 option) to prevent overwriting a backup image that would be needed to do a full recovery.</para>
 </refsect1>
+
+<seealso>
+<manref name="amanda.conf" vol="5"/>
+</seealso>
 
 </refentry>

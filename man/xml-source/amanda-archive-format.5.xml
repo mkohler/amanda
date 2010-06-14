@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -27,7 +27,7 @@
 
 <refsect1><title>DESCRIPTION</title>
 
-<para>The &A; archive format is designed to be a simple, efficient means of interleaving multiple simultaneous files, allowing an arbitrary number of data streams for a file.  It is a streaming format in the sense that the writer need not know the size of files until they are completely written to the archive, and the reader can process the archive in constant space.</para>
+<para>The Amanda archive format is designed to be a simple, efficient means of interleaving multiple simultaneous files, allowing an arbitrary number of data streams for a file.  It is a streaming format in the sense that the writer need not know the size of files until they are completely written to the archive, and the reader can process the archive in constant space.</para>
 
 </refsect1>
 
@@ -80,10 +80,8 @@ The file number and attribute ID serve to identify the data stream to which this
 
 </refsect1>
 
-<refsect1><title>SEE ALSO</title>
-<para>
-<citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-</para>
-</refsect1>
+<seealso>
+<manref name="amanda" vol="8"/>,
+</seealso>
 
 </refentry>

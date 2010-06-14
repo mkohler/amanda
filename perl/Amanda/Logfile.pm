@@ -53,10 +53,16 @@ package Amanda::Logfile;
 *open_logfile = *Amanda::Logfilec::open_logfile;
 *close_logfile = *Amanda::Logfilec::close_logfile;
 *get_logline = *Amanda::Logfilec::get_logline;
+*log_add = *Amanda::Logfilec::log_add;
 *find_log = *Amanda::Logfilec::find_log;
 *search_logfile = *Amanda::Logfilec::search_logfile;
+*search_holding_disk = *Amanda::Logfilec::search_holding_disk;
 *dumps_match = *Amanda::Logfilec::dumps_match;
 *dumps_match_dumpspecs = *Amanda::Logfilec::dumps_match_dumpspecs;
+*match_host = *Amanda::Logfilec::match_host;
+*match_disk = *Amanda::Logfilec::match_disk;
+*match_datestamp = *Amanda::Logfilec::match_datestamp;
+*match_level = *Amanda::Logfilec::match_level;
 
 ############# Class : Amanda::Logfile::find_result_t ##############
 
@@ -90,12 +96,20 @@ sub DESTROY {
 *swig_filenum_set = *Amanda::Logfilec::find_result_t_filenum_set;
 *swig_status_get = *Amanda::Logfilec::find_result_t_status_get;
 *swig_status_set = *Amanda::Logfilec::find_result_t_status_set;
+*swig_dump_status_get = *Amanda::Logfilec::find_result_t_dump_status_get;
+*swig_dump_status_set = *Amanda::Logfilec::find_result_t_dump_status_set;
+*swig_message_get = *Amanda::Logfilec::find_result_t_message_get;
+*swig_message_set = *Amanda::Logfilec::find_result_t_message_set;
 *swig_partnum_get = *Amanda::Logfilec::find_result_t_partnum_get;
 *swig_partnum_set = *Amanda::Logfilec::find_result_t_partnum_set;
+*swig_totalparts_get = *Amanda::Logfilec::find_result_t_totalparts_get;
+*swig_totalparts_set = *Amanda::Logfilec::find_result_t_totalparts_set;
 *swig_sec_get = *Amanda::Logfilec::find_result_t_sec_get;
 *swig_sec_set = *Amanda::Logfilec::find_result_t_sec_set;
 *swig_kb_get = *Amanda::Logfilec::find_result_t_kb_get;
 *swig_kb_set = *Amanda::Logfilec::find_result_t_kb_set;
+*swig_orig_kb_get = *Amanda::Logfilec::find_result_t_orig_kb_get;
+*swig_orig_kb_set = *Amanda::Logfilec::find_result_t_orig_kb_set;
 sub new {
     my $pkg = shift;
     my $self = Amanda::Logfilec::new_find_result_t(@_);
@@ -148,9 +162,15 @@ package Amanda::Logfile;
 *P_CHUNKER = *Amanda::Logfilec::P_CHUNKER;
 *P_TAPER = *Amanda::Logfilec::P_TAPER;
 *P_AMFLUSH = *Amanda::Logfilec::P_AMFLUSH;
+*P_AMDUMP = *Amanda::Logfilec::P_AMDUMP;
+*P_AMIDXTAPED = *Amanda::Logfilec::P_AMIDXTAPED;
+*P_AMFETCHDUMP = *Amanda::Logfilec::P_AMFETCHDUMP;
+*P_AMCHECKDUMP = *Amanda::Logfilec::P_AMCHECKDUMP;
+*amanda_log_trace_log = *Amanda::Logfilec::amanda_log_trace_log;
 
 @EXPORT_OK = ();
 %EXPORT_TAGS = ();
+
 
 =head1 NAME
 
@@ -158,7 +178,7 @@ Amanda::Logfile - manage Amanda trace logs
 
 =head1 SYNOPSIS
 
-  use Amanda::Logfile qw(:logtype_t);
+  use Amanda::Logfile qw( :constants );
   use Amanda::Config qw( :getconf config_dir_relative );
 
   for my $logfile (Amanda::Logfile::find_log()) {
@@ -171,7 +191,7 @@ Amanda::Logfile - manage Amanda trace logs
         print "Found info line from $pname: $str\n";
       }
     }
-    Amanda::Logfile::close_logfile($log);
+    Amanda::Logfile::close_logfile($hdl);
 
     my @dumps = Amanda::Logfile::search_logfile("TapeLabel-001", "19780615", $logfile, 1);
 
@@ -181,32 +201,31 @@ Amanda::Logfile - manage Amanda trace logs
     }
   }
 
-=head1 API STATUS
-
-Stabilizing
-
 =head1 RAW LOGFILE ACCESS
 
-This section corresponds to the C C<logfile> module. 
+This section corresponds to the C C<logfile> module.
 
 Raw access to logfiles is accomplished by opening a logfile and
 fetching log lines one by one via the C<get_logline> function.
 
-A log line is represented by a list C<($type, $prog, $string)>
-where C<$type> is one of the C<L_*> constants (available in export
-tag C<logtype_t>), C<$prog> is one of the C<P_*> constants (available
-in export tag C<program_t>), and C<$str> is the remainder of the line.
-
-Both families of constants can be converted to symbolic names with
-C<logtype_t_to_string> and C<program_t_to_string>, respectively.
+A log line is represented by a list C<($type, $prog, $string)> where C<$type>
+is one of the C<L_*> constants (available in export tag C<logtype_t>), C<$prog>
+is one of the C<P_*> constants (available in export tag C<program_t>), and
+C<$str> is the remainder of the line. Both sets of constants are also available
+in the usual C<constants> export tag.  Both families of constants can be
+converted to symbolic names with C<logtype_t_to_string> and
+C<program_t_to_string>, respectively.
 
 =head2 FUNCTIONS
+
+Use these functions to read a logfile:
 
 =over
 
 =item C<open_logfile($filename)>
 
-Opens a logfile for reading, returning an opaque log file handle.
+Opens a logfile for reading, returning an opaque log file
+handle. Returns C<undef> and sets C<$!> on failure.
 
 =item C<close_logfile($handle)>
 
@@ -214,14 +233,21 @@ Closes a log file handle.
 
 =item C<get_logline($handle)>
 
-Return a list as described above representing the next log line in
-C<$handle>, or nothing at the end of the logfile. 
+Returns a list as described above representing the next log line in
+C<$handle>, or nothing at the end of the logfile.
 
 =back
 
-All of these functions can be imported by name if desired.
+To write a logfile, call C<log_add($logtype, $string)>.  On the first
+call, this function opens and locks C<$logdir/log>; subsequent calls
+just append to this file.  As such, this function is only appropriate
+for situations where C<amlogroll> will be invoked later to rename
+C<$logdir/log> to C<$logdir/log.$timestamp.$n>.
 
-=head1 Amanda::Find::find_result_t objects
+All of the functions in this section can be imported by name if
+desired.
+
+=head2 Amanda::Find::find_result_t objects
 
 These objects contain information about dumps, as read from logfiles.
 Instance variables are:
@@ -244,16 +270,18 @@ Instance variables are:
 
 =item C<partnum>
 
+=item C<totalparts>
+
 =item C<sec>
 
 =item C<kb>
 
 =back
 
-Note that the format for these variables are based on that found in the
-logfiles.  In particular, C<partnum> is a string, usually with a slash (C</>)
-in it.  Also, C<timestamp> is the timestamp for the run in which the client
-dump took place, and not for the timestamp of the logfile.
+Note that the format for these variables are based on that found in
+the logfiles.  In particular, C<timestamp> is the timestamp for the run
+in which the client dump took place, and not for the timestamp of the
+logfile.
 
 =head1 HIGHER-LEVEL FUNCTIONS
 
@@ -263,29 +291,78 @@ Functions in this section extract information from logfiles.
 
 =item C<find_log()>
 
-Return a list of logfiles for active tapes.  The tapelist must be loaded before
-this function is called (see L<Amanda::Tapelist>).
+Return a list of logfiles for active tapes.  The tapelist must be loaded
+before this function is called (see L<Amanda::Tapelist>).  This function uses
+the C API which indexes logfiles with tapes.  If there is no corresponding
+tape, the logfile will not be found.
+
+=item C<find_all_logs([dir])>
+
+Return a list of all logs the configuration.  An optional directory argument
+can be specified, if not present, C<find_all_logs> checks C<LOGDIR>.
+
+=item C<find_latest_log([dir])>
+
+Returns the most recent logfile in the list of logfiles returned by
+C<find_all_logs>.  The optional directory argument is passed to
+C<find_all_logs>.
 
 =item C<search_logfile($label, $datestamp, $logfile, $add_missing_disks)>
 
-Return all results in C<$logfile> matching C<$label> and C<$datestamp>.
-If C<$add_missing_disks> is true, then any disks in the logfile
-not present in the disklist are added to the disklist; otherwise,
-such dumps are skipped.
+Return all results in C<$logfile> matching C<$label> and
+C<$datestamp>.  If C<$add_missing_disks> is true, then any disks in
+the logfile not present in the disklist are added to the disklist;
+otherwise, such dumps are skipped.
+
+=item C<search_holding_disk()>
+
+Return results for all holding-disk files.  Results are similar to those from
+search_logfile.
 
 =item C<dumps_match([@results], $hostname, $diskname, $datestamp, $level, $ok)>
 
-Return a filtered version of C<@results> containing only results that match the 
-given expressions.  If C<$ok> is true, don't match partial results.  Note that
-C<$level> is given as a string, since it is a match expression.
+Return a filtered version of C<@results> containing only results that
+match the given expressions.  If C<$ok> is true, don't match partial
+results.  Note that C<$level> is given as a string, since it is a
+match expression.
 
-All of these functions can be imported by name.
+=item C<dumps_match_dumpspecs([@results], [@dumpspecs], $ok)>
+
+Return a filtered version of C<@results>, containing only results that match
+one or more of the dumpspecs.  C<$ok> is as for C<dumps_match>.  Supplying no
+dumpspecs will result in an empty return value.  If multiple dumpspecs match
+the same result, that result will be returned multiple times.
 
 =back
 
+All of these functions can be imported by name.
+
+=head1 MATCHING
+
+The following functions are available to match strings against patterns using
+the rules described in amanda(8):
+
+  match_host($pat, $str);
+  match_disk($pat, $str);
+  match_datestamp($pat, $str);
+  match_level($pat, $str);
+
+=head1 DEBUG LOGGING HANDLER
+
+This package provides C<$amanda_log_trace_log>, which sends C<die>
+messages (and any C<g_error> or C<g_critical> calls from C) to the
+trace log.  Use it like this:
+
+  use Amanda::Logfile qw( $amanda_log_trace_log );
+  # ...
+  Amanda::Debug::add_amanda_log_handler($amanda_log_trace_log);
+
 =cut
 
-push @EXPORT_OK, qw(open_logfile get_logline close_logfile);
+
+
+push @EXPORT_OK, qw(open_logfile get_logline close_logfile
+    log_add);
 
 push @EXPORT_OK, qw(logtype_t_to_string);
 push @{$EXPORT_TAGS{"logtype_t"}}, qw(logtype_t_to_string);
@@ -413,6 +490,9 @@ push @{$EXPORT_TAGS{"logtype_t"}}, qw($L_CONT);
 
 $_logtype_t_VALUES{"L_CONT"} = $L_CONT;
 
+#copy symbols in logtype_t to constants
+push @{$EXPORT_TAGS{"constants"}},  @{$EXPORT_TAGS{"logtype_t"}};
+
 push @EXPORT_OK, qw(program_t_to_string);
 push @{$EXPORT_TAGS{"program_t"}}, qw(program_t_to_string);
 
@@ -474,5 +554,52 @@ push @{$EXPORT_TAGS{"program_t"}}, qw($P_AMFLUSH);
 
 $_program_t_VALUES{"P_AMFLUSH"} = $P_AMFLUSH;
 
-push @EXPORT_OK, qw(find_log search_logfile dumps_match);
+push @EXPORT_OK, qw($P_AMDUMP);
+push @{$EXPORT_TAGS{"program_t"}}, qw($P_AMDUMP);
+
+$_program_t_VALUES{"P_AMDUMP"} = $P_AMDUMP;
+
+push @EXPORT_OK, qw($P_AMIDXTAPED);
+push @{$EXPORT_TAGS{"program_t"}}, qw($P_AMIDXTAPED);
+
+$_program_t_VALUES{"P_AMIDXTAPED"} = $P_AMIDXTAPED;
+
+push @EXPORT_OK, qw($P_AMFETCHDUMP);
+push @{$EXPORT_TAGS{"program_t"}}, qw($P_AMFETCHDUMP);
+
+$_program_t_VALUES{"P_AMFETCHDUMP"} = $P_AMFETCHDUMP;
+
+push @EXPORT_OK, qw($P_AMCHECKDUMP);
+push @{$EXPORT_TAGS{"program_t"}}, qw($P_AMCHECKDUMP);
+
+$_program_t_VALUES{"P_AMCHECKDUMP"} = $P_AMCHECKDUMP;
+
+#copy symbols in program_t to constants
+push @{$EXPORT_TAGS{"constants"}},  @{$EXPORT_TAGS{"program_t"}};
+
+push @EXPORT_OK, qw(find_log search_logfile dumps_match
+    match_host match_disk match_datestamp match_level);
+
+push @EXPORT_OK, qw($amanda_log_trace_log);
+
+push @EXPORT_OK, qw(find_all_logs find_latest_log);
+
+
+sub find_all_logs
+{
+    my $logdir = shift @_ || config_dir_relative(getconf($CNF_LOGDIR));
+
+    opendir my $logdh, $logdir or die("can't read $logdir");
+    my @logfiles = sort grep { m{^log\.\d+\.\d+$} } readdir $logdh;
+
+    return @logfiles;
+}
+
+sub find_latest_log
+{
+    my $logdir = shift @_;
+    my @logs = find_all_logs($logdir || ());
+    return $logs[-1];
+}
+
 1;

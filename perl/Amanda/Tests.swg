@@ -1,45 +1,31 @@
 /*
- * Copyright (c) Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
  *
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1
- * as published by the Free Software Foundation.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  *
- * This library is distributed in the hope that it will be useful, but
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 %module "Amanda::Tests"
 %include "amglue/amglue.swg"
 %include "exception.i"
 
+%include "Amanda/Tests.pod"
+
 %{
 #include "simpleprng.h"
-%}
-
-/* import dumptype_t, among others */
-%import "Amanda/Types.swg";
-
-%perlcode %{
-=head1 NAME
-
-Amanda::Tests -- test functions for installchecks
-
-=head1 SYNOPSIS
-
-This module exists only to provide functions for installcheck scripts to call,
-mostly to test that various C-Perl interface techniques are working.
-
-=cut
 %}
 
 %inline %{
@@ -247,5 +233,33 @@ error:
     close(fd);
     return FALSE;
 }
+%}
 
+/*
+ * Simple threading test (start a thread and join it)
+ */
+
+%{
+static gpointer
+thread_fn(gpointer data)
+{
+    guint *d = data;
+    *d = 1;
+    return NULL;
+}
+%}
+
+%inline %{
+void
+try_threads(void)
+{
+    guint data = 0;
+    GThread *thd;
+
+    glib_init();
+
+    thd = g_thread_create(thread_fn, (gpointer)&data, TRUE, NULL);
+    g_thread_join(thd);
+    g_assert(data == 1);
+}
 %}

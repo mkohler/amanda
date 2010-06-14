@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -28,7 +28,7 @@
 
 <refsect1><title>DESCRIPTION</title>
 
-<para>script-email is an &A; script implementing the Script API.  It should not
+<para>script-email is an Amanda script implementing the Script API.  It should not
 be run by users directly.  It sends a notification email to the addresses
 specified in the MAILTO property.</para>
 
@@ -37,7 +37,7 @@ specified in the MAILTO property.</para>
 <refsect1><title>PROPERTIES</title>
 
 <para>This section lists the properties that control script-email's functionality.
-See <citerefentry><refentrytitle>amanda-scripts</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+See <manref name="amanda-scripts" vol="7"/>
 for information on the Script API, script configuration.</para>
 
 <!-- PLEASE KEEP THIS LIST IN ALPHABETICAL ORDER -->
@@ -77,12 +77,10 @@ dumptype, which can then be specified for any DLEs which require notification.
 </programlisting>
 </refsect1>
 
-<refsect1><title>SEE ALSO</title>
-<para>
-<citerefentry><refentrytitle>amanda.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amanda-client.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amanda-scripts</refentrytitle><manvolnum>7</manvolnum></citerefentry>
-</para>
+<seealso>
+<manref name="amanda.conf" vol="5"/>,
+<manref name="amanda-client.conf" vol="5"/>,
+<manref name="amanda-scripts" vol="7"/>
+</seealso>
 
-</refsect1>
 </refentry>

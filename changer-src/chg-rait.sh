@@ -33,7 +33,7 @@ amlibexecdir="@amlibexecdir@"
 
 # add sbin and ucb dirs
 PATH="$PATH:/usr/sbin:/sbin:/usr/ucb"
-export PATH 
+export PATH
 
 #
 # debugging...
@@ -50,7 +50,7 @@ fi
 
 exec 2>$DBGFILE
 echo `_ "arguments: "` $0 $* >&2
-set -x 
+set -x
 
 USE_VERSION_SUFFIXES="@USE_VERSION_SUFFIXES@"
 if test "$USE_VERSION_SUFFIXES" = "yes"; then
@@ -100,7 +100,7 @@ define tapetype EXABYTE {
     comment "default tapetype"
     length 4200 mbytes
     filemark 48 kbytes
-    speed 474 kbytes			
+    speed 474 kbytes
 }
 EOF
 

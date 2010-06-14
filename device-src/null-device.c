@@ -1,21 +1,21 @@
 /*
- * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
- * 
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1 as 
- * published by the Free Software Foundation.
- * 
- * This library is distributed in the hope that it will be useful, but
+ * Copyright (c) 2007,2008,2009 Zmanda, Inc.  All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
- * 
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 #include "amanda.h"
@@ -82,7 +82,7 @@ static GType
 null_device_get_type (void)
 {
     static GType type = 0;
-    
+
     if G_UNLIKELY(type == 0) {
         static const GTypeInfo info = {
             sizeof (NullDeviceClass),
@@ -96,7 +96,7 @@ null_device_get_type (void)
             (GInstanceInitFunc) null_device_init,
             NULL
         };
-        
+
         type = g_type_register_static (TYPE_DEVICE, "NullDevice", &info,
                                        (GTypeFlags)0);
     }
@@ -104,7 +104,7 @@ null_device_get_type (void)
     return type;
 }
 
-static void 
+static void
 null_device_init (NullDevice * self)
 {
     Device * dself;
@@ -138,6 +138,12 @@ null_device_init (NullDevice * self)
 	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
     g_value_unset(&response);
 
+    g_value_init(&response, G_TYPE_BOOLEAN);
+    g_value_set_boolean(&response, FALSE);
+    device_set_simple_property(dself, PROPERTY_FULL_DELETION,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
+    g_value_unset(&response);
+
     /* this device's canonical name is always "null:", regardless of
      * the name the user supplies; note that we install the simple
      * getter in null_device_class_init. */
@@ -154,7 +160,7 @@ null_device_init (NullDevice * self)
     g_value_unset(&response);
 }
 
-static void 
+static void
 null_device_class_init (NullDeviceClass * c)
 {
     DeviceClass *device_class = (DeviceClass *)c;
@@ -253,6 +259,7 @@ null_device_start_file(Device * d_self,
 		    dumpfile_t * jobInfo G_GNUC_UNUSED)
 {
     d_self->in_file = TRUE;
+    d_self->is_eom = FALSE;
     d_self->block = 0;
     if (d_self->file <= 0)
         d_self->file = 1;

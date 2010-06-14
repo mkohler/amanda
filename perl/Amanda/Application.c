@@ -1679,7 +1679,9 @@ XS(_wrap_run_calcsize_C) {
       num = av_len(tempav);
       for (i=0; i <= num; i++) {
         tv = av_fetch(tempav, i, 0);
-        level = g_slist_append(level, GINT_TO_POINTER(SvIV(*tv)));
+        /* (gint) cast is required because sizeof(IV) may not be sizeof(gint).
+        	 * Both will be >= 32 bits, though, and that's sufficient for a level. */
+        level = g_slist_append(level, GINT_TO_POINTER((gint)SvIV(*tv)));
       }
       arg5 = level;
     }

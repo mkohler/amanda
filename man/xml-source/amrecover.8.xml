@@ -3,7 +3,7 @@
                    "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
 [
   <!-- entities files to use -->
-  <!ENTITY % global_entities SYSTEM '../entities/global.entities'>
+  <!ENTITY % global_entities SYSTEM 'global.entities'>
   %global_entities;
 ]>
 
@@ -20,7 +20,7 @@
 </refmeta>
 <refnamediv>
 <refname>amrecover</refname>
-<refpurpose>&A; index database browser</refpurpose>
+<refpurpose>Amanda index database browser</refpurpose>
 </refnamediv>
 <refentryinfo>
 &author.alan;
@@ -41,7 +41,7 @@
 
 <refsect1><title>DESCRIPTION</title>
 <para><emphasis remap='B'>Amrecover</emphasis>
-browses the database of &A; index files to determine which tapes
+browses the database of Amanda index files to determine which tapes
 contain files to recover.  Furthermore, it is able to recover files.</para>
 
 <para>In order to restore files in place, you must invoke
@@ -55,8 +55,8 @@ See the examples below for details.</para>
 <para>Amrecover will read the <emphasis remap='B'>amanda-client.conf</emphasis> file and the <replaceable>config</replaceable><emphasis remap='B'>/amanda-client.conf</emphasis> file.  If no configuration name is supplied on the command line, Amrecover will try the compiled-in default configuration ,usually <emphasis remap='B'>DailySet1</emphasis>.</para>
 
 <para>See the
-<citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>
-man page for more details about &A;.</para>
+<manref name="amanda" vol="8"/>
+man page for more details about Amanda.</para>
 </refsect1>
 
 <refsect1><title>OPTIONS</title>
@@ -68,7 +68,7 @@ client-custom-compressed tapes.</para>
   <varlistentry>
   <term><emphasis remap='B'>[ -C ] config</emphasis></term>
   <listitem>
-<para>&A; configuration.</para>
+<para>Amanda configuration.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -94,7 +94,7 @@ client-custom-compressed tapes.</para>
   <term><emphasis remap='B'>-o</emphasis> <replaceable>clientconfigoption</replaceable></term>
   <listitem>
 <para>See the "<emphasis remap='B'>CONFIGURATION OVERRIDE</emphasis>"
- section in <citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>.</para>
+ section in <manref name="amanda" vol="8"/>.</para>
   </listitem>
   </varlistentry>
 
@@ -205,6 +205,22 @@ mount point instead of full pathnames.</para>
   <listitem>
 <para>List all
 <emphasis remap='B'>diskname</emphasis></para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>listproperty</emphasis></term>
+  <listitem>
+<para>List all
+<emphasis remap='B'>property</emphasis></para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><emphasis remap='B'>setproperty</emphasis> [<emphasis remap='B'>append</emphasis>] [<emphasis remap='B'>priority</emphasis>] <emphasis remap='I'>name</emphasis> [<emphasis remap='I'>value</emphasis> ...]</term>
+  <listitem>
+<para>Set the property <emphasis remap='I'>name</emphasis> to the value <emphasis remap='I'>value</emphasis>.
+The <emphasis remap='B'>append</emphasis> keyword appends the <emphasis remap='I'>value</emphasis> to the values already set for this property.
+Without <emphasis remap='I'>value</emphasis>, the property is unset.
+The <emphasis remap='B'>priority</emphasis> keyword is unused, it is present for ease of copy/paste from application definition.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -363,7 +379,7 @@ Each item may be a regular expression.</para>
 <para>Display the contents of the restore list.
 If a file name is specified,
 the restore list is written to that file.
-This can be used to manually extract the files from the &A; tapes with
+This can be used to manually extract the files from the Amanda tapes with
 <emphasis remap='B'>amrestore</emphasis>.</para>
   </listitem>
   </varlistentry>
@@ -417,7 +433,7 @@ file.</para>
 syslog.7: No such file or directory
 # amrecover MyConfig
 AMRECOVER Version 2.4.2. Contacting server on oops ...
-220 oops &A; index server (2.4.2) ready.
+220 oops Amanda index server (2.4.2) ready.
 Setting restore date to today (1997-12-09)
 200 Working date set to 1997-12-09.
 200 Config set to MyConfig.
@@ -583,14 +599,11 @@ but will be overridden by the -t switch.
 <!-- .RE -->
 </refsect1>
 
-<refsect1><title>SEE ALSO</title>
-<para><citerefentry><refentrytitle>amanda</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amanda-client.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amrestore</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>amfetchdump</refentrytitle><manvolnum>8</manvolnum></citerefentry>,
-<citerefentry><refentrytitle>readline</refentrytitle><manvolnum>3</manvolnum></citerefentry>,
-<ulink url="http://wiki.zmanda.com"/>
-</para>
-</refsect1>
-</refentry>
+<seealso>
+<manref name="amanda-client.conf" vol="5"/>
+<manref name="amrestore" vol="8"/>
+<manref name="amfetchdump" vol="8"/>
+<manref name="readline" vol="3"/>
+</seealso>
 
+</refentry>

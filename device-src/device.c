@@ -1,21 +1,21 @@
 /*
- * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
- * 
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1 as 
- * published by the Free Software Foundation.
- * 
- * This library is distributed in the hope that it will be useful, but
+ * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
- * 
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 /* The Device API abstracts device workings, interaction, properties, and
@@ -48,6 +48,12 @@ void    s3_device_register    (void);
 void    tape_device_register    (void);
 #endif
 void    vfs_device_register     (void);
+#ifdef WANT_DVDRW_DEVICE
+void    dvdrw_device_register    (void);
+#endif
+#ifdef WANT_NDMP_DEVICE
+void    ndmp_device_register    (void);
+#endif
 
 /*
  * Registration infrastructure
@@ -69,6 +75,12 @@ void device_api_init(void) {
     rait_device_register();
 #ifdef WANT_S3_DEVICE
     s3_device_register();
+#endif
+#ifdef WANT_DVDRW_DEVICE
+    dvdrw_device_register();
+#endif
+#ifdef WANT_NDMP_DEVICE
+    ndmp_device_register();
 #endif
 }
 
@@ -228,11 +240,11 @@ device_get_type (void)
             (GInstanceInitFunc) device_init,
             NULL
         };
-        
+
         type = g_type_register_static (G_TYPE_OBJECT, "Device", &info,
                                        (GTypeFlags)G_TYPE_FLAG_ABSTRACT);
     }
-    
+
     return type;
 }
 
@@ -257,13 +269,14 @@ static void device_finalize(GObject *obj_self) {
     amfree(self->private);
 }
 
-static void 
+static void
 device_init (Device * self)
 {
     self->private = malloc(sizeof(DevicePrivate));
     self->device_name = NULL;
     self->access_mode = ACCESS_NULL;
     self->is_eof = FALSE;
+    self->is_eom = FALSE;
     self->file = -1;
     self->block = 0;
     self->in_file = FALSE;
@@ -283,13 +296,15 @@ device_init (Device * self)
                               (GDestroyNotify) simple_property_free);
 }
 
-static void 
+static void
 device_class_init (DeviceClass * device_class)
 {
     GObjectClass *g_object_class = (GObjectClass*) device_class;
-    
+
     parent_class = g_type_class_ref (G_TYPE_OBJECT);
-    
+
+    device_class->directtcp_supported = FALSE;
+
     device_class->open_device = default_device_open_device;
     device_class->configure = default_device_configure;
     device_class->write_from_fd = default_device_write_from_fd;
@@ -348,8 +363,18 @@ device_base_init (DeviceClass * device_class)
 	    device_simple_property_get_fn,
 	    device_simple_property_set_fn);
 
+    device_class_register_property(device_class, PROPERTY_FULL_DELETION,
+	    PROPERTY_ACCESS_GET_MASK,
+	    device_simple_property_get_fn,
+	    device_simple_property_set_fn);
+
     device_class_register_property(device_class, PROPERTY_MEDIUM_ACCESS_TYPE,
 	    PROPERTY_ACCESS_GET_MASK,
+	    device_simple_property_get_fn,
+	    device_simple_property_set_fn);
+
+    device_class_register_property(device_class, PROPERTY_COMMENT,
+	    PROPERTY_ACCESS_GET_MASK|PROPERTY_ACCESS_SET_MASK,
 	    device_simple_property_get_fn,
 	    device_simple_property_set_fn);
 }
@@ -436,7 +461,27 @@ make_null_error(char *errmsg, DeviceStatusFlags status)
     return device;
 }
 
-Device* 
+char *
+device_unaliased_name(
+    char *device_name)
+{
+    device_config_t *dc;
+    char *unaliased_name;
+
+    /* look up the unaliased device name in the configuration */
+    if ((dc = lookup_device_config(device_name))) {
+	if (!(unaliased_name = device_config_get_tapedev(dc))
+	    || unaliased_name[0] == '\0') {
+	    return NULL;
+	}
+    } else {
+	unaliased_name = device_name;
+    }
+
+    return unaliased_name;
+}
+
+Device*
 device_open (char * device_name)
 {
     char *device_type = NULL;
@@ -445,7 +490,6 @@ device_open (char * device_name)
     char *unaliased_name = NULL;
     DeviceFactory factory;
     Device *device;
-    device_config_t *dc;
 
     g_assert(device_name != NULL);
 
@@ -457,16 +501,11 @@ device_open (char * device_name)
     if (device_name == NULL)
 	return make_null_error(stralloc(_("No device name specified")), DEVICE_STATUS_DEVICE_ERROR);
 
-    /* look up the unaliased device name in the configuration */
-    if ((dc = lookup_device_config(device_name))) {
-	if (!(unaliased_name = device_config_get_tapedev(dc))
-	    || unaliased_name[0] == '\0') {
-	    return make_null_error(
+    unaliased_name = device_unaliased_name(device_name);
+    if (!unaliased_name) {
+	return make_null_error(
 		vstrallocf(_("Device '%s' has no tapedev"), device_name),
 		DEVICE_STATUS_DEVICE_ERROR);
-	}
-    } else {
-	unaliased_name = device_name;
     }
 
     if (!handle_device_regex(unaliased_name, &device_type, &device_node,
@@ -585,19 +624,8 @@ device_set_error(Device *self, char *errmsg, DeviceStatusFlags new_flags)
 }
 
 char * device_build_amanda_header(Device * self, const dumpfile_t * info,
-                                  int * size, gboolean * oneblock) {
-    char *amanda_header;
-    size_t min_header_length;
-    size_t header_buffer_size;
-
-    min_header_length = self->block_size;
-    amanda_header = build_header(info, min_header_length);
-    header_buffer_size = MAX(min_header_length, strlen(amanda_header)+1);
-    if (size != NULL)
-        *size = header_buffer_size;
-    if (oneblock != NULL)
-        *oneblock = (header_buffer_size <= self->block_size);
-    return amanda_header;
+                                  size_t *size) {
+    return build_header(info, size, self->block_size);
 }
 
 dumpfile_t * make_tapestart_header(Device * self, char * label,
@@ -696,7 +724,7 @@ static void set_device_property(gpointer key_p, gpointer value_p,
 	    DEVICE_STATUS_DEVICE_ERROR);
 	return;
     }
-    
+
     bzero(&property_value, sizeof(property_value));
     g_value_init(&property_value, property_base->type);
     value = property->values->data;
@@ -753,12 +781,12 @@ set_properties_from_global_config(Device * device) {
                 g_value_init(&val, G_TYPE_UINT);
                 g_value_set_uint(&val, blocksize_kb * 1024);
                 success = device_property_set(device,
-                                              PROPERTY_READ_BUFFER_SIZE,
+                                              PROPERTY_READ_BLOCK_SIZE,
                                               &val);
                 g_value_unset(&val);
                 if (!success) {
 		    /* a non-fatal error */
-                    g_warning("Setting READ_BUFFER_SIZE to %ju not supported for device %s.",
+                    g_warning("Setting READ_BLOCK_SIZE to %ju not supported for device %s.",
                             1024*(uintmax_t)blocksize_kb, device->device_name);
                 }
             }
@@ -967,9 +995,6 @@ default_device_property_get_ex(
     /* Most of this function's job is to sanity-check everything, then
      * call the relevant getter. */
 
-    if (device_in_error(self))
-	return FALSE;
-
     class_properties = DEVICE_GET_CLASS(self)->class_properties;
     if (id >= class_properties->len)
 	return FALSE;
@@ -1162,7 +1187,7 @@ device_configure (Device * self, gboolean use_global_config)
     }
 }
 
-gboolean 
+gboolean
 device_start (Device * self, DeviceAccessMode mode,
               char * label, char * timestamp)
 {
@@ -1216,7 +1241,7 @@ device_write_block (Device * self, guint size, gpointer block)
     return (*klass->write_block)(self,size, block);
 }
 
-gboolean 
+gboolean
 device_write_from_fd (Device * self, queue_fd_t * queue_fd)
 {
     DeviceClass *klass;
@@ -1245,7 +1270,7 @@ device_start_file (Device * self, dumpfile_t * jobInfo) {
     return (klass->start_file)(self, jobInfo );
 }
 
-gboolean 
+gboolean
 device_finish_file (Device * self)
 {
     DeviceClass *klass;
@@ -1272,7 +1297,7 @@ device_seek_file (Device * self, guint file)
     return (klass->seek_file)(self,file);
 }
 
-gboolean 
+gboolean
 device_seek_block (Device * self, guint64 block)
 {
     DeviceClass *klass;
@@ -1304,7 +1329,7 @@ device_read_block (Device * self, gpointer buffer, int * size)
     return (klass->read_block)(self,buffer,size);
 }
 
-gboolean 
+gboolean
 device_read_to_fd (Device * self, queue_fd_t *queue_fd)
 {
     DeviceClass *klass;
@@ -1319,7 +1344,7 @@ device_read_to_fd (Device * self, queue_fd_t *queue_fd)
 }
 
 
-gboolean 
+gboolean
 device_property_get_ex(
 	Device * self,
 	DevicePropertyId id,
@@ -1356,7 +1381,7 @@ device_property_set_ex(
     return (klass->property_set_ex)(self, id, val, surety, source);
 }
 
-gboolean 
+gboolean
 device_recycle_file (Device * self, guint filenum)
 {
     DeviceClass *klass;
@@ -1370,6 +1395,147 @@ device_recycle_file (Device * self, guint filenum)
 
     g_assert(klass->recycle_file);
     return (klass->recycle_file)(self,filenum);
+}
+
+gboolean
+device_erase (Device * self)
+{
+    DeviceClass *klass;
+
+    g_assert(IS_DEVICE (self));
+    g_assert(self->access_mode == ACCESS_NULL);
+    g_assert(!self->in_file);
+
+    klass = DEVICE_GET_CLASS(self);
+    if(klass->erase) {
+	return (klass->erase)(self);
+    } else {
+	device_set_error(self,
+	    stralloc(_("Unimplemented method")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
+}
+
+gboolean
+device_eject (Device * self)
+{
+    DeviceClass *klass;
+
+    g_assert(IS_DEVICE (self));
+    g_assert(self->access_mode == ACCESS_NULL);
+    g_assert(!self->in_file);
+
+    klass = DEVICE_GET_CLASS(self);
+    if (klass->eject) {
+	return (klass->eject)(self);
+    } else {
+	return TRUE;
+    }
+}
+
+gboolean
+device_listen(
+    Device *self,
+    gboolean for_writing,
+    DirectTCPAddr **addrs)
+{
+    DeviceClass *klass;
+
+    klass = DEVICE_GET_CLASS(self);
+    if(klass->listen) {
+	return (klass->listen)(self, for_writing, addrs);
+    } else {
+	device_set_error(self,
+	    stralloc(_("Unimplemented method")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
+}
+
+gboolean
+device_accept(
+    Device *self,
+    DirectTCPConnection **conn,
+    ProlongProc prolong,
+    gpointer prolong_data)
+{
+    DeviceClass *klass;
+
+    klass = DEVICE_GET_CLASS(self);
+    if(klass->accept) {
+	return (klass->accept)(self, conn, prolong, prolong_data);
+    } else {
+	device_set_error(self,
+	    stralloc(_("Unimplemented method")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
+}
+
+gboolean
+device_write_from_connection(
+    Device *self,
+    guint64 size,
+    guint64 *actual_size)
+{
+    DeviceClass *klass;
+
+    klass = DEVICE_GET_CLASS(self);
+
+    g_assert(self->in_file);
+    g_assert(IS_WRITABLE_ACCESS_MODE(self->access_mode));
+
+    if(klass->write_from_connection) {
+	return (klass->write_from_connection)(self, size, actual_size);
+    } else {
+	device_set_error(self,
+	    stralloc(_("Unimplemented method")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
+}
+
+gboolean
+device_read_to_connection(
+    Device *self,
+    guint64 size,
+    guint64 *actual_size)
+{
+    DeviceClass *klass;
+
+    g_assert(self->in_file);
+    g_assert(self->access_mode == ACCESS_READ);
+
+    klass = DEVICE_GET_CLASS(self);
+    if(klass->read_to_connection) {
+	return (klass->read_to_connection)(self, size, actual_size);
+    } else {
+	device_set_error(self,
+	    stralloc(_("Unimplemented method")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
+}
+
+gboolean
+device_use_connection(
+    Device *self,
+    DirectTCPConnection *conn)
+{
+    DeviceClass *klass;
+
+    g_assert(self->access_mode == ACCESS_NULL);
+
+    klass = DEVICE_GET_CLASS(self);
+    if(klass->use_connection) {
+	return (klass->use_connection)(self, conn);
+    } else {
+	device_set_error(self,
+	    stralloc(_("Unimplemented method")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
 }
 
 /* Property handling */

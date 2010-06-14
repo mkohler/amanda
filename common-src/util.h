@@ -44,6 +44,18 @@
 
 /* internal types and variables */
 
+/* Function to get the GQuark for errors,
+ * with error codes specified by AmUtilError
+ *
+ * @return The GQuark that's used for errors
+ */
+GQuark am_util_error_quark(void);
+
+/* Error codes that may be returned by these functions */
+typedef enum {
+    AM_UTIL_ERROR_HEXDECODEINVAL,
+} AmUtilError;
+
 
 int	connect_portrange(sockaddr_union *, in_port_t, in_port_t, char *,
 			  sockaddr_union *, int);
@@ -55,9 +67,13 @@ ssize_t	full_writev(int, struct iovec *, int);
 char *	construct_datestamp(time_t *t);
 char *	construct_timestamp(time_t *t);
 
-/*@only@*//*@null@*/char *quote_string(const char *str);
+/* quote_string only adds "" if they're required; quote_string_always
+ * always adds "" around the string */
+#define quote_string(str) quote_string_maybe((str), 0)
+#define quote_string_always(str) quote_string_maybe((str), 1)
+
+/*@only@*//*@null@*/char *quote_string_maybe(const char *str, gboolean always);
 /*@only@*//*@null@*/char *unquote_string(const char *str);
-int	needs_quotes(const char * str);
 
 /* Split a string into space-delimited words, obeying quoting as created by
  * quote_string.  To keep compatibility with the old split(), this has the
@@ -79,7 +95,44 @@ gchar ** split_quoted_strings(const gchar *string);
 char *		strquotedstr(char **saveptr);
 
 char *	sanitize_string(const char *str);
+
+/* Encode a string using URI-style hexadecimal encoding.
+ * Non-alphanumeric characters will be replaced with "%xx"
+ * where "xx" is the two-digit hexadecimal representation of the character.
+ *
+ * @param str The string to encode
+ *
+ * @return The encoded string. An empty string will be returned for NULL.
+ */
+char * hexencode_string(const char *str);
+
+/* Decode a string using URI-style hexadecimal encoding.
+ *
+ * @param str The string to decode
+ * @param err return location for a GError
+ *
+ * @return The decoded string. An empty string will be returned for NULL
+ * or if an error occurs.
+ */
+char * hexdecode_string(const char *str, GError **err);
+
 int     copy_file(char *dst, char *src, char **errmsg);
+
+/* These two functions handle "braced alternates", which is a syntax borrowed,
+ * partially, from shells.  Comma-separated strings enclosed in curly braces
+ * expand into multiple alternatives for the entire string.
+ * For example:
+ *
+ *   "{foo,bar,bat}" -> [ "foo", "bar", "bat" ]
+ *   "foo{1,2}bar" -> [ "foo1bar", "foo2bar" ]
+ *   "foo{1\,2,3}bar" -> [ "foo1,2bar", "foo3bar" ]
+ *   "{a,b}-{1,2}" -> [ "a-1", "a-2", "b-1", "b-2" ]
+ *
+ * Note that nested braces are not processed.  Braces, commas, and backslashes
+ * may be escaped with backslashes.  Returns NULL on invalid strings.
+ */
+GPtrArray * expand_braced_alternates(char * source);
+char * collapse_braced_alternates(GPtrArray *source);
 
 /*
  *   validate_email return 0 if the following characters are present
@@ -186,7 +239,7 @@ typedef enum {
     RUNNING_AS_CLIENT_LOGIN,
 
     RUNNING_AS_USER_MASK = (1 << 8) - 1,
-	/* '&' this on to only check the uid, not the euid; use this for programs
+	/* '|' this on to only check the uid, not the euid; use this for programs
 	 * that will call become_root() */
     RUNNING_AS_UID_ONLY = 1 << 8
 } running_as_flags;
@@ -197,8 +250,8 @@ void check_running_as(running_as_flags who);
  * need to be root for certain operations. Does nothing if SINGLE_USERID is 
  * defined.
  *
- * @param need_root: if true, try to assume root priviledges; otherwise, drop
- * priviledges.
+ * @param need_root: if 1, try to assume root priviledges; otherwise, drop
+ * priviledges.  If -1, drop them irreversibly.
  * @returns: true if the priviledge change succeeded
  */
 int set_root_privs(int need_root);
@@ -326,5 +379,22 @@ void count_proplist(gpointer key_p,
 void proplist_add_to_argv(gpointer key_p,
 			  gpointer value_p,
 			  gpointer user_data_p);
+
+
+/* Inform the OpenBSD pthread library about the high-numbered file descriptors
+ * that an amandad service inherits.  This won't be necessary once the new
+ * threading library is availble (OpenBSD 5.0?), but won't hurt anyway.  See the
+ * thread "Backup issues with OpenBSD 4.5 machines" from September 2009. */
+#ifdef __OpenBSD__
+void openbsd_fd_inform(void);
+#else
+#define openbsd_fd_inform()
+#endif
+
+/* Print the argv_ptr with g_debug()
+ *
+ * @param argv_ptr: GPtrArray of an array to print.
+ */
+void debug_executing(GPtrArray *argv_ptr);
 
 #endif	/* UTIL_H */

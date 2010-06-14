@@ -38,7 +38,6 @@
 #include "protocol.h"
 #include "security.h"
 #include "stream.h"
-#include "version.h"
 #include "fileheader.h"
 #include "amfeatures.h"
 #include "server_util.h"
@@ -101,8 +100,11 @@ static char *options = NULL;
 static char *progname = NULL;
 static char *amandad_path=NULL;
 static char *client_username=NULL;
+static char *client_port=NULL;
 static char *ssh_keys=NULL;
 static char *auth=NULL;
+static data_path_t data_path=DATA_PATH_AMANDA;
+static char *dataport_list = NULL;
 static int level;
 static char *dumpdate = NULL;
 static char *dumper_timestamp = NULL;
@@ -160,7 +162,7 @@ static void	sendbackup_response(void *, pkt_t *, security_handle_t *);
 static int	startup_dump(const char *, const char *, const char *, int,
 			const char *, const char *, const char *,
 			const char *, const char *, const char *,
-			const char *);
+			const char *, const char *);
 static void	stop_dump(void);
 
 static void	read_indexfd(void *, void *, ssize_t);
@@ -304,11 +306,11 @@ main(
     struct cmdargs *cmdargs = NULL;
     int outfd = -1;
     int rc;
-    in_port_t taper_port;
+    in_port_t header_port;
     char *q = NULL;
     int a;
     int res;
-    config_overwrites_t *cfg_ovr = NULL;
+    config_overrides_t *cfg_ovr = NULL;
     char *cfg_opt = NULL;
     int dumper_setuid;
 
@@ -333,14 +335,14 @@ main(
     /* Don't die when child closes pipe */
     signal(SIGPIPE, SIG_IGN);
 
-    erroutput_type = (ERR_AMANDALOG|ERR_INTERACTIVE);
-    set_logerror(logerror);
+    add_amanda_log_handler(amanda_log_stderr);
+    add_amanda_log_handler(amanda_log_trace_log);
 
-    cfg_ovr = extract_commandline_config_overwrites(&argc, &argv);
+    cfg_ovr = extract_commandline_config_overrides(&argc, &argv);
     if (argc > 1)
 	cfg_opt = argv[1];
+    set_config_overrides(cfg_ovr);
     config_init(CONFIG_INIT_EXPLICIT_NAME | CONFIG_INIT_USE_CWD, cfg_opt);
-    apply_config_overwrites(cfg_ovr);
 
     if (!dumper_setuid) {
 	error(_("dumper must be run setuid root"));
@@ -352,7 +354,7 @@ main(
 
     safe_cd(); /* do this *after* config_init() */
 
-    check_running_as(RUNNING_AS_DUMPUSER);
+    check_running_as(RUNNING_AS_ROOT | RUNNING_AS_UID_ONLY);
 
     dbrename(get_config_name(), DBG_SUBDIR_SERVER);
 
@@ -363,7 +365,7 @@ main(
     g_fprintf(stderr,
 	    _("%s: pid %ld executable %s version %s\n"),
 	    get_pname(), (long) getpid(),
-	    argv[0], version());
+	    argv[0], VERSION);
     fflush(stderr);
 
     /* now, make sure we are a valid user */
@@ -407,8 +409,11 @@ main(
 	     *   progname
 	     *   amandad_path
 	     *   client_username
+	     *   client_port
 	     *   ssh_keys
 	     *   security_driver
+	     *   data_path
+	     *   dataport_list
 	     *   options
 	     */
 	    a = 1; /* skip "PORT-DUMP" */
@@ -423,7 +428,7 @@ main(
 		error(_("error [dumper PORT-DUMP: not enough args: port]"));
 		/*NOTREACHED*/
 	    }
-	    taper_port = (in_port_t)atoi(cmdargs->argv[a++]);
+	    header_port = (in_port_t)atoi(cmdargs->argv[a++]);
 
 	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: hostname]"));
@@ -487,6 +492,11 @@ main(
 	    client_username = newstralloc(client_username, cmdargs->argv[a++]);
 
 	    if(a >= cmdargs->argc) {
+		error(_("error [dumper PORT-DUMP: not enough args: client_port]"));
+	    }
+	    client_port = newstralloc(client_port, cmdargs->argv[a++]);
+
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: ssh_keys]"));
 	    }
 	    ssh_keys = newstralloc(ssh_keys, cmdargs->argv[a++]);
@@ -495,6 +505,16 @@ main(
 		error(_("error [dumper PORT-DUMP: not enough args: auth]"));
 	    }
 	    auth = newstralloc(auth, cmdargs->argv[a++]);
+
+	    if(a >= cmdargs->argc) {
+		error(_("error [dumper PORT-DUMP: not enough args: data_path]"));
+	    }
+	    data_path = data_path_from_string(cmdargs->argv[a++]);
+
+	    if(a >= cmdargs->argc) {
+		error(_("error [dumper PORT-DUMP: not enough args: dataport_list]"));
+	    }
+	    dataport_list = newstralloc(dataport_list, cmdargs->argv[a++]);
 
 	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: options]"));
@@ -522,7 +542,8 @@ main(
 
 	    /* connect outf to chunker/taper port */
 
-	    outfd = stream_client("localhost", taper_port,
+	    g_debug(_("Sending header to localhost:%d\n"), header_port);
+	    outfd = stream_client("localhost", header_port,
 				  STREAM_BUFSIZE, 0, NULL, 0);
 	    if (outfd == -1) {
 		
@@ -550,6 +571,7 @@ main(
 			      progname,
 			      amandad_path,
 			      client_username,
+			      client_port,
 			      ssh_keys,
 			      auth,
 			      options);
@@ -570,6 +592,7 @@ main(
 
 	    amfree(amandad_path);
 	    amfree(client_username);
+	    amfree(client_port);
 
 	    break;
 
@@ -680,9 +703,11 @@ databuf_flush(
 	dumpbytes %= (off_t)1024;
     }
     if (written == 0) {
-	m = vstrallocf(_("data write: %s"), strerror(errno));
+	int save_errno = errno;
+	m = vstrallocf(_("data write: %s"), strerror(save_errno));
 	errstr = quote_string(m);
 	amfree(m);
+	errno = save_errno;
 	return -1;
     }
     db->datain = db->dataout = db->buf;
@@ -810,6 +835,11 @@ process_dumpline(
 		SET(status, GOT_SIZELINE);
 	    }
 	    break;
+	}
+
+	if (strcmp(tok, "no-op") == 0) {
+	    amfree(buf);
+	    return;
 	}
 
 	if (strcmp(tok, "end") == 0) {
@@ -1027,23 +1057,38 @@ finish_tapeheader(
     if (srvencrypt != ENCRYPT_NONE) {
       file->encrypted= 1;
       if (srvencrypt == ENCRYPT_SERV_CUST) {
-	g_snprintf(file->decrypt_cmd, SIZEOF(file->decrypt_cmd),
-		 " %s %s |", srv_encrypt, srv_decrypt_opt); 
+	if (srv_decrypt_opt) {
+	  g_snprintf(file->decrypt_cmd, SIZEOF(file->decrypt_cmd),
+		   " %s %s |", srv_encrypt, srv_decrypt_opt); 
+	  strncpy(file->srv_decrypt_opt, srv_decrypt_opt, SIZEOF(file->srv_decrypt_opt) - 1);
+	  file->srv_decrypt_opt[SIZEOF(file->srv_decrypt_opt) - 1] = '\0';
+	} else {
+	  g_snprintf(file->decrypt_cmd, SIZEOF(file->decrypt_cmd),
+		   " %s |", srv_encrypt); 
+	  file->srv_decrypt_opt[0] = '\0';
+	}
 	strncpy(file->encrypt_suffix, "enc", SIZEOF(file->encrypt_suffix) - 1);
 	file->encrypt_suffix[SIZEOF(file->encrypt_suffix) - 1] = '\0';
 	strncpy(file->srv_encrypt, srv_encrypt, SIZEOF(file->srv_encrypt) - 1);
 	file->srv_encrypt[SIZEOF(file->srv_encrypt) - 1] = '\0';
-	strncpy(file->srv_decrypt_opt, srv_decrypt_opt, SIZEOF(file->srv_decrypt_opt) - 1);
-	file->srv_decrypt_opt[SIZEOF(file->srv_decrypt_opt) - 1] = '\0';
       } else if ( srvencrypt == ENCRYPT_CUST ) {
+	if (clnt_decrypt_opt) {
+	  g_snprintf(file->decrypt_cmd, SIZEOF(file->decrypt_cmd),
+		   " %s %s |", clnt_encrypt, clnt_decrypt_opt);
+	  strncpy(file->clnt_decrypt_opt, clnt_decrypt_opt,
+		  SIZEOF(file->clnt_decrypt_opt));
+	  file->clnt_decrypt_opt[SIZEOF(file->clnt_decrypt_opt) - 1] = '\0';
+	} else {
+	  g_snprintf(file->decrypt_cmd, SIZEOF(file->decrypt_cmd),
+		   " %s |", clnt_encrypt);
+	  file->clnt_decrypt_opt[0] = '\0';
+ 	}
 	g_snprintf(file->decrypt_cmd, SIZEOF(file->decrypt_cmd),
 		 " %s %s |", clnt_encrypt, clnt_decrypt_opt);
 	strncpy(file->encrypt_suffix, "enc", SIZEOF(file->encrypt_suffix) - 1);
 	file->encrypt_suffix[SIZEOF(file->encrypt_suffix) - 1] = '\0';
 	strncpy(file->clnt_encrypt, clnt_encrypt, SIZEOF(file->clnt_encrypt) - 1);
 	file->clnt_encrypt[SIZEOF(file->clnt_encrypt) - 1] = '\0';
-	strncpy(file->clnt_decrypt_opt, clnt_decrypt_opt, SIZEOF(file->clnt_decrypt_opt));
-	file->clnt_decrypt_opt[SIZEOF(file->clnt_decrypt_opt) - 1] = '\0';
       }
     } else {
       if (file->encrypt_suffix[0] == '\0') {
@@ -1072,7 +1117,11 @@ write_tapeheader(
     char * buffer;
     size_t written;
 
-    buffer = build_header(file, DISK_BLOCK_BYTES);
+    if (debug_dumper > 1)
+	dump_dumpfile_t(file);
+    buffer = build_header(file, NULL, DISK_BLOCK_BYTES);
+    if (!buffer) /* this shouldn't happen */
+	error(_("header does not fit in %zd bytes"), (size_t)DISK_BLOCK_BYTES);
 
     written = full_write(outfd, buffer, DISK_BLOCK_BYTES);
     amfree(buffer);
@@ -1180,10 +1229,14 @@ do_dump(
     }
 
     dumpsize -= headersize;		/* don't count the header */
-    if (dumpsize <= (off_t)0) {
+    if (dumpsize <= (off_t)0 && data_path == DATA_PATH_AMANDA) {
 	dumpsize = (off_t)0;
 	dump_result = max(dump_result, 2);
 	if (!errstr) errstr = stralloc(_("got no data"));
+    }
+
+    if (data_path == DATA_PATH_DIRECTTCP) {
+	dumpsize = origsize;
     }
 
     if (!ISSET(status, HEADER_DONE)) {
@@ -1191,7 +1244,7 @@ do_dump(
 	if (!errstr) errstr = stralloc(_("got no header information"));
     }
 
-    if (dumpsize == 0) {
+    if (dumpsize == 0 && data_path == DATA_PATH_AMANDA) {
 	dump_result = max(dump_result, 2);
 	if (!errstr) errstr = stralloc(_("got no data"));
     }
@@ -1213,7 +1266,7 @@ do_dump(
     q = quote_string(m);
     amfree(m);
     putresult(DONE, _("%s %lld %lld %lu %s\n"), handle,
-    		(long long)origsize,
+		(long long)origsize,
 		(long long)dumpsize,
 	        (unsigned long)((double)dumptime+0.5), q);
     amfree(q);
@@ -1235,7 +1288,9 @@ do_dump(
 
     if (errf) afclose(errf);
 
-    aclose(db->fd);
+    if (data_path == DATA_PATH_AMANDA)
+	aclose(db->fd);
+
     if (indexfile_tmp) {
 	amwait_t index_status;
 
@@ -1384,6 +1439,14 @@ read_mesgfd(
     }
 
     if (ISSET(status, GOT_INFO_ENDLINE) && !ISSET(status, HEADER_DONE)) {
+	/* Use the first in the dataport_list */
+	in_port_t data_port;
+	char *data_host = dataport_list;
+	char *s= strchr(dataport_list, ':');
+	*s = '\0';
+	s++;
+	data_port = atoi(s);
+
 	SET(status, HEADER_DONE);
 	/* time to do the header */
 	finish_tapeheader(&file);
@@ -1394,6 +1457,52 @@ read_mesgfd(
 	    stop_dump();
 	    return;
 	}
+	close(db->fd);
+	if (data_path == DATA_PATH_AMANDA) {
+	    char buffer[32770];
+	    if (strcmp(data_host, "255.255.255.255") == 0) {
+		int size;
+		char *s;
+		g_debug(_("Using indirect-tcp from port %d"), data_port);
+		db->fd = stream_client("127.0.0.1", data_port,
+				       STREAM_BUFSIZE, 0, NULL, 0);
+		if (db->fd == -1) {
+		    errstr = newvstrallocf(errstr,
+				       _("Can't open indirect-tcp stream: %s"),
+				       strerror(errno));
+		    dump_result = 2;
+		    stop_dump();
+		    return;
+		}
+		size = full_read(db->fd, buffer, 32768);
+		if (size <= 0) {
+		    errstr = newvstrallocf(errstr,
+				  _("Can't read from indirect-tcp stream: %s"),
+				  strerror(errno));
+		    dump_result = 2;
+		    stop_dump();
+		    return;
+		}
+		buffer[size] = '\0';
+		s = strchr(buffer, ':');
+		*s++ = '\0';
+		data_host = buffer;
+		data_port = atoi(s);
+		aclose(db->fd);
+	    }
+	    g_debug(_("Sending data to %s:%d"), data_host, data_port);
+	    db->fd = stream_client(data_host, data_port,
+				   STREAM_BUFSIZE, 0, NULL, 0);
+	    if (db->fd == -1) {
+		errstr = newvstrallocf(errstr,
+				       _("Can't open data output stream: %s"),
+				       strerror(errno));
+		dump_result = 2;
+		stop_dump();
+		return;
+	    }
+	}
+
 	dumpsize += (off_t)DISK_BLOCK_KB;
 	headersize += (off_t)DISK_BLOCK_KB;
 
@@ -1476,7 +1585,8 @@ read_datafd(
      */
     assert(buf != NULL);
     if (databuf_write(db, buf, (size_t)size) < 0) {
-	errstr = newvstrallocf(errstr, _("data write: %s"), strerror(errno));
+	int save_errno = errno;
+	errstr = newvstrallocf(errstr, _("data write: %s"), strerror(save_errno));
 	dump_result = 2;
 	stop_dump();
 	return;
@@ -1912,16 +2022,6 @@ bad_nak:
     for (i = 0; i < NSTREAMS; i++) {
 	if (streams[i].fd == NULL)
 	    continue;
-#ifdef KRB4_SECURITY
-	/*
-	 * XXX krb4 historically never authenticated the index stream!
-	 * We need to reproduce this lossage here to preserve compatibility
-	 * with old clients.
-	 * It is wrong to delve into sech, but we have no choice here.
-	 */
-	if (strcasecmp(sech->driver->name, "krb4") == 0 && i == INDEXFD)
-	    continue;
-#endif
 	if (security_stream_auth(streams[i].fd) < 0) {
 	    errstr = newvstrallocf(errstr,
 		_("[could not authenticate %s stream: %s]"),
@@ -1975,6 +2075,8 @@ dumper_get_security_conf(
                 return (amandad_path);
         } else if(strcmp(string, "client_username")==0) {
                 return (client_username);
+        } else if(strcmp(string, "client_port")==0) {
+                return (client_port);
         } else if(strcmp(string, "ssh_keys")==0) {
                 return (ssh_keys);
         } else if(strcmp(string, "kencrypt")==0) {
@@ -1996,6 +2098,7 @@ startup_dump(
     const char *progname,
     const char *amandad_path,
     const char *client_username,
+    const char *client_port,
     const char *ssh_keys,
     const char *auth,
     const char *options)
@@ -2014,6 +2117,7 @@ startup_dump(
     (void)disk;			/* Quiet unused parameter warning */
     (void)amandad_path;		/* Quiet unused parameter warning */
     (void)client_username;	/* Quiet unused parameter warning */
+    (void)client_port;		/* Quiet unused parameter warning */
     (void)ssh_keys;		/* Quiet unused parameter warning */
     (void)auth;			/* Quiet unused parameter warning */
 
@@ -2088,8 +2192,6 @@ startup_dump(
 		   " ", level_string,
 		   " ", dumpdate,
 		   " OPTIONS ", options,
-		   /* compat: if authopt=krb4, send krb4-auth */
-		   (authopt && strcasecmp(authopt, "krb4") ? "" : "krb4-auth"),
 		   "\n",
 		   NULL);
     }

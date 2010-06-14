@@ -1,0 +1,268 @@
+'\" t
+.\"     Title: ampgsql
+.\"    Author: Nikolas Coukouma <atrus@zmanda.com>
+.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
+.\"      Date: 06/01/2010
+.\"    Manual: System Administration Commands
+.\"    Source: Amanda 3.1.0
+.\"  Language: English
+.\"
+.TH "AMPGSQL" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "NAME"
+ampgsql \- Amanda Application to interface with PostgreSQL
+.SH "DESCRIPTION"
+.PP
+Ampgsql is an Amanda Application API script\&. It should not be run by users directly\&. It implements on\-line backups of PostgreSQL databases in conjunction with WAL archiving\&.
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+.PP
+Tablespaces are not currently supported\&.
+.sp .5v
+.RE
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+.PP
+On versions of PostgreSQL earlier than 8\&.2, if the database is quiet during a full backup, then the backup may not complete until enough database activity takes place to trigger the archiving of the current WAL file\&. Consider adjusting the PG\-MAX\-WAL\-WAIT property from its default (60s) to compensate\&. Note that you will need to increase
+\fBdtimeout\fR
+on the server accordingly\&.
+.sp .5v
+.RE
+.SH "OPERATION"
+.PP
+This application implements the backup strategy described in
+http://www\&.postgresql\&.org/docs/current/static/continuous\-archiving\&.html\&. For a level zero (full) backup, ampgsql:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+execute PG_START_BACKUP()
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+dump the data directory
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+execute PG_STOP_BACKUP()
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+wait for the final WAL file to be archived
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+back up the required WAL files
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+optionally delete WAL files that are no longer necessary
+.RE
+.sp
+.RE
+The two dumps are made with GNU Tar, to
+data_dir\&.tar
+and
+archive_dir, respectively\&. They are then combined into a single tar file\&.
+.PP
+A level N backup creates a single tar file containing all WAL files since the previous level N\-1 backup\&.
+.SH "PROPERTIES"
+.PP
+This section lists the
+\fBamanda.conf\fR(5)
+properties that control ampsql\'s functionality\&. See
+\fBamanda-applications\fR(7)
+for information on application properties and how they are configured\&.
+.PP
+DIRECTORY
+.RS 4
+
+For restore command only, the data is recoved in that directory\&. Must be a unix path\&.
+.RE
+.PP
+GNUTAR\-PATH
+.RS 4
+
+Path to the GNU tar executable\&. This option only has an effect during restore\&.
+The default is set when Amanda is built by the \-\-with\-gnutar configure option\&.
+.RE
+.PP
+STATEDIR
+.RS 4
+
+Directory for saving state about backups already made\&. The default is set
+when Amanda is built by the \-\-with\-gnutar\-listdir configure option\&.
+.RE
+.PP
+TMPDIR
+.RS 4
+
+Directory to use for temporary files during the backup process\&. It should
+have enough space to store a complete copy of the database\&. The default is set
+when Amanda is built by the \-\-with\-tmpdir configure option\&.
+.RE
+.SH "CLIENT PROPERTIES"
+.PP
+This section lists the
+\fBamanda-client.conf\fR(5)
+properties that control ampsql\'s functionality\&. If a property is prefixed with the diskname and an underscore, then it will be used when that diskname is being backed up\&. For example, if the properties PG\-DATADIR and foo\-PG\-DATADIR are set, the value of PG\-DATADIR will be used when bar and baz are being backed up, but foo\-PG\-DATADIR will be used when foo is being backed up\&. Disknames are specified in the
+\fBdisklist\fR(5)\&.
+.PP
+PG\-ARCHIVEDIR
+.RS 4
+
+Directory that WAL segment files are archived to, as specified by the archive_command
+in PosgreSQL\'s postgresql\&.conf\&.  The amanda user on the client must have at least read
+and execute permission on this directory, and preferably write\&.  Without write permission,
+Amanda cannot clean up expired WAL and backup files\&.
+.RE
+.PP
+PG\-CLEANUPWAL
+.RS 4
+
+Whether or not to remove old WAL segment files during base backups\&.
+Defaults to yes\&.
+.RE
+.PP
+PG\-DATADIR
+.RS 4
+
+Cluster data directory
+.RE
+.PP
+PG\-DB
+.RS 4
+
+Database to connect to\&. Defaults to "template1" (which exists by default)\&.
+.RE
+.PP
+PG\-HOST
+.RS 4
+
+Host to connect to\&. If it starts with "/" it will be interepreted as a directory
+that holds the socket file\&. PostgreSQL defaults to /tmp\&.
+.RE
+.PP
+PG\-MAX\-WAL\-WAIT
+.RS 4
+The maximum amount of time to wait for PG_STOP_BACKUP to archive a WAL file\&. In versions of PostgreSQL before 8\&.2, PG_STOP_BACKUP does not automatically archive the latest WAL file, so a quiet database may wait a very long time before archiving the WAL file\&. Default: 60 seconds\&. Set to 0 to wait forever\&.
+.RE
+.PP
+PG\-PASSFILE
+.RS 4
+
+Connect using the creditials in this file\&. Each line should have the format
+"hostname:port:database:username:password"\&. The permissions must
+permit it to be read only by the user, or the file will not be used\&.
+Only usable with Postgres 8\&.1 and up\&.
+.RE
+.PP
+PG\-PASSWORD
+.RS 4
+
+Password to use when connecting\&. Deprecated in favor of passfiles\&.
+.RE
+.PP
+PG\-PORT
+.RS 4
+
+The TCP port to connect to, or the suffix of the socket file\&. PostgreSQL
+defaults to 5432\&.
+.RE
+.PP
+PG\-USER
+.RS 4
+
+User to connect as\&. It must be a superuser\&.
+.RE
+.PP
+PSQL\-PATH
+.RS 4
+
+Path to the psql binary\&. If not specified, the PATH environment variable
+will be searched\&.
+.RE
+.SH "SEE ALSO"
+.PP
+\fBamanda\fR(8),
+\fBamanda.conf\fR(5),
+\fBamanda-client.conf\fR(5),
+\fBamanda-applications\fR(7)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
+.SH "AUTHOR"
+.PP
+\fBNikolas Coukouma\fR <\&atrus@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (http://www\&.zmanda\&.com)
+.RE

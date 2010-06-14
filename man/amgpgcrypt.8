@@ -2,12 +2,12 @@
 .\"     Title: amgpgcrypt
 .\"    Author: Kevin Till <kevin.till@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 11/05/2009
+.\"      Date: 06/01/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 2.6.1p2
+.\"    Source: Amanda 3.1.0
 .\"  Language: English
 .\"
-.TH "AMGPGCRYPT" "8" "11/05/2009" "Amanda 2\&.6\&.1p2" "System Administration Commands"
+.TH "AMGPGCRYPT" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,19 +19,17 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-amgpgcrypt \- reference crypt program for \fIAmanda\fR public\-key data encryption
+amgpgcrypt \- reference crypt program for Amanda public\-key data encryption
 .SH "SYNOPSIS"
 .HP \w'\fBamgpgcrypt\fR\ 'u
-\fBamgpgcrypt\fR  to be called by \fIAmanda\fR only 
+\fBamgpgcrypt\fR  to be called by Amanda only 
 .SH "DESCRIPTION"
 .PP
 
 \fBamgpgcrypt\fR
 calls
 \fBgpg\fR
-to perform public\-key data encryption on
-\fIAmanda\fR
-backup\&.
+to perform public\-key data encryption on Amanda backup\&.
 \fBamgpgcrypt\fR
 will search for the gpg program in the following directories: /usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
 .PP
@@ -39,18 +37,12 @@ will search for the gpg program in the following directories: /usr/local/bin:/us
 \fBamgpgcrypt\fR
 sets GNUPGHOME to $AMANDA_HOME/\&.gnupg where gpg will look for the gpg keys\&.
 \fBamgpgcrypt\fR
-uses the public key to encrypt the
-\fIAmanda\fR
-data and uses the private key to decrypt the
-\fIAmanda\fR
-backup data\&. Thus, passphrase is only required at the time of data restore\&.
+uses the public key to encrypt the Amanda data and uses the private key to decrypt the Amanda backup data\&. Thus, passphrase is only required at the time of data restore\&.
 .SH "KEY AND PASSPHRASE"
 .PP
 
 \fBamgpgcrypt\fR
-uses the private key to decrypt
-\fIAmanda\fR
-backup data\&.
+uses the private key to decrypt Amanda backup data\&.
 
 It is very important to store, manage and  protect the key and the passphrase
 properly\&. Encrypted backup data can \fBonly\fR be recovered with the correct key and
@@ -143,19 +135,19 @@ The passphrase\&. It\'s only needed during amrecover/amrestore\&. Store and prot
 .RE
 .SH "BUGS"
 .PP
-\fIAmanda\fR
-has problem with gpg mdc(modification detection code) in the binary mode\&.
+Amanda has problem with gpg mdc(modification detection code) in the binary mode\&.
 \fBamgpgcrypt\fR
 calls gpg with mdc disabled
 .SH "SEE ALSO"
 .PP
-
 \fBamanda\fR(8),
 \fBamanda.conf\fR(5),
 \fBamcrypt\fR(8),
 \fBamrestore\fR(8),
-\fBgpg\fR(1),
-: http://wiki.zmanda.com
+\fBgpg\fR(1)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
 .SH "AUTHOR"
 .PP
 \fBKevin Till\fR <\&kevin\&.till@zmanda\&.com\&>

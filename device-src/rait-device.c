@@ -1,21 +1,21 @@
 /*
- * Copyright (c) 2005-2008 Zmanda, Inc.  All Rights Reserved.
- * 
- * This library is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License version 2.1 as 
- * published by the Free Software Foundation.
- * 
- * This library is distributed in the hope that it will be useful, but
+ * Copyright (c) 2007,2008,2009 Zmanda, Inc.  All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this library; if not, write to the Free Software Foundation,
- * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA.
- * 
- * Contact information: Zmanda Inc., 465 S Mathlida Ave, Suite 300
- * Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
+ * Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
+ * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
 /* The RAIT device encapsulates some number of other devices into a single
@@ -136,6 +136,10 @@ typedef struct ThreadInfo {
 } ThreadInfo;
 #endif
 
+/* This device uses a special sentinel node to indicate that the child devices
+ * will be set later (in rait_device_open).  It contains a control character to
+ * make it difficult to enter accidentally in an Amanda config. */
+#define DEFER_CHILDREN_SENTINEL "DEFER\1"
 
 #define PRIVATE(o) (o->private)
 
@@ -229,11 +233,11 @@ rait_device_get_type (void)
             (GInstanceInitFunc) rait_device_init,
             NULL
         };
-        
+
         type = g_type_register_static (TYPE_DEVICE, "RaitDevice", &info,
                                        (GTypeFlags)0);
 	}
-    
+
     return type;
 }
 
@@ -291,7 +295,7 @@ rait_device_finalize(GObject *obj_self)
     amfree(self->private);
 }
 
-static void 
+static void
 rait_device_init (RaitDevice * o G_GNUC_UNUSED)
 {
     PRIVATE(o) = g_new(RaitDevicePrivate, 1);
@@ -304,7 +308,7 @@ rait_device_init (RaitDevice * o G_GNUC_UNUSED)
 #endif
 }
 
-static void 
+static void
 rait_device_class_init (RaitDeviceClass * c)
 {
     GObjectClass *g_object_class = (GObjectClass*) c;
@@ -321,7 +325,7 @@ rait_device_class_init (RaitDeviceClass * c)
     device_class->seek_file = rait_device_seek_file;
     device_class->seek_block = rait_device_seek_block;
     device_class->read_block = rait_device_read_block;
-    device_class->recycle_file = rait_device_recycle_file; 
+    device_class->recycle_file = rait_device_recycle_file;
     device_class->finish = rait_device_finish;
     device_class->read_label = rait_device_read_label;
 
@@ -375,6 +379,10 @@ rait_device_base_init (RaitDeviceClass * c)
 	    PROPERTY_ACCESS_GET_MASK,
 	    property_get_boolean_and_fn, NULL);
 
+    device_class_register_property(device_class, PROPERTY_FULL_DELETION,
+	    PROPERTY_ACCESS_GET_MASK,
+	    property_get_boolean_and_fn, NULL);
+
     device_class_register_property(device_class, PROPERTY_MEDIUM_ACCESS_TYPE,
 	    PROPERTY_ACCESS_GET_MASK,
 	    property_get_medium_access_type_fn, NULL);
@@ -397,7 +405,7 @@ rait_device_base_init (RaitDeviceClass * c)
  * will probably not start any new threads at all, but rather use
  * existing ones. The func is called with two gpointer arguments: The
  * first from the array, the second is the data argument.
- * 
+ *
  * When it returns, all the operations have been successfully
  * executed. If you want results from your operations, do it yourself
  * through the array.
@@ -504,133 +512,13 @@ static void do_rait_child_ops(RaitDevice *self, GFunc func, GPtrArray * ops) {
     }
 }
 
-/* Helper for parse_device_name; returns a list of un-escaped strings for
- * the first "component" of str, where a component is a plain string or a
- * brace-enclosed set of alternatives.  str is pointing to the first character
- * of the next component on return. */
-static GPtrArray *
-parse_device_name_component(char **str)
-{
-    GPtrArray *result = g_ptr_array_new();
-
-    if (**str == '{') {
-	char *p = (*str)+1;
-	char *local = g_malloc(strlen(*str)+1);
-	char *current = local;
-	char *c = current;
-
-	while (1) {
-	    if (*p == '\0' || *p == '{') {
-		/* unterminated { .. } or extra '{' */
-		amfree(local);
-		g_ptr_array_free(result, TRUE);
-		return NULL;
-	    }
-
-	    if (*p == '}' || *p == ',') {
-		*c = '\0';
-		g_ptr_array_add(result, g_strdup(current));
-		current = ++c;
-
-		if (*p == '}')
-		    break;
-		else
-		    p++;
-	    }
-
-	    if (*p == '\\') {
-		if (*(p+1) == '{' || *(p+1) == '}' || *(p+1) == '\\' || *(p+1) == ',')
-		    p++;
-	    }
-	    *(c++) = *(p++);
-	}
-
-	amfree(local);
-
-	if (*p)
-	    *str = p+1;
-	else
-	    *str = p;
-    } else {
-	/* no braces -- just un-escape a plain string */
-	char *local = g_malloc(strlen(*str)+1);
-	char *r = local;
-	char *p = *str;
-
-	while (*p && *p != '{') {
-	    if (*p == '\\') {
-		if (*(p+1) == '{' || *(p+1) == '}' || *(p+1) == '\\' || *(p+1) == ',')
-		    p++;
-	    }
-	    *(r++) = *(p++);
-	}
-	*r = '\0';
-	g_ptr_array_add(result, local);
-	*str = p;
-    }
-
-    return result;
-}
-
-/* Take a text string user_name, and break it out into an argv-style
-   array of strings, using a {..,..} syntax similar to shell brace expansion.
-   For example:
-
-     "{foo,bar,bat}" -> [ "foo", "bar", "bat" ]
-     "foo{1,2}bar" -> [ "foo1bar", "foo2bar" ]
-     "foo{1\,2,3}bar" -> [ "foo1,2bar", "foo3bar" ]
-     "{a,b}-{1,2}" -> [ "a-1", "a-2", "b-1", "b-2" ]
-
-   Note that nested braces are not processed.  Braces, commas, and backslashes
-   may be escaped with backslashes.  Returns NULL on invalid strings.
-   */
-
-static GPtrArray *
-parse_device_name(char * user_name)
-{
-    GPtrArray *rval = g_ptr_array_new();
-
-    g_ptr_array_add(rval, g_strdup(""));
-
-    while (*user_name) {
-	GPtrArray *new_components;
-	GPtrArray *new_rval;
-	guint i, j;
-
-	new_components = parse_device_name_component(&user_name);
-	if (!new_components) {
-	    /* parse error */
-	    g_ptr_array_free(rval, TRUE);
-	    return NULL;
-	}
-
-	new_rval = g_ptr_array_new();
-
-	/* do a cartesian join of rval and new_components */
-	for (i = 0; i < rval->len; i++) {
-	    for (j = 0; j < new_components->len; j++) {
-		g_ptr_array_add(new_rval, g_strconcat(
-		    g_ptr_array_index(rval, i),
-		    g_ptr_array_index(new_components, j),
-		    NULL));
-	    }
-	}
-
-	g_ptr_array_free(rval, TRUE);
-	g_ptr_array_free(new_components, TRUE);
-	rval = new_rval;
-    }
-
-    return rval;
-}
-
 static char *
 child_device_names_to_rait_name(RaitDevice * self) {
-    GString *rait_name = NULL;
+    GPtrArray *kids;
+    char *braced, *result;
     guint i;
 
-    rait_name = g_string_new("rait:{");
-
+    kids = g_ptr_array_sized_new(self->private->children->len);
     for (i = 0; i < self->private->children->len; i ++) {
 	Device *child = g_ptr_array_index(self->private->children, i);
 	const char *child_name = NULL;
@@ -649,15 +537,17 @@ child_device_names_to_rait_name(RaitDevice * self) {
 	if (!got_prop)
             child_name = "MISSING";
 
-	g_string_append_printf(rait_name, "%s%s", child_name,
-		(i < self->private->children->len-1)? "," : "");
+	g_ptr_array_add(kids, g_strdup(child_name));
 
 	if (got_prop)
 	    g_value_unset(&val);
     }
 
-    g_string_append(rait_name, "}");
-    return g_string_free(rait_name, FALSE);
+    braced = collapse_braced_alternates(kids);
+    result = g_strdup_printf("rait:%s", braced);
+    g_free(braced);
+
+    return result;
 }
 
 /* Find a workable child block size, based on the block size ranges of our
@@ -791,6 +681,7 @@ set_block_size_on_children(RaitDevice *self, gsize child_block_size)
         if (device_property_get_ex(child, PROPERTY_BLOCK_SIZE,
 				 &property_result, NULL, &source)) {
 	    gsize from_child = g_value_get_int(&property_result);
+	    g_value_unset(&property_result);
 	    if (source != PROPERTY_SOURCE_DEFAULT
 		    && from_child != child_block_size) {
 		device_set_error((Device *)self,
@@ -804,7 +695,6 @@ set_block_size_on_children(RaitDevice *self, gsize child_block_size)
 	    g_warning("Error getting BLOCK_SIZE from %s: %s",
 		    child->device_name, device_error_or_status(child));
 	}
-	g_value_unset(&property_result);
 
 	if (!device_property_set(child, PROPERTY_BLOCK_SIZE, &val)) {
 	    device_set_error((Device *)self,
@@ -1005,9 +895,9 @@ static void append_message(char ** old_message, char * new_message) {
     *old_message = rval;
 }
 
-static void
-rait_device_open_device (Device * dself, char * device_name,
-	    char * device_type G_GNUC_UNUSED, char * device_node) {
+static gboolean
+open_child_devices (Device * dself, char * device_name,
+	    char * device_node) {
     GPtrArray *device_names;
     GPtrArray * device_open_ops;
     guint i;
@@ -1018,13 +908,13 @@ rait_device_open_device (Device * dself, char * device_name,
 
     self = RAIT_DEVICE(dself);
 
-    device_names = parse_device_name(device_node);
+    device_names = expand_braced_alternates(device_node);
 
     if (device_names == NULL) {
 	device_set_error(dself,
 	    vstrallocf(_("Invalid RAIT device name '%s'"), device_name),
 	    DEVICE_STATUS_DEVICE_ERROR);
-        return;
+        return FALSE;
     }
 
     /* Open devices in a separate thread, in case they have to rewind etc. */
@@ -1088,14 +978,89 @@ rait_device_open_device (Device * dself, char * device_name,
     if (failure) {
         self->private->status = RAIT_STATUS_FAILED;
 	device_set_error(dself, failure_errmsgs, failure_flags);
-        return;
+        return FALSE;
     }
 
-    /* Chain up. */
-    if (parent_class->open_device) {
-        parent_class->open_device(dself, device_name, device_type, device_node);
+    return TRUE;
+}
+
+static void
+rait_device_open_device (Device * dself, char * device_name,
+	    char * device_type G_GNUC_UNUSED, char * device_node) {
+
+    if (0 != strcmp(device_node, DEFER_CHILDREN_SENTINEL)) {
+	if (!open_child_devices(dself, device_name, device_node))
+	    return;
+
+	/* Chain up. */
+	if (parent_class->open_device) {
+	    parent_class->open_device(dself, device_name, device_type, device_node);
+	}
     }
-    return;
+}
+
+Device *
+rait_device_open_from_children (GSList *child_devices) {
+    Device *dself;
+    RaitDevice *self;
+    GSList *iter;
+    char *device_name;
+    int nfailures;
+    int i;
+
+    /* first, open a RAIT device using the DEFER_CHILDREN_SENTINEL */
+    dself = device_open("rait:" DEFER_CHILDREN_SENTINEL);
+    if (!IS_RAIT_DEVICE(dself)) {
+	return dself;
+    }
+
+    /* set its children */
+    self = RAIT_DEVICE(dself);
+    nfailures = 0;
+    for (i=0, iter = child_devices; iter; i++, iter = iter->next) {
+	Device *kid = iter->data;
+
+	/* a NULL kid is OK -- it opens the device in degraded mode */
+	if (!kid) {
+	    nfailures++;
+	    self->private->failed = i;
+	} else {
+	    g_assert(IS_DEVICE(kid));
+	    g_object_ref((GObject *)kid);
+	}
+
+	g_ptr_array_add(self->private->children, kid);
+    }
+
+    /* and set the status based on the children */
+    switch (nfailures) {
+	case 0:
+	    self->private->status = RAIT_STATUS_COMPLETE;
+	    break;
+
+	case 1:
+	    self->private->status = RAIT_STATUS_DEGRADED;
+	    break;
+
+	default:
+	    self->private->status = RAIT_STATUS_FAILED;
+	    device_set_error(dself,
+		    _("more than one child device is missing"),
+		    DEVICE_STATUS_DEVICE_ERROR);
+	    break;
+    }
+
+    /* create a name from the children's names and use it to chain up
+     * to open_device (we skipped this step in rait_device_open_device) */
+    device_name = child_device_names_to_rait_name(self);
+
+    if (parent_class->open_device) {
+	parent_class->open_device(dself,
+	    device_name, "rait",
+	    device_name+5); /* (+5 skips "rait:") */
+    }
+
+    return dself;
 }
 
 /* A GFunc. */
@@ -1117,7 +1082,8 @@ static DeviceStatusFlags rait_device_read_label(Device * dself) {
 
     amfree(dself->volume_time);
     amfree(dself->volume_label);
-    amfree(dself->volume_header);
+    dumpfile_free(dself->volume_header);
+    dself->volume_header = NULL;
 
     if (rait_device_in_error(self))
         return dself->status | DEVICE_STATUS_DEVICE_ERROR;
@@ -1127,9 +1093,9 @@ static DeviceStatusFlags rait_device_read_label(Device * dself) {
 	return FALSE;
 
     ops = make_generic_boolean_op_array(self);
-    
+
     do_rait_child_ops(self, read_label_do_op, ops);
-    
+
     for (i = 0; i < ops->len; i ++) {
         GenericOp * op = g_ptr_array_index(ops, i);
         DeviceStatusFlags result = GPOINTER_TO_INT(op->result);
@@ -1173,7 +1139,7 @@ static DeviceStatusFlags rait_device_read_label(Device * dself) {
             dself->volume_header = dumpfile_copy(first_success->volume_header);
         }
     }
-    
+
     g_ptr_array_free_full(ops);
 
     return dself->status;
@@ -1190,7 +1156,7 @@ typedef struct {
 static void start_do_op(gpointer data, gpointer user_data G_GNUC_UNUSED) {
     DeviceClass *klass;
     StartOp * param = data;
-    
+
     klass = DEVICE_GET_CLASS(param->base.child);
     if (klass->start) {
         param->base.result =
@@ -1228,7 +1194,7 @@ rait_device_configure(Device * dself, gboolean use_global_config)
     return TRUE;
 }
 
-static gboolean 
+static gboolean
 rait_device_start (Device * dself, DeviceAccessMode mode, char * label,
                    char * timestamp) {
     GPtrArray * ops;
@@ -1262,11 +1228,13 @@ rait_device_start (Device * dself, DeviceAccessMode mode, char * label,
     dself->in_file = FALSE;
     amfree(dself->volume_label);
     amfree(dself->volume_time);
+    dumpfile_free(dself->volume_header);
+    dself->volume_header = NULL;
 
     ops = g_ptr_array_sized_new(self->private->children->len);
     for (i = 0; i < self->private->children->len; i ++) {
         StartOp * op;
-        
+
         if ((signed)i == self->private->failed) {
             continue;
         }
@@ -1278,7 +1246,7 @@ rait_device_start (Device * dself, DeviceAccessMode mode, char * label,
         op->timestamp = g_strdup(timestamp);
         g_ptr_array_add(ops, op);
     }
-    
+
     do_rait_child_ops(self, start_do_op, ops);
 
     success = g_ptr_array_and(ops, extract_boolean_generic_op);
@@ -1321,6 +1289,7 @@ rait_device_start (Device * dself, DeviceAccessMode mode, char * label,
                     /* First device with a volume. */
                     dself->volume_label = g_strdup(child->volume_label);
                     dself->volume_time = g_strdup(child->volume_time);
+                    dself->volume_header = dumpfile_copy(child->volume_header);
                     label_from_device = g_strdup(child->device_name);
                 }
             } else {
@@ -1389,11 +1358,11 @@ rait_device_start_file (Device * dself, dumpfile_t * info) {
         op->info = dumpfile_copy(info);
         g_ptr_array_add(ops, op);
     }
-    
+
     do_rait_child_ops(self, start_file_do_op, ops);
 
     success = g_ptr_array_and(ops, extract_boolean_generic_op);
-    
+
     for (i = 0; i < self->private->children->len && success; i ++) {
         StartFileOp * op = g_ptr_array_index(ops, i);
         if (!op->base.result)
@@ -1444,7 +1413,7 @@ static void find_simple_params(RaitDevice * self,
                                guint * num_children,
                                guint * data_children) {
     int num, data;
-    
+
     num = self->private->children->len;
     if (num > 1)
         data = num - 1;
@@ -1526,11 +1495,11 @@ static char * extract_data_block(char * data, guint size,
     } else {
         make_parity_block(data, rval, chunk_size, chunks);
     }
-    
+
     return rval;
 }
 
-static gboolean 
+static gboolean
 rait_device_write_block (Device * dself, guint size, gpointer data) {
     GPtrArray * ops;
     guint i;
@@ -1551,7 +1520,7 @@ rait_device_write_block (Device * dself, guint size, gpointer data) {
         data_children = num_children - 1;
     else
         data_children = num_children;
-    
+
     g_assert(size % data_children == 0 || last_block);
 
     /* zero out to the end of a short block -- tape devices only write
@@ -1596,19 +1565,20 @@ rait_device_write_block (Device * dself, guint size, gpointer data) {
     if (last_block) {
         amfree(data);
     }
-    
+
     g_ptr_array_free_full(ops);
 
     if (!success) {
 	/* TODO be more specific here */
-	/* TODO: handle EOF here -- if one or more (or two or more??)
-	 * children have is_eof* set, then reflect that in our error
-	 * status, and finish_file all of the non-EOF children. What's
-	 * more fun is when one device fails and must be isolated at
+	/* TODO: handle EOM here -- if one or more (or two or more??)
+	 * children have is_eom set, then reflect that in our error
+	 * status. What's more fun is when one device fails and must be isolated at
 	 * the same time another hits EOF. */
 	device_set_error(dself,
 	    stralloc("One or more devices failed to write_block"),
 	    DEVICE_STATUS_DEVICE_ERROR);
+        /* this is EOM or an error, so call it EOM */
+        dself->is_eom = TRUE;
         return FALSE;
     } else {
         dself->block ++;
@@ -1628,7 +1598,7 @@ static void finish_file_do_op(gpointer data,
     }
 }
 
-static gboolean 
+static gboolean
 rait_device_finish_file (Device * dself) {
     GPtrArray * ops;
     gboolean success;
@@ -1639,7 +1609,7 @@ rait_device_finish_file (Device * dself) {
     if (self->private->status != RAIT_STATUS_COMPLETE) return FALSE;
 
     ops = make_generic_boolean_op_array(self);
-    
+
     do_rait_child_ops(self, finish_file_do_op, ops);
 
     success = g_ptr_array_and(ops, extract_boolean_generic_op);
@@ -1671,7 +1641,7 @@ static void seek_file_do_op(gpointer data, gpointer user_data G_GNUC_UNUSED) {
     op->actual_file = op->base.child->file;
 }
 
-static dumpfile_t * 
+static dumpfile_t *
 rait_device_seek_file (Device * dself, guint file) {
     GPtrArray * ops;
     guint i;
@@ -1698,7 +1668,7 @@ rait_device_seek_file (Device * dself, guint file) {
         op->requested_file = file;
         g_ptr_array_add(ops, op);
     }
-    
+
     do_rait_child_ops(self, seek_file_do_op, ops);
 
     /* This checks for NULL values, but we still have to check for
@@ -1712,7 +1682,7 @@ rait_device_seek_file (Device * dself, guint file) {
         dumpfile_t * this_result;
         guint this_actual_file;
 	gboolean this_in_file;
-        
+
         this_op = (SeekFileOp*)g_ptr_array_index(ops, i);
 
         if ((signed)this_op->base.child_index == self->private->failed)
@@ -1768,7 +1738,7 @@ static void seek_block_do_op(gpointer data, gpointer user_data G_GNUC_UNUSED) {
         GINT_TO_POINTER(device_seek_block(op->base.child, op->block));
 }
 
-static gboolean 
+static gboolean
 rait_device_seek_block (Device * dself, guint64 block) {
     GPtrArray * ops;
     guint i;
@@ -1789,7 +1759,7 @@ rait_device_seek_block (Device * dself, guint64 block) {
         op->block = block;
         g_ptr_array_add(ops, op);
     }
-    
+
     do_rait_child_ops(self, seek_block_do_op, ops);
 
     success = g_ptr_array_union_robust(RAIT_DEVICE(self),
@@ -1887,15 +1857,15 @@ static gboolean raid_block_reconstruction(RaitDevice * self, GPtrArray * ops,
                    child_blocksize);
         }
     }
-    g_assert(parity_block != NULL); /* should have found parity_child */
-
     if (self->private->status == RAIT_STATUS_COMPLETE) {
+	g_assert(parity_block != NULL); /* should have found parity_child */
+
         if (num_children >= 2) {
             /* Verify the parity block. This code is inefficient but
                does the job for the 2-device case, too. */
             gpointer constructed_parity;
             GPtrArray * data_extents;
-            
+
             constructed_parity = g_malloc(child_blocksize);
             data_extents = g_ptr_array_sized_new(data_children);
             for (i = 0; i < data_children; i ++) {
@@ -1907,7 +1877,7 @@ static gboolean raid_block_reconstruction(RaitDevice * self, GPtrArray * ops,
             }
             make_parity_block_extents(data_extents, constructed_parity,
                                       child_blocksize);
-            
+
             if (0 != memcmp(parity_block, constructed_parity,
                             child_blocksize)) {
                 device_set_error(DEVICE(self),
@@ -1926,7 +1896,7 @@ static gboolean raid_block_reconstruction(RaitDevice * self, GPtrArray * ops,
             /* do nothing. */
         } else if (num_children >= 2) {
             /* Reconstruct failed block from parity block. */
-            GPtrArray * data_extents = g_ptr_array_new();            
+            GPtrArray * data_extents = g_ptr_array_new();
 
             for (i = 0; i < data_children; i ++) {
                 ReadBlockOp * op = g_ptr_array_index(ops, i);
@@ -1992,7 +1962,7 @@ rait_device_read_block (Device * dself, gpointer buf, int * size) {
         op->desired_read_size = op->read_size = child_blocksize;
         g_ptr_array_add(ops, op);
     }
-    
+
     do_rait_child_ops(self, read_block_do_op, ops);
 
     if (g_ptr_array_count(ops, extract_boolean_read_block_op_data)) {
@@ -2621,7 +2591,7 @@ static void recycle_file_do_op(gpointer data,
         GINT_TO_POINTER(device_recycle_file(op->base.child, op->filenum));
 }
 
-static gboolean 
+static gboolean
 rait_device_recycle_file (Device * dself, guint filenum) {
     GPtrArray * ops;
     guint i;
@@ -2639,7 +2609,7 @@ rait_device_recycle_file (Device * dself, guint filenum) {
         op->filenum = filenum;
         g_ptr_array_add(ops, op);
     }
-    
+
     do_rait_child_ops(self, recycle_file_do_op, ops);
 
     success = g_ptr_array_and(ops, extract_boolean_generic_op);
@@ -2662,7 +2632,7 @@ static void finish_do_op(gpointer data, gpointer user_data G_GNUC_UNUSED) {
     op->result = GINT_TO_POINTER(device_finish(op->child));
 }
 
-static gboolean 
+static gboolean
 rait_device_finish (Device * self) {
     GPtrArray * ops;
     gboolean success;
@@ -2670,7 +2640,7 @@ rait_device_finish (Device * self) {
     if (rait_device_in_error(self)) return FALSE;
 
     ops = make_generic_boolean_op_array(RAIT_DEVICE(self));
-    
+
     do_rait_child_ops(RAIT_DEVICE(self), finish_do_op, ops);
 
     success = g_ptr_array_and(ops, extract_boolean_generic_op);
@@ -2694,7 +2664,7 @@ rait_device_factory (char * device_name, char * device_type, char * device_node)
     return rval;
 }
 
-void 
+void
 rait_device_register (void) {
     static const char * device_prefix_list[] = {"rait", NULL};
     register_device(rait_device_factory, device_prefix_list);

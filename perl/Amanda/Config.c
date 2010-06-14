@@ -1477,7 +1477,7 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 #define SWIGTYPE_p_application_t swig_types[0]
 #define SWIGTYPE_p_changer_config_t swig_types[1]
 #define SWIGTYPE_p_char swig_types[2]
-#define SWIGTYPE_p_config_overwrites_t swig_types[3]
+#define SWIGTYPE_p_config_overrides_t swig_types[3]
 #define SWIGTYPE_p_device_config_t swig_types[4]
 #define SWIGTYPE_p_double swig_types[5]
 #define SWIGTYPE_p_dumptype_t swig_types[6]
@@ -1550,6 +1550,62 @@ SWIG_From_int  SWIG_PERL_DECL_ARGS_1(int value)
 {    
   return SWIG_From_long  SWIG_PERL_CALL_ARGS_1(value);
 }
+
+
+SWIGINTERN swig_type_info*
+SWIG_pchar_descriptor(void)
+{
+  static int init = 0;
+  static swig_type_info* info = 0;
+  if (!init) {
+    info = SWIG_TypeQuery("_p_char");
+    init = 1;
+  }
+  return info;
+}
+
+
+SWIGINTERN int
+SWIG_AsCharPtrAndSize(SV *obj, char** cptr, size_t* psize, int *alloc)
+{
+  if (SvMAGICAL(obj)) {
+     SV *tmp = sv_newmortal();
+     SvSetSV(tmp, obj);
+     obj = tmp;
+  }
+  if (SvPOK(obj)) {
+    STRLEN len = 0;
+    char *cstr = SvPV(obj, len); 
+    size_t size = len + 1;
+    if (cptr)  {
+      if (alloc) {
+	if (*alloc == SWIG_NEWOBJ) {
+	  *cptr = (char *)memcpy((char *)malloc((size)*sizeof(char)), cstr, sizeof(char)*(size));
+	} else {
+	  *cptr = cstr;
+	  *alloc = SWIG_OLDOBJ;
+	}
+      }
+    }
+    if (psize) *psize = size;
+    return SWIG_OK;
+  } else {
+    swig_type_info* pchar_descriptor = SWIG_pchar_descriptor();
+    if (pchar_descriptor) {
+      char* vptr = 0; 
+      if (SWIG_ConvertPtr(obj, (void**)&vptr, pchar_descriptor, 0) == SWIG_OK) {
+	if (cptr) *cptr = vptr;
+	if (psize) *psize = vptr ? (strlen(vptr) + 1) : 0;
+	if (alloc) *alloc = SWIG_OLDOBJ;
+	return SWIG_OK;
+      }
+    }
+  }
+  return SWIG_TypeError;
+}
+
+
+
 
 
 #include <limits.h>
@@ -1680,62 +1736,6 @@ SWIG_AsVal_int SWIG_PERL_DECL_ARGS_2(SV * obj, int *val)
 }
 
 
-SWIGINTERN swig_type_info*
-SWIG_pchar_descriptor(void)
-{
-  static int init = 0;
-  static swig_type_info* info = 0;
-  if (!init) {
-    info = SWIG_TypeQuery("_p_char");
-    init = 1;
-  }
-  return info;
-}
-
-
-SWIGINTERN int
-SWIG_AsCharPtrAndSize(SV *obj, char** cptr, size_t* psize, int *alloc)
-{
-  if (SvMAGICAL(obj)) {
-     SV *tmp = sv_newmortal();
-     SvSetSV(tmp, obj);
-     obj = tmp;
-  }
-  if (SvPOK(obj)) {
-    STRLEN len = 0;
-    char *cstr = SvPV(obj, len); 
-    size_t size = len + 1;
-    if (cptr)  {
-      if (alloc) {
-	if (*alloc == SWIG_NEWOBJ) {
-	  *cptr = (char *)memcpy((char *)malloc((size)*sizeof(char)), cstr, sizeof(char)*(size));
-	} else {
-	  *cptr = cstr;
-	  *alloc = SWIG_OLDOBJ;
-	}
-      }
-    }
-    if (psize) *psize = size;
-    return SWIG_OK;
-  } else {
-    swig_type_info* pchar_descriptor = SWIG_pchar_descriptor();
-    if (pchar_descriptor) {
-      char* vptr = 0; 
-      if (SWIG_ConvertPtr(obj, (void**)&vptr, pchar_descriptor, 0) == SWIG_OK) {
-	if (cptr) *cptr = vptr;
-	if (psize) *psize = vptr ? (strlen(vptr) + 1) : 0;
-	if (alloc) *alloc = SWIG_OLDOBJ;
-	return SWIG_OK;
-      }
-    }
-  }
-  return SWIG_TypeError;
-}
-
-
-
-
-
 typedef char **val_t_strs;
 val_t_strs getconf_byname_strs(char *key, int str_needs_quotes) {
     val_t *val = getconf_byname(key);
@@ -1797,6 +1797,28 @@ fail:
 SWIGCLASS_STATIC int _wrap_debug_amandad_get(pTHX_ SV *sv, MAGIC *SWIGUNUSEDPARM(mg)) {
   MAGIC_PPERL
   sv_setsv(sv,SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(debug_amandad)))  ;
+  return 1;
+}
+
+
+SWIGCLASS_STATIC int _wrap_debug_recovery_set(pTHX_ SV* sv, MAGIC * SWIGUNUSEDPARM(mg)) {
+  MAGIC_PPERL
+  {
+    int val;
+    int res = SWIG_AsVal_int SWIG_PERL_CALL_ARGS_2(sv, &val);
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "in variable '""debug_recovery""' of type '""int""'");
+    }
+    debug_recovery = (int)(val);
+  }
+fail:
+  return 1;
+}
+
+
+SWIGCLASS_STATIC int _wrap_debug_recovery_get(pTHX_ SV *sv, MAGIC *SWIGUNUSEDPARM(mg)) {
+  MAGIC_PPERL
+  sv_setsv(sv,SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(debug_recovery)))  ;
   return 1;
 }
 
@@ -2144,6 +2166,42 @@ SWIGCLASS_STATIC int _wrap_debug_sendbackup_get(pTHX_ SV *sv, MAGIC *SWIGUNUSEDP
 #ifdef __cplusplus
 extern "C" {
 #endif
+XS(_wrap_data_path_from_string) {
+  {
+    char *arg1 = (char *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int argvi = 0;
+    data_path_t result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: data_path_from_string(data);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "data_path_from_string" "', argument " "1"" of type '" "char *""'");
+    }
+    arg1 = (char *)(buf1);
+    result = (data_path_t)data_path_from_string(arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_getconf) {
   {
     confparm_key arg1 ;
@@ -2193,7 +2251,6 @@ XS(_wrap_getconf) {
             ST(argvi)= sv_newmortal();
             sv_setiv(ST(argvi), val_t__intrange(result)[1]);
             argvi++;
-            break;
             break;
           }
           
@@ -2246,19 +2303,20 @@ XS(_wrap_getconf) {
           break;
           
         case CONFTYPE_SIZE:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_INT64:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
           case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
         case CONFTYPE_COMPRESS:
         case CONFTYPE_ENCRYPT:
-        case CONFTYPE_ESTIMATE:
         case CONFTYPE_STRATEGY:
         case CONFTYPE_TAPERALGO:
         case CONFTYPE_PRIORITY:
@@ -2266,14 +2324,28 @@ XS(_wrap_getconf) {
         case CONFTYPE_EXECUTE_ON:
         case CONFTYPE_EXECUTE_WHERE:
         case CONFTYPE_SEND_AMREPORT_ON:
+        case CONFTYPE_DATA_PATH:
         case CONFTYPE_INT:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
+          case CONFTYPE_ESTIMATELIST: {
+            AV *elist = newAV();
+            estimatelist_t el;
+            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
+              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
+            }
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
+            argvi++;
+            break;
+          }
+          
         case CONFTYPE_TIME:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_REAL:
@@ -2284,10 +2356,51 @@ XS(_wrap_getconf) {
           
           case CONFTYPE_IDENT:	    /* same as STRING */
         case CONFTYPE_STR:
+        case CONFTYPE_APPLICATION:
           ST(argvi) = sv_newmortal();
           sv_setpv(ST(argvi), val_t__str(result));
           argvi++;
           break;
+          
+          case CONFTYPE_IDENTLIST: {
+            AV *ilist = newAV();
+            
+            identlist_t il;
+            for (il=val_t__identlist(result); il != NULL; il = il->next) {
+              av_push(ilist, newSVpv((char *)il->data, 0));
+            }
+            
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
+            argvi++;
+            break;
+          }
+          
+          case CONFTYPE_AUTOLABEL: {
+            autolabel_t *autolabel = &val_t__autolabel(result);
+            HV *hv;
+            
+            /* now build the hash */
+            hv = (HV *)sv_2mortal((SV *)newHV());
+            hv_store(hv, "template", 8,
+              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
+              0);
+            hv_store(hv, "other_config", 12,
+              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "non_amanda", 10,
+              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "volume_error", 12,
+              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "empty", 5,
+              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
+              0);
+            
+            ST(argvi) = sv_2mortal(newRV((SV *)hv));
+            argvi++;
+            break;
+          }
           
           /* No match yet -> not one of the "complex" types */
         default:
@@ -2330,7 +2443,51 @@ XS(_wrap_getconf_seen) {
     }
     result = (gboolean)getconf_seen(arg1);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_getconf_linenum) {
+  {
+    confparm_key arg1 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: getconf_linenum(key);");
+    }
+    {
+      if (sizeof(signed int) == 1) {
+        arg1 = amglue_SvI8(ST(0));
+      } else if (sizeof(signed int) == 2) {
+        arg1 = amglue_SvI16(ST(0));
+      } else if (sizeof(signed int) == 4) {
+        arg1 = amglue_SvI32(ST(0));
+      } else if (sizeof(signed int) == 8) {
+        arg1 = amglue_SvI64(ST(0));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    result = (int)getconf_linenum(arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     
@@ -2387,7 +2544,6 @@ XS(_wrap_getconf_byname) {
             sv_setiv(ST(argvi), val_t__intrange(result)[1]);
             argvi++;
             break;
-            break;
           }
           
           case CONFTYPE_EXINCLUDE: {
@@ -2439,19 +2595,20 @@ XS(_wrap_getconf_byname) {
           break;
           
         case CONFTYPE_SIZE:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_INT64:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
           case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
         case CONFTYPE_COMPRESS:
         case CONFTYPE_ENCRYPT:
-        case CONFTYPE_ESTIMATE:
         case CONFTYPE_STRATEGY:
         case CONFTYPE_TAPERALGO:
         case CONFTYPE_PRIORITY:
@@ -2459,14 +2616,28 @@ XS(_wrap_getconf_byname) {
         case CONFTYPE_EXECUTE_ON:
         case CONFTYPE_EXECUTE_WHERE:
         case CONFTYPE_SEND_AMREPORT_ON:
+        case CONFTYPE_DATA_PATH:
         case CONFTYPE_INT:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
+          case CONFTYPE_ESTIMATELIST: {
+            AV *elist = newAV();
+            estimatelist_t el;
+            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
+              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
+            }
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
+            argvi++;
+            break;
+          }
+          
         case CONFTYPE_TIME:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_REAL:
@@ -2477,10 +2648,51 @@ XS(_wrap_getconf_byname) {
           
           case CONFTYPE_IDENT:	    /* same as STRING */
         case CONFTYPE_STR:
+        case CONFTYPE_APPLICATION:
           ST(argvi) = sv_newmortal();
           sv_setpv(ST(argvi), val_t__str(result));
           argvi++;
           break;
+          
+          case CONFTYPE_IDENTLIST: {
+            AV *ilist = newAV();
+            
+            identlist_t il;
+            for (il=val_t__identlist(result); il != NULL; il = il->next) {
+              av_push(ilist, newSVpv((char *)il->data, 0));
+            }
+            
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
+            argvi++;
+            break;
+          }
+          
+          case CONFTYPE_AUTOLABEL: {
+            autolabel_t *autolabel = &val_t__autolabel(result);
+            HV *hv;
+            
+            /* now build the hash */
+            hv = (HV *)sv_2mortal((SV *)newHV());
+            hv_store(hv, "template", 8,
+              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
+              0);
+            hv_store(hv, "other_config", 12,
+              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "non_amanda", 10,
+              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "volume_error", 12,
+              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "empty", 5,
+              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
+              0);
+            
+            ST(argvi) = sv_2mortal(newRV((SV *)hv));
+            argvi++;
+            break;
+          }
           
           /* No match yet -> not one of the "complex" types */
         default:
@@ -2678,7 +2890,6 @@ XS(_wrap_tapetype_getconf) {
             sv_setiv(ST(argvi), val_t__intrange(result)[1]);
             argvi++;
             break;
-            break;
           }
           
           case CONFTYPE_EXINCLUDE: {
@@ -2730,19 +2941,20 @@ XS(_wrap_tapetype_getconf) {
           break;
           
         case CONFTYPE_SIZE:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_INT64:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
           case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
         case CONFTYPE_COMPRESS:
         case CONFTYPE_ENCRYPT:
-        case CONFTYPE_ESTIMATE:
         case CONFTYPE_STRATEGY:
         case CONFTYPE_TAPERALGO:
         case CONFTYPE_PRIORITY:
@@ -2750,14 +2962,28 @@ XS(_wrap_tapetype_getconf) {
         case CONFTYPE_EXECUTE_ON:
         case CONFTYPE_EXECUTE_WHERE:
         case CONFTYPE_SEND_AMREPORT_ON:
+        case CONFTYPE_DATA_PATH:
         case CONFTYPE_INT:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
+          case CONFTYPE_ESTIMATELIST: {
+            AV *elist = newAV();
+            estimatelist_t el;
+            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
+              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
+            }
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
+            argvi++;
+            break;
+          }
+          
         case CONFTYPE_TIME:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_REAL:
@@ -2768,10 +2994,51 @@ XS(_wrap_tapetype_getconf) {
           
           case CONFTYPE_IDENT:	    /* same as STRING */
         case CONFTYPE_STR:
+        case CONFTYPE_APPLICATION:
           ST(argvi) = sv_newmortal();
           sv_setpv(ST(argvi), val_t__str(result));
           argvi++;
           break;
+          
+          case CONFTYPE_IDENTLIST: {
+            AV *ilist = newAV();
+            
+            identlist_t il;
+            for (il=val_t__identlist(result); il != NULL; il = il->next) {
+              av_push(ilist, newSVpv((char *)il->data, 0));
+            }
+            
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
+            argvi++;
+            break;
+          }
+          
+          case CONFTYPE_AUTOLABEL: {
+            autolabel_t *autolabel = &val_t__autolabel(result);
+            HV *hv;
+            
+            /* now build the hash */
+            hv = (HV *)sv_2mortal((SV *)newHV());
+            hv_store(hv, "template", 8,
+              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
+              0);
+            hv_store(hv, "other_config", 12,
+              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "non_amanda", 10,
+              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "volume_error", 12,
+              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "empty", 5,
+              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
+              0);
+            
+            ST(argvi) = sv_2mortal(newRV((SV *)hv));
+            argvi++;
+            break;
+          }
           
           /* No match yet -> not one of the "complex" types */
         default:
@@ -2852,7 +3119,10 @@ XS(_wrap_tapetype_seen) {
     }
     result = (gboolean)tapetype_seen(arg1,arg2);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
       argvi++;
     }
     
@@ -2953,7 +3223,6 @@ XS(_wrap_dumptype_getconf) {
             sv_setiv(ST(argvi), val_t__intrange(result)[1]);
             argvi++;
             break;
-            break;
           }
           
           case CONFTYPE_EXINCLUDE: {
@@ -3005,19 +3274,20 @@ XS(_wrap_dumptype_getconf) {
           break;
           
         case CONFTYPE_SIZE:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_INT64:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
           case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
         case CONFTYPE_COMPRESS:
         case CONFTYPE_ENCRYPT:
-        case CONFTYPE_ESTIMATE:
         case CONFTYPE_STRATEGY:
         case CONFTYPE_TAPERALGO:
         case CONFTYPE_PRIORITY:
@@ -3025,14 +3295,28 @@ XS(_wrap_dumptype_getconf) {
         case CONFTYPE_EXECUTE_ON:
         case CONFTYPE_EXECUTE_WHERE:
         case CONFTYPE_SEND_AMREPORT_ON:
+        case CONFTYPE_DATA_PATH:
         case CONFTYPE_INT:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
+          case CONFTYPE_ESTIMATELIST: {
+            AV *elist = newAV();
+            estimatelist_t el;
+            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
+              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
+            }
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
+            argvi++;
+            break;
+          }
+          
         case CONFTYPE_TIME:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_REAL:
@@ -3043,10 +3327,51 @@ XS(_wrap_dumptype_getconf) {
           
           case CONFTYPE_IDENT:	    /* same as STRING */
         case CONFTYPE_STR:
+        case CONFTYPE_APPLICATION:
           ST(argvi) = sv_newmortal();
           sv_setpv(ST(argvi), val_t__str(result));
           argvi++;
           break;
+          
+          case CONFTYPE_IDENTLIST: {
+            AV *ilist = newAV();
+            
+            identlist_t il;
+            for (il=val_t__identlist(result); il != NULL; il = il->next) {
+              av_push(ilist, newSVpv((char *)il->data, 0));
+            }
+            
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
+            argvi++;
+            break;
+          }
+          
+          case CONFTYPE_AUTOLABEL: {
+            autolabel_t *autolabel = &val_t__autolabel(result);
+            HV *hv;
+            
+            /* now build the hash */
+            hv = (HV *)sv_2mortal((SV *)newHV());
+            hv_store(hv, "template", 8,
+              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
+              0);
+            hv_store(hv, "other_config", 12,
+              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "non_amanda", 10,
+              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "volume_error", 12,
+              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "empty", 5,
+              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
+              0);
+            
+            ST(argvi) = sv_2mortal(newRV((SV *)hv));
+            argvi++;
+            break;
+          }
           
           /* No match yet -> not one of the "complex" types */
         default:
@@ -3127,7 +3452,10 @@ XS(_wrap_dumptype_seen) {
     }
     result = (gboolean)dumptype_seen(arg1,arg2);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
       argvi++;
     }
     
@@ -3228,7 +3556,6 @@ XS(_wrap_interface_getconf) {
             sv_setiv(ST(argvi), val_t__intrange(result)[1]);
             argvi++;
             break;
-            break;
           }
           
           case CONFTYPE_EXINCLUDE: {
@@ -3280,19 +3607,20 @@ XS(_wrap_interface_getconf) {
           break;
           
         case CONFTYPE_SIZE:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_INT64:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
           case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
         case CONFTYPE_COMPRESS:
         case CONFTYPE_ENCRYPT:
-        case CONFTYPE_ESTIMATE:
         case CONFTYPE_STRATEGY:
         case CONFTYPE_TAPERALGO:
         case CONFTYPE_PRIORITY:
@@ -3300,14 +3628,28 @@ XS(_wrap_interface_getconf) {
         case CONFTYPE_EXECUTE_ON:
         case CONFTYPE_EXECUTE_WHERE:
         case CONFTYPE_SEND_AMREPORT_ON:
+        case CONFTYPE_DATA_PATH:
         case CONFTYPE_INT:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
+          case CONFTYPE_ESTIMATELIST: {
+            AV *elist = newAV();
+            estimatelist_t el;
+            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
+              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
+            }
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
+            argvi++;
+            break;
+          }
+          
         case CONFTYPE_TIME:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_REAL:
@@ -3318,10 +3660,51 @@ XS(_wrap_interface_getconf) {
           
           case CONFTYPE_IDENT:	    /* same as STRING */
         case CONFTYPE_STR:
+        case CONFTYPE_APPLICATION:
           ST(argvi) = sv_newmortal();
           sv_setpv(ST(argvi), val_t__str(result));
           argvi++;
           break;
+          
+          case CONFTYPE_IDENTLIST: {
+            AV *ilist = newAV();
+            
+            identlist_t il;
+            for (il=val_t__identlist(result); il != NULL; il = il->next) {
+              av_push(ilist, newSVpv((char *)il->data, 0));
+            }
+            
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
+            argvi++;
+            break;
+          }
+          
+          case CONFTYPE_AUTOLABEL: {
+            autolabel_t *autolabel = &val_t__autolabel(result);
+            HV *hv;
+            
+            /* now build the hash */
+            hv = (HV *)sv_2mortal((SV *)newHV());
+            hv_store(hv, "template", 8,
+              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
+              0);
+            hv_store(hv, "other_config", 12,
+              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "non_amanda", 10,
+              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "volume_error", 12,
+              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "empty", 5,
+              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
+              0);
+            
+            ST(argvi) = sv_2mortal(newRV((SV *)hv));
+            argvi++;
+            break;
+          }
           
           /* No match yet -> not one of the "complex" types */
         default:
@@ -3402,7 +3785,10 @@ XS(_wrap_interface_seen) {
     }
     result = (gboolean)interface_seen(arg1,arg2);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
       argvi++;
     }
     
@@ -3448,44 +3834,26 @@ XS(_wrap_lookup_holdingdisk) {
 XS(_wrap_getconf_holdingdisks) {
   {
     int argvi = 0;
-    holdingdisk_t *result = 0 ;
+    GSList *result = 0 ;
     dXSARGS;
     
     if ((items < 0) || (items > 0)) {
       SWIG_croak("Usage: getconf_holdingdisks();");
     }
-    result = (holdingdisk_t *)getconf_holdingdisks();
-    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_holdingdisk_t, 0 | 0); argvi++ ;
+    result = (GSList *)getconf_holdingdisks();
+    {
+      GSList *it = result;
+      
+      while (it) {
+        ST(argvi) = sv_2mortal(newSVpv(it->data, 0));
+        argvi++;
+        it = it->next;
+      }
+      
+      g_slist_free(result);
+    }
     XSRETURN(argvi);
   fail:
-    SWIG_croak_null();
-  }
-}
-
-
-XS(_wrap_holdingdisk_next) {
-  {
-    holdingdisk_t *arg1 = (holdingdisk_t *) 0 ;
-    void *argp1 = 0 ;
-    int res1 = 0 ;
-    int argvi = 0;
-    holdingdisk_t *result = 0 ;
-    dXSARGS;
-    
-    if ((items < 1) || (items > 1)) {
-      SWIG_croak("Usage: holdingdisk_next(hdisk);");
-    }
-    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_holdingdisk_t, 0 |  0 );
-    if (!SWIG_IsOK(res1)) {
-      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "holdingdisk_next" "', argument " "1"" of type '" "holdingdisk_t *""'"); 
-    }
-    arg1 = (holdingdisk_t *)(argp1);
-    result = (holdingdisk_t *)holdingdisk_next(arg1);
-    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_holdingdisk_t, 0 | 0); argvi++ ;
-    
-    XSRETURN(argvi);
-  fail:
-    
     SWIG_croak_null();
   }
 }
@@ -3549,7 +3917,6 @@ XS(_wrap_holdingdisk_getconf) {
             sv_setiv(ST(argvi), val_t__intrange(result)[1]);
             argvi++;
             break;
-            break;
           }
           
           case CONFTYPE_EXINCLUDE: {
@@ -3601,19 +3968,20 @@ XS(_wrap_holdingdisk_getconf) {
           break;
           
         case CONFTYPE_SIZE:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_INT64:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
           case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
         case CONFTYPE_COMPRESS:
         case CONFTYPE_ENCRYPT:
-        case CONFTYPE_ESTIMATE:
         case CONFTYPE_STRATEGY:
         case CONFTYPE_TAPERALGO:
         case CONFTYPE_PRIORITY:
@@ -3621,14 +3989,28 @@ XS(_wrap_holdingdisk_getconf) {
         case CONFTYPE_EXECUTE_ON:
         case CONFTYPE_EXECUTE_WHERE:
         case CONFTYPE_SEND_AMREPORT_ON:
+        case CONFTYPE_DATA_PATH:
         case CONFTYPE_INT:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
+          case CONFTYPE_ESTIMATELIST: {
+            AV *elist = newAV();
+            estimatelist_t el;
+            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
+              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
+            }
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
+            argvi++;
+            break;
+          }
+          
         case CONFTYPE_TIME:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_REAL:
@@ -3639,10 +4021,51 @@ XS(_wrap_holdingdisk_getconf) {
           
           case CONFTYPE_IDENT:	    /* same as STRING */
         case CONFTYPE_STR:
+        case CONFTYPE_APPLICATION:
           ST(argvi) = sv_newmortal();
           sv_setpv(ST(argvi), val_t__str(result));
           argvi++;
           break;
+          
+          case CONFTYPE_IDENTLIST: {
+            AV *ilist = newAV();
+            
+            identlist_t il;
+            for (il=val_t__identlist(result); il != NULL; il = il->next) {
+              av_push(ilist, newSVpv((char *)il->data, 0));
+            }
+            
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
+            argvi++;
+            break;
+          }
+          
+          case CONFTYPE_AUTOLABEL: {
+            autolabel_t *autolabel = &val_t__autolabel(result);
+            HV *hv;
+            
+            /* now build the hash */
+            hv = (HV *)sv_2mortal((SV *)newHV());
+            hv_store(hv, "template", 8,
+              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
+              0);
+            hv_store(hv, "other_config", 12,
+              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "non_amanda", 10,
+              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "volume_error", 12,
+              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "empty", 5,
+              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
+              0);
+            
+            ST(argvi) = sv_2mortal(newRV((SV *)hv));
+            argvi++;
+            break;
+          }
           
           /* No match yet -> not one of the "complex" types */
         default:
@@ -3723,7 +4146,10 @@ XS(_wrap_holdingdisk_seen) {
     }
     result = (gboolean)holdingdisk_seen(arg1,arg2);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
       argvi++;
     }
     
@@ -3824,7 +4250,6 @@ XS(_wrap_application_getconf) {
             sv_setiv(ST(argvi), val_t__intrange(result)[1]);
             argvi++;
             break;
-            break;
           }
           
           case CONFTYPE_EXINCLUDE: {
@@ -3876,19 +4301,20 @@ XS(_wrap_application_getconf) {
           break;
           
         case CONFTYPE_SIZE:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_INT64:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
           case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
         case CONFTYPE_COMPRESS:
         case CONFTYPE_ENCRYPT:
-        case CONFTYPE_ESTIMATE:
         case CONFTYPE_STRATEGY:
         case CONFTYPE_TAPERALGO:
         case CONFTYPE_PRIORITY:
@@ -3896,14 +4322,28 @@ XS(_wrap_application_getconf) {
         case CONFTYPE_EXECUTE_ON:
         case CONFTYPE_EXECUTE_WHERE:
         case CONFTYPE_SEND_AMREPORT_ON:
+        case CONFTYPE_DATA_PATH:
         case CONFTYPE_INT:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
+          case CONFTYPE_ESTIMATELIST: {
+            AV *elist = newAV();
+            estimatelist_t el;
+            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
+              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
+            }
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
+            argvi++;
+            break;
+          }
+          
         case CONFTYPE_TIME:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_REAL:
@@ -3914,10 +4354,51 @@ XS(_wrap_application_getconf) {
           
           case CONFTYPE_IDENT:	    /* same as STRING */
         case CONFTYPE_STR:
+        case CONFTYPE_APPLICATION:
           ST(argvi) = sv_newmortal();
           sv_setpv(ST(argvi), val_t__str(result));
           argvi++;
           break;
+          
+          case CONFTYPE_IDENTLIST: {
+            AV *ilist = newAV();
+            
+            identlist_t il;
+            for (il=val_t__identlist(result); il != NULL; il = il->next) {
+              av_push(ilist, newSVpv((char *)il->data, 0));
+            }
+            
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
+            argvi++;
+            break;
+          }
+          
+          case CONFTYPE_AUTOLABEL: {
+            autolabel_t *autolabel = &val_t__autolabel(result);
+            HV *hv;
+            
+            /* now build the hash */
+            hv = (HV *)sv_2mortal((SV *)newHV());
+            hv_store(hv, "template", 8,
+              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
+              0);
+            hv_store(hv, "other_config", 12,
+              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "non_amanda", 10,
+              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "volume_error", 12,
+              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "empty", 5,
+              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
+              0);
+            
+            ST(argvi) = sv_2mortal(newRV((SV *)hv));
+            argvi++;
+            break;
+          }
           
           /* No match yet -> not one of the "complex" types */
         default:
@@ -3998,7 +4479,10 @@ XS(_wrap_application_seen) {
     }
     result = (gboolean)application_seen(arg1,arg2);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
       argvi++;
     }
     
@@ -4099,7 +4583,6 @@ XS(_wrap_pp_script_getconf) {
             sv_setiv(ST(argvi), val_t__intrange(result)[1]);
             argvi++;
             break;
-            break;
           }
           
           case CONFTYPE_EXINCLUDE: {
@@ -4151,19 +4634,20 @@ XS(_wrap_pp_script_getconf) {
           break;
           
         case CONFTYPE_SIZE:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_INT64:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
           case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
         case CONFTYPE_COMPRESS:
         case CONFTYPE_ENCRYPT:
-        case CONFTYPE_ESTIMATE:
         case CONFTYPE_STRATEGY:
         case CONFTYPE_TAPERALGO:
         case CONFTYPE_PRIORITY:
@@ -4171,14 +4655,28 @@ XS(_wrap_pp_script_getconf) {
         case CONFTYPE_EXECUTE_ON:
         case CONFTYPE_EXECUTE_WHERE:
         case CONFTYPE_SEND_AMREPORT_ON:
+        case CONFTYPE_DATA_PATH:
         case CONFTYPE_INT:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
+          case CONFTYPE_ESTIMATELIST: {
+            AV *elist = newAV();
+            estimatelist_t el;
+            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
+              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
+            }
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
+            argvi++;
+            break;
+          }
+          
         case CONFTYPE_TIME:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_REAL:
@@ -4189,10 +4687,51 @@ XS(_wrap_pp_script_getconf) {
           
           case CONFTYPE_IDENT:	    /* same as STRING */
         case CONFTYPE_STR:
+        case CONFTYPE_APPLICATION:
           ST(argvi) = sv_newmortal();
           sv_setpv(ST(argvi), val_t__str(result));
           argvi++;
           break;
+          
+          case CONFTYPE_IDENTLIST: {
+            AV *ilist = newAV();
+            
+            identlist_t il;
+            for (il=val_t__identlist(result); il != NULL; il = il->next) {
+              av_push(ilist, newSVpv((char *)il->data, 0));
+            }
+            
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
+            argvi++;
+            break;
+          }
+          
+          case CONFTYPE_AUTOLABEL: {
+            autolabel_t *autolabel = &val_t__autolabel(result);
+            HV *hv;
+            
+            /* now build the hash */
+            hv = (HV *)sv_2mortal((SV *)newHV());
+            hv_store(hv, "template", 8,
+              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
+              0);
+            hv_store(hv, "other_config", 12,
+              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "non_amanda", 10,
+              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "volume_error", 12,
+              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "empty", 5,
+              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
+              0);
+            
+            ST(argvi) = sv_2mortal(newRV((SV *)hv));
+            argvi++;
+            break;
+          }
           
           /* No match yet -> not one of the "complex" types */
         default:
@@ -4273,7 +4812,10 @@ XS(_wrap_pp_script_seen) {
     }
     result = (gboolean)pp_script_seen(arg1,arg2);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
       argvi++;
     }
     
@@ -4374,7 +4916,6 @@ XS(_wrap_device_config_getconf) {
             sv_setiv(ST(argvi), val_t__intrange(result)[1]);
             argvi++;
             break;
-            break;
           }
           
           case CONFTYPE_EXINCLUDE: {
@@ -4426,19 +4967,20 @@ XS(_wrap_device_config_getconf) {
           break;
           
         case CONFTYPE_SIZE:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_INT64:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
           case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
         case CONFTYPE_COMPRESS:
         case CONFTYPE_ENCRYPT:
-        case CONFTYPE_ESTIMATE:
         case CONFTYPE_STRATEGY:
         case CONFTYPE_TAPERALGO:
         case CONFTYPE_PRIORITY:
@@ -4446,14 +4988,28 @@ XS(_wrap_device_config_getconf) {
         case CONFTYPE_EXECUTE_ON:
         case CONFTYPE_EXECUTE_WHERE:
         case CONFTYPE_SEND_AMREPORT_ON:
+        case CONFTYPE_DATA_PATH:
         case CONFTYPE_INT:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
+          case CONFTYPE_ESTIMATELIST: {
+            AV *elist = newAV();
+            estimatelist_t el;
+            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
+              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
+            }
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
+            argvi++;
+            break;
+          }
+          
         case CONFTYPE_TIME:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_REAL:
@@ -4464,10 +5020,51 @@ XS(_wrap_device_config_getconf) {
           
           case CONFTYPE_IDENT:	    /* same as STRING */
         case CONFTYPE_STR:
+        case CONFTYPE_APPLICATION:
           ST(argvi) = sv_newmortal();
           sv_setpv(ST(argvi), val_t__str(result));
           argvi++;
           break;
+          
+          case CONFTYPE_IDENTLIST: {
+            AV *ilist = newAV();
+            
+            identlist_t il;
+            for (il=val_t__identlist(result); il != NULL; il = il->next) {
+              av_push(ilist, newSVpv((char *)il->data, 0));
+            }
+            
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
+            argvi++;
+            break;
+          }
+          
+          case CONFTYPE_AUTOLABEL: {
+            autolabel_t *autolabel = &val_t__autolabel(result);
+            HV *hv;
+            
+            /* now build the hash */
+            hv = (HV *)sv_2mortal((SV *)newHV());
+            hv_store(hv, "template", 8,
+              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
+              0);
+            hv_store(hv, "other_config", 12,
+              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "non_amanda", 10,
+              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "volume_error", 12,
+              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "empty", 5,
+              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
+              0);
+            
+            ST(argvi) = sv_2mortal(newRV((SV *)hv));
+            argvi++;
+            break;
+          }
           
           /* No match yet -> not one of the "complex" types */
         default:
@@ -4548,7 +5145,10 @@ XS(_wrap_device_config_seen) {
     }
     result = (gboolean)device_config_seen(arg1,arg2);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
       argvi++;
     }
     
@@ -4649,7 +5249,6 @@ XS(_wrap_changer_config_getconf) {
             sv_setiv(ST(argvi), val_t__intrange(result)[1]);
             argvi++;
             break;
-            break;
           }
           
           case CONFTYPE_EXINCLUDE: {
@@ -4701,19 +5300,20 @@ XS(_wrap_changer_config_getconf) {
           break;
           
         case CONFTYPE_SIZE:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_INT64:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
           case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
         case CONFTYPE_COMPRESS:
         case CONFTYPE_ENCRYPT:
-        case CONFTYPE_ESTIMATE:
         case CONFTYPE_STRATEGY:
         case CONFTYPE_TAPERALGO:
         case CONFTYPE_PRIORITY:
@@ -4721,14 +5321,28 @@ XS(_wrap_changer_config_getconf) {
         case CONFTYPE_EXECUTE_ON:
         case CONFTYPE_EXECUTE_WHERE:
         case CONFTYPE_SEND_AMREPORT_ON:
+        case CONFTYPE_DATA_PATH:
         case CONFTYPE_INT:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
+          case CONFTYPE_ESTIMATELIST: {
+            AV *elist = newAV();
+            estimatelist_t el;
+            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
+              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
+            }
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
+            argvi++;
+            break;
+          }
+          
         case CONFTYPE_TIME:
+          SP += argvi; PUTBACK;
           ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          argvi++;
+          SPAGAIN; SP -= argvi; argvi++;
           break;
           
         case CONFTYPE_REAL:
@@ -4739,10 +5353,51 @@ XS(_wrap_changer_config_getconf) {
           
           case CONFTYPE_IDENT:	    /* same as STRING */
         case CONFTYPE_STR:
+        case CONFTYPE_APPLICATION:
           ST(argvi) = sv_newmortal();
           sv_setpv(ST(argvi), val_t__str(result));
           argvi++;
           break;
+          
+          case CONFTYPE_IDENTLIST: {
+            AV *ilist = newAV();
+            
+            identlist_t il;
+            for (il=val_t__identlist(result); il != NULL; il = il->next) {
+              av_push(ilist, newSVpv((char *)il->data, 0));
+            }
+            
+            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
+            argvi++;
+            break;
+          }
+          
+          case CONFTYPE_AUTOLABEL: {
+            autolabel_t *autolabel = &val_t__autolabel(result);
+            HV *hv;
+            
+            /* now build the hash */
+            hv = (HV *)sv_2mortal((SV *)newHV());
+            hv_store(hv, "template", 8,
+              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
+              0);
+            hv_store(hv, "other_config", 12,
+              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "non_amanda", 10,
+              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "volume_error", 12,
+              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
+              0);
+            hv_store(hv, "empty", 5,
+              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
+              0);
+            
+            ST(argvi) = sv_2mortal(newRV((SV *)hv));
+            argvi++;
+            break;
+          }
           
           /* No match yet -> not one of the "complex" types */
         default:
@@ -4823,7 +5478,10 @@ XS(_wrap_changer_config_seen) {
     }
     result = (gboolean)changer_config_seen(arg1,arg2);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
       argvi++;
     }
     
@@ -4848,7 +5506,11 @@ XS(_wrap_getconf_unit_divisor) {
     }
     result = (long)getconf_unit_divisor();
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     XSRETURN(argvi);
@@ -4866,7 +5528,7 @@ XS(_wrap_config_init) {
     char *buf2 = 0 ;
     int alloc2 = 0 ;
     int argvi = 0;
-    gboolean result;
+    cfgerr_level_t result;
     dXSARGS;
     
     if ((items < 2) || (items > 2)) {
@@ -4890,9 +5552,13 @@ XS(_wrap_config_init) {
       SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "config_init" "', argument " "2"" of type '" "char *""'");
     }
     arg2 = (char *)(buf2);
-    result = (gboolean)config_init(arg1,arg2);
+    result = (cfgerr_level_t)config_init(arg1,arg2);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     
@@ -5062,7 +5728,11 @@ XS(_wrap_config_errors) {
     }
     result = (cfgerr_level_t)config_errors(arg1);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     {
@@ -5083,15 +5753,15 @@ XS(_wrap_config_errors) {
 }
 
 
-XS(_wrap_new_config_overwrites) {
+XS(_wrap_new_config_overrides) {
   {
     int arg1 ;
     int argvi = 0;
-    config_overwrites_t *result = 0 ;
+    config_overrides_t *result = 0 ;
     dXSARGS;
     
     if ((items < 1) || (items > 1)) {
-      SWIG_croak("Usage: new_config_overwrites(size_estimate);");
+      SWIG_croak("Usage: new_config_overrides(size_estimate);");
     }
     {
       if (sizeof(signed int) == 1) {
@@ -5106,8 +5776,8 @@ XS(_wrap_new_config_overwrites) {
         g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
       }
     }
-    result = (config_overwrites_t *)new_config_overwrites(arg1);
-    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_config_overwrites_t, 0 | 0); argvi++ ;
+    result = (config_overrides_t *)new_config_overrides(arg1);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_config_overrides_t, 0 | 0); argvi++ ;
     
     XSRETURN(argvi);
   fail:
@@ -5117,23 +5787,23 @@ XS(_wrap_new_config_overwrites) {
 }
 
 
-XS(_wrap_free_config_overwrites) {
+XS(_wrap_free_config_overrides) {
   {
-    config_overwrites_t *arg1 = (config_overwrites_t *) 0 ;
+    config_overrides_t *arg1 = (config_overrides_t *) 0 ;
     void *argp1 = 0 ;
     int res1 = 0 ;
     int argvi = 0;
     dXSARGS;
     
     if ((items < 1) || (items > 1)) {
-      SWIG_croak("Usage: free_config_overwrites(co);");
+      SWIG_croak("Usage: free_config_overrides(co);");
     }
-    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_config_overwrites_t, 0 |  0 );
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_config_overrides_t, 0 |  0 );
     if (!SWIG_IsOK(res1)) {
-      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "free_config_overwrites" "', argument " "1"" of type '" "config_overwrites_t *""'"); 
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "free_config_overrides" "', argument " "1"" of type '" "config_overrides_t *""'"); 
     }
-    arg1 = (config_overwrites_t *)(argp1);
-    free_config_overwrites(arg1);
+    arg1 = (config_overrides_t *)(argp1);
+    free_config_overrides(arg1);
     ST(argvi) = sv_newmortal();
     
     XSRETURN(argvi);
@@ -5144,9 +5814,9 @@ XS(_wrap_free_config_overwrites) {
 }
 
 
-XS(_wrap_add_config_overwrite) {
+XS(_wrap_add_config_override) {
   {
-    config_overwrites_t *arg1 = (config_overwrites_t *) 0 ;
+    config_overrides_t *arg1 = (config_overrides_t *) 0 ;
     char *arg2 = (char *) 0 ;
     char *arg3 = (char *) 0 ;
     void *argp1 = 0 ;
@@ -5161,24 +5831,24 @@ XS(_wrap_add_config_overwrite) {
     dXSARGS;
     
     if ((items < 3) || (items > 3)) {
-      SWIG_croak("Usage: add_config_overwrite(co,key,value);");
+      SWIG_croak("Usage: add_config_override(co,key,value);");
     }
-    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_config_overwrites_t, 0 |  0 );
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_config_overrides_t, 0 |  0 );
     if (!SWIG_IsOK(res1)) {
-      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "add_config_overwrite" "', argument " "1"" of type '" "config_overwrites_t *""'"); 
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "add_config_override" "', argument " "1"" of type '" "config_overrides_t *""'"); 
     }
-    arg1 = (config_overwrites_t *)(argp1);
+    arg1 = (config_overrides_t *)(argp1);
     res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
     if (!SWIG_IsOK(res2)) {
-      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "add_config_overwrite" "', argument " "2"" of type '" "char *""'");
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "add_config_override" "', argument " "2"" of type '" "char *""'");
     }
     arg2 = (char *)(buf2);
     res3 = SWIG_AsCharPtrAndSize(ST(2), &buf3, NULL, &alloc3);
     if (!SWIG_IsOK(res3)) {
-      SWIG_exception_fail(SWIG_ArgError(res3), "in method '" "add_config_overwrite" "', argument " "3"" of type '" "char *""'");
+      SWIG_exception_fail(SWIG_ArgError(res3), "in method '" "add_config_override" "', argument " "3"" of type '" "char *""'");
     }
     arg3 = (char *)(buf3);
-    add_config_overwrite(arg1,arg2,arg3);
+    add_config_override(arg1,arg2,arg3);
     ST(argvi) = sv_newmortal();
     
     if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
@@ -5193,9 +5863,9 @@ XS(_wrap_add_config_overwrite) {
 }
 
 
-XS(_wrap_add_config_overwrite_opt) {
+XS(_wrap_add_config_override_opt) {
   {
-    config_overwrites_t *arg1 = (config_overwrites_t *) 0 ;
+    config_overrides_t *arg1 = (config_overrides_t *) 0 ;
     char *arg2 = (char *) 0 ;
     void *argp1 = 0 ;
     int res1 = 0 ;
@@ -5206,19 +5876,19 @@ XS(_wrap_add_config_overwrite_opt) {
     dXSARGS;
     
     if ((items < 2) || (items > 2)) {
-      SWIG_croak("Usage: add_config_overwrite_opt(co,optarg);");
+      SWIG_croak("Usage: add_config_override_opt(co,optarg);");
     }
-    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_config_overwrites_t, 0 |  0 );
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_config_overrides_t, 0 |  0 );
     if (!SWIG_IsOK(res1)) {
-      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "add_config_overwrite_opt" "', argument " "1"" of type '" "config_overwrites_t *""'"); 
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "add_config_override_opt" "', argument " "1"" of type '" "config_overrides_t *""'"); 
     }
-    arg1 = (config_overwrites_t *)(argp1);
+    arg1 = (config_overrides_t *)(argp1);
     res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
     if (!SWIG_IsOK(res2)) {
-      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "add_config_overwrite_opt" "', argument " "2"" of type '" "char *""'");
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "add_config_override_opt" "', argument " "2"" of type '" "char *""'");
     }
     arg2 = (char *)(buf2);
-    add_config_overwrite_opt(arg1,arg2);
+    add_config_override_opt(arg1,arg2);
     ST(argvi) = sv_newmortal();
     
     if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
@@ -5231,28 +5901,24 @@ XS(_wrap_add_config_overwrite_opt) {
 }
 
 
-XS(_wrap_apply_config_overwrites) {
+XS(_wrap_set_config_overrides) {
   {
-    config_overwrites_t *arg1 = (config_overwrites_t *) 0 ;
+    config_overrides_t *arg1 = (config_overrides_t *) 0 ;
     void *argp1 = 0 ;
     int res1 = 0 ;
     int argvi = 0;
-    cfgerr_level_t result;
     dXSARGS;
     
     if ((items < 1) || (items > 1)) {
-      SWIG_croak("Usage: apply_config_overwrites(co);");
+      SWIG_croak("Usage: set_config_overrides(co);");
     }
-    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_config_overwrites_t, 0 |  0 );
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_config_overrides_t, 0 |  0 );
     if (!SWIG_IsOK(res1)) {
-      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "apply_config_overwrites" "', argument " "1"" of type '" "config_overwrites_t *""'"); 
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "set_config_overrides" "', argument " "1"" of type '" "config_overrides_t *""'"); 
     }
-    arg1 = (config_overwrites_t *)(argp1);
-    result = (cfgerr_level_t)apply_config_overwrites(arg1);
-    {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
-      argvi++;
-    }
+    arg1 = (config_overrides_t *)(argp1);
+    set_config_overrides(arg1);
+    ST(argvi) = sv_newmortal();
     
     XSRETURN(argvi);
   fail:
@@ -5363,7 +6029,47 @@ XS(_wrap_find_multiplier) {
     arg1 = (char *)(buf1);
     result = find_multiplier(arg1);
     {
-      ST(argvi) = sv_2mortal(amglue_newSVi64(result));
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_C_string_to_boolean) {
+  {
+    char *arg1 = (char *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: C_string_to_boolean(str);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "C_string_to_boolean" "', argument " "1"" of type '" "char const *""'");
+    }
+    arg1 = (char *)(buf1);
+    result = (int)string_to_boolean((char const *)arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
       argvi++;
     }
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -5381,13 +6087,13 @@ XS(_wrap_find_multiplier) {
 static swig_type_info _swigt__p_application_t = {"_p_application_t", "application_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_changer_config_t = {"_p_changer_config_t", "changer_config_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_char = {"_p_char", "gchar *|char *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_config_overwrites_t = {"_p_config_overwrites_t", "config_overwrites_t *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_config_overrides_t = {"_p_config_overrides_t", "config_overrides_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_device_config_t = {"_p_device_config_t", "device_config_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_dumptype_t = {"_p_dumptype_t", "dumptype_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *|gfloat *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_holdingdisk_t = {"_p_holdingdisk_t", "holdingdisk_t *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_int = {"_p_int", "application_key *|strategy_t *|pp_script_key *|int *|comp_t *|dump_holdingdisk_t *|holdingdisk_key *|device_config_key *|changer_config_key *|confparm_key *|interface_key *|dumptype_key *|tapetype_key *|cfgerr_level_t *|encrypt_t *|taperalgo_t *|gboolean *|execute_on_t *|send_amreport_on_t *|estimate_t *|config_init_flags *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_int = {"_p_int", "application_key *|strategy_t *|pp_script_key *|int *|autolabel_enum_t *|comp_t *|dump_holdingdisk_t *|device_config_key *|changer_config_key *|confparm_key *|interface_key *|holdingdisk_key *|dumptype_key *|tapetype_key *|cfgerr_level_t *|encrypt_t *|taperalgo_t *|gboolean *|data_path_t *|execute_on_t *|send_amreport_on_t *|estimate_t *|config_init_flags *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_interface_t = {"_p_interface_t", "interface_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_p_GSList = {"_p_p_GSList", "GSList **", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_p_char = {"_p_p_char", "char **", 0, 0, (void*)0, 0};
@@ -5399,7 +6105,7 @@ static swig_type_info *swig_type_initial[] = {
   &_swigt__p_application_t,
   &_swigt__p_changer_config_t,
   &_swigt__p_char,
-  &_swigt__p_config_overwrites_t,
+  &_swigt__p_config_overrides_t,
   &_swigt__p_device_config_t,
   &_swigt__p_double,
   &_swigt__p_dumptype_t,
@@ -5417,7 +6123,7 @@ static swig_type_info *swig_type_initial[] = {
 static swig_cast_info _swigc__p_application_t[] = {  {&_swigt__p_application_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_changer_config_t[] = {  {&_swigt__p_changer_config_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_char[] = {  {&_swigt__p_char, 0, 0, 0},{0, 0, 0, 0}};
-static swig_cast_info _swigc__p_config_overwrites_t[] = {  {&_swigt__p_config_overwrites_t, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_config_overrides_t[] = {  {&_swigt__p_config_overrides_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_device_config_t[] = {  {&_swigt__p_device_config_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_double[] = {  {&_swigt__p_double, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_dumptype_t[] = {  {&_swigt__p_dumptype_t, 0, 0, 0},{0, 0, 0, 0}};
@@ -5435,7 +6141,7 @@ static swig_cast_info *swig_cast_initial[] = {
   _swigc__p_application_t,
   _swigc__p_changer_config_t,
   _swigc__p_char,
-  _swigc__p_config_overwrites_t,
+  _swigc__p_config_overrides_t,
   _swigc__p_device_config_t,
   _swigc__p_double,
   _swigc__p_dumptype_t,
@@ -5461,6 +6167,7 @@ static swig_constant_info swig_constants[] = {
 #endif
 static swig_variable_info swig_variables[] = {
     { "Amanda::Configc::debug_amandad", MAGIC_CLASS _wrap_debug_amandad_set, MAGIC_CLASS _wrap_debug_amandad_get,0 },
+    { "Amanda::Configc::debug_recovery", MAGIC_CLASS _wrap_debug_recovery_set, MAGIC_CLASS _wrap_debug_recovery_get,0 },
     { "Amanda::Configc::debug_amidxtaped", MAGIC_CLASS _wrap_debug_amidxtaped_set, MAGIC_CLASS _wrap_debug_amidxtaped_get,0 },
     { "Amanda::Configc::debug_amindexd", MAGIC_CLASS _wrap_debug_amindexd_set, MAGIC_CLASS _wrap_debug_amindexd_get,0 },
     { "Amanda::Configc::debug_amrecover", MAGIC_CLASS _wrap_debug_amrecover_set, MAGIC_CLASS _wrap_debug_amrecover_get,0 },
@@ -5479,8 +6186,10 @@ static swig_variable_info swig_variables[] = {
 {0,0,0,0}
 };
 static swig_command_info swig_commands[] = {
+{"Amanda::Configc::data_path_from_string", _wrap_data_path_from_string},
 {"Amanda::Configc::getconf", _wrap_getconf},
 {"Amanda::Configc::getconf_seen", _wrap_getconf_seen},
+{"Amanda::Configc::getconf_linenum", _wrap_getconf_linenum},
 {"Amanda::Configc::getconf_byname", _wrap_getconf_byname},
 {"Amanda::Configc::getconf_list", _wrap_getconf_list},
 {"Amanda::Configc::getconf_byname_strs", _wrap_getconf_byname_strs},
@@ -5498,7 +6207,6 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Configc::interface_seen", _wrap_interface_seen},
 {"Amanda::Configc::lookup_holdingdisk", _wrap_lookup_holdingdisk},
 {"Amanda::Configc::getconf_holdingdisks", _wrap_getconf_holdingdisks},
-{"Amanda::Configc::holdingdisk_next", _wrap_holdingdisk_next},
 {"Amanda::Configc::holdingdisk_getconf", _wrap_holdingdisk_getconf},
 {"Amanda::Configc::holdingdisk_name", _wrap_holdingdisk_name},
 {"Amanda::Configc::holdingdisk_seen", _wrap_holdingdisk_seen},
@@ -5528,15 +6236,16 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Configc::config_print_errors", _wrap_config_print_errors},
 {"Amanda::Configc::config_clear_errors", _wrap_config_clear_errors},
 {"Amanda::Configc::config_errors", _wrap_config_errors},
-{"Amanda::Configc::new_config_overwrites", _wrap_new_config_overwrites},
-{"Amanda::Configc::free_config_overwrites", _wrap_free_config_overwrites},
-{"Amanda::Configc::add_config_overwrite", _wrap_add_config_overwrite},
-{"Amanda::Configc::add_config_overwrite_opt", _wrap_add_config_overwrite_opt},
-{"Amanda::Configc::apply_config_overwrites", _wrap_apply_config_overwrites},
+{"Amanda::Configc::new_config_overrides", _wrap_new_config_overrides},
+{"Amanda::Configc::free_config_overrides", _wrap_free_config_overrides},
+{"Amanda::Configc::add_config_override", _wrap_add_config_override},
+{"Amanda::Configc::add_config_override_opt", _wrap_add_config_override_opt},
+{"Amanda::Configc::set_config_overrides", _wrap_set_config_overrides},
 {"Amanda::Configc::dump_configuration", _wrap_dump_configuration},
 {"Amanda::Configc::config_dir_relative", _wrap_config_dir_relative},
 {"Amanda::Configc::taperalgo2str", _wrap_taperalgo2str},
 {"Amanda::Configc::find_multiplier", _wrap_find_multiplier},
+{"Amanda::Configc::C_string_to_boolean", _wrap_C_string_to_boolean},
 {0,0}
 };
 /* -----------------------------------------------------------------------------
@@ -5872,6 +6581,11 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "CNF_CLIENT_PORT", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_CLIENT_PORT)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "CNF_GNUTAR_LIST_DIR", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_GNUTAR_LIST_DIR)));
     SvREADONLY_on(sv);
@@ -5924,6 +6638,11 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "CNF_LABELSTR", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_LABELSTR)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "CNF_AUTOLABEL", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_AUTOLABEL)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
@@ -6152,6 +6871,11 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "CNF_DEBUG_RECOVERY", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_DEBUG_RECOVERY)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "CNF_DEBUG_AMIDXTAPED", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_DEBUG_AMIDXTAPED)));
     SvREADONLY_on(sv);
@@ -6242,6 +6966,16 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "CNF_HOLDINGDISK", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_HOLDINGDISK)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "CNF_SEND_AMREPORT_ON", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_SEND_AMREPORT_ON)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "TAPETYPE_COMMENT", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(TAPETYPE_COMMENT)));
     SvREADONLY_on(sv);
@@ -6322,13 +7056,18 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_CLIENT_PORT", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_CLIENT_PORT)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_SSH_KEYS", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_SSH_KEYS)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
-    SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_SECURITY_DRIVER", TRUE | 0x2 | GV_ADDMULTI);
-    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_SECURITY_DRIVER)));
+    SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_AUTH", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_AUTH)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
@@ -6392,8 +7131,8 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
-    SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_ESTIMATE", TRUE | 0x2 | GV_ADDMULTI);
-    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_ESTIMATE)));
+    SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_ESTIMATELIST", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_ESTIMATELIST)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
@@ -6477,13 +7216,18 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
-    SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_PP_SCRIPTLIST", TRUE | 0x2 | GV_ADDMULTI);
-    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_PP_SCRIPTLIST)));
+    SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_SCRIPTLIST", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_SCRIPTLIST)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_PROPERTY", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_PROPERTY)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_DATA_PATH", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_DATA_PATH)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
@@ -6557,6 +7301,11 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "PP_SCRIPT_ORDER", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(PP_SCRIPT_ORDER)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "DEVICE_CONFIG_COMMENT", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DEVICE_CONFIG_COMMENT)));
     SvREADONLY_on(sv);
@@ -6594,6 +7343,16 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "CHANGER_CONFIG_CHANGERFILE", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CHANGER_CONFIG_CHANGERFILE)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "CHANGER_CONFIG_PROPERTY", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CHANGER_CONFIG_PROPERTY)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "CHANGER_CONFIG_DEVICE_PROPERTY", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CHANGER_CONFIG_DEVICE_PROPERTY)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
@@ -6717,6 +7476,26 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "AL_OTHER_CONFIG", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(AL_OTHER_CONFIG)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "AL_NON_AMANDA", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(AL_NON_AMANDA)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "AL_VOLUME_ERROR", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(AL_VOLUME_ERROR)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "AL_EMPTY", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(AL_EMPTY)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "ALGO_FIRST", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(ALGO_FIRST)));
     SvREADONLY_on(sv);
@@ -6824,6 +7603,16 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "SEND_AMREPORT_NEVER", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(SEND_AMREPORT_NEVER)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "DATA_PATH_AMANDA", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DATA_PATH_AMANDA)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "DATA_PATH_DIRECTTCP", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DATA_PATH_DIRECTTCP)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {

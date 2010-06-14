@@ -32,7 +32,6 @@
  */
 #include "amanda.h"
 #include "arglist.h"
-#include "queue.h"
 
 #define	MIN_ALLOC	64
 
@@ -104,7 +103,7 @@ debug_stralloc(
  * to scan the strings more than necessary.
  */
 
-#define	MAX_VSTRALLOC_ARGS	32
+#define	MAX_VSTRALLOC_ARGS	40
 
 static char *
 internal_vstralloc(

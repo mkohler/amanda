@@ -60,6 +60,8 @@ package Amanda::Debug;
 *message = *Amanda::Debugc::message;
 *info = *Amanda::Debugc::info;
 *debug = *Amanda::Debugc::debug;
+*add_amanda_log_handler = *Amanda::Debugc::add_amanda_log_handler;
+*suppress_error_traceback = *Amanda::Debugc::suppress_error_traceback;
 *dbfd = *Amanda::Debugc::dbfd;
 *dbfn = *Amanda::Debugc::dbfn;
 *debug_dup_stderr_to_debug = *Amanda::Debugc::debug_dup_stderr_to_debug;
@@ -68,14 +70,14 @@ package Amanda::Debug;
 
 package Amanda::Debug;
 
-*ERR_INTERACTIVE = *Amanda::Debugc::ERR_INTERACTIVE;
-*ERR_SYSLOG = *Amanda::Debugc::ERR_SYSLOG;
-*ERR_AMANDALOG = *Amanda::Debugc::ERR_AMANDALOG;
-*erroutput_type = *Amanda::Debugc::erroutput_type;
 *error_exit_status = *Amanda::Debugc::error_exit_status;
+*amanda_log_stderr = *Amanda::Debugc::amanda_log_stderr;
+*amanda_log_syslog = *Amanda::Debugc::amanda_log_syslog;
+*amanda_log_null = *Amanda::Debugc::amanda_log_null;
 
 @EXPORT_OK = ();
 %EXPORT_TAGS = ();
+
 
 =head1 NAME
 
@@ -90,12 +92,8 @@ Amanda::Debug - support for debugging Amanda applications
   debug("this is a debug message");
   die("Unable to frobnicate the ergonator");
 
-See C<debug.h> for a more in-depth description of the logging functionality of
-this module.
-
-=head1 API STATUS
-
-Stable
+See C<debug.h> for a more in-depth description of the logging
+functionality of this module.
 
 =head1 DEBUG LOGGING
 
@@ -118,34 +116,35 @@ available:
 
 =back
 
-Perl's built-in C<die> and C<warn> functions are patched to call C<critical>
-and C<warning>, respectively. 
+Perl's built-in C<die> and C<warn> functions are patched to call
+C<critical> and C<warning>, respectively.
 
 All of the debug logging functions are available via the export tag
 C<:logging>.
 
+Applications can adjust the handling of log messages with
+C<add_amanda_log_handler($hdlr)> where C<$hdlr> is a predefined log
+destination.  The following destinations are available in this
+package.  See L<Amanda::Logfile> for C<$amanda_log_trace_log>.
+
+  $amanda_log_null
+  $amanda_log_stderr
+  $amanda_log_syslog
+
 =head1 ADVANCED USAGE
 
-Most applications should use L<Amanda::Util>'s C<setup_application>
-to initialize the debug libraries.  The initialization functions
+Most applications should use L<Amanda::Util>'s C<setup_application> to
+initialize the debug libraries.  The initialization functions
 available from this module are thus considered "advanced", and the
 reader is advised to consult the C header, C<debug.h>, for details.
 
-Briefly, the functions C<dbopen> and C<dbrename> are used to
-open a debug file whose pathname includes all of the relevant
+Briefly, the functions C<dbopen> and C<dbrename> are used to open a
+debug file whose pathname includes all of the relevant
 information. C<dbclose> and C<dbreopen> are used to close that debug
 file before transferring control to another process.
 
-The variable C<$erroutput_type> can take on any combination
-of the flags C<$ERROUTPUT_INTERACTIVE>, C<$ERROUTPUT_SYSLOG>
-and C<$ERROUTPUT_AMANDALOG>.  C<$ERROUTPUT_INTERACTIVE>
-causes messages from C<error> and C<critical> to be sent
-to stderr. C<$ERROUTPUT_SYSLOG> sends it to syslog, and
-C<$ERROUTPUT_AMANDALOG> sends it to the current trace log (see
-L<Amanda::Logfile>).
-
-C<$error_exit_status> is the exit status with which C<critical>
-will exit.
+C<$error_exit_status> is the exit status with which C<critical> will
+exit.
 
 All of the initialization functions and variables are available via
 the export tag C<:init>.
@@ -154,77 +153,42 @@ The current debug file's integer file descriptor (I<not> a Perl
 filehandle) is available from C<dbfd()>.  Likewise, C<dbfn()> returns
 the filename of the current debug file.
 
-C<debug_dup_stderr_to_debug()> redirects, at the file-descriptor level,
-C<STDERR> into the debug file.  This is useful when running external
-applications which may produce error output.
+C<debug_dup_stderr_to_debug()> redirects, at the file-descriptor
+level, C<STDERR> into the debug file.  This is useful when running
+external applications which may produce error output.
 
 =cut
 
+
+
 push @EXPORT_OK, qw(debug_init dbopen dbreopen dbrename dbclose
-    $erroutput_type $error_exit_status);
+    $error_exit_status);
 push @{$EXPORT_TAGS{"init"}}, qw(debug_init dbopen dbreopen dbrename dbclose
-    $erroutput_type $error_exit_status);
-
-push @EXPORT_OK, qw(erroutput_type_t_to_strings);
-push @{$EXPORT_TAGS{"erroutput_type_t"}}, qw(erroutput_type_t_to_strings);
-
-my %_erroutput_type_t_VALUES;
-#Convert a flag value to a list of names for flags that are set.
-sub erroutput_type_t_to_strings {
-    my ($flags) = @_;
-    my @result = ();
-
-    for my $k (keys %_erroutput_type_t_VALUES) {
-	my $v = $_erroutput_type_t_VALUES{$k};
-
-	#is this a matching flag?
-	if (($v == 0 && $flags == 0) || ($v != 0 && ($flags & $v) == $v)) {
-	    push @result, $k;
-	}
-    }
-
-#by default, just return the number as a 1-element list
-    if (!@result) {
-	return ($flags);
-    }
-
-    return @result;
-}
-
-push @EXPORT_OK, qw($ERR_INTERACTIVE);
-push @{$EXPORT_TAGS{"erroutput_type_t"}}, qw($ERR_INTERACTIVE);
-
-$_erroutput_type_t_VALUES{"INTERACTIVE"} = $ERR_INTERACTIVE;
-
-push @EXPORT_OK, qw($ERR_SYSLOG);
-push @{$EXPORT_TAGS{"erroutput_type_t"}}, qw($ERR_SYSLOG);
-
-$_erroutput_type_t_VALUES{"SYSLOG"} = $ERR_SYSLOG;
-
-push @EXPORT_OK, qw($ERR_AMANDALOG);
-push @{$EXPORT_TAGS{"erroutput_type_t"}}, qw($ERR_AMANDALOG);
-
-$_erroutput_type_t_VALUES{"AMANDALOG"} = $ERR_AMANDALOG;
+    $error_exit_status);
 
 sub _my_die {
-    # $^S is set if we're in an eval { .. }, in which case we want
-    # to use the default Perl semantics.
-    if ($^S) {
+    # $^S: (from perlvar)
+    #  undef -> parsing module/eval
+    #  1 -> executing an eval
+    #  0 -> otherwise
+    # we *only* want to call critical() in the "otherwise" case
+    if (!defined($^S) or $^S == 1) {
 	die(@_);
     } else {
 	my ($msg) = @_;
 	chomp $msg;
+	suppress_error_traceback();
 	critical(@_);
     }
 };
-$SIG{__DIE__} = \&my_die;
+$SIG{__DIE__} = \&_my_die;
 
 sub _my_warn {
     my ($msg) = @_;
     chomp $msg;
     warning(@_);
 };
-$SIG{__WARN__} = \&my_warn;
+$SIG{__WARN__} = \&_my_warn;
 
 # utility function for test scripts, which want to use the regular
 # perl mechanisms
@@ -235,4 +199,9 @@ sub disable_die_override {
 
 push @EXPORT_OK, qw(error critical warning message info debug);
 push @{$EXPORT_TAGS{"logging"}}, qw(error critical warning message info debug);
+
+push @EXPORT_OK, qw(add_amanda_log_handler
+    $amanda_log_stderr $amanda_log_syslog $amanda_log_null);
+push @{$EXPORT_TAGS{"logging"}}, qw(add_amanda_log_handler
+    $amanda_log_stderr $amanda_log_syslog $amanda_log_null);
 1;
