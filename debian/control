@@ -9,7 +9,7 @@ Standards-Version: 3.8.4
 
 Package: amanda-common
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}, update-inetd, tar (>=1.12), perl5, bsd-mailx | mailx, debconf | debconf-2.0, adduser, openbsd-inetd | inet-superserver
+Depends: ${misc:Depends}, ${perl:Depends}, ${shlibs:Depends}, update-inetd, tar (>=1.12), perl5, bsd-mailx | mailx, debconf | debconf-2.0, adduser, openbsd-inetd | inet-superserver
 Suggests: amanda-server (= ${binary:Version}) | amanda-client (= ${binary:Version})
 Conflicts: amanda
 Replaces: amanda, amanda-client

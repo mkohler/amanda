@@ -1,8 +1,10 @@
 amanda (1:2.6.1p2-2) UNRELEASED; urgency=low
 
   * add build depend on procps, closes: #552390
+  * add dh_perl call to rules and ${perl:Depends} to amanda-common deps so
+    that we comply with Perl policy, closes: #582220
 
- -- Bdale Garbee <bdale@gag.com>  Wed, 14 Apr 2010 15:13:22 -0700
+ -- Bdale Garbee <bdale@gag.com>  Mon, 14 Jun 2010 10:21:11 -0600
 
 amanda (1:2.6.1p2-1) unstable; urgency=low
 
