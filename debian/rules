@@ -92,7 +92,6 @@ binary-arch: build
 	dh_compress -a
 	dh_movefiles -a --sourcedir=debian/amanda-common
 	rm -r $(r)/usr/share/amanda
-	rm $(s)/usr/lib/amanda/chg-mtx
 	dh_fixperms -av
 	# fix perms manually
 	chown -R backup:backup debian/*/var/lib/*
