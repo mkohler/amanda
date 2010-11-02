@@ -20,7 +20,8 @@
 #
 #   SYSPATH is a list of likely system locations for a file, while
 #   LOCPATH is a list of likely local locations.  The two are combined
-#   in different orders in SYSLOCPATH and LOCSYSPATH.
+#   in different orders in SYSLOCPATH and LOCSYSPATH.  These path differences
+#   are known to affect Solaris 8.
 #
 AC_DEFUN([AMANDA_INIT_PROGS],
 [
@@ -118,36 +119,6 @@ AC_DEFUN([AMANDA_PROG_LINT],
       fi
     fi
     AC_SUBST(AMLINTFLAGS)
-])
-
-# SYNOPSIS
-#
-#   AMANDA_PROG_GNUPLOT
-#
-# OVERVIEW
-#
-#   Search for a 'gnuplot' binary, placing the result in the precious 
-#   variable GNUPLOT.  Also accepts --with-gnuplot to indicate the location
-#   of the binary.
-#
-AC_DEFUN([AMANDA_PROG_GNUPLOT],
-[
-    AC_REQUIRE([AMANDA_INIT_PROGS])
-
-    AC_ARG_WITH(gnuplot,
-    AS_HELP_STRING([--with-gnuplot=PATH],
-		   [use gnuplot executable at PATH in amplot]),
-	[
-	    case "$withval" in
-		y | ye | yes) : ;;
-		n | no) GNUPLOT= ;;
-		*) GNUPLOT="$withval" ;;
-	    esac
-	])
-    AC_PATH_PROG(GNUPLOT,gnuplot,,$LOCSYSPATH)
-
-    AC_ARG_VAR(GNUPLOT, [Location of the 'gnuplot' binary])
-    AC_SUBST(GNUPLOT)
 ])
 
 # SYNOPSIS
@@ -306,7 +277,7 @@ AC_DEFUN([AMANDA_PROG_MAILER],
 AC_DEFUN([AMANDA_PROG_MT],
 [
     AC_REQUIRE([AMANDA_INIT_PROGS])
-    AC_PATH_PROG(MT,mt,mt,$LOCSYSPATH)
+    AC_PATH_PROG(MT,mt,mt,$SYSLOCPATH)
 
     case "$host" in
 	*-hp-*) MT_FILE_FLAG="-t" ;;
@@ -320,30 +291,11 @@ AC_DEFUN([AMANDA_PROG_MT],
 ])
 
 
-AC_DEFUN([AMANDA_PROG_CHIO],
-[
-    AC_REQUIRE([AMANDA_INIT_PROGS])
-    AC_PATH_PROG(CHIO,chio,chio,$LOCSYSPATH)
-])
-
-
-AC_DEFUN([AMANDA_PROG_CHS],
-[
-    AC_REQUIRE([AMANDA_INIT_PROGS])
-    AC_PATH_PROG(CHS,chs,chs,$LOCSYSPATH)
-])
-
-
 AC_DEFUN([AMANDA_PROG_MTX],
 [
     AC_REQUIRE([AMANDA_INIT_PROGS])
     AC_PATH_PROG(MTX,mtx,mtx,$LOCSYSPATH)
-])
-
-AC_DEFUN([AMANDA_PROG_MCUTIL],
-[
-    AC_REQUIRE([AMANDA_INIT_PROGS])
-    AC_PATH_PROG(MCUTIL,mcutil,mcutil,$LOCSYSPATH)
+    AC_ARG_VAR([MTX], [Path to the 'mtx' binary])
 ])
 
 AC_DEFUN([AMANDA_PROG_PCAT],
@@ -369,7 +321,8 @@ AC_DEFUN([AMANDA_PROG_SWIG],
     AC_ARG_VAR([SWIG], [Path to the 'swig' binary (developers only)])
     # 1.3.32 introduces a change in the way empty strings are handled (old versions
     # returned undef in Perl, while new versions return an empty Perl string)
-    AC_PROG_SWIG([1.3.32])
+    # 1.3.39 is required for the %begin block
+    AC_PROG_SWIG([1.3.39])
 ])
 
 AC_DEFUN([AMANDA_PROG_AR],
@@ -401,8 +354,22 @@ AC_DEFUN([AMANDA_PROG_RPCGEN],
 [
     AC_REQUIRE([AMANDA_INIT_PROGS])
     AC_PATH_PROG(RPCGEN,rpcgen,,$LOCSYSPATH)
-
-    # rpcgen rules (which only appear in ndmp-src) are disabled completely
-    # on systems where rpcgen is not available
-    AM_CONDITIONAL([HAVE_RPCGEN], [test "x$RPCGEN" != "x"])
 ])
+
+AC_DEFUN([AMANDA_PROG_LEX],
+[
+    AC_REQUIRE([AM_PROG_LEX])
+    AC_REQUIRE([AMANDA_PROG_GREP])
+    if test x"$LEX" != x""; then
+	AC_MSG_CHECKING([whether lex is broken Solaris (SGU) lex])
+	$LEX -V < /dev/null >/dev/null 2>conftest.out
+	if grep SGU conftest.out >/dev/null; then
+	    AC_MSG_RESULT([yes - disabled (set LEX=/path/to/lex to use a specific binary)])
+	    LEX='echo no lex equivalent available; false'
+	else
+	    AC_MSG_RESULT([no])
+	fi
+	rm conftest.out
+    fi
+])
+

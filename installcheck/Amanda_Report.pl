@@ -16,7 +16,7 @@
 # Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
 
-use Test::More tests => 34;
+use Test::More tests => 58;
 use strict;
 use warnings;
 
@@ -62,6 +62,9 @@ EOF
 
 $LogfileFlags{planner} = {
     normal_run => 1,
+    results_missing => 1,
+    dump_failed => 0,
+    dump_strange => 0
 };
 
 $LogfileData{planner} = {
@@ -70,15 +73,15 @@ $LogfileData{planner} = {
         localhost => {
             "/root" => {
                 estimate => undef,
-                tries    => [],
+                dumps    => {},
             },
             "/etc" => {
                 estimate => undef,
-                tries    => [],
+                dumps    => {},
             },
             "/var/log" => {
                 estimate => undef,
-                tries    => [],
+                dumps    => {},
             },
         },
     },
@@ -106,6 +109,9 @@ EOF
 $LogfileFlags{driver} = {
     got_finish => 1,
     normal_run => 1,
+    results_missing => 1,
+    dump_failed => 0,
+    dump_strange => 0
 };
 
 $LogfileData{driver} = {
@@ -127,7 +133,7 @@ $LogfileData{driver} = {
                     ckb   => "64",
                     kps   => "1024",
                 },
-                tries => [],
+                dumps => {},
             },
             "/etc" => {
                 estimate => {
@@ -137,7 +143,7 @@ $LogfileData{driver} = {
                     ckb   => "64",
                     kps   => "1024",
                 },
-                tries => [],
+                dumps => {},
             },
             "/home" => {
                 estimate => {
@@ -147,7 +153,7 @@ $LogfileData{driver} = {
                     ckb   => "64",
                     kps   => "1024",
                 },
-                tries => [],
+                dumps => {},
             },
         },
     },
@@ -177,6 +183,9 @@ EOF
 $LogfileFlags{dumper} = {
     got_finish => 1,
     normal_run => 1,
+    results_missing => 0,
+    dump_failed => 1,
+    dump_strange => 0
 };
 
 $LogfileData{dumper} = {
@@ -199,7 +208,8 @@ $LogfileData{dumper} = {
                     ckb   => "64",
                     kps   => "1024",
                 },
-                tries => [
+                dumps => {
+		  '20090728122430' => [
                     {
                         dumper => {
                             date      => "20090728122430",
@@ -211,7 +221,8 @@ $LogfileData{dumper} = {
                             orig_kb   => "42",
                         },
                     },
-                ],
+		  ]
+                },
             },
             "/etc" => {
                 estimate => {
@@ -221,7 +232,8 @@ $LogfileData{dumper} = {
                     ckb   => "64",
                     kps   => "1024",
                 },
-                tries => [
+                dumps => {
+		  '20090728122430' => [
                     {
                         dumper => {
                             date      => "20090728122430",
@@ -233,7 +245,8 @@ $LogfileData{dumper} = {
                             orig_kb   => "2048",
                         },
                     },
-                ],
+		  ]
+                },
             },
             "/home" => {
                 estimate => {
@@ -243,7 +256,8 @@ $LogfileData{dumper} = {
                     ckb   => "64",
                     kps   => "1024",
                 },
-                tries => [
+                dumps => {
+		  '20090728122430' => [
                     {
                         dumper => {
                             date      => "20090728122430",
@@ -255,7 +269,8 @@ $LogfileData{dumper} = {
                             orig_kb   => "4096",
                         },
                     },
-                ],
+		  ]
+                },
             },
         },
     },
@@ -290,6 +305,9 @@ EOF
 $LogfileFlags{chunker} = {
     got_finish => 1,
     normal_run => 1,
+    results_missing => 0,
+    dump_failed => 1,
+    dump_strange => 0
 };
 
 $LogfileData{chunker} = {
@@ -313,7 +331,8 @@ $LogfileData{chunker} = {
                     ckb   => "64",
                     kps   => "1024",
                 },
-                tries => [
+                dumps => {
+		  '20090728122430' => [
                     {
                         dumper => {
                             date      => "20090728122430",
@@ -333,7 +352,8 @@ $LogfileData{chunker} = {
                             kps    => "2100",
                         },
                     },
-                ],
+		  ]
+                },
             },
             "/etc" => {
                 estimate => {
@@ -343,7 +363,8 @@ $LogfileData{chunker} = {
                     ckb   => "64",
                     kps   => "1024",
                 },
-                tries => [
+                dumps => {
+		  '20090728122430' => [
                     {
                         dumper => {
                             date      => "20090728122430",
@@ -363,7 +384,8 @@ $LogfileData{chunker} = {
                             kps    => "2592.40506",
                         },
                     },
-                ],
+                  ]
+		},
             },
             "/home" => {
                 estimate => {
@@ -373,7 +395,8 @@ $LogfileData{chunker} = {
                     ckb   => "64",
                     kps   => "1024",
                 },
-                tries => [
+                dumps => {
+		  '20090728122430' => [
                     {
                         dumper => {
                             date      => "20090728122430",
@@ -393,7 +416,8 @@ $LogfileData{chunker} = {
                             kps    => "3087.80488"
                         },
                     },
-                ],
+                  ]
+		},
             },
         },
     },
@@ -411,7 +435,6 @@ SUCCESS dumper somebox /lib 20080111 0 [sec 0.209 kb 1970 kps 9382.2 orig-kb 197
 SUCCESS chunker somebox /lib 20080111 0 [sec 0.305 kb 420 kps 1478.7]
 STATS driver estimate somebox /lib 20080111 0 [sec 1 nkb 2002 ckb 480 kps 385]
 INFO taper taper pid 28023
-INFO taper Will write new label `TESTCONF01' to new tape
 START taper datestamp 20080111 label TESTCONF01 tape 1
 PART taper TESTCONF01 1 somebox /lib 20080111 1/-1 0 [sec 0.004722 kb 640 kps 135535.789920]
 PART taper TESTCONF01 2 somebox /lib 20080111 2/-1 0 [sec 0.003438 kb 640 kps 186154.741129]
@@ -426,6 +449,9 @@ EOF
 $LogfileFlags{taper} = {
     got_finish => 1,
     normal_run => 1,
+    results_missing => 0,
+    dump_failed => 0,
+    dump_strange => 0
 };
 
 $LogfileData{taper} = {
@@ -444,7 +470,6 @@ $LogfileData{taper} = {
         taper   => {
             start => '20080111',
             notes => [
-                "Will write new label `TESTCONF01' to new tape",
                 "tape TESTCONF01 kb 2016 fm 4 [OK]"
             ],
             tapes => {
@@ -470,7 +495,8 @@ $LogfileData{taper} = {
                     ckb   => "480",
                     kps   => "385",
                 },
-                tries => [
+                dumps => {
+		  '20080111' => [
                     {
                         dumper => {
                             status  => "success",
@@ -537,7 +563,8 @@ $LogfileData{taper} = {
                             error   => '',
                         },
                     },
-                ],
+                  ]
+		},
             },
         },
     },
@@ -563,6 +590,9 @@ EOF
 $LogfileFlags{simple} = {
     got_finish => 1,
     normal_run => 1,
+    results_missing => 0,
+    dump_failed => 0,
+    dump_strange => 0
 };
 
 $LogfileData{simple} = {
@@ -603,7 +633,8 @@ $LogfileData{simple} = {
                     level => "0",
                     sec   => "1"
                 },
-                tries => [
+                dumps => {
+		  '20080111' => [
                     {
                         dumper => {
                             status  => "success",
@@ -642,7 +673,8 @@ $LogfileData{simple} = {
                             kps    => "1478.7",
                         },
                     },
-                ],
+                  ]
+		},
             },
         },
     },
@@ -706,11 +738,14 @@ INFO dumper pid-done 11816
 PART taper FullBackup-14 4 hostname.example.org / 20081002040002 1/1 1 [sec 0.088934 kb 8392 kps 94368.875374]
 DONE taper hostname.example.org / 20081002040002 1 1 [sec 0.088934 kb 8392 kps 94368.875374]
 INFO dumper gzip pid 11861
-SUCCESS dumper hostname.example.org /somedir2 20081002040002 0 [sec 372.700 kb 28776940 kps 77212.0 orig-kb 28776940]
+STRANGE dumper hostname.example.org /somedir2 0 [sec 372.700 kb 28776940 kps 77212.0 orig-kb 28776940]
+  ! strange data
 PART taper FullBackup-14 5 hostname.example.org /somedir2 20081002040002 1/1 0 [sec 370.382399 kb 28776940 kps 77695.214669]
 DONE taper hostname.example.org /somedir2 20081002040002 1 0 [sec 370.382399 kb 28776940 kps 77695.214669]
 INFO dumper pid-done 11861
 STATS driver estimate hostname.example.org /somedir2 20081002040002 0 [sec 28776940 nkb 28776972 ckb 28776992 kps 1]
+PART taper FullBackup-14 6 hostname.example.org /somedir2 20081002030002 1/1 0 [sec 370.382399 kb 28776940 kps 77695.214669]
+DONE taper hostname.example.org /somedir2 20081002030002 1 0 [sec 370.382399 kb 28776940 kps 77695.214669]
 INFO dumper pid-done 9315
 INFO dumper pid-done 9317
 INFO dumper pid-done 9316
@@ -724,6 +759,9 @@ EOF
 $LogfileFlags{fullExample} = {
     got_finish => 1,
     normal_run => 1,
+    results_missing => 0,
+    dump_failed => 0,
+    dump_strange => 1
 };
 
 $LogfileData{fullExample} = {
@@ -745,11 +783,11 @@ $LogfileData{fullExample} = {
             tapes => {
                 "FullBackup-14" => {
                     'label' => 'FullBackup-14',
-                    'files' => 5,
-                    'time'  => '370.548573',
+                    'files' => 6,
+                    'time'  => '740.930972',
                     'date'  => '20081002040002',
-                    'kb'    => 28791982,
-                    'dle'   => 5
+                    'kb'    => 57568922,
+                    'dle'   => 6
                 },
             },
             tape_labels => ["FullBackup-14"],
@@ -765,7 +803,8 @@ $LogfileData{fullExample} = {
                     kps   => "1024",
                     ckb   => "40288",
                 },
-                tries => [
+                dumps => {
+		  '20081002040002' => [
                     {
                         chunker => {
                             status => "success",
@@ -804,7 +843,8 @@ $LogfileData{fullExample} = {
                             orig_kb => "82380"
                         },
                     },
-                ],
+                  ]
+		},
             },
             "/somedir2" => {
                 estimate => {
@@ -814,16 +854,19 @@ $LogfileData{fullExample} = {
                     level => "0",
                     sec   => "28776940"
                 },
-                tries => [
+                dumps => {
+		  "20081002040002" => [
                     {
                         dumper => {
                             kps     => "77212.0",
                             level   => "0",
                             sec     => "372.700",
-                            status  => "success",
-                            date    => "20081002040002",
+                            status  => "strange",
+                            #date    => "20081002040002",
                             kb      => "28776940",
                             orig_kb => "28776940",
+			    nb_stranges => 1,
+			    stranges => [ "! strange data" ],
                         },
                         taper => {
                             kps    => "77695.214669",
@@ -845,7 +888,31 @@ $LogfileData{fullExample} = {
                             orig_kb => undef
                         },
                     },
-                ],
+                  ],
+		  "20081002030002" => [
+		    {
+                        taper => {
+                            kps    => "77695.214669",
+                            level  => "0",
+                            sec    => "370.382399",
+                            status => "done",
+                            parts  => [
+                                {
+                                    label => 'FullBackup-14',
+                                    date  => '20081002030002',
+                                    kps   => '77695.214669',
+                                    sec   => '370.382399',
+                                    partnum  => '1',
+                                    file  => '6',
+                                    kb    => '28776940',
+                                }
+                            ],
+                            kb      => "28776940",
+                            orig_kb => undef
+                        },
+		    },
+		  ]
+		},
             },
             "/moreapps" => {
                 estimate => {
@@ -855,7 +922,8 @@ $LogfileData{fullExample} = {
                     level => "1",
                     sec   => "0"
                 },
-                'tries' => [
+                dumps => {
+		  '20081002040002' => [
                     {
                         'chunker' => {
                             'kps'    => '8.3',
@@ -893,8 +961,9 @@ $LogfileData{fullExample} = {
                             'kb'     => '10',
                             orig_kb  => '10'
                         },
-                    }
-                ],
+                    },
+		  ]
+                },
             },
             "/apps" => {
                 estimate => {
@@ -904,7 +973,8 @@ $LogfileData{fullExample} = {
                     level => "1",
                     sec   => "6"
                 },
-                tries => [
+                dumps => {
+		  '20081002040002' => [
                     {
                         chunker => {
                             kps    => "1226.3",
@@ -943,7 +1013,8 @@ $LogfileData{fullExample} = {
                             orig_kb => "6630"
                         },
                     },
-                ],
+		  ]
+                },
             },
             "/somedir" => {
                 estimate => {
@@ -953,7 +1024,8 @@ $LogfileData{fullExample} = {
                     level => "1",
                     sec   => "0"
                 },
-                tries => [
+                dumps => {
+		  "20081002040002" => [
                     {
                         chunker => {
                             kps    => "8.3",
@@ -992,7 +1064,8 @@ $LogfileData{fullExample} = {
                             orig_kb => "10",
                         },
                     },
-                ],
+		  ]
+                },
             },
         },
     },
@@ -1025,6 +1098,9 @@ EOF
 $LogfileFlags{amflushExample} = {
     got_finish  => 1,
     amflush_run => 1,
+    results_missing => 0,
+    dump_failed => 0,
+    dump_strange => 0
 };
 
 $LogfileData{amflushExample} = {
@@ -1054,7 +1130,8 @@ $LogfileData{amflushExample} = {
         'localhost' => {
             '/etc' => {
                 estimate => undef,
-                'tries'  => [
+                dumps => {
+		  '20090620020002' => [
                     {
                         'taper' => {
                             'kps'    => '14766.518895',
@@ -1076,15 +1153,17 @@ $LogfileData{amflushExample} = {
                             orig_kb  => undef
                         },
                     },
-                ],
+		  ]
+                },
             },
             '/backups/oracle' => {
                 estimate => undef,
-                'tries'  => [],
+                dumps    => {},
             },
             '/usr/local/bin' => {
                 estimate => undef,
-                'tries'  => [
+                dumps    => {
+		    '20090620020002' => [
                     {
                         'taper' => {
                             'kps'    => '184.632684',
@@ -1105,16 +1184,16 @@ $LogfileData{amflushExample} = {
                             'kb'     => '309',
                             orig_kb  => undef
                         },
-                    },
-                ],
+                    }]
+                },
             },
             '/home' => {
                 estimate => undef,
-                'tries'  => [],
+                dumps    => {},
             },
             '/backups/mysql' => {
                 estimate => undef,
-                'tries'  => [],
+                dumps    => {},
             },
         },
     },
@@ -1176,7 +1255,8 @@ is_deeply(
             level => "1",
             sec   => "6"
         },
-        tries => [
+        dumps => {
+	  '20081002040002' => [
             {
                 chunker => {
                     kps    => "1226.3",
@@ -1215,7 +1295,8 @@ is_deeply(
                     orig_kb => "6630"
                 },
             },
-        ],
+	  ]
+        },
     },
     'check: Amanda::Report::get_dle_info($hostname, $disk)'
 );

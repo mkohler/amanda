@@ -2,12 +2,12 @@
 .\"     Title: amadmin
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMADMIN" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
+.TH "AMADMIN" "8" "10/18/2010" "Amanda 3\&.2\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +22,7 @@
 amadmin \- administrative interface to control Amanda backups
 .SH "SYNOPSIS"
 .HP \w'\fBamadmin\fR\ 'u
-\fBamadmin\fR \fIconfig\fR \fIcommand\fR [\fIcommand_options\fR...] [{\fB\-o\fR\ \fIconfigoption\fR}...]
+\fBamadmin\fR \fIconfig\fR \fIcommand\fR [\fIcommand_options\fR...] [\fB\-o\fR\ \fIconfigoption\fR...]
 .SH "DESCRIPTION"
 .PP
 \fBAmadmin\fR
@@ -46,18 +46,13 @@ for that
 if no disks are specified\&. Where
 \fIhostname\fR
 is also marked as being optional, the command operates on all hosts and disks in the
-\fBdisklist\fR(5)\&. Both
+\fBdisklist\fR(5)
+when no hostname is given\&. Both
 \fIhostname\fR
 and
 \fIdisks\fR
-are special expressions; see the "HOST & DISK EXPRESSION" section of
-\fBamanda\fR(8)
-for a description\&.
-.PP
-Commands that take one or more
-\fIdumpspec\fR
-parameters operate on the set of dumps specified by all of the expressions\&. See the "DUMP SPECIFICATIONS" section of
-\fBamanda\fR(8)
+are match expressions; see
+\fBamanda-match\fR(7)
 for a description\&.
 .PP
 \fBversion\fR
@@ -192,7 +187,9 @@ Delete holding files matching the given specification\&. At least a hostname mus
 .PP
 \fBholding list\fR [\-l] [\-d] [ \fIhostname\fR [ \fIdisk\fR [ \fIdatestamp\fR [ \&.\&. ] ] ] ]
 .RS 4
-List holding files matching the given specification, or all holding files if no specification is provided\&. With \'\-l\', additional information (size, level, and whether the dump is outdated) is provided\&. With \'\-d\', only outdated dumps are shown\&.
+List holding files matching the given dump specification, or all holding files if no specification is provided\&. See
+\fBamanda-match\fR(7)
+for more information on dump specifications\&. With \'\-l\', additional information (size, level, and whether the dump is outdated) is provided\&. With \'\-d\', only outdated dumps are shown\&.
 .sp
 An outdated holding file is one which is not required for a restore of the
 \fImost recent\fR
@@ -262,6 +259,18 @@ information for each of the
 on
 \fIhostname\fR
 (or all hosts)\&. Mostly used for debugging\&.
+.RE
+.PP
+\fBhosts\fR
+.RS 4
+Output a list of distinct hosts in the
+\fBdisklist\fR(5), one per line, for easy use in shell scripts\&.
+.RE
+.PP
+\fBdles\fR
+.RS 4
+Output a list of distinct DLEs in the
+\fBdisklist\fR(5), one per line with host and diskname separated by a space, for easy use in shell scripts\&.
 .RE
 .PP
 \fBinfo\fR [ \fIhostname\fR [ \fIdisks\fR ]* ]*
@@ -388,9 +397,6 @@ $ amadmin daily balance
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
 TOTAL      241  12412187   7316312   731631  (estimated 8 runs per dumpcycle)
 .fi
-.SH "FILES"
-.PP
-/usr/local/etc/amanda/\fIconfig\fR/amanda\&.conf
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
@@ -398,7 +404,8 @@ TOTAL      241  12412187   7316312   731631  (estimated 8 runs per dumpcycle)
 \fBamcheck\fR(8),
 \fBamdump\fR(8),
 \fBamrestore\fR(8),
-\fBamfetchdump\fR(8)
+\fBamfetchdump\fR(8),
+\fBamanda-match\fR(7)
 .PP
 The Amanda Wiki:
 : http://wiki.zmanda.com/

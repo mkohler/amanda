@@ -8,6 +8,9 @@
  * interface file instead. 
  * ----------------------------------------------------------------------------- */
 
+#include "../config/config.h"
+
+
 #define SWIGPERL
 #define SWIG_CASTRANK_MODE
 
@@ -1552,6 +1555,195 @@ SWIG_From_int  SWIG_PERL_DECL_ARGS_1(int value)
 }
 
 
+static int
+val_t_to_sv(val_t *val, SV **results) {
+    if (!val) {
+	results[0] = &PL_sv_undef;
+	return 1;
+    } else {
+	switch (val->type) {
+	    case CONFTYPE_RATE: {
+		results[0] = sv_newmortal();
+		sv_setnv(results[0], val_t__rate(val)[0]);
+
+		results[1] = sv_newmortal();
+		sv_setnv(results[1], val_t__rate(val)[1]);
+		return 2;
+	    }
+
+	    case CONFTYPE_INTRANGE: {
+		results[0] = sv_newmortal();
+		sv_setiv(results[0], val_t__intrange(val)[0]);
+
+		results[1] = sv_newmortal();
+		sv_setiv(results[1], val_t__intrange(val)[1]);
+		return 2;
+	    }
+
+	    case CONFTYPE_EXINCLUDE: {
+		/* exincludes are represented in perl as {
+		 *	'list' : [ 'list1', 'list2', ..],
+		 *	'file' : [ 'file1', 'file2', ..],
+		 *	'optional' : 1,
+		 * }
+		 */
+		exinclude_t *ei = &val_t__exinclude(val);
+		AV *list_entries = (AV *)sv_2mortal((SV *)newAV());
+		AV *file_entries = (AV *)sv_2mortal((SV *)newAV());
+		SV *optional = sv_newmortal();
+		HV *hv;
+		sle_t *iter;
+
+		/* first set up each of the hash values */
+
+		if (ei->sl_list) {
+		    for (iter = ei->sl_list->first; iter != NULL; iter = iter->next) {
+			av_push(list_entries, newSVpv(iter->name, 0));
+		    }
+		}
+
+		if(ei->sl_file) {
+		    for (iter = ei->sl_file->first; iter != NULL; iter = iter->next) {
+			av_push(file_entries, newSVpv(iter->name, 0));
+		    }
+		}
+
+		sv_setiv(optional, ei->optional);
+
+		/* now build the hash */
+		hv = (HV *)sv_2mortal((SV *)newHV());
+		
+		hv_store(hv, "file", 4, newRV((SV *)file_entries), 0);
+		hv_store(hv, "list", 4, newRV((SV *)list_entries), 0);
+		hv_store(hv, "optional", 8, optional, 0);
+		SvREFCNT_inc(optional);
+
+		results[0] = sv_2mortal(newRV((SV *)hv));
+		return 1;
+	    }
+
+	    case CONFTYPE_PROPLIST:
+		results[0] = sv_2mortal(g_hash_table_to_hashref_property(val_t__proplist(val)));
+		return 1;
+
+	    case CONFTYPE_SIZE:
+		results[0] = sv_2mortal(amglue_newSVi64(val_t__size(val)));
+		return 1;
+
+	    case CONFTYPE_INT64:
+		results[0] = sv_2mortal(amglue_newSVi64(val_t__int64(val)));
+		return 1;
+
+	    case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
+	    case CONFTYPE_COMPRESS:
+	    case CONFTYPE_ENCRYPT:
+	    case CONFTYPE_STRATEGY:
+	    case CONFTYPE_TAPERALGO:
+	    case CONFTYPE_PRIORITY:
+	    case CONFTYPE_HOLDING:
+	    case CONFTYPE_EXECUTE_ON:
+	    case CONFTYPE_EXECUTE_WHERE:
+	    case CONFTYPE_SEND_AMREPORT_ON:
+	    case CONFTYPE_DATA_PATH:
+	    case CONFTYPE_PART_CACHE_TYPE:
+	    case CONFTYPE_INT:
+		results[0] = sv_2mortal(amglue_newSVi64(val_t__int(val)));
+		return 1;
+
+           case CONFTYPE_ESTIMATELIST: {
+		AV *elist = newAV();
+		estimatelist_t el;
+		for (el=val_t__estimatelist(val); el != NULL; el = el->next) {
+		    av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
+		}
+		results[0] = sv_2mortal(newRV_noinc((SV *)elist));
+		return 1;
+	    }
+
+	    case CONFTYPE_TIME:
+		results[0] = sv_2mortal(amglue_newSVi64(val_t__time(val)));
+		return 1;
+
+	    case CONFTYPE_REAL:
+		results[0] = sv_newmortal();
+		sv_setnv(results[0], val_t__real(val));
+		return 1;
+
+	    case CONFTYPE_IDENT:	    /* same as STRING */
+	    case CONFTYPE_STR:
+	    case CONFTYPE_APPLICATION:
+		results[0] = sv_newmortal();
+		sv_setpv(results[0], val_t__str(val));
+		return 1;
+
+	    case CONFTYPE_IDENTLIST: {
+		AV *ilist = newAV();
+
+		identlist_t il;
+		for (il=val_t__identlist(val); il != NULL; il = il->next) {
+		    av_push(ilist, newSVpv((char *)il->data, 0));
+		}
+
+		results[0] = sv_2mortal(newRV_noinc((SV *)ilist));
+		return 1;
+	    }
+
+	    case CONFTYPE_RECOVERY_LIMIT: {
+		AV *av;
+		GSList *iter;
+		recovery_limit_t *rl = &val_t__recovery_limit(val);
+
+		av = newAV();
+		if (rl->same_host)
+		    av_push(av, &PL_sv_undef);
+		for (iter=rl->match_pats; iter != NULL; iter = iter->next) {
+		    av_push(av, newSVpv((char *)iter->data, 0));
+		}
+
+		results[0] = sv_2mortal(newRV_noinc((SV *)av));
+		return 1;
+	    }
+
+	    case CONFTYPE_AUTOLABEL: {
+		autolabel_t *autolabel = &val_t__autolabel(val);
+		HV *hv;
+
+		/* now build the hash */
+		hv = (HV *)sv_2mortal((SV *)newHV());
+		hv_store(hv, "template", 8,
+			(autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
+			0);
+		hv_store(hv, "other_config", 12,
+			(autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
+			0);
+		hv_store(hv, "non_amanda", 10,
+			(autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
+			0);
+		hv_store(hv, "volume_error", 12,
+			(autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
+			0);
+		hv_store(hv, "empty", 5,
+			(autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
+			0);
+
+		results[0] = sv_2mortal(newRV((SV *)hv));
+		return 1;
+	    }
+
+	    /* No match yet -> not one of the "complex" types */
+	    default:
+		SWIG_exception(SWIG_TypeError, "Unknown val_t conftype");
+		break;
+	}
+    }
+
+    return 0;
+
+fail:
+    SWIG_croak_null();
+}
+
+
 SWIGINTERN swig_type_info*
 SWIG_pchar_descriptor(void)
 {
@@ -2227,186 +2419,18 @@ XS(_wrap_getconf) {
     }
     result = (val_t *)getconf(arg1);
     {
-      if (!result) {
-        ST(argvi) = &PL_sv_undef;
+      SV *results[3], **iter;
+      int nresults;
+      
+      /* save the stack, since val_t_to_sv may invoke arbitrary Perl code */
+      SP += argvi; PUTBACK;
+      nresults = val_t_to_sv(result, results);
+      SPAGAIN; SP -= argvi;
+      
+      /* add val_t_to_sv's results to the stack */
+      for (iter = results; nresults; iter++, nresults--) {
+        ST(argvi) = *iter;
         argvi++;
-      } else {
-        switch (result->type) {
-          case CONFTYPE_RATE: {
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_INTRANGE: {
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_EXINCLUDE: {
-            /* exincludes are represented in perl as {
-            		 *	'list' : [ 'list1', 'list2', ..],
-            		 *	'file' : [ 'file1', 'file2', ..],
-            		 *	'optional' : 1,
-            		 * }
-            		 */
-            exinclude_t *ei = &val_t__exinclude(result);
-            AV *list_entries = (AV *)sv_2mortal((SV *)newAV());
-            AV *file_entries = (AV *)sv_2mortal((SV *)newAV());
-            SV *optional = sv_newmortal();
-            HV *hv;
-            sle_t *iter;
-            
-            /* first set up each of the hash values */
-            
-            if (ei->sl_list) {
-              for (iter = ei->sl_list->first; iter != NULL; iter = iter->next) {
-                av_push(list_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            if(ei->sl_file) {
-              for (iter = ei->sl_file->first; iter != NULL; iter = iter->next) {
-                av_push(file_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            sv_setiv(optional, ei->optional);
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            
-            hv_store(hv, "file", 4, newRV((SV *)file_entries), 0);
-            hv_store(hv, "list", 4, newRV((SV *)list_entries), 0);
-            hv_store(hv, "optional", 8, optional, 0);
-            SvREFCNT_inc(optional);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_PROPLIST:
-          ST(argvi) = sv_2mortal(g_hash_table_to_hashref_property(val_t__proplist(result)));
-          argvi++;
-          break;
-          
-        case CONFTYPE_SIZE:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_INT64:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
-        case CONFTYPE_COMPRESS:
-        case CONFTYPE_ENCRYPT:
-        case CONFTYPE_STRATEGY:
-        case CONFTYPE_TAPERALGO:
-        case CONFTYPE_PRIORITY:
-        case CONFTYPE_HOLDING:
-        case CONFTYPE_EXECUTE_ON:
-        case CONFTYPE_EXECUTE_WHERE:
-        case CONFTYPE_SEND_AMREPORT_ON:
-        case CONFTYPE_DATA_PATH:
-        case CONFTYPE_INT:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_ESTIMATELIST: {
-            AV *elist = newAV();
-            estimatelist_t el;
-            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
-              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
-            }
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_TIME:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_REAL:
-          ST(argvi) = sv_newmortal();
-          sv_setnv(ST(argvi), val_t__real(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENT:	    /* same as STRING */
-        case CONFTYPE_STR:
-        case CONFTYPE_APPLICATION:
-          ST(argvi) = sv_newmortal();
-          sv_setpv(ST(argvi), val_t__str(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENTLIST: {
-            AV *ilist = newAV();
-            
-            identlist_t il;
-            for (il=val_t__identlist(result); il != NULL; il = il->next) {
-              av_push(ilist, newSVpv((char *)il->data, 0));
-            }
-            
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_AUTOLABEL: {
-            autolabel_t *autolabel = &val_t__autolabel(result);
-            HV *hv;
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            hv_store(hv, "template", 8,
-              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
-              0);
-            hv_store(hv, "other_config", 12,
-              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "non_amanda", 10,
-              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "volume_error", 12,
-              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "empty", 5,
-              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
-              0);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-          /* No match yet -> not one of the "complex" types */
-        default:
-          SWIG_exception(SWIG_TypeError, "Unknown val_t conftype");
-          break;
-        }
       }
     }
     
@@ -2519,186 +2543,18 @@ XS(_wrap_getconf_byname) {
     arg1 = (char *)(buf1);
     result = (val_t *)getconf_byname(arg1);
     {
-      if (!result) {
-        ST(argvi) = &PL_sv_undef;
+      SV *results[3], **iter;
+      int nresults;
+      
+      /* save the stack, since val_t_to_sv may invoke arbitrary Perl code */
+      SP += argvi; PUTBACK;
+      nresults = val_t_to_sv(result, results);
+      SPAGAIN; SP -= argvi;
+      
+      /* add val_t_to_sv's results to the stack */
+      for (iter = results; nresults; iter++, nresults--) {
+        ST(argvi) = *iter;
         argvi++;
-      } else {
-        switch (result->type) {
-          case CONFTYPE_RATE: {
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_INTRANGE: {
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_EXINCLUDE: {
-            /* exincludes are represented in perl as {
-            		 *	'list' : [ 'list1', 'list2', ..],
-            		 *	'file' : [ 'file1', 'file2', ..],
-            		 *	'optional' : 1,
-            		 * }
-            		 */
-            exinclude_t *ei = &val_t__exinclude(result);
-            AV *list_entries = (AV *)sv_2mortal((SV *)newAV());
-            AV *file_entries = (AV *)sv_2mortal((SV *)newAV());
-            SV *optional = sv_newmortal();
-            HV *hv;
-            sle_t *iter;
-            
-            /* first set up each of the hash values */
-            
-            if (ei->sl_list) {
-              for (iter = ei->sl_list->first; iter != NULL; iter = iter->next) {
-                av_push(list_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            if(ei->sl_file) {
-              for (iter = ei->sl_file->first; iter != NULL; iter = iter->next) {
-                av_push(file_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            sv_setiv(optional, ei->optional);
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            
-            hv_store(hv, "file", 4, newRV((SV *)file_entries), 0);
-            hv_store(hv, "list", 4, newRV((SV *)list_entries), 0);
-            hv_store(hv, "optional", 8, optional, 0);
-            SvREFCNT_inc(optional);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_PROPLIST:
-          ST(argvi) = sv_2mortal(g_hash_table_to_hashref_property(val_t__proplist(result)));
-          argvi++;
-          break;
-          
-        case CONFTYPE_SIZE:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_INT64:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
-        case CONFTYPE_COMPRESS:
-        case CONFTYPE_ENCRYPT:
-        case CONFTYPE_STRATEGY:
-        case CONFTYPE_TAPERALGO:
-        case CONFTYPE_PRIORITY:
-        case CONFTYPE_HOLDING:
-        case CONFTYPE_EXECUTE_ON:
-        case CONFTYPE_EXECUTE_WHERE:
-        case CONFTYPE_SEND_AMREPORT_ON:
-        case CONFTYPE_DATA_PATH:
-        case CONFTYPE_INT:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_ESTIMATELIST: {
-            AV *elist = newAV();
-            estimatelist_t el;
-            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
-              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
-            }
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_TIME:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_REAL:
-          ST(argvi) = sv_newmortal();
-          sv_setnv(ST(argvi), val_t__real(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENT:	    /* same as STRING */
-        case CONFTYPE_STR:
-        case CONFTYPE_APPLICATION:
-          ST(argvi) = sv_newmortal();
-          sv_setpv(ST(argvi), val_t__str(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENTLIST: {
-            AV *ilist = newAV();
-            
-            identlist_t il;
-            for (il=val_t__identlist(result); il != NULL; il = il->next) {
-              av_push(ilist, newSVpv((char *)il->data, 0));
-            }
-            
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_AUTOLABEL: {
-            autolabel_t *autolabel = &val_t__autolabel(result);
-            HV *hv;
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            hv_store(hv, "template", 8,
-              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
-              0);
-            hv_store(hv, "other_config", 12,
-              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "non_amanda", 10,
-              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "volume_error", 12,
-              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "empty", 5,
-              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
-              0);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-          /* No match yet -> not one of the "complex" types */
-        default:
-          SWIG_exception(SWIG_TypeError, "Unknown val_t conftype");
-          break;
-        }
       }
     }
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -2865,186 +2721,18 @@ XS(_wrap_tapetype_getconf) {
     }
     result = (val_t *)tapetype_getconf(arg1,arg2);
     {
-      if (!result) {
-        ST(argvi) = &PL_sv_undef;
+      SV *results[3], **iter;
+      int nresults;
+      
+      /* save the stack, since val_t_to_sv may invoke arbitrary Perl code */
+      SP += argvi; PUTBACK;
+      nresults = val_t_to_sv(result, results);
+      SPAGAIN; SP -= argvi;
+      
+      /* add val_t_to_sv's results to the stack */
+      for (iter = results; nresults; iter++, nresults--) {
+        ST(argvi) = *iter;
         argvi++;
-      } else {
-        switch (result->type) {
-          case CONFTYPE_RATE: {
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_INTRANGE: {
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_EXINCLUDE: {
-            /* exincludes are represented in perl as {
-            		 *	'list' : [ 'list1', 'list2', ..],
-            		 *	'file' : [ 'file1', 'file2', ..],
-            		 *	'optional' : 1,
-            		 * }
-            		 */
-            exinclude_t *ei = &val_t__exinclude(result);
-            AV *list_entries = (AV *)sv_2mortal((SV *)newAV());
-            AV *file_entries = (AV *)sv_2mortal((SV *)newAV());
-            SV *optional = sv_newmortal();
-            HV *hv;
-            sle_t *iter;
-            
-            /* first set up each of the hash values */
-            
-            if (ei->sl_list) {
-              for (iter = ei->sl_list->first; iter != NULL; iter = iter->next) {
-                av_push(list_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            if(ei->sl_file) {
-              for (iter = ei->sl_file->first; iter != NULL; iter = iter->next) {
-                av_push(file_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            sv_setiv(optional, ei->optional);
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            
-            hv_store(hv, "file", 4, newRV((SV *)file_entries), 0);
-            hv_store(hv, "list", 4, newRV((SV *)list_entries), 0);
-            hv_store(hv, "optional", 8, optional, 0);
-            SvREFCNT_inc(optional);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_PROPLIST:
-          ST(argvi) = sv_2mortal(g_hash_table_to_hashref_property(val_t__proplist(result)));
-          argvi++;
-          break;
-          
-        case CONFTYPE_SIZE:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_INT64:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
-        case CONFTYPE_COMPRESS:
-        case CONFTYPE_ENCRYPT:
-        case CONFTYPE_STRATEGY:
-        case CONFTYPE_TAPERALGO:
-        case CONFTYPE_PRIORITY:
-        case CONFTYPE_HOLDING:
-        case CONFTYPE_EXECUTE_ON:
-        case CONFTYPE_EXECUTE_WHERE:
-        case CONFTYPE_SEND_AMREPORT_ON:
-        case CONFTYPE_DATA_PATH:
-        case CONFTYPE_INT:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_ESTIMATELIST: {
-            AV *elist = newAV();
-            estimatelist_t el;
-            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
-              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
-            }
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_TIME:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_REAL:
-          ST(argvi) = sv_newmortal();
-          sv_setnv(ST(argvi), val_t__real(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENT:	    /* same as STRING */
-        case CONFTYPE_STR:
-        case CONFTYPE_APPLICATION:
-          ST(argvi) = sv_newmortal();
-          sv_setpv(ST(argvi), val_t__str(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENTLIST: {
-            AV *ilist = newAV();
-            
-            identlist_t il;
-            for (il=val_t__identlist(result); il != NULL; il = il->next) {
-              av_push(ilist, newSVpv((char *)il->data, 0));
-            }
-            
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_AUTOLABEL: {
-            autolabel_t *autolabel = &val_t__autolabel(result);
-            HV *hv;
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            hv_store(hv, "template", 8,
-              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
-              0);
-            hv_store(hv, "other_config", 12,
-              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "non_amanda", 10,
-              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "volume_error", 12,
-              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "empty", 5,
-              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
-              0);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-          /* No match yet -> not one of the "complex" types */
-        default:
-          SWIG_exception(SWIG_TypeError, "Unknown val_t conftype");
-          break;
-        }
       }
     }
     
@@ -3198,186 +2886,18 @@ XS(_wrap_dumptype_getconf) {
     }
     result = (val_t *)dumptype_getconf(arg1,arg2);
     {
-      if (!result) {
-        ST(argvi) = &PL_sv_undef;
+      SV *results[3], **iter;
+      int nresults;
+      
+      /* save the stack, since val_t_to_sv may invoke arbitrary Perl code */
+      SP += argvi; PUTBACK;
+      nresults = val_t_to_sv(result, results);
+      SPAGAIN; SP -= argvi;
+      
+      /* add val_t_to_sv's results to the stack */
+      for (iter = results; nresults; iter++, nresults--) {
+        ST(argvi) = *iter;
         argvi++;
-      } else {
-        switch (result->type) {
-          case CONFTYPE_RATE: {
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_INTRANGE: {
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_EXINCLUDE: {
-            /* exincludes are represented in perl as {
-            		 *	'list' : [ 'list1', 'list2', ..],
-            		 *	'file' : [ 'file1', 'file2', ..],
-            		 *	'optional' : 1,
-            		 * }
-            		 */
-            exinclude_t *ei = &val_t__exinclude(result);
-            AV *list_entries = (AV *)sv_2mortal((SV *)newAV());
-            AV *file_entries = (AV *)sv_2mortal((SV *)newAV());
-            SV *optional = sv_newmortal();
-            HV *hv;
-            sle_t *iter;
-            
-            /* first set up each of the hash values */
-            
-            if (ei->sl_list) {
-              for (iter = ei->sl_list->first; iter != NULL; iter = iter->next) {
-                av_push(list_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            if(ei->sl_file) {
-              for (iter = ei->sl_file->first; iter != NULL; iter = iter->next) {
-                av_push(file_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            sv_setiv(optional, ei->optional);
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            
-            hv_store(hv, "file", 4, newRV((SV *)file_entries), 0);
-            hv_store(hv, "list", 4, newRV((SV *)list_entries), 0);
-            hv_store(hv, "optional", 8, optional, 0);
-            SvREFCNT_inc(optional);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_PROPLIST:
-          ST(argvi) = sv_2mortal(g_hash_table_to_hashref_property(val_t__proplist(result)));
-          argvi++;
-          break;
-          
-        case CONFTYPE_SIZE:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_INT64:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
-        case CONFTYPE_COMPRESS:
-        case CONFTYPE_ENCRYPT:
-        case CONFTYPE_STRATEGY:
-        case CONFTYPE_TAPERALGO:
-        case CONFTYPE_PRIORITY:
-        case CONFTYPE_HOLDING:
-        case CONFTYPE_EXECUTE_ON:
-        case CONFTYPE_EXECUTE_WHERE:
-        case CONFTYPE_SEND_AMREPORT_ON:
-        case CONFTYPE_DATA_PATH:
-        case CONFTYPE_INT:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_ESTIMATELIST: {
-            AV *elist = newAV();
-            estimatelist_t el;
-            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
-              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
-            }
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_TIME:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_REAL:
-          ST(argvi) = sv_newmortal();
-          sv_setnv(ST(argvi), val_t__real(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENT:	    /* same as STRING */
-        case CONFTYPE_STR:
-        case CONFTYPE_APPLICATION:
-          ST(argvi) = sv_newmortal();
-          sv_setpv(ST(argvi), val_t__str(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENTLIST: {
-            AV *ilist = newAV();
-            
-            identlist_t il;
-            for (il=val_t__identlist(result); il != NULL; il = il->next) {
-              av_push(ilist, newSVpv((char *)il->data, 0));
-            }
-            
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_AUTOLABEL: {
-            autolabel_t *autolabel = &val_t__autolabel(result);
-            HV *hv;
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            hv_store(hv, "template", 8,
-              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
-              0);
-            hv_store(hv, "other_config", 12,
-              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "non_amanda", 10,
-              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "volume_error", 12,
-              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "empty", 5,
-              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
-              0);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-          /* No match yet -> not one of the "complex" types */
-        default:
-          SWIG_exception(SWIG_TypeError, "Unknown val_t conftype");
-          break;
-        }
       }
     }
     
@@ -3531,186 +3051,18 @@ XS(_wrap_interface_getconf) {
     }
     result = (val_t *)interface_getconf(arg1,arg2);
     {
-      if (!result) {
-        ST(argvi) = &PL_sv_undef;
+      SV *results[3], **iter;
+      int nresults;
+      
+      /* save the stack, since val_t_to_sv may invoke arbitrary Perl code */
+      SP += argvi; PUTBACK;
+      nresults = val_t_to_sv(result, results);
+      SPAGAIN; SP -= argvi;
+      
+      /* add val_t_to_sv's results to the stack */
+      for (iter = results; nresults; iter++, nresults--) {
+        ST(argvi) = *iter;
         argvi++;
-      } else {
-        switch (result->type) {
-          case CONFTYPE_RATE: {
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_INTRANGE: {
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_EXINCLUDE: {
-            /* exincludes are represented in perl as {
-            		 *	'list' : [ 'list1', 'list2', ..],
-            		 *	'file' : [ 'file1', 'file2', ..],
-            		 *	'optional' : 1,
-            		 * }
-            		 */
-            exinclude_t *ei = &val_t__exinclude(result);
-            AV *list_entries = (AV *)sv_2mortal((SV *)newAV());
-            AV *file_entries = (AV *)sv_2mortal((SV *)newAV());
-            SV *optional = sv_newmortal();
-            HV *hv;
-            sle_t *iter;
-            
-            /* first set up each of the hash values */
-            
-            if (ei->sl_list) {
-              for (iter = ei->sl_list->first; iter != NULL; iter = iter->next) {
-                av_push(list_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            if(ei->sl_file) {
-              for (iter = ei->sl_file->first; iter != NULL; iter = iter->next) {
-                av_push(file_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            sv_setiv(optional, ei->optional);
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            
-            hv_store(hv, "file", 4, newRV((SV *)file_entries), 0);
-            hv_store(hv, "list", 4, newRV((SV *)list_entries), 0);
-            hv_store(hv, "optional", 8, optional, 0);
-            SvREFCNT_inc(optional);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_PROPLIST:
-          ST(argvi) = sv_2mortal(g_hash_table_to_hashref_property(val_t__proplist(result)));
-          argvi++;
-          break;
-          
-        case CONFTYPE_SIZE:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_INT64:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
-        case CONFTYPE_COMPRESS:
-        case CONFTYPE_ENCRYPT:
-        case CONFTYPE_STRATEGY:
-        case CONFTYPE_TAPERALGO:
-        case CONFTYPE_PRIORITY:
-        case CONFTYPE_HOLDING:
-        case CONFTYPE_EXECUTE_ON:
-        case CONFTYPE_EXECUTE_WHERE:
-        case CONFTYPE_SEND_AMREPORT_ON:
-        case CONFTYPE_DATA_PATH:
-        case CONFTYPE_INT:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_ESTIMATELIST: {
-            AV *elist = newAV();
-            estimatelist_t el;
-            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
-              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
-            }
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_TIME:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_REAL:
-          ST(argvi) = sv_newmortal();
-          sv_setnv(ST(argvi), val_t__real(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENT:	    /* same as STRING */
-        case CONFTYPE_STR:
-        case CONFTYPE_APPLICATION:
-          ST(argvi) = sv_newmortal();
-          sv_setpv(ST(argvi), val_t__str(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENTLIST: {
-            AV *ilist = newAV();
-            
-            identlist_t il;
-            for (il=val_t__identlist(result); il != NULL; il = il->next) {
-              av_push(ilist, newSVpv((char *)il->data, 0));
-            }
-            
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_AUTOLABEL: {
-            autolabel_t *autolabel = &val_t__autolabel(result);
-            HV *hv;
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            hv_store(hv, "template", 8,
-              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
-              0);
-            hv_store(hv, "other_config", 12,
-              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "non_amanda", 10,
-              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "volume_error", 12,
-              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "empty", 5,
-              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
-              0);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-          /* No match yet -> not one of the "complex" types */
-        default:
-          SWIG_exception(SWIG_TypeError, "Unknown val_t conftype");
-          break;
-        }
       }
     }
     
@@ -3892,186 +3244,18 @@ XS(_wrap_holdingdisk_getconf) {
     }
     result = (val_t *)holdingdisk_getconf(arg1,arg2);
     {
-      if (!result) {
-        ST(argvi) = &PL_sv_undef;
+      SV *results[3], **iter;
+      int nresults;
+      
+      /* save the stack, since val_t_to_sv may invoke arbitrary Perl code */
+      SP += argvi; PUTBACK;
+      nresults = val_t_to_sv(result, results);
+      SPAGAIN; SP -= argvi;
+      
+      /* add val_t_to_sv's results to the stack */
+      for (iter = results; nresults; iter++, nresults--) {
+        ST(argvi) = *iter;
         argvi++;
-      } else {
-        switch (result->type) {
-          case CONFTYPE_RATE: {
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_INTRANGE: {
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_EXINCLUDE: {
-            /* exincludes are represented in perl as {
-            		 *	'list' : [ 'list1', 'list2', ..],
-            		 *	'file' : [ 'file1', 'file2', ..],
-            		 *	'optional' : 1,
-            		 * }
-            		 */
-            exinclude_t *ei = &val_t__exinclude(result);
-            AV *list_entries = (AV *)sv_2mortal((SV *)newAV());
-            AV *file_entries = (AV *)sv_2mortal((SV *)newAV());
-            SV *optional = sv_newmortal();
-            HV *hv;
-            sle_t *iter;
-            
-            /* first set up each of the hash values */
-            
-            if (ei->sl_list) {
-              for (iter = ei->sl_list->first; iter != NULL; iter = iter->next) {
-                av_push(list_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            if(ei->sl_file) {
-              for (iter = ei->sl_file->first; iter != NULL; iter = iter->next) {
-                av_push(file_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            sv_setiv(optional, ei->optional);
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            
-            hv_store(hv, "file", 4, newRV((SV *)file_entries), 0);
-            hv_store(hv, "list", 4, newRV((SV *)list_entries), 0);
-            hv_store(hv, "optional", 8, optional, 0);
-            SvREFCNT_inc(optional);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_PROPLIST:
-          ST(argvi) = sv_2mortal(g_hash_table_to_hashref_property(val_t__proplist(result)));
-          argvi++;
-          break;
-          
-        case CONFTYPE_SIZE:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_INT64:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
-        case CONFTYPE_COMPRESS:
-        case CONFTYPE_ENCRYPT:
-        case CONFTYPE_STRATEGY:
-        case CONFTYPE_TAPERALGO:
-        case CONFTYPE_PRIORITY:
-        case CONFTYPE_HOLDING:
-        case CONFTYPE_EXECUTE_ON:
-        case CONFTYPE_EXECUTE_WHERE:
-        case CONFTYPE_SEND_AMREPORT_ON:
-        case CONFTYPE_DATA_PATH:
-        case CONFTYPE_INT:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_ESTIMATELIST: {
-            AV *elist = newAV();
-            estimatelist_t el;
-            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
-              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
-            }
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_TIME:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_REAL:
-          ST(argvi) = sv_newmortal();
-          sv_setnv(ST(argvi), val_t__real(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENT:	    /* same as STRING */
-        case CONFTYPE_STR:
-        case CONFTYPE_APPLICATION:
-          ST(argvi) = sv_newmortal();
-          sv_setpv(ST(argvi), val_t__str(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENTLIST: {
-            AV *ilist = newAV();
-            
-            identlist_t il;
-            for (il=val_t__identlist(result); il != NULL; il = il->next) {
-              av_push(ilist, newSVpv((char *)il->data, 0));
-            }
-            
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_AUTOLABEL: {
-            autolabel_t *autolabel = &val_t__autolabel(result);
-            HV *hv;
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            hv_store(hv, "template", 8,
-              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
-              0);
-            hv_store(hv, "other_config", 12,
-              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "non_amanda", 10,
-              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "volume_error", 12,
-              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "empty", 5,
-              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
-              0);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-          /* No match yet -> not one of the "complex" types */
-        default:
-          SWIG_exception(SWIG_TypeError, "Unknown val_t conftype");
-          break;
-        }
       }
     }
     
@@ -4225,186 +3409,18 @@ XS(_wrap_application_getconf) {
     }
     result = (val_t *)application_getconf(arg1,arg2);
     {
-      if (!result) {
-        ST(argvi) = &PL_sv_undef;
+      SV *results[3], **iter;
+      int nresults;
+      
+      /* save the stack, since val_t_to_sv may invoke arbitrary Perl code */
+      SP += argvi; PUTBACK;
+      nresults = val_t_to_sv(result, results);
+      SPAGAIN; SP -= argvi;
+      
+      /* add val_t_to_sv's results to the stack */
+      for (iter = results; nresults; iter++, nresults--) {
+        ST(argvi) = *iter;
         argvi++;
-      } else {
-        switch (result->type) {
-          case CONFTYPE_RATE: {
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_INTRANGE: {
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_EXINCLUDE: {
-            /* exincludes are represented in perl as {
-            		 *	'list' : [ 'list1', 'list2', ..],
-            		 *	'file' : [ 'file1', 'file2', ..],
-            		 *	'optional' : 1,
-            		 * }
-            		 */
-            exinclude_t *ei = &val_t__exinclude(result);
-            AV *list_entries = (AV *)sv_2mortal((SV *)newAV());
-            AV *file_entries = (AV *)sv_2mortal((SV *)newAV());
-            SV *optional = sv_newmortal();
-            HV *hv;
-            sle_t *iter;
-            
-            /* first set up each of the hash values */
-            
-            if (ei->sl_list) {
-              for (iter = ei->sl_list->first; iter != NULL; iter = iter->next) {
-                av_push(list_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            if(ei->sl_file) {
-              for (iter = ei->sl_file->first; iter != NULL; iter = iter->next) {
-                av_push(file_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            sv_setiv(optional, ei->optional);
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            
-            hv_store(hv, "file", 4, newRV((SV *)file_entries), 0);
-            hv_store(hv, "list", 4, newRV((SV *)list_entries), 0);
-            hv_store(hv, "optional", 8, optional, 0);
-            SvREFCNT_inc(optional);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_PROPLIST:
-          ST(argvi) = sv_2mortal(g_hash_table_to_hashref_property(val_t__proplist(result)));
-          argvi++;
-          break;
-          
-        case CONFTYPE_SIZE:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_INT64:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
-        case CONFTYPE_COMPRESS:
-        case CONFTYPE_ENCRYPT:
-        case CONFTYPE_STRATEGY:
-        case CONFTYPE_TAPERALGO:
-        case CONFTYPE_PRIORITY:
-        case CONFTYPE_HOLDING:
-        case CONFTYPE_EXECUTE_ON:
-        case CONFTYPE_EXECUTE_WHERE:
-        case CONFTYPE_SEND_AMREPORT_ON:
-        case CONFTYPE_DATA_PATH:
-        case CONFTYPE_INT:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_ESTIMATELIST: {
-            AV *elist = newAV();
-            estimatelist_t el;
-            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
-              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
-            }
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_TIME:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_REAL:
-          ST(argvi) = sv_newmortal();
-          sv_setnv(ST(argvi), val_t__real(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENT:	    /* same as STRING */
-        case CONFTYPE_STR:
-        case CONFTYPE_APPLICATION:
-          ST(argvi) = sv_newmortal();
-          sv_setpv(ST(argvi), val_t__str(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENTLIST: {
-            AV *ilist = newAV();
-            
-            identlist_t il;
-            for (il=val_t__identlist(result); il != NULL; il = il->next) {
-              av_push(ilist, newSVpv((char *)il->data, 0));
-            }
-            
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_AUTOLABEL: {
-            autolabel_t *autolabel = &val_t__autolabel(result);
-            HV *hv;
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            hv_store(hv, "template", 8,
-              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
-              0);
-            hv_store(hv, "other_config", 12,
-              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "non_amanda", 10,
-              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "volume_error", 12,
-              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "empty", 5,
-              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
-              0);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-          /* No match yet -> not one of the "complex" types */
-        default:
-          SWIG_exception(SWIG_TypeError, "Unknown val_t conftype");
-          break;
-        }
       }
     }
     
@@ -4558,186 +3574,18 @@ XS(_wrap_pp_script_getconf) {
     }
     result = (val_t *)pp_script_getconf(arg1,arg2);
     {
-      if (!result) {
-        ST(argvi) = &PL_sv_undef;
+      SV *results[3], **iter;
+      int nresults;
+      
+      /* save the stack, since val_t_to_sv may invoke arbitrary Perl code */
+      SP += argvi; PUTBACK;
+      nresults = val_t_to_sv(result, results);
+      SPAGAIN; SP -= argvi;
+      
+      /* add val_t_to_sv's results to the stack */
+      for (iter = results; nresults; iter++, nresults--) {
+        ST(argvi) = *iter;
         argvi++;
-      } else {
-        switch (result->type) {
-          case CONFTYPE_RATE: {
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_INTRANGE: {
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_EXINCLUDE: {
-            /* exincludes are represented in perl as {
-            		 *	'list' : [ 'list1', 'list2', ..],
-            		 *	'file' : [ 'file1', 'file2', ..],
-            		 *	'optional' : 1,
-            		 * }
-            		 */
-            exinclude_t *ei = &val_t__exinclude(result);
-            AV *list_entries = (AV *)sv_2mortal((SV *)newAV());
-            AV *file_entries = (AV *)sv_2mortal((SV *)newAV());
-            SV *optional = sv_newmortal();
-            HV *hv;
-            sle_t *iter;
-            
-            /* first set up each of the hash values */
-            
-            if (ei->sl_list) {
-              for (iter = ei->sl_list->first; iter != NULL; iter = iter->next) {
-                av_push(list_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            if(ei->sl_file) {
-              for (iter = ei->sl_file->first; iter != NULL; iter = iter->next) {
-                av_push(file_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            sv_setiv(optional, ei->optional);
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            
-            hv_store(hv, "file", 4, newRV((SV *)file_entries), 0);
-            hv_store(hv, "list", 4, newRV((SV *)list_entries), 0);
-            hv_store(hv, "optional", 8, optional, 0);
-            SvREFCNT_inc(optional);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_PROPLIST:
-          ST(argvi) = sv_2mortal(g_hash_table_to_hashref_property(val_t__proplist(result)));
-          argvi++;
-          break;
-          
-        case CONFTYPE_SIZE:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_INT64:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
-        case CONFTYPE_COMPRESS:
-        case CONFTYPE_ENCRYPT:
-        case CONFTYPE_STRATEGY:
-        case CONFTYPE_TAPERALGO:
-        case CONFTYPE_PRIORITY:
-        case CONFTYPE_HOLDING:
-        case CONFTYPE_EXECUTE_ON:
-        case CONFTYPE_EXECUTE_WHERE:
-        case CONFTYPE_SEND_AMREPORT_ON:
-        case CONFTYPE_DATA_PATH:
-        case CONFTYPE_INT:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_ESTIMATELIST: {
-            AV *elist = newAV();
-            estimatelist_t el;
-            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
-              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
-            }
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_TIME:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_REAL:
-          ST(argvi) = sv_newmortal();
-          sv_setnv(ST(argvi), val_t__real(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENT:	    /* same as STRING */
-        case CONFTYPE_STR:
-        case CONFTYPE_APPLICATION:
-          ST(argvi) = sv_newmortal();
-          sv_setpv(ST(argvi), val_t__str(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENTLIST: {
-            AV *ilist = newAV();
-            
-            identlist_t il;
-            for (il=val_t__identlist(result); il != NULL; il = il->next) {
-              av_push(ilist, newSVpv((char *)il->data, 0));
-            }
-            
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_AUTOLABEL: {
-            autolabel_t *autolabel = &val_t__autolabel(result);
-            HV *hv;
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            hv_store(hv, "template", 8,
-              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
-              0);
-            hv_store(hv, "other_config", 12,
-              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "non_amanda", 10,
-              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "volume_error", 12,
-              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "empty", 5,
-              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
-              0);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-          /* No match yet -> not one of the "complex" types */
-        default:
-          SWIG_exception(SWIG_TypeError, "Unknown val_t conftype");
-          break;
-        }
       }
     }
     
@@ -4891,186 +3739,18 @@ XS(_wrap_device_config_getconf) {
     }
     result = (val_t *)device_config_getconf(arg1,arg2);
     {
-      if (!result) {
-        ST(argvi) = &PL_sv_undef;
+      SV *results[3], **iter;
+      int nresults;
+      
+      /* save the stack, since val_t_to_sv may invoke arbitrary Perl code */
+      SP += argvi; PUTBACK;
+      nresults = val_t_to_sv(result, results);
+      SPAGAIN; SP -= argvi;
+      
+      /* add val_t_to_sv's results to the stack */
+      for (iter = results; nresults; iter++, nresults--) {
+        ST(argvi) = *iter;
         argvi++;
-      } else {
-        switch (result->type) {
-          case CONFTYPE_RATE: {
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_INTRANGE: {
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_EXINCLUDE: {
-            /* exincludes are represented in perl as {
-            		 *	'list' : [ 'list1', 'list2', ..],
-            		 *	'file' : [ 'file1', 'file2', ..],
-            		 *	'optional' : 1,
-            		 * }
-            		 */
-            exinclude_t *ei = &val_t__exinclude(result);
-            AV *list_entries = (AV *)sv_2mortal((SV *)newAV());
-            AV *file_entries = (AV *)sv_2mortal((SV *)newAV());
-            SV *optional = sv_newmortal();
-            HV *hv;
-            sle_t *iter;
-            
-            /* first set up each of the hash values */
-            
-            if (ei->sl_list) {
-              for (iter = ei->sl_list->first; iter != NULL; iter = iter->next) {
-                av_push(list_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            if(ei->sl_file) {
-              for (iter = ei->sl_file->first; iter != NULL; iter = iter->next) {
-                av_push(file_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            sv_setiv(optional, ei->optional);
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            
-            hv_store(hv, "file", 4, newRV((SV *)file_entries), 0);
-            hv_store(hv, "list", 4, newRV((SV *)list_entries), 0);
-            hv_store(hv, "optional", 8, optional, 0);
-            SvREFCNT_inc(optional);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_PROPLIST:
-          ST(argvi) = sv_2mortal(g_hash_table_to_hashref_property(val_t__proplist(result)));
-          argvi++;
-          break;
-          
-        case CONFTYPE_SIZE:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_INT64:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
-        case CONFTYPE_COMPRESS:
-        case CONFTYPE_ENCRYPT:
-        case CONFTYPE_STRATEGY:
-        case CONFTYPE_TAPERALGO:
-        case CONFTYPE_PRIORITY:
-        case CONFTYPE_HOLDING:
-        case CONFTYPE_EXECUTE_ON:
-        case CONFTYPE_EXECUTE_WHERE:
-        case CONFTYPE_SEND_AMREPORT_ON:
-        case CONFTYPE_DATA_PATH:
-        case CONFTYPE_INT:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_ESTIMATELIST: {
-            AV *elist = newAV();
-            estimatelist_t el;
-            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
-              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
-            }
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_TIME:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_REAL:
-          ST(argvi) = sv_newmortal();
-          sv_setnv(ST(argvi), val_t__real(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENT:	    /* same as STRING */
-        case CONFTYPE_STR:
-        case CONFTYPE_APPLICATION:
-          ST(argvi) = sv_newmortal();
-          sv_setpv(ST(argvi), val_t__str(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENTLIST: {
-            AV *ilist = newAV();
-            
-            identlist_t il;
-            for (il=val_t__identlist(result); il != NULL; il = il->next) {
-              av_push(ilist, newSVpv((char *)il->data, 0));
-            }
-            
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_AUTOLABEL: {
-            autolabel_t *autolabel = &val_t__autolabel(result);
-            HV *hv;
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            hv_store(hv, "template", 8,
-              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
-              0);
-            hv_store(hv, "other_config", 12,
-              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "non_amanda", 10,
-              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "volume_error", 12,
-              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "empty", 5,
-              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
-              0);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-          /* No match yet -> not one of the "complex" types */
-        default:
-          SWIG_exception(SWIG_TypeError, "Unknown val_t conftype");
-          break;
-        }
       }
     }
     
@@ -5224,186 +3904,18 @@ XS(_wrap_changer_config_getconf) {
     }
     result = (val_t *)changer_config_getconf(arg1,arg2);
     {
-      if (!result) {
-        ST(argvi) = &PL_sv_undef;
+      SV *results[3], **iter;
+      int nresults;
+      
+      /* save the stack, since val_t_to_sv may invoke arbitrary Perl code */
+      SP += argvi; PUTBACK;
+      nresults = val_t_to_sv(result, results);
+      SPAGAIN; SP -= argvi;
+      
+      /* add val_t_to_sv's results to the stack */
+      for (iter = results; nresults; iter++, nresults--) {
+        ST(argvi) = *iter;
         argvi++;
-      } else {
-        switch (result->type) {
-          case CONFTYPE_RATE: {
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setnv(ST(argvi), val_t__rate(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_INTRANGE: {
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[0]);
-            argvi++;
-            
-            ST(argvi)= sv_newmortal();
-            sv_setiv(ST(argvi), val_t__intrange(result)[1]);
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_EXINCLUDE: {
-            /* exincludes are represented in perl as {
-            		 *	'list' : [ 'list1', 'list2', ..],
-            		 *	'file' : [ 'file1', 'file2', ..],
-            		 *	'optional' : 1,
-            		 * }
-            		 */
-            exinclude_t *ei = &val_t__exinclude(result);
-            AV *list_entries = (AV *)sv_2mortal((SV *)newAV());
-            AV *file_entries = (AV *)sv_2mortal((SV *)newAV());
-            SV *optional = sv_newmortal();
-            HV *hv;
-            sle_t *iter;
-            
-            /* first set up each of the hash values */
-            
-            if (ei->sl_list) {
-              for (iter = ei->sl_list->first; iter != NULL; iter = iter->next) {
-                av_push(list_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            if(ei->sl_file) {
-              for (iter = ei->sl_file->first; iter != NULL; iter = iter->next) {
-                av_push(file_entries, newSVpv(iter->name, 0));
-              }
-            }
-            
-            sv_setiv(optional, ei->optional);
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            
-            hv_store(hv, "file", 4, newRV((SV *)file_entries), 0);
-            hv_store(hv, "list", 4, newRV((SV *)list_entries), 0);
-            hv_store(hv, "optional", 8, optional, 0);
-            SvREFCNT_inc(optional);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_PROPLIST:
-          ST(argvi) = sv_2mortal(g_hash_table_to_hashref_property(val_t__proplist(result)));
-          argvi++;
-          break;
-          
-        case CONFTYPE_SIZE:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__size(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_INT64:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int64(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
-        case CONFTYPE_COMPRESS:
-        case CONFTYPE_ENCRYPT:
-        case CONFTYPE_STRATEGY:
-        case CONFTYPE_TAPERALGO:
-        case CONFTYPE_PRIORITY:
-        case CONFTYPE_HOLDING:
-        case CONFTYPE_EXECUTE_ON:
-        case CONFTYPE_EXECUTE_WHERE:
-        case CONFTYPE_SEND_AMREPORT_ON:
-        case CONFTYPE_DATA_PATH:
-        case CONFTYPE_INT:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__int(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-          case CONFTYPE_ESTIMATELIST: {
-            AV *elist = newAV();
-            estimatelist_t el;
-            for (el=val_t__estimatelist(result); el != NULL; el = el->next) {
-              av_push(elist, newSVuv(GPOINTER_TO_INT(el->data)));
-            }
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)elist));
-            argvi++;
-            break;
-          }
-          
-        case CONFTYPE_TIME:
-          SP += argvi; PUTBACK;
-          ST(argvi) = sv_2mortal(amglue_newSVi64(val_t__time(result)));
-          SPAGAIN; SP -= argvi; argvi++;
-          break;
-          
-        case CONFTYPE_REAL:
-          ST(argvi) = sv_newmortal();
-          sv_setnv(ST(argvi), val_t__real(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENT:	    /* same as STRING */
-        case CONFTYPE_STR:
-        case CONFTYPE_APPLICATION:
-          ST(argvi) = sv_newmortal();
-          sv_setpv(ST(argvi), val_t__str(result));
-          argvi++;
-          break;
-          
-          case CONFTYPE_IDENTLIST: {
-            AV *ilist = newAV();
-            
-            identlist_t il;
-            for (il=val_t__identlist(result); il != NULL; il = il->next) {
-              av_push(ilist, newSVpv((char *)il->data, 0));
-            }
-            
-            ST(argvi) = sv_2mortal(newRV_noinc((SV *)ilist));
-            argvi++;
-            break;
-          }
-          
-          case CONFTYPE_AUTOLABEL: {
-            autolabel_t *autolabel = &val_t__autolabel(result);
-            HV *hv;
-            
-            /* now build the hash */
-            hv = (HV *)sv_2mortal((SV *)newHV());
-            hv_store(hv, "template", 8,
-              (autolabel->template)? newSVpv(autolabel->template, 0) : newSV(0),
-              0);
-            hv_store(hv, "other_config", 12,
-              (autolabel->autolabel & AL_OTHER_CONFIG)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "non_amanda", 10,
-              (autolabel->autolabel & AL_NON_AMANDA)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "volume_error", 12,
-              (autolabel->autolabel & AL_VOLUME_ERROR)? &PL_sv_yes : &PL_sv_no,
-              0);
-            hv_store(hv, "empty", 5,
-              (autolabel->autolabel & AL_EMPTY)? &PL_sv_yes : &PL_sv_no,
-              0);
-            
-            ST(argvi) = sv_2mortal(newRV((SV *)hv));
-            argvi++;
-            break;
-          }
-          
-          /* No match yet -> not one of the "complex" types */
-        default:
-          SWIG_exception(SWIG_TypeError, "Unknown val_t conftype");
-          break;
-        }
       }
     }
     
@@ -6081,6 +4593,35 @@ XS(_wrap_C_string_to_boolean) {
 }
 
 
+XS(_wrap_amandaify_property_name) {
+  {
+    gchar *arg1 = (gchar *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int argvi = 0;
+    gchar *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: amandaify_property_name(name);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "amandaify_property_name" "', argument " "1"" of type '" "gchar const *""'");
+    }
+    arg1 = (gchar *)(buf1);
+    result = (gchar *)amandaify_property_name((char const *)arg1);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    SWIG_croak_null();
+  }
+}
+
+
 
 /* -------- TYPE CONVERSION AND EQUIVALENCE RULES (BEGIN) -------- */
 
@@ -6093,7 +4634,7 @@ static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 
 static swig_type_info _swigt__p_dumptype_t = {"_p_dumptype_t", "dumptype_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *|gfloat *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_holdingdisk_t = {"_p_holdingdisk_t", "holdingdisk_t *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_int = {"_p_int", "application_key *|strategy_t *|pp_script_key *|int *|autolabel_enum_t *|comp_t *|dump_holdingdisk_t *|device_config_key *|changer_config_key *|confparm_key *|interface_key *|holdingdisk_key *|dumptype_key *|tapetype_key *|cfgerr_level_t *|encrypt_t *|taperalgo_t *|gboolean *|data_path_t *|execute_on_t *|send_amreport_on_t *|estimate_t *|config_init_flags *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_int = {"_p_int", "application_key *|strategy_t *|pp_script_key *|int *|autolabel_enum_t *|comp_t *|dump_holdingdisk_t *|device_config_key *|changer_config_key *|confparm_key *|interface_key *|holdingdisk_key *|dumptype_key *|tapetype_key *|part_cache_type_t *|cfgerr_level_t *|encrypt_t *|taperalgo_t *|gboolean *|data_path_t *|execute_on_t *|send_amreport_on_t *|estimate_t *|config_init_flags *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_interface_t = {"_p_interface_t", "interface_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_p_GSList = {"_p_p_GSList", "GSList **", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_p_char = {"_p_p_char", "char **", 0, 0, (void*)0, 0};
@@ -6246,6 +4787,7 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Configc::taperalgo2str", _wrap_taperalgo2str},
 {"Amanda::Configc::find_multiplier", _wrap_find_multiplier},
 {"Amanda::Configc::C_string_to_boolean", _wrap_C_string_to_boolean},
+{"Amanda::Configc::amandaify_property_name", _wrap_amandaify_property_name},
 {0,0}
 };
 /* -----------------------------------------------------------------------------
@@ -6756,11 +5298,6 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
-    SV *sv = get_sv((char*) SWIG_prefix "CNF_TAPEBUFS", TRUE | 0x2 | GV_ADDMULTI);
-    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_TAPEBUFS)));
-    SvREADONLY_on(sv);
-  } while(0) /*@SWIG@*/;
-  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "CNF_DEVICE_OUTPUT_BUFFER_SIZE", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_DEVICE_OUTPUT_BUFFER_SIZE)));
     SvREADONLY_on(sv);
@@ -6976,6 +5513,16 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "CNF_TAPER_PARALLEL_WRITE", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_TAPER_PARALLEL_WRITE)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "CNF_RECOVERY_LIMIT", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_RECOVERY_LIMIT)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "TAPETYPE_COMMENT", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(TAPETYPE_COMMENT)));
     SvREADONLY_on(sv);
@@ -7011,8 +5558,23 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
-    SV *sv = get_sv((char*) SWIG_prefix "TAPETYPE_FILE_PAD", TRUE | 0x2 | GV_ADDMULTI);
-    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(TAPETYPE_FILE_PAD)));
+    SV *sv = get_sv((char*) SWIG_prefix "TAPETYPE_PART_SIZE", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(TAPETYPE_PART_SIZE)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "TAPETYPE_PART_CACHE_TYPE", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(TAPETYPE_PART_CACHE_TYPE)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "TAPETYPE_PART_CACHE_DIR", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(TAPETYPE_PART_CACHE_DIR)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "TAPETYPE_PART_CACHE_MAX_SIZE", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(TAPETYPE_PART_CACHE_MAX_SIZE)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
@@ -7228,6 +5790,16 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_DATA_PATH", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_DATA_PATH)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_ALLOW_SPLIT", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_ALLOW_SPLIT)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_RECOVERY_LIMIT", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_RECOVERY_LIMIT)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
@@ -7613,6 +6185,21 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "DATA_PATH_DIRECTTCP", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DATA_PATH_DIRECTTCP)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "PART_CACHE_TYPE_NONE", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(PART_CACHE_TYPE_NONE)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "PART_CACHE_TYPE_DISK", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(PART_CACHE_TYPE_DISK)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "PART_CACHE_TYPE_MEMORY", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(PART_CACHE_TYPE_MEMORY)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {

@@ -35,6 +35,7 @@ This is an abstract base class for taperscan algorithms.
     die $err if $err;
     # write to $reservation->{'device'}, using label $label, and opening
     # the device with $access_mode (one of $ACCESS_WRITE or $ACCESS_APPEND)
+    # $is_new is set to 1 if the volume is not already labeled.
     # ..
   });
   my $user_msg_fn = sub {
@@ -48,7 +49,7 @@ C<Amanda::Taper::Scan> subclasses represent algorithms used by
 C<Amanda::Taper::Scribe> (see L<Amanda::Taper::Scribe>) to scan for and select
 volumes for writing.
 
-Call C<Amanda::Taperscan->new()> to create a new taperscan
+Call C<< Amanda::Taperscan->new() >> to create a new taperscan
 algorithm.  The constructor takes the following keyword arguments:
 
     changer       Amanda::Changer object to use (required)
@@ -63,6 +64,9 @@ which case the class specified by the user in the Amanda configuration file is
 instantiated.  The remaining options will be taken from the configuration file
 if not specified.  Default values for all of these options are applied before a
 subclass's constructor is called.
+
+The autolabel option should look like the C<CNF_AUTOLABEL> hash - see
+L<Amanda::Config>.
 
 Subclasses must implement a single method: C<scan>.  It takes only one mandatory
 parameter, C<result_cb>:
@@ -191,6 +195,7 @@ scan was looking for.
 use strict;
 use warnings;
 use Amanda::Config qw( :getconf );
+use Amanda::Tapelist;
 
 sub new {
     my $class = shift;
@@ -236,6 +241,7 @@ sub new {
     $self->{'tapelist_filename'} = $params{'tapelist_filename'};
     $self->{'labelstr'} = $params{'labelstr'};
     $self->{'autolabel'} = $params{'autolabel'};
+    $self->{'tapelist'} = Amanda::Tapelist->new($self->{'tapelist_filename'});
 
     return $self;
 }
@@ -250,8 +256,7 @@ sub scan {
 sub read_tapelist {
     my $self = shift;
 
-    $self->{'tapelist'} = Amanda::Tapelist::read_tapelist($self->{'tapelist_filename'});
-    return $self->{'tapelist'};
+    $self->{'tapelist'}->reload();
 }
 
 sub oldest_reusable_volume {
@@ -260,7 +265,7 @@ sub oldest_reusable_volume {
 
     my $best = undef;
     my $num_acceptable = 0;
-    for my $tle (@{$self->{'tapelist'}}) {
+    for my $tle (@{$self->{'tapelist'}->{'tles'}}) {
 	next unless $tle->{'reuse'};
 	next if $tle->{'datestamp'} eq '0' and !$params{'new_label_ok'};
 	$num_acceptable++;
@@ -286,7 +291,7 @@ sub is_reusable_volume {
     }
 
     # see if it's in the collection of reusable volumes
-    my @tapelist = @{$self->{'tapelist'}};
+    my @tapelist = @{$self->{'tapelist'}->{'tles'}};
     my @reusable = @tapelist[$self->{'tapecycle'}-1 .. $#tapelist];
     for my $tle (@reusable) {
         return 1 if $tle eq $vol_tle;
@@ -299,6 +304,8 @@ sub is_reusable_volume {
 sub make_new_tape_label {
     my $self = shift;
     my %params = @_;
+
+    my $tl = exists $params{'tapelist'}? $params{'tapelist'} : $self->{'tapelist'};
     my $template = exists $params{'template'}? $params{'template'} : $self->{'autolabel'}->{'template'};
     my $labelstr = exists $params{'labelstr'}? $params{'labelstr'} : $self->{'labelstr'};
 
@@ -311,7 +318,7 @@ sub make_new_tape_label {
 	$template) =~ s/(%+)/"%0" . length($1) . "d"/e;
 
     my %existing_labels =
-	map { $_->{'label'} => 1 } @{$self->{'tapelist'}};
+	map { $_->{'label'} => 1 } @{$tl->{'tles'}};
 
     my ($i, $label);
     for ($i = 1; $i < $nlabels; $i++) {

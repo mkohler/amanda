@@ -41,7 +41,7 @@ Amanda::Recovery::Planner - use the catalog to plan recoveries
     });
 
     $subs{'start_next_dumpfile'} = make_cb(start_next_dumpfile => sub {
-	my $dump = $plan->shift_dump();
+	my $dump = shift @{$plan->{'dumps'}};
 	if (!$dump) {
 	    # .. all done!
 	}
@@ -183,9 +183,9 @@ sub make_plan {
 	one_dump_per_part => $params{'one_dump_per_part'},
     });
 
-    if ($params{'holding_file'}) {
+    if (exists $params{'holding_file'}) {
 	$plan->make_holding_plan(%params);
-    } elsif ($params{'filelist'}) {
+    } elsif (exists $params{'filelist'}) {
 	$plan->make_plan_from_filelist(%params);
     } else {
 	$plan->make_plan(%params);
@@ -217,6 +217,11 @@ sub new {
 	    or $Amanda::Config::debug_recovery > $self->{'debug'};
 
     return bless($self, $class);
+}
+
+sub shift_dump {
+    my $self = shift;
+    return shift @{$self->{'dumps'}};
 }
 
 sub make_plan {
@@ -284,7 +289,7 @@ sub make_plan {
     # the part's filenum.  This should sort the dumps into the order in which
     # they were written, with holding dumps coming in at the head of the list.
     my $tapelist_filename = config_dir_relative(getconf($CNF_TAPELIST));
-    my $tapelist = Amanda::Tapelist::read_tapelist($tapelist_filename);
+    my $tapelist = Amanda::Tapelist->new($tapelist_filename);
 
     my $sortfn = sub {
 	my $rv;
@@ -409,13 +414,13 @@ sub make_plan_from_filelist {
 	    labels => [ @labels ]);
 
     # filter down to the parts that match filelist (using %files)
-    my $in_filelist = sub {
+    @parts = grep {
 	my $filenum = $_->{'filenum'};
 	grep { $_ == $filenum } @{$files{$_->{'label'}}};
-    };
-    @parts = grep $in_filelist, @parts;
+    } @parts;
 
-    # extract the dumps, using a hash to ensure uniqueness
+    # extract the dumps, using a hash (on the perl identity of the dump) to
+    # ensure uniqueness
     my %dumps = map { my $d = $_->{'dump'}; ($d, $d) } @parts;
     my @dumps = values %dumps;
 

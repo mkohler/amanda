@@ -2,12 +2,12 @@
 .\"     Title: amoverview
 .\"    Author: Stefan G. Weichinger <sgw@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMOVERVIEW" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
+.TH "AMOVERVIEW" "8" "10/18/2010" "Amanda 3\&.2\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +22,7 @@
 amoverview \- display file systems processed by Amanda over time
 .SH "SYNOPSIS"
 .HP \w'\fBamoverview\fR\ 'u
-\fBamoverview\fR [[\-config\ ]\ \fIconfig\fR] [\-hostwidth\ \fIwidth\fR] [\-diskwidth\ \fIwidth\fR] [\-skipmissed] [\-last] [\-num0] [\-togo0] [\-verbose]
+\fBamoverview\fR [[\-\-config\ ]\ \fIconfig\fR] [\-\-hostwidth\ \fIwidth\fR] [\-\-diskwidth\ \fIwidth\fR] [\-\-skipmissed] [\-\-last] [\-\-num0] [\-\-togo0] [\-\-verbose]
 .SH "DESCRIPTION"
 .PP
 \fBAmoverview\fR
@@ -33,14 +33,14 @@ See the
 man page for more details about Amanda\&.
 .SH "OPTIONS"
 .PP
-\fB\-config\fR \fIconfig\fR
+\fB\-\-config\fR \fIconfig\fR
 .RS 4
 Use configuration
 \fIconfig\fR
 instead of configuration daily\&.
 .RE
 .PP
-\fB\-hostwidth\fR \fIwidth\fR
+\fB\-\-hostwidth\fR \fIwidth\fR
 .RS 4
 Set
 \fBhost\fR
@@ -49,7 +49,7 @@ field column width to
 characters instead of 8\&.
 .RE
 .PP
-\fB\-diskwidth\fR \fIwidth\fR
+\fB\-\-diskwidth\fR \fIwidth\fR
 .RS 4
 Set
 \fBdisk\fR
@@ -58,27 +58,27 @@ field column width to
 characters instead of 20\&.
 .RE
 .PP
-\fB\-skipmissed\fR
+\fB\-\-skipmissed\fR
 .RS 4
 Compacts the output by only printing stats for the days Amanda actually ran\&.
 .RE
 .PP
-\fB\-last\fR
+\fB\-\-last\fR
 .RS 4
 Outputs the last status of each disk at the start\&. Useful for long tapecycles and/or sparse reports\&.
 .RE
 .PP
-\fB\-num0\fR
+\fB\-\-num0\fR
 .RS 4
 Outputs the number of level 0 dumps for each disk\&.
 .RE
 .PP
-\fB\-togo0\fR
+\fB\-\-togo0\fR
 .RS 4
 Outputs the number of runs until the last level 0 dump is overwritten\&.
 .RE
 .PP
-\fB\-verbose\fR
+\fB\-\-verbose\fR
 .RS 4
 \fBAmoverview\fR
 can take a long while on large systems\&. This option reports intermediate steps while it is working\&.

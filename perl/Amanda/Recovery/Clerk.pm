@@ -179,10 +179,10 @@ user-defined feedback object should inherit from
 C<Amanda::Recovery::Clerk::Feedback>, which implements no-op versions of all of
 the methods.
 
-The C<notif_part> method is called just before each part is restored, and is
+The C<clerk_notif_part> method is called just before each part is restored, and is
 given the label, filenum, and header.  Its return value, if any, is ignored.
-Similarly, C<notif_holding> is called for a holding-disk recovery and is given
-the holding filename and its header.  Note that C<notif_holding> is called
+Similarly, C<clerk_notif_holding> is called for a holding-disk recovery and is given
+the holding filename and its header.  Note that C<clerk_notif_holding> is called
 before the C<xfer_src_cb>, since data will begin flowing from a holding disk
 immediately when the transfer is started.
 
@@ -190,7 +190,7 @@ A typical Clerk feedback class might look like:
 
     use base 'Amanda::Recovery::Clerk::Feedback';
 
-    sub part_notif {
+    sub clerk_notif_part {
 	my $self = shift;
 	my ($label, $filenum, $hdr) = @_;
 	print "restoring part ", $hdr->{'partnum'},
@@ -551,7 +551,7 @@ sub _maybe_start_part {
 
 	} else {
 	    # notify caller of the part
-	    $self->{'feedback'}->notif_part($next_label, $next_filenum, $on_vol_hdr);
+	    $self->{'feedback'}->clerk_notif_part($next_label, $next_filenum, $on_vol_hdr);
 
 	    # start the part
 	    $self->dbg("reading file $next_filenum on '$next_label'");
@@ -574,6 +574,9 @@ sub _maybe_start_part {
 	    return $steps->{'handle_error'}->();
 	}
 
+	# remove CONT_FILENAME from the header, since it's not needed anymore
+	$on_disk_hdr->{'cont_filename'} = '';
+
 	if (!$self->_header_expected($on_disk_hdr)) {
 	    # _header_expected already pushed an error message or two
 	    return $steps->{'handle_error'}->();
@@ -591,7 +594,7 @@ sub _maybe_start_part {
 	    $xfer_state->{'xfer_src_ready'} = 1;
 
 	    # notify caller of the part, *before* xfer_src_cb is called!
-	    $self->{'feedback'}->notif_holding($next_filename, $on_disk_hdr);
+	    $self->{'feedback'}->clerk_notif_holding($next_filename, $on_disk_hdr);
 
 	    $self->dbg("successfully located holding file for recovery");
 	    $cb->(undef, $on_disk_hdr, $xfer_state->{'xfer_src'}, 0);
@@ -622,6 +625,14 @@ sub _maybe_start_part {
     };
 }
 
+sub _zeropad {
+    my ($timestamp) = @_;
+    if (length($timestamp) == 8) {
+	return $timestamp."000000";
+    }
+    return $timestamp;
+}
+
 sub _header_expected {
     my $self = shift;
     my ($on_vol_hdr) = @_;
@@ -637,7 +648,10 @@ sub _header_expected {
 	push @errs, "got disk '$on_vol_hdr->{disk}'; " .
 		    "expected '$next_part->{dump}->{diskname}'";
     }
-    if ($on_vol_hdr->{'datestamp'} ne $next_part->{'dump'}->{'dump_timestamp'}) {
+    # zeropad the datestamps before comparing them, to avoid any compliations
+    # from usetimestamps=0
+    if (_zeropad($on_vol_hdr->{'datestamp'})
+	ne _zeropad($next_part->{'dump'}->{'dump_timestamp'})) {
 	push @errs, "got datestamp '$on_vol_hdr->{datestamp}'; " .
 		    "expected '$next_part->{dump}->{dump_timestamp}'";
     }
@@ -681,8 +695,8 @@ sub new {
     return bless {}, shift;
 }
 
-sub notif_part { }
+sub clerk_notif_part { }
 
-sub notif_holding { }
+sub clerk_notif_holding { }
 
 1;

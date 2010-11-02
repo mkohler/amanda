@@ -2,12 +2,12 @@
 .\"     Title: amrestore
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMRESTORE" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
+.TH "AMRESTORE" "8" "10/18/2010" "Amanda 3\&.2\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +22,7 @@
 amrestore \- low\-level data\-extraction from Amanda volumes
 .SH "SYNOPSIS"
 .HP \w'\fBamrestore\fR\ 'u
-\fBamrestore\fR [\-\-config\ \fIconfig\fR] [\-r | \-c | \-C] [\-b\ \fIblocksize\fR] [\-f\ \fIfilenum\fR] [\-l\ \fIlabel\fR] [\-p] [\-h] [{\fB\-o\fR\ \fIconfigoption\fR}...] [{\fIchangerspec\fR} | {[\-\-holding]\ \fIholdingfile\fR}] [\fIhostname\fR\ [\ \fIdiskname\fR\ [\ \fIdatestamp\fR\ [\ \fIhostname\fR\ [\ \fIdiskname\fR\ [\ \fIdatestamp\fR\ \&.\&.\&.\ ]\ ]\ ]\ ]\ ]]
+\fBamrestore\fR [\-\-config\ \fIconfig\fR] [\-r | \-c | \-C] [\-b\ \fIblocksize\fR] [\-f\ \fIfilenum\fR] [\-l\ \fIlabel\fR] [\-p] [\-h] [\fB\-o\fR\ \fIconfigoption\fR...] [{\fIchangerspec\fR} | {[\-\-holding]\ \fIholdingfile\fR}] [\fIhostname\fR\ [\ \fIdiskname\fR\ [\ \fIdatestamp\fR\ [\ \fIhostname\fR\ [\ \fIdiskname\fR\ [\ \fIdatestamp\fR\ \&.\&.\&.\ ]\ ]\ ]\ ]\ ]]
 .PP
 Note that this is the only Amanda command which does not take a configuration name as its first argument\&.
 .SH "DESCRIPTION"
@@ -49,15 +49,9 @@ s3:mybucket/tape\-1\&.
 .PP
 Only dumps matching the dump specification beginning with
 \fIhostname\fR
-are extracted\&. If no specification is given, every file on the volume (or the entire holdingfile) is restored\&. See the "HOST & DISK EXPRESSIONS" section of
-\fBamanda\fR(8)
-for the format of the
-\fIhostname\fR
-and
-\fIdiskname\fR
-parameters, and the "DATESTAMP EXPRESSIONS" section for the format of the
-\fIdatestamp\fR
-parameters\&.
+are extracted\&. If no specification is given, every file on the volume (or the entire holdingfile) is restored\&. See the "DUMP SPECIFICATIONS" section of
+\fBamanda-match\fR(7)
+for more information\&.
 .PP
 Unless
 \fB\-p\fR
@@ -164,6 +158,7 @@ must be used to restore files from backup images created with the GNUTAR dumptyp
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
+\fBamanda-match\fR(7),
 \fBamfetchdump\fR(8),
 \fBamrecover\fR(8)
 .PP

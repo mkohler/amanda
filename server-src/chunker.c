@@ -44,12 +44,6 @@
 #include "holding.h"
 #include "timestamp.h"
 
-#define chunker_debug(i, ...) do {	\
-	if ((i) <= debug_chunker) {	\
-	    dbprintf(__VA_ARGS__);	\
-	}				\
-} while (0)
-
 #ifndef SEEK_SET
 #define SEEK_SET 0
 #endif
@@ -105,6 +99,11 @@ static int databuf_flush(struct databuf *);
 static int startup_chunker(char *, off_t, off_t, struct databuf *, int *);
 static int do_chunk(int, struct databuf *, int);
 
+/* we use a function pointer for full_write, so that we can "shim" in
+ * full_write_with_fake_enospc for testing */
+static size_t (*db_full_write)(int fd, const void *buf, size_t count);
+static size_t full_write_with_fake_enospc(int fd, const void *buf, size_t count);
+static off_t fake_enospc_at_byte = -1;
 
 int
 main(
@@ -188,6 +187,18 @@ main(
     else {
 	log_add(L_INFO, "%s pid %ld", get_pname(), (long)getpid());
 	error(_("Didn't get START command"));
+    }
+    free_cmdargs(cmdargs);
+
+    /* set up a fake ENOSPC for testing purposes.  Note that this counts
+     * headers as well as data written to disk. */
+    if (getenv("CHUNKER_FAKE_ENOSPC_AT")) {
+	char *env = getenv("CHUNKER_FAKE_ENOSPC_AT");
+	fake_enospc_at_byte = (off_t)atoi(env); /* these values are never > MAXINT */
+	db_full_write = full_write_with_fake_enospc;
+	g_debug("will trigger fake ENOSPC at byte %d", (int)fake_enospc_at_byte);
+    } else {
+	db_full_write = full_write;
     }
 
 /*    do {*/
@@ -318,6 +329,7 @@ main(
 		m = vstrallocf("[%s]", errstr);
 		q = quote_string(m);
 		amfree(m);
+		free_cmdargs(cmdargs);
 		if(command_in_transit != NULL) {
 		    cmdargs = command_in_transit;
 		    command_in_transit = NULL;
@@ -780,10 +792,14 @@ databuf_flush(
 
 	    aclose(newfd);
 	    if(save_errno == ENOSPC) {
+		if (unlink(tmp_filename) < 0) {
+		    g_debug("could not delete '%s'; ignoring", tmp_filename);
+		}
 		putresult(NO_ROOM, "%s %lld\n", handle, 
 			  (long long)(db->use+db->split_size-dumpsize));
 		db->use = (off_t)0;			/* force RQ_MORE DISK */
 		db->split_size = dumpsize;
+		file.type = save_type;
 		continue;
 	    }
 	    m = vstrallocf(_("write_tapeheader file %s: %s"),
@@ -864,7 +880,7 @@ databuf_flush(
      * Write out the buffer
      */
     size_to_write = (size_t)(db->datain - db->dataout);
-    written = full_write(db->fd, db->dataout, size_to_write);
+    written = db_full_write(db->fd, db->dataout, size_to_write);
     if (written > 0) {
 	db->dataout += written;
 	dumpbytes += (off_t)written;
@@ -927,7 +943,7 @@ write_tapeheader(
     if (!buffer) /* this shouldn't happen */
 	error(_("header does not fit in %zd bytes"), (size_t)DISK_BLOCK_BYTES);
 
-    written = full_write(outfd, buffer, DISK_BLOCK_BYTES);
+    written = db_full_write(outfd, buffer, DISK_BLOCK_BYTES);
     amfree(buffer);
     if(written == DISK_BLOCK_BYTES) return 0;
 
@@ -936,4 +952,42 @@ write_tapeheader(
 	errno = ENOSPC;
 
     return (ssize_t)-1;
+}
+
+static size_t
+full_write_with_fake_enospc(
+    int fd,
+    const void *buf,
+    size_t count)
+{
+    size_t rc;
+
+    //g_debug("HERE %zd %zd", count, (size_t)fake_enospc_at_byte);
+
+    if (count <= (size_t)fake_enospc_at_byte) {
+	fake_enospc_at_byte -= count;
+	return full_write(fd, buf, count);
+    }
+
+    /* if we get here, the caller has requested a size that is less
+     * than fake_enospc_at_byte. */
+    count = fake_enospc_at_byte;
+    g_debug("returning fake ENOSPC");
+
+    if (fake_enospc_at_byte) {
+	rc = full_write(fd, buf, fake_enospc_at_byte);
+	if (rc == (size_t)fake_enospc_at_byte) {
+	    /* full_write succeeded, so fake a failure */
+	    errno = ENOSPC;
+	}
+    } else {
+	/* no bytes to write; just fake an error */
+	errno = ENOSPC;
+	rc = 0;
+    }
+
+    /* switch back to calling full_write directly */
+    fake_enospc_at_byte = -1;
+    db_full_write = full_write;
+    return rc;
 }

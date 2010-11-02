@@ -2,12 +2,12 @@
 .\"     Title: amanda-changers
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMANDA\-CHANGERS" "7" "06/01/2010" "Amanda 3\&.1\&.0" "Miscellanea"
+.TH "AMANDA\-CHANGERS" "7" "10/18/2010" "Amanda 3\&.2\&.0" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -68,7 +68,7 @@ define changer hp\-robot {
     tapedev "chg\-robot:/dev/sg1"
     property "tape\-device" "0=tape:/dev/nst0"
     property append "tape\-device" "1=tape:/dev/nst1"
-    device_property "BLOCK_SIZE" "512k"
+    device\-property "BLOCK_SIZE" "512k"
 }
 # \&.\&.\&.
 tapedev "hp\-robot"
@@ -82,7 +82,7 @@ example, above\&.
 .PP
 Devices, too, can take properties to control their behavior (see
 \fBamanda-devices\fR(7))\&. Device properties can come from four places: implicit device properties (from tapetype parameters), global device properties (from global
-\fIdevice_property\fR
+\fIdevice\-property\fR
 parameters), properties in device definitions, and properties in changer definitions\&. Properties are applied in this order, with later properties taking priority\&.
 .PP
 There are only three implicit properties:
@@ -147,6 +147,13 @@ This script simply round\-robins a number of distinct device names, as specified
 setting\&. It is useful when all volumes for a configuration have different device names \-\- for example, if you have many standalone drive\&. The
 \fIchangerfile\fR
 must exist; it is used to save the state file\&.
+.PP
+The child devices are specified using the same syntax as for the RAIT device (see
+\fBamanda-changers\fR(7))\&. The range specification can be especially useful here:
+.sp
+.nf
+tpchanger "chg\-multi:s3:mycompany\-backups/tape\-{001\&.\&.100}"
+.fi
 .PP
 This changer is not fast\-search capable\&.
 .SS "Properties"
@@ -618,6 +625,12 @@ NDMP\-USERNAME
 .RS 4
 
 The username for the NDMP server\&.
+.RE
+.PP
+VERBOSE
+.RS 4
+
+If true, enables the NDMJOB library\'s verbose (packet\-level) debugging\&.
 .RE
 .SS "Unmaintained Changers"
 .PP

@@ -68,6 +68,8 @@ use vars qw(@ISA %OWNER %ITERATORS %BLESSEDMEMBERS);
 *swig_datestamp_set = *Amanda::Cmdlinec::dumpspec_t_datestamp_set;
 *swig_level_get = *Amanda::Cmdlinec::dumpspec_t_level_get;
 *swig_level_set = *Amanda::Cmdlinec::dumpspec_t_level_set;
+*swig_write_timestamp_get = *Amanda::Cmdlinec::dumpspec_t_write_timestamp_get;
+*swig_write_timestamp_set = *Amanda::Cmdlinec::dumpspec_t_write_timestamp_set;
 sub new {
     my $pkg = shift;
     my $self = Amanda::Cmdlinec::new_dumpspec_t(@_);
@@ -119,7 +121,7 @@ Amanda::Cmdline - utilities for handling command lines
 
   use Amanda::Cmdline;
 
-  my $spec = Amanda::Cmdline::dumpspec_t->new($host, $disk, $datestamp, $level);
+  my $spec = Amanda::Cmdline::dumpspec_t->new($host, $disk, $datestamp, $level, $write_timestamp);
   print "host: $spec->{'host'}; disk: $spec->{'disk'}\n";
 
   my @specs = Amanda::Cmdline::parse_dumpspecs(["host", "disk", "date"],
@@ -127,17 +129,35 @@ Amanda::Cmdline - utilities for handling command lines
 
 =head1 Amanda::Cmdline::dumpspec_t Objects
 
-=head2 Instance Variables
+Note that this class was called C<Amanda::Cmdline::dumpspec_t> in older versions;
+that name will still work, but is deprecated.
+
+=head2 Keys
+
+Each key contains a match expression, in the form of a string, or undef.  Note
+that the values of these keys are read-only.
 
 =over
 
-=item C<$host>
+=item C<< $ds->{'host'} >>
 
-=item C<$disk>
+Hostname
 
-=item C<$datestamp>
+=item C<< $ds->{'disk'} >>
 
-=item C<$level>
+Disk name
+
+=item C<< $ds->{'datestamp'} >>
+
+Dump timestamp.
+
+=item C<< $ds->{'level'} >>
+
+Dump level
+
+=item C<< $ds->{'write_timestamp'} >>
+
+Timestamp when the dump is written to storage media.
 
 =back
 
@@ -145,13 +165,13 @@ Amanda::Cmdline - utilities for handling command lines
 
 =over
 
-=item C<format()>
+=item C<< $ds->format() >>
 
 Format the dumpspec as a string.
 
 =back
 
-=head1 Functions
+=head1 Package Functions
 
 =over
 
@@ -159,14 +179,25 @@ Format the dumpspec as a string.
 
 This function returns a string representing the formatted form of the
 given dumpspec.  This formatting is the same as performed by
-C<format_dumpspec_components>, but does not need a C<dumpspec_t>.
+C<< $ds->format() >>, but does not need a C<Dumpspec>.
 
 =item C<parse_dumpspecs([@cmdline], $flags)>
 
-This function parses C<@cmdline> into a list of C<dumpspec_t> objects,
+This function parses C<@cmdline> into a list of C<Dumpspec> objects,
 according to C<$flags>, which is a logical combination of zero or more
-of C<$CMDLINE_PARSE_DATESTAMP> to recognize datestamps and
-C<$CMDLINE_PARSE_LEVEL> to recognize levels.
+of
+
+ $CMDLINE_PARSE_DATESTAMP - recognize datestamps
+ $CMDLINE_PARSE_LEVEL - recognize levels
+ $CMDLINE_EMPTY_TO_WILDCARD - if @cmdline is empty, make a wildcard dumpspec
+
+These constants are available in export tag C<:constants>.  The command-line
+format is
+
+  [host [disk [datestamp [level [host [..]]]]]]
+
+Note that there is no facility for specifying C<write_timestamp> on the command
+line.
 
 =item C<header_matches_dumpspecs($hdr, [@dumpspecs])>
 
@@ -226,5 +257,8 @@ push @{$EXPORT_TAGS{"cmdline_parse_dumpspecs_flags"}}, qw($CMDLINE_EMPTY_TO_WILD
 
 $_cmdline_parse_dumpspecs_flags_VALUES{"CMDLINE_EMPTY_TO_WILDCARD"} = $CMDLINE_EMPTY_TO_WILDCARD;
 
-push @EXPORT_OK, qw(header_matches_dumpspecs);
+#copy symbols in cmdline_parse_dumpspecs_flags to constants
+push @{$EXPORT_TAGS{"constants"}},  @{$EXPORT_TAGS{"cmdline_parse_dumpspecs_flags"}};
+
+push @EXPORT_OK, qw(header_matches_dumpspecs parse_dumpspecs format_dumpspec_components);
 1;

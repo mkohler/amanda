@@ -78,6 +78,8 @@ static int next_level0(disk_t *dp, info_t *info);
 int bump_thresh(int level);
 void export_db(int argc, char **argv);
 void import_db(int argc, char **argv);
+void hosts(int argc, char **argv);
+void dles(int argc, char **argv);
 void disklist(int argc, char **argv);
 void disklist_one(disk_t *dp);
 void show_version(int argc, char **argv);
@@ -110,6 +112,10 @@ static const struct {
 	T_(" [<hostname> [<disks>]* ]+\t# Clear bump command.") },
     { "disklist", disklist,
 	T_(" [<hostname> [<disks>]* ]*\t# Debug disklist entries.") },
+    { "hosts", hosts,
+	T_("\t\t\t\t\t# Show all distinct hosts in disklist.") },
+    { "dles", dles,
+	T_("\t\t\t\t\t# Show all dles in disklist, one per line.") },
     { "reuse", reuse,
 	T_(" <tapelabel> ...\t\t # re-use this tape.") },
     { "no-reuse", noreuse,
@@ -1100,6 +1106,8 @@ find(
     char *sort_order = NULL;
     find_result_t *output_find;
     char *errstr;
+    char **output_find_log;
+    char **name;
 
     if(argc < 3) {
 	g_fprintf(stderr,
@@ -1146,6 +1154,13 @@ find(
 	start_argc=4;
     }
     errstr = match_disklist(&diskq, argc-(start_argc-1), argv+(start_argc-1));
+
+    /* check all log file exists */
+    output_find_log = find_log();
+    for (name = output_find_log; *name != NULL; name++) {
+        amfree(*name);
+    }
+    amfree(output_find_log);
 
     output_find = find_dump(&diskq); /* Add deleted dump to diskq */
     if(argc-(start_argc-1) > 0) {
@@ -2171,7 +2186,7 @@ disklist_one(
 	break;
     case COMP_CUST:
 	g_printf("CLIENT CUSTOM\n");
-	g_printf("        client_custom_compress \"%s\"\n",
+	g_printf("        client-custom-compress \"%s\"\n",
 		    dp->clntcompprog? dp->clntcompprog : "");
 	break;
     case COMP_SERVER_FAST:
@@ -2182,7 +2197,7 @@ disklist_one(
 	break;
     case COMP_SERVER_CUST:
 	g_printf("SERVER CUSTOM\n");
-	g_printf("        server_custom_compress \"%s\"\n",
+	g_printf("        server-custom-compress \"%s\"\n",
 		    dp->srvcompprog? dp->srvcompprog : "");
 	break;
     }
@@ -2198,26 +2213,26 @@ disklist_one(
 	break;
     case ENCRYPT_CUST:
 	g_printf("CLIENT\n");
-	g_printf("        client_encrypt \"%s\"\n",
+	g_printf("        client-encrypt \"%s\"\n",
 		    dp->clnt_encrypt? dp->clnt_encrypt : "");
-	g_printf("        client_decrypt_option \"%s\"\n",
+	g_printf("        client-decrypt-option \"%s\"\n",
 		    dp->clnt_decrypt_opt? dp->clnt_decrypt_opt : "");
 	break;
     case ENCRYPT_SERV_CUST:
 	g_printf("SERVER\n");
-	g_printf("        server_encrypt \"%s\"\n",
+	g_printf("        server-encrypt \"%s\"\n",
 		    dp->srv_encrypt? dp->srv_encrypt : "");
-	g_printf("        server_decrypt_option \"%s\"\n",
+	g_printf("        server-decrypt-option \"%s\"\n",
 		    dp->srv_decrypt_opt? dp->srv_decrypt_opt : "");
 	break;
     }
 
     g_printf("        auth \"%s\"\n", dp->auth);
     g_printf("        kencrypt %s\n", (dp->kencrypt? "YES" : "NO"));
-    g_printf("        amandad_path \"%s\"\n", dp->amandad_path);
-    g_printf("        client_username \"%s\"\n", dp->client_username);
-    g_printf("        client_port \"%s\"\n", dp->client_port);
-    g_printf("        ssh_keys \"%s\"\n", dp->ssh_keys);
+    g_printf("        amandad-path \"%s\"\n", dp->amandad_path);
+    g_printf("        client-username \"%s\"\n", dp->client_username);
+    g_printf("        client-port \"%s\"\n", dp->client_port);
+    g_printf("        ssh-keys \"%s\"\n", dp->ssh_keys);
 
     g_printf("        holdingdisk ");
     switch(dp->to_holdingdisk) {
@@ -2236,18 +2251,19 @@ disklist_one(
     g_printf("        index %s\n", (dp->index? "YES" : "NO"));
     g_printf("        starttime %04d\n", (int)dp->starttime);
     if(dp->tape_splitsize > (off_t)0) {
-	g_printf("        tape_splitsize %lld\n",
+	g_printf("        tape-splitsize %lld\n",
 	       (long long)dp->tape_splitsize);
     }
     if(dp->split_diskbuffer) {
-	g_printf("        split_diskbuffer %s\n", dp->split_diskbuffer);
+	g_printf("        split-diskbuffer %s\n", dp->split_diskbuffer);
     }
     if(dp->fallback_splitsize > (off_t)0) {
-	g_printf("        fallback_splitsize %lldMb\n",
+	g_printf("        fallback-splitsize %lldMb\n",
 	       (long long)(dp->fallback_splitsize / (off_t)1024));
     }
     g_printf("        skip-incr %s\n", (dp->skip_incr? "YES" : "NO"));
     g_printf("        skip-full %s\n", (dp->skip_full? "YES" : "NO"));
+    g_printf("        allow-split %s\n", (dp->allow_split ? "YES" : "NO"));
     g_printf("        spindle %d\n", dp->spindle);
     pp_scriptlist = dp->pp_scriptlist;
     while (pp_scriptlist != NULL) {
@@ -2285,6 +2301,44 @@ disklist(
 	for(dp = diskq.head; dp != NULL; dp = dp->next)
 	    disklist_one(dp);
 }
+
+/* ----------------------------------------------- */
+
+void
+hosts(
+    int		argc G_GNUC_UNUSED,
+    char **	argv G_GNUC_UNUSED)
+{
+    disk_t *dp;
+    gint sentinel = 1;
+    GHashTable *seen = g_hash_table_new(g_str_hash, g_str_equal);
+
+    /* enumerate all hosts, skipping those that have been seen (since
+     * there may be more than one DLE on a host */
+    for(dp = diskq.head; dp != NULL; dp = dp->next) {
+	char *hostname = dp->host->hostname;
+	if (g_hash_table_lookup(seen, hostname))
+	    continue;
+	g_printf("%s\n", hostname);
+	g_hash_table_insert(seen, hostname, &sentinel);
+    }
+    g_hash_table_destroy(seen);
+}
+
+/* ----------------------------------------------- */
+
+void
+dles(
+    int		argc G_GNUC_UNUSED,
+    char **	argv G_GNUC_UNUSED)
+{
+    disk_t *dp;
+
+    for(dp = diskq.head; dp != NULL; dp = dp->next)
+	g_printf("%s %s\n", dp->host->hostname, dp->name);
+}
+
+/* ----------------------------------------------- */
 
 void
 show_version(

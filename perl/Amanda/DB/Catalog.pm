@@ -89,7 +89,9 @@ or C<"00000000000000"> for dumps in the holding disk.
 
 =item status
 
-(string) -- "OK", "PARTIAL", or "FAIL"
+(string) -- The status of the dump - "OK", "PARTIAL", or "FAIL".  If a disk
+failed to dump at all, then it is not part of the catalog and thus will not
+have an associated dump row.
 
 =item message
 
@@ -101,11 +103,12 @@ or C<"00000000000000"> for dumps in the holding disk.
 
 =item kb
 
-(integer) -- size (in kb) of this part
+(integer) -- size (in kb) of the dump on disk
 
 =item orig_kb
 
-(integer) -- size (in kb) of the complete dump (uncompress and uncrypted).
+(integer) -- size (in kb) of the complete dump (before compression or encryption); undef
+if not available
 
 =item sec
 
@@ -151,7 +154,7 @@ on-media dumps)
 
 =item status
 
-(string) -- "OK", "PARTIAL" or some other descriptor
+(string) -- The status of the part - "OK", "PARTIAL", or "FAILED".
 
 =item partnum
 
@@ -208,9 +211,20 @@ Get a list of all write timestamps, sorted in chronological order.
 
 Return the most recent write timestamp.
 
+=item get_latest_write_timestamp(type => 'amvault')
+=item get_latest_write_timestamp(types => [ 'amvault', .. ])
+
+Return the timestamp of the most recent dump of the given type or types.  The
+available types are given below for C<get_run_type>.
+
 =item get_labels_written_at_timestamp($ts)
 
 Return a list of labels for volumes written at the given timestamp.
+
+=item get_run_type($ts)
+
+Return the type of run made at the given timestamp.  The result is one of
+C<amvault>, C<amdump>, C<amflush>, or the default, C<unknown>.
 
 =back
 
@@ -351,9 +365,9 @@ access those values via the C<dump> attribute.
 
 This function returns a sequence of dumps.  Values in C<%parameters> restrict
 the set of dumps that are returned.  The same keys as are used for C<get_parts>
-are available here, with the exception of C<label> and C<labels>.  The
-C<status> key applies to the dump status, not the status of its constituent
-parts.
+are available here, with the exception of C<label> and C<labels>.  In this
+case, the C<status> parameter applies to the dump status, not the status of its
+constituent parts.
 
 =item sort_dumps([ $key1, $key2 ], @dumps)
 
@@ -388,12 +402,12 @@ use Amanda::Logfile qw( :constants match_disk match_host
 use Amanda::Tapelist;
 use Amanda::Config qw( :init :getconf config_dir_relative );
 use Amanda::Util qw( quote_string weaken_ref );
+use File::Glob qw( :glob );
 use warnings;
 use strict;
 
 # tapelist cache
 my $tapelist = undef;
-my $tapelist_filename = undef;
 
 # utility function
 sub zeropad {
@@ -419,15 +433,59 @@ sub get_write_timestamps {
 }
 
 sub get_latest_write_timestamp {
+    my %params = @_;
+
+    if ($params{'type'}) {
+	push @{$params{'types'}}, $params{'type'};
+    }
+
     # get all of the timestamps and select the last one
     my @timestamps = get_write_timestamps();
 
     if (@timestamps) {
-	return $timestamps[-1];
+	# if we're not looking for a particular type, then this is easy
+	if (!exists $params{'types'}) {
+	    return $timestamps[-1];
+	}
+
+	# otherwise we need to search backward until we find a logfile of
+	# the right type
+	while (@timestamps) {
+	    my $ts = pop @timestamps;
+	    my $typ = get_run_type($ts);
+	    if (grep { $_ eq $typ } @{$params{'types'}}) {
+		return $ts;
+	    }
+	}
     }
 
     return undef;
 }
+
+sub get_run_type {
+    my ($write_timestamp) = @_;
+
+    # find all of the logfiles with that name
+    my $logdir = getconf($CNF_LOGDIR);
+    my @matches = File::Glob::bsd_glob("$logdir/log.$write_timestamp.*", GLOB_NOSORT);
+    if ($write_timestamp =~ /000000$/) {
+	my $write_datestamp = substr($write_timestamp, 0, 8);
+	push @matches, File::Glob::bsd_glob("$logdir/log.$write_datestamp.*", GLOB_NOSORT);
+    }
+
+    for my $lf (@matches) {
+	open(my $fh, "<", $lf) or next;
+	while (<$fh>) {
+	    # amflush and amvault put their own names in
+	    return $1 if (/^START (amflush|amvault)/);
+	    # but for amdump we see planner
+	    return 'amdump' if (/^START planner/);
+	}
+    }
+
+    return "unknown";
+}
+
 
 # this generic function implements the loop of scanning logfiles to find
 # the requested data; get_parts and get_dumps then adjust the results to
@@ -560,6 +618,7 @@ sub get_parts_and_dumps {
 		and !exists($labels_hash{$find_result->{'label'}}));
 	    if ($get_what eq 'parts') {
 		next if (exists($params{'status'}) 
+		    and defined $find_result->{'status'}
 		    and $find_result->{'status'} ne $params{'status'});
 	    }
 
@@ -572,7 +631,7 @@ sub get_parts_and_dumps {
 	    my $dump_timestamp = zeropad($find_result->{'timestamp'});
 
 	    my $dumpkey = join("\0", $find_result->{'hostname'}, $find_result->{'diskname'},
-			             $write_timestamp, $find_result->{'level'});
+			             $write_timestamp, $find_result->{'level'}, $dump_timestamp);
 	    my $dump = $dumps{$dumpkey};
 	    if (!defined $dump) {
 		$dump = $dumps{$dumpkey} = {
@@ -601,7 +660,7 @@ sub get_parts_and_dumps {
 		    label => $find_result->{'label'},
 		    filenum => $find_result->{'filenum'},
 		    dump => $dump,
-		    status => $find_result->{'status'},
+		    status => $find_result->{'status'} || 'FAILED',
 		    sec => $find_result->{'sec'},
 		    kb => $find_result->{'kb'},
 		    orig_kb => $find_result->{'orig_kb'},
@@ -612,14 +671,14 @@ sub get_parts_and_dumps {
 		%part = (
 		    holding_file => $find_result->{'label'},
 		    dump => $dump,
-		    status => $find_result->{'status'},
+		    status => $find_result->{'status'} || 'FAILED',
 		    sec => 0.0,
 		    kb => $find_result->{'kb'},
 		    orig_kb => $find_result->{'orig_kb'},
 		    partnum => 1,
 		);
 		# and fix up the dump, too
-		$dump->{'status'} = $find_result->{'status'};
+		$dump->{'status'} = $find_result->{'status'} || 'FAILED';
 		$dump->{'kb'} = $find_result->{'kb'};
 		$dump->{'sec'} = $find_result->{'sec'};
 	    }
@@ -656,6 +715,8 @@ sub get_parts_and_dumps {
 		$status = 'PARTIAL';
 	    } elsif ($type == $L_FAIL) {
 		$status = 'FAIL';
+	    } elsif ($type == $L_SUCCESS) {
+		$status = "OK";
 	    } else {
 		next;
 	    }
@@ -666,7 +727,7 @@ sub get_parts_and_dumps {
 	    ($hostname, $str) = Amanda::Util::skip_quoted_string($str);
 	    ($diskname, $str) = Amanda::Util::skip_quoted_string($str);
 	    ($dump_timestamp, $str) = Amanda::Util::skip_quoted_string($str);
-	    if ($status ne 'FAIL') {
+	    if ($status ne 'FAIL' and $type != $L_SUCCESS) { # nparts is not in SUCCESS lines
 		($nparts, $str) = Amanda::Util::skip_quoted_string($str);
 	    } else {
 		$nparts = 0;
@@ -674,8 +735,9 @@ sub get_parts_and_dumps {
 	    ($level, $str) = Amanda::Util::skip_quoted_string($str);
 	    if ($status ne 'FAIL') {
 		my $s = $str;
-		($secs, $kb, $str) = ($str =~ /^\[sec ([0-9.]+) kb (\d+) .*\] ?(.*)$/)
+		($secs, $kb, $str) = ($str =~ /^\[sec ([-0-9.]+) kb (\d+).*\] ?(.*)$/)
 		    or die("'$s'");
+		$secs = 0.1 if ($secs <= 0);
 	    }
 	    if ($status ne 'OK') {
 		$message = $str;
@@ -720,24 +782,31 @@ sub get_parts_and_dumps {
 			    and !match_datestamp("".$ds->{'datestamp'}, $dump_timestamp));
 		    next if (defined $ds->{'level'}
 			    and !match_level("".$ds->{'level'}, $level));
-
+		    next if (defined $ds->{'write_timestamp'}
+			     and !match_datestamp("".$ds->{'write_timestamp'}, $write_timestamp));
 		    $ok = 1;
 		    last;
 		}
 		next unless $ok;
 	    }
 
-	    my $dumpkey = join("\0", $hostname, $diskname, $write_timestamp, $level);
+	    my $dumpkey = join("\0", $hostname, $diskname, $write_timestamp,
+				     $level, zeropad($dump_timestamp));
 	    my $dump = $dumps{$dumpkey};
 	    if (!defined $dump) {
 		# this will happen when a dump has no parts - a FAILed dump.
 		$dump = $dumps{$dumpkey} = {
-		    dump_timestamp => $dump_timestamp,
+		    dump_timestamp => zeropad($dump_timestamp),
 		    write_timestamp => $write_timestamp,
 		    hostname => $hostname,
 		    diskname => $diskname,
 		    level => $level+0,
+		    orig_kb => undef,
+		    status => "FAILED",
+		    # message set below
 		    nparts => $nparts, # hopefully 0?
+		    # kb set below
+		    # sec set below
 		};
 	    }
 
@@ -932,19 +1001,20 @@ sub add_part {
 	print $logfh
 	    "START taper datestamp $write_timestamp label $dump->{label} tape $i\n";
 
-	if (!defined $tapelist_filename) {
-	    $tapelist_filename = config_dir_relative(getconf($CNF_TAPELIST));
+	if (!defined $tapelist) {
+	    _load_tapelist();
+	} else {
+	    # reload the tapelist immediately, in case it's been modified
+	    $tapelist->reload();
 	}
-
-	# reload the tapelist immediately, in case it's been modified
-	$tapelist = Amanda::Tapelist::read_tapelist($tapelist_filename);
 
 	# see if we need to add an entry to the tapelist for this dump
 	if (!grep { $_->{'label'} eq $dump->{'label'}
 		    and zeropad($_->{'datestamp'}) eq zeropad($dump->{'write_timestamp'})
-		} @$tapelist) {
-	    $tapelist->add_tapelabel($write_timestamp, $dump->{'label'});
-	    $tapelist->write($tapelist_filename);
+		} @{$tapelist->{tles}}) {
+	    $tapelist->reload(1);
+	    $tapelist->add_tapelabel($write_timestamp, $dump->{'label'}, undef, 1);
+	    $tapelist->write();
 	}
     }
 
@@ -989,13 +1059,13 @@ sub add_part {
 
 sub _load_tapelist {
     if (!defined $tapelist) {
-	$tapelist_filename = config_dir_relative(getconf($CNF_TAPELIST));
-	$tapelist = Amanda::Tapelist::read_tapelist($tapelist_filename);
+	my $tapelist_filename = config_dir_relative(getconf($CNF_TAPELIST));
+	$tapelist = Amanda::Tapelist->new($tapelist_filename);
     }
 }
 
 sub _clear_cache { # (used by installcheck)
-    $tapelist = $tapelist_filename = undef;
+    $tapelist = undef;
 }
 
 1;

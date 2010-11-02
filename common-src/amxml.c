@@ -77,6 +77,48 @@ alloc_dle(void)
 }
 
 void
+free_dle(
+    dle_t *dle)
+{
+    scriptlist_t scriptlist;
+
+    amfree(dle->disk);
+    amfree(dle->device);
+    amfree(dle->program);
+    g_slist_free(dle->estimatelist);
+    g_slist_free_full(dle->levellist);
+    amfree(dle->dumpdate);
+    amfree(dle->compprog);
+    amfree(dle->srv_encrypt);
+    amfree(dle->clnt_encrypt);
+    amfree(dle->srv_decrypt_opt);
+    amfree(dle->clnt_decrypt_opt);
+    amfree(dle->auth);
+    free_sl(dle->exclude_file);
+    free_sl(dle->exclude_list);
+    free_sl(dle->include_file);
+    free_sl(dle->include_list);
+    if (dle->application_property)
+	g_hash_table_destroy(dle->application_property);
+    for(scriptlist = dle->scriptlist; scriptlist != NULL;
+				      scriptlist = scriptlist->next) {
+	free_script_data((script_t *)scriptlist->data);
+    }
+    g_slist_free_full(dle->scriptlist);
+    g_slist_free_full(dle->directtcp_list);
+    amfree(dle);
+}
+
+void
+free_script_data(
+    script_t *script)
+{
+    amfree(script->plugin);
+    if (script->property)
+	g_hash_table_destroy(script->property);
+}
+
+void
 init_dle(
     dle_t *dle)
 {
@@ -375,12 +417,12 @@ amstart_element(
 	} else {
 	    data_user->has_backup_program = 1;
 	    data_user->property =
-	            g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
+	            g_hash_table_new_full(g_str_hash, g_str_equal, &g_free, &free_property_t);
 	    data_user->has_plugin = 0;
 	}
     } else if (strcmp(element_name, "script") == 0) {
 	data_user->property =
-	            g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
+	            g_hash_table_new_full(g_str_hash, g_str_equal, &g_free, &free_property_t);
 	data_user->script = malloc(sizeof(script_t));
 	data_user->script->plugin = NULL;
 	data_user->script->execute_on = 0;
@@ -537,11 +579,13 @@ amtext(
 	strcmp(last_element_name, "include") == 0) {
 	g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
 		    "XML: %s doesn't have text '%s'", last_element_name, tt);
+	amfree(tt);
 	return;
     } else if(strcmp(last_element_name, "disk") == 0) {
 	if (dle->disk != NULL) {
 	    g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
 			"XML: multiple text in %s", last_element_name);
+	    amfree(tt);
 	    return;
 	}
 	dle->disk = tt;
@@ -549,6 +593,7 @@ amtext(
 	if (dle->device != NULL) {
 	    g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
 			"XML: multiple text in %s", last_element_name);
+	    amfree(tt);
 	    return;
 	}
 	dle->device = tt;
@@ -587,12 +632,15 @@ amtext(
 	if (dle->program != NULL) {
 	    g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
 			"XML: multiple text in %s", last_element_name);
+	    amfree(tt);
 	    return;
 	}
-	dle->program = tt;
 	if (strcmp(tt, "APPLICATION") == 0) {
 	    dle->program_is_application_api = 1;
 	    dle->program = NULL;
+	    amfree(tt);
+	} else {
+	    dle->program = tt;
 	}
     } else if(strcmp(last_element_name, "plugin") == 0) {
 	last_element2 = g_slist_nth(data_user->element_names, 1);
@@ -632,6 +680,7 @@ amtext(
 	} else {
 	    error("priority outside of property");
 	}
+	amfree(tt);
     } else if(strcmp(last_element_name, "value") == 0) {
 	last_element2 = g_slist_nth(data_user->element_names, 1);
 	if (!last_element2) {
@@ -694,10 +743,13 @@ amtext(
 	} else {
 	    g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
 			"XML: Invalid %s (%s)", last_element_name, tt);
+	    amfree(tt);
 	    return;
 	}
+	amfree(tt);
     } else if(strcmp(last_element_name, "spindle") == 0) {
 	dle->spindle = atoi(tt);
+	amfree(tt);
     } else if(strcmp(last_element_name, "compress") == 0) {
 	if (strcmp(tt, "FAST") == 0) {
 	    dle->compress = COMP_FAST;
@@ -758,17 +810,24 @@ amtext(
 	    error("XML: optional");
 	}
 	last_element2_name = last_element2->data;
-	dle->clnt_encrypt = tt;
+	if (dle->encrypt == ENCRYPT_SERV_CUST)
+	    dle->srv_encrypt = tt;
+	else
+	    dle->clnt_encrypt = tt;
     } else if(strcmp(last_element_name, "decrypt-option") == 0) {
 	last_element2 = g_slist_nth(data_user->element_names, 1);
 	if (!last_element2) {
 	    error("XML: optional");
 	}
 	last_element2_name = last_element2->data;
-	dle->clnt_decrypt_opt = tt;
+	if (dle->encrypt == ENCRYPT_SERV_CUST)
+	    dle->srv_decrypt_opt = tt;
+	else
+	    dle->clnt_decrypt_opt = tt;
     } else if(strcmp(last_element_name, "exclude") == 0 ||
 	      strcmp(last_element_name, "include") == 0) {
 	data_user->has_optional = 0;
+	amfree(tt);
     } else if(strcmp(last_element_name, "file") == 0) {
 	last_element2 = g_slist_nth(data_user->element_names, 1);
 	if (!last_element2) {
@@ -812,6 +871,7 @@ amtext(
 	data_user->has_optional = 1;
 	amfree(tt);
     } else if(strcmp(last_element_name, "script") == 0) {
+	amfree(tt);
     } else if(strcmp(last_element_name, "execute_on") == 0) {
 	char *sep;
 	char *tt1 = tt;
@@ -865,6 +925,7 @@ amtext(
 	} else {
 	    data_user->script->execute_where = ES_SERVER;
 	}
+	amfree(tt);
     } else if(strcmp(last_element_name, "datapath") == 0) {
 	if (strcmp(tt, "AMANDA") == 0) {
 	    dle->data_path = DATA_PATH_AMANDA;
@@ -880,6 +941,7 @@ amtext(
     } else {
 	g_set_error(gerror, G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
 		    "XML: amtext not defined for '%s'", last_element_name);
+	amfree(tt);
 	return;
     }
 }

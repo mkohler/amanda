@@ -22,6 +22,7 @@
 
 use lib '@amperldir@';
 use strict;
+use warnings;
 
 use File::Basename;
 use Getopt::Long;
@@ -159,7 +160,7 @@ sub write_one_file(%) {
     } else {
 	die "Unknown PATTERN $pattern";
     }
-    $dest = Amanda::Xfer::Dest::Device->new($device, 0);
+    $dest = Amanda::Xfer::Dest::Device->new($device, 1);
     $xfer = Amanda::Xfer->new([$source, $dest]);
 
     # set up the relevant callbacks
@@ -214,6 +215,10 @@ sub write_one_file(%) {
 
     if ($device->status() != $Amanda::Device::DEVICE_STATUS_SUCCESS) {
 	return $device->error_or_status();
+    }
+
+    if ($got_error && $got_error =~ /LEOM detected/) {
+	return "LEOM";
     }
 
     if ($got_error) {
@@ -456,12 +461,12 @@ sub check_property {
 
     if ($need_fsf_after_filemark == 0 && $fsf_after_filemark_works == 0) {
 	if (defined $opt_property || $fsf_after_filemark) {
-	    print STDOUT "device_property \"FSF_AFTER_FILEMARK\" \"false\"\n";
+	    print STDOUT "device-property \"FSF_AFTER_FILEMARK\" \"false\"\n";
 	}
 	$device->property_set('FSF_AFTER_FILEMARK', 0);
     } elsif ($need_fsf_after_filemark == 1 && $fsf_after_filemark_works == 1) {
 	if (defined $opt_property || !$fsf_after_filemark) {
-	    print STDOUT "device_property \"FSF_AFTER_FILEMARK\" \"true\"\n";
+	    print STDOUT "device-property \"FSF_AFTER_FILEMARK\" \"true\"\n";
 	}
 	$device->property_set('FSF_AFTER_FILEMARK', 1);
     } else {
@@ -575,6 +580,12 @@ sub make_tapetype {
     $speed_estimate = int $speed_estimate;
     print STDERR "Wrote $volume_size_estimate bytes at $speed_estimate kb/sec\n";
 
+    my $leom = 0;
+    if ($err eq 'LEOM') {
+	print STDERR "Got LEOM indication, so drive and kernel together support LEOM\n";
+	$leom = 1;
+    }
+
     # now we want to write about 100 filemarks; round down to the blocksize
     # to avoid counting padding as part of the filemark
     my $file_size = $volume_size_estimate / 100;
@@ -604,13 +615,13 @@ sub make_tapetype {
     my $volume_size_estimate_kb = $volume_size_estimate/1024;
     my $filemark_kb = $filemark_estimate/1024;
 
-    # and suggest using device_property for blocksize if it's not an even multiple
+    # and suggest using device-property for blocksize if it's not an even multiple
     # of 1kb
     my $blocksize_line;
     if ($blocksize % 1024 == 0) {
 	$blocksize_line = "blocksize " . $blocksize/1024 . " kbytes";
     } else {
-	$blocksize_line = "# add device_property \"BLOCK_SIZE\" \"$blocksize\" to the device";
+	$blocksize_line = "# add device-property \"BLOCK_SIZE\" \"$blocksize\" to the device";
     }
 
     print <<EOF;
@@ -622,6 +633,14 @@ define tapetype $opt_tapetype_name {
     $blocksize_line
 }
 EOF
+
+    if ($leom) {
+	print "# for this drive and kernel, LEOM is supported; add\n";
+	print "#   device-property \"LEOM\" \"TRUE\"\n";
+	print "# for this device.\n";
+    } else {
+	print "# LEOM is not supported for this drive and kernel\n";
+    }
 }
 
 sub usage {

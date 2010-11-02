@@ -706,8 +706,7 @@ application_property_add_to_argv(
 	}
     }
 
-    g_hash_table_foreach(dle->application_property,
-			 &proplist_add_to_argv, argv_ptr);
+    property_add_to_argv(argv_ptr, dle->application_property);
     return;
 }
 
@@ -1009,7 +1008,8 @@ run_client_script(
 
     script->result = g_new0(client_script_result_t, 1);
     script->result->proplist =
-		    g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
+		  g_hash_table_new_full(g_str_hash, g_str_equal,
+					&g_free, &g_slist_free_full_gpointer);
     script->result->output = g_ptr_array_new();
     script->result->err = g_ptr_array_new();
 
@@ -1221,6 +1221,7 @@ run_client_scripts(
 	    g_ptr_array_free(script->result->err, TRUE);
 	    script->result->err = NULL;
 	}
+	amfree(script->result);
     }
 }
 

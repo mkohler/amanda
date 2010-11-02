@@ -31,7 +31,6 @@ libamdevice_la_LDFLAGS = -release $(VERSION)
 libamdevice_la_SOURCES = \
 	property.c \
 	device.c \
-	device-queueing.c \
 	directtcp-connection.c \
 	null-device.c \
 	rait-device.c \
@@ -39,33 +38,16 @@ libamdevice_la_SOURCES = \
 	xfer-source-device.c \
 	xfer-dest-device.c \
 	xfer-dest-taper.c \
-	xfer-dest-taper-splitter.c \
+	xfer-dest-taper-cacher.c \
 	xfer-dest-taper-directtcp.c \
+	xfer-dest-taper-splitter.c \
 	xfer-source-recovery.c
 libamdevice_la_LIBADD = \
 	../common-src/libamanda.la \
 	../xfer-src/libamxfer.la
 
-# tape-device has *lots* of conditionals; the first is whether to support
-# the device at all, and the remainder select a particular kind of OS-specific
-# backend.
-
 if WANT_TAPE_DEVICE
 libamdevice_la_SOURCES += tape-device.c
-
-if WANT_TAPE_XENIX
-libamdevice_la_SOURCES += tape-xenix.c
-endif
-if WANT_TAPE_AIX
-libamdevice_la_SOURCES += tape-aix.c
-endif
-if WANT_TAPE_UWARE
-libamdevice_la_SOURCES += tape-uware.c
-endif
-if WANT_TAPE_POSIX
-libamdevice_la_SOURCES += tape-posix.c
-endif
-
 endif
 
 if WANT_S3_DEVICE
@@ -83,13 +65,8 @@ endif
 
 ## automake-style tests
 
-TESTS = vfs-test
+TESTS =
 noinst_PROGRAMS = $(TESTS)
-
-vfs_test_SOURCES = vfs-test.c
-vfs_test_LDADD = \
-	../common-src/libtestutils.la \
-	libamdevice.la
 
 ## activate-devpay
 
@@ -101,15 +78,13 @@ endif
 ## headers
 
 noinst_HEADERS = \
-	device-queueing.h \
 	device.h \
 	directtcp-connection.h \
 	property.h \
 	s3.h \
 	s3-util.h \
-	tape-device.h \
-	tape-ops.h \
 	xfer-device.h \
+	xfer-dest-taper.h \
 	vfs-device.h
 
 aminclude_HEADERS = 

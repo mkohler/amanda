@@ -72,6 +72,7 @@ typedef struct ctl_data_s {
   data_path_t              data_path;
   char                    *addrs;
   backup_support_option_t *bsu;
+  gint64                   bytes_read;
 } ctl_data_t;
 
 #define SKIP_TAPE 2
@@ -972,9 +973,10 @@ add_file(
 			continue;
 		    }
                     fp = s-1;
-                    skip_non_whitespace(s, ch);
+                    skip_quoted_string(s, ch);
                     s[-1] = '\0';
-                    lditem.tape = newstralloc(lditem.tape, fp);
+		    amfree(lditem.tape);
+		    lditem.tape = unquote_string(fp);
                     s[-1] = (char)ch;
 
 		    if(am_has_feature(indexsrv_features, fe_amindexd_fileno_in_ORLD)) {
@@ -1886,6 +1888,8 @@ extract_files_child(
     case IS_TAR:
     case IS_GNUTAR:
 	g_ptr_array_add(argv_ptr, stralloc("tar"));
+	/* ignore trailing zero blocks on input (this was the default until tar-1.21) */
+	g_ptr_array_add(argv_ptr, stralloc("--ignore-zeros"));
 	g_ptr_array_add(argv_ptr, stralloc("--numeric-owner"));
 	g_ptr_array_add(argv_ptr, stralloc("-xpGvf"));
 	g_ptr_array_add(argv_ptr, stralloc("-"));	/* data on stdin */
@@ -1961,7 +1965,7 @@ extract_files_child(
 	    }
 
 	} else if (proplist) {
-	    g_hash_table_foreach(proplist, &proplist_add_to_argv, argv_ptr);
+	    property_add_to_argv(argv_ptr, proplist);
 	}
 	break;
     }
@@ -2100,6 +2104,7 @@ writer_intermediary(
     ctl_data.data_path     = DATA_PATH_AMANDA;
     ctl_data.addrs         = NULL;
     ctl_data.bsu           = NULL;
+    ctl_data.bytes_read    = 0;
 
     security_stream_read(amidxtaped_streams[DATAFD].fd,
 			 read_amidxtaped_data, &ctl_data);
@@ -2169,6 +2174,7 @@ writer_intermediary(
 	    return -1;
 	}
     }
+    g_debug("bytes read: %jd", (intmax_t)ctl_data.bytes_read);
     return(0);
 }
 
@@ -2739,6 +2745,7 @@ read_amidxtaped_data(
 	    start_processing_data(ctl_data);
 	}
     } else {
+	ctl_data->bytes_read += size;
 	/* Only the data is sent to the child */
 	/*
 	 * We ignore errors while writing to the index file.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007,2008,2009 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -144,6 +144,12 @@ null_device_init (NullDevice * self)
 	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
     g_value_unset(&response);
 
+    g_value_init(&response, G_TYPE_BOOLEAN);
+    g_value_set_boolean(&response, FALSE);
+    device_set_simple_property(dself, PROPERTY_LEOM,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
+    g_value_unset(&response);
+
     /* this device's canonical name is always "null:", regardless of
      * the name the user supplies; note that we install the simple
      * getter in null_device_class_init. */
@@ -248,9 +254,10 @@ null_device_start (Device * pself, DeviceAccessMode mode,
 /* This default implementation does very little. */
 static gboolean
 null_device_finish (Device * pself) {
+    pself->access_mode = ACCESS_NULL;
+
     if (device_in_error(pself)) return FALSE;
 
-    pself->access_mode = ACCESS_NULL;
     return TRUE;
 }
 

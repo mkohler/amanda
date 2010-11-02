@@ -169,4 +169,13 @@ sub read_magic_block {
 
     return $type;
 }
+
+sub _set_mesgout {
+    my $self = shift;
+
+    my $mesgout_fd;
+    open ($mesgout_fd, '>&=3') || die("Can't open mesgout_fd: $!");
+    $self->{mesgout} = $mesgout_fd;
+}
+
 1;

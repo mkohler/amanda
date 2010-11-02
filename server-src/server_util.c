@@ -49,8 +49,8 @@ const char *cmdstr[] = {
      
     "PARTDONE", "PORT-WRITE", "DUMPER-STATUS",		    /* taper cmds */
     "PORT", "TAPE-ERROR", "TAPER-OK",			 /* taper results */
-    "REQUEST-NEW-TAPE", "DIRECTTCP-PORT",
-    "LAST_TOK",
+    "REQUEST-NEW-TAPE", "DIRECTTCP-PORT", "TAKE-SCRIBE-FROM",
+    "START-SCAN", "LAST_TOK",
     NULL
 };
 
@@ -216,6 +216,9 @@ int check_infofile(
 			return -1;
 		}
 	    }
+	    amfree(old_hostinfodir);
+	    amfree(old_diskdir);
+	    amfree(old_infofile);
 	}
 	amfree(diskdir);
 	amfree(hostinfodir);
@@ -338,11 +341,13 @@ run_server_script(
     if (streamout) {
 	while((line = agets(streamout)) != NULL) {
 	    dbprintf("script: %s\n", line);
+	    amfree(line);
 	}
     }
     fclose(streamout);
     waitpid(scriptpid, NULL, 0);
     g_ptr_array_free_full(argv_ptr);
+    amfree(cmd);
 }
 
 

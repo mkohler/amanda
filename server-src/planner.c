@@ -30,6 +30,7 @@
  */
 #include "amanda.h"
 #include "arglist.h"
+#include "find.h"
 #include "conffile.h"
 #include "diskfile.h"
 #include "tapefile.h"
@@ -189,6 +190,7 @@ main(
     char *cfg_opt = NULL;
     int    planner_setuid;
     int exit_status = EXIT_SUCCESS;
+    gboolean no_taper = FALSE;
 
     /*
      * Configure program for internationalization:
@@ -255,9 +257,13 @@ main(
 	g_fprintf(stderr, _("%s: %s"), get_pname(), version_info[i]);
 
     diskarg_offset = 2;
-    if (argc > 3 && strcmp(argv[2], "--starttime") == 0) {
-	planner_timestamp = stralloc(argv[3]);
+    if (argc - diskarg_offset > 1 && strcmp(argv[diskarg_offset], "--starttime") == 0) {
+	planner_timestamp = stralloc(argv[diskarg_offset+1]);
 	diskarg_offset += 2;
+    }
+    if (argc - diskarg_offset > 0 && strcmp(argv[diskarg_offset], "--no-taper") == 0) {
+	no_taper = TRUE;
+	diskarg_offset += 1;
     }
 
 
@@ -409,12 +415,13 @@ main(
 
     g_fprintf(stderr,_("\nSENDING FLUSHES...\n"));
 
-    if(conf_autoflush) {
+    if(conf_autoflush && !no_taper) {
 	dumpfile_t  file;
 	GSList *holding_list, *holding_file;
 	char *qdisk, *qhname;
 
-	/* get *all* flushable files in holding */
+	/* get *all* flushable files in holding, without checking against
+	 * the disklist (which may not contain some of the dumps) */
 	holding_list = holding_get_files_for_flush(NULL);
 	for(holding_file=holding_list; holding_file != NULL;
 				       holding_file = holding_file->next) {
@@ -425,6 +432,12 @@ main(
 			(char *)holding_file->data);
 		holding_file_unlink((char *)holding_file->data);
 		dumpfile_free_data(&file);
+		continue;
+	    }
+
+	    /* see if this matches the command-line arguments */
+	    if (!match_dumpfile(&file, argc-diskarg_offset,
+				       argv+diskarg_offset)) {
 		continue;
 	    }
 
@@ -759,8 +772,6 @@ setup_estimate(
 	    amfree(qname);
 	    return;
 	} else if (dp->to_holdingdisk == HOLD_AUTO) {
-	    log_add(L_INFO, _("Disabling holding disk for %s:%s."),
-		    dp->host->hostname, qname);
 	    g_fprintf(stderr,_("%s:%s Disabling holding disk\n"),
 		      dp->host->hostname, qname);
 	    dp->to_holdingdisk = HOLD_NEVER;
@@ -796,21 +807,24 @@ setup_estimate(
 	     * hosed when that tape gets re-used next.  Disallow this for
 	     * now.
 	     */
-	    log_add(L_ERROR,
+	    log_add(L_WARNING,
 		    _("Cannot force full dump of %s:%s with no-full option."),
 		    dp->host->hostname, qname);
 
 	    /* clear force command */
 	    CLR(info.command, FORCE_FULL);
-	    if(put_info(dp->host->hostname, dp->name, &info)) {
-		error(_("could not put info record for %s:%s: %s"),
-		      dp->host->hostname, qname, strerror(errno));
-		/*NOTREACHED*/
-	    }
 	    ep->last_level = last_level(&info);
 	    ep->next_level0 = next_level0(dp, &info);
-	}
-	else {
+	} else if (dp->strategy == DS_INCRONLY) {
+	    log_add(L_WARNING,
+		    _("Cannot force full dump of %s:%s with incronly option."),
+		    dp->host->hostname, qname);
+
+	    /* clear force command */
+	    CLR(info.command, FORCE_FULL);
+	    ep->last_level = last_level(&info);
+	    ep->next_level0 = next_level0(dp, &info);
+	} else {
 	    ep->degr_mesg = _("Skipping: force-full disk can't be dumped in degraded mode");
 	    ep->last_level = -1;
 	    ep->next_level0 = -conf_dumpcycle;
@@ -975,7 +989,7 @@ setup_estimate(
 	 (!ISSET(info.command, FORCE_BUMP) ||
 	  dp->skip_incr ||
 	  ep->last_level == -1))) {
-	if(info.command & FORCE_BUMP && ep->last_level == -1) {
+	if(ISSET(info.command, FORCE_BUMP) && ep->last_level == -1) {
 	    log_add(L_INFO,
 		  _("Remove force-bump command of %s:%s because it's a new disk."),
 		    dp->host->hostname, qname);
@@ -985,11 +999,11 @@ setup_estimate(
 	case DS_NOINC:
 	    askfor(ep, i++, 0, &info);
 	    if(dp->skip_full) {
-		log_add(L_INFO, _("Ignoring skip_full for %s:%s "
+		log_add(L_INFO, _("Ignoring skip-full for %s:%s "
 			"because the strategy is NOINC."),
 			dp->host->hostname, qname);
 	    }
-	    if(info.command & FORCE_BUMP) {
+	    if(ISSET(info.command, FORCE_BUMP)) {
 		log_add(L_INFO,
 		 _("Ignoring FORCE_BUMP for %s:%s because the strategy is NOINC."),
 			dp->host->hostname, qname);
@@ -1168,7 +1182,7 @@ static gint64 est_tape_size(
     one_est_t *dump_est;
 
     dump_est = est_for_level(dp, level);
-    if (dump_est->csize <= -1)
+    if (dump_est->level >= 0 && dump_est->csize <= -1)
 	est_csize(dp, dump_est);
     return dump_est->csize;
 }
@@ -1580,6 +1594,9 @@ static void getsize(
 		    strappend(s, l);
 		    s_len += strlen(l);
 		    amfree(l);
+		    amfree(levelstr);
+		    amfree(spindlestr);
+		    amfree(o);
 		} else if (strcmp(dp->program,"DUMP") != 0 &&
 			   strcmp(dp->program,"GNUTAR") != 0) {
 		    est(dp)->errstr = newvstrallocf(est(dp)->errstr,
@@ -1696,6 +1713,8 @@ static void getsize(
 		    enqueue_disk(&failq, dp);
 		}
 	    }
+	    amfree(b64disk);
+	    amfree(b64device);
 	    amfree(qname);
 	    amfree(qdevice);
 	}
@@ -1724,6 +1743,7 @@ static void getsize(
 	timeout = (time_t)getconf_int(CNF_CTIMEOUT);
     }
 
+    dbprintf(_("send request:\n----\n%s\n----\n\n"), req);
     secdrv = security_getdriver(hostp->disks->auth);
     if (secdrv == NULL) {
 	hostp->up = HOST_DONE;
@@ -1815,6 +1835,7 @@ static void handle_result(
 	}
     }
 
+    dbprintf(_("got reply:\n----\n%s\n----\n\n"), pkt->body);
     s = pkt->body;
     ch = *s++;
     while(ch) {
@@ -2148,7 +2169,7 @@ static void analyze_estimate(
     ep->degr_est = &default_one_est;
 
     if (ep->next_level0 <= 0 || (have_info && ep->last_level == 0
-       && (info.command & FORCE_NO_BUMP))) {
+       && (ISSET(info.command, FORCE_NO_BUMP)))) {
 	if (ep->next_level0 <= 0) {
 	    g_fprintf(stderr,_("(due for level 0) "));
 	}
@@ -2206,6 +2227,24 @@ static void analyze_estimate(
 	if (ep->degr_mesg == NULL) {
 	    ep->degr_mesg = _("Skipping: a full is not planned, so can't dump in degraded mode");
 	}
+    }
+
+    if (ep->dump_est->level < 0) {
+	int   i;
+	char *q = quote_string("no estimate");
+
+	g_fprintf(stderr,_("  no valid estimate\n"));
+	for(i=0; i<MAX_LEVELS; i++) {
+	    if (est(dp)->estimate[i].level >= 0) {
+		g_fprintf(stderr,("    level: %d  nsize: %lld csize: %lld\n"),
+			  est(dp)->estimate[i].level,
+			  (long long)est(dp)->estimate[i].nsize,
+			  (long long)est(dp)->estimate[i].csize);
+	    }
+	}
+	log_add(L_WARNING, _("%s %s %s 0 %s"), dp->host->hostname, qname,
+		planner_timestamp, q);
+	amfree(q);
     }
 
     g_fprintf(stderr,_("  curr level %d nsize %lld csize %lld "),
@@ -2319,9 +2358,11 @@ static one_est_t *pick_inclevel(
 
     /* if we didn't get an estimate, we can't do an inc */
     if (base_est->nsize == (gint64)-1) {
-	bump_est = est_for_level(dp, base_est->level + 1);
-	if (bump_est->nsize > (gint64)0) /* FORCE_BUMP */
+	bump_est = est_for_level(dp, est(dp)->last_level + 1);
+	if (bump_est->nsize > (gint64)0) { /* FORCE_BUMP */
+	    g_fprintf(stderr,_("   picklev: bumping to level %d\n"), bump_est->level);
 	    return bump_est;
+	}
 	g_fprintf(stderr,_("   picklev: no estimate for level %d, so no incs\n"), base_est->level);
 	return base_est;
     }
@@ -2423,7 +2464,7 @@ static void delay_dumps(void)
 
     for(dp = schedq.head; dp != NULL; dp = ndp) {
 	int avail_tapes = 1;
-	if (dp->tape_splitsize > (gint64)0)
+	if (dp->splitsize > (gint64)0)
 	    avail_tapes = conf_runtapes;
 
 	ndp = dp->next; /* remove_disk zaps this */
@@ -2431,7 +2472,7 @@ static void delay_dumps(void)
 	full_size = est_tape_size(dp, 0);
 	if (full_size > tapetype_get_length(tape) * (gint64)avail_tapes) {
 	    char *qname = quote_string(dp->name);
-	    if (conf_runtapes > 1 && dp->tape_splitsize == (gint64)0) {
+	    if (conf_runtapes > 1 && dp->splitsize == (gint64)0) {
 		log_add(L_WARNING, _("disk %s:%s, full dump (%lldKB) will be larger than available tape space"
 			", you could define a splitsize"),
 			dp->host->hostname, qname,
@@ -2511,7 +2552,7 @@ static void delay_dumps(void)
 	if(est(dp)->dump_est->level != 0) continue;
 
 	get_info(dp->host->hostname, dp->name, &info);
-	if(info.command & FORCE_FULL) {
+	if(ISSET(info.command, FORCE_FULL)) {
 	    nb_forced_level_0 += 1;
 	    preserve = dp;
 	    continue;
@@ -2619,7 +2660,7 @@ static void delay_dumps(void)
 	int avail_tapes = 1;
 	nbi = bi->prev;
 	dp = bi->dp;
-	if(dp->tape_splitsize > (gint64)0)
+	if(dp->splitsize > (gint64)0)
 	    avail_tapes = conf_runtapes;
 
 	if(bi->deleted) {

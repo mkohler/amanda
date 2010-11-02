@@ -2,12 +2,12 @@
 .\"     Title: amanda-compatibility
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMANDA\-COMPATIBILIT" "7" "06/01/2010" "Amanda 3\&.1\&.0" "Miscellanea"
+.TH "AMANDA\-COMPATIBILIT" "7" "10/18/2010" "Amanda 3\&.2\&.0" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -40,6 +40,76 @@ To restore a dump created with the tapesplit_size option using amrecover, you ne
 .SH "UPGRADES"
 .PP
 The recommended course for Amanda upgrades is to upgrade the server first, and test backups and restores before upgrading clients\&. Consult the changes described below for the relevant span of versions to determine what adjustments, if any, are required\&. Also see the NEWS file shipped with each Amanda release for more detailed information\&.
+.SS "Amanda 3\&.2"
+.PP
+The following configuration configration keywords are deprecated\&. This is currently a warning, but will become an error soon\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBamrecover\-do\-fsf\fR
+\- amrecover always seeks to files when recovering
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBamrecover\-check\-label\fR
+\- amrecover always checks the volume label when recovering
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Dumptype parameters
+\fBtape\-splitsize\fR,
+\fBsplit\-diskbuffer\fR, and
+\fBfallback\-splitsize\fR
+\- see
+\fBallow\-split\fR
+and tapetype parameters
+\fBpart\-size\fR,
+\fBpart\-cache\-type\fR,
+\fBpart\-cache\-dir\fR, and
+\fBpart\-cache\-max\-size\fR\&. See
+\fBamanda.conf\fR(5)
+for more information on these new parameters, noting particularly that all but the first are tapetype parameters, not dumptype parameters\&.
+.sp
+To convert most cases to the new parameters, set
+\fBpart\-size\fR
+to the old value of
+\fBtape\-splitsize\fR
+and
+\fBpart\-cache\-dir\fR
+to the old value of
+\fBsplit\-diskbuffer\fR, if present\&. If
+\fBsplit\-diskbuffer\fR
+was set, then set
+\fBpart\-cache\-type\fR
+to
+\fBdisk\fR, otherwise
+\fBmemory\fR\&. Finally, if using memory caching, set
+\fBpart\-cache\-max\-size\fR
+to the previous value of
+\fBfallback\-splitsize\fR\&. Be sure to remove all of the old keywords from your configuration\&.
+.RE
+.sp
+.RE
 .SS "Amanda 3\&.1"
 .PP
 Although it is a significant rewrite, there are no incompatible changes in this release\&.
@@ -51,7 +121,7 @@ are particularly encouraged to consider the much more intelligent
 \fBamanda-changers\fR(7)
 for more information\&.
 .PP
-The following configuration configration keywords are deprecated\&. This is currently a warning, but will become an error soon\&.
+The following configuration configration keywords are deprecated\&. This is currently a warning, but will become an error in a future version\&.
 .sp
 .RS 4
 .ie n \{\

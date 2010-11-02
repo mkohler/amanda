@@ -2,12 +2,12 @@
 .\"     Title: amfetchdump
 .\"    Author: John Stange <building@nap.edu>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMFETCHDUMP" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
+.TH "AMFETCHDUMP" "8" "10/18/2010" "Amanda 3\&.2\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -28,23 +28,21 @@ amfetchdump \- extract backup images from multiple Amanda tapes\&.
 \fBAmfetchdump\fR
 pulls one or more matching dumps from tape or from the holding disk, handling the reassembly of multi\-tape split dump files as well as any tape autochanger operations\&.
 .PP
-It will automatically use the logs created by
-\fBamdump\fR(8)
-to locate available dumps on tape, in the same way that the
+It will automatically use the Amanda catalog to locate available dumps on tape, in the same way that the
 \fBfind\fR
 feature of
 \fBamadmin\fR(8)
-lists available dumps\&. If these logs are unavailable, it can search tape\-by\-tape to find what it needs, and can generate new logs to serve as an emergency tape inventory\&.
+lists available dumps\&.
 .PP
 The
 \fIhostname\fR,
 \fIdiskname\fR,
 \fIdatestamp\fR, and
 \fIlevel\fR
-dump pattern\-matching works as in
-\fBamrestore\fR(8), with the added requirement that at minimum a
+dump specifications are further described in
+\fBamanda-match\fR(7)\&. Note that at minimum a
 \fIhostname\fR
-must be specified when not in inventory mode\&.
+must be specified\&.
 .PP
 Unless
 \fB\-p\fR
@@ -147,10 +145,9 @@ instead\&.
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
+\fBamanda-match\fR(7),
 \fBamadmin\fR(8),
-\fBamrestore\fR(8),
-\fBtar\fR(1),
-\fBrestore\fR(8)
+\fBamrestore\fR(8)
 .PP
 The Amanda Wiki:
 : http://wiki.zmanda.com/

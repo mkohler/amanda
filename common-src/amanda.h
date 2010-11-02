@@ -450,27 +450,11 @@ char *debug_vstrextend(const char *file, int line, char **oldstr, ...);
 #define agets(f)	      debug_agets(__FILE__,__LINE__,(f))
 #define areads(f)	      debug_areads(__FILE__,__LINE__,(f))
 
-extern int debug_amtable_alloc(const char *file,
-				  int line,
-				  void **table,
-				  size_t *current,
-				  size_t elsize,
-				  size_t count,
-				  int bump,
-				  void (*init_func)(void *));
+/* return a "safe" version of the current environment; pass this to execle */
+#define safe_env() safe_env_full(NULL)
 
-#define amtable_alloc(t,c,s,n,b,f) debug_amtable_alloc(__FILE__,      \
-						     __LINE__,        \
-						     (t),             \
-						     (c),             \
-						     (s),             \
-						     (n),             \
-						     (b),             \
-						     (f))
-
-extern void amtable_free(void **, size_t *);
-
-char **	safe_env(void);
+/* like safe_env, but optionally add additional environment variables */
+char **	safe_env_full(char **add);
 
 time_t	unctime(char *timestr);
 

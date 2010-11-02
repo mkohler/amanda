@@ -175,12 +175,10 @@ struct _DeviceClass {
                         char * label, char * timestamp);
     gboolean (* start_file) (Device * self, dumpfile_t * info);
     gboolean (* write_block) (Device * self, guint size, gpointer data);
-    gboolean (* write_from_fd) (Device * self, queue_fd_t *queue_fd);
     gboolean (* finish_file) (Device * self);
     dumpfile_t* (* seek_file) (Device * self, guint file);
     gboolean (* seek_block) (Device * self, guint64 block);
     int (* read_block) (Device * self, gpointer buf, int * size);
-    gboolean (* read_to_fd) (Device * self, queue_fd_t *queue_fd);
     gboolean (* property_get_ex) (Device * self, DevicePropertyId id,
 				  GValue * val,
 				  PropertySurety *surety,
@@ -198,6 +196,9 @@ struct _DeviceClass {
     gboolean (* listen)(Device *self, gboolean for_writing, DirectTCPAddr **addrs);
     gboolean (* accept)(Device *self, DirectTCPConnection **conn,
 			ProlongProc prolong, gpointer prolong_data);
+    gboolean (* connect)(Device *self, gboolean for_writing, DirectTCPAddr *addrs,
+			DirectTCPConnection **conn, ProlongProc prolong,
+			gpointer prolong_data);
     gboolean (* write_from_connection)(Device *self, guint64 size, guint64 *actual_size);
     gboolean (* read_to_connection)(Device *self, guint64 size, guint64 *actual_size);
     gboolean (* use_connection)(Device *self, DirectTCPConnection *conn);
@@ -297,16 +298,12 @@ gboolean        device_start_file       (Device * self,
 gboolean 	device_write_block	(Device * self,
                                          guint size,
                                          gpointer data);
-gboolean 	device_write_from_fd	(Device * self,
-					queue_fd_t *queue_fd);
 gboolean 	device_finish_file	(Device * self);
 dumpfile_t* 	device_seek_file	(Device * self,
 					guint file);
 gboolean 	device_seek_block	(Device * self,
 					guint64 block);
 int 	device_read_block	(Device * self, gpointer buffer, int * size);
-gboolean 	device_read_to_fd	(Device * self,
-					queue_fd_t *queue_fd);
 const GSList *	device_property_get_list	(Device * self);
 gboolean 	device_property_get_ex	(Device * self,
                                          DevicePropertyId id,
@@ -333,6 +330,9 @@ gboolean 	device_eject	(Device * self);
 gboolean device_listen(Device *self, gboolean for_writing, DirectTCPAddr **addrs);
 gboolean device_accept(Device *self, DirectTCPConnection **conn,
                 ProlongProc prolong, gpointer prolong_data);
+gboolean device_connect(Device *self, gboolean for_writing, DirectTCPAddr *addrs,
+			DirectTCPConnection **conn, ProlongProc prolong,
+			gpointer prolong_data);
 gboolean device_write_from_connection(Device *self, guint64 size, guint64 *actual_size);
 gboolean device_read_to_connection(Device *self, guint64 size, guint64 *actual_size);
 gboolean device_use_connection(Device *self, DirectTCPConnection *conn);

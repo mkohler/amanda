@@ -24,12 +24,13 @@ sbin_PROGRAMS =		amadmin		amcheck		\
 			amflush		\
 			amservice
 
-amlibexec_PROGRAMS =	amindexd	amlogroll	amtrmidx	\
+amlibexec_PROGRAMS =	amindexd	amtrmidx	\
 			amtrmlog	driver		dumper		\
 			planner		amcleanupdisk	\
 			chunker
 
 amlibexec_SCRIPTS_PERL = \
+	    amlogroll \
 	    taper \
 	    amcheck-device
 
@@ -45,6 +46,7 @@ sbin_SCRIPTS_PERL = \
 	    amreport \
 	    amtape \
 	    amvault \
+	    amdump \
 	    amstatus
 if WANT_RESTORE
 amlibexec_SCRIPTS_PERL += \
@@ -55,8 +57,8 @@ sbin_SCRIPTS_PERL += \
 endif
 
 sbin_SCRIPTS_SHELL = \
-	    amcheckdb \
-	    amdump
+	    amcheckdb
+
 
 SCRIPTS_PERL = $(sbin_SCRIPTS_PERL) $(amlibexec_SCRIPTS_PERL)
 SCRIPTS_SHELL = $(sbin_SCRIPTS_SHELL) $(amlibexec_SCRIPTS_SHELL)
@@ -64,21 +66,10 @@ sbin_SCRIPTS = $(sbin_SCRIPTS_PERL) $(sbin_SCRIPTS_SHELL)
 amlibexec_SCRIPTS = $(amlibexec_SCRIPTS_PERL) $(amlibexec_SCRIPTS_SHELL)
 
 INSTALLPERMS_exec = \
-	dest=$(sbindir) chown=amanda chmod= \
-		$(sbin_PROGRAMS) \
-	chown=root chmod=04750 \
+	dest=$(sbindir) chown=root:setuid chmod=04750 \
 		amcheck amservice \
-	dest=$(amlibexecdir) chown=amanda chmod= \
-		$(amlibexec_PROGRAMS) \
-		$(amlibexec_SCRIPTS) \
-	chown=root chmod=04750 \
+	dest=$(amlibexecdir) \
 		dumper planner
-
-INSTALLPERMS_data = \
-	dest=$(sbindir) chown=amanda chmod= \
-		$(sbin_SCRIPTS) \
-	dest=$(amlibexecdir) chown=amanda chmod= \
-		$(amlibexec_SCRIPTS)
 
 ###
 # Because libamanda includes routines (e.g. regex) provided by some system
@@ -90,8 +81,7 @@ INSTALLPERMS_data = \
 LDADD = ../common-src/libamanda.la   \
 	libamserver.la               \
 	../device-src/libamdevice.la     \
-	../common-src/libamanda.la   \
-        $(READLINE_LIBS)
+	../common-src/libamanda.la
 
 libamserver_la_SOURCES=	amindex.c	\
 			diskfile.c	driverio.c	cmdline.c  \

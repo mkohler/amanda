@@ -8,6 +8,9 @@
  * interface file instead. 
  * ----------------------------------------------------------------------------- */
 
+#include "../config/config.h"
+
+
 #define SWIGPERL
 #define SWIG_CASTRANK_MODE
 
@@ -2434,17 +2437,7 @@ XS(_wrap_amar_attr_add_data_buffer) {
     arg2 = (char *)(buf2);
     arg3 = (gsize)(size2 - 1);
     {
-      if (sizeof(signed int) == 1) {
-        arg4 = amglue_SvI8(ST(2));
-      } else if (sizeof(signed int) == 2) {
-        arg4 = amglue_SvI16(ST(2));
-      } else if (sizeof(signed int) == 4) {
-        arg4 = amglue_SvI32(ST(2));
-      } else if (sizeof(signed int) == 8) {
-        arg4 = amglue_SvI64(ST(2));
-      } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
-      }
+      arg4 = SvTRUE(ST(2));
     }
     amar_attr_add_data_buffer_(arg1,arg2,arg3,arg4);
     ST(argvi) = sv_newmortal();
@@ -2508,17 +2501,7 @@ XS(_wrap_amar_attr_add_data_fd) {
       }
     }
     {
-      if (sizeof(signed int) == 1) {
-        arg3 = amglue_SvI8(ST(2));
-      } else if (sizeof(signed int) == 2) {
-        arg3 = amglue_SvI16(ST(2));
-      } else if (sizeof(signed int) == 4) {
-        arg3 = amglue_SvI32(ST(2));
-      } else if (sizeof(signed int) == 8) {
-        arg3 = amglue_SvI64(ST(2));
-      } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
-      }
+      arg3 = SvTRUE(ST(2));
     }
     result = amar_attr_add_data_fd_(arg1,arg2,arg3);
     {

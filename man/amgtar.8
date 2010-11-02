@@ -2,12 +2,12 @@
 .\"     Title: amgtar
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMGTAR" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
+.TH "AMGTAR" "8" "10/18/2010" "Amanda 3\&.2\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -165,6 +165,12 @@ STRANGE
 .RS 4
 
 List all regex (POSIX Extended Regular Expression syntax) that are strange output from gtar\&. All gtar output that doesn\'t match a normal or ignore regex are strange by default\&. The result of the dump is STRANGE if gtar produce a strange output\&. These output are in the "FAILED DUMP DETAILS" section of the email report\&.
+.RE
+.PP
+VERBOSE
+.RS 4
+
+Default: "NO"\&. If "YES", amgtar print more verbose debugging message and can leave temporary files in AMANDA_TMPDIR\&.
 .RE
 .SH "INCLUDE AND EXCLUDE LISTS"
 .PP

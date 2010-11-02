@@ -8,6 +8,9 @@
  * interface file instead. 
  * ----------------------------------------------------------------------------- */
 
+#include "../config/config.h"
+
+
 #define SWIGPERL
 #define SWIG_CASTRANK_MODE
 

@@ -2,12 +2,12 @@
 .\"     Title: amanda-devices
 .\"    Author: Ian Turner <ian@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMANDA\-DEVICES" "7" "06/01/2010" "Amanda 3\&.1\&.0" "Miscellanea"
+.TH "AMANDA\-DEVICES" "7" "10/18/2010" "Amanda 3\&.2\&.0" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -45,7 +45,7 @@ with "device" sections, e\&.g\&.,
 .nf
 define device top_drive {
     tapedev "tape:/dev/nst0"
-    device_property "BLOCK_SIZE" "131072"
+    device\-property "BLOCK_SIZE" "131072"
 }
 .fi
 Such a device defininition creates a device "alias", in this case named
@@ -116,9 +116,9 @@ with the
 parameter\&. The syntax looks like this:
 .sp
 .nf
-device_property "FROBNICATOR_PATH" "/var/frobd/state"
-device_property "BYTES_PER_FORTNIGHT" "128k"
-device_property "USE_QUBITS" "no"
+device\-property "FROBNICATOR_PATH" "/var/frobd/state"
+device\-property "BYTES_PER_FORTNIGHT" "128k"
+device\-property "USE_QUBITS" "no"
 .fi
 .PP
 Both the property name and the property value are always quoted\&. Property names, like Amanda configuration parameters, are not case\-sensitive, and
@@ -152,7 +152,7 @@ Tapetype parameters (including length, blocksize, and readblocksize) are transla
 .sp -1
 .IP "  2." 4.2
 .\}
-Device properties from any device_property configuration parameters are set, in the order they appear in the configuration file\&.
+Device properties from any device\-property configuration parameters are set, in the order they appear in the configuration file\&.
 .RE
 .PP
 Properties described as read\-only are not accessible to users\&. They are listed here for completeness\&.
@@ -202,16 +202,16 @@ CONCURRENCY
  (read\-only) This property indicates the level of concurrent access that this device supports\&.
 .RE
 .PP
-FREE_SPACE
-.RS 4
-
- (read\-only) This property gives the amount of free space available on the current volume, if known\&.  This is often an estimate; for example, tape devices can only estimate the amount of tape left on a spool\&.
-.RE
-.PP
 FULL_DELETION
 .RS 4
 
  (read\-only) This property indicates whether the device supports erasing the entire volume\&.  Aside from S3 and VFS, most devices cannot support this feature\&.
+.RE
+.PP
+LEOM
+.RS 4
+
+(read\-write) If this property is true, then the device can detect an EOM condition before actually running out of space, allowing Amanda to forgo caching parts while writing\&.  For some devices, it is necessary to override the conservative default value of this property\&.
 .RE
 .PP
 MAX_BLOCK_SIZE
@@ -247,7 +247,14 @@ PARTIAL_DELETION
 STREAMING
 .RS 4
 
- (read\-only) This property gives the streaming requirement for this device\&.  For example, tape drives often require a steady supply of data to avoid shoe\-shining, while disk devices have no such requirement\&.
+(read\-only) This property gives the streaming requirement for this device\&.  For
+example, tape drives often require a steady supply of data to avoid
+shoe\-shining, while disk devices have no such requirement\&.  Streaming is
+accomplished by buffering \fBdevice\-output\-buffer\-size\fR bytes of
+data\&.  The allowed values are "none" (no streaming buffer necessary),
+"required" (fill the buffer before starting to write), or "desired" (fill the
+buffer before starting to write, and if the buffer becomes empty, stop writing
+until it is completely full again)\&.
 .RE
 .PP
 VERBOSE
@@ -278,6 +285,11 @@ Most devices are flexible enough to read a volume using a different block size t
 The RAIT device does not support flexible block sizes, as its parity algorithm requires that all child devices have the same, fixed block size\&.
 .sp .5v
 .RE
+.SS "LEOM DETECTION"
+.PP
+Some Amanda devices can detect end\-of\-medium (running out of space on the device) before it occurs\&. This early warning is referred to as logical EOM, and where it is supported Amanda can operate more efficiently, since the possibility for data loss is reduced\&.
+.PP
+The boolean LEOM property indicates whether or not a particular device supports LEOM detection\&. The sections below also describe the degree of support\&.
 .SH "DEVICES"
 .PP
 This section lists the device drivers included with Amanda, and basic instructions for using them\&. For complete How\-To information, consult the Amanda wiki at http://wiki\&.zmanda\&.com\&.
@@ -295,7 +307,13 @@ tapedev "rait:tape:/dev/rmt/tps0d{4,5,6}n"
 The RAIT device driver mirrors or stripes data over multiple "child" devices\&. The child devices are specified using a shell\-like syntax, where alternatives are enclosed in braces and separated by commas\&. Braces and commas can be escaped with a backslash\&. Note that the backslash itself must be escaped in most contexts\&. For example:
 .sp
 .nf
-tapedev "rait:{commandev:foo\e\e,bar,bracedev:foo\e\e}bar}"
+tapedev "rait:{file:/var/amanda/vtapes,tape:/dev/nst0}"
+tapedev "rait:{comma\-dev:foo\e\e,bar,brace\-dev:foo\e\e}bar}" # quoting
+.fi
+If the braces contain a numeric range separated with two dots, that range will be filled in sequentially\&. If the first number has a leading zero, then the results will be zero\-padded to the maximum length\&. For example:
+.sp
+.nf
+tapedev "rait:file:/var/amanda/vtapes/drive{01\&.\&.04}"
 .fi
 .PP
 With two child devices, the RAIT device driver mirrors data such that the two devices contain identical data and can be used singly for recovery\&. With more than two devices, the RAIT device "stripes" data across all but one device and writes a parity block to the final device, usable for data recovery in the event of a device or volume failure\&. The RAIT device scales its blocksize as necessary to match the number of children that will be used to store data\&.
@@ -308,6 +326,8 @@ tapedev "rait:{tape:/dev/st0,ERROR,tape:/dev/st2}"
 This will cause the RAIT device to start up in degraded mode, reconstructing the data from the missing device\&.
 .PP
 Like ordinary RAID drivers, the RAIT device driver can automatically enter degraded mode when one of its child devices fails\&. However, the RAIT device cannot automatically recover from any write error nor write any data in degraded mode\&. When reading, certain errors may be fatal (rather than causing degraded mode)\&. And in any case, labels on all volumes must initially match (labeled or otherwise)\&. If you have lost one volume from a set, explicitly start the device in degraded mode as described above\&.
+.PP
+This device can detect LEOM if and only if all of the child devices can detect LEOM\&.
 .SS "Child Device Block Sizes"
 .PP
 The RAIT device driver requires that all of its child devices use the same block size\&. If no block sizes are specified, the driver selects the block size closest to 32k that is within the MIN_BLOCK_SIZE \- MAX_BLOCK_SIZE range of all child devices, and calculates its own blocksize according to the formula
@@ -316,8 +336,8 @@ The RAIT device driver requires that all of its child devices use the same block
 .SS "S3 Device"
 .nf
 tapedev "s3:foocorp\-backups/DailySet1\-"
-device_property "S3_ACCESS_KEY" "MYACCESSKEY"
-device_property "S3_SECRET_KEY" "MYSECRETKEY"
+device\-property "S3_ACCESS_KEY" "MYACCESSKEY"
+device\-property "S3_SECRET_KEY" "MYSECRETKEY"
 .fi
 .PP
 The S3 device driver uploads data to the Amazon S3 "storage cloud"\&. Its device name is a slash\-sparated combination of bucket name and prefix: "s3:BUCKET/PREFIX"\&. Since buckets must be unique across all Amazon S3 users, and since the number of buckets allowed to each user is limited, the driver can store multiple Amanda volumes in a single S3 bucket, distinguished by prefix\&. The prefix and slash can be omitted if they are not needed: "s3:BUCKET"\&.
@@ -326,7 +346,7 @@ The access and secret keys used to authenticate to Amazon S3 are provided as pro
 .PP
 The S3 device driver stores each block in a distinct S3 object\&. Due to high HTTP overhead for each request, use of larger than normal block sizes (> 1 megabyte) is reccomended with the S3 device\&.
 .PP
-Amanda automatically creates a bucket when writing, if the bucket doesn\'t already exist\&. At that time, it specifies where Amazon should store the data based on the S3_BUCKET_LOCATION property\&. Currently, there are two valid settings: "*" (any location, probably US) and "EU" (Europe)\&. If this property is not set, Amazon\'s default value of "*" is used\&. The bucket location has both billing and legal concerns, so you are encouraged to consult Amazon\'s documentation for details\&.
+Amanda automatically creates a bucket when writing, if the bucket doesn\'t already exist\&. At that time, it specifies where Amazon should store the data based on the S3_BUCKET_LOCATION property\&. If this property is not set, Amazon\'s default value (equivalent to "*") is used\&. The bucket location has both billing and legal concerns, so you are encouraged to consult Amazon\'s documentation for details\&.
 .PP
 Amazon does not permit changes to bucket locations, so this is a permanent specification\&. If the bucket already exists and the property is set, then Amanda checks the property against the location of the bucket, and produces an error if they do not match\&.
 .if n \{\
@@ -347,6 +367,8 @@ If a location constraint is set, the bucket name must consist only of lower\-cas
 .RE
 .PP
 This driver supports the VERBOSE property, but use it carefully \-\- it produces a great deal of output, and may cause spurious failures by filling your debug log partition\&. Its logging is generally only useful for developers chasing down a problem in communications with Amazon\'s servers\&.
+.PP
+Since Amazon storage is unlimited, the device never encounteres EOM, so LEOM detection is trivially enabled for this device\&.
 .SS "Device-Specific Properties"
 .PP
 In addition to the common properties, the S3 device supports the properties listed in this section\&.
@@ -354,8 +376,8 @@ In addition to the common properties, the S3 device supports the properties list
 Most Amanda devices work just fine without any properties, but not the S3 device\&. A typical S3 configuration will have an access key and secret key specified:
 .sp
 .nf
-device_property "S3_ACCESS_KEY" "27D3B8C6C4E7AA423C2B37C72A0D22C8"
-device_property "S3_SECRET_KEY" "agphc2Q7Zmxragphc2RmO2xragpzZGY7a2xqCgr"
+device\-property "S3_ACCESS_KEY" "27D3B8C6C4E7AA423C2B37C72A0D22C8"
+device\-property "S3_SECRET_KEY" "agphc2Q7Zmxragphc2RmO2xragpzZGY7a2xqCgr"
 .fi
 .PP
 MAX_RECV_SPEED
@@ -384,9 +406,9 @@ S3_BUCKET_LOCATION
 .RS 4
 
  (read\-write) Location constraint for buckets on Amazon S3\&.
-Currently, it can be set to "", for no constraint (i\&.e\&. store data in the US),
-or "EU" (i\&.e\&. store data in the EU)\&.
-See Amazon\'s documentation for details and latest information
+As of this writing, it can be set to "*" (US Standard, i\&.e\&. lowest\-latency
+choice of US East or West), "us\-west\-1" (US West, Northern California), "EU"
+(European Union), or "ap\-southeast\-1" (Asia Pacific)\&.  See : http://docs.amazonwebservices.com/AmazonS3/latest/index.html?LocationSelection.html for the most up\-to\-date list\&.
 .RE
 .PP
 SSL_CA_INFO
@@ -404,6 +426,15 @@ S3_SECRET_KEY
 .RS 4
 
  (read\-write) This property gives the Amazon S3 secret key used to access the service\&.
+.RE
+.PP
+S3_STORAGE_CLASS
+.RS 4
+
+(read\-write) Storage class for new objects, currently one of "STANDARD" (the default)
+or "REDUCED_REDUNDANCY" (cheaper, but less redundant)\&.  See
+: http://docs.amazonwebservices.com/AmazonS3/latest/dev/index.html?DataDurability.html
+for the most up\-to\-date list\&.
 .RE
 .PP
 S3_SSL
@@ -431,6 +462,8 @@ tapedev "tape:/dev/nst0"
 The tape device driver interacts with a tape drive\&. The device uses the operating system\'s built\-in tape support, which is generally similar to that available via the command\-line utilities dd(1) and mt(1)\&.
 .PP
 The tape device name should specify a path to the operating system\'s device file\&.
+.PP
+There is no simple way to determine whether a particular system (operating system and tape hardware) supports LEOM, so as a safe default the tape device has LEOM detection disabled\&. However, on modern hardware and common operating systems (Linux, *BSD, and Solaris, at least), LEOM support is functional\&. On these systems, enable LEOM by setting the LEOM property to "true" at the appropriate place in the Amanda configuration\&.
 .SS "Device-Specific Properties"
 .PP
 Most of these properties are automatically detected, but can be overridden in the configuration file if the autodetection fails\&. Note that tape drives are required to at least support the MTREW (rewind) operation; all other operations can be emulated with the MTREW and read data operations\&.
@@ -509,12 +542,14 @@ READ_BLOCK_SIZE
 .SS "NDMP Device"
 .nf
 tapedev "ndmp:my\&.filer\&.com:10000@st1"
-device_property "NDMP_USERNAME" "jimmy"
-device_property "NDMP_PASSWORD" "thelock"
+device\-property "NDMP_USERNAME" "jimmy"
+device\-property "NDMP_PASSWORD" "thelock"
 .fi
 .PP
 This device enables Amanda to communicate with a tape service on an NDMP server\&. The device name specifies the hostname and optionally the TCP port of the NDMP server, followed by the name of the tape device on the server (\fBst1\fR
 in the example above)\&.
+.PP
+This device supports LEOM detection\&.
 .SS "Device-Specific Properties"
 .PP
 The properties
@@ -542,6 +577,12 @@ NDMP_USERNAME
 
 (read\-write) Username for md5 or text authentications\&.
 .RE
+.PP
+READ_BLOCK_SIZE
+.RS 4
+
+(read\-write) This property specifies the block size that will be used for reads; this should be large enough to contain any block that may be read from the device and must be larger than BLOCK_SIZE\&. See BLOCK_SIZES, above\&.
+.RE
 .SS "VFS Device"
 .nf
 tapedev "file:/path/to/vtape"
@@ -550,12 +591,25 @@ tapedev "file:/path/to/vtape"
 The VFS device driver stores data on a UNIX filesystem\&. Note that although one typically uses the VFS device driver to store data on hard disks, the driver does not interface with any hardware on a block level\&.
 .PP
 The device name specifies a path to a directory which must exist and contain a "data/" subdirectory\&. Each tape file is stored as a distinct file in this directory, the name of which reflects the Amanda header in the tape file\&. Block boundaries are not maintained: the driver supports reads of arbitrary size, regardless of the blocksize used to write the data\&.
+.PP
+This device supports LEOM detection\&. LEOM will be indicated when the MAX_VOLUME_USAGE is nearly met, or when the filesystem is nearly out of space\&. The latter circumstance is detected by monitoring the available space on the filesystem, and this monitoring can be disabled with the MONITOR_FREE_SPACE property\&. Note that the device cannot detect other circumstances that may cause a write to fail, such as a filesystem quota\&. LEOM detection can be disabled by setting the LEOM property to false\&.
+.SS "Device-Specific Properties"
+.PP
+MONITOR_FREE_SPACE
+.RS 4
+
+	 (read\-write) This property controls whether the device will monitor
+	 the filesystem\'s free space to detect a full filesystem before an
+	 error occurs, and defaults to true\&.  The monitoring operation works on
+	 most filesystems, but if it causes problems, use this property to
+	 disable it\&.
+.RE
 .SS "DVD\-RW Device"
 .nf
 tapedev "dvdrw:/var/cache/amanda/dvd\-cache:/dev/scd0"
-device_property "DVDRW_MOUNT_POINT" "/media/dvd"
-device_property "DVDRW_KEEP_CACHE" "false"
-device_property "DVDRW_UNLABELLED_WHEN_UNMOUNTABLE" "true"
+device\-property "DVDRW_MOUNT_POINT" "/media/dvd"
+device\-property "DVDRW_KEEP_CACHE" "false"
+device\-property "DVDRW_UNLABELLED_WHEN_UNMOUNTABLE" "true"
 .fi
 .PP
 The DVD\-RW device driver reads and writes optical media such as DVDs and CDs\&. The device name must specify a cache directory for data to be temporarily stored, followed by the operating system name for the optical drive\&. The cache directory must contain a "data/" subdirectory\&.
@@ -570,11 +624,13 @@ Note the "user" option\&.
 When writing data, the device acts as a VFS device using the given cache directory\&. On completion of writing the tape, the cache directory is written to optical media\&. The DVDRW_KEEP_CACHE property controls whether the cache contents are immediately deleted\&. When reading, the optical media is first mounted and read as a VFS device\&.
 .PP
 Attempting to mount unformatted media or media that is formatted but contains no filesystem will usually result in an error\&. The boolean DVDRW_UNLABELLED_WHEN_UNMOUNTABLE property specifies whether media that cannot be mounted should be treated as an empty, unlabelled volume when attempting to read the volume label\&. It is necessary to set this property to "true" when labelling such media\&.
+.PP
+This device does not support LEOM detection\&.
 .SS "Device-Specific Properties"
 .PP
 The properties DVDRW_GROWISOFS_COMMAND, DVDRW_MOUNT_COMMAND and DVDRW_UMOUNT_COMMAND specify alternative commands for writing, mounting and unmounting optical media\&. The default is to find the programs using the PATH environment variable\&.
 .PP
-The DVDRW_MOUNT_POINT property is required\&. Other properties are optional\&.
+The CDRW device supports all of the properties of the VFS device, as well as the properties given below\&. The DVDRW_MOUNT_POINT property is required\&. Other properties are optional\&.
 .PP
 DVDRW_KEEP_CACHE
 .RS 4

@@ -62,6 +62,15 @@ int	connect_portrange(sockaddr_union *, in_port_t, in_port_t, char *,
 int	bind_portrange(int, sockaddr_union *, in_port_t, in_port_t,
 		       char *);
 
+/* just like an accept() call, but periodically calling PROLONG(PROLONG_DATA) and
+ * returning -1 with errno set to 0 if PROLONG returns false.  Note that the socket
+ * need not be configured as non-blocking.
+ *
+ * Other arguments are just like for accept(2).
+ */
+int	interruptible_accept(int sock, struct sockaddr *addr, socklen_t *addrlen,
+	    gboolean (*prolong)(gpointer data), gpointer prolong_data);
+
 ssize_t	full_writev(int, struct iovec *, int);
 
 char *	construct_datestamp(time_t *t);
@@ -119,17 +128,8 @@ char * hexdecode_string(const char *str, GError **err);
 int     copy_file(char *dst, char *src, char **errmsg);
 
 /* These two functions handle "braced alternates", which is a syntax borrowed,
- * partially, from shells.  Comma-separated strings enclosed in curly braces
- * expand into multiple alternatives for the entire string.
- * For example:
- *
- *   "{foo,bar,bat}" -> [ "foo", "bar", "bat" ]
- *   "foo{1,2}bar" -> [ "foo1bar", "foo2bar" ]
- *   "foo{1\,2,3}bar" -> [ "foo1,2bar", "foo3bar" ]
- *   "{a,b}-{1,2}" -> [ "a-1", "a-2", "b-1", "b-2" ]
- *
- * Note that nested braces are not processed.  Braces, commas, and backslashes
- * may be escaped with backslashes.  Returns NULL on invalid strings.
+ * partially, from shells.  See perl/Amanda/Util.pod for a full description of
+ * the syntax they support.
  */
 GPtrArray * expand_braced_alternates(char * source);
 char * collapse_braced_alternates(GPtrArray *source);
@@ -184,10 +184,10 @@ int compare_possibly_null_strings(const char * a, const char * b);
  * not NULL.
  *
  * @param hostname: the hostname to start with
+ * @param socktype: the socket type (SOCK_DGRAM or SOCK_STREAM)
  * @param res: (result) if not NULL, the results from getaddrinfo()
- * @param canonname: (result) if not NULL, the canonical name of the host
- * @returns: newly allocated canonical hostname, or NULL if no
- * canonical hostname was available.
+ * @param canonname: (result) if not NULL, the newly-allocated canonical name of the host
+ * @returns: 0 on success, otherwise a getaddrinfo result (for use with gai_strerror)
  */
 int resolve_hostname(const char *hostname, int socktype,
 		     struct addrinfo **res, char **canonname);
@@ -358,29 +358,6 @@ void	add_history(const char *line);
 
 char *base64_decode_alloc_string(char *);
 
-/* A GHFunc (callback for g_hash_table_foreach),
- * Count the number of properties.
- *
- * @param key_p: (char *) property name.
- * @param value_p: (GSList *) property values list.
- * @param user_data_p: (int *) count are added to that value.
- */
-void count_proplist(gpointer key_p,
-		    gpointer value_p,
-		    gpointer user_data_p);
-
-/* A GHFunc (callback for g_hash_table_foreach),
- * Store a property and it's value in an ARGV.
- *
- * @param key_p: (char *) property name.
- * @param value_p: (GSList *) property values list.
- * @param user_data_p: (char ***) pointer to ARGV.
- */
-void proplist_add_to_argv(gpointer key_p,
-			  gpointer value_p,
-			  gpointer user_data_p);
-
-
 /* Inform the OpenBSD pthread library about the high-numbered file descriptors
  * that an amandad service inherits.  This won't be necessary once the new
  * threading library is availble (OpenBSD 5.0?), but won't hurt anyway.  See the
@@ -390,6 +367,13 @@ void openbsd_fd_inform(void);
 #else
 #define openbsd_fd_inform()
 #endif
+
+/* Add all properties to an ARGV
+ *
+ * @param argvchild: Pointer to the ARGV.
+ * @param proplist: The property list
+ */
+void property_add_to_argv(GPtrArray *argv_ptr, GHashTable *proplist);
 
 /* Print the argv_ptr with g_debug()
  *

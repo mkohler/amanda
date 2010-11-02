@@ -2,12 +2,12 @@
 .\"     Title: amanda-taperscan
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMANDA\-TAPERSCAN" "7" "06/01/2010" "Amanda 3\&.1\&.0" "Miscellanea"
+.TH "AMANDA\-TAPERSCAN" "7" "10/18/2010" "Amanda 3\&.2\&.0" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -57,8 +57,9 @@ This algorithm duplicates Amanda\'s historical behavior, and it operates in two 
 First, if there is an oldest reusable volume and if the changer supports "fast" searches, then the algorithm uses the changer to search for that volume\&. Newly labeled volumes are not considered when calculating the oldest reusable volume\&. Consequently, this taperscan algorithm prefers volumes which have been used before to newly\-labeled volumes when a fast\-searchable changer is in use\&.
 .PP
 Second, if there is no oldest reusable volume, or if that volume is not available in the changer, then the algorithm begins a sequential scan of the changer, starting at the current slot\&. It selects the first suitable volume it finds: a reusable volume (perhaps newly\-labeled) or, if
-\fIlabel_new_tapes\fR
-is true, a blank volume\&. Even across multiple invocations (when
+\fBautolabel\fR
+includes
+\fBempty\fR, a blank volume\&. Even across multiple invocations (when
 \fIruntapes > 1\fR), it will not return the same slot twice\&.
 .if n \{\
 .sp

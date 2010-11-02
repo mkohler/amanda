@@ -43,7 +43,9 @@ This module reads the logfile passed to it and aggregates the data in
 a format of nested hashes for convenient output.  All data read in is
 stored in C<< $report->{data} >>.
 
-=head2 my $report = Amanda::Report->new($logfile, $historical);
+=head2 Creating a Report
+
+  my $report = Amanda::Report->new($logfile, $historical);
 
 The constructor reads the logfile and produces the report, which can then be
 queried with the other methods.  C<$logfile> should specify the path to the
@@ -52,25 +54,31 @@ logfile, then C<$historical> should be false.  Non-historical reports may draw
 information from the current Amanda environment, e.g., holding disks and info
 files.
 
-=head2 my $datestamp = $report->get_timestamp();
+=head2 Summary Information
+
+Note that most of the data provided by these methods is simply a reference to
+data stored within the report, and should thus be considered read-only.  For
+example, do not use C<shift> or C<pop> to destructively consume lists.
+
+  my $datestamp = $report->get_timestamp();
 
 This returns the run timestamp for this dump run.  This is determined from one
 of several START entries.  This returns a full 14-digit timestamp regardless of
 the setting of C<usetimestamps> now or during the dump run.
 
-=head2 my @hosts = $report->get_hosts();
+  my @hosts = $report->get_hosts();
 
 This method returns a list containing the hosts that have been seen in
 a logfile.  In a scalar context, C<get_hosts> returns the number of
 hosts seen.
 
-=head2 my @disks = $report->get_disks($hostname);
+  my @disks = $report->get_disks($hostname);
 
 This method returns a list of disks that were archived under the given
 C<$hostname>.  In a scalar context, this method returns the number of
 disks seen, belonging to the hostname.
 
-=head2 my @dles = $report->get_dles();
+  my @dles = $report->get_dles();
 
 This method returns a list of list references.  Each referenced list
 contains a hostname & disk pair that has been reported by either the
@@ -85,70 +93,153 @@ in the logfile.
         [ 'example3', '/var/www' ],
     );
 
-=head2 my $dle = $report->get_dle_info($hostname, $disk [,$field] );
+  if ( $report->get_flag($flag) ) { ... }
 
-This method returns all the information stored in the per-DLE section
-for the given C<$hostname> and C<disk>.  The returned value is a hash
-reference to the data as it is stored in the internal data
-structure. Modifying the return value will modify the values in the
-C<Amanda::Report> object.
-
-=head2 my $info = $report->get_program_info($program [,$field, $default] );
-
-This method returns a reference to the data for the given C<$program>.
-If the optional argument C<$field> is provided, that field in the
-indicated program is returned.  If the key C<$field> does not exist in
-the program, then it is inserted with the value C<$default>, The
-returned value is a reference to the internal C<Amanda::Report> data
-structure and will in turn modify the C<$report> object.
-
-=head2 if ( $report->get_flag($flag) ) { ... }
-
-This method accesses a number of flags that represent the state of the
-dump.  A true value is returned if the flag is set, and undef
-otherwise.
-
-=head1 DATA DESCRIPTION
-
-The data in the logfile is stored in the module at
-C<< $report->{data} >>.  Beyond that, there are a number of subdivisions
-that track both global and per-host status of the given Amanda run that
-the logfile represents.
-
-=head2 $data->{programs}
-
-the C<programs> key of the data points to a hash of global program
-data, with one element per program.  A number of fields are common
-across all of the different programs.
+The C<get_flag> method accesses a number of flags that represent the state of
+the dump.  A true value is returned if the flag is set, and undef otherwise.
+The available flags are:
 
 =over
 
-=item C<start> - the numeric timestamp at which the process was
-started.
+=item C<got_finish>
 
-=item C<time> - the length of time (in seconds) that the program ran.
+This flag is true when the driver finished
+correctly.  It indicates that the dump run has finished and cleaned
+up.
 
-=item C<notes> - a list which stores all notes reported to the logfile
+=item C<degraded_mode>
+
+This flag is set if the taper encounters an
+error that forces it into degraded mode.
+
+=item C<amflush_run>
+
+This flag is set if amflush is run instead of planner.
+
+=item C<amvault_run>
+
+This flag is set if the run was by amvault.
+
+=item C<normal_run>
+
+This flag is set when planner is run.  Its value
+should be opposite of C<amflush_run>.
+
+=item C<dump_failed>
+
+If a dump failed.
+
+=item C<dump_strange>
+
+If a dump end in strange result.
+
+=item C<results_missing>
+
+If this was a normal run, but some DLEs named by the
+planner do not have any results, then this flag is set.  Users should look for
+DLEs with an empty C<dump> key to enumerate the missing results.
+
+=item C<historical>
+
+This flag is set if this is a "historical" report.  It is
+based on the value passed to the constructor.
+
+=back
+
+=head2 Report Data
+
+  my $dle = $report->get_dle_info($hostname, $disk [,$field] );
+
+This method returns the DLE information for the given C<$hostname> and C<disk>,
+or if C<$field> is given, returns that field of the DLE information.  See the
+DATA DESCRIPTION section for the format of this information.
+
+  my $info = $report->get_program_info($program [,$field] );
+
+This method returns the program information for the given C<$program>, or if
+C<$field> is given, returns that field of the DLE information.  See the DATA
+DESCRIPTION section for the format of this information.
+
+=head1 DATA DESCRIPTION
+
+=head2 Top Level
+
+The data in the logfile is stored in the module at C<< $report->{data} >>.
+Beneath that, there are a number of subdivisions that track both global and
+per-host status of the given Amanda run that the logfile represents.  Note that
+these subdivisions are usually accessed via C<get_dle_info> and
+C<get_program_info>, as described above.
+
+  $data->{programs}
+
+the C<programs> key of the data points to a hash of global program
+information, with one element per program.  See the Programs section, below.
+
+  $data->{boguses}
+
+The C<boguses> key refers to a list of arrayrefs of the form
+
+  [$prog, $type, $str]
+
+as returned directly by C<Amanda::Logfile::get_logline>.  These lines are not
+in a recognized trace log format.
+
+  $data->{disklist}
+
+The C<disklist> key points to a two-level hash of hostnames and
+disknames as present in the logfile.  It looks something like this:
+
+    $report->{data}{disklist} = {
+        "server.example.org" => {
+            "/home" => {...},
+            "/var"  => {...},
+        },
+        "workstation.example.org" => {
+            "/etc"     => {...},
+            "/var/www" => {...},
+        },
+    };
+
+Each C<{...}> in the above contains information about the corresponding DLE.  See DLEs, below.
+
+=head2 Programs
+
+Each program involved in a dump has a hash giving information about its
+performance during the run.  A number of fields are common across all of the
+different programs:
+
+=over
+
+=item C<start>
+
+the numeric timestamp at which the process was started.
+
+=item C<time>
+
+the length of time (in seconds) that the program ran.
+
+=item C<notes>
+
+a list which stores all notes reported to the logfile
 by the corresponding program.
 
-=item C<errors> - a list which stores all errors reported to the
+=item C<errors>
+
+a list which stores all errors reported to the
 logfile by the corresponding program.
 
 =back
 
-In the below, assume
+Program-specific fields are described in the following sections.
 
-  my $programs = $report->{data}{programs}
+=head3 planner
 
-=head3 $programs->{planner}
+The planner logs very little information other than determining what will be
+backed up.  It has no special fields other than those given above.
 
-The planner logs very little DLE-specific information other than
-determining what will be backed up.  It has no special fields other
-than those given above.
+=head3 driver
 
-=head3 $programs->{driver}
-
-The driver has one unique field that the other program-specific
+The driver has one field that the other program-specific
 entries do not:
 
 =over
@@ -157,35 +248,28 @@ entries do not:
 
 =back
 
-=head3 $programs->{amflush}
+=head3 amflush and amdump
 
-When amflush is present, it records what disklist entries need to be
-processed instead of the planner.  It also has no special fields.
+No special fields.
 
-=head3 $programs->{amdump}
-
-This program is a control program that spawns off dumper programs.  It
-has no special fields.
-
-=head3 $programs->{dumper} and $programs->{chunker}
+=head3 dumper and chunker
 
 Most of the chunker's output and the dumper's output can be tied to a
-particular DLE, so their C<programs> hashes are limited to C<notes>
-and C<errors>.
+particular DLE, so their C<programs> hashes are limited to C<notes> and
+C<errors>.
 
-=head3 $programs->{taper}
+=head3 taper
 
-The taper hash holds notes and errors for the per-instance runs of the
-taper program, but also has a unique field which tracks the tapes seen
-in the logfile:
+The taper hash holds notes and errors for the per-instance runs of the taper
+program, but also tracks the tapes seen in the logfile:
 
 =over
 
 =item C<tapes>
 
-The C<tapes> field is a hash reference keyed by the label of the tape.
+This field is a hash reference keyed by the label of the tape.
 each value of the key is another hash which stores date, size, and the
-number of files seen by this backup on the tape.  Here is an example:
+number of files seen by this backup on the tape.  For example:
 
     $report->{data}{programs}{taper}{tapes} = {
         FakeTape01 => {
@@ -202,151 +286,126 @@ number of files seen by this backup on the tape.  Here is an example:
 
 The C<tape_labels> field is a reference to a list which records the
 order that the tapes have been seen.  This list should be used as an
-index for outputting the contents of C<tapes>.
+ordered index for C<tapes>.
 
 =back
 
-=head2 $data->{boguses}
+=head2 DLEs
 
-The C<boguses> key refers to a list of arrayrefs of the form
+In the below, C<$dle> is the hash representing one disklist entry.
 
-  [$prog, $type, $str]
-
-as returned directly by C<Amanda::Logfile::get_logline>.  These lines were not
-parseable because they were not in a recognized format of loglines.
-
-=head2 $data->{disklist}
-
-The C<disklist> key points to a two-level hash of hostnames and
-disknames as present in the logfile.  It looks something like this:
-
-    $report->{data}{disklist} = {
-        "server.example.org" => {
-            "/home" => {...},
-            "/var"  => {...},
-        },
-        "workstation.example.org" => {
-            "/etc"     => {...},
-            "/var/www" => {...},
-        },
-    };
-
-In the below, C<$dle> represents one disklist entry (C<{ ... }> in the
-above).  Each DLE has three major components: estimates, tries, and
-parts.
-
-=head3 Estimates
-
-The value of C<< $dle->{estimate} >> describes the estimate given by
-the planner.
+The C<estimate> key describes the estimate given by the planner.  For
+example:
 
     $dle->{estimate} = {
-	level => "0",    # the level of the backup
-	sec   => "20",   # estimated time to back up (seconds)
-	nkb   => "2048", # expected uncompressed size (kb)
-	ckb   => "",	 # expected compressed size (kb)
-	kps   => "",     # speed of the backup (kb/sec)
+	level => 0,     # the level of the backup
+	sec   => 20,    # estimated time to back up (seconds)
+	nkb   => 2048,  # expected uncompressed size (kb)
+	ckb   => 1293,  # expected compressed size (kb)
+	kps   => 934.1, # speed of the backup (kb/sec)
+    };
+
+Each dump of the DLE is represented in C<< $dle->{dumps} >>.  This is a hash,
+keyed by dump timestamp with a list of tries as the value for each dump.  Each
+try represents a specific attempt to finish writing this dump to a volume.  If
+an error occurs during the backup of a DLE and is retried, a second try is
+pushed to the tries list.  For example:
+
+    $dle->{dumps} = {
+	'20100317142122' => [ $try1 ],
+	'20100318141930' => [ $try1, $try2 ],
     };
 
 =head3 Tries
 
-Tries are located at C<< $dle->{tries} >>.  This is a list of tries,
-each of which is a hash that represents a specific attempt to back up
-this DLE.  If an error occurs during the backup of a DLE and is
-retried, a second try is pushed to the tries list.
-
-A try is a hash with at least one dumper, taper, and/or chunker DLE
-program as a key.  These entries contain the exit conditions of that
-particular program for that particular try.
+A try is a hash with at least one dumper, taper, and/or chunker DLE program as
+a key.  These entries contain the results from the associated program during
+try.
 
 There are a number of common fields between all three elements:
 
 =over
 
-=item C<date> - a timestamp of when the program finished.
+=item C<date>
 
-=item C<status> - the exit status of the program on this try.
+a timestamp of when the program finished (if the program exited)
 
-=item C<level> - the incremental level of the backup.
+=item C<status>
 
-=item C<sec> - the time in seconds for the program to finish.
+the status of the dump at this program on this try ("success", "partial",
+"done", or "failed").  The planner adds an extra "skipped" status which is
+added when the planner decides to skip a DLE due to user configuration (e.g.,
+C<skipincr>).
 
-=item C<kb> - the size of the data dumped in kb.
+=item C<level>
 
-=item C<kps> - the rate at which the program was able to process data,
+the incremental level of the backup.
+
+=item C<sec>
+
+the time in seconds for the program to finish.
+
+=item C<kb>
+
+the size of the data dumped in kb.
+
+=item C<kps>
+
+the rate at which the program was able to process data,
 in kb/sec.
 
-=item C<error> - if the program fails, this field is set to record the
-error message.
+=item C<error>
+
+if the program fails, this field contains the error message
 
 =back
 
-The C<dumper> hash has an C<orig_kb> field, giving the size of the
-data dumped from the source, before any compression. If encountered,
-the C<dumper> hash may also contain a C<stranges> field, which is a
-list reference to all the messages of type C<L_STRANGE> encountered
-during the process.
+The C<dumper> hash has an C<orig_kb> field, giving the size of the data dumped
+from the source, before any compression. If encountered, the C<dumper> hash may
+also contain a C<stranges> field, which is a list of all the messages of type
+C<L_STRANGE> encountered during the process.
 
-The C<taper> hash contains all the exit status data given by the
-taper.  Because the taper has timestamped parts, the program itself
-does not have a C<date> field.  Taper has one unique field, C<parts>,
-which is a reference to a list of hash references which describe the
-parts that have been taped during execution.
+The C<taper> hash contains all the exit status data given by the taper.
+Because the same taper process handles multiple dumps, it does not have a
+C<date> field.  However, the taper does have an additional field, C<parts>,
+containing a list of parts written for this dump.
 
 =head3 Parts
 
-Every taper process logs the parts it writes to tape in a list located
-at C<$taper->{parts}>.  Each item in the list is a hash reference with
-the following fields:
+Each item in the list of taper parts is a hash with the following
+fields:
 
 =over
 
-=item C<label> - the name of the tape that the part was written to.
+=item C<label>
 
-=item C<date> - the datestamp at which this part was written.
+the name of the tape that the part was written to.
 
-=item C<file> - the filename of the part.
+=item C<date>
 
-=item C<part> - the sequence number of the part for the DLE that the
+the datestamp at which this part was written.
+
+=item C<file>
+
+the filename of the part.
+
+=item C<part>
+
+the sequence number of the part for the DLE that the
 part is archiving.
 
-=item C<sec> - the length of time, in seconds, that the part took to
+=item C<sec>
+
+the length of time, in seconds, that the part took to
 be written.
 
-=item C<kb> - the total size of the part.
+=item C<kb>
 
-=item C<kps> - the speed at which the part was written.
+the total size of the part.
 
-=back
+=item C<kps>
 
-=head1 FLAGS
-
-During the reading of a logfile, the module will set and unset a
-number of flags to indicate the state of the backup.  These are used
-to indicate the type of backup or the conditions of success.
-
-The following is a list of currently recognized flags:
-
-=over
-
-=item C<got_finish> - This flag is true when the driver finished
-correctly.  It indicates that the dump run has finished and cleaned
-up.
-
-=item C<degraded_mode> - This flag is set if the taper encounters an
-error that forces it into degraded mode.
-
-=item C<amflush_run> - This flag is set if amflush is run instead of planner.
-
-=item C<normal_run> - This flag is set when planner is run.  Its value
-should be opposite of C<amflush_run>.
-
-=item C<results_missing> - If this was a normal run, but some DLEs named by the
-planner do not have any results, then this flag is set.  Users should look for
-DLEs with empty C<tries> to enumerate the missing results.
-
-=item C<historical> - This flag is set if this is a "historical" report.  It is
-based on the value passed to the constructor.
+the speed at which the part was written.
 
 =back
 
@@ -398,6 +457,9 @@ sub read_file
       or die "cannot open '$logfname': $!";
 
     $self->{flags}{exit_status} = 0;
+    $self->{flags}{results_missing} = 0;
+    $self->{flags}{dump_failed} = 0;
+    $self->{flags}{dump_strange} = 0;
 
     while ( my ( $type, $prog, $str ) = Amanda::Logfile::get_logline($logfh) ) {
         $self->read_line( $type, $prog, $str );
@@ -407,17 +469,21 @@ sub read_file
 
     $self->{flags}{historical} = $self->{_historical};
     $self->{flags}{amflush_run} = 0;
-    if (
-        !$self->get_flag("normal_run")
-        && (   ( defined $self->get_program_info("amflush") )
-            && ( scalar %{ $self->get_program_info("amflush") } ) )
-      ) {
-	debug("detected an amflush run");
-        $self->{flags}{amflush_run} = 1;
+    $self->{flags}{amvault_run} = 0;
+    if (!$self->get_flag("normal_run")) {
+        if (   ( defined $self->get_program_info("amflush") )
+            && ( scalar %{ $self->get_program_info("amflush") } ) ) {
+	    debug("detected an amflush run");
+	    $self->{flags}{amflush_run} = 1;
+	} elsif (   ( defined $self->get_program_info("amvault") )
+                 && ( scalar %{ $self->get_program_info("amvault") } ) ) {
+	    debug("detected an amvault run");
+	    $self->{flags}{amvault_run} = 1;
+	}
     }
 
-    # check for missing results
-    $self->check_missing() if $self->get_flag('normal_run');
+    # check for missing, fail and strange results
+    $self->check_missing_fail_strange() if $self->get_flag('normal_run');
 
     # clean up any temporary values in the data
     $self->cleanup();
@@ -466,6 +532,9 @@ sub read_line
 
     } elsif ( $prog == $P_AMFLUSH ) {
         return $self->_handle_amflush_line( $type, $str );
+
+    } elsif ( $prog == $P_AMVAULT ) {
+        return $self->_handle_amvault_line( $type, $str );
 
     } elsif ( $prog == $P_AMDUMP ) {
         return $self->_handle_amdump_line( $type, $str );
@@ -556,7 +625,7 @@ sub get_tape
         push @$tape_labels, $label;
         $tapes->{$label} = {date => "",
 			    kb => 0,
-			    files => "",
+			    files => 0,
 			    dle => 0,
 			    time => 0};
     }
@@ -597,6 +666,9 @@ sub _handle_planner_line
 
     } elsif ( $type == $L_DISK ) {
         return $self->_handle_disk_line( "planner", $str );
+
+    } elsif ( $type == $L_SUCCESS ) {
+        return $self->_handle_success_line( "planner", $str );
 
     } elsif ( $type == $L_ERROR ) {
         return $self->_handle_error_line( "planner", $str );
@@ -721,7 +793,7 @@ sub _handle_dumper_line
         $orig_kb =~ s{\]$}{};
 
         my $dle    = $disklist->{$hostname}->{$disk};
-        my $try    = $self->_get_try( $dle, "dumper" );
+        my $try    = $self->_get_try( $dle, "dumper", $self->{'run_timestamp'});
         my $dumper = $try->{dumper} ||= {};
 	$dumper->{level} = $level;
 	$dumper->{status} = 'strange';
@@ -748,7 +820,7 @@ sub _handle_dumper_line
         $orig_kb =~ s{\]$}{};
 
         my $dle    = $disklist->{$hostname}->{$disk};
-        my $try    = $self->_get_try( $dle, "dumper" );
+        my $try    = $self->_get_try( $dle, "dumper", $timestamp );
         my $dumper = $try->{dumper} ||= {};
 
         $dumper->{date}      = $timestamp;
@@ -787,7 +859,7 @@ sub _handle_chunker_line
     if ( $type == $L_INFO ) {
         return $self->_handle_info_line( "chunker", $str );
 
-    } elsif ( $type == $L_SUCCESS || $L_PARTIAL ) {
+    } elsif ( $type == $L_SUCCESS || $type == $L_PARTIAL ) {
 
         my @info = Amanda::Util::split_quoted_strings($str);
         my ( $hostname, $disk, $timestamp, $level ) = @info[ 0 .. 3 ];
@@ -795,7 +867,7 @@ sub _handle_chunker_line
         $kps =~ s{\]$}{};
 
         my $dle     = $disklist->{$hostname}->{$disk};
-        my $try     = $self->_get_try( $dle, "chunker" );
+        my $try     = $self->_get_try( $dle, "chunker", $timestamp );
         my $chunker = $try->{chunker} ||= {};
 
         $chunker->{date}  = $timestamp;
@@ -861,15 +933,8 @@ sub _handle_taper_line
         $kps =~ s{\]$}{};
         $orig_kb =~ s{\]$}{} if defined($orig_kb);
 
-	if (!$self->{'_current_tape'} || $label ne $self->{'_current_tape'}->{'label'}) {
-	    warning("corrupted logfile - PART or PARTPARTIAL does not match previous START taper");
-	}
-
-	# count this as a filesystem if this is the first part
-        $self->{'_current_tape'}->{dle}++ if $currpart == 1;
-
         my $dle   = $disklist->{$hostname}{$disk};
-        my $try   = $self->_get_try($dle, "taper");
+        my $try   = $self->_get_try($dle, "taper", $timestamp);
         my $taper = $try->{taper} ||= {};
         my $parts = $taper->{parts} ||= [];
 
@@ -888,6 +953,8 @@ sub _handle_taper_line
         push @$parts, $part;
 
         my $tape = $self->get_tape($label);
+	# count this as a filesystem if this is the first part
+        $tape->{dle}++ if $currpart == 1;
         $tape->{kb}   += $kb;
         $tape->{time} += $sec;
         $tape->{files}++;
@@ -912,7 +979,7 @@ sub _handle_taper_line
         $orig_kb =~ s{\]$}{} if defined $orig_kb;
 
         my $dle   = $disklist->{$hostname}->{$disk};
-        my $try   = $self->_get_try($dle, "taper");
+        my $try   = $self->_get_try($dle, "taper", $timestamp);
         my $taper = $try->{taper} ||= {};
         my $parts = $taper->{parts};
 
@@ -938,9 +1005,14 @@ sub _handle_taper_line
 
         if ($str =~ m{^no-tape}) {
 
+	    my @info = Amanda::Util::split_quoted_strings($str);
+	    my $failure_from = $info[1];
+	    my $error = join " ", @info[ 2 .. $#info ];
+
             $self->{flags}{exit_status} |= STATUS_TAPE;
             $self->{flags}{degraded_mode} = 1;
-            $taper_p->{tape_error} = $str;
+	    $taper_p->{failure_from} = $failure_from;
+            $taper_p->{tape_error} = $error;
 
         } else {
             $self->_handle_error_line("taper", $str);
@@ -981,6 +1053,35 @@ sub _handle_amflush_line
     }
 }
 
+sub _handle_amvault_line
+{
+    my $self = shift @_;
+    my ( $type, $str ) = @_;
+    my $data      = $self->{data};
+    my $disklist  = $data->{disklist};
+    my $programs  = $data->{programs};
+    my $amvault_p = $programs->{amvault} ||= {};
+
+    if ( $type == $L_START ) {
+        return $self->_handle_start_line( "amvault", $str );
+
+    } elsif ( $type == $L_INFO ) {
+        return $self->_handle_info_line( "amvault", $str );
+
+    } elsif ( $type == $L_ERROR ) {
+        return $self->_handle_error_line( "amvault", $str );
+
+    } elsif ( $type == $L_FATAL ) {
+        return $self->_handle_fatal_line( "amvault", $str );
+
+    } elsif ( $type == $L_DISK ) {
+        return $self->_handle_disk_line( "amvault", $str );
+
+    } else {
+        return $self->_handle_bogus_line( $P_AMFLUSH, $type, $str );
+    }
+}
+
 
 sub _handle_amdump_line
 {
@@ -1011,8 +1112,15 @@ sub _handle_fail_line
     my ($self, $program, $str) = @_;
 
     my @info = Amanda::Util::split_quoted_strings($str);
-    my ($hostname, $disk, $date, $level) = @info;
-    my $error = join " ", @info[ 4 .. $#info ];
+    my ($hostname, $disk, $timestamp, $level) = @info;
+    my $error;
+    my $failure_from;
+    if ($program eq 'taper') {
+	$failure_from = $info[4];
+	$error = join " ", @info[ 5 .. $#info ];
+    } else {
+	$error = join " ", @info[ 4 .. $#info ];
+    }
 
     #TODO: verify that this reaches the right try.  Also, DLE or
     #program?
@@ -1023,12 +1131,13 @@ sub _handle_fail_line
         $program eq "driver") {
 	$program_d = $dle->{$program} ||= {};
     } else {
-        my $try = $self->_get_try($dle, $program);
+        my $try = $self->_get_try($dle, $program, $timestamp);
         $program_d = $try->{$program} ||= {};
     }
 
     $program_d->{level}  = $level;
     $program_d->{status} = "fail";
+    $program_d->{failure_from}  = $failure_from;
     $program_d->{error}  = $error;
 
     my $errors = $self->get_program_info("program", "errors", []);
@@ -1090,8 +1199,6 @@ sub _handle_start_line
     my $timestamp = $info[1];
     $program_p->{start} = $info[1];
 
-    # extend to 14 digits
-    $timestamp .= '0' x (14 - length($timestamp));
     if ($self->{'run_timestamp'} ne '00000000000000'
 		and $self->{'run_timestamp'} ne $timestamp) {
 	warning("not all timestamps in this file are the same; "
@@ -1124,8 +1231,27 @@ sub _handle_disk_line
 
         push @$dles, [ $hostname, $disk ];
         my $dle = $disklist->{$hostname}{$disk} = {};
-        $dle->{estimate} = undef;
-        $dle->{tries}    = [];
+        $dle->{'estimate'} = undef;
+        $dle->{'dumps'}    = {};
+    }
+    return;
+}
+
+sub _handle_success_line
+{
+    my $self = shift @_;
+    my ($program, $str) = @_;
+
+    my $data     = $self->{data};
+    my $disklist = $data->{disklist};
+    my $hosts    = $self->{cache}{hosts} ||= [];
+    my $dles     = $self->{cache}{dles}  ||= [];
+
+    my @info = Amanda::Util::split_quoted_strings($str);
+    my ($hostname, $disk, $timestamp, $level, $stat1, $stat2) = @info;
+
+    if ($stat1 =~ /skipped/) {
+        $disklist->{$hostname}{$disk}->{$program}->{'status'} = 'skipped';
     }
     return;
 }
@@ -1171,20 +1297,42 @@ sub _handle_bogus_line
     push @$boguses, [ $prog, $type, $str ];
 }
 
-sub check_missing
+sub check_missing_fail_strange
 {
     my ($self) = @_;
     my @dles = $self->get_dles();
 
     foreach my $dle_entry (@dles) {
+        my $alldumps = $self->get_dle_info(@$dle_entry, 'dumps');
+	my $planner = $self->get_dle_info(@$dle_entry, 'planner');
 
-        my $tries = $self->get_dle_info(@$dle_entry, "tries");
+	if ($planner && $planner->{'status'} eq 'fail') {
+	    $self->{flags}{dump_failed} = 1;
+	} elsif ($planner && $planner->{'status'} eq 'skipped') {
+	    # We don't want these to be counted as missing below
+	} elsif (!defined $alldumps->{$self->{'run_timestamp'}}) {
+	    $self->{flags}{results_missing} = 1;
+	    $self->{flags}{exit_status} |= STATUS_MISSING;
+	} else {
+	    #get latest try
+	    my $tries = $alldumps->{$self->{'run_timestamp'}};
+	    my $try = @$tries[-1];
 
-        if (!@$tries) {
-            $self->{flags}{results_missing} = 1;
-            $self->{flags}{exit_status} |= STATUS_MISSING;
-            last;
-        }
+	    if (exists $try->{dumper} && $try->{dumper}->{status} eq 'fail') {
+		$self->{flags}{dump_failed} = 1;
+	    } elsif ((defined($try->{'chunker'}) &&
+		 $try->{'chunker'}->{status} eq 'success') ||
+		(defined($try->{'taper'}) &&
+		 $try->{'taper'}->{status} eq 'done')) {
+		#chunker or taper success, use dumper status
+		if (exists $try->{dumper} && $try->{dumper}->{status} eq 'strange') {
+		    $self->{flags}{dump_strange} = 1;
+		}
+	    } else {
+		#chunker or taper failed, the dump is not valid.
+		$self->{flags}{dump_failed} = 1;
+	    }
+	}
     }
 }
 
@@ -1195,8 +1343,8 @@ sub check_missing
 sub _get_try
 {
     my $self = shift @_;
-    my ( $dle, $program ) = @_;
-    my $tries = $dle->{tries} ||= [];
+    my ( $dle, $program, $timestamp ) = @_;
+    my $tries = $dle->{'dumps'}{$timestamp} ||= [];
 
     if (
         !@$tries    # no tries

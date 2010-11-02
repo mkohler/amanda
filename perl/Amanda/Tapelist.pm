@@ -71,21 +71,63 @@ Amanda::Tapelist - manipulate the Amanda tapelist
 
     use Amanda::Tapelist;
 
-    my $tl = Amanda::Tapelist::read_tapelist("/path/to/tapefile");
+    # to get a read only copy of the tapelist file:
+    my $tl = Amanda::Tapelist->new("/path/to/tapefile");
+
+    # to read/update/write the tapelist file
+    # read and take lock
+    my $tl = Amanda::Tapelist->new("/path/to/tapefile", 1);
+    # modify the memory copy
     $tl->add_tapelabel($datestamp, $label);
-    $tl->add_tapelabel($datestamp2, $label2, $comment);
-    $tl->write("/path/to/tapefile");
+    $tl->add_tapelabel($datestamp2, $label2, $comment, 1);
+    # write it and unlock
+    $tl->write();
+
+    # If you already have a read only copy and want to modify it
+    # take a read only copy
+    my $tl = Amanda::Tapelist->new("/path/to/tapefile");
+    # reload and take lock
+    $tl->reload(1);
+    # modify the memory copy
+    tl->add_tapelabel($datestamp, $label);
+    $tl->add_tapelabel($datestamp2, $label2, $comment, 1);
+    # write it and unlock
+    $tl->write();
 
 =head1 OBJECT-ORIENTED INTERFACE
 
-The package-level functions C<read_tapelist($filename)> and
-C<clear_tapelist()> both return a new tapelist object.
-C<read_tapelist> returns C<undef> if the tapelist does not exist.
+C<new> returns a hash with no C<tles> set if the tapelist does
+not exist. C<tles> is an empty array if the tapelist is empty.
 Invalid entries are silently ignored.
 
-A tapelist object is a sequence of tapelist elements (referred to as TLEs in
-this document), sorted by datestamp from newest to oldest.  Each TLE is a hash
-with the following keys:
+=head2 tapelist object
+
+A tapelist object is a hash with the following keys:
+
+=over
+
+=item C<filename>
+
+  The filename of the tapelist file.
+
+=item C<filename_lock>
+
+  The filename of the lock file.
+
+=item C<fl>
+
+  A Amanda::Util::file_lock is the file is locked.
+
+=item C<tles>
+
+A sequence of tapelist elements (referred to as TLEs in this document),
+sorted by datestamp from newest to oldest.
+
+=back
+
+=head2 tapelist element
+
+A tapelist elementas a hash with the following keys:
 
 =over
 
@@ -111,9 +153,15 @@ the comment for this tape, or undef if no comment was given
 
 =back
 
+=head1 Method
+
 The following methods are available on a tapelist object C<$tl>:
 
 =over
+
+=item C<relod($lock)>
+
+reload the tapelist file, lock it if $lock is set
 
 =item C<lookup_tapelabel($lbl)>
 
@@ -131,14 +179,24 @@ look up and return a reference to the TLE with the given datestamp
 
 remove the tape with the given label
 
-=item C<add_tapelabel($date, $lbl, $comment)>
+=item C<add_tapelabel($date, $lbl, $comment, $reuse)>
 
-add a tape with the given date, label, and comment to the end of the
-tapelist, marking it reusable.
+add a tape with the given date, label, comment and reuse to the end of the
+tapelist. reuse can be 1 or undef for a reusable volume, it must be 0 for
+a no-reusable volume.
 
-=item C<write($filename)>
+=item C<write()> or C<write($filename)>
 
-write the tapelist out to C<$filename>.
+write the tapelist out to the same file as when read or to C<$filename> if it
+is set, remove the lock if a lock was taken
+
+=item C<unlock()>
+
+remove the lock if a lock was taken
+
+=item C<clear_tapelist()>
+
+remove all tle from the tles.
 
 =back
 
@@ -146,7 +204,7 @@ write the tapelist out to C<$filename>.
 
 The C portions of Amanda treat the tapelist as a global variable,
 while this package treats it as an object (and can thus handle more
-than one tapelist simultaneously).  Every call to C<read_tapelist>
+than one tapelist simultaneously).  Every call to C<reload>
 fills this global variable with a copy of the tapelist, and likewise
 C<clear_tapelist> clears the global.  However, any changes made from
 Perl are not reflected in the C copy, nor are changes made by C
@@ -157,18 +215,178 @@ modules reflected in the Perl copy.
 
 
 use Amanda::Debug qw(:logging);
+use Amanda::Config qw( config_dir_relative );
+use File::Copy;
+use Fcntl qw(:flock); # import LOCK_* constants
 
 ## package functions
 
-sub read_tapelist {
-    my ($filename) = @_;
+sub new {
+    my ($class)  = shift;
+    my ($filename, $lock ) = @_;
+    my $self = {
+	filename => $filename,
+	lockname => $filename . '.lock',
+    };
+    bless $self, $class;
+
+    $self->reload($lock);
+    return $self;
+}
+
+sub clear_tapelist {
+    my $self = shift;
+
+    # clear the C version
+    C_clear_tapelist();
+
+    $self->{'tles'} = [];
+
+    return $self;
+}
+
+## methods
+
+sub reload {
+    my $self = shift;
+    my ($lock) = @_;
+
+    if ($lock) {
+	$self->_take_lock();
+    }
+
+    # clear the C copy
+    C_clear_tapelist();
 
     # let C read the file
+    C_read_tapelist($self->{'filename'});
+
+    $self->_read_tapelist();
+}
+
+sub lookup_tapelabel {
+    my $self = shift;
+    my ($label) = @_;
+
+    for my $tle (@{$self->{'tles'}}) {
+	return $tle if ($tle->{'label'} eq $label);
+    }
+
+    return undef;
+}
+
+sub lookup_tapepos {
+    my $self = shift;
+    my ($position) = @_;
+
+    $self->_update_positions();
+    return $self->{'tles'}->[$position-1];
+}
+
+sub lookup_tapedate {
+    my $self = shift;
+    my ($datestamp) = @_;
+
+    for my $tle (@{$self->{'tles'}}) {
+	return $tle if ($tle->{'datestamp'} eq $datestamp);
+    }
+
+    return undef;
+}
+
+sub remove_tapelabel {
+    my $self = shift;
+    my ($label) = @_;
+
+    for (my $i = 0; $i < @{$self->{tles}}; $i++) {
+	if ($self->{tles}->[$i]->{'label'} eq $label) {
+	    splice @{$self->{tles}}, $i, 1;
+	    $self->_update_positions();
+	    return;
+	}
+    }
+}
+
+sub add_tapelabel {
+    my $self = shift;
+    my ($datestamp, $label, $comment, $reuse) = @_;
+    $reuse = 1 if !defined $reuse;
+
+    # prepend this (presumably new) volume to the beginning of the list
+    unshift @{$self->{'tles'}}, {
+	'datestamp' => $datestamp,
+	'label' => $label,
+	'reuse' => $reuse,
+	'comment' => $comment,
+    };
+    $self->_update_positions();
+}
+
+sub write {
+    my $self = shift;
+    my ($filename) = @_;
+    my $result = TRUE;
+    $filename = $self->{'filename'} if !defined $filename;
+
+    my $new_tapelist_file = $filename . "-new-" . time();
+
+    open(my $fhn, ">", $new_tapelist_file) or die("Could not open '$new_tapelist_file' for writing: $!");
+    for my $tle (@{$self->{tles}}) {
+	my $datestamp = $tle->{'datestamp'};
+	my $label = $tle->{'label'};
+	my $reuse = $tle->{'reuse'} ? 'reuse' : 'no-reuse';
+	my $comment = (defined $tle->{'comment'})? (" #" . $tle->{'comment'}) : '';
+	$result &&= print $fhn "$datestamp $label $reuse$comment\n";
+    }
+    my $result_close = close($fhn);
+    $result &&= $result_close;
+
+    return if (!$result);
+
+    unless (move($new_tapelist_file, $filename)) {
+	die ("failed to rename '$new_tapelist_file' to '$filename': $!");
+    }
+
+    # re-read from the C side to synchronize
     C_read_tapelist($filename);
 
-    # and then read it ourselves
-    open(my $fh, "<", $filename) or return undef;
+    $self->unlock();
+
+    return undef;
+}
+
+sub unlock {
+    my $self = shift;
+
+    return if !exists $self->{'fl'};
+
+    $self->{'fl'}->unlock();
+    delete $self->{'fl'}
+}
+
+## private methods
+
+sub _take_lock {
+    my $self = shift;
+
+    if (!-e $self->{'lockname'}) {
+	open(my $fhl, ">>", $self->{'lockname'});
+	close($fhl);
+    }
+    my $fl = Amanda::Util::file_lock->new($self->{'lockname'});
+    while(($r = $fl->lock()) == 1) {
+	sleep(1);
+    }
+    if ($r == 0) {
+	$self->{'fl'} = $fl;
+    }
+}
+
+sub _read_tapelist {
+    my $self = shift;
+
     my @tles;
+    open(my $fh, "<", $self->{'filename'}) or return $self;
     while (my $line = <$fh>) {
 	my ($datestamp, $label, $reuse, $comment)
 	    = $line =~ m/^([0-9]*)\s([^\s]*)\s(reuse|no-reuse)\s*(?:\#(.*))?$/mx;
@@ -184,115 +402,25 @@ sub read_tapelist {
 
     # sort in descending order by datestamp, sorting on position, too, to ensure
     # that entries with the same datestamp stay in the right order
-    update_positions(\@tles); # call a method with an explicit $self
+    $self->{'tles'} = \@tles;
+    $self->_update_positions();
     @tles = sort {
 	   $b->{'datestamp'} cmp $a->{'datestamp'}
 	|| $a->{'position'} <=> $b->{'position'}
 	} @tles;
 
+    $self->{'tles'} = \@tles;
+
     # and re-calculate the positions
-    update_positions(\@tles);
-
-    my $self = bless \@tles, "Amanda::Tapelist";
-
-    return $self;
+    $self->_update_positions(\@tles);
 }
-
-sub clear_tapelist {
-    # clear the C version
-    C_clear_tapelist();
-
-    # and produce an empty object
-    my $self = bless [], "Amanda::Tapelist";
-    $self->update_positions();
-
-    return $self;
-}
-
-## methods
-
-sub lookup_tapelabel {
-    my $self = shift;
-    my ($label) = @_;
-
-    for my $tle (@$self) {
-	return $tle if ($tle->{'label'} eq $label);
-    }
-
-    return undef;
-}
-
-sub lookup_tapepos {
-    my $self = shift;
-    my ($position) = @_;
-
-    $self->update_positions();
-    return $self->[$position-1];
-}
-
-sub lookup_tapedate {
-    my $self = shift;
-    my ($datestamp) = @_;
-
-    for my $tle (@$self) {
-	return $tle if ($tle->{'datestamp'} eq $datestamp);
-    }
-
-    return undef;
-}
-
-sub remove_tapelabel {
-    my $self = shift;
-    my ($label) = @_;
-
-    for (my $i = 0; $i < @$self; $i++) {
-	if ($self->[$i]->{'label'} eq $label) {
-	    splice @$self, $i, 1;
-	    $self->update_positions();
-	    return;
-	}
-    }
-}
-
-sub add_tapelabel {
-    my $self = shift;
-    my ($datestamp, $label, $comment) = @_;
-
-    # prepend this (presumably new) volume to the beginning of the list
-    unshift @$self, {
-	'datestamp' => $datestamp,
-	'label' => $label,
-	'reuse' => 1,
-	'comment' => $comment,
-    };
-    $self->update_positions();
-}
-
-sub write {
-    my $self = shift;
-    my ($filename) = @_;
-
-    open(my $fh, ">", $filename) or die("Could not open '$filename' for writing: $!");
-    for my $tle (@$self) {
-	my $datestamp = $tle->{'datestamp'};
-	my $label = $tle->{'label'};
-	my $reuse = $tle->{'reuse'} ? 'reuse' : 'no-reuse';
-	my $comment = (defined $tle->{'comment'})? (" #" . $tle->{'comment'}) : '';
-	print $fh "$datestamp $label $reuse$comment\n";
-    }
-    close($fh);
-
-    # re-read from the C side to synchronize
-    C_read_tapelist($filename);
-}
-
-## private methods
 
 # update the 'position' key for each TLE
-sub update_positions {
+sub _update_positions {
     my $self = shift;
-    for (my $i = 0; $i < @$self; $i++) {
-	$self->[$i]->{'position'} = $i+1;
+    my $tles = $self->{'tles'};
+    for (my $i = 0; $i < scalar @$tles; $i++) {
+	$tles->[$i]->{'position'} = $i+1;
     }
 }
 

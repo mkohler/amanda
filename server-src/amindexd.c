@@ -45,6 +45,7 @@
 #include "diskfile.h"
 #include "arglist.h"
 #include "clock.h"
+#include "match.h"
 #include "amindex.h"
 #include "disk_history.h"
 #include "list_dir.h"
@@ -634,6 +635,63 @@ is_dump_host_valid(
 }
 
 
+static gboolean
+is_disk_allowed(
+    disk_t *disk)
+{
+    dumptype_t *dt = disk->config;
+    recovery_limit_t *rl = NULL;
+    char *peer;
+    char *dle_hostname;
+    GSList *iter;
+
+    /* get the config: either for the DLE or the global config */
+    if (dt) {
+	if (dumptype_seen(dt, DUMPTYPE_RECOVERY_LIMIT)) {
+	    g_debug("using recovery limit from DLE");
+	    rl = dumptype_get_recovery_limit(dt);
+	}
+    }
+    if (!rl) {
+	if (getconf_seen(CNF_RECOVERY_LIMIT)) {
+	    g_debug("using global recovery limit");
+	    rl = getconf_recovery_limit(CNF_RECOVERY_LIMIT);
+	}
+    }
+    if (!rl) {
+	g_debug("no recovery limit found; allowing access");
+	return TRUE;
+    }
+
+    peer = getenv("AMANDA_AUTHENTICATED_PEER");
+    if (!peer || !*peer) {
+	g_warning("DLE has a recovery-limit, but no authenticated peer name is "
+		  "available; rejecting");
+	return FALSE;
+    }
+
+    /* check same-host */
+    dle_hostname = disk->host? disk->host->hostname : NULL;
+    if (rl->same_host && dle_hostname) {
+	if (0 == g_ascii_strcasecmp(peer, dle_hostname)) {
+	    g_debug("peer matched same-host ('%s')", dle_hostname);
+	    return TRUE;
+	}
+    }
+
+    /* check the match list */
+    for (iter = rl->match_pats; iter; iter = iter->next) {
+	char *pat = iter->data;
+	if (match_host(pat, peer))
+	    return TRUE;
+    }
+
+    g_warning("peer '%s' does not match any of the recovery-limit restrictions; rejecting",
+	    peer);
+
+    return FALSE;
+}
+
 static int
 is_disk_valid(
     char *disk)
@@ -650,11 +708,11 @@ is_disk_valid(
 	return -1;
     }
 
-    /* check that the config actually handles that disk */
+    /* check that the config actually handles that disk, and that recovery-limit allows it */
     idisk = lookup_disk(dump_hostname, disk);
-    if(idisk == NULL) {
+    if(idisk == NULL || !is_disk_allowed(idisk)) {
 	qdisk = quote_string(disk);
-	reply(501, _("Disk %s:%s is not in your disklist."), dump_hostname, qdisk);
+	reply(501, _("Disk %s:%s is not in the server's disklist."), dump_hostname, qdisk);
 	amfree(qdisk);
 	return -1;
     }
@@ -1067,8 +1125,9 @@ void opaque_ls_one(
     am_feature_e marshall_feature,
     int		 recursive)
 {
-   char date[20];
-   char *tapelist_str;
+    char date[20];
+    char *tapelist_str;
+    char *qtapelist_str;
     char *qpath;
 
     if (am_has_feature(their_features, marshall_feature)) {
@@ -1077,6 +1136,11 @@ void opaque_ls_one(
 	tapelist_str = dir_item->dump->tapes->label;
     }
 
+    if (am_has_feature(their_features, fe_amindexd_quote_label)) {
+	qtapelist_str = quote_string(tapelist_str);
+    } else {
+	qtapelist_str = stralloc(tapelist_str);
+    }
     strncpy(date, dir_item->dump->date, 20);
     date[19] = '\0';
     if(!am_has_feature(their_features,fe_amrecover_timestamp))
@@ -1090,7 +1154,7 @@ void opaque_ls_one(
 	fast_lreply(201, " %s %d %s %lld %s",
 		    date,
 		    dir_item->dump->level,
-		    tapelist_str,
+		    qtapelist_str,
 		    (long long)dir_item->dump->file,
 		    qpath);
     }
@@ -1098,12 +1162,13 @@ void opaque_ls_one(
 
 	fast_lreply(201, " %s %d %s %s",
 		    date, dir_item->dump->level,
-		    tapelist_str, qpath);
+		    qtapelist_str, qpath);
     }
     amfree(qpath);
     if(am_has_feature(their_features, marshall_feature)) {
 	amfree(tapelist_str);
     }
+    amfree(qtapelist_str);
 }
 
 /*

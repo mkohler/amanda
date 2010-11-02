@@ -17,6 +17,8 @@
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 use Test::More tests => 17;
+use strict;
+use warnings;
 
 use lib "@amperldir@";
 use Installcheck::Config;
@@ -42,14 +44,14 @@ like(run_err('amdevcheck', 'this-probably-doesnt-exist'), qr(could not open conf
 
 # this is re-created for each test
 $testconf = Installcheck::Config->new();
-$testconf->add_param("tapedev", '"/dev/null"');
+$testconf->add_param("tapedev", '"null:null"');
 $testconf->write();
 
 # test some defaults
-ok(run('amdevcheck', 'TESTCONF'), "run succeeds with a /dev/null tapedev");
+ok(run('amdevcheck', 'TESTCONF'), "run succeeds with a null tapedev");
 is_deeply([ sort split "\n", $Installcheck::Run::stdout],
-	  [ sort "MESSAGE File /dev/null is not a tape device", "DEVICE_ERROR"],
-	  "Fail with correct message for a /dev/null tapedev");
+	  [ sort "MESSAGE Can't open NULL device for reading or appending.", "DEVICE_ERROR"],
+	  "Fail with correct message for a null tapedev");
 
 ##
 # Now use a config with a vtape
@@ -62,7 +64,7 @@ $testconf->write();
 
 ok(run('amdevcheck', 'TESTCONF'), "run succeeds with an unlabeled tape");
 is_deeply([ sort split "\n", $Installcheck::Run::stdout],
-	  [ sort "MESSAGE Error loading device header -- unlabeled volume?", "VOLUME_UNLABELED", "DEVICE_ERROR", "VOLUME_ERROR"],
+	  [ sort "MESSAGE File 0 not found", "VOLUME_UNLABELED"],
 	  "..and output is correct");
 
 ok(run('amdevcheck', 'TESTCONF', "--properties"),
@@ -87,10 +89,10 @@ is_deeply([ sort split "\n", $Installcheck::Run::stdout],
 	  	 "CANONICAL_NAME=file:" . Installcheck::Run::vtape_dir() ],
     ".. with correct results");
 
-ok(run('amdevcheck', 'TESTCONF', '/dev/null'),
+ok(run('amdevcheck', 'TESTCONF', 'null:null'),
     "can override device on the command line");
 is_deeply([ sort split "\n", $Installcheck::Run::stdout],
-	  [ sort "MESSAGE File /dev/null is not a tape device", "DEVICE_ERROR"],
+	  [ sort "MESSAGE Can't open NULL device for reading or appending.", "DEVICE_ERROR"],
     ".. and produce a corresponding error message");
 
 Installcheck::Dumpcache::load("basic");

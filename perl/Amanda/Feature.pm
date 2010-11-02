@@ -194,6 +194,7 @@ package Amanda::Feature;
 *fe_amrecover_origsize_in_header = *Amanda::Featurec::fe_amrecover_origsize_in_header;
 *fe_amidxtaped_abort = *Amanda::Featurec::fe_amidxtaped_abort;
 *fe_amrecover_correct_disk_quoting = *Amanda::Featurec::fe_amrecover_correct_disk_quoting;
+*fe_amindexd_quote_label = *Amanda::Featurec::fe_amindexd_quote_label;
 *last_feature = *Amanda::Featurec::last_feature;
 
 @EXPORT_OK = ();
@@ -406,6 +407,13 @@ This feature is no longer supported.
 
 Amrecovers that do not have this flag may send incorrectly-quoted DISK lines, so
 those DISK lines should be ignored.
+
+=item fe_amindexd_quote_label
+
+ PROTOCOL: amindexd
+ FEATURE OF: server
+
+If set, amindexd quote the label (holdingdisk filename)
 
 =back
 

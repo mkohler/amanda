@@ -161,6 +161,7 @@ sub _check {
 
 sub _check_parent_dirs {
     my ($dir) = @_;
+    my $ok = 1;
     my $is_abs = substr($dir, 0, 1) eq "/";
     _check("$dir is an absolute path?", "Yes", "No. It should start with '/'",
        sub {$is_abs});
@@ -170,11 +171,14 @@ sub _check_parent_dirs {
     my $partial_path = '';
     for my $path_part (@parts) {
         $partial_path .= $path_part . (($partial_path || $is_abs)? '/' : '');
-        _check("$partial_path is executable?", "Yes", "No",
+        $ok &&=
+	    _check("$partial_path is executable?", "Yes", "No",
                sub {-x $_[0]}, $partial_path);
-        _check("$partial_path is a directory?", "Yes", "No",
+        $ok &&=
+	    _check("$partial_path is a directory?", "Yes", "No",
                sub {-d $_[0]}, $partial_path);
     }
+    $ok;
 }
 
 sub _ok_passfile_perms {
@@ -243,62 +247,101 @@ sub command_selfcheck {
            sub {!(-d $_[0])}, $Amanda::Constants::GNUTAR);
     _check_parent_dirs($Amanda::Constants::GNUTAR);
 
-    _check("TMPDIR $self->{'args'}->{'tmpdir'}",
+    _check("TMPDIR '$self->{'args'}->{'tmpdir'}'",
            "is an acessible directory", "is NOT an acessible directory",
-           sub {-d $_[0] && -r $_[0] && -w $_[0] && -x $_[0]},
+           sub {$_[0] && -d $_[0] && -r $_[0] && -w $_[0] && -x $_[0]},
            $self->{'args'}->{'tmpdir'});
-    _check("STATEDIR $self->{'args'}->{'statedir'}",
+
+    if (exists $self->{'props'}->{'pg-datadir'}) {
+	_check("PG-DATADIR property is",
+	       "same as diskdevice", "differrent than diskdevice",
+	       sub { $_[0] eq $_[1] },
+	       $self->{'props'}->{'pg-datadir'}, $self->{'args'}->{'device'});
+    } else {
+	$self->{'props'}->{'pg-datadir'} = $self->{'args'}->{'device'};
+    }
+
+    _check("PG-DATADIR property", "is set", "is NOT set",
+	   sub { $_[0] }, $self->{'props'}->{'pg-datadir'});
+       # note that the backup user need not be able ot read this dir
+
+    _check("STATEDIR '$self->{'args'}->{'statedir'}'",
            "is an acessible directory", "is NOT an acessible directory",
-           sub {-d $_[0] && -r $_[0] && -w $_[0] && -x $_[0]},
+           sub {$_[0] && -d $_[0] && -r $_[0] && -w $_[0] && -x $_[0]},
            $self->{'args'}->{'statedir'});
     _check_parent_dirs($self->{'args'}->{'statedir'});
 
     if ($self->{'args'}->{'device'}) {
+	my $try_connect = 1;
+
         for my $k (keys %{$self->{'props'}}) {
             print "OK client property: $k = $self->{'props'}->{$k}\n";
         }
 
-        _check("PG-ARCHIVEDIR $self->{'props'}->{'pg-archivedir'}",
-               "is a directory", "is NOT a directory",
-               sub {-d $_[0]}, $self->{'props'}->{'pg-archivedir'});
-        _check("PG-ARCHIVEDIR $self->{'props'}->{'pg-archivedir'}",
-               "is readable", "is NOT readable",
-               sub {-r $_[0]}, $self->{'props'}->{'pg-archivedir'});
-        _check("PG-ARCHIVEDIR $self->{'props'}->{'pg-archivedir'}",
-               "is executable", "is NOT executable",
-               sub {-x $_[0]}, $self->{'props'}->{'pg-archivedir'});
-        _check_parent_dirs($self->{'props'}->{'pg-archivedir'});
-        _check("Are both PG-PASSFILE and PG-PASSWORD set?",
-               "No (okay)",
-               "Yes. Please set only one or the other",
-               sub {!($self->{'props'}->{'pg-passfile'} and
-                      $self->{'props'}->{'pg-password'})});
+        if (_check("PG-ARCHIVEDIR property", "is set", "is NOT set",
+               sub { $_[0] }, $self->{'props'}->{'pg-archivedir'})) {
+	    _check("PG-ARCHIVEDIR $self->{'props'}->{'pg-archivedir'}",
+		   "is a directory", "is NOT a directory",
+		   sub {-d $_[0]}, $self->{'props'}->{'pg-archivedir'});
+	    _check("PG-ARCHIVEDIR $self->{'props'}->{'pg-archivedir'}",
+		   "is readable", "is NOT readable",
+		   sub {-r $_[0]}, $self->{'props'}->{'pg-archivedir'});
+	    _check("PG-ARCHIVEDIR $self->{'props'}->{'pg-archivedir'}",
+		   "is executable", "is NOT executable",
+		   sub {-x $_[0]}, $self->{'props'}->{'pg-archivedir'});
+	    _check_parent_dirs($self->{'props'}->{'pg-archivedir'});
+	}
+
+	$try_connect &&=
+	    _check("Are both PG-PASSFILE and PG-PASSWORD set?",
+		   "No (okay)",
+		   "Yes. Please set only one or the other",
+		   sub {!($self->{'props'}->{'pg-passfile'} and
+			  $self->{'props'}->{'pg-password'})});
+
         if ($self->{'props'}->{'pg-passfile'}) {
-            _check("PG-PASSFILE $self->{'props'}->{'pg-passfile'}",
+	    $try_connect &&=
+		_check("PG-PASSFILE $self->{'props'}->{'pg-passfile'}",
                    "has correct permissions", "does not have correct permissions",
                    \&_ok_passfile_perms, $self->{'props'}->{'pg-passfile'});
-            _check_parent_dirs($self->{'props'}->{'pg-passfile'});
+	    $try_connect &&=
+		_check_parent_dirs($self->{'props'}->{'pg-passfile'});
         }
-        _check("PSQL-PATH $self->{'props'}->{'psql-path'}",
-               "is executable", "is NOT executable",
-               sub {-x $_[0]}, $self->{'props'}->{'psql-path'});
-        _check("PSQL-PATH $self->{'props'}->{'psql-path'}",
-               "is not a directory (okay)", "is a directory (it shouldn't be)",
-               sub {!(-d $_[0])}, $self->{'props'}->{'psql-path'});
-        _check_parent_dirs($self->{'props'}->{'psql-path'});
-        _check("Connecting to database server", "succeeded", "failed",
-               \&_run_psql_command, $self, '');
-        
-        my $label = "$self->{'label-prefix'}-selfcheck-" . time();
-        if (_check("Call pg_start_backup", "succeeded",
-                   "failed (is another backup running?)",
-                   \&_run_psql_command, $self, "SELECT pg_start_backup('$label')")
-            and _check("Call pg_stop_backup", "succeeded", "failed",
-                       \&_run_psql_command, $self, "SELECT pg_stop_backup()")) {
 
-            _check("Get info from .backup file", "succeeded", "failed",
-                   sub {my ($start, $end) = _get_backup_info($self, $label); $start and $end});
-        }
+        if (_check("PSQL-PATH property", "is set", "is NOT set and psql is not in \$PATH",
+               sub { $_[0] }, $self->{'props'}->{'psql-path'})) {
+	    $try_connect &&=
+		_check("PSQL-PATH $self->{'props'}->{'psql-path'}",
+		       "is executable", "is NOT executable",
+		       sub {-x $_[0]}, $self->{'props'}->{'psql-path'});
+	    $try_connect &&=
+		_check("PSQL-PATH $self->{'props'}->{'psql-path'}",
+		       "is not a directory (okay)", "is a directory (it shouldn't be)",
+		       sub {!(-d $_[0])}, $self->{'props'}->{'psql-path'});
+	    $try_connect &&=
+		_check_parent_dirs($self->{'props'}->{'psql-path'});
+	} else {
+	    $try_connect = 0;
+	}
+
+	if ($try_connect) {
+	    $try_connect &&=
+		_check("Connecting to database server", "succeeded", "failed",
+		   \&_run_psql_command, $self, '');
+	}
+        
+	if ($try_connect) {
+	    my $label = "$self->{'label-prefix'}-selfcheck-" . time();
+	    if (_check("Call pg_start_backup", "succeeded",
+		       "failed (is another backup running?)",
+		       \&_run_psql_command, $self, "SELECT pg_start_backup('$label')")
+		and _check("Call pg_stop_backup", "succeeded", "failed",
+			   \&_run_psql_command, $self, "SELECT pg_stop_backup()")) {
+
+		_check("Get info from .backup file", "succeeded", "failed",
+		       sub {my ($start, $end) = _get_backup_info($self, $label); $start and $end});
+	    }
+	}
     }
 }
 
@@ -381,7 +424,7 @@ sub _run_tar_totals {
             $size = $1;
         } else {
 	    chomp $l;
-	    #$self->print_to_server($l, $Amanda::Script_App::ERROR);
+	    $self->print_to_server($l, $Amanda::Script_App::ERROR);
 	    debug("TAR_ERR: $l");
 	}
     }
@@ -765,6 +808,7 @@ sub command_restore {
    if ($self->{'args'}->{'level'} > 0) {
        debug("extracting incremental backup to $cur_dir/$_ARCHIVE_DIR_RESTORE");
        $status = system($self->{'args'}->{'gnutar-path'}, '--extract',
+	   '--ignore-zeros',
 	   '--exclude', 'empty-incremental',
            '--directory', $_ARCHIVE_DIR_RESTORE) >> 8;
        (0 == $status) or die("Failed to extract level $self->{'args'}->{'level'} backup (exit status: $status)");
@@ -807,7 +851,7 @@ sub command_validate {
       return $self->default_validate();
    }
 
-   my(@cmd) = ($self->{'args'}->{'gnutar-path'}, "-tf", "-");
+   my(@cmd) = ($self->{'args'}->{'gnutar-path'}, "--ignore-zeros", "-tf", "-");
    debug("cmd:" . join(" ", @cmd));
    my $pid = open3('>&STDIN', '>&STDOUT', '>&STDERR', @cmd) ||
       $self->print_to_server_and_die("Unable to run @cmd",

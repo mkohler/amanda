@@ -28,7 +28,6 @@
 #include <glib.h>
 #include <glib-object.h>
 #include "xfer.h"
-#include "queueing.h"
 #include "directtcp.h"
 
 typedef enum {
@@ -36,13 +35,13 @@ typedef enum {
      * mechansisms. */
     XFER_MECH_NONE,
 
-    /* downstream element will read() from elt->upstream->output_fd; EOF
+    /* downstream element will read() from elt->upstream's output_fd; EOF
      * is indicated by the usual OS mechanism resulting in a zero-length
      * read, in response to which the downstream element must close
      * the fd. */
     XFER_MECH_READFD,
 
-    /* upstream element will write() to elt->downstream->input_fd.  EOF
+    /* upstream element will write() to elt->downstream's input_fd.  EOF
      * is indicated by closing the file descriptor. */
     XFER_MECH_WRITEFD,
 
@@ -119,11 +118,14 @@ typedef struct XferElement {
     gboolean expect_eof;
     gboolean can_generate_eof;
 
-    /* file descriptors for XFER_MECH_READFD and XFER_MECH_WRITEFD.  These should be set
-     * during setup(), and can be accessed by neighboring elements during start(). It is
-     * up to subclasses to handle closing these file descriptors, if required. */
-    gint input_fd;
-    gint output_fd;
+    /* file descriptors for XFER_MECH_READFD and XFER_MECH_WRITEFD.  These
+     * should be set during setup(), and can be accessed by neighboring
+     * elements during start().  These values are shared among multiple
+     * elements, and thus must be accessed with xfer_element_swap_input_fd and
+     * xfer_element_swap_output_fd.  Any file descriptors remaining here at
+     * finalize time will be closed. */
+    gint _input_fd;
+    gint _output_fd;
 
     /* array of IP:PORT pairs that can be used to connect to this element,
      * terminated by a 0.0.0.0:0.  The first is set by elements with an input
@@ -310,6 +312,18 @@ void xfer_element_drain_by_pulling(XferElement *upstream);
  */
 void xfer_element_drain_by_reading(int fd);
 
+/* Atomically swap a value into elt->_input_fd and _output_fd, respectively.
+ * Always use these methods to access the field.
+ *
+ * @param elt: xfer element
+ * @param newfd: new value for the fd field
+ * @returns: old value of the fd field
+ */
+#define xfer_element_swap_input_fd(elt, newfd) \
+    xfer_atomic_swap_fd((elt)->xfer, &(elt)->_input_fd, newfd)
+#define xfer_element_swap_output_fd(elt, newfd) \
+    xfer_atomic_swap_fd((elt)->xfer, &(elt)->_output_fd, newfd)
+
 /***********************
  * XferElement subclasses
  *
@@ -387,15 +401,19 @@ XferElement * xfer_source_directtcp_connect(DirectTCPAddr *addrs);
  * stdin and taking the results on stdout.
  *
  * The memory for ARGV becomes the property of the transfer element and will be
- * g_free'd when the xfer is destroyed.
+ * g_strfreev'd when the xfer is destroyed.
  *
  * Implemented in filter-process.c
  *
  * @param argv: NULL-terminated command-line arguments
  * @param need_root: become root before exec'ing the subprocess
+ * @param log_stderr: if true, send stderr to the debug log; otherwise, send it
+ * to the stderr of the current process
  * @return: new element
  */
-XferElement *xfer_filter_process(gchar **argv, gboolean need_root);
+XferElement *xfer_filter_process(gchar **argv,
+    gboolean need_root,
+    gboolean log_stderr);
 
 /* A transfer filter that just applies a bytewise XOR transformation to the data
  * that passes through it.

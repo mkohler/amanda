@@ -2,12 +2,12 @@
 .\"     Title: ampgsql
 .\"    Author: Nikolas Coukouma <atrus@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMPGSQL" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
+.TH "AMPGSQL" "8" "10/18/2010" "Amanda 3\&.2\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -251,6 +251,24 @@ PSQL\-PATH
 Path to the psql binary\&. If not specified, the PATH environment variable
 will be searched\&.
 .RE
+.SH "RECOVERY"
+.PP
+Read the postgres documentation carefully before attempting a recovery\&. This section is only a rough guide to the process\&.
+.PP
+The data recovered from a postgres backup consists of a data tarball and one or more archive tarballs\&. The data contains the state of the database at the time the full backup was performed, and the archive tarballs contain postgres WAL files that must be re\-run to generate a consistent state\&.
+.PP
+Ensure that the database server is shut down, and move the existing data directory aside\&. Untar the data tarball over this directory, and verify that ownership and permissions are correct\&. Untar all of the archive tarballs into a single directory \- the archive directory\&. Create a
+recovery\&.conf
+in the data directory, owned by the proper user and with proper permissions\&. Add a
+\fBrestore_command\fR
+to it, e\&.g\&.,
+.nf
+restore_command = \'cp /path/to/archive_dir/%f "%p"\'
+.fi
+.PP
+Start the database server, and examine the logs to track the process of the recovery\&. When the recovery is complete, the server will transition into a running state, and will move the
+recovery\&.conf
+file aside so that it will not attempt a recovery on the next invocation\&.
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),

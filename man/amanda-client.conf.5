@@ -2,12 +2,12 @@
 .\"     Title: amanda-client.conf
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: File formats and conventions
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMANDA\-CLIENT\&.CON" "5" "06/01/2010" "Amanda 3\&.1\&.0" "File formats and conventions"
+.TH "AMANDA\-CLIENT\&.CON" "5" "10/18/2010" "Amanda 3\&.2\&.0" "File formats and conventions"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -43,7 +43,7 @@ Default:
 \fISet by configure\fR\&. The conf use by amrecover\&.
 .RE
 .PP
-\fBclient_username\fR \fIstring\fR
+\fBclient\-username\fR \fIstring\fR
 .RS 4
 Default:
 \fICLIENT_LOGIN\fR\&. Similar to the parameter of the same name in
@@ -54,20 +54,20 @@ should send when connecting to the server\&. It should match the username specif
 on the server\&.
 .RE
 .PP
-\fBclient_port\fR [ \fIint\fR | \fIstring\fR ]
+\fBclient\-port\fR [ \fIint\fR | \fIstring\fR ]
 .RS 4
 Default:
 \fI"amanda"\fR\&. Similar to the parameter of the same name in
 \fBamanda.conf\fR(5), this specifies the port to connect on the server\&. It can be a service name or a numeric port number\&.
 .RE
 .PP
-\fBindex_server\fR \fIstring\fR
+\fBindex\-server\fR \fIstring\fR
 .RS 4
 Default:
 \fISet by configure\fR\&. The amindexd server amrecover will connect to\&.
 .RE
 .PP
-\fBtape_server\fR \fIstring\fR
+\fBtape\-server\fR \fIstring\fR
 .RS 4
 Default:
 \fISet by configure\fR\&. The amidxtaped server amrecover will connect to\&.
@@ -102,13 +102,13 @@ to use rsh authorization\&.
 to use OpenSSH authorization\&.
 .RE
 .PP
-\fBssh_keys\fR \fIstring\fR
+\fBssh\-keys\fR \fIstring\fR
 .RS 4
 Default:
 \fINo default\fR\&. The key file the ssh auth will use, it must be the private key\&. If this parameter is not specified, then the default ssh key will be used\&.
 .RE
 .PP
-\fBgnutar_list_dir\fR \fIstring\fR
+\fBgnutar\-list\-dir\fR \fIstring\fR
 .RS 4
 Default from configure
 \fI\-\-with\-gnutar\-listdir=DIR\fR\&. The directory where gnutar keep its state file\&.
@@ -125,85 +125,85 @@ Default:
 \fI/etc/amandates\fR\&. The file where amanda keep the last date of each dumplevel\&.
 .RE
 .PP
-\fBconnect_tries\fR \fIint\fR
+\fBconnect\-tries\fR \fIint\fR
 .RS 4
 Default:
 \fI3\fR\&. How many times the server will try a connection\&.
 .RE
 .PP
-\fBrep_tries\fR \fIint\fR
+\fBrep\-tries\fR \fIint\fR
 .RS 4
 Default:
 \fI5\fR\&. How many times amandad will resend a REP packet if it doesn\'t get the ACK packet\&.
 .RE
 .PP
-\fBdebug_days\fR \fIint\fR
+\fBdebug\-days\fR \fIint\fR
 .RS 4
 Default:
 \fI3\fR\&. The number of days the debug files are kept\&.
 .RE
 .PP
-\fBdebug_amandad\fR \fIint\fR
+\fBdebug\-amandad\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the amandad process
 .RE
 .PP
-\fBdebug_amidxtaped\fR \fIint\fR
+\fBdebug\-amidxtaped\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the amidxtaped process
 .RE
 .PP
-\fBdebug_amindexd\fR \fIint\fR
+\fBdebug\-amindexd\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the amindexd process
 .RE
 .PP
-\fBdebug_amrecover\fR \fIint\fR
+\fBdebug\-amrecover\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the amrecover process
 .RE
 .PP
-\fBdebug_auth\fR \fIint\fR
+\fBdebug\-auth\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the auth module
 .RE
 .PP
-\fBdebug_event\fR \fIint\fR
+\fBdebug\-event\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the event module
 .RE
 .PP
-\fBdebug_holding\fR \fIint\fR
+\fBdebug\-holding\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the holdingdisk module
 .RE
 .PP
-\fBdebug_protocol\fR \fIint\fR
+\fBdebug\-protocol\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the protocol module
 .RE
 .PP
-\fBdebug_selfcheck\fR \fIint\fR
+\fBdebug\-selfcheck\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the selfcheck process
 .RE
 .PP
-\fBdebug_sendsize\fR \fIint\fR
+\fBdebug\-sendsize\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the sendsize process
 .RE
 .PP
-\fBdebug_sendbackup\fR \fIint\fR
+\fBdebug\-sendbackup\fR \fIint\fR
 .RS 4
 Default:
 \fI0\fR\&. Debug level of the sendbackup process
@@ -305,7 +305,7 @@ No default\&. Must be set to the name of the program\&. This program must be in 
 directory on the client and/or server\&.
 .RE
 .PP
-\fBexecute_where\fR [ \fBclient\fR | \fBserver\fR ]
+\fBexecute\-where\fR [ \fBclient\fR | \fBserver\fR ]
 .RS 4
 Default:
 \fBclient\fR\&. Where the script must be executed, on the client or server\&. Only
@@ -313,7 +313,7 @@ Default:
 is valid\&.
 .RE
 .PP
-\fBexecute_on\fR \fIexecute_on\fR[,\fIexecute_on\fR]*
+\fBexecute\-on\fR \fIexecute_on\fR[,\fIexecute_on\fR]*
 .RS 4
 No default\&. When the script must be executed, you can specify many of them:
 .PP
