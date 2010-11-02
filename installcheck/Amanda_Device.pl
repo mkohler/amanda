@@ -16,11 +16,12 @@
 # Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More tests => 482;
+use Test::More tests => 505;
 use File::Path qw( mkpath rmtree );
 use Sys::Hostname;
 use Carp;
 use strict;
+use warnings;
 
 use lib "@amperldir@";
 use Installcheck;
@@ -32,7 +33,6 @@ use Amanda::Config qw( :getconf :init );
 use Amanda::Xfer qw( :constants );
 use Amanda::Header qw( :constants );
 use Amanda::Paths;
-use Amanda::Tests;
 use Amanda::Util;
 use Amanda::MainLoop;
 use IO::Socket;
@@ -44,7 +44,6 @@ my ($input_filename, $output_filename) =
     ( "$Installcheck::TMP/input.tmp", "$Installcheck::TMP/output.tmp" );
 my $taperoot = "$Installcheck::TMP/Amanda_Device_test_tapes";
 my $testconf;
-my $queue_fd;
 
 # we'll need some vtapes..
 sub mkvtape {
@@ -67,21 +66,9 @@ $dumpfile->{name} = "localhost";
 $dumpfile->{disk} = "/home";
 $dumpfile->{program} = "INSTALLCHECK";
 
-# function to set up a queue_fd for a filename
-sub make_queue_fd {
-    my ($filename, $mode) = @_;
-
-    open(my $fd, $mode, $filename) or die("Could not open $filename: $!");
-    return $fd, Amanda::Device::queue_fd_t->new($fd);
-}
-
 my $write_file_count = 5;
 sub write_file {
     my ($seed, $length, $filenum) = @_;
-
-    croak ("selected file size $length is *way* too big")
-	unless ($length < 1024*1024*10);
-    Amanda::Tests::write_random_file($seed, $length, $input_filename);
 
     $dumpfile->{'datestamp'} = "2000010101010$filenum";
 
@@ -92,11 +79,10 @@ sub write_file {
     is($dev->file(), $filenum,
 	"Device has correct filenum");
 
-    my ($input, $queue_fd) = make_queue_fd($input_filename, "<");
-    ok($dev->write_from_fd($queue_fd),
-	"write some data")
-	or diag($dev->error_or_status());
-    close($input) or die("Error closing $input_filename");
+    croak ("selected file size $length is *way* too big")
+	unless ($length < 1024*1024*10);
+    ok(Amanda::Device::write_random_to_device($seed, $length, $dev),
+	"write random data");
 
     if(ok($dev->in_file(),
 	"still in_file")) {
@@ -108,7 +94,7 @@ sub write_file {
     }
 }
 
-my $verify_file_count = 5;
+my $verify_file_count = 4;
 sub verify_file {
     my ($seed, $length, $filenum) = @_;
 
@@ -120,14 +106,7 @@ sub verify_file {
     ok(header_for($read_dumpfile, $filenum),
 	"header is correct")
 	or diag($dev->error_or_status());
-
-    my ($output, $queue_fd) = make_queue_fd($output_filename, ">");
-    ok($dev->read_to_fd($queue_fd),
-	"read data from file $filenum")
-	or diag($dev->error_or_status());
-    close($output) or die("Error closing $output_filename");
-
-    ok(Amanda::Tests::verify_random_file($seed, $length, $output_filename, 0),
+    ok(Amanda::Device::verify_random_from_device($seed, $length, $dev),
 	"verified file contents");
 }
 
@@ -349,6 +328,84 @@ ok($dev->finish(),
    "finish device after erase")
     or diag($dev->error_or_status());
 
+# test monitor_free_space property (testing the monitoring would require a
+# dedicated partition for the tests - it's not worth it)
+
+ok($dev->property_get("monitor_free_space"),
+    "monitor_free_space property is set by default");
+
+ok($dev->property_set("monitor_free_space", 0),
+    "monitor_free_space property can be set to false");
+
+ok(!$dev->property_get("monitor_free_space"),
+    "monitor_free_space property value 'sticks'");
+
+# test the LEOM functionality
+
+$dev = undef;
+$dev = Amanda::Device->new($dev_name);
+is($dev->status(), $DEVICE_STATUS_SUCCESS,
+    "$dev_name: re-create successful")
+    or diag($dev->error_or_status());
+ok($dev->property_set("MAX_VOLUME_USAGE", "512k"),
+    "set MAX_VOLUME_USAGE to test LEOM");
+ok($dev->property_set("LEOM", 1),
+    "set LEOM");
+
+ok($dev->start($ACCESS_WRITE, 'TESTCONF23', undef),
+    "start in write mode")
+    or diag($dev->error_or_status());
+
+ok($dev->start_file($dumpfile),
+    "start file 1")
+    or diag($dev->error_or_status());
+
+ok(!$dev->is_eom,
+    "device does not indicate LEOM before writing");
+
+ok(Amanda::Device::write_random_to_device(0xCAFE, 440*1024, $dev),
+    "write random data into the early-warning zone");
+
+ok($dev->is_eom,
+    "device indicates LEOM after writing");
+
+ok($dev->finish_file(),
+    "..but a finish_file is allowed to complete")
+    or diag($dev->error_or_status());
+
+ok($dev->finish(),
+   "finish device after LEOM test")
+    or diag($dev->error_or_status());
+
+$dev = undef;
+$dev = Amanda::Device->new($dev_name);
+is($dev->status(), $DEVICE_STATUS_SUCCESS,
+    "$dev_name: re-create successful")
+    or diag($dev->error_or_status());
+ok($dev->property_set("MAX_VOLUME_USAGE", "160k"),
+    "set MAX_VOLUME_USAGE to test LEOM while writing the first header");
+ok($dev->property_set("LEOM", 1),
+    "set LEOM");
+
+ok($dev->start($ACCESS_WRITE, 'TESTCONF23', undef),
+    "start in write mode")
+    or diag($dev->error_or_status());
+
+ok($dev->start_file($dumpfile),
+    "start file 1")
+    or diag($dev->error_or_status());
+
+ok($dev->is_eom,
+    "device indicates LEOM after writing first header");
+
+ok($dev->finish_file(),
+    "..but a finish_file is allowed to complete")
+    or diag($dev->error_or_status());
+
+ok($dev->finish(),
+   "finish device after LEOM test")
+    or diag($dev->error_or_status());
+
 ####
 ## Test a RAIT device of two vfs devices.
 
@@ -372,6 +429,12 @@ ok($dev->property_set("block_size", 32768*16),
     "rait device accepts an explicit block size");
 
 is($dev->property_get("block_size"), 32768*16,
+    "..and remembers it");
+
+ok($dev->property_set("max_volume_usage", 32768*1000),
+    "rait device accepts property MAX_VOLUME_USAGE");
+
+is($dev->property_get("max_volume_usage"), 32768*1000,
     "..and remembers it");
 
 $dev->read_label();
@@ -542,7 +605,7 @@ my $run_s3_tests = defined $S3_SECRET_KEY && defined $S3_ACCESS_KEY;
 my $run_devpay_tests = defined $DEVPAY_SECRET_KEY &&
     defined $DEVPAY_ACCESS_KEY && $DEVPAY_USER_TOKEN;
 
-my $s3_make_device_count = 6;
+my $s3_make_device_count = 7;
 sub s3_make_device($$) {
     my ($dev_name, $kind) = @_;
     $dev = Amanda::Device->new($dev_name);
@@ -557,6 +620,11 @@ sub s3_make_device($$) {
 
     ok($dev->property_set('BLOCK_SIZE', 32768*2),
 	"set block size")
+	or diag($dev->error_or_status());
+
+    # might as well save a few cents while testing this property..
+    ok($dev->property_set('S3_STORAGE_CLASS', 'REDUCED_REDUNDANCY'),
+	"set storage class")
 	or diag($dev->error_or_status());
 
     if ($kind eq "s3") {
@@ -593,7 +661,7 @@ my $base_name;
 
 SKIP: {
     skip "define \$INSTALLCHECK_S3_{SECRET,ACCESS}_KEY to run S3 tests",
-            67 +
+            71 +
             1 * $verify_file_count +
             4 * $write_file_count +
             10 * $s3_make_device_count
@@ -609,6 +677,9 @@ SKIP: {
 
     ok($dev->property_get("full_deletion"),
        "property_get(full_deletion) on s3 device");
+
+    ok($dev->property_get("leom"),
+       "property_get(leom) on s3 device");
 
     # test parsing of boolean values
     # (s3 is the only device driver that has a writable boolean property at the
@@ -741,7 +812,8 @@ SKIP: {
 
     ok($dev->finish(),
        "finish device after read")
-        or diag($dev->error_or_status());    # (note: we don't use write_max_size here, as the maximum for S3 is very large)
+        or diag($dev->error_or_status());    # (note: we don't use write_max_size here,
+					     # as the maximum for S3 is very large)
 
     ok($dev->erase(),
        "erase device")
@@ -780,6 +852,12 @@ SKIP: {
        "status is either OK or possibly unlabeled")
         or diag($dev->error_or_status());
 
+    $dev->finish();
+
+    ok($dev->erase(),
+       "erase device")
+       or diag($dev->error_or_status());
+
     # try a eu-constrained bucket
     $dev_name = lc("s3:$base_name-s3-eu");
     $dev = s3_make_device($dev_name, "s3");
@@ -796,6 +874,10 @@ SKIP: {
         or diag($dev->error_or_status());
 
     $dev->finish();
+
+    ok($dev->erase(),
+       "erase device")
+       or diag($dev->error_or_status());
 
     # try a wildcard-constrained bucket
     $dev_name = lc("s3:$base_name-s3-wild");
@@ -840,7 +922,7 @@ SKIP: {
     SKIP: {
 	skip "SSL not supported; can't check SSL_CA_INFO", 4
 	    unless $dev->property_get('S3_SSL');
-	ok($dev->property_set('SSL_CA_INFO', 'data/aws-bundle.crt'),
+	ok($dev->property_set('SSL_CA_INFO', "$srcdir/data/aws-bundle.crt"),
 	   "set our own SSL/TLS CA certificate bundle")
 	    or diag($dev->error_or_status());
 
@@ -855,7 +937,13 @@ SKIP: {
         is($dev->status(), $DEVICE_STATUS_SUCCESS,
            "status is OK")
             or diag($dev->error_or_status());
+
+	$dev->finish();
     }
+
+    ok($dev->erase(),
+       "erase device")
+       or diag($dev->error_or_status());
 
     # bucket names incompatible with location constraint
     $dev_name = "s3:-$base_name-s3-eu";
@@ -1050,7 +1138,7 @@ SKIP: {
 }
 
 SKIP: {
-    skip "not built with ndmp and server", 77 unless
+    skip "not built with ndmp and server", 78 unless
 	Amanda::Util::built_with_component("ndmp") and
 	Amanda::Util::built_with_component("server");
 
@@ -1111,6 +1199,15 @@ SKIP: {
     $dev->property_set("ndmp_username", "ndmp");
     $dev->property_set("ndmp_password", "ndmp");
 
+    # use a big read_block_size, checking that it's also settable
+    # via read_buffer_size
+    ok($dev->property_set("read_block_size", 256*1024),
+    "can set read_block_size");
+    is($dev->property_get("read_block_size"), 256*1024,
+    "and its value is reflected");
+    ok($dev->property_set("read_block_size", 64*1024),
+    "set read_block_size back to something smaller");
+
     # ok, let's fire the thing up
     ok($dev->start($ACCESS_WRITE, "TEST1", "20090915000000"),
 	"start device in write mode")
@@ -1122,7 +1219,7 @@ SKIP: {
     {   # write to the file
 	my $xfer = Amanda::Xfer->new([
 		Amanda::Xfer::Source::Random->new(32768*21, 0xBEEFEE00),
-		Amanda::Xfer::Dest::Device->new($dev, 32768*5) ]);
+		Amanda::Xfer::Dest::Device->new($dev, 0) ]);
 	$xfer->start(make_cb(xmsg_cb => sub {
 	    my ($src, $msg, $xfer) = @_;
 	    if ($msg->{'type'} == $XMSG_ERROR) {
@@ -1187,16 +1284,23 @@ SKIP: {
     # test the directtcp-target implementation
     #
 
-    {
-	ok($dev->directtcp_supported(), "is a directtcp target");
+    ok($dev->directtcp_supported(), "is a directtcp target");
+    for my $dev_use ('initiator', 'listener') {
+	my ($xfer, $addrs, $dest_elt);
+	if ($dev_use eq 'listener') {
+	    $addrs = $dev->listen(1);
+	    ok($addrs, "listen returns successfully") or die($dev->error_or_status());
 
-	my $addrs = $dev->listen(1);
-	ok($addrs, "listen returns successfully") or die($dev->error_or_status());
-
-	# set up an xfer to write to the device
-	my $xfer = Amanda::Xfer->new([
+	    # set up an xfer to write to the device
+	    $dest_elt = Amanda::Xfer::Dest::DirectTCPConnect->new($addrs);
+	} else {
+	    # set up an xfer to write to the device
+	    $dest_elt = Amanda::Xfer::Dest::DirectTCPListen->new();
+	}
+	$xfer = Amanda::Xfer->new([
 		Amanda::Xfer::Source::Random->new(32768*34, 0xB00),
-		Amanda::Xfer::Dest::DirectTCPConnect->new($addrs) ]);
+		$dest_elt,
+	    ]);
 
 	my @messages;
 	$xfer->start(make_cb(xmsg_cb => sub {
@@ -1211,154 +1315,50 @@ SKIP: {
 	# write files from the connection until EOF
 	my $num_files;
 	my $conn;
-	my ($call_accept, $start_device, $write_file_cb);
+	my ($finish_connection, $start_device, $write_file_cb);
 
-	$call_accept = make_cb(call_accept => sub {
-	    $conn = $dev->accept();
-	    Amanda::MainLoop::call_later($start_device);
-	});
 
-	$start_device = make_cb(start_device => sub {
-	    ok($dev->start($ACCESS_WRITE, "TEST2", "20090915000000"),
-		"start device in write mode")
-		or diag $dev->error_or_status();
-
-	    Amanda::MainLoop::call_later($write_file_cb);
-	});
-
-	$write_file_cb = make_cb(write_file_cb => sub {
-	    ++$num_files < 20 or die "I seem to be in a loop!";
-
-	    ok($dev->start_file($hdr), "start file $num_files for writing");
-	    is($dev->file, $num_files, "..file number is correct");
-
-	    my ($ok, $size) = $dev->write_from_connection(32768*15);
-	    push @messages, sprintf("WRITE-%s-%d-%s-%s",
-		$ok?"OK":"ERR", $size,
-		$dev->is_eof()? "EOF":"!eof",
-		$dev->is_eom()? "EOM":"!eom");
-	    ok($ok, "..write from connection succeeds");
-	    my $eof = $dev->is_eof();
-
-	    ok($dev->finish_file(), "..finish file after writing");
-
-	    if (!$eof) {
-		Amanda::MainLoop::call_later($write_file_cb);
-	    }
-	});
-
-	Amanda::MainLoop::call_later($call_accept);
-	Amanda::MainLoop::run();
-	is_deeply([@messages], [
-		'WRITE-OK-491520-!eof-!eom',
-		'WRITE-OK-491520-!eof-!eom',
-		'WRITE-OK-131072-EOF-!eom',
-	    ],
-	    "a sequence of write_from_connection calls works correctly");
-
-	$dev->finish();
-
-	if (my $err = $conn->close()) {
-	    die $err;
-	}
-    }
-
-    #
-    # Test indirecttcp
-    #
-
-    {
-	ok($dev->directtcp_supported(), "is a directtcp target");
-
-	$dev->property_set("_force_indirecttcp", 1);
-
-	my $addrs = $dev->listen(1);
-	is_deeply([ scalar @$addrs, $addrs->[0][0] ],
-	    [ 1, '255.255.255.255' ],
-	    "listen returns successfully with indirecttcp sentinel")
-	    or die($dev->error_or_status());
-
-	# fork off to evaluate the indirecttcp addresses and then set up an
-	# xfer to write to the device
-	if (POSIX::fork() == 0) {
-	    # NOTE: do not use IO::Socket in normal Amanda code - it is diabolically
-	    # not threadsafe!  It's OK here since this is just a test script and
-	    # since we're in a subprocess
-	    use IO::Socket;
-	    my $sock = new IO::Socket::INET(
-		    PeerAddr => '127.0.0.1',
-		    PeerPort => $addrs->[0][1],
-		    Proto => 'tcp')
-		or die("Could not create connecting socket");
-	    $sock->shutdown(1); # send EOF
-	    my $sockresult = <$sock>;
-	    $sock->close();
-
-	    my @sockresult = map { [ split(/:/, $_) ] } split(/ /, $sockresult);
-	    $addrs = [ map { $_->[1] = int($_->[1]); $_ } @sockresult ];
-
-	    my $xfer = Amanda::Xfer->new([
-		    Amanda::Xfer::Source::Random->new(32768*34, 0xB00),
-		    Amanda::Xfer::Dest::DirectTCPConnect->new($addrs) ]);
-
-	    $xfer->start(make_cb(xmsg_cb => sub {
-		my ($src, $msg, $xfer) = @_;
-		if ($msg->{'type'} == $XMSG_ERROR) {
-		    die $msg->{'elt'} . " failed: " . $msg->{'message'};
-		} elsif ($msg->{'type'} == $XMSG_DONE) {
-		    Amanda::MainLoop::quit();
-		}
-	    }));
-
-	    Amanda::MainLoop::run();
-
-	    # exit without doing any of perl's cleanup
-	    POSIX::_exit(0);
-	}
-
-	# write files from the connection until EOF
-	my @messages;
-	my $num_files;
-	my $conn;
-	my ($call_accept, $start_device, $write_file_cb);
-
-	$call_accept = make_cb(call_accept => sub {
-	    $conn = $dev->accept();
-	    Amanda::MainLoop::call_later($start_device);
-	});
-
-	$start_device = make_cb(start_device => sub {
-	    ok($dev->start($ACCESS_WRITE, "TEST2", "20090915000000"),
-		"start device in write mode")
-		or diag $dev->error_or_status();
-
-	    Amanda::MainLoop::call_later($write_file_cb);
-	});
-
-	$write_file_cb = make_cb(write_file_cb => sub {
-	    ++$num_files < 20 or die "I seem to be in a loop!";
-
-	    ok($dev->start_file($hdr), "start file $num_files for writing");
-	    is($dev->file, $num_files, "..file number is correct");
-
-	    my ($ok, $size) = $dev->write_from_connection(32768*15);
-	    push @messages, sprintf("WRITE-%s-%d-%s-%s",
-		$ok?"OK":"ERR", $size,
-		$dev->is_eof()? "EOF":"!eof",
-		$dev->is_eom()? "EOM":"!eom");
-	    ok($ok, "..write from connection succeeds");
-	    my $eof = $dev->is_eof();
-
-	    ok($dev->finish_file(), "..finish file after writing");
-
-	    if (!$eof) {
-		Amanda::MainLoop::call_later($write_file_cb);
+	$finish_connection = make_cb(finish_connection => sub {
+	    if ($dev_use eq 'listener') {
+		$conn = $dev->accept();
 	    } else {
-		Amanda::MainLoop::quit();
+		$addrs = $dest_elt->get_addrs();
+		$conn = $dev->connect(1, $addrs);
+	    }
+	    Amanda::MainLoop::call_later($start_device);
+	});
+
+
+	$start_device = make_cb(start_device => sub {
+	    ok($dev->start($ACCESS_WRITE, "TEST2", "20090915000000"),
+		"start device in write mode")
+		or diag $dev->error_or_status();
+
+	    Amanda::MainLoop::call_later($write_file_cb);
+	});
+
+	$write_file_cb = make_cb(write_file_cb => sub {
+	    ++$num_files < 20 or die "I seem to be in a loop!";
+
+	    ok($dev->start_file($hdr), "start file $num_files for writing");
+	    is($dev->file, $num_files, "..file number is correct");
+
+	    my ($ok, $size) = $dev->write_from_connection(32768*15);
+	    push @messages, sprintf("WRITE-%s-%d-%s-%s",
+		$ok?"OK":"ERR", $size,
+		$dev->is_eof()? "EOF":"!eof",
+		$dev->is_eom()? "EOM":"!eom");
+	    ok($ok, "..write from connection succeeds");
+	    my $eof = $dev->is_eof();
+
+	    ok($dev->finish_file(), "..finish file after writing");
+
+	    if (!$eof) {
+		Amanda::MainLoop::call_later($write_file_cb);
 	    }
 	});
 
-	Amanda::MainLoop::call_later($call_accept);
+	Amanda::MainLoop::call_later($finish_connection);
 	Amanda::MainLoop::run();
 	is_deeply([@messages], [
 		'WRITE-OK-491520-!eof-!eom',

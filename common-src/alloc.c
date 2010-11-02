@@ -315,13 +315,11 @@ debug_vstrextend(
         return *oldstr;
 }
 
-
-extern char **environ;
 /*
- * safe_env - build a "safe" environment list.
+ * safe_env_full - build a "safe" environment list.
  */
 char **
-safe_env(void)
+safe_env_full(char **add)
 {
     static char *safe_env_list[] = {
 	"TZ",
@@ -351,14 +349,24 @@ safe_env(void)
     size_t l1, l2;
     char **env;
     int    env_cnt;
+    int nadd = 0;
+
+    /* count ADD */
+    for (p = add; p && *p; p++)
+	nadd++;
 
     if (getuid() == geteuid() && getgid() == getegid()) {
 	env_cnt = 1;
 	for (env = environ; *env != NULL; env++)
 	    env_cnt++;
-	if ((q = (char **)malloc(env_cnt*SIZEOF(char *))) != NULL) {
+	if ((q = (char **)malloc((nadd+env_cnt)*SIZEOF(char *))) != NULL) {
 	    envp = q;
 	    p = envp;
+	    /* copy in ADD */
+	    for (env = add; env && *env; env++) {
+		*p = *env;
+		p++;
+	    }
 	    for (env = environ; *env != NULL; env++) {
 		if (strncmp("LANG=", *env, 5) != 0 &&
 		    strncmp("LC_", *env, 3) != 0) {
@@ -371,8 +379,15 @@ safe_env(void)
 	return envp;
     }
 
-    if ((q = (char **)malloc(SIZEOF(safe_env_list))) != NULL) {
+    if ((q = (char **)malloc(nadd*sizeof(char *) + SIZEOF(safe_env_list))) != NULL) {
 	envp = q;
+	/* copy in ADD */
+	for (p = add; p && *p; p++) {
+	    *q = *p;
+	    q++;
+	}
+
+	/* and copy any SAFE_ENV that are already set */
 	for (p = safe_env_list; *p != NULL; p++) {
 	    if ((v = getenv(*p)) == NULL) {
 		continue;			/* no variable to dup */
@@ -391,71 +406,4 @@ safe_env(void)
 	*q = NULL;				/* terminate the list */
     }
     return envp;
-}
-
-/*
- * amtable_alloc -- (re)allocate enough space for some number of elements.
- *
- * input:	table -- pointer to pointer to table
- *		current -- pointer to current number of elements
- *		elsize -- size of a table element
- *		count -- desired number of elements
- *		bump -- round up factor
- *		init_func -- optional element initialization function
- * output:	table -- possibly adjusted to point to new table area
- *		current -- possibly adjusted to new number of elements
- */
-
-int
-debug_amtable_alloc(
-    const char *file,
-    int		line,
-    void **	table,
-    size_t *	current,
-    size_t	elsize,
-    size_t	count,
-    int		bump,
-    void (*init_func)(void *))
-{
-    void *table_new;
-    size_t table_count_new;
-    size_t i;
-
-    if (count >= *current) {
-	table_count_new = ((count + bump) / bump) * bump;
-	table_new = debug_alloc(file, line, table_count_new * elsize);
-	if (0 != *table) {
-	    memcpy(table_new, *table, *current * elsize);
-	    free(*table);
-	}
-	*table = table_new;
-	memset(((char *)*table) + *current * elsize,
-	       0,
-	       (table_count_new - *current) * elsize);
-	if (init_func != NULL) {
-	    for (i = *current; i < table_count_new; i++) {
-		(*init_func)(((char *)*table) + i * elsize);
-	    }
-	}
-	*current = table_count_new;
-    }
-    return 0;
-}
-
-/*
- * amtable_free -- release a table.
- *
- * input:	table -- pointer to pointer to table
- *		current -- pointer to current number of elements
- * output:	table -- possibly adjusted to point to new table area
- *		current -- possibly adjusted to new number of elements
- */
-
-void
-amtable_free(
-    void **	table,
-    size_t *	current)
-{
-    amfree(*table);
-    *current = 0;
 }

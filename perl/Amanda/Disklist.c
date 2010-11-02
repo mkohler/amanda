@@ -8,6 +8,9 @@
  * interface file instead. 
  * ----------------------------------------------------------------------------- */
 
+#include "../config/config.h"
+
+
 #define SWIGPERL
 #define SWIG_CASTRANK_MODE
 
@@ -1905,7 +1908,7 @@ static swig_type_info _swigt__p_char = {"_p_char", "gchar *|char *", 0, 0, (void
 static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_dumptype_t = {"_p_dumptype_t", "dumptype_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *|gfloat *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_int = {"_p_int", "application_key *|strategy_t *|pp_script_key *|int *|autolabel_enum_t *|comp_t *|dump_holdingdisk_t *|device_config_key *|changer_config_key *|confparm_key *|interface_key *|holdingdisk_key *|dumptype_key *|tapetype_key *|cfgerr_level_t *|encrypt_t *|taperalgo_t *|gboolean *|data_path_t *|execute_on_t *|send_amreport_on_t *|estimate_t *|config_init_flags *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_int = {"_p_int", "application_key *|strategy_t *|pp_script_key *|int *|autolabel_enum_t *|comp_t *|dump_holdingdisk_t *|device_config_key *|changer_config_key *|confparm_key *|interface_key *|holdingdisk_key *|dumptype_key *|tapetype_key *|part_cache_type_t *|cfgerr_level_t *|encrypt_t *|taperalgo_t *|gboolean *|data_path_t *|execute_on_t *|send_amreport_on_t *|estimate_t *|config_init_flags *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_interface_t = {"_p_interface_t", "interface_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "guchar *|unsigned char *", 0, 0, (void*)0, 0};
 

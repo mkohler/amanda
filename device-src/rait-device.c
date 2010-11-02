@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007,2008,2009 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -21,7 +21,7 @@
 /* The RAIT device encapsulates some number of other devices into a single
  * redundant device. */
 
-#include <amanda.h>
+#include "amanda.h"
 #include "property.h"
 #include "util.h"
 #include <glib.h>
@@ -196,10 +196,6 @@ static gboolean property_get_boolean_and_fn(Device *self,
     PropertySurety *surety, PropertySource *source);
 
 static gboolean property_get_medium_access_type_fn(Device *self,
-    DevicePropertyBase *base, GValue *val,
-    PropertySurety *surety, PropertySource *source);
-
-static gboolean property_get_free_space_fn(Device *self,
     DevicePropertyBase *base, GValue *val,
     PropertySurety *surety, PropertySource *source);
 
@@ -383,16 +379,16 @@ rait_device_base_init (RaitDeviceClass * c)
 	    PROPERTY_ACCESS_GET_MASK,
 	    property_get_boolean_and_fn, NULL);
 
+    device_class_register_property(device_class, PROPERTY_LEOM,
+	    PROPERTY_ACCESS_GET_MASK,
+	    property_get_boolean_and_fn, NULL);
+
     device_class_register_property(device_class, PROPERTY_MEDIUM_ACCESS_TYPE,
 	    PROPERTY_ACCESS_GET_MASK,
 	    property_get_medium_access_type_fn, NULL);
 
-    device_class_register_property(device_class, PROPERTY_FREE_SPACE,
-	    PROPERTY_ACCESS_GET_MASK,
-	    property_get_free_space_fn, NULL);
-
     device_class_register_property(device_class, PROPERTY_MAX_VOLUME_USAGE,
-	    PROPERTY_ACCESS_GET_MASK,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
 	    property_get_max_volume_usage_fn,
 	    property_set_max_volume_usage_fn);
 }
@@ -2411,76 +2407,6 @@ property_get_medium_access_type_fn(Device *dself,
 }
 
 static gboolean
-property_get_free_space_fn(Device *dself,
-    DevicePropertyBase *base G_GNUC_UNUSED, GValue *val,
-    PropertySurety *surety, PropertySource *source)
-{
-    RaitDevice *self = RAIT_DEVICE(dself);
-    QualifiedSize result;
-    guint i;
-    GPtrArray * ops;
-    guint data_children;
-
-    ops = make_property_op_array(self, PROPERTY_MEDIUM_ACCESS_TYPE, NULL, 0, 0);
-    do_rait_child_ops(self, property_get_do_op, ops);
-
-    /* Find the minimal available space of any child, with some funny business
-     * to deal with varying degrees of accuracy. */
-    result.accuracy = SIZE_ACCURACY_UNKNOWN;
-    result.bytes = 0;
-    for (i = 0; i < ops->len; i ++) {
-        QualifiedSize cur;
-        PropertyOp * op = g_ptr_array_index(ops, i);
-
-        if (!op->base.result || G_VALUE_TYPE(&(op->value)) != QUALIFIED_SIZE_TYPE) {
-	    /* maybe this child can't tell us .. so this is just an estimate */
-	    if (result.accuracy == SIZE_ACCURACY_REAL)
-		result.accuracy = SIZE_ACCURACY_ESTIMATE;
-
-	    continue;
-	}
-
-        cur = *(QualifiedSize*)(g_value_get_boxed(&(op->value)));
-
-        if (result.accuracy != cur.accuracy) {
-            result.accuracy = SIZE_ACCURACY_ESTIMATE;
-        }
-
-        if (result.accuracy == SIZE_ACCURACY_UNKNOWN &&
-            cur.accuracy != SIZE_ACCURACY_UNKNOWN) {
-            result.bytes = cur.bytes;
-        } else if (result.accuracy != SIZE_ACCURACY_UNKNOWN &&
-                   cur.accuracy == SIZE_ACCURACY_UNKNOWN) {
-            /* result.bytes unchanged. */
-        } else {
-            result.bytes = MIN(result.bytes, cur.bytes);
-        }
-    }
-
-    g_ptr_array_free_full(ops);
-
-    /* result contains the minimum size available on any child.  We
-     * can use that space on each of our data children, so the total
-     * is larger */
-    find_simple_params(self, NULL, &data_children);
-    result.bytes *= data_children;
-
-    if (val) {
-	g_value_unset_init(val, QUALIFIED_SIZE_TYPE);
-	g_value_set_boxed(val, &result);
-    }
-
-    if (surety)
-	*surety = (result.accuracy == SIZE_ACCURACY_UNKNOWN)?
-		    PROPERTY_SURETY_BAD : PROPERTY_SURETY_GOOD;
-
-    if (source)
-	*source = PROPERTY_SOURCE_DETECTED;
-
-    return TRUE;
-}
-
-static gboolean
 property_get_max_volume_usage_fn(Device *dself,
     DevicePropertyBase *base G_GNUC_UNUSED, GValue *val,
     PropertySurety *surety, PropertySource *source)
@@ -2506,7 +2432,9 @@ property_get_max_volume_usage_fn(Device *dself,
 
         cur = g_value_get_uint64(&(op->value));
 
-	result = MIN(cur, result);
+	if (!result || (cur && cur < result)) {
+	    result = cur;
+	}
     }
 
     g_ptr_array_free_full(ops);
@@ -2636,23 +2564,23 @@ static gboolean
 rait_device_finish (Device * self) {
     GPtrArray * ops;
     gboolean success;
+    gboolean rval = TRUE;
 
-    if (rait_device_in_error(self)) return FALSE;
+    rval = !rait_device_in_error(self);
 
     ops = make_generic_boolean_op_array(RAIT_DEVICE(self));
 
     do_rait_child_ops(RAIT_DEVICE(self), finish_do_op, ops);
 
     success = g_ptr_array_and(ops, extract_boolean_generic_op);
+    if (!success)
+	rval = FALSE;
 
     g_ptr_array_free_full(ops);
 
     self->access_mode = ACCESS_NULL;
 
-    if (!success)
-        return FALSE;
-
-    return TRUE;
+    return rval;
 }
 
 static Device *

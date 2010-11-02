@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -92,6 +92,8 @@
     <LocationConstraint>%s</LocationConstraint>\n\
   </CreateBucketConfiguration>"
 
+#define AMAZON_STORAGE_CLASS_HEADER "x-amz-storage-class"
+
 #define AMAZON_WILDCARD_LOCATION "*"
 
 /* parameters for exponential backoff in the face of retriable errors */
@@ -109,6 +111,7 @@
 /* Results which should always be retried */
 #define RESULT_HANDLING_ALWAYS_RETRY \
         { 400,  S3_ERROR_RequestTimeout,     0,                          S3_RESULT_RETRY }, \
+        { 403,  S3_ERROR_RequestTimeTooSkewed,0,                          S3_RESULT_RETRY }, \
         { 409,  S3_ERROR_OperationAborted,   0,                          S3_RESULT_RETRY }, \
         { 412,  S3_ERROR_PreconditionFailed, 0,                          S3_RESULT_RETRY }, \
         { 500,  S3_ERROR_InternalError,      0,                          S3_RESULT_RETRY }, \
@@ -132,7 +135,9 @@ struct S3Handle {
     char *secret_key;
     char *user_token;
 
+    /* attributes for new objects */
     char *bucket_location;
+    char *storage_class;
 
     char *ca_info;
 
@@ -152,6 +157,9 @@ struct S3Handle {
     guint last_num_retries;
     void *last_response_body;
     guint last_response_body_size;
+
+    /* offset with s3 */
+    time_t time_offset_with_s3;
 };
 
 typedef struct {
@@ -163,6 +171,8 @@ typedef struct {
     gboolean headers_done;
     gboolean int_write_done;
     char *etag;
+    /* Points to current handle: Added to get hold of s3 offset */
+    struct S3Handle *hdl;
 } S3InternalData;
 
 /* Callback function to examine headers one-at-a-time
@@ -254,7 +264,8 @@ lookup_result(const result_handling_t *result_handling,
 /*
  * Precompiled regular expressions */
 static regex_t etag_regex, error_name_regex, message_regex, subdomain_regex,
-    location_con_regex;
+    location_con_regex, date_sync_regex;
+
 
 /*
  * Utility functions
@@ -422,7 +433,7 @@ s3_error_code_from_name(char *s3_error_name)
 
     /* do a brute-force search through the list, since it's not sorted */
     for (i = 0; i < S3_ERROR_END; i++) {
-        if (g_strcasecmp(s3_error_name, s3_error_code_names[i]) == 0)
+        if (g_ascii_strcasecmp(s3_error_name, s3_error_code_names[i]) == 0)
             return i;
     }
 
@@ -606,11 +617,17 @@ authenticate_request(S3Handle *hdl,
 
     /* calculate the date */
     t = time(NULL);
+
+    /* sync clock with amazon s3 */
+    t = t + hdl->time_offset_with_s3;
+
 #ifdef _WIN32
     if (!gmtime_s(&tmp, &t)) g_debug("localtime error");
 #else
     if (!gmtime_r(&t, &tmp)) perror("localtime");
 #endif
+
+
     date = g_strdup_printf("%s, %02d %s %04d %02d:%02d:%02d GMT",
         wkday[tmp.tm_wday], tmp.tm_mday, month[tmp.tm_mon], 1900+tmp.tm_year,
         tmp.tm_hour, tmp.tm_min, tmp.tm_sec);
@@ -618,12 +635,20 @@ authenticate_request(S3Handle *hdl,
     g_string_append(auth_string, date);
     g_string_append(auth_string, "\n");
 
+    /* CanonicalizedAmzHeaders, sorted lexicographically */
     if (is_non_empty_string(hdl->user_token)) {
         g_string_append(auth_string, AMAZON_SECURITY_HEADER);
         g_string_append(auth_string, ":");
         g_string_append(auth_string, hdl->user_token);
         g_string_append(auth_string, ",");
         g_string_append(auth_string, STS_PRODUCT_TOKEN);
+        g_string_append(auth_string, "\n");
+    }
+
+    if (is_non_empty_string(hdl->storage_class)) {
+        g_string_append(auth_string, AMAZON_STORAGE_CLASS_HEADER);
+        g_string_append(auth_string, ":");
+        g_string_append(auth_string, hdl->storage_class);
         g_string_append(auth_string, "\n");
     }
 
@@ -673,6 +698,13 @@ authenticate_request(S3Handle *hdl,
         headers = curl_slist_append(headers, buf);
         g_free(buf);
     }
+
+    if (is_non_empty_string(hdl->storage_class)) {
+	buf = g_strdup_printf(AMAZON_STORAGE_CLASS_HEADER ": %s", hdl->storage_class);
+	headers = curl_slist_append(headers, buf);
+	g_free(buf);
+    }
+
 
     buf = g_strdup_printf("Authorization: AWS %s:%s",
                           hdl->access_key, auth_base64);
@@ -732,7 +764,7 @@ interpret_response(S3Handle *hdl,
 
     /* check ETag, if present */
     if (etag && content_md5 && 200 == response_code) {
-        if (etag && g_strcasecmp(etag, content_md5))
+        if (etag && g_ascii_strcasecmp(etag, content_md5))
             hdl->last_message = g_strdup("S3 Error: Possible data corruption (ETag returned by Amazon did not match the MD5 hash of the data sent)");
         else
             ret = FALSE;
@@ -885,7 +917,7 @@ size_t
 s3_counter_write_func(G_GNUC_UNUSED void *ptr, size_t size, size_t nmemb, void *stream)
 {
     gint64 *count = (gint64*) stream, inc = nmemb*size;
-    
+
     if (count) *count += inc;
     return inc;
 }
@@ -1036,7 +1068,8 @@ perform_request(S3Handle *hdl,
     CURLcode curl_code = CURLE_OK;
     char curl_error_buffer[CURL_ERROR_SIZE] = "";
     struct curl_slist *headers = NULL;
-    S3InternalData int_writedata = {{NULL, 0, 0, MAX_ERROR_RESPONSE_LEN}, NULL, NULL, NULL, FALSE, FALSE, NULL};
+    /* Set S3Internal Data */
+    S3InternalData int_writedata = {{NULL, 0, 0, MAX_ERROR_RESPONSE_LEN}, NULL, NULL, NULL, FALSE, FALSE, NULL, hdl};
     gboolean should_retry;
     guint retries = 0;
     gulong backoff = EXPONENTIAL_BACKOFF_START_USEC;
@@ -1301,16 +1334,40 @@ static size_t
 s3_internal_header_func(void *ptr, size_t size, size_t nmemb, void * stream)
 {
     static const char *final_header = "\r\n";
+    time_t remote_time_in_sec,local_time;
     char *header;
     regmatch_t pmatch[2];
     S3InternalData *data = (S3InternalData *) stream;
 
     header = g_strndup((gchar *) ptr, (gsize) size*nmemb);
+
     if (!s3_regexec_wrap(&etag_regex, header, 2, pmatch, 0))
-            data->etag = find_regex_substring(header, pmatch[1]);
+        data->etag = find_regex_substring(header, pmatch[1]);
     if (!strcmp(final_header, header))
         data->headers_done = TRUE;
 
+    /* If date header is found */
+    if (!s3_regexec_wrap(&date_sync_regex, header, 2, pmatch, 0)){
+        char *date = find_regex_substring(header, pmatch[1]);
+
+        /* Remote time is always in GMT: RFC 2616 */
+        /* both curl_getdate and time operate in UTC, so no timezone math is necessary */
+        if ( (remote_time_in_sec = curl_getdate(date, NULL)) < 0 ){
+            g_debug("Error: Conversion of remote time to seconds failed.");
+            data->hdl->time_offset_with_s3 = 0;
+        }else{
+            local_time = time(NULL);
+            /* Offset time */
+            data->hdl->time_offset_with_s3 = remote_time_in_sec - local_time;
+
+	    if (data->hdl->verbose)
+		g_debug("Time Offset (remote - local) :%ld",(long)data->hdl->time_offset_with_s3);
+        }
+
+        g_free(date);
+    }
+
+    g_free(header);
     return size*nmemb;
 }
 
@@ -1326,6 +1383,7 @@ compile_regexes(void)
         {"<Message>[[:space:]]*([^<]*)[[:space:]]*</Message>", REG_EXTENDED | REG_ICASE, &message_regex},
         {"^[a-z0-9](-*[a-z0-9]){2,62}$", REG_EXTENDED | REG_NOSUB, &subdomain_regex},
         {"(/>)|(>([^<]*)</LocationConstraint>)", REG_EXTENDED | REG_ICASE, &location_con_regex},
+        {"^Date:(.*)\r",REG_EXTENDED | REG_ICASE | REG_NEWLINE, &date_sync_regex},
         {NULL, 0, NULL}
     };
     char regmessage[1024];
@@ -1358,6 +1416,9 @@ compile_regexes(void)
         {"(/>)|(>([^<]*)</LocationConstraint>)",
          G_REGEX_CASELESS,
          &location_con_regex},
+        {"^Date:(.*)\\r",
+         G_REGEX_OPTIMIZE | G_REGEX_CASELESS,
+         &date_sync_regex},
         {NULL, 0, NULL}
   };
   int i;
@@ -1415,6 +1476,7 @@ s3_open(const char *access_key,
         const char *secret_key,
         const char *user_token,
         const char *bucket_location,
+        const char *storage_class,
         const char *ca_info
         ) {
     S3Handle *hdl;
@@ -1434,6 +1496,9 @@ s3_open(const char *access_key,
 
     /* NULL is okay */
     hdl->bucket_location = g_strdup(bucket_location);
+
+    /* NULL is ok */
+    hdl->storage_class = g_strdup(storage_class);
 
     /* NULL is okay */
     hdl->ca_info = g_strdup(ca_info);
@@ -1458,6 +1523,7 @@ s3_free(S3Handle *hdl)
         g_free(hdl->secret_key);
         if (hdl->user_token) g_free(hdl->user_token);
         if (hdl->bucket_location) g_free(hdl->bucket_location);
+        if (hdl->storage_class) g_free(hdl->storage_class);
         if (hdl->curl) curl_easy_cleanup(hdl->curl);
 
         g_free(hdl);
@@ -1657,17 +1723,17 @@ list_start_element(GMarkupParseContext *context G_GNUC_UNUSED,
     struct list_keys_thunk *thunk = (struct list_keys_thunk *)user_data;
 
     thunk->want_text = 0;
-    if (g_strcasecmp(element_name, "contents") == 0) {
+    if (g_ascii_strcasecmp(element_name, "contents") == 0) {
         thunk->in_contents = 1;
-    } else if (g_strcasecmp(element_name, "commonprefixes") == 0) {
+    } else if (g_ascii_strcasecmp(element_name, "commonprefixes") == 0) {
         thunk->in_common_prefixes = 1;
-    } else if (g_strcasecmp(element_name, "prefix") == 0 && thunk->in_common_prefixes) {
+    } else if (g_ascii_strcasecmp(element_name, "prefix") == 0 && thunk->in_common_prefixes) {
         thunk->want_text = 1;
-    } else if (g_strcasecmp(element_name, "key") == 0 && thunk->in_contents) {
+    } else if (g_ascii_strcasecmp(element_name, "key") == 0 && thunk->in_contents) {
         thunk->want_text = 1;
-    } else if (g_strcasecmp(element_name, "istruncated")) {
+    } else if (g_ascii_strcasecmp(element_name, "istruncated")) {
         thunk->want_text = 1;
-    } else if (g_strcasecmp(element_name, "nextmarker")) {
+    } else if (g_ascii_strcasecmp(element_name, "nextmarker")) {
         thunk->want_text = 1;
     }
 }
@@ -1680,20 +1746,20 @@ list_end_element(GMarkupParseContext *context G_GNUC_UNUSED,
 {
     struct list_keys_thunk *thunk = (struct list_keys_thunk *)user_data;
 
-    if (g_strcasecmp(element_name, "contents") == 0) {
+    if (g_ascii_strcasecmp(element_name, "contents") == 0) {
         thunk->in_contents = 0;
-    } else if (g_strcasecmp(element_name, "commonprefixes") == 0) {
+    } else if (g_ascii_strcasecmp(element_name, "commonprefixes") == 0) {
         thunk->in_common_prefixes = 0;
-    } else if (g_strcasecmp(element_name, "key") == 0 && thunk->in_contents) {
+    } else if (g_ascii_strcasecmp(element_name, "key") == 0 && thunk->in_contents) {
         thunk->filename_list = g_slist_prepend(thunk->filename_list, thunk->text);
         thunk->text = NULL;
-    } else if (g_strcasecmp(element_name, "prefix") == 0 && thunk->in_common_prefixes) {
+    } else if (g_ascii_strcasecmp(element_name, "prefix") == 0 && thunk->in_common_prefixes) {
         thunk->filename_list = g_slist_prepend(thunk->filename_list, thunk->text);
         thunk->text = NULL;
-    } else if (g_strcasecmp(element_name, "istruncated") == 0) {
-        if (thunk->text && g_strncasecmp(thunk->text, "false", 5) != 0)
+    } else if (g_ascii_strcasecmp(element_name, "istruncated") == 0) {
+        if (thunk->text && g_ascii_strncasecmp(thunk->text, "false", 5) != 0)
             thunk->is_truncated = TRUE;
-    } else if (g_strcasecmp(element_name, "nextmarker") == 0) {
+    } else if (g_ascii_strcasecmp(element_name, "nextmarker") == 0) {
         if (thunk->next_marker) g_free(thunk->next_marker);
         thunk->next_marker = thunk->text;
         thunk->text = NULL;
@@ -1956,7 +2022,7 @@ s3_make_bucket(S3Handle *hdl,
                                  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
                                  NULL, NULL, result_handling);
 
-        /* note that we can check only one of the three AND conditions above 
+        /* note that we can check only one of the three AND conditions above
          * and infer that the others are true
          */
         if (result == S3_RESULT_OK && is_non_empty_string(hdl->bucket_location)) {

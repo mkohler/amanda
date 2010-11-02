@@ -8,6 +8,9 @@
  * interface file instead. 
  * ----------------------------------------------------------------------------- */
 
+#include "../config/config.h"
+
+
 #define SWIGPERL
 #define SWIG_CASTRANK_MODE
 
@@ -2614,17 +2617,7 @@ XS(_wrap_verify_random_file) {
     }
     arg3 = (char *)(buf3);
     {
-      if (sizeof(signed int) == 1) {
-        arg4 = amglue_SvI8(ST(3));
-      } else if (sizeof(signed int) == 2) {
-        arg4 = amglue_SvI16(ST(3));
-      } else if (sizeof(signed int) == 4) {
-        arg4 = amglue_SvI32(ST(3));
-      } else if (sizeof(signed int) == 8) {
-        arg4 = amglue_SvI64(ST(3));
-      } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
-      }
+      arg4 = SvTRUE(ST(3));
     }
     result = (gboolean)verify_random_file(arg1,arg2,arg3,arg4);
     {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007,2008,2009 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -23,7 +23,6 @@
 
 #include <glib.h>
 #include <glib-object.h>
-#include "queueing.h" /* for StreamingRequirement */
 
 /* The properties interface defines define capabilities and other interesting
  * properties. */
@@ -174,21 +173,6 @@ typedef enum {
 #define MEDIA_ACCESS_MODE_TYPE media_access_mode_get_type()
 GType media_access_mode_get_type (void);
 
-/* This one is not a Glibified enum */
-typedef enum {
-    SIZE_ACCURACY_UNKNOWN,
-    SIZE_ACCURACY_ESTIMATE,
-    SIZE_ACCURACY_REAL
-} SizeAccuracy;
-
-/* But SizeAccuracy does apear in this Glibified (gBoxed) struct. */
-typedef struct {
-    SizeAccuracy accuracy;
-    guint64           bytes;
-} QualifiedSize;
-#define QUALIFIED_SIZE_TYPE qualified_size_get_type()
-GType qualified_size_get_type (void);
-
 /* Standard property definitions follow. See also property.c. */
 
 /* Value is a ConcurrencyParadigm */
@@ -196,6 +180,11 @@ extern DevicePropertyBase device_property_concurrency;
 #define PROPERTY_CONCURRENCY (device_property_concurrency.ID)
 
 /* Value is a StreamingRequirement */
+typedef enum {
+    STREAMING_REQUIREMENT_NONE,
+    STREAMING_REQUIREMENT_DESIRED,
+    STREAMING_REQUIREMENT_REQUIRED
+} StreamingRequirement;
 extern DevicePropertyBase device_property_streaming;
 #define PROPERTY_STREAMING (device_property_streaming.ID)
 
@@ -244,10 +233,6 @@ extern DevicePropertyBase device_property_partial_deletion;
 extern DevicePropertyBase device_property_full_deletion;
 #define PROPERTY_FULL_DELETION (device_property_full_deletion.ID)
 
-/* Value is a QualifiedSize, though the accuracy may be SIZE_ACCURACY_NONE. */
-extern DevicePropertyBase device_property_free_space;
-#define PROPERTY_FREE_SPACE (device_property_free_space.ID)
-
 /* Value is a guint64. On devices that support it, this property will
    limit the total amount of data written to a volume; attempts to
    write beyond this point will cause the device to simulate "out of
@@ -263,5 +248,9 @@ extern DevicePropertyBase device_property_verbose;
 /* A comment for the use of the user. */
 extern DevicePropertyBase device_property_comment;
 #define PROPERTY_COMMENT (device_property_comment.ID)
+
+/* Does this device support LEOM? */
+extern DevicePropertyBase device_property_leom;
+#define PROPERTY_LEOM (device_property_leom.ID)
 
 #endif

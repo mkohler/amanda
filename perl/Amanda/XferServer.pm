@@ -57,6 +57,7 @@ package Amanda::XferServer;
 *xfer_dest_device = *Amanda::XferServerc::xfer_dest_device;
 *xfer_source_holding = *Amanda::XferServerc::xfer_source_holding;
 *xfer_dest_taper_splitter = *Amanda::XferServerc::xfer_dest_taper_splitter;
+*xfer_dest_taper_cacher = *Amanda::XferServerc::xfer_dest_taper_cacher;
 *xfer_dest_taper_directtcp = *Amanda::XferServerc::xfer_dest_taper_directtcp;
 *xfer_dest_taper_start_part = *Amanda::XferServerc::xfer_dest_taper_start_part;
 *xfer_dest_taper_use_device = *Amanda::XferServerc::xfer_dest_taper_use_device;
@@ -141,6 +142,18 @@ sub new {
 
 
     Amanda::XferServer::xfer_dest_taper_splitter(@_);
+}
+
+package Amanda::Xfer::Dest::Taper::Cacher;
+
+use vars qw(@ISA);
+@ISA = qw( Amanda::Xfer::Dest::Taper );
+
+sub new { 
+    my $pkg = shift;
+
+
+    Amanda::XferServer::xfer_dest_taper_cacher(@_);
 }
 
 package Amanda::Xfer::Dest::Taper::DirectTCP;

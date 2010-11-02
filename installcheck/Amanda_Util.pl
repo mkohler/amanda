@@ -16,7 +16,7 @@
 # Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More tests => 114;
+use Test::More tests => 130;
 
 use lib "@amperldir@";
 use warnings;
@@ -95,13 +95,37 @@ for my $a (keys %unquote_checks) {
     }
 }
 
-{
-    my ($a, $b) = Amanda::Util::skip_quoted_string("foobar");
-    is($a, "foobar",
-       "skip_quoted_string with one quoted string (first argument)");
-    is($b, undef,
-       "skip_quoted_string with one quoted string (second argument)");
-}
+is_deeply([ Amanda::Util::skip_quoted_string("foobar") ],
+	  [ "foobar", undef ],
+   "skip_quoted_string with one quoted string");
+
+is_deeply([ Amanda::Util::skip_quoted_string("foo  bar") ],
+	  [ "foo", " bar" ],
+   "skip_quoted_string with two spaces keeps second space");
+
+is_deeply([ Amanda::Util::skip_quoted_string("foo\tbar") ],
+	  [ "foo", "bar" ],
+   "skip_quoted_string with a tab still splits");
+
+is_deeply([ Amanda::Util::split_quoted_string_friendly("a b c d") ],
+	  [ qw(a b c d) ],
+	  "split_quoted_string_friendly with a basic split");
+
+is_deeply([ Amanda::Util::split_quoted_string_friendly("\ta   b\nc \t \td   ") ],
+	  [ qw(a b c d) ],
+	  "split_quoted_string_friendly with extra whitespace");
+
+is_deeply([ Amanda::Util::split_quoted_string_friendly("") ],
+	  [ ],
+	  "split_quoted_string_friendly with empty string");
+
+is_deeply([ Amanda::Util::split_quoted_string_friendly("\n\t ") ],
+	  [ ],
+	  "split_quoted_string_friendly with just whitespace");
+
+is_deeply([ Amanda::Util::split_quoted_string_friendly("\n\"hi there\"\t ") ],
+	  [ 'hi there' ],
+	  "split_quoted_string_friendly with one string (containing whitespace)");
 
 my @try_bracing = (
     [ 'abc' ],
@@ -125,6 +149,56 @@ for my $strs (@try_bracing) {
     is_deeply($rt, $strs,
 	      "round-trip of " . Dumper($strs));
 }
+
+is_deeply(
+    [ Amanda::Util::expand_braced_alternates("t{0..3,5}") ],
+    [ qw(t0 t1 t2 t3 t5) ],
+    "expand_braced_alternates('t{0..3,5}')");
+
+is_deeply(
+    [ Amanda::Util::expand_braced_alternates("t{13..12}") ],
+    [ qw(t13..12) ],
+    "expand_braced_alternates('t{13..12}') (sequence not parsed)");
+
+is_deeply(
+    [ Amanda::Util::expand_braced_alternates("t{999..999}") ],
+    [ qw(t999) ],
+    "expand_braced_alternates('t{999..999}')");
+
+is_deeply(
+    [ Amanda::Util::expand_braced_alternates("t{0..3}") ],
+    [ qw(t0 t1 t2 t3) ],
+    "expand_braced_alternates('t{0..3}')");
+
+is_deeply(
+    [ Amanda::Util::expand_braced_alternates("t{10..13}") ],
+    [ qw(t10 t11 t12 t13) ],
+    "expand_braced_alternates('t{10..13}')");
+
+is_deeply(
+    [ Amanda::Util::expand_braced_alternates("t{9..13}") ],
+    [ qw(t9 t10 t11 t12 t13) ],
+    "expand_braced_alternates('t{9..13}')");
+
+is_deeply(
+    [ Amanda::Util::expand_braced_alternates("t{09..13}") ],
+    [ qw(t09 t10 t11 t12 t13) ],
+    "expand_braced_alternates('t{09..13}')");
+
+is_deeply(
+    [ Amanda::Util::expand_braced_alternates("t{009..13}") ],
+    [ qw(t009 t010 t011 t012 t013) ],
+    "expand_braced_alternates('t{009..13}') (ldigits > rdigits)");
+
+is_deeply(
+    [ sort(+Amanda::Util::expand_braced_alternates("x{001..004}y{1..2}z")) ],
+    [ sort(qw( x001y1z x002y1z x003y1z x004y1z x001y2z x002y2z x003y2z x004y2z )) ],
+    "expand_braced_alternates('x{001..004}y{1..2}z')");
+
+is_deeply(
+    [ Amanda::Util::expand_braced_alternates("t{1..100}e") ],
+    [ map { "t$_"."e" } (1 .. 100) ],
+    "expand_braced_alternates('t{1..100}e')");
 
 my @try_sanitise = (
     [ '', '' ],
@@ -246,7 +320,8 @@ DONE taper somebox /lib 20080111 1 0 [sec 4.813543 kb 419 kps 87.133307]
 FINISH driver date 20080111 time 2167.581
 EOF
 
-ok(safe_overwrite_file($burp_corpus_fname, $sof_data));
+ok(safe_overwrite_file($burp_corpus_fname, $sof_data),
+    "safe_overwrite_file success");
 is(slurp($burp_corpus_fname), $sof_data,
     "safe_overwrite_file round-trip check");
 

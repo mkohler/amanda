@@ -127,17 +127,92 @@
    language is requested. */
 #undef ENABLE_NLS
 
+/* Define on systems for which file names may have a so-called `drive letter'
+   prefix, define this to compute the length of that prefix, including the
+   colon. */
+#undef FILE_SYSTEM_ACCEPTS_DRIVE_LETTER_PREFIX
+
+/* Define if the backslash character may also serve as a file name component
+   separator. */
+#undef FILE_SYSTEM_BACKSLASH_IS_FILE_NAME_SEPARATOR
+
+/* Define if a drive letter prefix denotes a relative path if it is not
+   followed by a file name component separator. */
+#undef FILE_SYSTEM_DRIVE_PREFIX_CAN_BE_RELATIVE
+
+/* Define to 1 if the system's ftello function has the Solaris bug. */
+#undef FTELLO_BROKEN_AFTER_SWITCHING_FROM_READ_TO_WRITE
+
 /* Define to 1 if the `getpgrp' function requires zero arguments. */
 #undef GETPGRP_VOID
 
 /* Define if gettimeofday clobbers the localtime buffer. */
 #undef GETTIMEOFDAY_CLOBBERS_LOCALTIME
 
-/* Define to indicate the 'malloc' module. */
+/* Define this to 'void' or 'struct timezone' to match the system's
+   declaration of the second argument to gettimeofday. */
+#undef GETTIMEOFDAY_TIMEZONE
+
+/* Define to a C preprocessor expression that evaluates to 1 or 0, depending
+   whether the gnulib module malloc-gnu shall be considered present. */
 #undef GNULIB_MALLOC_GNU
 
-/* Define to 1 when using the gnulib module sys_socket. */
-#undef GNULIB_SYS_SOCKET
+/* Define to 1 when the gnulib module btowc should be tested. */
+#undef GNULIB_TEST_BTOWC
+
+/* Define to 1 when the gnulib module environ should be tested. */
+#undef GNULIB_TEST_ENVIRON
+
+/* Define to 1 when the gnulib module fseeko should be tested. */
+#undef GNULIB_TEST_FSEEKO
+
+/* Define to 1 when the gnulib module ftello should be tested. */
+#undef GNULIB_TEST_FTELLO
+
+/* Define to 1 when the gnulib module ftruncate should be tested. */
+#undef GNULIB_TEST_FTRUNCATE
+
+/* Define to 1 when the gnulib module getopt-gnu should be tested. */
+#undef GNULIB_TEST_GETOPT_GNU
+
+/* Define to 1 when the gnulib module gettimeofday should be tested. */
+#undef GNULIB_TEST_GETTIMEOFDAY
+
+/* Define to 1 when the gnulib module lseek should be tested. */
+#undef GNULIB_TEST_LSEEK
+
+/* Define to 1 when the gnulib module lstat should be tested. */
+#undef GNULIB_TEST_LSTAT
+
+/* Define to 1 when the gnulib module malloc-posix should be tested. */
+#undef GNULIB_TEST_MALLOC_POSIX
+
+/* Define to 1 when the gnulib module mbrtowc should be tested. */
+#undef GNULIB_TEST_MBRTOWC
+
+/* Define to 1 when the gnulib module mbsinit should be tested. */
+#undef GNULIB_TEST_MBSINIT
+
+/* Define to 1 when the gnulib module memchr should be tested. */
+#undef GNULIB_TEST_MEMCHR
+
+/* Define to 1 when the gnulib module mkdtemp should be tested. */
+#undef GNULIB_TEST_MKDTEMP
+
+/* Define to 1 when the gnulib module nl_langinfo should be tested. */
+#undef GNULIB_TEST_NL_LANGINFO
+
+/* Define to 1 when the gnulib module snprintf should be tested. */
+#undef GNULIB_TEST_SNPRINTF
+
+/* Define to 1 when the gnulib module stat should be tested. */
+#undef GNULIB_TEST_STAT
+
+/* Define to 1 when the gnulib module wcrtomb should be tested. */
+#undef GNULIB_TEST_WCRTOMB
+
+/* Define to 1 when the gnulib module write should be tested. */
+#undef GNULIB_TEST_WRITE
 
 /* Location of the GNU 'tar' binary */
 #undef GNUTAR
@@ -204,6 +279,9 @@
 /* Define if bind is declared. */
 #undef HAVE_BIND_DECL
 
+/* Define to 1 if you have the <bp-sym.h> header file. */
+#undef HAVE_BP_SYM_H
+
 /* Define to 1 if you have the `btowc' function. */
 #undef HAVE_BTOWC
 
@@ -213,9 +291,6 @@
 /* Define if bzero is declared. */
 #undef HAVE_BZERO_DECL
 
-/* Define to 1 if you have the <camlib.h> header file. */
-#undef HAVE_CAMLIB_H
-
 /* Define to 1 if you have the MacOS X function CFLocaleCopyCurrent in the
    CoreFoundation framework. */
 #undef HAVE_CFLOCALECOPYCURRENT
@@ -223,9 +298,6 @@
 /* Define to 1 if you have the MacOS X function CFPreferencesCopyAppValue in
    the CoreFoundation framework. */
 #undef HAVE_CFPREFERENCESCOPYAPPVALUE
-
-/* Define to 1 if you have the <chio.h> header file. */
-#undef HAVE_CHIO_H
 
 /* Define to 1 if you have the `chsize' function. */
 #undef HAVE_CHSIZE
@@ -273,13 +345,29 @@
    don't. */
 #undef HAVE_DECL_GETNAMEINFO
 
+/* Define to 1 if you have the declaration of `getopt_clip', and to 0 if you
+   don't. */
+#undef HAVE_DECL_GETOPT_CLIP
+
 /* Define to 1 if you have the declaration of `inet_ntop', and to 0 if you
    don't. */
 #undef HAVE_DECL_INET_NTOP
 
+/* Define to 1 if you have the declaration of `inet_pton', and to 0 if you
+   don't. */
+#undef HAVE_DECL_INET_PTON
+
 /* Define to 1 if you have the declaration of `isblank', and to 0 if you
    don't. */
 #undef HAVE_DECL_ISBLANK
+
+/* Define to 1 if you have the declaration of `iswblank', and to 0 if you
+   don't. */
+#undef HAVE_DECL_ISWBLANK
+
+/* Define to 1 if you have the declaration of `optreset', and to 0 if you
+   don't. */
+#undef HAVE_DECL_OPTRESET
 
 /* Define to 1 if you have the declaration of `readdir', and to 0 if you
    don't. */
@@ -320,6 +408,9 @@
 
 /* Define to 1 if you have the `endmntent' function. */
 #undef HAVE_ENDMNTENT
+
+/* Define if you have the declaration of environ. */
+#undef HAVE_ENVIRON_DECL
 
 /* Define to 1 if you have the <errno.h> header file. */
 #undef HAVE_ERRNO_H
@@ -411,9 +502,6 @@
 /* Define to 1 if you have the `getopt_long_only' function. */
 #undef HAVE_GETOPT_LONG_ONLY
 
-/* Define to 1 if you have the `getpagesize' function. */
-#undef HAVE_GETPAGESIZE
-
 /* Define to 1 if you have the `getpeername' function. */
 #undef HAVE_GETPEERNAME
 
@@ -471,6 +559,9 @@
 /* Define to 1 if you have the `inet_ntop' function. */
 #undef HAVE_INET_NTOP
 
+/* Define to 1 if you have the `inet_pton' function. */
+#undef HAVE_INET_PTON
+
 /* Define to 1 if you have the `initgroups' function. */
 #undef HAVE_INITGROUPS
 
@@ -508,6 +599,9 @@
 /* Define if isnormal is declared. */
 #undef HAVE_ISNORMAL_DECL
 
+/* Define to 1 if you have the `iswblank' function. */
+#undef HAVE_ISWBLANK
+
 /* Define to 1 if you have the `iswcntrl' function. */
 #undef HAVE_ISWCNTRL
 
@@ -517,8 +611,8 @@
 /* Define if you have <langinfo.h> and nl_langinfo(CODESET). */
 #undef HAVE_LANGINFO_CODESET
 
-/* Define to 1 if you have the `cam' library (-lcam). */
-#undef HAVE_LIBCAM
+/* Define to 1 if you have the <langinfo.h> header file. */
+#undef HAVE_LANGINFO_H
 
 /* Define to 1 if you have the `crypto' library (-lcrypto). */
 #undef HAVE_LIBCRYPTO
@@ -565,9 +659,6 @@
 /* Define to 1 if you have the <limits.h> header file. */
 #undef HAVE_LIMITS_H
 
-/* Define to 1 if you have the <linux/chio.h> header file. */
-#undef HAVE_LINUX_CHIO_H
-
 /* Define to 1 if you have the <linux/zftape.h> header file. */
 #undef HAVE_LINUX_ZFTAPE_H
 
@@ -601,8 +692,16 @@
 /* Define if malloc is declared. */
 #undef HAVE_MALLOC_DECL
 
+/* Define to 1 if your system has a GNU libc compatible 'malloc' function, and
+   to 0 otherwise. */
+#undef HAVE_MALLOC_GNU
+
 /* Define if the 'malloc' function is POSIX compliant. */
 #undef HAVE_MALLOC_POSIX
+
+/* Define to 1 if mmap()'s MAP_ANONYMOUS flag is available after including
+   config.h and <sys/mman.h>. */
+#undef HAVE_MAP_ANONYMOUS
 
 /* Define to 1 if you have the <math.h> header file. */
 #undef HAVE_MATH_H
@@ -615,6 +714,9 @@
 
 /* Define to 1 if <wchar.h> declares mbstate_t. */
 #undef HAVE_MBSTATE_T
+
+/* Define to 1 if you have the `memchr' function. */
+#undef HAVE_MEMCHR
 
 /* Define to 1 if you have the `memmove' function. */
 #undef HAVE_MEMMOVE
@@ -652,14 +754,14 @@
 /* Define if mktime is declared. */
 #undef HAVE_MKTIME_DECL
 
-/* Define to 1 if you have a working `mmap' system call. */
-#undef HAVE_MMAP
-
 /* Define to 1 if you have the <mntent.h> header file. */
 #undef HAVE_MNTENT_H
 
 /* Define to 1 if you have the <mnttab.h> header file. */
 #undef HAVE_MNTTAB_H
+
+/* Define to 1 if you have the `mprotect' function. */
+#undef HAVE_MPROTECT
 
 /* Define if the mtget structure has an mt_blkno field */
 #undef HAVE_MT_BLKNO
@@ -684,6 +786,9 @@
 
 /* Define to 1 if you have the <netinet/in.h> header file. */
 #undef HAVE_NETINET_IN_H
+
+/* Define to 1 if you have the `nl_langinfo' function. */
+#undef HAVE_NL_LANGINFO
 
 /* Define to 1 if you have the `on_exit' function. */
 #undef HAVE_ON_EXIT
@@ -739,6 +844,418 @@
 /* Define to 1 if you have the <random.h> header file. */
 #undef HAVE_RANDOM_H
 
+/* Define to 1 if accept is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_ACCEPT
+
+/* Define to 1 if accept4 is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_ACCEPT4
+
+/* Define to 1 if atoll is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_ATOLL
+
+/* Define to 1 if bind is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_BIND
+
+/* Define to 1 if btowc is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_BTOWC
+
+/* Define to 1 if canonicalize_file_name is declared even after undefining
+   macros. */
+#undef HAVE_RAW_DECL_CANONICALIZE_FILE_NAME
+
+/* Define to 1 if chown is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_CHOWN
+
+/* Define to 1 if connect is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_CONNECT
+
+/* Define to 1 if dprintf is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_DPRINTF
+
+/* Define to 1 if dup2 is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_DUP2
+
+/* Define to 1 if dup3 is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_DUP3
+
+/* Define to 1 if endusershell is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_ENDUSERSHELL
+
+/* Define to 1 if environ is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_ENVIRON
+
+/* Define to 1 if euidaccess is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_EUIDACCESS
+
+/* Define to 1 if faccessat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_FACCESSAT
+
+/* Define to 1 if fchdir is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_FCHDIR
+
+/* Define to 1 if fchmodat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_FCHMODAT
+
+/* Define to 1 if fchownat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_FCHOWNAT
+
+/* Define to 1 if fpurge is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_FPURGE
+
+/* Define to 1 if freeaddrinfo is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_FREEADDRINFO
+
+/* Define to 1 if fseeko is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_FSEEKO
+
+/* Define to 1 if fstatat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_FSTATAT
+
+/* Define to 1 if fsync is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_FSYNC
+
+/* Define to 1 if ftello is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_FTELLO
+
+/* Define to 1 if ftruncate is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_FTRUNCATE
+
+/* Define to 1 if futimens is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_FUTIMENS
+
+/* Define to 1 if gai_strerror is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GAI_STRERROR
+
+/* Define to 1 if getaddrinfo is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETADDRINFO
+
+/* Define to 1 if getcwd is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETCWD
+
+/* Define to 1 if getdelim is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETDELIM
+
+/* Define to 1 if getdomainname is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETDOMAINNAME
+
+/* Define to 1 if getdtablesize is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETDTABLESIZE
+
+/* Define to 1 if getgroups is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETGROUPS
+
+/* Define to 1 if gethostname is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETHOSTNAME
+
+/* Define to 1 if getline is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETLINE
+
+/* Define to 1 if getloadavg is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETLOADAVG
+
+/* Define to 1 if getlogin is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETLOGIN
+
+/* Define to 1 if getlogin_r is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETLOGIN_R
+
+/* Define to 1 if getnameinfo is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETNAMEINFO
+
+/* Define to 1 if getpagesize is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETPAGESIZE
+
+/* Define to 1 if getpeername is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETPEERNAME
+
+/* Define to 1 if getsockname is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETSOCKNAME
+
+/* Define to 1 if getsockopt is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETSOCKOPT
+
+/* Define to 1 if getsubopt is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETSUBOPT
+
+/* Define to 1 if gettimeofday is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETTIMEOFDAY
+
+/* Define to 1 if getusershell is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GETUSERSHELL
+
+/* Define to 1 if grantpt is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_GRANTPT
+
+/* Define to 1 if inet_ntop is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_INET_NTOP
+
+/* Define to 1 if inet_pton is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_INET_PTON
+
+/* Define to 1 if initstat_r is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_INITSTAT_R
+
+/* Define to 1 if lchmod is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_LCHMOD
+
+/* Define to 1 if lchown is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_LCHOWN
+
+/* Define to 1 if link is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_LINK
+
+/* Define to 1 if linkat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_LINKAT
+
+/* Define to 1 if listen is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_LISTEN
+
+/* Define to 1 if lseek is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_LSEEK
+
+/* Define to 1 if lstat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_LSTAT
+
+/* Define to 1 if mbrlen is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MBRLEN
+
+/* Define to 1 if mbrtowc is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MBRTOWC
+
+/* Define to 1 if mbsinit is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MBSINIT
+
+/* Define to 1 if mbsnrtowcs is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MBSNRTOWCS
+
+/* Define to 1 if mbsrtowcs is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MBSRTOWCS
+
+/* Define to 1 if memmem is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MEMMEM
+
+/* Define to 1 if mempcpy is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MEMPCPY
+
+/* Define to 1 if memrchr is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MEMRCHR
+
+/* Define to 1 if mkdirat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MKDIRAT
+
+/* Define to 1 if mkdtemp is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MKDTEMP
+
+/* Define to 1 if mkfifo is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MKFIFO
+
+/* Define to 1 if mkfifoat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MKFIFOAT
+
+/* Define to 1 if mknod is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MKNOD
+
+/* Define to 1 if mknodat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MKNODAT
+
+/* Define to 1 if mkostemp is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MKOSTEMP
+
+/* Define to 1 if mkostemps is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MKOSTEMPS
+
+/* Define to 1 if mkstemp is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MKSTEMP
+
+/* Define to 1 if mkstemps is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_MKSTEMPS
+
+/* Define to 1 if nl_langinfo is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_NL_LANGINFO
+
+/* Define to 1 if pipe2 is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_PIPE2
+
+/* Define to 1 if popen is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_POPEN
+
+/* Define to 1 if pread is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_PREAD
+
+/* Define to 1 if ptsname is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_PTSNAME
+
+/* Define to 1 if pwrite is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_PWRITE
+
+/* Define to 1 if random_r is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_RANDOM_R
+
+/* Define to 1 if rawmemchr is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_RAWMEMCHR
+
+/* Define to 1 if readlink is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_READLINK
+
+/* Define to 1 if readlinkat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_READLINKAT
+
+/* Define to 1 if realpath is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_REALPATH
+
+/* Define to 1 if recv is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_RECV
+
+/* Define to 1 if recvfrom is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_RECVFROM
+
+/* Define to 1 if renameat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_RENAMEAT
+
+/* Define to 1 if rmdir is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_RMDIR
+
+/* Define to 1 if rpmatch is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_RPMATCH
+
+/* Define to 1 if send is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_SEND
+
+/* Define to 1 if sendto is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_SENDTO
+
+/* Define to 1 if setenv is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_SETENV
+
+/* Define to 1 if setsockopt is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_SETSOCKOPT
+
+/* Define to 1 if setstate_r is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_SETSTATE_R
+
+/* Define to 1 if setusershell is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_SETUSERSHELL
+
+/* Define to 1 if shutdown is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_SHUTDOWN
+
+/* Define to 1 if sleep is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_SLEEP
+
+/* Define to 1 if snprintf is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_SNPRINTF
+
+/* Define to 1 if socket is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_SOCKET
+
+/* Define to 1 if srandom_r is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_SRANDOM_R
+
+/* Define to 1 if stat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STAT
+
+/* Define to 1 if stpcpy is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STPCPY
+
+/* Define to 1 if stpncpy is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STPNCPY
+
+/* Define to 1 if strcasestr is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STRCASESTR
+
+/* Define to 1 if strchrnul is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STRCHRNUL
+
+/* Define to 1 if strdup is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STRDUP
+
+/* Define to 1 if strncat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STRNCAT
+
+/* Define to 1 if strndup is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STRNDUP
+
+/* Define to 1 if strnlen is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STRNLEN
+
+/* Define to 1 if strpbrk is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STRPBRK
+
+/* Define to 1 if strsep is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STRSEP
+
+/* Define to 1 if strsignal is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STRSIGNAL
+
+/* Define to 1 if strtod is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STRTOD
+
+/* Define to 1 if strtok_r is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STRTOK_R
+
+/* Define to 1 if strtoll is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STRTOLL
+
+/* Define to 1 if strtoull is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STRTOULL
+
+/* Define to 1 if strverscmp is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_STRVERSCMP
+
+/* Define to 1 if symlink is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_SYMLINK
+
+/* Define to 1 if symlinkat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_SYMLINKAT
+
+/* Define to 1 if tmpfile is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_TMPFILE
+
+/* Define to 1 if ttyname_r is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_TTYNAME_R
+
+/* Define to 1 if unlink is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_UNLINK
+
+/* Define to 1 if unlinkat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_UNLINKAT
+
+/* Define to 1 if unlockpt is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_UNLOCKPT
+
+/* Define to 1 if unsetenv is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_UNSETENV
+
+/* Define to 1 if usleep is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_USLEEP
+
+/* Define to 1 if utimensat is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_UTIMENSAT
+
+/* Define to 1 if vdprintf is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_VDPRINTF
+
+/* Define to 1 if vsnprintf is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_VSNPRINTF
+
+/* Define to 1 if wcrtomb is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_WCRTOMB
+
+/* Define to 1 if wcsnrtombs is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_WCSNRTOMBS
+
+/* Define to 1 if wcsrtombs is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_WCSRTOMBS
+
+/* Define to 1 if wctob is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_WCTOB
+
+/* Define to 1 if wcwidth is declared even after undefining macros. */
+#undef HAVE_RAW_DECL_WCWIDTH
+
+/* Define to 1 if _Exit is declared even after undefining macros. */
+#undef HAVE_RAW_DECL__EXIT
+
 /* System has readline support (headers and libraries) */
 #undef HAVE_READLINE
 
@@ -793,11 +1310,8 @@
 /* Define if ruserok is declared. */
 #undef HAVE_RUSEROK_DECL
 
-/* Define to 1 if you have the <scsi/scsi_ioctl.h> header file. */
-#undef HAVE_SCSI_SCSI_IOCTL_H
-
-/* Define to 1 if you have the <scsi/sg.h> header file. */
-#undef HAVE_SCSI_SG_H
+/* Define to 1 if the system has the type `sa_family_t'. */
+#undef HAVE_SA_FAMILY_T
 
 /* Define to 1 if you have the `select' function. */
 #undef HAVE_SELECT
@@ -856,30 +1370,6 @@
 /* Define if setsockopt is declared. */
 #undef HAVE_SETSOCKOPT_DECL
 
-/* Define to 1 if you have the `shmat' function. */
-#undef HAVE_SHMAT
-
-/* Define if shmat is declared. */
-#undef HAVE_SHMAT_DECL
-
-/* Define to 1 if you have the `shmctl' function. */
-#undef HAVE_SHMCTL
-
-/* Define if shmctl is declared. */
-#undef HAVE_SHMCTL_DECL
-
-/* Define to 1 if you have the `shmdt' function. */
-#undef HAVE_SHMDT
-
-/* Define if shmdt is declared. */
-#undef HAVE_SHMDT_DECL
-
-/* Define to 1 if you have the `shmget' function. */
-#undef HAVE_SHMGET
-
-/* Define if shmget is declared. */
-#undef HAVE_SHMGET_DECL
-
 /* Define to 1 if you have the `shutdown' function. */
 #undef HAVE_SHUTDOWN
 
@@ -907,6 +1397,11 @@
 /* Define if snprintf is declared. */
 #undef HAVE_SNPRINTF_DECL
 
+/* Define if the return value of the snprintf function is the number of of
+   bytes (excluding the terminating NUL) that would have been produced if the
+   buffer had been large enough. */
+#undef HAVE_SNPRINTF_RETVAL_C99
+
 /* struct sockaddr_storage exists */
 #undef HAVE_SOCKADDR_STORAGE
 
@@ -933,6 +1428,9 @@
 
 /* Define to 1 if stdbool.h conforms to C99. */
 #undef HAVE_STDBOOL_H
+
+/* Define to 1 if you have the <stddef.h> header file. */
+#undef HAVE_STDDEF_H
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
@@ -1001,6 +1499,9 @@
 /* Define to 1 if `sa_len' is member of `struct sockaddr'. */
 #undef HAVE_STRUCT_SOCKADDR_SA_LEN
 
+/* Define to 1 if the system has the type `struct sockaddr_storage'. */
+#undef HAVE_STRUCT_SOCKADDR_STORAGE
+
 /* Define to 1 if you have the `sysctl' function. */
 #undef HAVE_SYSCTL
 
@@ -1022,21 +1523,12 @@
 /* Define if system is declared. */
 #undef HAVE_SYSTEM_DECL
 
-/* Define if SysV shared-memory functions are available. */
-#undef HAVE_SYSVSHM
-
 /* Define to 1 if you have the <sys/bitypes.h> header file. */
 #undef HAVE_SYS_BITYPES_H
-
-/* Define to 1 if you have the <sys/chio.h> header file. */
-#undef HAVE_SYS_CHIO_H
 
 /* Define to 1 if you have the <sys/dir.h> header file, and it defines `DIR'.
    */
 #undef HAVE_SYS_DIR_H
-
-/* Define to 1 if you have the <sys/dsreq.h> header file. */
-#undef HAVE_SYS_DSREQ_H
 
 /* Define to 1 if you have the <sys/fcntl.h> header file. */
 #undef HAVE_SYS_FCNTL_H
@@ -1052,9 +1544,6 @@
 
 /* Define to 1 if you have the <sys/fs_types.h> header file. */
 #undef HAVE_SYS_FS_TYPES_H
-
-/* Define to 1 if you have the <sys/gscdds.h> header file. */
-#undef HAVE_SYS_GSCDDS_H
 
 /* Define to 1 if you have the <sys/inttypes.h> header file. */
 #undef HAVE_SYS_INTTYPES_H
@@ -1086,21 +1575,6 @@
 
 /* Define to 1 if you have the <sys/pstat.h> header file. */
 #undef HAVE_SYS_PSTAT_H
-
-/* Define to 1 if you have the <sys/scarray.h> header file. */
-#undef HAVE_SYS_SCARRAY_H
-
-/* Define to 1 if you have the <sys/scsiio.h> header file. */
-#undef HAVE_SYS_SCSIIO_H
-
-/* Define to 1 if you have the <sys/scsi.h> header file. */
-#undef HAVE_SYS_SCSI_H
-
-/* Define to 1 if you have the <sys/scsi/impl/uscsi.h> header file. */
-#undef HAVE_SYS_SCSI_IMPL_USCSI_H
-
-/* Define to 1 if you have the <sys/scsi/scsi/ioctl.h> header file. */
-#undef HAVE_SYS_SCSI_SCSI_IOCTL_H
 
 /* Define to 1 if you have the <sys/select.h> header file. */
 #undef HAVE_SYS_SELECT_H
@@ -1189,6 +1663,9 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
+/* Define to 1 if you have the `unsetenv' function. */
+#undef HAVE_UNSETENV
+
 /* Define to 1 if the system has the type `unsigned long long int'. */
 #undef HAVE_UNSIGNED_LONG_LONG_INT
 
@@ -1203,10 +1680,6 @@
 
 /* Define if vfprintf is declared. */
 #undef HAVE_VFPRINTF_DECL
-
-/* Define to 1 or 0, depending whether the compiler supports simple visibility
-   declarations. */
-#undef HAVE_VISIBILITY
 
 /* Define to 1 if you have the `vprintf' function. */
 #undef HAVE_VPRINTF
@@ -1250,6 +1723,12 @@
 /* Define if you have the 'wint_t' type. */
 #undef HAVE_WINT_T
 
+/* Define to 1 if O_NOATIME works. */
+#undef HAVE_WORKING_O_NOATIME
+
+/* Define to 1 if O_NOFOLLOW works. */
+#undef HAVE_WORKING_O_NOFOLLOW
+
 /* Define to 1 if you have the `writev' function. */
 #undef HAVE_WRITEV
 
@@ -1274,6 +1753,12 @@
 
 /* Define on Cygwin. */
 #undef IGNORE_TAR_ERRORS
+
+#if FILE_SYSTEM_BACKSLASH_IS_FILE_NAME_SEPARATOR
+# define ISSLASH(C) ((C) == '/' || (C) == '\\')
+#else
+# define ISSLASH(C) ((C) == '/')
+#endif
 
 /* The name for the Kerberized Amanda service. */
 #undef KAMANDA_SERVICE_NAME
@@ -1348,6 +1833,9 @@
    */
 #undef LT_OBJDIR
 
+/* Define to a substitute value for mmap()'s MAP_ANONYMOUS flag. */
+#undef MAP_ANONYMOUS
+
 /* Define if the mbrtowc function has the NULL string argument bug. */
 #undef MBRTOWC_NULL_ARG_BUG
 
@@ -1397,6 +1885,17 @@
 /* Define as the prefix for raw disk devices, commonly /dev/r or /dev/rdsk/ */
 #undef RDEV_PREFIX
 
+/* Define to 1 if stat needs help when passed a directory name with a trailing
+   slash */
+#undef REPLACE_FUNC_STAT_DIR
+
+/* Define to 1 if stat needs help when passed a file name with a trailing
+   slash */
+#undef REPLACE_FUNC_STAT_FILE
+
+/* Define if nl_langinfo exists but is overridden by gnulib. */
+#undef REPLACE_NL_LANGINFO
+
 /* Define if vasnprintf exists but is overridden by gnulib. */
 #undef REPLACE_VASNPRINTF
 
@@ -1425,9 +1924,6 @@
 
 /* Define to 1 if the `setpgrp' function takes no argument. */
 #undef SETPGRP_VOID
-
-/* Define to type of shmget() function argument. */
-#undef SHM_ARG_TYPE
 
 /* Define to l, ll, u, ul, ull, etc., as suitable for constants of type
    'sig_atomic_t'. */
@@ -1520,7 +2016,7 @@
 /* Define if statfs takes 3 args. (DEC Alpha running OSF/1) */
 #undef STAT_STATFS3_OSF1
 
-/* Define if statfs takes 4 args. (SVR3, Dynix, Irix, Dolphin) */
+/* Define if statfs takes 4 args. (SVR3, Dynix, old Irix, old AIX, Dolphin) */
 #undef STAT_STATFS4
 
 /* Define if there is a function named statvfs. (SVR4) */
@@ -1548,6 +2044,10 @@
 
 /* Define as the exact path to the gzip or compress command. */
 #undef UNCOMPRESS_PATH
+
+/* Define to the prefix of C symbols at the assembler and linker level, either
+   an underscore or empty. */
+#undef USER_LABEL_PREFIX
 
 /* Define if you want to use the ".amandahosts" for BSD security. */
 #undef USE_AMANDAHOSTS
@@ -1647,17 +2147,8 @@
 /* Define if clients should be built setuid-root */
 #undef WANT_SETUID_CLIENT
 
-/* Define on AIX. */
-#undef WANT_TAPE_AIX
-
 /* Define if the tape-device will be built */
 #undef WANT_TAPE_DEVICE
-
-/* Define on UnixWare. */
-#undef WANT_TAPE_UWARE
-
-/* Define on XENIX/ISC. */
-#undef WANT_TAPE_XENIX
 
 /* Define to l, ll, u, ul, ull, etc., as suitable for constants of type
    'wchar_t'. */
@@ -1679,7 +2170,7 @@
 # endif
 #endif
 
-/* Target system has functional IPv6 support */
+/* This system has functional IPv6 support (kernel and compiler) */
 #undef WORKING_IPV6
 
 /* Define the location of the xfsdump program on Irix hosts. */
@@ -1804,9 +2295,6 @@
 /* Define to rpl_localtime if the replacement function should be used. */
 #undef localtime
 
-/* Define to rpl_malloc if the replacement function should be used. */
-#undef malloc
-
 /* Directory in which man-pages should be installed */
 #undef mandir
 
@@ -1905,12 +2393,15 @@
 /* Define to `int' if <sys/types.h> doesn't define. */
 #undef uid_t
 
-/* Define as a marker that can be attached to function parameter declarations
-   for parameters that are not used.  This helps to reduce warnings, such as
-   from GCC -Wunused-parameter.  */
+/* Define as a marker that can be attached to declarations that might not
+    be used.  This helps to reduce warnings, such as from
+    GCC -Wunused-parameter.  */
 #if __GNUC__ >= 3 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 7)
-# define _UNUSED_PARAMETER_ __attribute__ ((__unused__))
+# define _GL_UNUSED __attribute__ ((__unused__))
 #else
-# define _UNUSED_PARAMETER_
+# define _GL_UNUSED
 #endif
+/* The name _UNUSED_PARAMETER_ is an earlier spelling, although the name
+   is a misnomer outside of parameter lists.  */
+#define _UNUSED_PARAMETER_ _GL_UNUSED
 

@@ -57,7 +57,7 @@ below.</para>
 <programlisting>
 define device top_drive {
     tapedev "tape:/dev/nst0"
-    device_property "BLOCK_SIZE" "131072"
+    device-property "BLOCK_SIZE" "131072"
 }
 </programlisting>
 Such a device defininition creates a device "alias", in this case named
@@ -112,9 +112,9 @@ tape devices, they will not share property values.</para>
 <para>Properties are specified in <emphasis>amanda.conf</emphasis> with the
 <emphasis>device-property</emphasis> parameter.  The syntax looks like this:
 <programlisting>
-device_property "FROBNICATOR_PATH" "/var/frobd/state"
-device_property "BYTES_PER_FORTNIGHT" "128k"
-device_property "USE_QUBITS" "no"
+device-property "FROBNICATOR_PATH" "/var/frobd/state"
+device-property "BYTES_PER_FORTNIGHT" "128k"
+device-property "USE_QUBITS" "no"
 </programlisting></para>
 
 <para>Both the property name and the property value are always quoted.
@@ -134,7 +134,7 @@ property, below.</para>
 <para>The order in which device properties are set is as follows:
 <orderedlist>
 <listitem><para>Tapetype parameters (including length, blocksize, and readblocksize) are translated into device properties and set accordingly.</para></listitem>
-<listitem><para>Device properties from any device_property
+<listitem><para>Device properties from any device-property
     configuration parameters are set, in the order they appear in the
     configuration file.</para>
 </listitem>
@@ -180,12 +180,12 @@ for future expansion.  Not all devices implement all of these properties.</para>
  (read-only) This property indicates the level of concurrent access that this device supports.
 </listitem></varlistentry>
  <!-- ==== -->
- <varlistentry><term>FREE_SPACE</term><listitem>
- (read-only) This property gives the amount of free space available on the current volume, if known.  This is often an estimate; for example, tape devices can only estimate the amount of tape left on a spool.
-</listitem></varlistentry>
- <!-- ==== -->
  <varlistentry><term>FULL_DELETION</term><listitem>
  (read-only) This property indicates whether the device supports erasing the entire volume.  Aside from S3 and VFS, most devices cannot support this feature.
+</listitem></varlistentry>
+ <!-- ==== -->
+ <varlistentry><term>LEOM</term><listitem>
+(read-write) If this property is true, then the device can detect an EOM condition before actually running out of space, allowing Amanda to forgo caching parts while writing.  For some devices, it is necessary to override the conservative default value of this property.
 </listitem></varlistentry>
  <!-- ==== -->
  <varlistentry><term>MAX_BLOCK_SIZE</term><listitem>
@@ -209,7 +209,14 @@ for future expansion.  Not all devices implement all of these properties.</para>
 </listitem></varlistentry>
  <!-- ==== -->
  <varlistentry><term>STREAMING</term><listitem>
- (read-only) This property gives the streaming requirement for this device.  For example, tape drives often require a steady supply of data to avoid shoe-shining, while disk devices have no such requirement.
+(read-only) This property gives the streaming requirement for this device.  For
+example, tape drives often require a steady supply of data to avoid
+shoe-shining, while disk devices have no such requirement.  Streaming is
+accomplished by buffering <amkeyword>device-output-buffer-size</amkeyword> bytes of
+data.  The allowed values are "none" (no streaming buffer necessary),
+"required" (fill the buffer before starting to write), or "desired" (fill the
+buffer before starting to write, and if the buffer becomes empty, stop writing
+until it is completely full again).
 </listitem></varlistentry>
  <!-- ==== -->
  <varlistentry><term>VERBOSE</term><listitem>
@@ -251,6 +258,19 @@ size.</para></note>
 
 </refsect3>
 
+<refsect3><title>LEOM DETECTION</title>
+
+<para>Some Amanda devices can detect end-of-medium (running out of space on the
+device) before it occurs.  This early warning is referred to as logical EOM,
+and where it is supported Amanda can operate more efficiently, since the
+possibility for data loss is reduced.</para>
+
+<para>The boolean LEOM property indicates whether or not a particular device
+supports LEOM detection.  The sections below also describe the degree of
+support.</para>
+
+</refsect3>
+
 </refsect2>
 
 </refsect1>
@@ -280,7 +300,14 @@ alternatives are enclosed in braces and separated by commas.  Braces and commas
 can be escaped with a backslash.  Note that the backslash itself must be
 escaped in most contexts.  For example:
 <programlisting>
-tapedev "rait:{commandev:foo\\,bar,bracedev:foo\\}bar}"
+tapedev "rait:{file:/var/amanda/vtapes,tape:/dev/nst0}"
+tapedev "rait:{comma-dev:foo\\,bar,brace-dev:foo\\}bar}" # quoting
+</programlisting>
+If the braces contain a numeric range separated with two dots, that range will
+be filled in sequentially.  If the first number has a leading zero, then the results
+will be zero-padded to the maximum length.  For example:
+<programlisting>
+tapedev "rait:file:/var/amanda/vtapes/drive{01..04}"
 </programlisting>
 </para>
 
@@ -307,6 +334,8 @@ degraded mode).  And in any case, labels on all volumes must initially match
 (labeled or otherwise).  If you have lost one volume from a set, explicitly
 start the device in degraded mode as described above.</para>
 
+<para>This device can detect LEOM if and only if all of the child devices can detect LEOM.</para>
+
 <refsect3><title>Child Device Block Sizes</title>
 
 <para>The RAIT device driver requires that all of its child devices use the
@@ -326,8 +355,8 @@ of each child device accordingly.</para>
 <refsect2><title>S3 Device</title>
 <programlisting>
 tapedev "s3:foocorp-backups/DailySet1-"
-device_property "S3_ACCESS_KEY" "MYACCESSKEY"
-device_property "S3_SECRET_KEY" "MYSECRETKEY"
+device-property "S3_ACCESS_KEY" "MYACCESSKEY"
+device-property "S3_SECRET_KEY" "MYSECRETKEY"
 </programlisting>
 
 <para>The S3 device driver uploads data to the Amazon S3 "storage cloud".  Its
@@ -347,9 +376,8 @@ high HTTP overhead for each request, use of larger than normal block
 <para>
 Amanda automatically creates a bucket when writing, if the bucket doesn't
 already exist. At that time, it specifies where Amazon should store the data
-based on the S3_BUCKET_LOCATION property. Currently, there are two valid settings:
-"*" (any location, probably US) and "EU" (Europe). If this property is not set,
-Amazon's default value of "*" is used. The bucket location has both billing and
+based on the S3_BUCKET_LOCATION property. If this property is not set,
+Amazon's default value (equivalent to "*") is used. The bucket location has both billing and
 legal concerns, so you are encouraged to consult Amazon's documentation for details.
 </para>
 
@@ -370,6 +398,9 @@ produces a great deal of output, and may cause spurious failures by filling
 your debug log partition.  Its logging is generally only useful for developers
 chasing down a problem in communications with Amazon's servers.</para>
 
+<para>Since Amazon storage is unlimited, the device never encounteres EOM, so
+LEOM detection is trivially enabled for this device.</para>
+
 <refsect3><title>Device-Specific Properties</title>
 
 <para>In addition to the common properties, the S3 device supports the
@@ -380,8 +411,8 @@ device.  A typical S3 configuration will have an access key and secret key
 specified:
 
 <programlisting>
-device_property "S3_ACCESS_KEY" "27D3B8C6C4E7AA423C2B37C72A0D22C8"
-device_property "S3_SECRET_KEY" "agphc2Q7Zmxragphc2RmO2xragpzZGY7a2xqCgr"
+device-property "S3_ACCESS_KEY" "27D3B8C6C4E7AA423C2B37C72A0D22C8"
+device-property "S3_SECRET_KEY" "agphc2Q7Zmxragphc2RmO2xragpzZGY7a2xqCgr"
 </programlisting></para>
 
 <!-- PLEASE KEEP THIS LIST IN ALPHABETICAL ORDER -->
@@ -405,9 +436,11 @@ writing long enough to bring the average below this value.
  <!-- ==== -->
  <varlistentry><term>S3_BUCKET_LOCATION</term><listitem>
  (read-write) Location constraint for buckets on Amazon S3.
-Currently, it can be set to "", for no constraint (i.e. store data in the US),
-or "EU" (i.e. store data in the EU).
-See Amazon's documentation for details and latest information
+As of this writing, it can be set to "*" (US Standard, i.e. lowest-latency
+choice of US East or West), "us-west-1" (US West, Northern California), "EU"
+(European Union), or "ap-southeast-1" (Asia Pacific).  See <ulink
+url="http://docs.amazonwebservices.com/AmazonS3/latest/index.html?LocationSelection.html"
+/> for the most up-to-date list.
 </listitem></varlistentry>
  <!-- ==== -->
  <varlistentry><term>SSL_CA_INFO</term><listitem>
@@ -421,6 +454,13 @@ The value is passed to curl_easy_setopt(3) as CURLOPT_CAINFO.
  <!-- ==== -->
  <varlistentry><term>S3_SECRET_KEY</term><listitem>
  (read-write) This property gives the Amazon S3 secret key used to access the service.
+</listitem></varlistentry>
+ <!-- ==== -->
+ <varlistentry><term>S3_STORAGE_CLASS</term><listitem>
+(read-write) Storage class for new objects, currently one of "STANDARD" (the default)
+or "REDUCED_REDUNDANCY" (cheaper, but less redundant).  See
+<ulink url="http://docs.amazonwebservices.com/AmazonS3/latest/dev/index.html?DataDurability.html" />
+for the most up-to-date list.
 </listitem></varlistentry>
  <!-- ==== -->
  <varlistentry><term>S3_SSL</term><listitem>
@@ -452,6 +492,14 @@ available via the command-line utilities dd(1) and mt(1).</para>
 
 <para>The tape device name should specify a path to the operating system's
 device file.</para>
+
+<para>There is no simple way to determine whether a particular system
+(operating system and tape hardware) supports LEOM, so as a safe default
+the tape device has LEOM detection disabled.  However, on modern hardware
+and common operating systems (Linux, *BSD, and Solaris, at least), LEOM
+support is functional.  On these systems, enable LEOM by setting the LEOM
+property to "true" at the appropriate place in the Amanda
+configuration.</para>
 
 <refsect3><title>Device-Specific Properties</title>
 
@@ -522,14 +570,16 @@ operations can be emulated with the MTREW and read data operations.</para>
 <refsect2><title>NDMP Device</title>
 <programlisting>
 tapedev "ndmp:my.filer.com:10000@st1"
-device_property "NDMP_USERNAME" "jimmy"
-device_property "NDMP_PASSWORD" "thelock"
+device-property "NDMP_USERNAME" "jimmy"
+device-property "NDMP_PASSWORD" "thelock"
 </programlisting>
 
 <para>This device enables Amanda to communicate with a tape service on an NDMP
 server.  The device name specifies the hostname and optionally the TCP port of
 the NDMP server, followed by the name of the tape device on the server
 (<command>st1</command> in the example above).</para>
+
+<para>This device supports LEOM detection.</para>
 
 <refsect3><title>Device-Specific Properties</title>
 
@@ -554,6 +604,10 @@ no authentication attempt at all).
 (read-write) Username for md5 or text authentications.
 </listitem></varlistentry>
  <!-- ==== -->
+<varlistentry><term>READ_BLOCK_SIZE</term><listitem>
+(read-write) This property specifies the block size that will be used for reads; this should be large enough to contain any block that may be read from the device and must be larger than BLOCK_SIZE. See BLOCK_SIZES, above.
+</listitem></varlistentry>
+ <!-- === -->
 </variablelist>
 
 </refsect3>
@@ -576,14 +630,37 @@ this directory, the name of which reflects the Amanda header in the tape file.
 Block boundaries are not maintained: the driver supports reads of arbitrary
 size, regardless of the blocksize used to write the data.</para>
 
+<para>This device supports LEOM detection.  LEOM will be indicated when the
+    MAX_VOLUME_USAGE is nearly met, or when the filesystem is nearly out of
+    space.  The latter circumstance is detected by monitoring the available
+    space on the filesystem, and this monitoring can be disabled with the
+    MONITOR_FREE_SPACE property.  Note that the device cannot detect other
+    circumstances that may cause a write to fail, such as a filesystem quota.
+    LEOM detection can be disabled by setting the LEOM property to
+    false.</para>
+
+<refsect3><title>Device-Specific Properties</title>
+
+<variablelist>
+ <varlistentry><term>MONITOR_FREE_SPACE</term><listitem>
+	 (read-write) This property controls whether the device will monitor
+	 the filesystem's free space to detect a full filesystem before an
+	 error occurs, and defaults to true.  The monitoring operation works on
+	 most filesystems, but if it causes problems, use this property to
+	 disable it.
+</listitem></varlistentry>
+</variablelist>
+
+</refsect3>
+
 </refsect2>
 
 <refsect2><title>DVD-RW Device</title>
 <programlisting>
 tapedev "dvdrw:/var/cache/amanda/dvd-cache:/dev/scd0"
-device_property "DVDRW_MOUNT_POINT" "/media/dvd"
-device_property "DVDRW_KEEP_CACHE" "false"
-device_property "DVDRW_UNLABELLED_WHEN_UNMOUNTABLE" "true"
+device-property "DVDRW_MOUNT_POINT" "/media/dvd"
+device-property "DVDRW_KEEP_CACHE" "false"
+device-property "DVDRW_UNLABELLED_WHEN_UNMOUNTABLE" "true"
 </programlisting>
 
 <para>The DVD-RW device driver reads and writes optical media such as DVDs and
@@ -614,6 +691,8 @@ be mounted should be treated as an empty, unlabelled volume when attempting to
 read the volume label. It is necessary to set this property to "true" when
 labelling such media.</para>
 
+<para>This device does not support LEOM detection.</para>
+
 <refsect3><title>Device-Specific Properties</title>
 
 <para>The properties DVDRW_GROWISOFS_COMMAND, DVDRW_MOUNT_COMMAND and
@@ -621,7 +700,9 @@ DVDRW_UMOUNT_COMMAND specify alternative commands for writing, mounting and
 unmounting optical media. The default is to find the programs using the PATH
 environment variable.</para>
 
-<para>The DVDRW_MOUNT_POINT property is required. Other properties are optional.</para>
+<para>The CDRW device supports all of the properties of the VFS device, as well
+    as the properties given below.  The DVDRW_MOUNT_POINT property is required.
+    Other properties are optional.</para>
 
 <variablelist>
  <varlistentry><term>DVDRW_KEEP_CACHE</term><listitem>

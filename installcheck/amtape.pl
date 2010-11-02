@@ -1,4 +1,4 @@
-# Copyright (c) 2009 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2009, 2010 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -17,6 +17,8 @@
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 use Test::More tests => 42;
+use strict;
+use warnings;
 
 use lib "@amperldir@";
 use Installcheck::Config;
@@ -69,7 +71,7 @@ sub setup_vtapes {
         or BAIL_OUT("device error");
 
     my $tlf = Amanda::Config::config_dir_relative(getconf($CNF_TAPELIST));
-    my $tl = Amanda::Tapelist::read_tapelist($tlf);
+    my $tl = Amanda::Tapelist->new($tlf, 1);
     $tl->add_tapelabel("0", "TESTCONF13", "test tape");
     $tl->write($tlf);
 }

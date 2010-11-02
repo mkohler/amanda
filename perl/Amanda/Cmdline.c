@@ -8,6 +8,9 @@
  * interface file instead. 
  * ----------------------------------------------------------------------------- */
 
+#include "../config/config.h"
+
+
 #define SWIGPERL
 #define SWIG_CASTRANK_MODE
 
@@ -1613,8 +1616,8 @@ SWIG_AsCharPtrAndSize(SV *obj, char** cptr, size_t* psize, int *alloc)
 
 
 
-SWIGINTERN dumpspec_t *new_dumpspec_t(char *host,char *disk,char *datestamp,char *level){
-	    return dumpspec_new(host, disk, datestamp, level);
+SWIGINTERN dumpspec_t *new_dumpspec_t(char *host,char *disk,char *datestamp,char *level,char *write_timestamp){
+	    return dumpspec_new(host, disk, datestamp, level, write_timestamp);
 	}
 SWIGINTERN void delete_dumpspec_t(dumpspec_t *self){
 	    dumpspec_free(self);
@@ -1944,12 +1947,41 @@ XS(_wrap_dumpspec_t_level_get) {
 }
 
 
+XS(_wrap_dumpspec_t_write_timestamp_get) {
+  {
+    dumpspec_t *arg1 = (dumpspec_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: dumpspec_t_write_timestamp_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dumpspec_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "dumpspec_t_write_timestamp_get" "', argument " "1"" of type '" "dumpspec_t *""'"); 
+    }
+    arg1 = (dumpspec_t *)(argp1);
+    result = (char *) ((arg1)->write_timestamp);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_new_dumpspec_t) {
   {
     char *arg1 = (char *) 0 ;
     char *arg2 = (char *) 0 ;
     char *arg3 = (char *) 0 ;
     char *arg4 = (char *) 0 ;
+    char *arg5 = (char *) 0 ;
     int res1 ;
     char *buf1 = 0 ;
     int alloc1 = 0 ;
@@ -1962,12 +1994,15 @@ XS(_wrap_new_dumpspec_t) {
     int res4 ;
     char *buf4 = 0 ;
     int alloc4 = 0 ;
+    int res5 ;
+    char *buf5 = 0 ;
+    int alloc5 = 0 ;
     int argvi = 0;
     dumpspec_t *result = 0 ;
     dXSARGS;
     
-    if ((items < 4) || (items > 4)) {
-      SWIG_croak("Usage: new_dumpspec_t(host,disk,datestamp,level);");
+    if ((items < 5) || (items > 5)) {
+      SWIG_croak("Usage: new_dumpspec_t(host,disk,datestamp,level,write_timestamp);");
     }
     res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
     if (!SWIG_IsOK(res1)) {
@@ -1989,18 +2024,25 @@ XS(_wrap_new_dumpspec_t) {
       SWIG_exception_fail(SWIG_ArgError(res4), "in method '" "new_dumpspec_t" "', argument " "4"" of type '" "char *""'");
     }
     arg4 = (char *)(buf4);
-    result = (dumpspec_t *)new_dumpspec_t(arg1,arg2,arg3,arg4);
+    res5 = SWIG_AsCharPtrAndSize(ST(4), &buf5, NULL, &alloc5);
+    if (!SWIG_IsOK(res5)) {
+      SWIG_exception_fail(SWIG_ArgError(res5), "in method '" "new_dumpspec_t" "', argument " "5"" of type '" "char *""'");
+    }
+    arg5 = (char *)(buf5);
+    result = (dumpspec_t *)new_dumpspec_t(arg1,arg2,arg3,arg4,arg5);
     ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_dumpspec_t, SWIG_OWNER | SWIG_SHADOW); argvi++ ;
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
     if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
     if (alloc3 == SWIG_NEWOBJ) free((char*)buf3);
     if (alloc4 == SWIG_NEWOBJ) free((char*)buf4);
+    if (alloc5 == SWIG_NEWOBJ) free((char*)buf5);
     XSRETURN(argvi);
   fail:
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
     if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
     if (alloc3 == SWIG_NEWOBJ) free((char*)buf3);
     if (alloc4 == SWIG_NEWOBJ) free((char*)buf4);
+    if (alloc5 == SWIG_NEWOBJ) free((char*)buf5);
     SWIG_croak_null();
   }
 }
@@ -2330,6 +2372,7 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Cmdlinec::dumpspec_t_disk_get", _wrap_dumpspec_t_disk_get},
 {"Amanda::Cmdlinec::dumpspec_t_datestamp_get", _wrap_dumpspec_t_datestamp_get},
 {"Amanda::Cmdlinec::dumpspec_t_level_get", _wrap_dumpspec_t_level_get},
+{"Amanda::Cmdlinec::dumpspec_t_write_timestamp_get", _wrap_dumpspec_t_write_timestamp_get},
 {"Amanda::Cmdlinec::new_dumpspec_t", _wrap_new_dumpspec_t},
 {"Amanda::Cmdlinec::delete_dumpspec_t", _wrap_delete_dumpspec_t},
 {"Amanda::Cmdlinec::dumpspec_t_format", _wrap_dumpspec_t_format},

@@ -41,8 +41,7 @@ Amanda::Config - access to Amanda configuration parameters
 
     print "tape device is ", getconf($CNF_TAPEDEV), "\n";
 
-This API closely parallels the C API.  See F<conffile.h> for details on the
-configuration parameter constants.
+This API closely parallels the C API.
 
 =head1 INITIALIZATION
 
@@ -248,6 +247,9 @@ values is straightforward:
   CONFTYPE_EXECUTE_WHERE              Math::BigInt
   CONFTYPE_SEND_AMREPORT_ON           Math::BigInt
   CONFTYPE_IDENTLIST                  [ string, .. ]
+  CONFTYPE_PART_CACHE_TYPE	      Math::BigInt
+  CONFTYPE_RECOVERY_LIMIT             [ string, .. ] (undef if not specified;
+					    undef in the list means same-host)
 
 Note that C<CONFTYPE_INTRANGE> and C<CONFTYPE_RATE> each return two values, not
 an array reference.
@@ -326,7 +328,14 @@ C<string_to_boolean()> takes a string and returns 0 if it matches any of
 Amanda's names for false, or 1 if matches a name for true. If it can't be
 interpreted, C<undef> is returned.
 
-=cut
+C<amandaify_property_name()> converts a string into Amanda's property style:
+all lower-case and with "-" replacing "_".
 
+=head1 CONSTANTS
+
+This section lists all of the configuration parameter constants defined in this
+module.  All of these constants are available with the C<:getconf> export tag.
+
+=cut
 
 %}

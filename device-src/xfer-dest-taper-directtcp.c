@@ -19,8 +19,8 @@
  * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
-#include "amxfer.h"
 #include "amanda.h"
+#include "amxfer.h"
 #include "xfer-device.h"
 #include "arglist.h"
 #include "conffile.h"
@@ -135,6 +135,12 @@ worker_thread(
     DBG(2, "connection accepted; sending XMSG_READY");
     xfer_queue_message(elt->xfer, xmsg_new(elt, XMSG_READY, 0));
 
+    /* round the part size up to the next multiple of the block size */
+    if (self->part_size) {
+	self->part_size += self->device->block_size-1;
+	self->part_size -= self->part_size % self->device->block_size;
+    }
+
     /* now loop until we're out of parts */
     while (1) {
 	guint64 size;
@@ -209,6 +215,10 @@ worker_thread(
 	msg->successful = TRUE;
 	msg->eom = eom;
 	msg->eof = eof;
+
+	/* time runs backward on some test boxes, so make sure this is positive */
+	if (msg->duration < 0) msg->duration = 0;
+
 	xfer_queue_message(elt->xfer, msg);
 
         self->partnum++;
@@ -388,16 +398,6 @@ use_device_impl(
     g_mutex_unlock(self->state_mutex);
 }
 
-static void
-cache_inform_impl(
-    XferDestTaper *xdtself G_GNUC_UNUSED,
-    const char *filename G_GNUC_UNUSED,
-    off_t offset G_GNUC_UNUSED,
-    off_t length G_GNUC_UNUSED)
-{
-    /* do nothing */
-}
-
 static guint64
 get_part_bytes_written_impl(
     XferDestTaper *xdtself G_GNUC_UNUSED)
@@ -466,7 +466,6 @@ class_init(
     klass->cancel = cancel_impl;
     xdt_klass->start_part = start_part_impl;
     xdt_klass->use_device = use_device_impl;
-    xdt_klass->cache_inform = cache_inform_impl;
     xdt_klass->get_part_bytes_written = get_part_bytes_written_impl;
     goc->finalize = finalize_impl;
 

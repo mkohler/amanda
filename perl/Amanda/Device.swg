@@ -30,6 +30,7 @@
 #include "property.h"
 #include "fileheader.h"
 #include "glib-util.h"
+#include "simpleprng.h"
 %}
 
 %init %{
@@ -65,30 +66,6 @@ set_sv_from_gvalue(GValue *value)
 
 	case G_TYPE_UINT64:
 	    return sv_2mortal(amglue_newSVu64(g_value_get_uint64(value)));
-
-	case G_TYPE_BOXED: {
-	    GType boxed_type = G_VALUE_TYPE(value);
-	    QualifiedSize qs;
-	    HV *hv;
-
-	    if (boxed_type == QUALIFIED_SIZE_TYPE) {
-		qs = *(QualifiedSize*)(g_value_get_boxed(value));
-
-		/* build a hash */
-		hv = (HV *)sv_2mortal((SV *)newHV());
-		hv_store(hv, "accuracy", 8, newSViv(qs.accuracy), 0);
-		hv_store(hv, "bytes", 5, amglue_newSVi64(qs.bytes), 0);
-
-		sv = newRV((SV *)hv);
-		return newRV((SV *)hv);
-	    } else {
-		warn("Unsupported boxed property type #%d", (int)boxed_type);
-
-		sv = sv_newmortal();
-		sv_setsv(sv, &PL_sv_undef);
-		return sv;
-	    }
-	}
     }
 
     /* simple types that can be constructed with sv_set*v */
@@ -255,29 +232,6 @@ typedef struct DirectTCPConnection {
  * Device struct, %extend-ed into a Perl class
  */
 
-typedef struct queue_fd_t {
-    /* Instance variables -- all readonly */
-    %immutable;
-    int fd;
-    char *errmsg;
-
-    %mutable;
-
-    /* methods */
-    %extend {
-	/* constructor */
-	queue_fd_t(int fd) {
-	    return queue_fd_new(fd, NULL);
-	}
-
-	/* destructor */
-	~queue_fd_t() {
-	    amfree(self->errmsg);
-	    g_free(self);
-	}
-    }
-} queue_fd_t;
-
 %name(unaliased_name) extern char *device_unaliased_name(char *);
 
 typedef struct Device {
@@ -339,11 +293,6 @@ typedef struct Device {
 	}
 
 	gboolean
-	write_from_fd(queue_fd_t *queue_fd) {
-	    return device_write_from_fd(self, queue_fd);
-	}
-
-	gboolean
 	finish_file() {
 	    return device_finish_file(self);
 	}
@@ -361,10 +310,6 @@ typedef struct Device {
 	int
 	read_block(gpointer buffer, int *size) {
 	    return device_read_block(self, buffer, size);
-	}
-
-	gboolean read_to_fd(queue_fd_t *queue_fd) {
-	    return device_read_to_fd(self, queue_fd);
 	}
 
 	gboolean
@@ -396,6 +341,21 @@ typedef struct Device {
 	    gboolean rv;
 
 	    rv = device_accept(self, &conn, NULL, NULL);
+	    if (!rv && conn) {
+		/* conn is ref'd for our convenience, but we don't want it */
+		g_object_unref(conn);
+		conn = NULL;
+	    }
+	    return conn;
+	}
+
+	%newobject connect; /* connection is already ref'd, so we own it */
+	DirectTCPConnection *
+	connect(gboolean for_writing, DirectTCPAddr *addrs) {
+	    DirectTCPConnection *conn = NULL;
+	    gboolean rv;
+
+	    rv = device_connect(self, for_writing, addrs, &conn, NULL, NULL);
 	    if (!rv && conn) {
 		/* conn is ref'd for our convenience, but we don't want it */
 		g_object_unref(conn);
@@ -467,10 +427,10 @@ typedef struct Device {
 	    if (SvPOK($input))
 		pname = SvPV_nolen($input);
 
-	    if (pname) $1 = (DevicePropertyBase *)device_property_get_by_name(pname);
-	    if (!pname || !$1) {
-		SWIG_exception_fail(SWIG_ValueError, "Invalid property name");
-	    }
+	    if (pname)
+		$1 = (DevicePropertyBase *)device_property_get_by_name(pname);
+	    else
+		$1 = NULL;
 	}
 
 	/* A typemap to convert the GValue in property_get to a return value.  The
@@ -516,7 +476,11 @@ typedef struct Device {
 	void
 	property_get(DevicePropertyBase *pbase, GValue *out_val, PropertySurety *surety,
 		     PropertySource *source, gboolean *val_found) {
-	    *val_found = device_property_get_ex(self, pbase->ID, out_val, surety, source);
+	    if (pbase) {
+		*val_found = device_property_get_ex(self, pbase->ID, out_val, surety, source);
+	    } else {
+		*val_found = FALSE;
+	    }
 	}
 
 	/* delete typemaps */
@@ -627,6 +591,86 @@ sub new_rait_from_children {
 %}
 
 /*
+ * Utilities for installchecks (not described in POD)
+ */
+
+%inline %{
+
+/* write LENGTH bytes of random data to FILENAME, seeded with SEED */
+gboolean
+write_random_to_device(guint32 seed, size_t length, Device *device) {
+    simpleprng_state_t prng;
+    char *buf;
+    gsize block_size = device->block_size;
+    g_assert(block_size < G_MAXUINT);
+
+    buf = g_malloc(block_size);
+    simpleprng_seed(&prng, seed);
+
+    while (length) {
+	size_t to_write = min(block_size, length);
+
+	simpleprng_fill_buffer(&prng, buf, to_write);
+	if (!device_write_block(device, (guint)block_size, buf)) {
+	    g_free(buf);
+	    return FALSE;
+	}
+	length -= to_write;
+    }
+
+    g_free(buf);
+    return TRUE;
+}
+
+/* read LENGTH bytes of random data from FILENAME verifying it against
+ * a PRNG seeded with SEED.  Sends any error messages to stderr.
+ */
+gboolean
+verify_random_from_device(guint32 seed, size_t length, Device *device) {
+    simpleprng_state_t prng;
+    char *buf = NULL; /* first device_read_block will get the size */
+    int block_size = 0;
+
+    simpleprng_seed(&prng, seed);
+
+    while (length) {
+	int bytes_read;
+	int size = block_size;
+
+	bytes_read = device_read_block(device, buf, &size);
+	if (bytes_read == 0 && size > block_size) {
+	    g_free(buf);
+	    block_size = size;
+	    buf = g_malloc(block_size);
+	    continue;
+	}
+	if (bytes_read == -1) {
+	    if (device->status == DEVICE_STATUS_SUCCESS) {
+		g_assert(device->is_eof);
+		g_debug("verify_random_from_device got unexpected EOF");
+	    }
+	    goto error;
+	}
+
+	/* strip padding */
+	bytes_read = min(bytes_read, length);
+
+	if (!simpleprng_verify_buffer(&prng, buf, bytes_read))
+	    goto error;
+
+	length -= bytes_read;
+    }
+
+    g_free(buf);
+    return TRUE;
+
+error:
+    g_free(buf);
+    return FALSE;
+}
+%}
+
+/*
  * Constants
  */
 
@@ -705,12 +749,6 @@ amglue_add_constant_short(MEDIA_ACCESS_MODE_WORM, "WORM", MediaAccessMode);
 amglue_add_constant_short(MEDIA_ACCESS_MODE_READ_WRITE, "READ_WRITE", MediaAccessMode);
 amglue_add_constant_short(MEDIA_ACCESS_MODE_WRITE_ONLY, "WRITE_ONLY", MediaAccessMode);
 amglue_copy_to_tag(MediaAccessMode, constants);
-
-amglue_add_enum_tag_fns(SizeAccuracy);
-amglue_add_constant_short(SIZE_ACCURACY_UNKNOWN, "UNKNOWN", SizeAccuracy);
-amglue_add_constant_short(SIZE_ACCURACY_ESTIMATE, "ESTIMATE", SizeAccuracy);
-amglue_add_constant_short(SIZE_ACCURACY_REAL, "REAL", SizeAccuracy);
-amglue_copy_to_tag(SizeAccuracy, constants);
 
 amglue_add_flag_tag_fns(PropertySurety);
 amglue_add_constant_short(PROPERTY_SURETY_BAD, "SURETY_BAD", PropertySurety);

@@ -256,6 +256,25 @@ sub xfer_start_with_callback {
 }
 %}
 
+/* Change the callback */
+%perlcode %{
+sub xfer_set_callback {
+    my ($xfer, $cb) = @_;
+    if (defined $cb) {
+	my $releasing_cb = sub {
+	    my ($src, $msg, $xfer) = @_;
+	    my $done = $msg->{'type'} == $XMSG_DONE;
+	    $src->remove() if $done;
+	    $cb->(@_);
+	    $cb = undef if $done; # break potential reference loop
+       };
+	$xfer->get_source()->set_callback($releasing_cb);
+    } else {
+	$xfer->get_source()->set_callback(undef);
+    }
+}
+%}
+
 /*
  * XferElement functions
  *
@@ -358,7 +377,8 @@ XferElement *xfer_filter_xor(
 %newobject xfer_filter_process;
 XferElement *xfer_filter_process(
     gchar **argv,
-    gboolean need_root);
+    gboolean need_root,
+    gboolean log_stderr);
 
 %newobject xfer_dest_null;
 XferElement *xfer_dest_null(
@@ -534,6 +554,7 @@ DECLARE_METHOD(repr, Amanda::Xfer::xfer_repr);
 DECLARE_METHOD(get_status, Amanda::Xfer::xfer_get_status);
 DECLARE_METHOD(get_source, Amanda::Xfer::xfer_get_amglue_source);
 DECLARE_METHOD(start, Amanda::Xfer::xfer_start_with_callback);
+DECLARE_METHOD(set_callback, Amanda::Xfer::xfer_set_callback);
 DECLARE_METHOD(cancel, Amanda::Xfer::xfer_cancel);
 
 /* ---- */
@@ -665,6 +686,9 @@ PACKAGE(Amanda::Xfer)
 # try to load Amanda::XferServer, which is server-only.  If it's not found, then
 # its classes just remain undefined.
 BEGIN {
-    eval "use Amanda::XferServer;";
+    use Amanda::Util;
+    if (Amanda::Util::built_with_component("server")) {
+	eval "use Amanda::XferServer;";
+    }
 }
 %}

@@ -1,0 +1,316 @@
+'\" t
+.\"     Title: amanda-match
+.\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
+.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
+.\"      Date: 10/18/2010
+.\"    Manual: Miscellanea
+.\"    Source: Amanda 3.2.0
+.\"  Language: English
+.\"
+.TH "AMANDA\-MATCH" "7" "10/18/2010" "Amanda 3\&.2\&.0" "Miscellanea"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "NAME"
+amanda-match \- Common Amanda Match Expression
+.SH "DESCRIPTION"
+.PP
+Several Amanda commands allow the user to specify dumps using "match expressions"\&. This manual page describes the syntax of these expressions\&.
+.PP
+In some places, only certain match expressions are allowed\&. However, several commands take a dump specification ("dumpspec") consisting of a sequence of several expressions intended to match particular dumps in the catalog\&. Other applications take a DLE specification which indicates a set of DLEs to be operated on\&. These formats are described below\&.
+.SH "HOST & DISK EXPRESSIONS"
+.PP
+The hosts and disks match by word\&. Each word is a glob expression, and words are separated by the character \'\&.\' for host expressions and \'/\' for disk expressions\&. You can anchor the expression on the left with a \'^\' or on the right with a \'$\'\&. The matcher is case insensitive for hosts but case sensitive for disks\&. A match succeeds if all words in the expression match contiguous words in the host or disk\&.
+.PP
+If the disk is a UNC ("\e\ewindows\eshare") then all \'\e\' are converted to \'/\' before the match\&. Using \'\e\' is complicated because of the extra quoting required by the shell and amanda\&. It\'s easier to use \'/\' because it requires less quoting ("//windows/share")
+.PP
+The special characters follow\&. Note that the shell interprets some of these characters, so when used on the command line, they must be escaped appropriately for the shell\&.
+.PP
+dot (\&.)
+.RS 4
+word separator for a host
+.RE
+.PP
+/
+.RS 4
+word separator for a disk
+.RE
+.PP
+\e
+.RS 4
+word separator for a UNC disk
+.RE
+.PP
+^
+.RS 4
+anchor at left of word
+.RE
+.PP
+$
+.RS 4
+anchor at right of word
+.RE
+.PP
+?
+.RS 4
+match exactly one character except the separator
+.RE
+.PP
+*
+.RS 4
+match zero or more characters except the separator
+.RE
+.PP
+**
+.RS 4
+match zero or more characters including the separator
+.RE
+.PP
+[\&.\&.\&.]
+.RS 4
+match exactly one of the characters enclosed by the brackets\&.
+.RE
+.PP
+[!\&.\&.\&.]
+.RS 4
+match exactly one character that is not enclosed by the brackets\&.
+.RE
+.SS "Examples"
+.PP
+hosta
+.RS 4
+Will match
+hosta,
+foo\&.hosta\&.org, and
+hoSTA\&.dOMAIna\&.ORG
+but not
+hostb\&.
+.RE
+.PP
+host
+.RS 4
+Will match
+host
+but not
+hosta\&.
+.RE
+.PP
+host?
+.RS 4
+Will match
+hosta
+and
+hostb, but not
+host
+or
+hostabc\&.
+.RE
+.PP
+ho*na
+.RS 4
+Will match
+hoina
+but not
+ho\&.aina\&.org\&.
+.RE
+.PP
+ho**na
+.RS 4
+Will match
+hoina
+and
+ho\&.aina\&.org\&.
+.RE
+.PP
+^hosta
+.RS 4
+Will match
+hosta
+but not
+foo\&.hosta\&.org\&.
+.RE
+.PP
+sda*
+.RS 4
+Will match
+/dev/sda1
+and
+/dev/sda12\&.
+.RE
+.PP
+/opt
+.RS 4
+Will match the disk
+opt
+but not the host
+opt\&.
+.RE
+.PP
+(note dots:) \&.opt\&.
+.RS 4
+Will match the host
+opt
+but not the disk
+opt\&.
+.RE
+.PP
+/
+.RS 4
+Will match the disk
+/
+but no other disk\&.
+.RE
+.PP
+/usr
+.RS 4
+Will match the disks
+/usr
+and
+/usr/local\&.
+.RE
+.PP
+/usr$
+.RS 4
+Will match the disks
+/usr
+but not
+/usr/local\&.
+.RE
+.PP
+share
+.RS 4
+Will match the disks
+\e\ewindows1\eshare
+and
+\e\ewindows2\eshare\&.
+.RE
+.PP
+share*
+.RS 4
+Will match the disks
+\e\ewindows\eshare1
+and
+\e\ewindows\eshare2\&.
+.RE
+.PP
+//windows/share
+.RS 4
+Will match the disk
+\e\ewindows\eshare\&.
+.RE
+.SH "DATESTAMP EXPRESSIONS"
+.PP
+A datestamp expression is either a prefix of the datestamp, or a range expression (separated by \'\-\') matching several prefixes\&. A leading ^ is removed, while arailing $ will force an exact match\&.
+.SS "Examples"
+.PP
+20001212\-14
+.RS 4
+match all dates beginning with 20001212, 20001213 or 20001214
+.RE
+.PP
+20001212\-4
+.RS 4
+same as previous
+.RE
+.PP
+20001212\-24
+.RS 4
+match all dates between 20001212 and 20001224
+.RE
+.PP
+2000121
+.RS 4
+match all dates that start with 2000121 (20001210\-20001219)
+.RE
+.PP
+2
+.RS 4
+match all dates that start with 2 (20000101\-29991231)
+.RE
+.PP
+2000\-10
+.RS 4
+match all dates between 20000101\-20101231
+.RE
+.PP
+200010$
+.RS 4
+match only 200010
+.RE
+.SH "LEVEL EXPRESSIONS"
+.PP
+Level expressions are either prefix matches e\&.g\&., "1", which matches "1", "10", and "123", absolute matches e\&.g\&., "3$" which only matches "3", or a range e\&.g\&., "3\-5" which only matches levels 3, 4, and 5\&.
+.SH "DUMP SPECIFICATIONS"
+.PP
+A dump specification is used to select one or more dumps from the catalog\&. It consists of a sequence of match expressions in the order host, disk, datestamp, and level\&. Note that some commands do not take a level argument, out of historical accident\&. Note, too, that the datestamp expression matches the time that the dump was made on the Amanda client, rather than the date it was moved to tape\&.
+.SS "Examples"
+.PP
+amtool MyConfig ^vpdesktop$
+.RS 4
+all dumps of host "vpdesktop"
+.RE
+.PP
+amtool MyConfig \'*\' /var/stage
+.RS 4
+All dumps of
+/var/stage
+on any host
+.RE
+.PP
+amtool MyConfig www1 /var/www \'*\' www2 /var/www \'*\'
+.RS 4
+All dumps of /var/www on www1 and www2 (assuming amtool does not require a level argument)
+.RE
+.SH "DLE SPECIFICATIONS"
+.PP
+A DLE specification is used to select one or more DLEs\&. It consists of a sequence of match expressions\&. The first must be a host, and subsequent expressions will be experimentally matched against both hosts and disks in the
+\fBdisklist\fR(5), preferring hosts\&. This dynamic matching process can lead to odd behavior in extreme cases (e\&.g\&., where a disk and a host have the same name), but for most uses does exactly what is expected\&.
+.SS "Examples"
+.PP
+amtool MyConfig vpdesktop /home/anderson
+.RS 4
+/home/anderson
+on host vpdesktop
+.RE
+.PP
+amtool MyConfig \'*\' ^/etc \'*\' ^/var
+.RS 4
+All DLEs matching
+^/var
+or
+^/etc
+on any host
+.RE
+.PP
+amtool MyConfig web1 www web2 www
+.RS 4
+If no host matches "www", all DLEs matching
+www
+on hosts web1 and web2\&. If a host matches "www", then all DLEs on hosts www, web1, and web2\&.
+.RE
+.SH "SEE ALSO"
+.PP
+\fBamanda\fR(8),
+\fBamanda\fR(8),
+\fBamfetchdump\fR(8),
+\fBamrestore\fR(8),
+\fBamadmin\fR(8),
+\fBamvault\fR(8),
+\fBamflush\fR(8),
+\fBamdump\fR(8)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
+.SH "AUTHOR"
+.PP
+\fBDustin J\&. Mitchell\fR <\&dustin@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (http://www\&.zmanda\&.com)
+.RE

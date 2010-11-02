@@ -2,12 +2,12 @@
 .\"     Title: amdump
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMDUMP" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
+.TH "AMDUMP" "8" "10/18/2010" "Amanda 3\&.2\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,24 +22,30 @@
 amdump \- back up all disks in an Amanda configuration
 .SH "SYNOPSIS"
 .HP \w'\fBamdump\fR\ 'u
-\fBamdump\fR \fIconfig\fR [\fIhost\fR\ [\fIdisk\fR...]...] [{\fB\-o\fR\ \fIconfigoption\fR}...]
+\fBamdump\fR \fIconfig\fR [\fB\-\-no\-taper\fR] [\fIhost\fR\ [\fIdisk\fR...]...] [\fB\-o\fR\ \fIconfigoption\fR...]
 .SH "DESCRIPTION"
 .PP
 \fBAmdump\fR
-switches to the appropriate Amanda configuration directory, e\&.g\&. /usr/local/etc/amanda/\fIconfig\fR, then attempts to back up every disk specified by the
-\fIamanda\&.conf\fR
-file\&.
+is the main interface to the Amanda backup process\&. It loads the specified configuration and attempts to back up every disk specified by the
+\fBdisklist\fR(5)\&.
 \fBAmdump\fR
 is normally run by
 \fBcron\fR\&.
 .PP
-You can specify many host/disk expressions, only disks that match an expression will be dumped\&. All disks are dumped if no expressions are given\&.
+The command optionally takes a set of DLE specifications (see
+\fBamanda-match\fR(7)) to narrow the DLEs that will be dumped\&. All disks are dumped if no expressions are given\&.
 .PP
-If the file /usr/local/etc/amanda/\fIconfig\fR/hold exists,
+If a file named
+hold
+exists in the configuration directory,
 \fBamdump\fR
 will wait until it is removed before starting the backups\&. This allows scheduled backups to be delayed when circumstances warrant, for example, if the tape device is being used for some other purpose\&. While waiting,
 \fBamdump\fR
 checks for the hold file every minute\&.
+.PP
+In some cases it is desirable to dump all Amanda clients to holding disk without writing anything to storage media\&. The
+\fB\-\-no\-taper\fR
+option instructs Amanda to not start the taper, and thus enter degraded mode immediately\&.
 .PP
 See the
 \fBamanda\fR(8)
@@ -48,7 +54,8 @@ man page for more details about Amanda\&.
 .PP
 \fIhost\fR [\fIdisk\fR]*
 .RS 4
-Specify the host and disk on which the command will work\&.
+Specify the host and disk on which the command will work \-\- see the description of DLE specifications in
+\fBamanda-match\fR(7)\&.
 .RE
 .PP
 \fB\-o \fR\fB\fIconfigoption\fR\fR
@@ -113,7 +120,8 @@ The exit code of \fBamdump\fR is the ORed value of:
 \fBamcleanup\fR(8),
 \fBamrestore\fR(8),
 \fBamflush\fR(8),
-\fBcron\fR(8)
+\fBcron\fR(8),
+\fBamanda-match\fR(7)
 .PP
 The Amanda Wiki:
 : http://wiki.zmanda.com/

@@ -120,7 +120,7 @@ sub print_to_server {
             print {$self->{mesgout}} "? $msg\n";
 	}
     } elsif ($self->{action} eq "restore") {
-        print STDOUT "$msg\n";
+        print STDERR "$msg\n";
     } elsif ($self->{action} eq "validate") {
         print STDERR "$msg\n";
     } else {
@@ -178,6 +178,10 @@ sub do {
 	$self->{action} = 'restore';
     } elsif ($action eq 'validate') {
 	$self->{action} = 'validate';
+    }
+
+    if ($action eq 'backup') {
+	$self->_set_mesgout();
     }
 
     # now convert it to a function name and see if it's

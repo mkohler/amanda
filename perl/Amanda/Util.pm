@@ -400,14 +400,25 @@ Unquote a string as quoted with C<quote_string>.
 
 my($q, $remaider) = skip_quoted_string($str)
 
-Return the first quoted string and the remainder of the string.
+Return the first quoted string and the remainder of the string, as separated by
+any whitespace.  Note that the remainder of the string does not include the
+single separating whitespace character, but will include any subsequent
+whitespace.  The C<$q> is not unquoted.
 
 =item C<split_quoted_strings($str)>
 
-Split string on unquoted whitespace.  Multiple consecutive spaces are not
+Split string on unquoted whitespace.  Multiple consecutive spaces are I<not>
 collapsed into a single space: C<"x  y"> (with two spaces) parses as C<( "x",
 "", "y")>.  The strings are unquoted before they are returned.  An empty string
-is split into C<( "" )>.
+is split into C<( "" )>.  This method is generally used for parsing IPC messages,
+where blank space is significant and well-controlled.
+
+=item C<split_quoted_strings_friendly($str)>
+
+Similar to C<split_quoted_strings>, but intended for user-friendly uses.  In
+particular, this function treats any sequence of zero or more whitespace
+characters as a separator, rather than the more strict interpretation applied
+by C<split_quoted_strings>.  All of the strings are unquoted.
 
 All of these quoting-related functions are available under the export
 tag C<:quoting>.
@@ -438,8 +449,19 @@ For example:
   "{a,b}-{1,2}"     [ "a-1", "a-2", "b-1", "b-2" ]
 
 Note that nested braces are not processed.  Braces, commas, and
-backslashes may be escaped with backslashes.  On error,
-C<expand_braced_altnerates> returns undef.  These two functions are
+backslashes may be escaped with backslashes.
+
+As a special case for numeric ranges, if the braces contain only digits
+followed by two dots followed by more digits, and the digits sort in the
+correct order, then they will be treated as a sequence.  If the first number in
+the sequence has leading zeroes, then all generated numbers will have that
+length, padded with leading zeroes.
+
+  "tape-{01..10}"   [ "tape-01", "tape-02", "tape-03", "tape-04",
+                      "tape-05", "tape-06", "tape-07", "tape-08",
+		      "tape-09", "tape-10" ]
+
+On error, C<expand_braced_altnerates> returns undef.  These two functions are
 available in the export tag C<:alternates>.
 
 =item generate_timestamp()
@@ -769,6 +791,21 @@ sub skip_quoted_string {
     return ($quoted_string, $remainder);
 }
 
+sub split_quoted_string_friendly {
+    my $str = shift;
+    my @result;
+
+    chomp $str;
+    $str =~ s/^\s+//;
+    while ($str) {
+	(my $elt, $str) = skip_quoted_string($str);
+	push @result, unquote_string($elt);
+	$str =~ s/^\s+// if $str;
+    }
+
+    return @result;
+}
+
 
 push @EXPORT_OK, qw(slurp);
 
@@ -809,8 +846,10 @@ sub safe_overwrite_file {
 push @EXPORT_OK, qw(hexencode hexdecode);
 push @{$EXPORT_TAGS{"encoding"}}, qw(hexencode hexdecode);
 
-push @EXPORT_OK, qw(quote_string unquote_string skip_quoted_string sanitise_filename split_quoted_strings);
-push @{$EXPORT_TAGS{"quoting"}}, qw(quote_string unquote_string skip_quoted_string sanitise_filename split_quoted_strings);
+push @EXPORT_OK, qw(quote_string unquote_string skip_quoted_string
+		sanitise_filename split_quoted_strings split_quoted_strings_friendly);
+push @{$EXPORT_TAGS{"quoting"}}, qw(quote_string unquote_string skip_quoted_string
+		sanitise_filename split_quoted_strings split_quoted_strings_friendly);
 
 push @EXPORT_OK, qw(expand_braced_alternates collapse_braced_alternates);
 push @{$EXPORT_TAGS{"alternates"}}, qw(expand_braced_alternates collapse_braced_alternates);

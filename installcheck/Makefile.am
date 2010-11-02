@@ -5,6 +5,7 @@ all_tests =
 common_tests = \
 	Amanda_Archive \
 	Amanda_Config \
+	Amanda_Config_FoldingHash \
 	Amanda_ClientService \
 	Amanda_Debug \
 	Amanda_Feature \
@@ -14,7 +15,8 @@ common_tests = \
 	Amanda_Header \
 	Amanda_Util \
 	Amanda_Xfer \
-	amarchiver
+	amarchiver \
+	gnutar
 all_tests += $(common_tests)
 
 client_tests = \
@@ -55,21 +57,26 @@ server_tests = \
 	amgetconf \
         amtape \
         amlabel \
-	amtapetype
+	amtapetype \
+	chunker
 all_tests += $(server_tests)
 
 full_tests = \
 	=setupcache \
+	amadmin \
 	amcheck \
-	amdump \
-	amdevcheck \
 	amcheckdump \
+	amdevcheck \
+	amdump \
+	amflush \
+	amoverview \
+	amreport \
 	amrmtape \
+	amserverconfig \
 	amservice \
 	amstatus \
-	amreport \
-	amadmin \
 	amvault \
+	example \
 	pp-scripts
 all_tests += $(full_tests)
 
@@ -148,6 +155,7 @@ endif
 # require configure-variable substitution) here:
 test_utils = \
 	Installcheck.pm \
+	Installcheck/Catalogs.pm \
 	Installcheck/Config.pm \
 	Installcheck/ClientService.pm \
 	Installcheck/Mock.pm \
@@ -157,6 +165,34 @@ test_utils = \
 	Installcheck/Changer.pm
 EXTRA_DIST += $(test_utils)
 
+# the catalogs themselves
+catalogs = \
+	catalogs/amflush.cat \
+	catalogs/bigdb.cat \
+	catalogs/bigestimate.cat \
+	catalogs/chunker-partial.cat \
+	catalogs/doublefailure.cat \
+	catalogs/fatal.cat \
+	catalogs/filesystemstaped.cat \
+	catalogs/flush-noorigsize.cat \
+	catalogs/flush-origsize.cat \
+	catalogs/longstrange.cat \
+	catalogs/multi-taper.cat \
+	catalogs/normal.cat \
+	catalogs/plannerfail.cat \
+	catalogs/quoted.cat \
+	catalogs/resultsmissing.cat \
+	catalogs/retried.cat \
+	catalogs/retried-nofinish.cat \
+	catalogs/retried-strange.cat \
+	catalogs/shortstrange.cat \
+	catalogs/skipped.cat \
+	catalogs/spanned.cat \
+	catalogs/strontium.cat \
+	catalogs/taperr.cat
+EXTRA_DIST += $(catalogs)
+
+
 # and finally some development utilities
 noinst_SCRIPTS = \
 	run-ndmp
@@ -165,6 +201,9 @@ CHECK_PERL_FLAGS=-I$(top_srcdir)/installcheck
 
 SCRIPTS_PERL = $(tests) $(mocks) $(noinst_SCRIPTS)
 SCRIPTS_EXTRA_DIST = $(all_tests)
+
+# skip syntax checks on these files, since we're about to run all of them
+SKIP_CHECKS = yes
 
 .PHONY: clobber_my_config_is_ok
 clobber_my_config_is_ok:
@@ -183,13 +222,16 @@ clobber_my_config_is_ok:
 		exit 1; \
 	fi
 
+# newer Test::Harness (v3.18-3.21) implementations get confused by executable
+# test scripts, so this rule chmod a-x's them first
 installcheck-local: clobber_my_config_is_ok $(SCRIPTS_PERL)
 	rm -rf "$(AMANDA_TMPDIR)/installchecks"
 	$(mkdir_p) "$(AMANDA_TMPDIR)/installchecks"
 	@if test -f "$(CONFIG_DIR)/amanda-client.conf" -a ! -f "$(CONFIG_DIR)/amanda-client.conf.install-backup"; then \
 	    cp "$(CONFIG_DIR)/amanda-client.conf" "$(CONFIG_DIR)/amanda-client.conf.install-backup"; \
 	fi 
-	$(PERL) -I$(srcdir) -I. -e 'use Test::Harness qw(&runtests); runtests(sort @ARGV);' $(tests)
+	for f in $(tests); do chmod a-x $$f; done
+	srcdir="$(srcdir)" $(PERL) -I$(srcdir) -I. -e 'use Test::Harness qw(&runtests); runtests(sort @ARGV);' $(tests)
 	rm -rf "$(CONFIG_DIR)/TESTCONF"
 	@if test -f "$(CONFIG_DIR)/amanda-client.conf.install-backup"; then \
 	    mv -f "$(CONFIG_DIR)/amanda-client.conf.install-backup" "$(CONFIG_DIR)/amanda-client.conf"; \

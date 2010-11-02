@@ -8,6 +8,9 @@
  * interface file instead. 
  * ----------------------------------------------------------------------------- */
 
+#include "../config/config.h"
+
+
 #define SWIGPERL
 #define SWIG_CASTRANK_MODE
 
@@ -1631,6 +1634,10 @@ static void log_add_(logtype_t typ, char *message)
 {
     log_add(typ, "%s", message);
 }
+static void log_add_full_(logtype_t typ, char *pname, char *message)
+{
+    log_add_full(typ, pname, "%s", message);
+}
 
 
 #include <limits.h>
@@ -1990,6 +1997,89 @@ XS(_wrap_log_add) {
 }
 
 
+XS(_wrap_log_add_full) {
+  {
+    logtype_t arg1 ;
+    char *arg2 = (char *) 0 ;
+    char *arg3 = (char *) 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int res3 ;
+    char *buf3 = 0 ;
+    int alloc3 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 3) || (items > 3)) {
+      SWIG_croak("Usage: log_add_full(typ,pname,message);");
+    }
+    {
+      if (sizeof(signed int) == 1) {
+        arg1 = amglue_SvI8(ST(0));
+      } else if (sizeof(signed int) == 2) {
+        arg1 = amglue_SvI16(ST(0));
+      } else if (sizeof(signed int) == 4) {
+        arg1 = amglue_SvI32(ST(0));
+      } else if (sizeof(signed int) == 8) {
+        arg1 = amglue_SvI64(ST(0));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "log_add_full" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    res3 = SWIG_AsCharPtrAndSize(ST(2), &buf3, NULL, &alloc3);
+    if (!SWIG_IsOK(res3)) {
+      SWIG_exception_fail(SWIG_ArgError(res3), "in method '" "log_add_full" "', argument " "3"" of type '" "char *""'");
+    }
+    arg3 = (char *)(buf3);
+    log_add_full_(arg1,arg2,arg3);
+    ST(argvi) = sv_newmortal();
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    if (alloc3 == SWIG_NEWOBJ) free((char*)buf3);
+    XSRETURN(argvi);
+  fail:
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    if (alloc3 == SWIG_NEWOBJ) free((char*)buf3);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_log_rename) {
+  {
+    char *arg1 = (char *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: log_rename(datestamp);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "log_rename" "', argument " "1"" of type '" "char *""'");
+    }
+    arg1 = (char *)(buf1);
+    log_rename(arg1);
+    ST(argvi) = sv_newmortal();
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_delete_find_result_t) {
   {
     find_result_t *arg1 = (find_result_t *) 0 ;
@@ -2035,6 +2125,34 @@ XS(_wrap_find_result_t_timestamp_get) {
     }
     arg1 = (find_result_t *)(argp1);
     result = (char *) ((arg1)->timestamp);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_find_result_t_write_timestamp_get) {
+  {
+    find_result_t *arg1 = (find_result_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: find_result_t_write_timestamp_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_find_result_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "find_result_t_write_timestamp_get" "', argument " "1"" of type '" "find_result_t *""'"); 
+    }
+    arg1 = (find_result_t *)(argp1);
+    result = (char *) ((arg1)->write_timestamp);
     ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
     
     XSRETURN(argvi);
@@ -2845,17 +2963,7 @@ XS(_wrap_dumps_match_dumpspecs) {
       }
     }
     {
-      if (sizeof(signed int) == 1) {
-        arg3 = amglue_SvI8(ST(2));
-      } else if (sizeof(signed int) == 2) {
-        arg3 = amglue_SvI16(ST(2));
-      } else if (sizeof(signed int) == 4) {
-        arg3 = amglue_SvI32(ST(2));
-      } else if (sizeof(signed int) == 8) {
-        arg3 = amglue_SvI64(ST(2));
-      } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
-      }
+      arg3 = SvTRUE(ST(2));
     }
     result = (find_result_t *)dumps_match_dumpspecs(arg1,arg2,arg3);
     {
@@ -3169,8 +3277,11 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Logfilec::close_logfile", _wrap_close_logfile},
 {"Amanda::Logfilec::get_logline", _wrap_get_logline},
 {"Amanda::Logfilec::log_add", _wrap_log_add},
+{"Amanda::Logfilec::log_add_full", _wrap_log_add_full},
+{"Amanda::Logfilec::log_rename", _wrap_log_rename},
 {"Amanda::Logfilec::delete_find_result_t", _wrap_delete_find_result_t},
 {"Amanda::Logfilec::find_result_t_timestamp_get", _wrap_find_result_t_timestamp_get},
+{"Amanda::Logfilec::find_result_t_write_timestamp_get", _wrap_find_result_t_write_timestamp_get},
 {"Amanda::Logfilec::find_result_t_hostname_get", _wrap_find_result_t_hostname_get},
 {"Amanda::Logfilec::find_result_t_diskname_get", _wrap_find_result_t_diskname_get},
 {"Amanda::Logfilec::find_result_t_level_get", _wrap_find_result_t_level_get},
@@ -3651,6 +3762,11 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "P_AMCHECKDUMP", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(P_AMCHECKDUMP)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "P_AMVAULT", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(P_AMVAULT)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   SWIG_TypeClientData(SWIGTYPE_p_find_result_t, (void*) "Amanda::Logfile::find_result_t");

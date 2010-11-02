@@ -2,12 +2,12 @@
 .\"     Title: amrecover
 .\"    Author: Alan M. McIvor <alan@kauri.auck.irl.cri.nz>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMRECOVER" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
+.TH "AMRECOVER" "8" "10/18/2010" "Amanda 3\&.2\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +22,7 @@
 amrecover \- Amanda index database browser
 .SH "SYNOPSIS"
 .HP \w'\fBamrecover\fR\ 'u
-\fBamrecover\fR [\-C\ \fIconfig\fR] [\-s\ \fIindex\-server\fR] [\-t\ \fItape\-server\fR] [\-d\ \fItape\-device\fR] [\-o\ \fIconfigoption\fR]...
+\fBamrecover\fR [\-C\ \fIconfig\fR] [\-s\ \fIindex\-server\fR] [\-t\ \fItape\-server\fR] [\-d\ \fItape\-device\fR] [\-h\ \fIhostname\fR] [\-o\ \fIconfigoption\fR]...
 .SH "DESCRIPTION"
 .PP
 \fBAmrecover\fR
@@ -82,6 +82,11 @@ Host that runs the tape server daemon\&.
 \fB\-d tape\-device\fR
 .RS 4
 Tape device to use on the tape server host\&.
+.RE
+.PP
+\fB\-h hostname\fR
+.RS 4
+Hostname to begin restoring; defaults to the system\'s hostname\&.
 .RE
 .PP
 \fB\-o\fR \fIclientconfigoption\fR
@@ -207,7 +212,9 @@ Specifies the host to use as the tape server, and which of its tape devices to u
 .sp
 If you want amrecover to use your changer, the
 \fItapedev\fR
-must be equal to the amrecover_changer setting on the server\&.
+must be equal to the
+\fBamrecover\-changer\fR
+setting on the server\&.
 .sp
 Since device names contain colons, you must always specify the hostname\&.
 .nf

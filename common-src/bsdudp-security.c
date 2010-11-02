@@ -63,6 +63,7 @@ const security_driver_t bsdudp_security_driver = {
     "BSDUDP",
     bsdudp_connect,
     bsdudp_accept,
+    sec_get_authenticated_peer_name_hostname,
     bsdudp_close,
     udpbsd_sendpkt,
     udp_recvpkt,
@@ -120,7 +121,7 @@ bsdudp_connect(
     (void)datap;	/* Quiet unused parameter warning */
     assert(hostname != NULL);
 
-    bh = alloc(sizeof(*bh));
+    bh = g_new0(struct sec_handle, 1);
     bh->proto_handle=NULL;
     bh->rc = NULL;
     security_handleinit(&bh->sech, &bsdudp_security_driver);

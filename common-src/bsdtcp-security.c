@@ -66,6 +66,7 @@ const security_driver_t bsdtcp_security_driver = {
     "BSDTCP",
     bsdtcp_connect,
     bsdtcp_accept,
+    sec_get_authenticated_peer_name_hostname,
     sec_close,
     stream_sendpkt,
     stream_recvpkt,
@@ -118,7 +119,7 @@ bsdtcp_connect(
 
     auth_debug(1, _("bsdtcp: bsdtcp_connect: %s\n"), hostname);
 
-    rh = alloc(sizeof(*rh));
+    rh = g_new0(struct sec_handle, 1);
     security_handleinit(&rh->sech, &bsdtcp_security_driver);
     rh->hostname = NULL;
     rh->rs = NULL;

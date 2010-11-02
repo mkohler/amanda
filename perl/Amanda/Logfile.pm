@@ -54,6 +54,8 @@ package Amanda::Logfile;
 *close_logfile = *Amanda::Logfilec::close_logfile;
 *get_logline = *Amanda::Logfilec::get_logline;
 *log_add = *Amanda::Logfilec::log_add;
+*log_add_full = *Amanda::Logfilec::log_add_full;
+*log_rename = *Amanda::Logfilec::log_rename;
 *find_log = *Amanda::Logfilec::find_log;
 *search_logfile = *Amanda::Logfilec::search_logfile;
 *search_holding_disk = *Amanda::Logfilec::search_holding_disk;
@@ -84,6 +86,8 @@ sub DESTROY {
 
 *swig_timestamp_get = *Amanda::Logfilec::find_result_t_timestamp_get;
 *swig_timestamp_set = *Amanda::Logfilec::find_result_t_timestamp_set;
+*swig_write_timestamp_get = *Amanda::Logfilec::find_result_t_write_timestamp_get;
+*swig_write_timestamp_set = *Amanda::Logfilec::find_result_t_write_timestamp_set;
 *swig_hostname_get = *Amanda::Logfilec::find_result_t_hostname_get;
 *swig_hostname_set = *Amanda::Logfilec::find_result_t_hostname_set;
 *swig_diskname_get = *Amanda::Logfilec::find_result_t_diskname_get;
@@ -166,6 +170,7 @@ package Amanda::Logfile;
 *P_AMIDXTAPED = *Amanda::Logfilec::P_AMIDXTAPED;
 *P_AMFETCHDUMP = *Amanda::Logfilec::P_AMFETCHDUMP;
 *P_AMCHECKDUMP = *Amanda::Logfilec::P_AMCHECKDUMP;
+*P_AMVAULT = *Amanda::Logfilec::P_AMVAULT;
 *amanda_log_trace_log = *Amanda::Logfilec::amanda_log_trace_log;
 
 @EXPORT_OK = ();
@@ -238,19 +243,40 @@ C<$handle>, or nothing at the end of the logfile.
 
 =back
 
-To write a logfile, call C<log_add($logtype, $string)>.  On the first
-call, this function opens and locks C<$logdir/log>; subsequent calls
-just append to this file.  As such, this function is only appropriate
-for situations where C<amlogroll> will be invoked later to rename
-C<$logdir/log> to C<$logdir/log.$timestamp.$n>.
+=head3 Writing a "current" Logfile
+
+To write a logfile, call C<log_add($logtype, $string)>.  On the first call,
+this function opens and locks C<$logdir/log>; subsequent calls just append to
+this file.  As such, this function is only appropriate for situations where
+C<log_rename> will be invoked later to rename C<$logdir/log> to
+C<$logdir/log.$timestamp.$n>.
+
+If you need to write a log entry for another program, for example to simulate
+taper entries, call C<log_add_full($logtype, $pname, $string)>.
 
 All of the functions in this section can be imported by name if
 desired.
+
+=head3 Utilities
+
+Many trace log entries have a statistics entry in what used to be the error
+message slot, of the form C<[sec .. kb .. kps ..]>.  The function C<make_stats>
+will create such an entry for you:
+
+    make_stats($size, $duration, $orig_kb);
+
+Note that C<$orig_kb> can be undefined, in which case it will not appear in
+the statistics output.
 
 =head2 Amanda::Find::find_result_t objects
 
 These objects contain information about dumps, as read from logfiles.
 Instance variables are:
+
+To rename the current logfile to a datestamped logfile, call C<log_rename($ts)>
+where C<$ts> is the write timestamp for this dump.  The
+C<get_current_log_timestamp()> function will calculate this timestamp,
+returning C<undef> on error.
 
 =over
 
@@ -362,7 +388,7 @@ trace log.  Use it like this:
 
 
 push @EXPORT_OK, qw(open_logfile get_logline close_logfile
-    log_add);
+    log_add log_add_full);
 
 push @EXPORT_OK, qw(logtype_t_to_string);
 push @{$EXPORT_TAGS{"logtype_t"}}, qw(logtype_t_to_string);
@@ -574,15 +600,22 @@ push @{$EXPORT_TAGS{"program_t"}}, qw($P_AMCHECKDUMP);
 
 $_program_t_VALUES{"P_AMCHECKDUMP"} = $P_AMCHECKDUMP;
 
+push @EXPORT_OK, qw($P_AMVAULT);
+push @{$EXPORT_TAGS{"program_t"}}, qw($P_AMVAULT);
+
+$_program_t_VALUES{"P_AMVAULT"} = $P_AMVAULT;
+
 #copy symbols in program_t to constants
 push @{$EXPORT_TAGS{"constants"}},  @{$EXPORT_TAGS{"program_t"}};
 
-push @EXPORT_OK, qw(find_log search_logfile dumps_match
+push @EXPORT_OK, qw(find_log search_logfile dumps_match log_rename
     match_host match_disk match_datestamp match_level);
 
 push @EXPORT_OK, qw($amanda_log_trace_log);
 
-push @EXPORT_OK, qw(find_all_logs find_latest_log);
+push @EXPORT_OK, qw(find_all_logs find_latest_log
+    get_current_log_timestamp
+    make_stats);
 
 
 sub find_all_logs
@@ -600,6 +633,49 @@ sub find_latest_log
     my $logdir = shift @_;
     my @logs = find_all_logs($logdir || ());
     return $logs[-1];
+}
+
+use Amanda::Config;
+use Amanda::Debug;
+
+sub get_current_log_timestamp
+{
+    my $logfile = Amanda::Config::config_dir_relative(
+		Amanda::Config::getconf($Amanda::Config::CNF_LOGDIR)) . "/log";
+    if (! -f $logfile) {
+	Amanda::Debug::warning("no current logfile '$logfile'");
+	return undef;
+    }
+
+    my $logh = open_logfile("$logfile");
+    if (!$logh) {
+	Amanda::Debug::warning("could not open logfile '$logfile'");
+	return undef;
+    }
+    while (my ($type, $prog, $str) = get_logline($logh)) {
+	if ($type == $L_START) {
+	    my ($ts) = ($str =~ /date (\d+)/);
+	    return $ts if $ts;
+	}
+    }
+
+    # no timestamp, apparently
+    Amanda::Debug::warning("no current timestamp found in logfile");
+    return undef;
+}
+
+sub make_stats {
+    my ($size, $duration, $orig_kb) = @_;
+
+    $duration = 0.1 if $duration <= 0;  # prevent division by zero
+    my $kb = $size/1024;
+    my $kps = "$kb.0"/$duration; # Perlish cast from BigInt to float
+
+    if (defined $orig_kb) {
+	return sprintf("[sec %f kb %d kps %f orig-kb %d]", $duration, $kb, $kps, $orig_kb);
+    } else {
+	return sprintf("[sec %f kb %d kps %f]", $duration, $kb, $kps);
+    }
 }
 
 1;

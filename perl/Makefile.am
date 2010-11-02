@@ -5,6 +5,9 @@
 include $(top_srcdir)/config/automake/vars.am
 include $(top_srcdir)/config/automake/scripts.am
 
+# build amglue *first*
+SUBDIRS = amglue .
+
 # add the SWIG symbol to avoid conflicts with perl definitions.
 # $AMANDA_WARNING_CFLAGS is omitted because SWIG-generated files tend
 # to trigger warnings.
@@ -39,24 +42,6 @@ endif
 # (amplot has a conditional, but doesn't have any header files)
 
 ##
-## libamglue -- helper functions for gluing amanda to perl
-##
-
-amlib_LTLIBRARIES = libamglue.la
-libamglue_la_SOURCES = \
-	amglue/ghashtable.c \
-	amglue/gerror.c \
-	amglue/bigint.c \
-	amglue/source.c \
-	amglue/objwrap.c \
-	amglue/xferwrap.c \
-	amglue/amglue.h
-libamglue_la_LDFLAGS = $(PERL_EXT_LDFLAGS) -release $(VERSION)
-libamglue_la_LIBADD = \
-	$(top_builddir)/xfer-src/libamxfer.la
-EXTRA_DIST += $(libamglue_la_SOURCES)
-
-##
 ## HTML Generation
 ##
 
@@ -83,7 +68,7 @@ PERL_EXT_LDFLAGS = -avoid-version -shared
 # threading library
 PERL_EXT_LDFLAGS += $(PERLEXTLIBS)
 
-# list our SWIG libraries.
+# list our SWIG libraries; these are %included from .swg files
 AMGLUE_SWG = amglue/amglue.swg \
 	amglue/amglue.swg \
 	amglue/constants.swg \
@@ -133,7 +118,7 @@ libArchivedir = $(amperldir)/auto/Amanda/Archive
 libArchive_LTLIBRARIES = libArchive.la
 libArchive_la_SOURCES = Amanda/Archive.c $(AMGLUE_SWG)
 libArchive_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libArchive_la_LIBADD = libamglue.la \
+libArchive_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/amar-src/libamar.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Archive.pm
@@ -150,7 +135,7 @@ libDevicedir = $(amperldir)/auto/Amanda/Device
 libDevice_LTLIBRARIES = libDevice.la
 libDevice_la_SOURCES = Amanda/Device.c $(AMGLUE_SWG)
 libDevice_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libDevice_la_LIBADD = libamglue.la \
+libDevice_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/device-src/libamdevice.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Device.pm
@@ -164,7 +149,7 @@ libLogfiledir = $(amperldir)/auto/Amanda/Logfile
 libLogfile_LTLIBRARIES = libLogfile.la
 libLogfile_la_SOURCES = Amanda/Logfile.c $(AMGLUE_SWG)
 libLogfile_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libLogfile_la_LIBADD = libamglue.la \
+libLogfile_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/server-src/libamserver.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Logfile.pm
@@ -178,7 +163,7 @@ libCmdlinedir = $(amperldir)/auto/Amanda/Cmdline
 libCmdline_LTLIBRARIES = libCmdline.la
 libCmdline_la_SOURCES = Amanda/Cmdline.c $(AMGLUE_SWG)
 libCmdline_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libCmdline_la_LIBADD = libamglue.la \
+libCmdline_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/server-src/libamserver.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Cmdline.pm
@@ -192,7 +177,7 @@ libTapelistdir = $(amperldir)/auto/Amanda/Tapelist
 libTapelist_LTLIBRARIES = libTapelist.la
 libTapelist_la_SOURCES = Amanda/Tapelist.c $(AMGLUE_SWG)
 libTapelist_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libTapelist_la_LIBADD = libamglue.la \
+libTapelist_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/server-src/libamserver.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Tapelist.pm
@@ -206,7 +191,7 @@ libDisklistdir = $(amperldir)/auto/Amanda/Disklist
 libDisklist_LTLIBRARIES = libDisklist.la
 libDisklist_la_SOURCES = Amanda/Disklist.c $(AMGLUE_SWG)
 libDisklist_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libDisklist_la_LIBADD = libamglue.la \
+libDisklist_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/server-src/libamserver.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Disklist.pm
@@ -220,7 +205,7 @@ libFeaturedir = $(amperldir)/auto/Amanda/Feature
 libFeature_LTLIBRARIES = libFeature.la
 libFeature_la_SOURCES = Amanda/Feature.c $(AMGLUE_SWG)
 libFeature_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libFeature_la_LIBADD = libamglue.la \
+libFeature_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Feature.pm
 MAINTAINERCLEANFILES += Amanda/Feature.c Amanda/Feature.pm
@@ -299,8 +284,11 @@ if WANT_SERVER
 # PACKAGE: Amanda::Taper::*
 AmandaTaperdir = $(amperldir)/Amanda/Taper
 AmandaTaper_DATA = \
+	Amanda/Taper/Controller.pm \
+	Amanda/Taper/Protocol.pm \
 	Amanda/Taper/Scan.pm \
-	Amanda/Taper/Scribe.pm
+	Amanda/Taper/Scribe.pm \
+	Amanda/Taper/Worker.pm
 PM_FILES += $(AmandaTaper_DATA)
 endif
 EXTRA_DIST += $(AmandaTaper_DATA)
@@ -332,7 +320,7 @@ libXferdir = $(amperldir)/auto/Amanda/Xfer
 libXfer_LTLIBRARIES = libXfer.la
 libXfer_la_SOURCES = Amanda/Xfer.c $(AMGLUE_SWG)
 libXfer_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libXfer_la_LIBADD = libamglue.la \
+libXfer_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/xfer-src/libamxfer.la
 Amanda_DATA += Amanda/Xfer.pm
 MAINTAINERCLEANFILES += Amanda/Xfer.c Amanda/Xfer.pm
@@ -344,7 +332,7 @@ libNDMPdir = $(amperldir)/auto/Amanda/NDMP
 libNDMP_LTLIBRARIES = libNDMP.la
 libNDMP_la_SOURCES = Amanda/NDMP.c $(AMGLUE_SWG)
 libNDMP_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libNDMP_la_LIBADD = libamglue.la \
+libNDMP_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/common-src/libamanda.la \
 	$(top_builddir)/ndmp-src/libndmlib.la
 Amanda_DATA += Amanda/NDMP.pm
@@ -358,7 +346,7 @@ libXferServerdir = $(amperldir)/auto/Amanda/XferServer
 libXferServer_LTLIBRARIES = libXferServer.la
 libXferServer_la_SOURCES = Amanda/XferServer.c $(AMGLUE_SWG)
 libXferServer_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libXferServer_la_LIBADD = libamglue.la \
+libXferServer_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/server-src/libamserver.la
 Amanda_DATA += Amanda/XferServer.pm
 MAINTAINERCLEANFILES += Amanda/XferServer.c Amanda/XferServer.pm
@@ -391,7 +379,7 @@ libDebugdir = $(amperldir)/auto/Amanda/Debug
 libDebug_LTLIBRARIES = libDebug.la
 libDebug_la_SOURCES = Amanda/Debug.c $(AMGLUE_SWG)
 libDebug_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libDebug_la_LIBADD = libamglue.la \
+libDebug_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Debug.pm
 EXTRA_DIST += Amanda/Debug.swg Amanda/Debug.pm Amanda/Debug.pod
@@ -402,18 +390,23 @@ libConfigdir = $(amperldir)/auto/Amanda/Config
 libConfig_LTLIBRARIES = libConfig.la
 libConfig_la_SOURCES = Amanda/Config.c $(AMGLUE_SWG)
 libConfig_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libConfig_la_LIBADD = libamglue.la \
+libConfig_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Config.pm
 EXTRA_DIST += Amanda/Config.swg Amanda/Config.pm Amanda/Config.pod
 MAINTAINERCLEANFILES += Amanda/Config.c Amanda/Config.pm
+
+# PACKAGE: Amanda::Config::*
+AmandaConfigdir = $(amperldir)/Amanda/Config
+AmandaConfig_DATA = Amanda/Config/FoldingHash.pm
+EXTRA_DIST += $(AmandaConfig_DATA)
 
 # PACKAGE: Amanda::Util
 libUtildir = $(amperldir)/auto/Amanda/Util
 libUtil_LTLIBRARIES = libUtil.la
 libUtil_la_SOURCES = Amanda/Util.c $(AMGLUE_SWG)
 libUtil_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libUtil_la_LIBADD = libamglue.la \
+libUtil_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Util.pm
 EXTRA_DIST += Amanda/Util.swg Amanda/Util.pm Amanda/Util.pod
@@ -424,7 +417,7 @@ libHeaderdir = $(amperldir)/auto/Amanda/Header
 libHeader_LTLIBRARIES = libHeader.la
 libHeader_la_SOURCES = Amanda/Header.c $(AMGLUE_SWG)
 libHeader_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libHeader_la_LIBADD = libamglue.la \
+libHeader_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Header.pm
 EXTRA_DIST += Amanda/Header.swg Amanda/Header.pm Amanda/Header.pod
@@ -435,7 +428,7 @@ libTestsdir = $(amperldir)/auto/Amanda/Tests
 libTests_LTLIBRARIES = libTests.la
 libTests_la_SOURCES = Amanda/Tests.c $(AMGLUE_SWG)
 libTests_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libTests_la_LIBADD = libamglue.la \
+libTests_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/Tests.pm
 EXTRA_DIST += Amanda/Tests.swg Amanda/Tests.pm Amanda/Tests.pod
@@ -446,7 +439,7 @@ libMainLoopdir = $(amperldir)/auto/Amanda/MainLoop
 libMainLoop_LTLIBRARIES = libMainLoop.la
 libMainLoop_la_SOURCES = Amanda/MainLoop.c $(AMGLUE_SWG)
 libMainLoop_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libMainLoop_la_LIBADD = libamglue.la \
+libMainLoop_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/common-src/libamanda.la
 Amanda_DATA += Amanda/MainLoop.pm
 EXTRA_DIST += Amanda/MainLoop.swg Amanda/MainLoop.pm Amanda/MainLoop.pod
@@ -463,7 +456,7 @@ libIPCBinarydir = $(amperldir)/auto/Amanda/IPC/Binary
 libIPCBinary_LTLIBRARIES = libBinary.la
 libBinary_la_SOURCES = Amanda/IPC/Binary.c $(AMGLUE_SWG)
 libBinary_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libBinary_la_LIBADD = libamglue.la \
+libBinary_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/common-src/libamanda.la
 AmandaIPC_DATA += Amanda/IPC/Binary.pm
 EXTRA_DIST += Amanda/IPC/Binary.swg Amanda/IPC/Binary.pm Amanda/IPC/Binary.pod
@@ -496,7 +489,7 @@ libApplicationdir = $(amperldir)/auto/Amanda/Application
 libApplication_LTLIBRARIES = libApplication.la
 libApplication_la_SOURCES = Amanda/Application.c $(AMGLUE_SWG)
 libApplication_la_LDFLAGS = $(PERL_EXT_LDFLAGS)
-libApplication_la_LIBADD = libamglue.la \
+libApplication_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/client-src/libamclient.la
 Amanda_DATA += Amanda/Application.pm
 MAINTAINERCLEANFILES += Amanda/Application.c Amanda/Application.pm
@@ -526,28 +519,34 @@ install-data-hook:
 	done
 endif
 
-check-local: syntax-check thread-check
-
-syntax-check:
+# only syntax-check the .pm files if SYNTAX_CHECKS are enabled
+check-pm:
 	@MODULES_TO_CHECK="$(PM_FILES)"; \
 	if test -f $(top_builddir)/perl/.libs/libConfig.so -o -f $(top_builddir)/perl/libConfig.so; then \
-		if test -n "$(PERL)"; then \
-			for perlobj in $$MODULES_TO_CHECK; do \
-				if test -f $$perlobj; then \
-					$(PERL) $(CHECK_PERL_FLAGS) -I$(top_builddir)/perl -I$(top_builddir)/perl/.libs -I$(top_srcdir)/perl -c -T $$perlobj || exit 1; \
-				else \
-					$(PERL) $(CHECK_PERL_FLAGS) -I$(top_builddir)/perl -I$(top_builddir)/perl/.libs -I$(top_srcdir)/perl -c -T $(top_srcdir)/perl/$$perlobj || exit 1; \
-				fi \
-			done; \
+	    for perlobj in $$MODULES_TO_CHECK; do \
+		if test -f $$perlobj; then \
+		    $(PERL) $(CHECK_PERL_FLAGS) -I$(top_builddir)/perl -I$(top_builddir)/perl/.libs -I$(top_srcdir)/perl -c -T $$perlobj || exit 1; \
+		else \
+		    $(PERL) $(CHECK_PERL_FLAGS) -I$(top_builddir)/perl -I$(top_builddir)/perl/.libs -I$(top_srcdir)/perl -c -T $(top_srcdir)/perl/$$perlobj || exit 1; \
 		fi \
+	    done; \
         fi
+if SYNTAX_CHECKS
+check-local: check-pm
+endif
+
+if WANT_MANDATORY_THREAD_CHECK
+install-data-local: thread-check
+else
+installcheck-local: thread-check
+endif
 
 if WANT_SERVER
 thread-check: libTests.la
 	$(PERL) -I$(builddir) -I$(builddir)/.libs -I$(srcdir) \
 			-MAmanda::Tests -e 'alarm(10); Amanda::Tests::try_threads' \
-	|| echo "Perl cannot run extensions which use threads; consider linking perl" \
-		"with -pthreads or compiling perl with threading enabled"
+	|| { echo "Perl cannot run extensions which use threads; consider linking perl" \
+		"with -pthread or compiling perl with threading enabled"; false; }
 else
 thread-check:
 	@echo "skipping thread check: server component not being built"

@@ -1,4 +1,4 @@
-# Copyright (c) 2009 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2009, 2010 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -17,6 +17,8 @@
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 use Test::More tests => 3;
+use strict;
+use warnings;
 
 use lib "@amperldir@";
 use Installcheck::Run qw(run run_get);
@@ -37,7 +39,7 @@ like(run_get("$amlibexecdir/amcheck-device", "TESTCONF"),
     qr/Will write label 'TESTCONF01' to new volume/,
     "a run of amcheck-device on a new config succeeds");
 
-ok(!run("$amlibexecdir/amcheck-device", "TESTCONF", "-o", "label_new_tapes="),
+ok(!run("$amlibexecdir/amcheck-device", "TESTCONF", "-o", "autolabel="),
     "accepts config_overrides, returns exit status on failure");
 
 like(run_get("$amlibexecdir/amcheck-device", "TESTCONF", "-w"),

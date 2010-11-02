@@ -321,6 +321,12 @@ dvdrw_device_init (DvdRwDevice *self)
     device_set_simple_property(dself, PROPERTY_FULL_DELETION,
 	&val, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
     g_value_unset(&val);
+
+    g_value_init(&val, G_TYPE_BOOLEAN);
+    g_value_set_boolean(&val, TRUE);
+    device_set_simple_property(dself, PROPERTY_LEOM,
+	&val, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DETECTED);
+    g_value_unset(&val);
 }
 
 static gboolean
@@ -511,22 +517,13 @@ dvdrw_device_finish(Device *dself)
     /* Save access mode before parent class messes with it */
     mode = dself->access_mode;
 
-    if (device_in_error(dself)) {
-	if (mode == ACCESS_READ) {
-	    /* Still need to do this, don't care if it works or not */
-	    unmount_disc(self);
-	}
-
-	return FALSE;
-    }
-
     result = parent_class->finish(dself);
 
     if (mode == ACCESS_READ) {
 	unmount_disc(self);
     }
 
-    if (! result) {
+    if (!result || device_in_error(dself)) {
 	return FALSE;
     }
 

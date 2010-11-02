@@ -156,7 +156,7 @@ $opt_compress = 1 if $opt_compress_best;
 
 usage("must specify at least a hostname") unless @ARGV;
 @opt_dumpspecs = Amanda::Cmdline::parse_dumpspecs([@ARGV],
-    $Amanda::Cmdline::CMDLINE_PARSE_DATESTAMP);
+    $Amanda::Cmdline::CMDLINE_PARSE_DATESTAMP | $Amanda::Cmdline::CMDLINE_PARSE_LEVEL);
 
 usage("The -b option is no longer supported; set readblocksize in the tapetype section\n" .
       "of amanda.conf instead.")
@@ -212,14 +212,14 @@ sub new {
     }, $class;
 }
 
-sub notif_part {
+sub clerk_notif_part {
     my $self = shift;
     my ($label, $filenum, $header) = @_;
 
     print STDERR "amfetchdump: $filenum: restoring ", $header->summary(), "\n";
 }
 
-sub notif_holding {
+sub clerk_notif_holding {
     my $self = shift;
     my ($filename, $header) = @_;
 
@@ -286,6 +286,11 @@ sub main {
 
 	if (!@{$plan->{'dumps'}}) {
 	    return failure("No matching dumps found", $finished_cb);
+	}
+
+	# if we are doing a -p operation, only keep the first dump
+	if ($opt_pipe) {
+	    @{$plan->{'dumps'}} = ($plan->{'dumps'}[0]);
 	}
 
 	my @needed_labels = $plan->get_volume_list();
@@ -358,11 +363,11 @@ sub main {
 	    if ($hdr->{'srv_encrypt'}) {
 		push @filters,
 		    Amanda::Xfer::Filter::Process->new(
-			[ $hdr->{'srv_encrypt'}, $hdr->{'srv_decrypt_opt'} ], 0);
+			[ $hdr->{'srv_encrypt'}, $hdr->{'srv_decrypt_opt'} ], 0, 0);
 	    } elsif ($hdr->{'clnt_encrypt'}) {
 		push @filters,
 		    Amanda::Xfer::Filter::Process->new(
-			[ $hdr->{'clnt_encrypt'}, $hdr->{'clnt_decrypt_opt'} ], 0);
+			[ $hdr->{'clnt_encrypt'}, $hdr->{'clnt_decrypt_opt'} ], 0, 0);
 	    } else {
 		return failure("could not decrypt encrypted dump: no program specified",
 			    $finished_cb);
@@ -383,17 +388,17 @@ sub main {
 		# TODO: this assumes that srvcompprog takes "-d" to decrypt
 		push @filters,
 		    Amanda::Xfer::Filter::Process->new(
-			[ $hdr->{'srvcompprog'}, "-d" ], 0);
+			[ $hdr->{'srvcompprog'}, "-d" ], 0, 0);
 	    } elsif ($hdr->{'clntcompprog'}) {
 		# TODO: this assumes that clntcompprog takes "-d" to decrypt
 		push @filters,
 		    Amanda::Xfer::Filter::Process->new(
-			[ $hdr->{'clntcompprog'}, "-d" ], 0);
+			[ $hdr->{'clntcompprog'}, "-d" ], 0, 0);
 	    } else {
 		push @filters,
 		    Amanda::Xfer::Filter::Process->new(
 			[ $Amanda::Constants::UNCOMPRESS_PATH,
-			  $Amanda::Constants::UNCOMPRESS_OPT ], 0);
+			  $Amanda::Constants::UNCOMPRESS_OPT ], 0, 0);
 	    }
 
 	    # adjust the header
@@ -408,7 +413,7 @@ sub main {
 	    push @filters,
 		Amanda::Xfer::Filter::Process->new(
 		    [ $Amanda::Constants::COMPRESS_PATH,
-		      $compress_opt ], 0);
+		      $compress_opt ], 0, 0);
 
 	    # adjust the header
 	    $hdr->{'compressed'} = 1;

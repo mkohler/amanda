@@ -8,6 +8,9 @@
  * interface file instead. 
  * ----------------------------------------------------------------------------- */
 
+#include "../config/config.h"
+
+
 #define SWIGPERL
 #define SWIG_CASTRANK_MODE
 
@@ -2497,7 +2500,7 @@ XS(_wrap_xfer_source_directtcp_connect) {
       addrs_av = (AV *)SvRV(ST(0));
       num_addrs = av_len(addrs_av)+1;
       
-      arg1 = g_new0(DirectTCPAddr, num_addrs);
+      arg1 = g_new0(DirectTCPAddr, num_addrs+1);
       
       for (i = 0; i < num_addrs; i++) {
         SV **svp = av_fetch(addrs_av, i, 0);
@@ -2582,12 +2585,13 @@ XS(_wrap_xfer_filter_process) {
   {
     gchar **arg1 = (gchar **) 0 ;
     gboolean arg2 ;
+    gboolean arg3 ;
     int argvi = 0;
     XferElement *result = 0 ;
     dXSARGS;
     
-    if ((items < 2) || (items > 2)) {
-      SWIG_croak("Usage: xfer_filter_process(argv,need_root);");
+    if ((items < 3) || (items > 3)) {
+      SWIG_croak("Usage: xfer_filter_process(argv,need_root,log_stderr);");
     }
     {
       AV *av;
@@ -2617,23 +2621,17 @@ XS(_wrap_xfer_filter_process) {
            * care of freeing this array, so we don't have to */
     }
     {
-      if (sizeof(signed int) == 1) {
-        arg2 = amglue_SvI8(ST(1));
-      } else if (sizeof(signed int) == 2) {
-        arg2 = amglue_SvI16(ST(1));
-      } else if (sizeof(signed int) == 4) {
-        arg2 = amglue_SvI32(ST(1));
-      } else if (sizeof(signed int) == 8) {
-        arg2 = amglue_SvI64(ST(1));
-      } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
-      }
+      arg2 = SvTRUE(ST(1));
     }
-    result = (XferElement *)xfer_filter_process(arg1,arg2);
+    {
+      arg3 = SvTRUE(ST(2));
+    }
+    result = (XferElement *)xfer_filter_process(arg1,arg2,arg3);
     {
       ST(argvi) = sv_2mortal(new_sv_for_xfer_element(result));
       argvi++;
     }
+    
     
     
     {
@@ -2641,6 +2639,7 @@ XS(_wrap_xfer_filter_process) {
     }
     XSRETURN(argvi);
   fail:
+    
     
     
     SWIG_croak_null();
@@ -2897,7 +2896,7 @@ XS(_wrap_xfer_dest_directtcp_connect) {
       addrs_av = (AV *)SvRV(ST(0));
       num_addrs = av_len(addrs_av)+1;
       
-      arg1 = g_new0(DirectTCPAddr, num_addrs);
+      arg1 = g_new0(DirectTCPAddr, num_addrs+1);
       
       for (i = 0; i < num_addrs; i++) {
         SV **svp = av_fetch(addrs_av, i, 0);

@@ -2,12 +2,12 @@
 .\"     Title: amreport
 .\"    Author: Stefan G. Weichinger <sgw@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMREPORT" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
+.TH "AMREPORT" "8" "10/18/2010" "Amanda 3\&.2\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +22,7 @@
 amreport \- generate a formatted output of statistics for an Amanda run
 .SH "SYNOPSIS"
 .HP \w'\fBamreport\fR\ 'u
-\fBamreport\fR [\fIconfig\fR] [{\fB\-o\fR\ \fIconfigoption\fR}...] [(1)\ \fIcommand\-line options\fR | (2)\ \fIscript options\fR]
+\fBamreport\fR [\fIconfig\fR] [\fB\-o\fR\ \fIconfigoption\fR...] [(1)\ \fIcommand\-line options\fR | (2)\ \fIscript options\fR]
 .it 1 an-trap
 .nr an-no-space-flag 1
 .nr an-break-flag 1
@@ -149,6 +149,197 @@ directive is specified in amanda\&.conf\&.
 .RS 4
 Force script mode\&. Has no other effect\&.
 .RE
+.SH "TEXT REPORT FORMAT"
+.PP
+Amanda\'s text report format is divided into several sections\&. Some of these sections only appear if they are not empty\&.
+.PP
+Although newer versions of Amanda try to use the term "volume" to refer to a unit of storage, amreport still uses the term "tape", even if backups are done to non\-tape devices, to allow scripts which parse amreport\'s output to continue to function\&.
+.SS "Summary"
+.nf
+Hostname: bkserver
+Org     : DailySet1
+Config  : Daily
+Date    : February 25, 2009
+
+These dumps were to tape Daily\-103\&.
+The next tape Amanda expects to use is: Daily\-142
+
+FAILURE DUMP SUMMARY:
+   jamon\&.slikon\&.local /var lev 0  FAILED [/bin/tar exited with status 2]
+.fi
+.PP
+The summary section describes the run in broad terms, giving the server hostname, organization (from the
+\fBorg\fR
+configuration parameter), configuration name, and dump date\&. This is followed by a description of the volumes and holding disk used, and an rough estimate of the volume(s) Amanda will use on the next run\&.
+.PP
+Brief notices of any unusual circumstances will also be included here\&.
+.SS "Statistics"
+.nf
+STATISTICS:
+                          Total       Full      Incr\&.
+                        \-\-\-\-\-\-\-\-   \-\-\-\-\-\-\-\-   \-\-\-\-\-\-\-\-
+Estimate Time (hrs:min)    0:00
+Run Time (hrs:min)         0:01
+Dump Time (hrs:min)        0:00       0:00       0:00
+Output Size (meg)           1\&.6        0\&.0        1\&.6
+Original Size (meg)         1\&.6        0\&.0        1\&.6
+Avg Compressed Size (%)   100\&.0      100\&.0      100\&.0   (level:#disks \&.\&.\&.)
+Filesystems Dumped            4          1          3   (1:3)
+Avg Dump Rate (k/s)      1555\&.1      134\&.2     1787\&.3
+
+Tape Time (hrs:min)        0:00       0:00       0:00
+Tape Size (meg)             1\&.6        0\&.0        1\&.6
+Tape Used (%)               5\&.5        0\&.1        5\&.4   (level:#disks \&.\&.\&.)
+Filesystems Taped             4          1          3   (1:3)
+                                                        (level:#parts \&.\&.\&.)
+Parts Taped                   4          1          3   (1:3)
+Avg Tp Write Rate (k/s)  143966    27624\&.3     151811
+
+USAGE BY TAPE:
+  Label            Time      Size      %  DLEs Parts
+  metals\-013       0:00     1650k    5\&.4     4     4
+.fi
+.PP
+This section contains aggregate statistics for the entire run\&. The three columns break down the results into a total for all data handled, only full dumps, and only incremental dumps\&. In the right margin, amreport indicates the breakdown of dump levels at the dumper and the taper\&.
+.PP
+The rows have the following meanings:
+.PP
+Estimate Time
+.RS 4
+The time used by the planner to estimate dump sizes\&.
+.RE
+.PP
+Run Time
+.RS 4
+Total runtime, from the invocation of amdump to its completion\&.
+.RE
+.PP
+Dump Time
+.RS 4
+Total time spent dumping clients\&.
+.RE
+.PP
+Output Size
+.RS 4
+Total quantity of data dumped, after compression\&.
+.RE
+.PP
+Original Size
+.RS 4
+Total quantity of data dumped, before compression\&.
+.RE
+.PP
+Avg Compressed Size
+.RS 4
+Compression ratio, calculated from the previous two rows\&.
+.RE
+.PP
+Filesystems Dumped
+.RS 4
+Number of DLEs dumped\&.
+.RE
+.PP
+Avg Dump Rate
+.RS 4
+Average speed at which clients produced data\&. Note that, for dumps done directly to a slow device, rather than to holding disk, this rate may reflect a write speed constrained by the device speed\&.
+.RE
+.PP
+Tape Time
+.RS 4
+Total time spent writing to storage volumes\&. This includes time spent changing tapes, including time spent waiting for flush thresholds to be met\&.
+.RE
+.PP
+Tape Size
+.RS 4
+Total quantity of data written to storage volumes\&.
+.RE
+.PP
+Tape Used
+.RS 4
+Fraction of the total allocated storage (tapetype length times runtapes) actually used\&.
+.RE
+.PP
+Filesystems Taped
+.RS 4
+Number of filesystems written to storage\&. This may be larger or smaller than the number of filesystems dumped, due to flushes or dumps left on holding disk\&.
+.RE
+.PP
+Parts Taped
+.RS 4
+Number of split parts writtten to storage\&. If this number is very large, then the split size may be too small\&.
+.RE
+.PP
+Avg Tp Write Rate
+.RS 4
+Taper speed, based on the tape time and tape size, above\&. Note that, because the tape time includes time spent on tasks other than writing to tape, this does not necessary reflect the device\'s real write speed\&. However, the value is useful for capacity planning, as it reflects a realistic estimate of how quickly Amanda can write data to storage\&.
+.RE
+.SS "Usage by Tape"
+.nf
+USAGE BY TAPE:
+  Label          Time      Size      %  DLEs Parts
+  Conf\-001       0:00    20320k   66\&.2     1     4
+  Conf\-002       0:00     6470k   21\&.1     0     2
+.fi
+.PP
+This short section gives per\-volume statistics: time spent writing to the volume; bytes written to the volume; portion of the expected tape length used; number of DLEs started, and total number of split parts written\&.
+.SS "Notes"
+.nf
+NOTES:
+  taper: tape DAILY\-37 kb 30720 fm 3 [OK]
+.fi
+.PP
+This section contains any informational log messages from the run\&. Most messages are self\-explanatory\&. The taper message shown in the example is always present, and is redundant to the previous section\&. It indicates that 30720 kb were written to "DAILY\-37" in 3 files\&.
+.SS "Failure and Strange Details"
+.nf
+FAILED DUMP DETAILS:
+
+/\-\-  jamon\&.slikon\&.local /var lev 0 FAILED [/bin/tar exited with status 2]
+sendbackup: info BACKUP=APPLICATION
+sendbackup: info APPLICATION=amgtar
+sendbackup: info RECOVER_CMD=/usr/bin/gzip \-dc |amgtar \-f\&.\&.\&. \-
+sendbackup: info COMPRESS_SUFFIX=\&.gz
+sendbackup: info end
+? /bin/tar: \&./gdm: Cannot savedir: Permission denied
+| Total bytes written: 943831040 (901MiB, 4\&.9MiB/s)
+| /bin/tar: Error exit delayed from previous errors
+sendbackup: error [/bin/tar exited with status 2]
+sendbackup: size 921710
+sendbackup: end
+\e\e\-\-\-\-\-\-\-\-
+
+STRANGE DUMP DETAILS:
+
+/\-\-  bsdfw\&.slikon\&.local / lev 0 STRANGE
+sendbackup: info BACKUP=APPLICATION
+sendbackup: info APPLICATION=amgtar
+sendbackup: info RECOVER_CMD=/usr/bin/gzip \-dc |amgtar \-f\&.\&.\&. \-
+sendbackup: info COMPRESS_SUFFIX=\&.gz
+sendbackup: info end
+| /bin/tar: \&./tmp/\&.X11\-unix/X0: socket ignored
+| Total bytes written: 5530869760 (5\&.2GiB, 3\&.0MiB/s)
+sendbackup: size 5401240
+sendbackup: end
+\e\e\-\-\-\-\-\-\-\-
+.fi
+.PP
+This section expands on failures and strange results indicated in earlier sections\&. In both cases, the details contain a messages produced by the underlying backup tool \- GNU tar, in this example\&. Failed dumps have actually failed, and the reasons are usually clear\&. Strange dumps, however, are regarded as successful by Amanda, but contain messages that Amanda did not recognize and which may be of interest to the operator\&.
+.SS "Dump Summary"
+.nf
+DUMP SUMMARY:
+                                       DUMPER STATS                TAPER STATS
+HOSTNAME     DISK        L ORIG\-kB  OUT\-kB  COMP%  MMM:SS   KB/s MMM:SS     KB/s
+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
+strontium    /etc        1     270     270    \-\-     0:00 1146\&.3   0:00 140918\&.6
+strontium    \-me/elantra 1      10      10    \-\-     0:00   65\&.6   0:00   9033\&.4
+strontium    /local      0      20      20    \-\-     0:00  133\&.9   0:00  27624\&.3
+strontium    \-ository_13 1    1350    1350    \-\-     0:01 2568\&.5   0:00 175006\&.5
+.fi
+.PP
+The dump summary table has one row for each DLE processed during the run\&. The "L" column gives the level of the dump\&. The remaining colums are divided into dumper stats and taper stats\&.
+.PP
+The dumper stats give the original (before compression) and output (after compression) size of each dump, as well as a compression ratio, if applicable\&. The column labeled "MMM:SS" gives the time spent on that dump, and the next column is the calculated dump rate\&.
+.PP
+The taper stats give the time and speed with which the dump was written to storage\&. This value is the sum of the times for each part, and as such does not include time spent switching volumes\&.
 .SH "LABEL PRINTING"
 .PP
 Amanda can print postscript labels describing the contents of tape(s) written in a run\&. The labels are designed to be folded and inserted into the tape case along with the tape or hole punched and put in a 3\-ring binder\&. Various label templates are provided to format data for different tape sizes\&.

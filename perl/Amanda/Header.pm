@@ -301,30 +301,25 @@ uncompression.
 
 
 
-push @EXPORT_OK, qw(filetype_t_to_strings);
-push @{$EXPORT_TAGS{"filetype_t"}}, qw(filetype_t_to_strings);
+push @EXPORT_OK, qw(filetype_t_to_string);
+push @{$EXPORT_TAGS{"filetype_t"}}, qw(filetype_t_to_string);
 
 my %_filetype_t_VALUES;
-#Convert a flag value to a list of names for flags that are set.
-sub filetype_t_to_strings {
-    my ($flags) = @_;
-    my @result = ();
+#Convert an enum value to a single string
+sub filetype_t_to_string {
+    my ($enumval) = @_;
 
     for my $k (keys %_filetype_t_VALUES) {
 	my $v = $_filetype_t_VALUES{$k};
 
 	#is this a matching flag?
-	if (($v == 0 && $flags == 0) || ($v != 0 && ($flags & $v) == $v)) {
-	    push @result, $k;
+	if ($enumval == $v) {
+	    return $k;
 	}
     }
 
-#by default, just return the number as a 1-element list
-    if (!@result) {
-	return ($flags);
-    }
-
-    return @result;
+#default, just return the number
+    return $enumval;
 }
 
 push @EXPORT_OK, qw($F_UNKNOWN);

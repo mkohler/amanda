@@ -2,12 +2,12 @@
 .\"     Title: amvault
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/01/2010
+.\"      Date: 10/18/2010
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.1.0
+.\"    Source: Amanda 3.2.0
 .\"  Language: English
 .\"
-.TH "AMVAULT" "8" "06/01/2010" "Amanda 3\&.1\&.0" "System Administration Commands"
+.TH "AMVAULT" "8" "10/18/2010" "Amanda 3\&.2\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,28 +22,57 @@
 amvault \- Copy Amanda dumps from one volume to another
 .SH "SYNOPSIS"
 .HP \w'\fBamvault\fR\ 'u
-\fBamvault\fR [{\fB\-o\fR\ \fIconfigoption\fR}...] [\-q|\-\-quiet] \fIconfig\fR \fIsrc\-run\-timestamp\fR \fIdst\-changer\fR \fIlabel\-template\fR
+\fBamvault\fR [\fB\-o\fR\ \fIconfigoption\fR...] [\-q] [\-\-quiet] [\-n] [\-\-dry\-run] [\-\-fulls\-only] [\-\-export] [\fB\-\-src\-timestamp\fR\ \fIsrc\-timestamp\fR]
+.br
+\fB\-\-label\-template\fR\ \fIlabel\-template\fR \fB\-\-dst\-changer\fR\ \fIdst\-changer\fR [\fB\-\-autolabel\fR\ \fIautolabel\-arg\fR...]
+.br
+\fIconfig\fR [\fIhostname\fR\ [\ \fIdisk\fR\ [\ \fIdate\fR\ [\ \fIlevel\fR\ [\ \fIhostname\fR\ [\&.\&.\&.]\ ]\ ]\ ]\ ]]
 .SH "WARNING"
 .PP
 This application is not yet in its final form, and is subject to major revision in subsequent versions of Amanda\&. Backward compatibility is not guaranteed\&.
 .PP
-The significant limitations of this version of amvault are: tapetypes for secondary and tertiary volumes much match (including length and device_properties); tertiary volumes must be blank (manual erasure is required to re\-use tertiary media; restore/recover operations will request tertiary media by label when dumpfiles are not found on secondary media, but there is no provision to automatically fetch such media from a different changer; and all dumpfiles on a secondary volume are moved to tertiary media \- there is no provision to filter dumps\&.
+Note that Amanda restore/recover operations will request tertiary media by label when dumpfiles are not found on secondary media, but there is no provision to automatically fetch such media from a different changer
 .PP
 Feedback on and patches to this application are invited and encouraged!
 .SH "DESCRIPTION"
 .PP
+Amvault is conceptually equivalent to "amfetchdump | taper"\&. That is, it reads specified dumps from secondary media and re\-writes them on tertiary media\&.
+.PP
 \fBAmvault\fR
 Copies data from the run with timestamp
-\fIsrc\-run\-timestamp\fR
+\fBsrc\-timestamp\fR
 onto volumes using the changer
-\fIdst\-changer\fR, labeling new volumes with
-\fIlabel\-template\fR\&. If
-\fIsrc\-run\-timestamp\fR
-is "latest", then the most recent amdump or amflush run will be used\&.
+\fBdst\-changer\fR, and labeling new volumes with
+\fBlabel\-template\fR\&. If
+\fBsrc\-timestamp\fR
+is "latest", then the most recent amdump or amflush run will be used\&. If
+\fB\-\-fulls\-only\fR
+is given, then only full (level\-0) dumps are copied\&.
 .PP
-In a vaulting operation, the source media is referred to as "secondary media", while the destination is referred to as "tertiary media"\&.
+The
+\fB\-\-quiet\fR
+(\fB\-q\fR) option will eliminate non\-error messages, and is useful when running amvault from cron\&. The
+\fB\-\-dry\-run\fR
+(\fB\-n\fR) option will cause amvault to print the dumps it would vault, but not actually perform any vaulting operations\&.
+.SS "Secondary Media"
 .PP
-Each source volume will be copied to a new destination volume; no re\-assembly or splitting will be performed\&. Destination volumes must be at least as large as the source volumes\&.
+The dumps to be read from secondary media can be specified by any combination of dump specifications,
+\fB\-\-fulls\-only\fR, and
+\fB\-\-src\-timestamp\fR\&. At least one must be specified, lest amvault attempt to vault all dumps in the catalog\&. See
+\fBamanda-match\fR(7)
+for more information on dump specifications\&.
+.PP
+Note that the datestamp given in the dumpspec is the
+\fIdump\fR
+datestamp \- the run in which the backup was taken on the Amanda client\&. The
+\fB\-\-src\-timestamp\fR, on the other hand, is the
+\fIwrite\fR
+timestamp \- the run in which the dump was written to secondary media\&. The latter option facilitates duplicating the results of an entire backup run, including any dumps that might have been flushed from holding disk\&.
+.SS "Tertiary Media"
+.PP
+The
+\fB\-\-dst\-changer\fR
+must be specified, and names the changer in which tertiary media are stored\&. In general, this should be different from the secondary changer, to eliminate the possibility of overwriting secondary media with tertiary data\&.
 .PP
 The changer parameter should specify the name of a changer defined in
 \fBamanda.conf\fR(5)\&. For example:
@@ -58,19 +87,37 @@ define changer vaulting_tape {
 .fi
 .PP
 The
-\fI\-\-quiet\fR
-option reduces the verbosity of the utility; this can be useful for volumes containing many split parts\&. The
-\fI\-\-autolabel\fR
-option defines which tertiary volumes amlabel will overwrite\&. It can have any of the values defined for
+\fB\-\-label\-template\fR
+option is required, and specifies a label template which is used to generate new labels for tertiary volumes\&. The
+\fB\-\-autolabel\fR
+option works just like the
 \fBautolabel\fR
-in
-\fBamanda.conf\fR(5), with the addition of "this_config", meaning volumes matching the labelstr for this configuration\&. The option defaults to "empty"\&. Multiple values can be separated with commas\&. The label template functions identically to the template for teh
-\fBautolabel\fR
-parameter\&.
+parameter in
+\fBamanda.conf\fR(5), and can be specified multiple times if necessary\&. The default is \'empty\'\&.
+.PP
+If
+\fBamanda.conf\fR(5)
+contains the new
+\fBpart\-size\fR
+splitting parameters, then amvault will use them without any additional configuration\&. However, if the configuration still uses the old splitting parameters (\fBtape_splitsize\fR,
+\fBsplit_diskbuffer\fR, and
+\fBfallback_splitsize\fR), then amvault will need some additional configuration in order to properly split dumps to tertiary media\&. To do so, specify a new tapetype in
+\fBamanda.conf\fR(5), say "TERTIARY", and set the
+\fBpart\-size\fR
+and other appropriate parameters there\&. Then reference that tapetype in the amvault invocation:
+.sp
+.nf
+    amvault \-otapetype=TERTIARY \&.\&.\&.
+.fi
+.PP
+The
+\fB\-\-export\fR
+option will cause amvault to attempt to move completed tertiary volumes to import/export slots, where they can be more easily removed by an operator\&.
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
-\fBamanda-changers\fR(7)
+\fBamanda-changers\fR(7),
+\fBamfetchdump\fR(8)
 .PP
 The Amanda Wiki:
 : http://wiki.zmanda.com/

@@ -1,5 +1,5 @@
 #!@PERL@
-# Copyright (c) 2009 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2009, 2010 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -19,6 +19,7 @@
 
 use lib '@amperldir@';
 use strict;
+use warnings;
 use Getopt::Long;
 
 package Amanda::Application::Amsuntar;
@@ -226,11 +227,6 @@ sub command_backup {
    my $self = shift;
 
    $self->validate_inexclude();
-   my $mesgout_fd;
-   open($mesgout_fd, '>&=3') ||
-      $self->print_to_server_and_die("Can't open mesgout_fd: $!",
-				     $Amanda::Script_App::ERROR);
-   $self->{mesgout} = $mesgout_fd;
 
    my(@cmd) = $self->build_command();
    my(@cmdtc) = $self->{teecount};
@@ -258,11 +254,11 @@ sub command_backup {
       open($indexout_fd, '>&=4') ||
       $self->print_to_server_and_die("Can't open indexout_fd: $!",
 				     $Amanda::Script_App::ERROR);
-      $result = $self->parse_backup($index_fd, $mesgout_fd, $indexout_fd);
+      $result = $self->parse_backup($index_fd, $self->{mesgout}, $indexout_fd);
       close($indexout_fd);
    }
    else {
-      $result = $self->parse_backup($index_fd, $mesgout_fd, undef);
+      $result = $self->parse_backup($index_fd, $self->{mesgout}, undef);
    }
    close($index_fd);
    my $size = <$errtc>;
@@ -276,12 +272,13 @@ sub command_backup {
 
    if ($result == 1) {
        debug("$self->{suntar} returned error" );
-       print $mesgout_fd "sendbackup: error [$self->{suntar} returned error]\n";
+       $self->print_to_server("$self->{suntar} returned error", 
+			      $Amanda::Script_App::ERROR);
    }
 
    my($ksize) = int ($size/1024);
-   print $mesgout_fd "sendbackup: size $ksize\n";
-   print $mesgout_fd "sendbackup: end\n";
+   print {$self->{mesgout}} "sendbackup: size $ksize\n";
+   print {$self->{mesgout}} "sendbackup: end\n";
    debug("sendbackup: size $ksize "); 
 
    exit 0;

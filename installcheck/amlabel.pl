@@ -17,6 +17,8 @@
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 use Test::More tests => 19;
+use strict;
+use warnings;
 
 use lib "@amperldir@";
 use Installcheck::Config;
@@ -58,7 +60,7 @@ $dev->finish()
     or BAIL_OUT("device error");
 
 my $tlf = Amanda::Config::config_dir_relative(getconf($CNF_TAPELIST));
-my $tl = Amanda::Tapelist::read_tapelist($tlf);
+my $tl = Amanda::Tapelist->new($tlf, 1);
 $tl->add_tapelabel("0", "TESTCONF13", "test tape");
 $tl->write($tlf);
 
@@ -74,8 +76,8 @@ like(run_get('amlabel', 'TESTCONF', 'TESTCONF92'),
     qr/Writing label 'TESTCONF92'/,
     "amlabel labels the current slot by default");
 
-$tl = Amanda::Tapelist::read_tapelist($tlf);
-is_deeply($tl->[0], {
+$tl->reload();
+is_deeply($tl->{'tles'}->[0], {
        'reuse' => 1,
        'comment' => undef,
        'position' => 1,

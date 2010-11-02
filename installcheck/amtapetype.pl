@@ -17,6 +17,8 @@
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
 use Test::More tests => 5;
+use strict;
+use warnings;
 
 use lib "@amperldir@";
 use Installcheck::Run qw(run run_get run_err vtape_dir);
@@ -48,5 +50,5 @@ ok(run_err('amtapetype', 'TESTCONF', 'smallvtape'),
     "a second run on the same device fails because -f isn't used") or die;
 
 like(run_get('amtapetype', 'TESTCONF', '-f', '-b', '33000', 'smallvtape'),
-    qr/add device_property/,
+    qr/add device-property/,
     "with a non-kilobyte block size, directs user to add a device_property");

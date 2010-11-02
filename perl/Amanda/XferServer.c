@@ -8,6 +8,9 @@
  * interface file instead. 
  * ----------------------------------------------------------------------------- */
 
+#include "../config/config.h"
+
+
 #define SWIGPERL
 #define SWIG_CASTRANK_MODE
 
@@ -1486,10 +1489,9 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 #define SWIGTYPE_p_guint64 swig_types[9]
 #define SWIGTYPE_p_int swig_types[10]
 #define SWIGTYPE_p_off_t swig_types[11]
-#define SWIGTYPE_p_queue_fd_t swig_types[12]
-#define SWIGTYPE_p_unsigned_char swig_types[13]
-static swig_type_info *swig_types[15];
-static swig_module_info swig_module = {swig_types, 14, 0, 0, 0, 0};
+#define SWIGTYPE_p_unsigned_char swig_types[12]
+static swig_type_info *swig_types[14];
+static swig_module_info swig_module = {swig_types, 13, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1535,6 +1537,16 @@ SWIGEXPORT void SWIG_init (CV *cv, CPerlObj *);
 #include "amxfer.h"
 #include "xfer-device.h"
 #include "xfer-server.h"
+
+
+#include <limits.h>
+#if !defined(SWIG_NO_LLONG_MAX)
+# if !defined(LLONG_MAX) && defined(__GNUC__) && defined (__LONG_LONG_MAX__)
+#   define LLONG_MAX __LONG_LONG_MAX__
+#   define LLONG_MIN (-LLONG_MAX - 1LL)
+#   define ULLONG_MAX (LLONG_MAX * 2ULL + 1ULL)
+# endif
+#endif
 
 
 SWIGINTERN int
@@ -1603,27 +1615,19 @@ SWIG_CanCastAsInteger(double *d, double min, double max) {
 
 
 SWIGINTERN int
-SWIG_AsVal_unsigned_SS_long SWIG_PERL_DECL_ARGS_2(SV *obj, unsigned long *val) 
+SWIG_AsVal_long SWIG_PERL_DECL_ARGS_2(SV *obj, long* val)
 {
-  if (SvUOK(obj)) {
-    if (val) *val = SvUV(obj);
+  if (SvIOK(obj)) {
+    if (val) *val = SvIV(obj);
     return SWIG_OK;
-  } else  if (SvIOK(obj)) {
-    long v = SvIV(obj);
-    if (v >= 0) {
-      if (val) *val = v;
-      return SWIG_OK;
-    } else {
-      return SWIG_OverflowError;
-    }
   } else {
     int dispatch = 0;
     const char *nptr = SvPV_nolen(obj);
     if (nptr) {
       char *endptr;
-      unsigned long v;
+      long v;
       errno = 0;
-      v = strtoul(nptr, &endptr,0);
+      v = strtol(nptr, &endptr,0);
       if (errno == ERANGE) {
 	errno = 0;
 	return SWIG_OverflowError;
@@ -1637,8 +1641,8 @@ SWIG_AsVal_unsigned_SS_long SWIG_PERL_DECL_ARGS_2(SV *obj, unsigned long *val)
     if (!dispatch) {
       double d;
       int res = SWIG_AddCast(SWIG_AsVal_double SWIG_PERL_CALL_ARGS_2(obj,&d));
-      if (SWIG_IsOK(res) && SWIG_CanCastAsInteger(&d, 0, ULONG_MAX)) {
-	if (val) *val = (unsigned long)(d);
+      if (SWIG_IsOK(res) && SWIG_CanCastAsInteger(&d, LONG_MIN, LONG_MAX)) {
+	if (val) *val = (long)(d);
 	return res;
       }
     }
@@ -1647,12 +1651,18 @@ SWIG_AsVal_unsigned_SS_long SWIG_PERL_DECL_ARGS_2(SV *obj, unsigned long *val)
 }
 
 
-SWIGINTERNINLINE int
-SWIG_AsVal_size_t SWIG_PERL_DECL_ARGS_2(SV * obj, size_t *val)
+SWIGINTERN int
+SWIG_AsVal_int SWIG_PERL_DECL_ARGS_2(SV * obj, int *val)
 {
-  unsigned long v;
-  int res = SWIG_AsVal_unsigned_SS_long SWIG_PERL_CALL_ARGS_2(obj, val ? &v : 0);
-  if (SWIG_IsOK(res) && val) *val = (size_t)(v);
+  long v;
+  int res = SWIG_AsVal_long SWIG_PERL_CALL_ARGS_2(obj, &v);
+  if (SWIG_IsOK(res)) {
+    if ((v < INT_MIN || v > INT_MAX)) {
+      return SWIG_OverflowError;
+    } else {
+      if (val) *val = (int)(v);
+    }
+  }  
   return res;
 }
 
@@ -1713,30 +1723,28 @@ SWIG_AsCharPtrAndSize(SV *obj, char** cptr, size_t* psize, int *alloc)
 
 
 
-#include <limits.h>
-#if !defined(SWIG_NO_LLONG_MAX)
-# if !defined(LLONG_MAX) && defined(__GNUC__) && defined (__LONG_LONG_MAX__)
-#   define LLONG_MAX __LONG_LONG_MAX__
-#   define LLONG_MIN (-LLONG_MAX - 1LL)
-#   define ULLONG_MAX (LLONG_MAX * 2ULL + 1ULL)
-# endif
-#endif
-
-
 SWIGINTERN int
-SWIG_AsVal_long SWIG_PERL_DECL_ARGS_2(SV *obj, long* val)
+SWIG_AsVal_unsigned_SS_long SWIG_PERL_DECL_ARGS_2(SV *obj, unsigned long *val) 
 {
-  if (SvIOK(obj)) {
-    if (val) *val = SvIV(obj);
+  if (SvUOK(obj)) {
+    if (val) *val = SvUV(obj);
     return SWIG_OK;
+  } else  if (SvIOK(obj)) {
+    long v = SvIV(obj);
+    if (v >= 0) {
+      if (val) *val = v;
+      return SWIG_OK;
+    } else {
+      return SWIG_OverflowError;
+    }
   } else {
     int dispatch = 0;
     const char *nptr = SvPV_nolen(obj);
     if (nptr) {
       char *endptr;
-      long v;
+      unsigned long v;
       errno = 0;
-      v = strtol(nptr, &endptr,0);
+      v = strtoul(nptr, &endptr,0);
       if (errno == ERANGE) {
 	errno = 0;
 	return SWIG_OverflowError;
@@ -1750,8 +1758,8 @@ SWIG_AsVal_long SWIG_PERL_DECL_ARGS_2(SV *obj, long* val)
     if (!dispatch) {
       double d;
       int res = SWIG_AddCast(SWIG_AsVal_double SWIG_PERL_CALL_ARGS_2(obj,&d));
-      if (SWIG_IsOK(res) && SWIG_CanCastAsInteger(&d, LONG_MIN, LONG_MAX)) {
-	if (val) *val = (long)(d);
+      if (SWIG_IsOK(res) && SWIG_CanCastAsInteger(&d, 0, ULONG_MAX)) {
+	if (val) *val = (unsigned long)(d);
 	return res;
       }
     }
@@ -1760,18 +1768,12 @@ SWIG_AsVal_long SWIG_PERL_DECL_ARGS_2(SV *obj, long* val)
 }
 
 
-SWIGINTERN int
-SWIG_AsVal_int SWIG_PERL_DECL_ARGS_2(SV * obj, int *val)
+SWIGINTERNINLINE int
+SWIG_AsVal_size_t SWIG_PERL_DECL_ARGS_2(SV * obj, size_t *val)
 {
-  long v;
-  int res = SWIG_AsVal_long SWIG_PERL_CALL_ARGS_2(obj, &v);
-  if (SWIG_IsOK(res)) {
-    if ((v < INT_MIN || v > INT_MAX)) {
-      return SWIG_OverflowError;
-    } else {
-      if (val) *val = (int)(v);
-    }
-  }  
+  unsigned long v;
+  int res = SWIG_AsVal_unsigned_SS_long SWIG_PERL_CALL_ARGS_2(obj, val ? &v : 0);
+  if (SWIG_IsOK(res) && val) *val = (size_t)(v);
   return res;
 }
 
@@ -1841,7 +1843,7 @@ XS(_wrap_xfer_source_device) {
 XS(_wrap_xfer_dest_device) {
   {
     Device *arg1 = (Device *) 0 ;
-    size_t arg2 ;
+    gboolean arg2 ;
     void *argp1 = 0 ;
     int res1 = 0 ;
     int argvi = 0;
@@ -1849,7 +1851,7 @@ XS(_wrap_xfer_dest_device) {
     dXSARGS;
     
     if ((items < 2) || (items > 2)) {
-      SWIG_croak("Usage: xfer_dest_device(device,max_memory);");
+      SWIG_croak("Usage: xfer_dest_device(device,cancel_at_leom);");
     }
     res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_Device, 0 |  0 );
     if (!SWIG_IsOK(res1)) {
@@ -1857,17 +1859,7 @@ XS(_wrap_xfer_dest_device) {
     }
     arg1 = (Device *)(argp1);
     {
-      if (sizeof(size_t) == 1) {
-        arg2 = amglue_SvU8(ST(1));
-      } else if (sizeof(size_t) == 2) {
-        arg2 = amglue_SvU16(ST(1));
-      } else if (sizeof(size_t) == 4) {
-        arg2 = amglue_SvU32(ST(1));
-      } else if (sizeof(size_t) == 8) {
-        arg2 = amglue_SvU64(ST(1));
-      } else {
-        croak("Unexpected size_t >64 bits?"); /* should be optimized out unless sizeof(size_t) > 8 */
-      }
+      arg2 = SvTRUE(ST(1));
     }
     result = (XferElement *)xfer_dest_device(arg1,arg2);
     {
@@ -1929,18 +1921,14 @@ XS(_wrap_xfer_dest_taper_splitter) {
     size_t arg2 ;
     guint64 arg3 ;
     gboolean arg4 ;
-    char *arg5 = (char *) 0 ;
     void *argp1 = 0 ;
     int res1 = 0 ;
-    int res5 ;
-    char *buf5 = 0 ;
-    int alloc5 = 0 ;
     int argvi = 0;
     XferElement *result = 0 ;
     dXSARGS;
     
-    if ((items < 5) || (items > 5)) {
-      SWIG_croak("Usage: xfer_dest_taper_splitter(first_device,max_memory,part_size,use_mem_cache,disk_cache_dirname);");
+    if ((items < 4) || (items > 4)) {
+      SWIG_croak("Usage: xfer_dest_taper_splitter(first_device,max_memory,part_size,expect_cache_inform);");
     }
     res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_Device, 0 |  0 );
     if (!SWIG_IsOK(res1)) {
@@ -1964,24 +1952,78 @@ XS(_wrap_xfer_dest_taper_splitter) {
       arg3 = amglue_SvU64(ST(2));
     }
     {
-      if (sizeof(signed int) == 1) {
-        arg4 = amglue_SvI8(ST(3));
-      } else if (sizeof(signed int) == 2) {
-        arg4 = amglue_SvI16(ST(3));
-      } else if (sizeof(signed int) == 4) {
-        arg4 = amglue_SvI32(ST(3));
-      } else if (sizeof(signed int) == 8) {
-        arg4 = amglue_SvI64(ST(3));
+      arg4 = SvTRUE(ST(3));
+    }
+    result = (XferElement *)xfer_dest_taper_splitter(arg1,arg2,arg3,arg4);
+    {
+      ST(argvi) = sv_2mortal(new_sv_for_xfer_element(result));
+      argvi++;
+    }
+    
+    
+    
+    {
+      xfer_element_unref(result);
+    }
+    XSRETURN(argvi);
+  fail:
+    
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_xfer_dest_taper_cacher) {
+  {
+    Device *arg1 = (Device *) 0 ;
+    size_t arg2 ;
+    guint64 arg3 ;
+    gboolean arg4 ;
+    char *arg5 = (char *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int res5 ;
+    char *buf5 = 0 ;
+    int alloc5 = 0 ;
+    int argvi = 0;
+    XferElement *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 5) || (items > 5)) {
+      SWIG_croak("Usage: xfer_dest_taper_cacher(first_device,max_memory,part_size,use_mem_cache,disk_cache_dirname);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_Device, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "xfer_dest_taper_cacher" "', argument " "1"" of type '" "Device *""'"); 
+    }
+    arg1 = (Device *)(argp1);
+    {
+      if (sizeof(size_t) == 1) {
+        arg2 = amglue_SvU8(ST(1));
+      } else if (sizeof(size_t) == 2) {
+        arg2 = amglue_SvU16(ST(1));
+      } else if (sizeof(size_t) == 4) {
+        arg2 = amglue_SvU32(ST(1));
+      } else if (sizeof(size_t) == 8) {
+        arg2 = amglue_SvU64(ST(1));
       } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+        croak("Unexpected size_t >64 bits?"); /* should be optimized out unless sizeof(size_t) > 8 */
       }
+    }
+    {
+      arg3 = amglue_SvU64(ST(2));
+    }
+    {
+      arg4 = SvTRUE(ST(3));
     }
     res5 = SWIG_AsCharPtrAndSize(ST(4), &buf5, NULL, &alloc5);
     if (!SWIG_IsOK(res5)) {
-      SWIG_exception_fail(SWIG_ArgError(res5), "in method '" "xfer_dest_taper_splitter" "', argument " "5"" of type '" "char const *""'");
+      SWIG_exception_fail(SWIG_ArgError(res5), "in method '" "xfer_dest_taper_cacher" "', argument " "5"" of type '" "char const *""'");
     }
     arg5 = (char *)(buf5);
-    result = (XferElement *)xfer_dest_taper_splitter(arg1,arg2,arg3,arg4,(char const *)arg5);
+    result = (XferElement *)xfer_dest_taper_cacher(arg1,arg2,arg3,arg4,(char const *)arg5);
     {
       ST(argvi) = sv_2mortal(new_sv_for_xfer_element(result));
       argvi++;
@@ -2059,17 +2101,7 @@ XS(_wrap_xfer_dest_taper_start_part) {
       arg1 = xfer_element_from_sv(ST(0));
     }
     {
-      if (sizeof(signed int) == 1) {
-        arg2 = amglue_SvI8(ST(1));
-      } else if (sizeof(signed int) == 2) {
-        arg2 = amglue_SvI16(ST(1));
-      } else if (sizeof(signed int) == 4) {
-        arg2 = amglue_SvI32(ST(1));
-      } else if (sizeof(signed int) == 8) {
-        arg2 = amglue_SvI64(ST(1));
-      } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
-      }
+      arg2 = SvTRUE(ST(1));
     }
     res3 = SWIG_ConvertPtr(ST(2), &argp3,SWIGTYPE_p_dumpfile_t, 0 |  0 );
     if (!SWIG_IsOK(res3)) {
@@ -2330,9 +2362,8 @@ static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 
 static swig_type_info _swigt__p_dumpfile_t = {"_p_dumpfile_t", "dumpfile_t *", 0, 0, (void*)"Amanda::Header::Header", 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *|gfloat *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_guint64 = {"_p_guint64", "guint64 *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_int = {"_p_int", "SizeAccuracy *|xmsg_type *|int *|DeviceAccessMode *|MediaAccessMode *|ConcurrencyParadigm *|filetype_t *|gboolean *|GIOCondition *|PropertySource *|DeviceStatusFlags *|PropertyAccessFlags *|PropertyPhaseFlags *|xfer_status *|PropertySurety *|StreamingRequirement *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_int = {"_p_int", "xmsg_type *|int *|DeviceAccessMode *|MediaAccessMode *|ConcurrencyParadigm *|filetype_t *|gboolean *|GIOCondition *|PropertySource *|DeviceStatusFlags *|PropertyAccessFlags *|PropertyPhaseFlags *|xfer_status *|PropertySurety *|StreamingRequirement *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_off_t = {"_p_off_t", "off_t *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_queue_fd_t = {"_p_queue_fd_t", "struct queue_fd_t *|queue_fd_t *", 0, 0, (void*)"Amanda::Device::queue_fd_t", 0};
 static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "guchar *|unsigned char *", 0, 0, (void*)0, 0};
 
 static swig_type_info *swig_type_initial[] = {
@@ -2348,7 +2379,6 @@ static swig_type_info *swig_type_initial[] = {
   &_swigt__p_guint64,
   &_swigt__p_int,
   &_swigt__p_off_t,
-  &_swigt__p_queue_fd_t,
   &_swigt__p_unsigned_char,
 };
 
@@ -2364,7 +2394,6 @@ static swig_cast_info _swigc__p_float[] = {  {&_swigt__p_float, 0, 0, 0},{0, 0, 
 static swig_cast_info _swigc__p_guint64[] = {  {&_swigt__p_guint64, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_int[] = {  {&_swigt__p_int, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_off_t[] = {  {&_swigt__p_off_t, 0, 0, 0},{0, 0, 0, 0}};
-static swig_cast_info _swigc__p_queue_fd_t[] = {  {&_swigt__p_queue_fd_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_unsigned_char[] = {  {&_swigt__p_unsigned_char, 0, 0, 0},{0, 0, 0, 0}};
 
 static swig_cast_info *swig_cast_initial[] = {
@@ -2380,7 +2409,6 @@ static swig_cast_info *swig_cast_initial[] = {
   _swigc__p_guint64,
   _swigc__p_int,
   _swigc__p_off_t,
-  _swigc__p_queue_fd_t,
   _swigc__p_unsigned_char,
 };
 
@@ -2401,6 +2429,7 @@ static swig_command_info swig_commands[] = {
 {"Amanda::XferServerc::xfer_dest_device", _wrap_xfer_dest_device},
 {"Amanda::XferServerc::xfer_source_holding", _wrap_xfer_source_holding},
 {"Amanda::XferServerc::xfer_dest_taper_splitter", _wrap_xfer_dest_taper_splitter},
+{"Amanda::XferServerc::xfer_dest_taper_cacher", _wrap_xfer_dest_taper_cacher},
 {"Amanda::XferServerc::xfer_dest_taper_directtcp", _wrap_xfer_dest_taper_directtcp},
 {"Amanda::XferServerc::xfer_dest_taper_start_part", _wrap_xfer_dest_taper_start_part},
 {"Amanda::XferServerc::xfer_dest_taper_use_device", _wrap_xfer_dest_taper_use_device},

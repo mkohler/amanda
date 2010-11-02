@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -19,8 +19,8 @@
  * Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
  */
 
-#include "amxfer.h"
 #include "amanda.h"
+#include "amxfer.h"
 #include "event.h"
 #include "util.h"
 
@@ -50,6 +50,7 @@ typedef struct XferFilterProcess {
 
     gchar **argv;
     gboolean need_root;
+    gboolean log_stderr;
 
     pid_t child_pid;
     GSource *child_watch;
@@ -121,6 +122,7 @@ start_impl(
     char **argv;
     char *errmsg;
     char **env;
+    int rfd, wfd;
 
     /* first build up a log message of what we're going to do, properly shell quoted */
     argv = self->argv;
@@ -132,6 +134,9 @@ start_impl(
     }
     g_debug("%s spawning: %s", xfer_element_repr(elt), cmd_str);
 
+    rfd = xfer_element_swap_output_fd(elt->upstream, -1);
+    wfd = xfer_element_swap_input_fd(elt->downstream, -1);
+
     /* now fork off the child and connect the pipes */
     switch (self->child_pid = fork()) {
 	case -1:
@@ -139,10 +144,18 @@ start_impl(
 	    /* NOTREACHED */
 
 	case 0: /* child */
-	    /* set up stdin, stdout, and stderr */
-	    dup2(elt->upstream->output_fd, STDIN_FILENO);
-	    dup2(elt->downstream->input_fd, STDOUT_FILENO);
-	    debug_dup_stderr_to_debug();
+	    /* first, copy our fd's out of the stdio range */
+	    while (rfd <= STDERR_FILENO)
+		rfd = dup(rfd);
+	    while (wfd <= STDERR_FILENO)
+		wfd = dup(wfd);
+
+	    /* set up stdin, stdout, and stderr, overwriting anything already open
+	     * on those fd's */
+	    dup2(rfd, STDIN_FILENO);
+	    dup2(wfd, STDOUT_FILENO);
+	    if (!self->log_stderr)
+		debug_dup_stderr_to_debug();
 
 	    /* and close everything else */
 	    safe_fd(-1, 0);
@@ -165,8 +178,8 @@ start_impl(
     g_free(cmd_str);
 
     /* close the pipe fd's */
-    close(elt->upstream->output_fd);
-    close(elt->downstream->input_fd);
+    close(rfd);
+    close(wfd);
 
     /* watch for child death */
     self->child_watch = new_child_watch_source(self->child_pid);
@@ -295,7 +308,8 @@ xfer_filter_process_get_type (void)
 XferElement *
 xfer_filter_process(
     gchar **argv,
-    gboolean need_root)
+    gboolean need_root,
+    gboolean log_stderr)
 {
     XferFilterProcess *xfp = (XferFilterProcess *)g_object_new(XFER_FILTER_PROCESS_TYPE, NULL);
     XferElement *elt = XFER_ELEMENT(xfp);
@@ -305,6 +319,7 @@ xfer_filter_process(
 
     xfp->argv = argv;
     xfp->need_root = need_root;
+    xfp->log_stderr = log_stderr;
 
     return elt;
 }

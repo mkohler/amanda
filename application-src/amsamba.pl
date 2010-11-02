@@ -1,5 +1,5 @@
 #!@PERL@ 
-# Copyright (c) 2008,2009 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -19,6 +19,7 @@
 
 use lib '@amperldir@';
 use strict;
+use warnings;
 use Getopt::Long;
 
 package Amanda::Application::Amsamba;
@@ -222,22 +223,10 @@ sub findpass {
     while ($line = <$amandapass>) {
 	chomp $line;
 	next if $line =~ /^#/;
-	my ($diskname, $userpasswd, $domain, $extra);
-	($diskname, $userpasswd)   = Amanda::Util::skip_quoted_string($line);
-	if ($userpasswd) {
-	    ($userpasswd, $domain) =
-				Amanda::Util::skip_quoted_string($userpasswd);
-	}
-	if ($domain) {
-	    ($domain, $extra) =
-				Amanda::Util::skip_quoted_string($domain);
-	}
+	my ($diskname, $userpasswd, $domain, $extra) = Amanda::Util::split_quoted_string_friendly($line);
 	if ($extra) {
 	    debug("Trailling characters ignored in amandapass line");
 	}
-	$diskname = Amanda::Util::unquote_string($diskname);
-	$userpasswd = Amanda::Util::unquote_string($userpasswd);
-	$domain = Amanda::Util::unquote_string($domain);
 	if (defined $diskname &&
 	    ($diskname eq '*' ||
 	     ($self->{unc}==0 && $diskname =~ m,^(//[^/]+)/\*$, && $1 eq $self->{cifshost}) ||
@@ -500,11 +489,6 @@ sub command_backup {
     my $self = shift;
 
     my $level = $self->{level}[0];
-    my $mesgout_fd;
-    open($mesgout_fd, '>&=3') ||
-	$self->print_to_server_and_die("Can't open mesgout_fd: $!",
-				       $Amanda::Script_App::ERROR);
-    $self->{mesgout} = $mesgout_fd;
 
     $self->parsesharename();
     $self->findpass();
@@ -606,11 +590,11 @@ sub command_backup {
 	open($indexout_fd, '>&=4') ||
 	    $self->print_to_server_and_die("Can't open indexout_fd: $!",
 					   $Amanda::Script_App::ERROR);
-	$self->parse_backup($index, $mesgout_fd, $indexout_fd);
+	$self->parse_backup($index, $self->{mesgout}, $indexout_fd);
 	close($indexout_fd);
     }
     else {
-	$self->parse_backup($index_fd, $mesgout_fd, undef);
+	$self->parse_backup($index_fd, $self->{mesgout}, undef);
     }
     close($index);
 
@@ -634,8 +618,8 @@ sub command_backup {
 	if ($ksize < 32) {
 	    $ksize = 32;
 	}
-	print $mesgout_fd "sendbackup: size $ksize\n";
-	print $mesgout_fd "sendbackup: end\n";
+	print {$self->{mesgout}} "sendbackup: size $ksize\n";
+	print {$self->{mesgout}} "sendbackup: end\n";
     }
 
     waitpid $pid, 0;

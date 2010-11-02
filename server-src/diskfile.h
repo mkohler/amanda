@@ -34,6 +34,7 @@
 
 #include "amanda.h"
 #include "conffile.h"
+#include "fileheader.h"
 #include "amfeatures.h"
 
 typedef struct netif_s {
@@ -67,6 +68,7 @@ typedef struct disk_s {
     char	*name;			/* label name for disk */
     char	*device;		/* device name for disk, eg "sd0g" */
     char	*dtype_name;		/* name of dump type */
+    dumptype_t	*config;		/* pointer to the dumptype config */
     char	*program;		/* dump program, eg DUMP, STAR, GNUTAR */
     char	*srvcompprog;		/* custom compression server filter */
     char	*clntcompprog;		/* custom compression client filter */
@@ -83,9 +85,11 @@ typedef struct disk_s {
     int		exclude_optional;	/* exclude list are optional */
     int		include_optional;	/* include list are optional */
     int		priority;		/* priority of disk */
-    off_t	tape_splitsize;		/* size of dumpfile chunks on tape */
-    char	*split_diskbuffer;	/* place where we can buffer PORT-WRITE dumps other than RAM */
-    off_t	fallback_splitsize;	/* size for in-RAM PORT-WRITE buffers */
+    int		allow_split;
+    off_t	splitsize;
+    off_t	tape_splitsize;         /* size of dumpfile chunks on tape */
+    char	*split_diskbuffer;      /* place where we can buffer PORT-WRITE dumps other than RAM */
+    off_t	fallback_splitsize;     /* size for in-RAM PORT-WRITE buffers */
     int		dumpcycle;		/* days between fulls */
     long	frequency;		/* XXX - not used */
     char	*auth;			/* type of authentication (per disk) */
@@ -170,6 +174,7 @@ char *xml_scripts(identlist_t pp_scriptlist, am_feature_t *their_features);
 void disable_skip_disk(disklist_t *origqp);
 
 char *match_disklist(disklist_t *origqp, int sargc, char **sargv);
+gboolean match_dumpfile(dumpfile_t *file, int sargc, char **sargv);
 void free_disklist(disklist_t *dl);
 
 netif_t *disklist_netifs(void);

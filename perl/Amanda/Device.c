@@ -8,6 +8,9 @@
  * interface file instead. 
  * ----------------------------------------------------------------------------- */
 
+#include "../config/config.h"
+
+
 #define SWIGPERL
 #define SWIG_CASTRANK_MODE
 
@@ -1476,22 +1479,23 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 
 #define SWIGTYPE_p_Device swig_types[0]
 #define SWIGTYPE_p_DevicePropertyBase swig_types[1]
-#define SWIGTYPE_p_DirectTCPConnection swig_types[2]
-#define SWIGTYPE_p_GSList swig_types[3]
-#define SWIGTYPE_p_GValue swig_types[4]
-#define SWIGTYPE_p_a_STRMAX__char swig_types[5]
-#define SWIGTYPE_p_char swig_types[6]
-#define SWIGTYPE_p_double swig_types[7]
-#define SWIGTYPE_p_dumpfile_t swig_types[8]
-#define SWIGTYPE_p_float swig_types[9]
-#define SWIGTYPE_p_guint swig_types[10]
-#define SWIGTYPE_p_guint64 swig_types[11]
-#define SWIGTYPE_p_int swig_types[12]
-#define SWIGTYPE_p_p_DirectTCPAddr swig_types[13]
-#define SWIGTYPE_p_queue_fd_t swig_types[14]
-#define SWIGTYPE_p_unsigned_char swig_types[15]
-static swig_type_info *swig_types[17];
-static swig_module_info swig_module = {swig_types, 16, 0, 0, 0, 0};
+#define SWIGTYPE_p_DirectTCPAddr swig_types[2]
+#define SWIGTYPE_p_DirectTCPConnection swig_types[3]
+#define SWIGTYPE_p_GSList swig_types[4]
+#define SWIGTYPE_p_GValue swig_types[5]
+#define SWIGTYPE_p_a_STRMAX__char swig_types[6]
+#define SWIGTYPE_p_char swig_types[7]
+#define SWIGTYPE_p_double swig_types[8]
+#define SWIGTYPE_p_dumpfile_t swig_types[9]
+#define SWIGTYPE_p_float swig_types[10]
+#define SWIGTYPE_p_guint swig_types[11]
+#define SWIGTYPE_p_guint32 swig_types[12]
+#define SWIGTYPE_p_guint64 swig_types[13]
+#define SWIGTYPE_p_int swig_types[14]
+#define SWIGTYPE_p_p_DirectTCPAddr swig_types[15]
+#define SWIGTYPE_p_unsigned_char swig_types[16]
+static swig_type_info *swig_types[18];
+static swig_module_info swig_module = {swig_types, 17, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1537,6 +1541,7 @@ SWIGEXPORT void SWIG_init (CV *cv, CPerlObj *);
 #include "property.h"
 #include "fileheader.h"
 #include "glib-util.h"
+#include "simpleprng.h"
 
 
 
@@ -1566,30 +1571,6 @@ set_sv_from_gvalue(GValue *value)
 
 	case G_TYPE_UINT64:
 	    return sv_2mortal(amglue_newSVu64(g_value_get_uint64(value)));
-
-	case G_TYPE_BOXED: {
-	    GType boxed_type = G_VALUE_TYPE(value);
-	    QualifiedSize qs;
-	    HV *hv;
-
-	    if (boxed_type == QUALIFIED_SIZE_TYPE) {
-		qs = *(QualifiedSize*)(g_value_get_boxed(value));
-
-		/* build a hash */
-		hv = (HV *)sv_2mortal((SV *)newHV());
-		hv_store(hv, "accuracy", 8, newSViv(qs.accuracy), 0);
-		hv_store(hv, "bytes", 5, amglue_newSVi64(qs.bytes), 0);
-
-		sv = newRV((SV *)hv);
-		return newRV((SV *)hv);
-	    } else {
-		warn("Unsupported boxed property type #%d", (int)boxed_type);
-
-		sv = sv_newmortal();
-		sv_setsv(sv, &PL_sv_undef);
-		return sv;
-	    }
-	}
     }
 
     /* simple types that can be constructed with sv_set*v */
@@ -1761,6 +1742,68 @@ SWIG_FromCharPtr(const char *cptr)
 }
 
 
+SWIGINTERN swig_type_info*
+SWIG_pchar_descriptor(void)
+{
+  static int init = 0;
+  static swig_type_info* info = 0;
+  if (!init) {
+    info = SWIG_TypeQuery("_p_char");
+    init = 1;
+  }
+  return info;
+}
+
+
+SWIGINTERN int
+SWIG_AsCharPtrAndSize(SV *obj, char** cptr, size_t* psize, int *alloc)
+{
+  if (SvMAGICAL(obj)) {
+     SV *tmp = sv_newmortal();
+     SvSetSV(tmp, obj);
+     obj = tmp;
+  }
+  if (SvPOK(obj)) {
+    STRLEN len = 0;
+    char *cstr = SvPV(obj, len); 
+    size_t size = len + 1;
+    if (cptr)  {
+      if (alloc) {
+	if (*alloc == SWIG_NEWOBJ) {
+	  *cptr = (char *)memcpy((char *)malloc((size)*sizeof(char)), cstr, sizeof(char)*(size));
+	} else {
+	  *cptr = cstr;
+	  *alloc = SWIG_OLDOBJ;
+	}
+      }
+    }
+    if (psize) *psize = size;
+    return SWIG_OK;
+  } else {
+    swig_type_info* pchar_descriptor = SWIG_pchar_descriptor();
+    if (pchar_descriptor) {
+      char* vptr = 0; 
+      if (SWIG_ConvertPtr(obj, (void**)&vptr, pchar_descriptor, 0) == SWIG_OK) {
+	if (cptr) *cptr = vptr;
+	if (psize) *psize = vptr ? (strlen(vptr) + 1) : 0;
+	if (alloc) *alloc = SWIG_OLDOBJ;
+	return SWIG_OK;
+      }
+    }
+  }
+  return SWIG_TypeError;
+}
+
+
+
+
+SWIGINTERN Device *new_Device(char *device_name){
+	    return device_open(device_name);
+	}
+SWIGINTERN void delete_Device(Device *self){
+	    g_object_unref(self);
+	}
+
 #include <limits.h>
 #if !defined(SWIG_NO_LLONG_MAX)
 # if !defined(LLONG_MAX) && defined(__GNUC__) && defined (__LONG_LONG_MAX__)
@@ -1888,75 +1931,6 @@ SWIG_AsVal_int SWIG_PERL_DECL_ARGS_2(SV * obj, int *val)
   return res;
 }
 
-SWIGINTERN queue_fd_t *new_queue_fd_t(int fd){
-	    return queue_fd_new(fd, NULL);
-	}
-SWIGINTERN void delete_queue_fd_t(queue_fd_t *self){
-	    amfree(self->errmsg);
-	    g_free(self);
-	}
-
-SWIGINTERN swig_type_info*
-SWIG_pchar_descriptor(void)
-{
-  static int init = 0;
-  static swig_type_info* info = 0;
-  if (!init) {
-    info = SWIG_TypeQuery("_p_char");
-    init = 1;
-  }
-  return info;
-}
-
-
-SWIGINTERN int
-SWIG_AsCharPtrAndSize(SV *obj, char** cptr, size_t* psize, int *alloc)
-{
-  if (SvMAGICAL(obj)) {
-     SV *tmp = sv_newmortal();
-     SvSetSV(tmp, obj);
-     obj = tmp;
-  }
-  if (SvPOK(obj)) {
-    STRLEN len = 0;
-    char *cstr = SvPV(obj, len); 
-    size_t size = len + 1;
-    if (cptr)  {
-      if (alloc) {
-	if (*alloc == SWIG_NEWOBJ) {
-	  *cptr = (char *)memcpy((char *)malloc((size)*sizeof(char)), cstr, sizeof(char)*(size));
-	} else {
-	  *cptr = cstr;
-	  *alloc = SWIG_OLDOBJ;
-	}
-      }
-    }
-    if (psize) *psize = size;
-    return SWIG_OK;
-  } else {
-    swig_type_info* pchar_descriptor = SWIG_pchar_descriptor();
-    if (pchar_descriptor) {
-      char* vptr = 0; 
-      if (SWIG_ConvertPtr(obj, (void**)&vptr, pchar_descriptor, 0) == SWIG_OK) {
-	if (cptr) *cptr = vptr;
-	if (psize) *psize = vptr ? (strlen(vptr) + 1) : 0;
-	if (alloc) *alloc = SWIG_OLDOBJ;
-	return SWIG_OK;
-      }
-    }
-  }
-  return SWIG_TypeError;
-}
-
-
-
-
-SWIGINTERN Device *new_Device(char *device_name){
-	    return device_open(device_name);
-	}
-SWIGINTERN void delete_Device(Device *self){
-	    g_object_unref(self);
-	}
 SWIGINTERN gboolean Device_configure(Device *self,gboolean use_global_config){
 	    return device_configure(self, use_global_config);
 	}
@@ -1984,9 +1958,6 @@ SWIGINTERN gboolean Device_start_file(Device *self,dumpfile_t *jobInfo){
 SWIGINTERN gboolean Device_write_block(Device *self,guint size,gpointer data){
 	    return device_write_block(self, size, data);
 	}
-SWIGINTERN gboolean Device_write_from_fd(Device *self,queue_fd_t *queue_fd){
-	    return device_write_from_fd(self, queue_fd);
-	}
 SWIGINTERN gboolean Device_finish_file(Device *self){
 	    return device_finish_file(self);
 	}
@@ -1998,9 +1969,6 @@ SWIGINTERN gboolean Device_seek_block(Device *self,guint64 block){
 	}
 SWIGINTERN int Device_read_block(Device *self,gpointer buffer,int *size){
 	    return device_read_block(self, buffer, size);
-	}
-SWIGINTERN gboolean Device_read_to_fd(Device *self,queue_fd_t *queue_fd){
-	    return device_read_to_fd(self, queue_fd);
 	}
 SWIGINTERN gboolean Device_erase(Device *self){
 	    return device_erase(self);
@@ -2028,6 +1996,18 @@ SWIGINTERN DirectTCPConnection *Device_accept(Device *self){
 	    }
 	    return conn;
 	}
+SWIGINTERN DirectTCPConnection *Device_connect(Device *self,gboolean for_writing,DirectTCPAddr *addrs){
+	    DirectTCPConnection *conn = NULL;
+	    gboolean rv;
+
+	    rv = device_connect(self, for_writing, addrs, &conn, NULL, NULL);
+	    if (!rv && conn) {
+		/* conn is ref'd for our convenience, but we don't want it */
+		g_object_unref(conn);
+		conn = NULL;
+	    }
+	    return conn;
+	}
 SWIGINTERN gboolean Device_use_connection(Device *self,DirectTCPConnection *conn){
 	    return device_use_connection(self, conn);
 	}
@@ -2041,7 +2021,11 @@ SWIGINTERN GSList const *Device_property_list(Device *self){
 	    return device_property_get_list(self);
 	}
 SWIGINTERN void Device_property_get(Device *self,DevicePropertyBase *pbase,GValue *out_val,PropertySurety *surety,PropertySource *source,gboolean *val_found){
-	    *val_found = device_property_get_ex(self, pbase->ID, out_val, surety, source);
+	    if (pbase) {
+		*val_found = device_property_get_ex(self, pbase->ID, out_val, surety, source);
+	    } else {
+		*val_found = FALSE;
+	    }
 	}
 SWIGINTERN gboolean Device_property_set(Device *self,DevicePropertyBase *pbase,SV *sv){
 	    GValue gval;
@@ -2092,6 +2076,136 @@ SWIGINTERN gsize Device_min_block_size(Device *self){ return self->min_block_siz
 SWIGINTERN gsize Device_max_block_size(Device *self){ return self->max_block_size; }
 SWIGINTERN gsize Device_block_size(Device *self){ return self->block_size; }
 SWIGINTERN dumpfile_t *Device_volume_header(Device *self){ return self->volume_header; }
+
+
+/* write LENGTH bytes of random data to FILENAME, seeded with SEED */
+gboolean
+write_random_to_device(guint32 seed, size_t length, Device *device) {
+    simpleprng_state_t prng;
+    char *buf;
+    gsize block_size = device->block_size;
+    g_assert(block_size < G_MAXUINT);
+
+    buf = g_malloc(block_size);
+    simpleprng_seed(&prng, seed);
+
+    while (length) {
+	size_t to_write = min(block_size, length);
+
+	simpleprng_fill_buffer(&prng, buf, to_write);
+	if (!device_write_block(device, (guint)block_size, buf)) {
+	    g_free(buf);
+	    return FALSE;
+	}
+	length -= to_write;
+    }
+
+    g_free(buf);
+    return TRUE;
+}
+
+/* read LENGTH bytes of random data from FILENAME verifying it against
+ * a PRNG seeded with SEED.  Sends any error messages to stderr.
+ */
+gboolean
+verify_random_from_device(guint32 seed, size_t length, Device *device) {
+    simpleprng_state_t prng;
+    char *buf = NULL; /* first device_read_block will get the size */
+    int block_size = 0;
+
+    simpleprng_seed(&prng, seed);
+
+    while (length) {
+	int bytes_read;
+	int size = block_size;
+
+	bytes_read = device_read_block(device, buf, &size);
+	if (bytes_read == 0 && size > block_size) {
+	    g_free(buf);
+	    block_size = size;
+	    buf = g_malloc(block_size);
+	    continue;
+	}
+	if (bytes_read == -1) {
+	    if (device->status == DEVICE_STATUS_SUCCESS) {
+		g_assert(device->is_eof);
+		g_debug("verify_random_from_device got unexpected EOF");
+	    }
+	    goto error;
+	}
+
+	/* strip padding */
+	bytes_read = min(bytes_read, length);
+
+	if (!simpleprng_verify_buffer(&prng, buf, bytes_read))
+	    goto error;
+
+	length -= bytes_read;
+    }
+
+    g_free(buf);
+    return TRUE;
+
+error:
+    g_free(buf);
+    return FALSE;
+}
+
+
+SWIGINTERN int
+SWIG_AsVal_unsigned_SS_long SWIG_PERL_DECL_ARGS_2(SV *obj, unsigned long *val) 
+{
+  if (SvUOK(obj)) {
+    if (val) *val = SvUV(obj);
+    return SWIG_OK;
+  } else  if (SvIOK(obj)) {
+    long v = SvIV(obj);
+    if (v >= 0) {
+      if (val) *val = v;
+      return SWIG_OK;
+    } else {
+      return SWIG_OverflowError;
+    }
+  } else {
+    int dispatch = 0;
+    const char *nptr = SvPV_nolen(obj);
+    if (nptr) {
+      char *endptr;
+      unsigned long v;
+      errno = 0;
+      v = strtoul(nptr, &endptr,0);
+      if (errno == ERANGE) {
+	errno = 0;
+	return SWIG_OverflowError;
+      } else {
+	if (*endptr == '\0') {
+	  if (val) *val = v;
+	  return SWIG_Str2NumCast(SWIG_OK);
+	}
+      }
+    }
+    if (!dispatch) {
+      double d;
+      int res = SWIG_AddCast(SWIG_AsVal_double SWIG_PERL_CALL_ARGS_2(obj,&d));
+      if (SWIG_IsOK(res) && SWIG_CanCastAsInteger(&d, 0, ULONG_MAX)) {
+	if (val) *val = (unsigned long)(d);
+	return res;
+      }
+    }
+  }
+  return SWIG_TypeError;
+}
+
+
+SWIGINTERNINLINE int
+SWIG_AsVal_size_t SWIG_PERL_DECL_ARGS_2(SV * obj, size_t *val)
+{
+  unsigned long v;
+  int res = SWIG_AsVal_unsigned_SS_long SWIG_PERL_CALL_ARGS_2(obj, val ? &v : 0);
+  if (SWIG_IsOK(res) && val) *val = (size_t)(v);
+  return res;
+}
+
 
 SWIGINTERNINLINE SV *
 SWIG_From_long  SWIG_PERL_DECL_ARGS_1(long value)
@@ -2211,144 +2325,6 @@ XS(_wrap_new_DirectTCPConnection) {
 }
 
 
-XS(_wrap_queue_fd_t_fd_get) {
-  {
-    queue_fd_t *arg1 = (queue_fd_t *) 0 ;
-    void *argp1 = 0 ;
-    int res1 = 0 ;
-    int argvi = 0;
-    int result;
-    dXSARGS;
-    
-    if ((items < 1) || (items > 1)) {
-      SWIG_croak("Usage: queue_fd_t_fd_get(self);");
-    }
-    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_queue_fd_t, 0 |  0 );
-    if (!SWIG_IsOK(res1)) {
-      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "queue_fd_t_fd_get" "', argument " "1"" of type '" "queue_fd_t *""'"); 
-    }
-    arg1 = (queue_fd_t *)(argp1);
-    result = (int) ((arg1)->fd);
-    {
-      SV *for_stack;
-      SP += argvi; PUTBACK;
-      for_stack = sv_2mortal(amglue_newSVi64(result));
-      SPAGAIN; SP -= argvi;
-      ST(argvi) = for_stack;
-      argvi++;
-    }
-    
-    XSRETURN(argvi);
-  fail:
-    
-    SWIG_croak_null();
-  }
-}
-
-
-XS(_wrap_queue_fd_t_errmsg_get) {
-  {
-    queue_fd_t *arg1 = (queue_fd_t *) 0 ;
-    void *argp1 = 0 ;
-    int res1 = 0 ;
-    int argvi = 0;
-    char *result = 0 ;
-    dXSARGS;
-    
-    if ((items < 1) || (items > 1)) {
-      SWIG_croak("Usage: queue_fd_t_errmsg_get(self);");
-    }
-    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_queue_fd_t, 0 |  0 );
-    if (!SWIG_IsOK(res1)) {
-      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "queue_fd_t_errmsg_get" "', argument " "1"" of type '" "queue_fd_t *""'"); 
-    }
-    arg1 = (queue_fd_t *)(argp1);
-    result = (char *) ((arg1)->errmsg);
-    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
-    
-    XSRETURN(argvi);
-  fail:
-    
-    SWIG_croak_null();
-  }
-}
-
-
-XS(_wrap_new_queue_fd_t) {
-  {
-    int arg1 ;
-    int argvi = 0;
-    queue_fd_t *result = 0 ;
-    dXSARGS;
-    
-    if ((items < 1) || (items > 1)) {
-      SWIG_croak("Usage: new_queue_fd_t(fd);");
-    }
-    {
-      IO *io = NULL;
-      PerlIO *pio = NULL;
-      int fd = -1;
-      
-      if (SvIOK(ST(0))) {
-        /* plain old integer */
-        arg1 = SvIV(ST(0));
-      } else {
-        /* try extracting as filehandle */
-        
-        /* note: sv_2io may call die() */
-        io = sv_2io(ST(0));
-        if (io) {
-          pio = IoIFP(io);
-        }
-        if (pio) {
-          fd = PerlIO_fileno(pio);
-        }
-        if (fd >= 0) {
-          arg1 = fd;
-        } else {
-          SWIG_exception(SWIG_TypeError, "Expected integer file descriptor "
-            "or file handle for argument 1");
-        }
-      }
-    }
-    result = (queue_fd_t *)new_queue_fd_t(arg1);
-    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_queue_fd_t, SWIG_OWNER | SWIG_SHADOW); argvi++ ;
-    
-    XSRETURN(argvi);
-  fail:
-    
-    SWIG_croak_null();
-  }
-}
-
-
-XS(_wrap_delete_queue_fd_t) {
-  {
-    queue_fd_t *arg1 = (queue_fd_t *) 0 ;
-    void *argp1 = 0 ;
-    int res1 = 0 ;
-    int argvi = 0;
-    dXSARGS;
-    
-    if ((items < 1) || (items > 1)) {
-      SWIG_croak("Usage: delete_queue_fd_t(self);");
-    }
-    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_queue_fd_t, SWIG_POINTER_DISOWN |  0 );
-    if (!SWIG_IsOK(res1)) {
-      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "delete_queue_fd_t" "', argument " "1"" of type '" "queue_fd_t *""'"); 
-    }
-    arg1 = (queue_fd_t *)(argp1);
-    delete_queue_fd_t(arg1);
-    ST(argvi) = sv_newmortal();
-    
-    XSRETURN(argvi);
-  fail:
-    
-    SWIG_croak_null();
-  }
-}
-
-
 XS(_wrap_unaliased_name) {
   {
     char *arg1 = (char *) 0 ;
@@ -2453,17 +2429,7 @@ XS(_wrap_Device_configure) {
     }
     arg1 = (Device *)(argp1);
     {
-      if (sizeof(signed int) == 1) {
-        arg2 = amglue_SvI8(ST(1));
-      } else if (sizeof(signed int) == 2) {
-        arg2 = amglue_SvI16(ST(1));
-      } else if (sizeof(signed int) == 4) {
-        arg2 = amglue_SvI32(ST(1));
-      } else if (sizeof(signed int) == 8) {
-        arg2 = amglue_SvI64(ST(1));
-      } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
-      }
+      arg2 = SvTRUE(ST(1));
     }
     result = (gboolean)Device_configure(arg1,arg2);
     {
@@ -2809,50 +2775,6 @@ XS(_wrap_Device_write_block) {
 }
 
 
-XS(_wrap_Device_write_from_fd) {
-  {
-    Device *arg1 = (Device *) 0 ;
-    queue_fd_t *arg2 = (queue_fd_t *) 0 ;
-    void *argp1 = 0 ;
-    int res1 = 0 ;
-    void *argp2 = 0 ;
-    int res2 = 0 ;
-    int argvi = 0;
-    gboolean result;
-    dXSARGS;
-    
-    if ((items < 2) || (items > 2)) {
-      SWIG_croak("Usage: Device_write_from_fd(self,queue_fd);");
-    }
-    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_Device, 0 |  0 );
-    if (!SWIG_IsOK(res1)) {
-      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "Device_write_from_fd" "', argument " "1"" of type '" "Device *""'"); 
-    }
-    arg1 = (Device *)(argp1);
-    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_queue_fd_t, 0 |  0 );
-    if (!SWIG_IsOK(res2)) {
-      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "Device_write_from_fd" "', argument " "2"" of type '" "queue_fd_t *""'"); 
-    }
-    arg2 = (queue_fd_t *)(argp2);
-    result = (gboolean)Device_write_from_fd(arg1,arg2);
-    {
-      if (result)
-      ST(argvi) = &PL_sv_yes;
-      else
-      ST(argvi) = &PL_sv_no;
-      argvi++;
-    }
-    
-    
-    XSRETURN(argvi);
-  fail:
-    
-    
-    SWIG_croak_null();
-  }
-}
-
-
 XS(_wrap_Device_finish_file) {
   {
     Device *arg1 = (Device *) 0 ;
@@ -3020,50 +2942,6 @@ XS(_wrap_Device_read_block) {
 }
 
 
-XS(_wrap_Device_read_to_fd) {
-  {
-    Device *arg1 = (Device *) 0 ;
-    queue_fd_t *arg2 = (queue_fd_t *) 0 ;
-    void *argp1 = 0 ;
-    int res1 = 0 ;
-    void *argp2 = 0 ;
-    int res2 = 0 ;
-    int argvi = 0;
-    gboolean result;
-    dXSARGS;
-    
-    if ((items < 2) || (items > 2)) {
-      SWIG_croak("Usage: Device_read_to_fd(self,queue_fd);");
-    }
-    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_Device, 0 |  0 );
-    if (!SWIG_IsOK(res1)) {
-      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "Device_read_to_fd" "', argument " "1"" of type '" "Device *""'"); 
-    }
-    arg1 = (Device *)(argp1);
-    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_queue_fd_t, 0 |  0 );
-    if (!SWIG_IsOK(res2)) {
-      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "Device_read_to_fd" "', argument " "2"" of type '" "queue_fd_t *""'"); 
-    }
-    arg2 = (queue_fd_t *)(argp2);
-    result = (gboolean)Device_read_to_fd(arg1,arg2);
-    {
-      if (result)
-      ST(argvi) = &PL_sv_yes;
-      else
-      ST(argvi) = &PL_sv_no;
-      argvi++;
-    }
-    
-    
-    XSRETURN(argvi);
-  fail:
-    
-    
-    SWIG_croak_null();
-  }
-}
-
-
 XS(_wrap_Device_erase) {
   {
     Device *arg1 = (Device *) 0 ;
@@ -3190,17 +3068,7 @@ XS(_wrap_Device_listen) {
     }
     arg1 = (Device *)(argp1);
     {
-      if (sizeof(signed int) == 1) {
-        arg2 = amglue_SvI8(ST(1));
-      } else if (sizeof(signed int) == 2) {
-        arg2 = amglue_SvI16(ST(1));
-      } else if (sizeof(signed int) == 4) {
-        arg2 = amglue_SvI32(ST(1));
-      } else if (sizeof(signed int) == 8) {
-        arg2 = amglue_SvI64(ST(1));
-      } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
-      }
+      arg2 = SvTRUE(ST(1));
     }
     Device_listen(arg1,arg2,arg3);
     ST(argvi) = sv_newmortal();
@@ -3263,6 +3131,83 @@ XS(_wrap_Device_accept) {
     
     XSRETURN(argvi);
   fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_Device_connect) {
+  {
+    Device *arg1 = (Device *) 0 ;
+    gboolean arg2 ;
+    DirectTCPAddr *arg3 = (DirectTCPAddr *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    DirectTCPConnection *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 3) || (items > 3)) {
+      SWIG_croak("Usage: Device_connect(self,for_writing,addrs);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_Device, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "Device_connect" "', argument " "1"" of type '" "Device *""'"); 
+    }
+    arg1 = (Device *)(argp1);
+    {
+      arg2 = SvTRUE(ST(1));
+    }
+    {
+      AV *addrs_av;
+      int num_addrs, i;
+      
+      if (!SvROK(ST(2)) || SvTYPE(SvRV(ST(2))) != SVt_PVAV) {
+        SWIG_exception_fail(SWIG_TypeError, "must provide an arrayref of DirectTCPAddrs");
+      }
+      addrs_av = (AV *)SvRV(ST(2));
+      num_addrs = av_len(addrs_av)+1;
+      
+      arg3 = g_new0(DirectTCPAddr, num_addrs+1);
+      
+      for (i = 0; i < num_addrs; i++) {
+        SV **svp = av_fetch(addrs_av, i, 0);
+        AV *addr_av;
+        struct in_addr addr;
+        IV port;
+        
+        if (!svp || !SvROK(*svp) || SvTYPE(SvRV(*svp)) != SVt_PVAV
+          || av_len((AV *)SvRV(*svp))+1 != 2) {
+          SWIG_exception_fail(SWIG_TypeError, "each DirectTCPAddr must be a 2-element arrayref");
+        }
+        
+        addr_av = (AV *)SvRV(*svp);
+        
+        /* get address */
+        svp = av_fetch(addr_av, 0, 0);
+        if (!svp || !SvPOK(*svp) || !inet_aton(SvPV_nolen(*svp), &addr)) {
+          SWIG_exception_fail(SWIG_TypeError, "invalid IPv4 addr in address");
+        }
+        arg3[i].ipv4 = ntohl(addr.s_addr);
+        
+        /* get port */
+        svp = av_fetch(addr_av, 1, 0);
+        if (!svp || !SvIOK(*svp) || (port = SvIV(*svp)) <= 0 || port >= 65536) {
+          SWIG_exception_fail(SWIG_TypeError, "invalid port in address");
+        }
+        arg3[i].port = (guint16)port;
+      }
+    }
+    result = (DirectTCPConnection *)Device_connect(arg1,arg2,arg3);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_DirectTCPConnection, SWIG_OWNER | SWIG_SHADOW); argvi++ ;
+    
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
     
     SWIG_croak_null();
   }
@@ -3508,10 +3453,10 @@ XS(_wrap_Device_property_get) {
       if (SvPOK(ST(1)))
       pname = SvPV_nolen(ST(1));
       
-      if (pname) arg2 = (DevicePropertyBase *)device_property_get_by_name(pname);
-      if (!pname || !arg2) {
-        SWIG_exception_fail(SWIG_ValueError, "Invalid property name");
-      }
+      if (pname)
+      arg2 = (DevicePropertyBase *)device_property_get_by_name(pname);
+      else
+      arg2 = NULL;
     }
     Device_property_get(arg1,arg2,arg3,arg4,arg5,arg6);
     ST(argvi) = sv_newmortal();
@@ -3572,10 +3517,10 @@ XS(_wrap_Device_property_set) {
       if (SvPOK(ST(1)))
       pname = SvPV_nolen(ST(1));
       
-      if (pname) arg2 = (DevicePropertyBase *)device_property_get_by_name(pname);
-      if (!pname || !arg2) {
-        SWIG_exception_fail(SWIG_ValueError, "Invalid property name");
-      }
+      if (pname)
+      arg2 = (DevicePropertyBase *)device_property_get_by_name(pname);
+      else
+      arg2 = NULL;
     }
     arg3 = ST(2);
     result = (gboolean)Device_property_set(arg1,arg2,arg3);
@@ -3626,10 +3571,10 @@ XS(_wrap_Device_property_set_ex) {
       if (SvPOK(ST(1)))
       pname = SvPV_nolen(ST(1));
       
-      if (pname) arg2 = (DevicePropertyBase *)device_property_get_by_name(pname);
-      if (!pname || !arg2) {
-        SWIG_exception_fail(SWIG_ValueError, "Invalid property name");
-      }
+      if (pname)
+      arg2 = (DevicePropertyBase *)device_property_get_by_name(pname);
+      else
+      arg2 = NULL;
     }
     arg3 = ST(2);
     {
@@ -4239,6 +4184,114 @@ XS(_wrap_rait_device_open_from_children) {
 }
 
 
+XS(_wrap_write_random_to_device) {
+  {
+    guint32 arg1 ;
+    size_t arg2 ;
+    Device *arg3 = (Device *) 0 ;
+    void *argp3 = 0 ;
+    int res3 = 0 ;
+    int argvi = 0;
+    gboolean result;
+    dXSARGS;
+    
+    if ((items < 3) || (items > 3)) {
+      SWIG_croak("Usage: write_random_to_device(seed,length,device);");
+    }
+    {
+      arg1 = amglue_SvU32(ST(0));
+    }
+    {
+      if (sizeof(size_t) == 1) {
+        arg2 = amglue_SvU8(ST(1));
+      } else if (sizeof(size_t) == 2) {
+        arg2 = amglue_SvU16(ST(1));
+      } else if (sizeof(size_t) == 4) {
+        arg2 = amglue_SvU32(ST(1));
+      } else if (sizeof(size_t) == 8) {
+        arg2 = amglue_SvU64(ST(1));
+      } else {
+        croak("Unexpected size_t >64 bits?"); /* should be optimized out unless sizeof(size_t) > 8 */
+      }
+    }
+    res3 = SWIG_ConvertPtr(ST(2), &argp3,SWIGTYPE_p_Device, 0 |  0 );
+    if (!SWIG_IsOK(res3)) {
+      SWIG_exception_fail(SWIG_ArgError(res3), "in method '" "write_random_to_device" "', argument " "3"" of type '" "Device *""'"); 
+    }
+    arg3 = (Device *)(argp3);
+    result = (gboolean)write_random_to_device(arg1,arg2,arg3);
+    {
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
+      argvi++;
+    }
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_verify_random_from_device) {
+  {
+    guint32 arg1 ;
+    size_t arg2 ;
+    Device *arg3 = (Device *) 0 ;
+    void *argp3 = 0 ;
+    int res3 = 0 ;
+    int argvi = 0;
+    gboolean result;
+    dXSARGS;
+    
+    if ((items < 3) || (items > 3)) {
+      SWIG_croak("Usage: verify_random_from_device(seed,length,device);");
+    }
+    {
+      arg1 = amglue_SvU32(ST(0));
+    }
+    {
+      if (sizeof(size_t) == 1) {
+        arg2 = amglue_SvU8(ST(1));
+      } else if (sizeof(size_t) == 2) {
+        arg2 = amglue_SvU16(ST(1));
+      } else if (sizeof(size_t) == 4) {
+        arg2 = amglue_SvU32(ST(1));
+      } else if (sizeof(size_t) == 8) {
+        arg2 = amglue_SvU64(ST(1));
+      } else {
+        croak("Unexpected size_t >64 bits?"); /* should be optimized out unless sizeof(size_t) > 8 */
+      }
+    }
+    res3 = SWIG_ConvertPtr(ST(2), &argp3,SWIGTYPE_p_Device, 0 |  0 );
+    if (!SWIG_IsOK(res3)) {
+      SWIG_exception_fail(SWIG_ArgError(res3), "in method '" "verify_random_from_device" "', argument " "3"" of type '" "Device *""'"); 
+    }
+    arg3 = (Device *)(argp3);
+    result = (gboolean)verify_random_from_device(arg1,arg2,arg3);
+    {
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
+      argvi++;
+    }
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_IS_WRITABLE_ACCESS_MODE) {
   {
     DeviceAccessMode arg1 ;
@@ -4284,6 +4337,7 @@ XS(_wrap_IS_WRITABLE_ACCESS_MODE) {
 
 static swig_type_info _swigt__p_Device = {"_p_Device", "struct Device *|Device *", 0, 0, (void*)"Amanda::Device::Device", 0};
 static swig_type_info _swigt__p_DevicePropertyBase = {"_p_DevicePropertyBase", "DevicePropertyBase *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_DirectTCPAddr = {"_p_DirectTCPAddr", "DirectTCPAddr *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_DirectTCPConnection = {"_p_DirectTCPConnection", "struct DirectTCPConnection *|DirectTCPConnection *", 0, 0, (void*)"Amanda::Device::DirectTCPConnection", 0};
 static swig_type_info _swigt__p_GSList = {"_p_GSList", "GSList *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_GValue = {"_p_GValue", "GValue *", 0, 0, (void*)0, 0};
@@ -4293,15 +4347,16 @@ static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 
 static swig_type_info _swigt__p_dumpfile_t = {"_p_dumpfile_t", "dumpfile_t *", 0, 0, (void*)"Amanda::Header::Header", 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *|gfloat *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_guint = {"_p_guint", "guint *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_guint32 = {"_p_guint32", "guint32 *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_guint64 = {"_p_guint64", "guint64 *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_int = {"_p_int", "int *|PropertySurety *|ConcurrencyParadigm *|filetype_t *|PropertySource *|SizeAccuracy *|StreamingRequirement *|gboolean *|DeviceAccessMode *|MediaAccessMode *|DeviceStatusFlags *|PropertyPhaseFlags *|PropertyAccessFlags *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_int = {"_p_int", "int *|PropertySurety *|ConcurrencyParadigm *|filetype_t *|PropertySource *|StreamingRequirement *|gboolean *|DeviceAccessMode *|MediaAccessMode *|DeviceStatusFlags *|PropertyPhaseFlags *|PropertyAccessFlags *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_p_DirectTCPAddr = {"_p_p_DirectTCPAddr", "DirectTCPAddr **", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_queue_fd_t = {"_p_queue_fd_t", "struct queue_fd_t *|queue_fd_t *", 0, 0, (void*)"Amanda::Device::queue_fd_t", 0};
 static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "guchar *|unsigned char *", 0, 0, (void*)0, 0};
 
 static swig_type_info *swig_type_initial[] = {
   &_swigt__p_Device,
   &_swigt__p_DevicePropertyBase,
+  &_swigt__p_DirectTCPAddr,
   &_swigt__p_DirectTCPConnection,
   &_swigt__p_GSList,
   &_swigt__p_GValue,
@@ -4311,15 +4366,16 @@ static swig_type_info *swig_type_initial[] = {
   &_swigt__p_dumpfile_t,
   &_swigt__p_float,
   &_swigt__p_guint,
+  &_swigt__p_guint32,
   &_swigt__p_guint64,
   &_swigt__p_int,
   &_swigt__p_p_DirectTCPAddr,
-  &_swigt__p_queue_fd_t,
   &_swigt__p_unsigned_char,
 };
 
 static swig_cast_info _swigc__p_Device[] = {  {&_swigt__p_Device, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_DevicePropertyBase[] = {  {&_swigt__p_DevicePropertyBase, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_DirectTCPAddr[] = {  {&_swigt__p_DirectTCPAddr, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_DirectTCPConnection[] = {  {&_swigt__p_DirectTCPConnection, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_GSList[] = {  {&_swigt__p_GSList, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_GValue[] = {  {&_swigt__p_GValue, 0, 0, 0},{0, 0, 0, 0}};
@@ -4329,15 +4385,16 @@ static swig_cast_info _swigc__p_double[] = {  {&_swigt__p_double, 0, 0, 0},{0, 0
 static swig_cast_info _swigc__p_dumpfile_t[] = {  {&_swigt__p_dumpfile_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_float[] = {  {&_swigt__p_float, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_guint[] = {  {&_swigt__p_guint, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_guint32[] = {  {&_swigt__p_guint32, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_guint64[] = {  {&_swigt__p_guint64, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_int[] = {  {&_swigt__p_int, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_p_DirectTCPAddr[] = {  {&_swigt__p_p_DirectTCPAddr, 0, 0, 0},{0, 0, 0, 0}};
-static swig_cast_info _swigc__p_queue_fd_t[] = {  {&_swigt__p_queue_fd_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_unsigned_char[] = {  {&_swigt__p_unsigned_char, 0, 0, 0},{0, 0, 0, 0}};
 
 static swig_cast_info *swig_cast_initial[] = {
   _swigc__p_Device,
   _swigc__p_DevicePropertyBase,
+  _swigc__p_DirectTCPAddr,
   _swigc__p_DirectTCPConnection,
   _swigc__p_GSList,
   _swigc__p_GValue,
@@ -4347,10 +4404,10 @@ static swig_cast_info *swig_cast_initial[] = {
   _swigc__p_dumpfile_t,
   _swigc__p_float,
   _swigc__p_guint,
+  _swigc__p_guint32,
   _swigc__p_guint64,
   _swigc__p_int,
   _swigc__p_p_DirectTCPAddr,
-  _swigc__p_queue_fd_t,
   _swigc__p_unsigned_char,
 };
 
@@ -4370,10 +4427,6 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Devicec::delete_DirectTCPConnection", _wrap_delete_DirectTCPConnection},
 {"Amanda::Devicec::DirectTCPConnection_close", _wrap_DirectTCPConnection_close},
 {"Amanda::Devicec::new_DirectTCPConnection", _wrap_new_DirectTCPConnection},
-{"Amanda::Devicec::queue_fd_t_fd_get", _wrap_queue_fd_t_fd_get},
-{"Amanda::Devicec::queue_fd_t_errmsg_get", _wrap_queue_fd_t_errmsg_get},
-{"Amanda::Devicec::new_queue_fd_t", _wrap_new_queue_fd_t},
-{"Amanda::Devicec::delete_queue_fd_t", _wrap_delete_queue_fd_t},
 {"Amanda::Devicec::unaliased_name", _wrap_unaliased_name},
 {"Amanda::Devicec::new_Device", _wrap_new_Device},
 {"Amanda::Devicec::delete_Device", _wrap_delete_Device},
@@ -4386,17 +4439,16 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Devicec::Device_finish", _wrap_Device_finish},
 {"Amanda::Devicec::Device_start_file", _wrap_Device_start_file},
 {"Amanda::Devicec::Device_write_block", _wrap_Device_write_block},
-{"Amanda::Devicec::Device_write_from_fd", _wrap_Device_write_from_fd},
 {"Amanda::Devicec::Device_finish_file", _wrap_Device_finish_file},
 {"Amanda::Devicec::Device_seek_file", _wrap_Device_seek_file},
 {"Amanda::Devicec::Device_seek_block", _wrap_Device_seek_block},
 {"Amanda::Devicec::Device_read_block", _wrap_Device_read_block},
-{"Amanda::Devicec::Device_read_to_fd", _wrap_Device_read_to_fd},
 {"Amanda::Devicec::Device_erase", _wrap_Device_erase},
 {"Amanda::Devicec::Device_eject", _wrap_Device_eject},
 {"Amanda::Devicec::Device_directtcp_supported", _wrap_Device_directtcp_supported},
 {"Amanda::Devicec::Device_listen", _wrap_Device_listen},
 {"Amanda::Devicec::Device_accept", _wrap_Device_accept},
+{"Amanda::Devicec::Device_connect", _wrap_Device_connect},
 {"Amanda::Devicec::Device_use_connection", _wrap_Device_use_connection},
 {"Amanda::Devicec::Device_write_from_connection", _wrap_Device_write_from_connection},
 {"Amanda::Devicec::Device_read_to_connection", _wrap_Device_read_to_connection},
@@ -4420,6 +4472,8 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Devicec::Device_block_size", _wrap_Device_block_size},
 {"Amanda::Devicec::Device_volume_header", _wrap_Device_volume_header},
 {"Amanda::Devicec::rait_device_open_from_children", _wrap_rait_device_open_from_children},
+{"Amanda::Devicec::write_random_to_device", _wrap_write_random_to_device},
+{"Amanda::Devicec::verify_random_from_device", _wrap_verify_random_from_device},
 {"Amanda::Devicec::IS_WRITABLE_ACCESS_MODE", _wrap_IS_WRITABLE_ACCESS_MODE},
 {0,0}
 };
@@ -4720,7 +4774,6 @@ XS(SWIG_init) {
   device_api_init();
   
   SWIG_TypeClientData(SWIGTYPE_p_DirectTCPConnection, (void*) "Amanda::Device::DirectTCPConnection");
-  SWIG_TypeClientData(SWIGTYPE_p_queue_fd_t, (void*) "Amanda::Device::queue_fd_t");
   SWIG_TypeClientData(SWIGTYPE_p_Device, (void*) "Amanda::Device::Device");
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "ACCESS_NULL", TRUE | 0x2 | GV_ADDMULTI);
@@ -4925,21 +4978,6 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "MEDIA_ACCESS_MODE_WRITE_ONLY", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(MEDIA_ACCESS_MODE_WRITE_ONLY)));
-    SvREADONLY_on(sv);
-  } while(0) /*@SWIG@*/;
-  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
-    SV *sv = get_sv((char*) SWIG_prefix "SIZE_ACCURACY_UNKNOWN", TRUE | 0x2 | GV_ADDMULTI);
-    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(SIZE_ACCURACY_UNKNOWN)));
-    SvREADONLY_on(sv);
-  } while(0) /*@SWIG@*/;
-  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
-    SV *sv = get_sv((char*) SWIG_prefix "SIZE_ACCURACY_ESTIMATE", TRUE | 0x2 | GV_ADDMULTI);
-    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(SIZE_ACCURACY_ESTIMATE)));
-    SvREADONLY_on(sv);
-  } while(0) /*@SWIG@*/;
-  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
-    SV *sv = get_sv((char*) SWIG_prefix "SIZE_ACCURACY_REAL", TRUE | 0x2 | GV_ADDMULTI);
-    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(SIZE_ACCURACY_REAL)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {

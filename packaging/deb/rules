@@ -1,14 +1,13 @@
 #!/usr/bin/make -f
 # debian/rules for amanda using debhelper. GNU copyright 2008 by Dan Locks, 
 # based on work by Bdale Garbee.
-# requires automake 1.2d (from experimental tree)
 
 #	Warning - do *not* use -j on an SMP machine, or the build gets
 #		confused... some sort of race condition in the makefiles?
 
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
-AMVER=2.6.2alpha
+AMVER=3.2alpha
 
 # These are variables that the user can override.  They get used in various
 # places during configure, build, and install.
@@ -76,9 +75,6 @@ build-stamp: /sbin/dump /usr/bin/smbclient
 		--with-amandahosts \
 		--with-smbclient=$(BINDIR)/smbclient \
 		--with-debugging=$(LOGDIR) \
-		--with-tcpportrange=11000,11040 \
-                --with-low-tcpportrange=700,710 \
-		--with-udpportrange=700,740 \
 		--with-ssh-security \
 		--with-assertions \
 		--enable-s3-device \

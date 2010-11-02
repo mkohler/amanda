@@ -8,6 +8,9 @@
  * interface file instead. 
  * ----------------------------------------------------------------------------- */
 
+#include "../config/config.h"
+
+
 #define SWIGPERL
 #define SWIG_CASTRANK_MODE
 
@@ -2380,17 +2383,7 @@ XS(_wrap_set_blocking) {
       }
     }
     {
-      if (sizeof(signed int) == 1) {
-        arg2 = amglue_SvI8(ST(1));
-      } else if (sizeof(signed int) == 2) {
-        arg2 = amglue_SvI16(ST(1));
-      } else if (sizeof(signed int) == 4) {
-        arg2 = amglue_SvI32(ST(1));
-      } else if (sizeof(signed int) == 8) {
-        arg2 = amglue_SvI64(ST(1));
-      } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
-      }
+      arg2 = SvTRUE(ST(1));
     }
     result = (int)set_blocking(arg1,arg2);
     {
@@ -2731,17 +2724,7 @@ XS(_wrap_stream_server) {
       }
     }
     {
-      if (sizeof(signed int) == 1) {
-        arg5 = amglue_SvI8(ST(3));
-      } else if (sizeof(signed int) == 2) {
-        arg5 = amglue_SvI16(ST(3));
-      } else if (sizeof(signed int) == 4) {
-        arg5 = amglue_SvI32(ST(3));
-      } else if (sizeof(signed int) == 8) {
-        arg5 = amglue_SvI64(ST(3));
-      } else {
-        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
-      }
+      arg5 = SvTRUE(ST(3));
     }
     result = stream_server(arg1,arg2,arg3,arg4,arg5);
     {

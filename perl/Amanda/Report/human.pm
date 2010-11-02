@@ -45,7 +45,7 @@ use constant COLSPEC_FORMAT    => 5;    # sprintf format
 use constant COLSPEC_TITLE     => 6;    # column title
 
 use constant PROGRAM_ORDER =>
-  qw(amdump planner amflush driver dumper chunker taper reporter);
+  qw(amdump planner amflush amvault driver dumper chunker taper reporter);
 
 
 ## helper functions
@@ -211,72 +211,75 @@ sub calculate_stats
     foreach my $dle_entry (@dles) {
 
         # $dle_entry = [$hostname, $disk]
-        my $dle = $report->get_dle_info(@$dle_entry);
+        my $dle      = $report->get_dle_info(@$dle_entry);
+	my $alldumps = $dle->{'dumps'};
 
-        foreach my $try ( @{ $dle->{tries} } ) {
+	while( my ($timestamp, $tries) = each %$alldumps ) {
+	    foreach my $try ( @$tries ) {
 
-	    my $level = exists $try->{dumper} ? $try->{dumper}{'level'} :
-			exists $try->{taper} ? $try->{taper}{'level'} :
-			0;
-	    my $stats = ($level > 0) ? $incr_stats : $full_stats;
+		my $level = exists $try->{dumper} ? $try->{dumper}{'level'} :
+			    exists $try->{taper} ? $try->{taper}{'level'} :
+			    0;
+		my $stats = ($level > 0) ? $incr_stats : $full_stats;
 
-	    # compute out size, skipping flushes (tries without a dumper run)
-	    my $outsize = 0;
-	    if (exists $try->{dumper}
-		&& exists $try->{chunker} && defined $try->{chunker}->{kb}
-		&& ( $try->{chunker}{status} eq 'success'
-		  || $try->{chunker}{status} eq 'partial')) {
-		$outsize = $try->{chunker}->{kb};
-	    } elsif (exists $try->{dumper}
-		&& exists $try->{taper} && defined $try->{taper}->{kb}
-		&& (   $try->{taper}{status} eq 'done'
-		    || $try->{taper}{status} eq 'partial')) {
-		$outsize = $try->{taper}->{kb};
-	    }
-
-	    # compute orig size, again skipping flushes
-	    my $origsize = 0;
-            if ( exists $try->{dumper}
-                && (   $try->{dumper}{status} eq 'success'
-                    || $try->{dumper}{status} eq 'strange')) {
-
-                $origsize = $try->{dumper}{orig_kb};
-                $stats->{dumper_time} += $try->{dumper}{sec};
-                $stats->{dumpdisk_count}++; # count this as a dumped filesystem
-                $dumpdisks->[$try->{dumper}{'level'}]++; #by level count
-            } elsif (exists $try->{dumper}
-		&& exists $try->{taper} && defined $try->{taper}->{kb}
-		&& (   $try->{taper}{status} eq 'done'
-		    || $try->{taper}{status} eq 'partial')) {
-		# orig_kb doesn't always exist (older logfiles)
-		if ($try->{taper}->{orig_kb}) {
-		    $origsize = $try->{taper}->{orig_kb};
+		# compute out size, skipping flushes (tries without a dumper run)
+		my $outsize = 0;
+		if (exists $try->{dumper}
+		    && exists $try->{chunker} && defined $try->{chunker}->{kb}
+		    && ( $try->{chunker}{status} eq 'success'
+		      || $try->{chunker}{status} eq 'partial')) {
+		    $outsize = $try->{chunker}->{kb};
+		} elsif (exists $try->{dumper}
+		    && exists $try->{taper} && defined $try->{taper}->{kb}
+		    && (   $try->{taper}{status} eq 'done'
+			|| $try->{taper}{status} eq 'partial')) {
+		    $outsize = $try->{taper}->{kb};
 		}
+
+		# compute orig size, again skipping flushes
+		my $origsize = 0;
+		if ( exists $try->{dumper}
+		    && (   $try->{dumper}{status} eq 'success'
+			|| $try->{dumper}{status} eq 'strange')) {
+
+		    $origsize = $try->{dumper}{orig_kb};
+		    $stats->{dumper_time} += $try->{dumper}{sec};
+		    $stats->{dumpdisk_count}++; # count this as a dumped filesystem
+		    $dumpdisks->[$try->{dumper}{'level'}]++; #by level count
+		} elsif (exists $try->{dumper}
+		    && exists $try->{taper} && defined $try->{taper}->{kb}
+		    && (   $try->{taper}{status} eq 'done'
+			|| $try->{taper}{status} eq 'partial')) {
+		    # orig_kb doesn't always exist (older logfiles)
+		    if ($try->{taper}->{orig_kb}) {
+			$origsize = $try->{taper}->{orig_kb};
+		    }
+		}
+
+		if ( exists $try->{taper}
+		    && ( $try->{taper}{status} eq 'done'
+		      || $try->{taper}{status} eq 'partial')) {
+
+		    $stats->{tapesize}   += $try->{taper}{kb};
+		    $stats->{taper_time} += $try->{taper}{sec};
+		    $stats->{tapepart_count} += @{ $try->{taper}{parts} }
+			if $try->{taper}{parts};
+		    $stats->{tapedisk_count}++;
+
+		    $tapedisks->[ $try->{taper}{level} ]++;    #by level count
+		    $tapeparts->[$try->{taper}{level}] += @{ $try->{taper}{parts} }
+			if $try->{taper}{parts};
+		}
+
+		# add those values to the stats
+		$stats->{'origsize'} += $origsize;
+		$stats->{'outsize'} += $outsize;
+
+		# if the sizes differ, then we have a compressed dump, so also add it to
+		# c{out,orig}size
+		$stats->{'corigsize'} += $origsize;
+		$stats->{'coutsize'} += $outsize;
 	    }
-
-            if ( exists $try->{taper}
-                && ( $try->{taper}{status} eq 'done'
-		  || $try->{taper}{status} eq 'partial')) {
-
-                $stats->{tapesize}   += $try->{taper}{kb};
-                $stats->{taper_time} += $try->{taper}{sec};
-                $stats->{tapepart_count} += @{ $try->{taper}{parts} }
-		    if $try->{taper}{parts};
-                $stats->{tapedisk_count}++;
-
-                $tapedisks->[ $try->{taper}{level} ]++;    #by level count
-                $tapeparts->[$try->{taper}{level}] += @{ $try->{taper}{parts} }
-		    if $try->{taper}{parts};
-	    }
-
-	    # add those values to the stats
-	    $stats->{'origsize'} += $origsize;
-	    $stats->{'outsize'} += $outsize;
-
-	    # if the sizes differ, then we have a compressed dump, so also add it to
-	    # c{out,orig}size
-	    $stats->{'corigsize'} += $origsize;
-	    $stats->{'coutsize'} += $outsize;
         }
     }
 
@@ -395,10 +398,12 @@ sub output_tapeinfo
 
     if (@$tape_labels > 0) {
 
-	# slightly different sentence for amflush and amdump
+	# slightly different sentence depending on the run type
         my $tapelist_str;
 	if ($report->get_flag("amflush_run")) {
 	    $tapelist_str = "The dumps were flushed ";
+	} elsif ($report->get_flag("amvault_run")) {
+	    $tapelist_str = "The dumps were vaulted ";
 	} else {
 	    $tapelist_str = "These dumps were ";
 	}
@@ -410,14 +415,15 @@ sub output_tapeinfo
     if (my $tape_error =
         $report->get_program_info("taper", "tape_error", undef)) {
 
-        $tape_error =~ s{^no-tape }{};
-	if ($tape_error =~ /^\[CONFIG:/) {
-	    $tape_error =~ s/^\[CONFIG://;
+	if ($report->get_program_info("taper", "failure_from", undef) eq "config") {
+	    # remove leading [ and trailling ]
+	    $tape_error =~ s/^\[//;
 	    $tape_error =~ s/\]$//;
 	    print $fh "Not using all tapes because $tape_error.\n";
 	} else {
             print $fh "*** A TAPE ERROR OCCURRED: $tape_error.\n";
 	}
+        #$tape_error =~ s{^no-tape }{};
     }
 
     ## if this is a historical report, do not generate holding disk
@@ -465,6 +471,14 @@ sub output_tapeinfo
 
         if ( my $tape_label =
             Amanda::Tapelist::get_last_reusable_tape_label($i) ) {
+
+	    if ($nb_new_tape) {
+		print $fh ", " if !$first;
+		print $fh "$nb_new_tape new tape"
+			. ( $nb_new_tape > 1 ? "s" : "" );
+		$nb_new_tape = 0;
+		$first = 0;
+	    }
 
 	    print $fh
 		$first ? "" : ", ",
@@ -517,12 +531,12 @@ sub output_error_summaries
     foreach my $dle_entry (@dles) {
 
         my ($hostname, $disk) = @$dle_entry;
-        my $tries = $report->get_dle_info(@$dle_entry, "tries");
+        my $alldumps = $report->get_dle_info(@$dle_entry, "dumps");
 	my $dle = $report->get_dle_info($hostname, $disk);
         my $qdisk = quote_string($disk);
-	my $failed = 0;
 
-	if ($report->get_flag('results_missing') and !@$tries and
+	if ($report->get_flag('results_missing') and
+	    !defined($alldumps->{$report->{run_timestamp}}) and
 	    !$dle->{planner}) {
 	    push @missing_failures, "$hostname $qdisk RESULTS MISSING";
 	}
@@ -537,53 +551,70 @@ sub output_error_summaries
 	    push @planner_failures, "$hostname $qdisk lev $dle->{planner}->{level}  FAILED $dle->{planner}->{error}";
 	}
 
-        foreach my $try (@$tries) {
-	    if (exists $try->{dumper} &&
-		$try->{dumper}->{status} eq 'fail') {
-		push @dump_failures, "$hostname $qdisk lev $try->{dumper}->{level}  FAILED $try->{dumper}->{error}";
-		$failed = 1;
-	    }
-	    if (exists $try->{chunker} &&
-		$try->{chunker}->{status} eq 'fail') {
-		push @dump_failures, "$hostname $qdisk lev $try->{chunker}->{level}  FAILED $try->{chunker}->{error}";
-		$failed = 1;
-	    }
-	    if (   exists $try->{taper}
-		&& (   $try->{taper}->{status} eq 'fail'
-                    || (   $try->{taper}->{status} eq 'partial'))) {
-	    #&& defined $try->{taper}->{error}
-	    #&& $try->{taper}->{error} ne ""))) {
-		my $flush = "FLUSH";
-		$flush = "FAILED" if exists $try->{dumper} && !exists $try->{chunker};
-		if ($flush ne "FLUSH" or $try->{taper}->{error} !~ /CONFIG:/) {
-		    if ($try->{taper}->{status} eq 'partial') {
-			# if the error message is omitted, then the taper only got a partial
-			# dump from the dumper/chunker, rather than failing with a taper error
-			my $errmsg = $try->{taper}{error} || "successfully taped a partial dump";
-			$flush = "partial taper: $errmsg";
-		    } else {
-			$flush .= " " . $try->{taper}{error};
-		    }
-
-		    push @dump_failures, "$hostname $qdisk lev $try->{taper}->{level}  $flush";
+	while( my ($timestamp, $tries) = each %$alldumps ) {
+	    my $failed = 0;
+	    foreach my $try (@$tries) {
+		if (exists $try->{dumper} &&
+		    $try->{dumper}->{status} &&
+		    $try->{dumper}->{status} eq 'fail') {
+		    push @dump_failures, "$hostname $qdisk lev $try->{dumper}->{level}  FAILED $try->{dumper}->{error}";
 		    $failed = 1;
 		}
-	    }
-	    if (   $failed
-		&& exists $try->{dumper}
-                && $try->{dumper}->{status} eq "success"
-		&& (   !exists $try->{chunker}
-		    || $try->{chunker}->{status} eq "success")
-		&& (   !exists $try->{taper}
-		    || $try->{taper}->{status} eq "done")) {
-		push @dump_failures, "$hostname $qdisk lev $try->{dumper}->{level}  was successfully retried";
-	    }
+		if (exists $try->{chunker} &&
+		    $try->{chunker}->{status} eq 'fail') {
+		    push @dump_failures, "$hostname $qdisk lev $try->{chunker}->{level}  FAILED $try->{chunker}->{error}";
+		    $failed = 1;
+		}
+		if (   exists $try->{taper}
+		    && (   $try->{taper}->{status} eq 'fail'
+			|| (   $try->{taper}->{status} eq 'partial'))) {
+		    my $flush = "FLUSH";
+		    $flush = "FAILED" if exists $try->{dumper} && !exists $try->{chunker};
+		    if ($flush ne "FLUSH" or !defined $try->{taper}->{failure_from}
+					  or $try->{taper}->{failure_from} ne 'config') {
+		        if ($try->{taper}->{status} eq 'partial') {
+			    # if the error message is omitted, then the taper only got a partial
+			    # dump from the dumper/chunker, rather than failing with a taper error
+			    my $errmsg = $try->{taper}{error} || "successfully taped a partial dump";
+			    $flush = "partial taper: $errmsg";
+		        } else {
+			    $flush .= " " . $try->{taper}{error};
+		        }
 
-            push @stranges,
-"$hostname $qdisk lev $try->{dumper}->{level}  STRANGE (see below)"
-              if (defined $try->{dumper}
-                && $try->{dumper}->{status} eq 'strange');
-        }
+		        push @dump_failures, "$hostname $qdisk lev $try->{taper}->{level}  $flush";
+		        $failed = 1;
+		    }
+		}
+
+		# detect retried dumps
+		if (   $failed
+		    && exists $try->{dumper}
+		    && (   $try->{dumper}->{status} eq "success"
+			|| $try->{dumper}->{status} eq "strange")
+		    && (   !exists $try->{chunker}
+			|| $try->{chunker}->{status} eq "success")
+		    && (   !exists $try->{taper}
+			|| $try->{taper}->{status} eq "done")) {
+		    push @dump_failures, "$hostname $qdisk lev $try->{dumper}->{level}  was successfully retried";
+		    $failed = 0;
+		}
+
+		# detect dumps re-flushed from holding
+		if (   $failed
+		    && !exists $try->{dumper}
+		    && !exists $try->{chunker}
+		    && exists $try->{taper}
+		    && $try->{taper}->{status} eq "done") {
+		    push @dump_failures, "$hostname $qdisk lev $try->{taper}->{level}  was successfully re-flushed";
+		    $failed = 0;
+		}
+
+		push @stranges,
+    "$hostname $qdisk lev $try->{dumper}->{level}  STRANGE (see below)"
+		  if (defined $try->{dumper}
+		    && $try->{dumper}->{status} eq 'strange');
+	    }
+	}
     }
     push @failures, @fatal_failures, @error_failures, @missing_failures,
 		    @driver_failures, @planner_failures, @dump_failures;
@@ -601,9 +632,9 @@ sub by_level_count
 
     # start at level 1 - don't include fulls
     foreach my $i (1 .. (@$count - 1)) {
-        push @lc, "$i:$count->[$i]" if $count->[$i] > 0;
+        push @lc, "$i:$count->[$i]" if defined $count->[$i] and $count->[$i] > 0;
     }
-    return '(' . join(' ', @lc) . ')';
+    return join(' ', @lc);
 }
 
 sub output_stats
@@ -616,8 +647,8 @@ sub output_stats
 
 
 STATISTICS:
-                          Total       Full      Incr.
-                        --------   --------   --------
+                          Total       Full      Incr.   Level:#
+                        --------   --------   --------  --------
 EOF
 
     my $st_format = <<EOF;
@@ -664,7 +695,8 @@ EOF
         "Dump Time (hrs:min)",
         hrmn( $total_stats->{dumper_time} ),
         hrmn( $full_stats->{dumper_time} ),
-        hrmn( $incr_stats->{dumper_time} ), ""
+        hrmn( $incr_stats->{dumper_time} ),
+	""
     );
 
     print $fh swrite(
@@ -696,16 +728,16 @@ EOF
         $comp_size->($total_stats),
         $comp_size->($full_stats),
         $comp_size->($incr_stats),
-        ($self->{dumpdisks}[1] > 0 ? "(level:#disks ...)" : "")
+        "",
     );
 
     print $fh swrite(
         $st_format,
-        "Filesystems Dumped",
+        "DLEs Dumped",
         sprintf("%4d", $total_stats->{dumpdisk_count}),
         sprintf("%4d", $full_stats->{dumpdisk_count}),
         sprintf("%4d", $incr_stats->{dumpdisk_count}),
-        ($self->{dumpdisks}[1] > 0 ? by_level_count($self->{dumpdisks}) : "")
+        (has_incrementals($self->{dumpdisks}) ? by_level_count($self->{dumpdisks}) : "")
     );
 
     print $fh swrite(
@@ -723,7 +755,8 @@ EOF
         "Tape Time (hrs:min)",
         hrmn( $total_stats->{taper_time} ),
         hrmn( $full_stats->{taper_time} ),
-        hrmn( $incr_stats->{taper_time} ), ""
+        hrmn( $incr_stats->{taper_time} ),
+	""
     );
 
     print $fh swrite(
@@ -753,24 +786,26 @@ EOF
         $tape_usage->($total_stats),
         $tape_usage->($full_stats),
         $tape_usage->($incr_stats),
-        ($self->{tapedisks}[1] > 0 ? "(level:#disks ...)" : "")
+	""
     );
 
+    my $nb_incr_dle = 0;
+    my @incr_dle = @{$self->{tapedisks}};
+    foreach my $level (1 .. $#incr_dle) {
+	$nb_incr_dle += $incr_dle[$level];
+    }
     print $fh swrite(
         $st_format,
-        "Filesystems Taped",
-        $self->{tapedisks}[0] + $self->{tapedisks}[1],
+        "DLEs Taped",
+        $self->{tapedisks}[0] + $nb_incr_dle,
         $self->{tapedisks}[0],
-        $self->{tapedisks}[1],
+        $nb_incr_dle,
         (
-            ($self->{tapedisks}[1] > 0)
+            (has_incrementals($self->{tapedisks}))
             ? by_level_count($self->{tapedisks})
             : ""
         )
     );
-
-    print $fh swrite($st_format, "", "", "", "", "(level:#parts ...)")
-      if $incr_stats->{tapepart_count} > 0;
 
     # NOTE: only print out the per-level tapeparts if there are
     # incremental tapeparts
@@ -800,6 +835,16 @@ EOF
     return;
 }
 
+sub has_incrementals
+{
+    my $array = shift;
+
+    for ($a = 1; $a < @$array; $a+=1) {
+	return 1 if $array->[$a] > 0;
+    }
+    return 0;
+}
+
 sub output_tape_stats
 {
     my ($self) = @_;
@@ -822,7 +867,7 @@ sub output_tape_stats
       . "@>>>> @>>>>>>>>>>> @>>>>> @>>>> @>>>>\n";
 
     print $fh "USAGE BY TAPE:\n";
-    print $fh swrite($ts_format, "Label", "Time", "Size", "%", "Nb", "Nc");
+    print $fh swrite($ts_format, "Label", "Time", "Size", "%", "DLEs", "Parts");
 
     my $tapetype_name = getconf($CNF_TAPETYPE);
     my $tapetype      = lookup_tapetype($tapetype_name);
@@ -842,8 +887,8 @@ sub output_tape_stats
             hrmn($tape->{time}),                               # time
             sprintf("%.0f", $self->tounits($tape->{kb})) . $self->{disp_unit},  # size
             divzero(100 * $tapeused, $tapesize),    # % usage
-            int($tape->{dle}),                        # Nb of dles
-            int($tape->{files})                       # Nb of parts
+            int($tape->{dle}),                        # # of dles
+            int($tape->{files})                       # # of parts
         );
     }
     print $fh "\n";
@@ -870,71 +915,73 @@ sub output_details
     foreach my $dle_entry (@dles) {
 
         my ($hostname, $disk) = @$dle_entry;
-        my $dle     = $report->get_dle_info(@$dle_entry);
-        my $tries   = $dle->{tries} || [];
-        my $qdisk   = quote_string($disk);
-        my $outsize = undef;
+        my $dle      = $report->get_dle_info(@$dle_entry);
+        my $alldumps = $dle->{'dumps'} || {};
+        my $qdisk    = quote_string($disk);
+        my $outsize  = undef;
 
-        foreach my $try (@$tries) {
+	while( my ($timestamp, $tries) = each %$alldumps ) {
+	    foreach my $try (@$tries) {
 
-            #
-            # check for failed dumper details
-            #
-            if (defined $try->{dumper}
-                && $try->{dumper}->{status} eq 'fail') {
+		#
+		# check for failed dumper details
+		#
+		if (defined $try->{dumper}
+		    && $try->{dumper}->{status} eq 'fail') {
 
-                push @failed_dump_details,
-"/-- $hostname $qdisk lev $try->{dumper}->{level} FAILED $try->{dumper}->{error}",
-                  @{ $try->{dumper}->{errors} },
-                  "\\--------";
+		    push @failed_dump_details,
+    "/-- $hostname $qdisk lev $try->{dumper}->{level} FAILED $try->{dumper}->{error}",
+		      @{ $try->{dumper}->{errors} },
+		      "\\--------";
 
-                if ($try->{dumper}->{nb_errors} > 100) {
-                    my $nb = $try->{dumper}->{nb_errors} - 100;
+		    if ($try->{dumper}->{nb_errors} > 100) {
+			my $nb = $try->{dumper}->{nb_errors} - 100;
 
-                    push @failed_dump_details,
-"$nb lines follow, see the corresponding log.* file for the complete list",
-                      "\\--------";
-                }
-            }
+			push @failed_dump_details,
+    "$nb lines follow, see the corresponding log.* file for the complete list",
+			  "\\--------";
+		    }
+		}
 
-            #
-            # check for strange dumper details
-            #
-            if (defined $try->{dumper}
-                && $try->{dumper}->{status} eq 'strange') {
+		#
+		# check for strange dumper details
+		#
+		if (defined $try->{dumper}
+		    && $try->{dumper}->{status} eq 'strange') {
 
-                push @strange_dump_details,
-                  "/-- $hostname $qdisk lev $try->{dumper}->{level} STRANGE",
-                  @{ $try->{dumper}->{stranges} },
-                  "\\--------";
+		    push @strange_dump_details,
+		      "/-- $hostname $qdisk lev $try->{dumper}->{level} STRANGE",
+		      @{ $try->{dumper}->{stranges} },
+		      "\\--------";
 
-                if ($try->{dumper}->{nb_stranges} > 100) {
-                    my $nb = $try->{dumper}->{nb_stranges} - 100;
-                    push @strange_dump_details,
-"$nb lines follow, see the corresponding log.* file for the complete list",
-                      "\\--------";
-                }
-            }
+		    if ($try->{dumper}->{nb_stranges} > 100) {
+			my $nb = $try->{dumper}->{nb_stranges} - 100;
+			push @strange_dump_details,
+    "$nb lines follow, see the corresponding log.* file for the complete list",
+			  "\\--------";
+		    }
+		}
 
-            # note: copied & modified from calculate_stats.
-            if (
-                   exists $try->{dumper}
-                && exists $try->{taper}
-                && defined $try->{taper}->{kb}
-                && (   $try->{taper}{status} eq 'done'
-                    || $try->{taper}{status} eq 'partial')
-              ) {
-                $outsize = $try->{taper}->{kb};
-            } elsif (
-                exists $try->{dumper}
-                && exists $try->{chunker}
-                && defined $try->{chunker}->{kb}
-                && (   $try->{chunker}{status} eq 'success'
-                    || $try->{chunker}{status} eq 'partial')
-              ) {
-                $outsize = $try->{chunker}->{kb};
-            }
-        }    # end try loop
+		# note: copied & modified from calculate_stats.
+		if (
+		       exists $try->{dumper}
+		    && exists $try->{taper}
+		    && defined $try->{taper}->{kb}
+		    && (   $try->{taper}{status} eq 'done'
+			|| $try->{taper}{status} eq 'partial')
+		  ) {
+		    $outsize = $try->{taper}->{kb};
+		} elsif (
+		    exists $try->{dumper}
+		    && exists $try->{chunker}
+		    && defined $try->{chunker}->{kb}
+		    && (   $try->{chunker}{status} eq 'success'
+			|| $try->{chunker}{status} eq 'partial')
+		  ) {
+		    $outsize = $try->{chunker}->{kb};
+		}
+	    }
+	}
 
         #
         # check for bad estimates
@@ -947,7 +994,7 @@ sub output_details
               "big estimate: $hostname $qdisk $dle->{estimate}{level}",
               sprintf('                est: %.0f%s    out %.0f%s',
                 $est->{ckb}, $disp_unit, $outsize, $disp_unit)
-              if ( ($est->{ckb} * .9 > $outsize)
+              if (defined $est->{'ckb'} && ($est->{ckb} * .9 > $outsize)
                 && ($est->{ckb} - $outsize > 1.0e5));
         }
     }
@@ -977,8 +1024,11 @@ sub output_summary
     my $col_spec = $self->set_col_spec();
 
     ## collect all the output line specs (see get_summary_info)
-    my @summary_linespecs =
-      map { [ $self->get_summary_info($_, $report, $col_spec) ] } @dles;
+    my @summary_linespecs = ();
+    foreach my $dle (@dles) {
+	push @summary_linespecs, $self->get_summary_info($dle, $report, $col_spec);
+    }
+
     # shift off the first element of each tuple
     my @summary_linedata =
       map { my @x = @$_; shift @x; [ @x ] } @summary_linespecs;
@@ -994,6 +1044,7 @@ sub output_summary
     my $nodump_PARTIAL_format = get_summary_format($col_spec, 'nodump-PARTIAL', @summary_linedata);
     my $nodump_FAILED_format = get_summary_format($col_spec, 'nodump-FAILED', @summary_linedata);
     my $nodump_FLUSH_format = get_summary_format($col_spec, 'nodump-FLUSH', @summary_linedata);
+    my $skipped_format = get_summary_format($col_spec, 'skipped', @summary_linedata);
 
     ## print the header names
     my $hdl =
@@ -1056,6 +1107,8 @@ sub output_summary
 	    print $fh sprintf($missing_format, @data[0..2]);
 	} elsif ($type eq 'noflush') {
 	    print $fh sprintf($noflush_format, @data[0..2]);
+	} elsif ($type eq 'skipped') {
+	    print $fh sprintf($skipped_format, @data[0..2]);
 	}
     }
 
@@ -1072,6 +1125,7 @@ sub output_summary
 ##  ('noflush', host, disk, '' ..) # NO FILE TO FLUSH ------
 ##  ('nodump-$msg', host, disk, level, '', out, '--', '',
 ##	    '', tapetime, taperate, taperpartial)  # ... {FLUSH|FAILED|PARTIAL} ...
+##  ('skipped', host, disk, '' ..) # SKIPPED -----
 ##
 ## the taperpartial column is not covered by the columnspec, and "hangs off"
 ## the right side.  It's usually empty, but set to " PARTIAL" when the taper
@@ -1082,6 +1136,7 @@ sub get_summary_info
     my $self = shift;
     my ( $dle, $report, $col_spec ) = @_;
     my ( $hostname, $disk ) = @$dle;
+    my @rvs;
 
     my $dle_info = $report->get_dle_info(@$dle);
 
@@ -1111,176 +1166,203 @@ sub get_summary_info
       ? quote_string($disk)
       : $tail_quote_trunc->($disk, $col_spec->[1]->[COLSPEC_WIDTH]);
 
-    my $last_try = $dle_info->{tries}->[-1];
-    my $level =
-        exists $last_try->{taper}   ? $last_try->{taper}{level}
-      : exists $last_try->{chunker} ? $last_try->{chunker}{level}
-      :                               $last_try->{dumper}{level};
-
-    my $orig_size = undef;
-
-    # find the try with the successful dumper entry
-    my $dumper = undef;
-    foreach my $try ( @{ $dle_info->{tries} } ) {
-	if ( exists $try->{dumper}
-	    && exists $try->{dumper}{status}
-	    && (   $try->{dumper}{status} eq "success"
-		|| $try->{dumper}{status} eq "strange")) {
-	    $dumper = $try->{dumper};
-	    last;
-	}
-    }
-    $orig_size = $dumper->{orig_kb}
-	if defined $dumper;
-
-    my ( $out_size, $dump_time, $dump_rate, $tape_time, $tape_rate ) = (0) x 5;
-    my ($dumper_status) = "";
-    my $saw_dumper = 0; # no dumper will mean this was a flush
-    my $taper_partial = 0; # was the last taper run partial?
-
-    ## Use this loop to set values
-    foreach my $try ( @{ $dle_info->{tries} } ) {
-
-        ## find the outsize for the output summary
-
-        if (
-            exists $try->{taper}
-            && (   $try->{taper}{status} eq "done"
-                || $try->{taper}{status} eq "part+partial" )
-          ) {
-	    $taper_partial = 0;
-            $orig_size = $try->{taper}{orig_kb} if !defined($orig_size);
-            $out_size  = $try->{taper}{kb};
-            $tape_time = $try->{taper}{sec};
-            $tape_rate = $try->{taper}{kps};
-        } elsif ( exists $try->{taper}
-            && ( $try->{taper}{status} eq "partial" ) ) {
-
-	    $taper_partial = 1;
-            $orig_size = $try->{taper}{orig_kb} if !defined($orig_size);
-            $out_size  = $try->{taper}{kb};
-            $tape_time = $try->{taper}{sec} if !$tape_time;
-            $tape_rate = $try->{taper}{kps} if !$tape_rate;
-        } elsif (exists $try->{taper} && ( $try->{taper}{status} eq "fail")) {
-	    if ($try->{taper}{error} =~ /CONFIG:/) {
-		$tape_time = 0;
-		$tape_rate = 0;
-	    } else {
-		$tape_time = undef;
-		$tape_rate = undef;
-	    }
-	}
-
-	if (!$out_size &&
-            exists $try->{chunker}
-            && (   $try->{chunker}{status} eq "success"
-                || $try->{chunker}{status} eq "partial" )
-          ) {
-            $out_size = $try->{chunker}{kb};
-	}
-
-        if (!$out_size &&
-	    exists $try->{dumper}) {
-            $out_size = $try->{dumper}{kb};
-        }
-
-        if ( exists $try->{dumper}) {
-	    $saw_dumper = 1;
-            $dumper_status = $try->{dumper}{status};
-        }
-
-        ## find the dump time
-        if ( exists $try->{dumper}
-	    && exists $try->{dumper}{status}
-            && (   $try->{dumper}{status} eq "success"
-		|| $try->{dumper}{status} eq "strange")) {
-
-            $dump_time = $try->{dumper}{sec};
-            $dump_rate = $try->{dumper}{kps};
-        }
-    }
-
-    my $compression;
-    if (!defined $orig_size) {
-	$compression = 100;
-    } else {
-        $compression =
-          divzero_col((100 * $out_size), $orig_size, $col_spec->[5]);
-    }
-
-    ## simple formatting macros
-
-    my $fmt_col_field = sub {
-        my ( $column, $data ) = @_;
-
-        return sprintf(
-            $col_spec->[$column]->[COLSPEC_FORMAT],
-            $col_spec->[$column]->[COLSPEC_WIDTH],
-            $col_spec->[$column]->[COLSPEC_PREC], $data
-        );
-    };
-
-    my $format_space = sub {
-	my ( $column, $data ) = @_;
-
-	return sprintf("%*s",$col_spec->[$column]->[COLSPEC_WIDTH], $data);
-    };
-
-    my @rv;
-
-    if ( !$orig_size && !$out_size && (!defined($tape_time) || !$tape_time)) {
+    my $alldumps = $dle_info->{'dumps'};
+    if ($dle_info->{'planner'} &&
+        $dle_info->{'planner'}->{'status'} eq 'fail') {
+	my @rv;
+	push @rv, 'nodump-FAILED';
+	push @rv, $hostname;
+	push @rv, $disk_out;
+	push @rv, ("",) x 9;
+	push @rvs, [@rv];
+    } elsif ($dle_info->{'planner'} &&
+        $dle_info->{'planner'}->{'status'} eq 'skipped') {
+	my @rv;
+	push @rv, 'skipped';
+	push @rv, $hostname;
+	push @rv, $disk_out;
+	push @rv, ("",) x 8;
+	push @rvs, [@rv];
+    } elsif (keys %{$alldumps} == 0) {
+	my @rv;
 	push @rv, $report->get_flag("amflush_run")? 'noflush' : 'missing';
 	push @rv, $hostname;
 	push @rv, $disk_out;
 	push @rv, ("",) x 8;
-	return @rv;
+	push @rvs, [@rv];
     }
 
-    if ($saw_dumper and ($dumper_status eq 'success' or $dumper_status eq 'strange')) {
-	push @rv, "full";
-	push @rv, $hostname;
-	push @rv, $disk_out;
-	push @rv, $fmt_col_field->(2, $level);
-	push @rv, $orig_size ? $fmt_col_field->(3, $self->tounits($orig_size)) : '';
-	push @rv, $out_size ? $fmt_col_field->(4, $self->tounits($out_size)) : '';
-	push @rv, ($compression == 100) ? '-- ' : $fmt_col_field->(5, $compression);
-	push @rv, $dump_time ? $fmt_col_field->(6, mnsc($dump_time)) : "PARTIAL";
-	push @rv, $dump_rate ? $fmt_col_field->(7, $dump_rate) : "";
-	push @rv, $fmt_col_field->(8,
-		(defined $tape_time) ?
-			$tape_time ? mnsc($tape_time) : ""
-		      : "FAILED");
-	push @rv, (defined $tape_rate) ?
-	    $tape_rate ?
-		$fmt_col_field->(9, $tape_rate)
-	      : $format_space->(9, "")
-	  : $format_space->(9, "FAILED");
-	push @rv, $taper_partial? " PARTIAL" : ""; # column 10
-    } else {
-	my $message = $saw_dumper?
-			($dumper_status eq 'failed') ? 'FAILED' : 'PARTIAL'
-		      : 'FLUSH';
-	push @rv, "nodump-$message";
-	push @rv, $hostname;
-	push @rv, $disk_out;
-	push @rv, $fmt_col_field->(2, $level);
-	push @rv, $orig_size ? $fmt_col_field->(4, $self->tounits($orig_size)) :'';
-	push @rv, $out_size ? $fmt_col_field->(4, $self->tounits($out_size)) : '';
-	push @rv, ($compression == 100) ? '-- ' : $fmt_col_field->(5, $compression);
-	push @rv, '';
-	push @rv, '';
-	push @rv, $fmt_col_field->(8,
-		(defined $tape_time) ?
-			$tape_time ? mnsc($tape_time) : ""
-		      : "FAILED");
-	push @rv, (defined $tape_rate) ?
-	    $tape_rate ?
-		$fmt_col_field->(9, $tape_rate)
-	      : $format_space->(9, "")
-	  : $format_space->(9, "FAILED");
-	push @rv, $taper_partial? " PARTIAL" : "";
+    while( my ($timestamp, $tries) = each %$alldumps ) {
+	my $last_try = $tries->[-1];
+	my $level =
+	    exists $last_try->{taper}   ? $last_try->{taper}{level}
+	  : exists $last_try->{chunker} ? $last_try->{chunker}{level}
+	  :                               $last_try->{dumper}{level};
+
+	my $orig_size = undef;
+
+	# find the try with the successful dumper entry
+	my $dumper = undef;
+	foreach my $try (@$tries) {
+	    if ( exists $try->{dumper}
+		&& exists $try->{dumper}{status}
+		&& (   $try->{dumper}{status} eq "success"
+		    || $try->{dumper}{status} eq "strange")) {
+		$dumper = $try->{dumper};
+		last;
+	    }
+	}
+	$orig_size = $dumper->{orig_kb}
+	    if defined $dumper;
+
+	my ( $out_size, $dump_time, $dump_rate, $tape_time, $tape_rate ) = (0) x 5;
+	my ($dumper_status) = "";
+	my $saw_dumper = 0; # no dumper will mean this was a flush
+	my $taper_partial = 0; # was the last taper run partial?
+
+	## Use this loop to set values
+	foreach my $try ( @$tries ) {
+
+	    ## find the outsize for the output summary
+
+	    if (
+		exists $try->{taper}
+		&& (   $try->{taper}{status} eq "done"
+		    || $try->{taper}{status} eq "part+partial" )
+	      ) {
+		$taper_partial = 0;
+		$orig_size = $try->{taper}{orig_kb} if !defined($orig_size);
+		$out_size  = $try->{taper}{kb};
+		$tape_time = $try->{taper}{sec};
+		$tape_rate = $try->{taper}{kps};
+	    } elsif ( exists $try->{taper}
+		&& ( $try->{taper}{status} eq "partial" ) ) {
+
+		$taper_partial = 1;
+		$orig_size = $try->{taper}{orig_kb} if !defined($orig_size);
+		$out_size  = $try->{taper}{kb};
+		$tape_time = $try->{taper}{sec} if !$tape_time;
+		$tape_rate = $try->{taper}{kps} if !$tape_rate;
+	    } elsif (exists $try->{taper} && ( $try->{taper}{status} eq "fail")) {
+		$tape_time = undef;
+		$tape_rate = undef;
+	    }
+
+	    if (!$out_size &&
+		exists $try->{chunker}
+		&& (   $try->{chunker}{status} eq "success"
+		    || $try->{chunker}{status} eq "partial" )
+	      ) {
+		$out_size = $try->{chunker}{kb};
+	    }
+
+	    if (!$out_size &&
+		exists $try->{dumper}) {
+		$out_size = $try->{dumper}{kb};
+	    }
+
+	    if ( exists $try->{dumper}) {
+		$saw_dumper = 1;
+		$dumper_status = $try->{dumper}{status};
+	    }
+
+	    ## find the dump time
+	    if ( exists $try->{dumper}
+		&& exists $try->{dumper}{status}
+		&& (   $try->{dumper}{status} eq "success"
+		    || $try->{dumper}{status} eq "strange")) {
+
+		$dump_time = $try->{dumper}{sec};
+		$dump_rate = $try->{dumper}{kps};
+	    }
+	}
+
+	# sometimes the driver logs an orig_size of -1, which makes the
+	# compression percent very large and negative
+	$orig_size = 0 if ($orig_size < 0);
+
+	# pre-format the compression column, with '--' replacing 100% (i.e.,
+	# no compression)
+	my $compression;
+	if (!defined $orig_size || $orig_size == $out_size) {
+	    $compression = '--';
+	} else {
+	    $compression =
+	      divzero_col((100 * $out_size), $orig_size, $col_spec->[5]);
+	}
+
+	## simple formatting macros
+
+	my $fmt_col_field = sub {
+	    my ( $column, $data ) = @_;
+
+	    return sprintf(
+		$col_spec->[$column]->[COLSPEC_FORMAT],
+		$col_spec->[$column]->[COLSPEC_WIDTH],
+		$col_spec->[$column]->[COLSPEC_PREC], $data
+	    );
+	};
+
+	my $format_space = sub {
+	    my ( $column, $data ) = @_;
+
+	    return sprintf("%*s",$col_spec->[$column]->[COLSPEC_WIDTH], $data);
+	};
+
+	my @rv;
+
+	if ( !$orig_size && !$out_size && (!defined($tape_time) || !$tape_time)) {
+	    push @rv, $report->get_flag("amflush_run")? 'noflush' : 'missing';
+	    push @rv, $hostname;
+	    push @rv, $disk_out;
+	    push @rv, ("",) x 8;
+	} elsif ($saw_dumper and ($dumper_status eq 'success' or $dumper_status eq 'strange')) {
+	    push @rv, "full";
+	    push @rv, $hostname;
+	    push @rv, $disk_out;
+	    push @rv, $fmt_col_field->(2, $level);
+	    push @rv, $orig_size ? $fmt_col_field->(3, $self->tounits($orig_size)) : '';
+	    push @rv, $out_size ? $fmt_col_field->(4, $self->tounits($out_size)) : '';
+	    push @rv, $compression;
+	    push @rv, $dump_time ? $fmt_col_field->(6, mnsc($dump_time)) : "PARTIAL";
+	    push @rv, $dump_rate ? $fmt_col_field->(7, $dump_rate) : "";
+	    push @rv, $fmt_col_field->(8,
+		    (defined $tape_time) ?
+			    $tape_time ? mnsc($tape_time) : ""
+			  : "FAILED");
+	    push @rv, (defined $tape_rate) ?
+		$tape_rate ?
+		    $fmt_col_field->(9, $tape_rate)
+		  : $format_space->(9, "")
+	      : $format_space->(9, "FAILED");
+	    push @rv, $taper_partial? " PARTIAL" : ""; # column 10
+	} else {
+	    my $message = $saw_dumper?
+			    ($dumper_status eq 'failed') ? 'FAILED' : 'PARTIAL'
+			  : 'FLUSH';
+	    push @rv, "nodump-$message";
+	    push @rv, $hostname;
+	    push @rv, $disk_out;
+	    push @rv, $fmt_col_field->(2, $level);
+	    push @rv, $orig_size ? $fmt_col_field->(4, $self->tounits($orig_size)) :'';
+	    push @rv, $out_size ? $fmt_col_field->(4, $self->tounits($out_size)) : '';
+	    push @rv, $compression;
+	    push @rv, '';
+	    push @rv, '';
+	    push @rv, $fmt_col_field->(8,
+		    (defined $tape_time) ?
+			    $tape_time ? mnsc($tape_time) : ""
+			  : "FAILED");
+	    push @rv, (defined $tape_rate) ?
+		$tape_rate ?
+		    $fmt_col_field->(9, $tape_rate)
+		  : $format_space->(9, "")
+	      : $format_space->(9, "FAILED");
+	    push @rv, $taper_partial? " PARTIAL" : "";
+	}
+	push @rvs, [@rv];
     }
-    return @rv;
+    return @rvs;
 }
 
 sub get_summary_format
@@ -1365,6 +1447,14 @@ sub get_summary_format
 		  get_summary_col_format( $i, $col_spec->[$i],
 		    map { $_->[$i] } @summary_lines );
 	    }
+	} elsif ($type eq 'skipped') {
+	    # add a blank level column and the space for the origkb column
+	    push @col_format, ' ' x $col_spec->[2]->[COLSPEC_PRE_SPACE];
+	    push @col_format, ' ' x $col_spec->[2]->[COLSPEC_WIDTH];
+	    push @col_format, ' ' x $col_spec->[3]->[COLSPEC_PRE_SPACE];
+	    my $str = "SKIPPED ";
+	    $str .= '-' x ($rulewidth - length($str));
+	    push @col_format, $str;
 	}
     }
 

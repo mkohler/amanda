@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2008 Zmanda Inc.  All Rights Reserved.
+ * Copyright (c) 2005-2008, 2010 Zmanda Inc.  All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 2.1 as
@@ -46,10 +46,23 @@ typedef struct {
     char * dir_name;
     char * file_name;
     int open_file_fd;
+    gboolean leom;
 
     /* Properties */
     guint64 volume_bytes;
     guint64 volume_limit;
+
+    /* should we monitor free space? (controlled by MONITOR_FREE_SPACE property) */
+    gboolean monitor_free_space;
+
+    /* how many bytes were free at last check */
+    guint64 checked_fs_free_bytes;
+
+    /* when was that check performed? */
+    time_t checked_fs_free_time;
+
+    /* and how many bytes have been written since the last check? */
+    guint64 checked_bytes_used;
 } VfsDevice;
 
 /*

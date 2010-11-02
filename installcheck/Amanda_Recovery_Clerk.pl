@@ -60,7 +60,7 @@ my $taperoot = "$Installcheck::TMP/Amanda_Recovery_Clerk";
 my $datestamp = "20100101010203";
 
 # set up a 2-tape disk changer with some spanned dumps in it, and add those
-# dumps to the catalog, too.  To avoid re-implementing Amanda::Taper::Scan, this
+# dumps to the catalog, too.  To avoid re-implementing Amanda::Taper::Scribe, this
 # uses individual transfers for each part.
 sub setup_changer {
     my ($finished_cb, $chg_name, $to_write, $part_len) = @_;
@@ -126,7 +126,8 @@ sub setup_changer {
 	my $name = $xfer_info->[2];
 
 	my $hdr = Amanda::Header->new();
-	$hdr->{'type'} = $Amanda::Header::F_SPLIT_DUMPFILE;
+	# if the partnum is 0, write a DUMPFILE like Amanda < 3.1 did
+	$hdr->{'type'} = $partnum? $Amanda::Header::F_SPLIT_DUMPFILE : $Amanda::Header::F_DUMPFILE;
 	$hdr->{'datestamp'} = $datestamp;
 	$hdr->{'dumplevel'} = 0;
 	$hdr->{'name'} = $name;
@@ -144,7 +145,7 @@ sub setup_changer {
 	my $key = $xfer_info->[1];
 
 	my $xsrc = Amanda::Xfer::Source::Random->new($len, $key);
-	my $xdst = Amanda::Xfer::Dest::Device->new($dev, 1024*256);
+	my $xdst = Amanda::Xfer::Dest::Device->new($dev, 0);
 	my $xfer = Amanda::Xfer->new([$xsrc, $xdst]);
 
 	$xfer->start(sub {
@@ -167,7 +168,8 @@ sub setup_changer {
 			diskname => "/$name",
 			level => 0,
 			status => "OK",
-			partnum => $partnum,
+			# get the partnum right, even if this wasn't split
+			partnum => $partnum? $partnum : ($partnum+1),
 			nparts => -1,
 			kb => $len / 1024,
 			sec => 1.2,
@@ -213,7 +215,7 @@ sub setup_changer {
     );
     my @to_write = (
 	# slot xfer		partnum
-	[ 1,   $xfer_info[0],   1 ],
+	[ 1,   $xfer_info[0],   0 ], # partnum 0 => old non-split header
 	[ 1,   $xfer_info[1],   1 ],
 	[ 1,   $xfer_info[1],   2 ],
 	[ 2,   $xfer_info[1],   3 ],
@@ -308,13 +310,13 @@ sub new {
     return bless \%params, $class;
 }
 
-sub notif_part {
+sub clerk_notif_part {
     my $self = shift;
 
-    if (exists $self->{'notif_part'}) {
-	$self->{'notif_part'}->(@_);
+    if (exists $self->{'clerk_notif_part'}) {
+	$self->{'clerk_notif_part'}->(@_);
     } else {
-	$self->SUPER::notif_part(@_);
+	$self->SUPER::clerk_notif_part(@_);
     }
 }
 
@@ -457,7 +459,7 @@ sub quit_clerk {
 
 my $clerk;
 my $feedback;
-my @notif_parts;
+my @clerk_notif_parts;
 my $chg = Amanda::Changer->new("chg-disk:$taperoot");
 my $scan = Amanda::Recovery::Scan->new(chg => $chg);
 
@@ -485,10 +487,10 @@ quit_clerk($clerk);
 
 # recover from TESTCONF02, then 01, and then 02 again
 
-@notif_parts = ();
+@clerk_notif_parts = ();
 $feedback = main::Feedback->new(
-    notif_part => sub {
-	push @notif_parts, [ $_[0], $_[1] ],
+    clerk_notif_part => sub {
+	push @clerk_notif_parts, [ $_[0], $_[1] ],
     },
 );
 
@@ -504,10 +506,10 @@ try_recovery(
     ),
     msg => "two-part recovery from second tape successful");
 
-is_deeply([ @notif_parts ], [
+is_deeply([ @clerk_notif_parts ], [
     [ 'TESTCONF02', 2 ],
     [ 'TESTCONF02', 3 ],
-    ], "..and notif_part calls are correct");
+    ], "..and clerk_notif_part calls are correct");
 
 try_recovery(
     clerk => $clerk,
@@ -623,7 +625,7 @@ SKIP: {
     }
 
     my $tapelist = Amanda::Config::config_dir_relative("tapelist");
-    my $tl = Amanda::Tapelist::read_tapelist($tapelist);
+    my $tl = Amanda::Tapelist->new($tapelist);
 
     my $chg = Amanda::Changer->new();
     my $scan = Amanda::Recovery::Scan->new(chg => $chg);
@@ -647,10 +649,11 @@ SKIP: {
 	[ 1024*160,	0xB000, "home" ],
     );
     my @to_write = (
+	# (note that slots 1 and 2 are i/e slots, and are initially empty)
 	# slot xfer		partnum
-	[ 4,   $xfer_info[0],   1 ],
-	[ 5,   $xfer_info[0],   2 ],
-	[ 5,   $xfer_info[0],   3 ],
+	[ 3,   $xfer_info[0],   1 ],
+	[ 4,   $xfer_info[0],   2 ],
+	[ 4,   $xfer_info[0],   3 ],
     );
 
     setup_changer(\&Amanda::MainLoop::quit, "ndmp_server", \@to_write, 64*1024);
@@ -665,9 +668,9 @@ SKIP: {
 	clerk => $clerk,
 	seed => 0xB000,
 	dump => fake_dump("home", "/home", $datestamp, 0,
+	    { label => 'TESTCONF03', filenum => 1 },
 	    { label => 'TESTCONF04', filenum => 1 },
-	    { label => 'TESTCONF05', filenum => 1 },
-	    { label => 'TESTCONF05', filenum => 2 },
+	    { label => 'TESTCONF04', filenum => 2 },
 	),
 	msg => "multi-part ndmp recovery successful",
 	expect_directtcp_supported => 1);

@@ -52,6 +52,8 @@ package Amanda::Device;
 
 *unaliased_name = *Amanda::Devicec::unaliased_name;
 *rait_device_open_from_children = *Amanda::Devicec::rait_device_open_from_children;
+*write_random_to_device = *Amanda::Devicec::write_random_to_device;
+*verify_random_from_device = *Amanda::Devicec::verify_random_from_device;
 *IS_WRITABLE_ACCESS_MODE = *Amanda::Devicec::IS_WRITABLE_ACCESS_MODE;
 
 ############# Class : Amanda::Device::DirectTCPConnection ##############
@@ -77,47 +79,6 @@ sub new {
     my $pkg = shift;
     my $self = Amanda::Devicec::new_DirectTCPConnection(@_);
     bless $self, $pkg if defined($self);
-}
-
-sub DISOWN {
-    my $self = shift;
-    my $ptr = tied(%$self);
-    delete $OWNER{$ptr};
-}
-
-sub ACQUIRE {
-    my $self = shift;
-    my $ptr = tied(%$self);
-    $OWNER{$ptr} = 1;
-}
-
-
-############# Class : Amanda::Device::queue_fd_t ##############
-
-package Amanda::Device::queue_fd_t;
-use vars qw(@ISA %OWNER %ITERATORS %BLESSEDMEMBERS);
-@ISA = qw( Amanda::Device );
-%OWNER = ();
-%ITERATORS = ();
-*swig_fd_get = *Amanda::Devicec::queue_fd_t_fd_get;
-*swig_fd_set = *Amanda::Devicec::queue_fd_t_fd_set;
-*swig_errmsg_get = *Amanda::Devicec::queue_fd_t_errmsg_get;
-*swig_errmsg_set = *Amanda::Devicec::queue_fd_t_errmsg_set;
-sub new {
-    my $pkg = shift;
-    my $self = Amanda::Devicec::new_queue_fd_t(@_);
-    bless $self, $pkg if defined($self);
-}
-
-sub DESTROY {
-    return unless $_[0]->isa('HASH');
-    my $self = tied(%{$_[0]});
-    return unless defined $self;
-    delete $ITERATORS{$self};
-    if (exists $OWNER{$self}) {
-        Amanda::Devicec::delete_queue_fd_t($self);
-        delete $OWNER{$self};
-    }
 }
 
 sub DISOWN {
@@ -166,17 +127,16 @@ sub DESTROY {
 *finish = *Amanda::Devicec::Device_finish;
 *start_file = *Amanda::Devicec::Device_start_file;
 *write_block = *Amanda::Devicec::Device_write_block;
-*write_from_fd = *Amanda::Devicec::Device_write_from_fd;
 *finish_file = *Amanda::Devicec::Device_finish_file;
 *seek_file = *Amanda::Devicec::Device_seek_file;
 *seek_block = *Amanda::Devicec::Device_seek_block;
 *read_block = *Amanda::Devicec::Device_read_block;
-*read_to_fd = *Amanda::Devicec::Device_read_to_fd;
 *erase = *Amanda::Devicec::Device_erase;
 *eject = *Amanda::Devicec::Device_eject;
 *directtcp_supported = *Amanda::Devicec::Device_directtcp_supported;
 *listen = *Amanda::Devicec::Device_listen;
 *accept = *Amanda::Devicec::Device_accept;
+*connect = *Amanda::Devicec::Device_connect;
 *use_connection = *Amanda::Devicec::Device_use_connection;
 *write_from_connection = *Amanda::Devicec::Device_write_from_connection;
 *read_to_connection = *Amanda::Devicec::Device_read_to_connection;
@@ -257,9 +217,6 @@ package Amanda::Device;
 *MEDIA_ACCESS_MODE_WORM = *Amanda::Devicec::MEDIA_ACCESS_MODE_WORM;
 *MEDIA_ACCESS_MODE_READ_WRITE = *Amanda::Devicec::MEDIA_ACCESS_MODE_READ_WRITE;
 *MEDIA_ACCESS_MODE_WRITE_ONLY = *Amanda::Devicec::MEDIA_ACCESS_MODE_WRITE_ONLY;
-*SIZE_ACCURACY_UNKNOWN = *Amanda::Devicec::SIZE_ACCURACY_UNKNOWN;
-*SIZE_ACCURACY_ESTIMATE = *Amanda::Devicec::SIZE_ACCURACY_ESTIMATE;
-*SIZE_ACCURACY_REAL = *Amanda::Devicec::SIZE_ACCURACY_REAL;
 *PROPERTY_SURETY_BAD = *Amanda::Devicec::PROPERTY_SURETY_BAD;
 *PROPERTY_SURETY_GOOD = *Amanda::Devicec::PROPERTY_SURETY_GOOD;
 *PROPERTY_SOURCE_DEFAULT = *Amanda::Devicec::PROPERTY_SOURCE_DEFAULT;
@@ -510,9 +467,11 @@ C<start>, C<start_file>, C<finish_file>, and C<finish>.  API users that
 understand LEOM should take this as a signal to complete writing to the device
 and move on before hitting PEOM.
 
-Devices which do not support EOM simply return a VOLUME_ERROR when the volume
+Devices which do not support LEOM simply return a VOLUME_ERROR when the volume
 is full.  If this occurs during a C<write_block> operation, then the volume may
 or may not contain the block - the situation is indeterminate.
+
+Devices indicate their support for LEOM with the LEOM property.
 
 =head2 Device Resources
 
@@ -724,23 +683,6 @@ set C<is_eom> whenever the situation is ambiguous.
 This function ensures that C<block> is correct on exit. Even in an
 error condition, it does not finish the current file for the caller.
 
-=head3 write_from_fd (DEPRECATED)
-
- my $qfd = Amanda::Device::queue_fd_t->new(fileno($fh));
- if (!$dev->write_from_fd($fd)) {
-   print STDERR $qfd->{errmsg}, "\n" if ($qfd->{errmsg});
-   print STDERR $dev->status_or_error(), "\n" if ($dev->status());
- }
-
-This method reads from the given file descriptor until EOF, writing the data to
-a Device file which should already be started, and not returning until the
-operation is complete. The file is not automatically finished. This method is
-deprecated; the better solution is to use the transfer architecture
-(L<Amanda::Xfer>).
-
-This is a virtual method, but the default implementation in the Device class
-uses C<write_block>, so there is no need for subclasses to override it.
-
 =head3 finish_file
 
  $success = $dev->finish_file();
@@ -808,23 +750,6 @@ while reading the last block, and will set C<is_eof> at that time. Others must
 wait for the next read to fail. It is never an error to call C<read_block>
 after an EOF, so there is no need to check C<is_eof> except when C<read_block>
 returns -1.
-
-=head3 read_to_fd (DEPRECATED)
-
- queue_fd_t *qfd = queue_fd_new(fd, NULL);
- my $qfd = Amanda::Device::queue_fd_t->new(fileno($fh));
- if (!$dev->read_to_fd($fd)) {
-   print STDERR $qfd->{errmsg}, "\n" if ($qfd->{errmsg});
-   print STDERR $dev->status_or_error(), "\n" if ($dev->status());
- }
-
-This method reads the current file from the device and writes to the given file
-descriptor, not returning until the operation is complete. This method is
-deprecated; new uses of devices use the transfer architecture
-(L<Amanda::Xfer>).
-
-This is a virtual method, but the default implementation in the Device class
-uses C<read_block>, so there is no need for subclasses to override it.
 
 =head3 finish
 
@@ -902,6 +827,18 @@ connection ever occurs.  The C implementation returns an already-referenced
 connection object, so the caller should call C<g_object_unref> when the
 connection is no longer needed.
 
+=head3 connect
+
+  $conn = $dev->connect($for_writing, $addrs);
+
+This method initiates a connection to one of the addresses in C<$addrs>,
+returning an established DirectTCPConnection object (see below).  The
+C<$for_writing> parameter is TRUE if the connection will be used to write to
+the device.  It returns C<undef> on failure.  Note that this method may block
+indefinitely if no connection ever occurs.  The C implementation returns an
+already-referenced connection object, so the caller should call
+C<g_object_unref> when the connection is no longer needed.
+
 =head3 use_connection
 
   my $ok = $dev->use_connection($conn);
@@ -909,17 +846,18 @@ connection is no longer needed.
 Call this method to use a DirectTCPConnection object created with another
 device.  The method must be called before the device is started (so
 C<access_mode> is C<$ACCESS_NULL>), as some devices cannot support switching
-connections without rewinding.  Any subsequent C<read_from_connection> or
-C<write_to_connection> calls will use this connection.
+connections without rewinding.  Any subsequent C<read_to_connection> or
+C<write_from_connection> calls will use this connection.
 
 =head3 write_from_connection
 
   ($ok, $actual_size) = $dev->write_from_connection($size);
 
 This method reads data from the DirectTCPConnection specified with
-C<use_connection> or returned from C<accept> and writes it to the volume.   It
-writes at most C<$size> bytes, and returns the number of bytes written in
-C<$actual_size>.  On error, C<$ok> is false.
+C<use_connection> or returned from C<accept> or C<connect> and writes it to the
+volume.   It writes at most C<$size> bytes, and returns the number of bytes
+written in C<$actual_size>.  If C<$size> is zero, it will write until EOF, EOM,
+or a device error.  On error, C<$ok> is false.
 
 When an EOF is received over the connection, signalling the end of the data
 stream, then this method returns without error (C<$ok> is true), with
@@ -962,9 +900,9 @@ or imported with the C<:constant> import tag.
 
 =head2 DirectTCPConnection objects
 
-The C<accept> method returns an object to represent the ongoing DirectTCP
-connection.  This object is mostly useful as a "token" to be passed to
-C<write_from_connection> and C<read_to_connection>.  In particular, a
+The C<accept> and C<connect> methods return an object to represent the ongoing
+DirectTCP connection.  This object is mostly useful as a "token" to be passed
+to C<write_from_connection> and C<read_to_connection>.  In particular, a
 connection created by one device can be used with another device; this is how
 DirectTCP dumps are spanned over multiple volumes.
 
@@ -1367,45 +1305,6 @@ $_MediaAccessMode_VALUES{"WRITE_ONLY"} = $MEDIA_ACCESS_MODE_WRITE_ONLY;
 
 #copy symbols in MediaAccessMode to constants
 push @{$EXPORT_TAGS{"constants"}},  @{$EXPORT_TAGS{"MediaAccessMode"}};
-
-push @EXPORT_OK, qw(SizeAccuracy_to_string);
-push @{$EXPORT_TAGS{"SizeAccuracy"}}, qw(SizeAccuracy_to_string);
-
-my %_SizeAccuracy_VALUES;
-#Convert an enum value to a single string
-sub SizeAccuracy_to_string {
-    my ($enumval) = @_;
-
-    for my $k (keys %_SizeAccuracy_VALUES) {
-	my $v = $_SizeAccuracy_VALUES{$k};
-
-	#is this a matching flag?
-	if ($enumval == $v) {
-	    return $k;
-	}
-    }
-
-#default, just return the number
-    return $enumval;
-}
-
-push @EXPORT_OK, qw($SIZE_ACCURACY_UNKNOWN);
-push @{$EXPORT_TAGS{"SizeAccuracy"}}, qw($SIZE_ACCURACY_UNKNOWN);
-
-$_SizeAccuracy_VALUES{"UNKNOWN"} = $SIZE_ACCURACY_UNKNOWN;
-
-push @EXPORT_OK, qw($SIZE_ACCURACY_ESTIMATE);
-push @{$EXPORT_TAGS{"SizeAccuracy"}}, qw($SIZE_ACCURACY_ESTIMATE);
-
-$_SizeAccuracy_VALUES{"ESTIMATE"} = $SIZE_ACCURACY_ESTIMATE;
-
-push @EXPORT_OK, qw($SIZE_ACCURACY_REAL);
-push @{$EXPORT_TAGS{"SizeAccuracy"}}, qw($SIZE_ACCURACY_REAL);
-
-$_SizeAccuracy_VALUES{"REAL"} = $SIZE_ACCURACY_REAL;
-
-#copy symbols in SizeAccuracy to constants
-push @{$EXPORT_TAGS{"constants"}},  @{$EXPORT_TAGS{"SizeAccuracy"}};
 
 push @EXPORT_OK, qw(PropertySurety_to_strings);
 push @{$EXPORT_TAGS{"PropertySurety"}}, qw(PropertySurety_to_strings);

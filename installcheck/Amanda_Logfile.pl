@@ -16,9 +16,10 @@
 # Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More tests => 35;
+use Test::More tests => 39;
 use File::Path;
 use strict;
+use warnings;
 
 use lib "@amperldir@";
 use Installcheck;
@@ -190,12 +191,21 @@ my $logdir = $testconf->{'logdir'};
 
     -f "$filename" and unlink("$filename");
     log_add($L_INFO, "This is my info");
+    log_add($L_START, "blah blah blah date 20300405060708 blah blah");
 
     open(my $fh, "<", $filename) or die("open $filename: $!");
     my $logdata = do { local $/; <$fh> };
     close($fh);
 
     like($logdata, qr/^INFO Amanda_Logfile This is my info/, "log_add works");
+
+    is(Amanda::Logfile::get_current_log_timestamp(), "20300405060708",
+	"get_current_log_timestamp finds a timestamp");
+
+    Amanda::Logfile::log_rename("20300405060708");
+
+    ok(! -f $filename, "after log_rename, /log is gone");
+    ok(-f "$filename.20300405060708.0", "..and log.20300405060708.0 exists");
 }
 
 # set up and read the tapelist (we don't use Amanda::Tapelist to write this,
@@ -208,7 +218,7 @@ print $tlf "20071109010002 TESTCONF003 reuse\n";
 print $tlf "20071109010002 TESTCONF002 reuse\n";
 print $tlf "20071108010001 TESTCONF001 reuse\n";
 close $tlf;
-Amanda::Tapelist::read_tapelist($tapelist);
+Amanda::Tapelist->new($tapelist);
 
 # set up a number of logfiles in logdir.
 my $logf;
@@ -249,7 +259,7 @@ PART taper TESTCONF002 10 thatbox /u_lose 20071109010002 2/4 2 [multi-part failu
 PARTPARTIAL taper TESTCONF002 11 thatbox /u_lose 20071109010002  3/4 2 [multi-part retry]
 START taper datestamp 20071109010002 label TESTCONF003 tape 1
 PART taper TESTCONF003 1 thatbox /u_lose 20071109010002 3/4 2 [multi-part failure]
-FAIL taper thatbox /u_lose 20071109010002 2 "Oh no!"
+FAIL taper thatbox /u_lose 20071109010002 2 error "Oh no!"
 PART taper TESTCONF003 2 thatbox /u_win 20071109010002 1/4 3 [multi-part retry]
 PART taper TESTCONF003 3 thatbox /u_win 20071109010002 2/4 3 [multi-part retry]
 PARTPARTIAL taper TESTCONF003 4 thatbox /u_win 20071109010002  3/4 3 [multi-part retry]
@@ -391,6 +401,23 @@ is_deeply([ map { res2arr($_) } @filtered ],
 	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF004', 2,  'OK',      'OK'  , '',         4, 4 ],
 	], "filter with dumpspecs '.* /var thatbox' (union of two overlapping sets includes dupes)");
 
+@dumpspecs = Amanda::Cmdline::dumpspec_t->new('thatbox', undef, undef, undef, '20071109010002');
+@filtered = Amanda::Logfile::dumps_match_dumpspecs([@results], [@dumpspecs], 0);
+@filtered = sort { $a->{'label'} cmp $b->{'label'} ||
+		   $a->{'filenum'} <=> $b->{'filenum'} } @filtered;
+is_deeply([ map { res2arr($_) } @filtered ],
+	[
+	  [ '20071109010002', 'thatbox', '/var',      1, 'TESTCONF002', 3,  'OK',      'OK'  , '',         1, 1 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 9,  'OK',      'FAIL', '"Oh no!"', 1, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 10, 'OK',      'FAIL', '"Oh no!"', 2, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF002', 11, 'PARTIAL', 'FAIL', '"Oh no!"', 3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_lose',   2, 'TESTCONF003', 1,  'OK',      'FAIL', '"Oh no!"', 3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 2,  'OK',      'OK'  , '',         1, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 3,  'OK',      'OK'  , '',         2, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF003', 4,  'PARTIAL', 'OK'  , '',         3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF004', 1,  'OK',      'OK'  , '',         3, 4 ],
+	  [ '20071109010002', 'thatbox', '/u_win',    3, 'TESTCONF004', 2,  'OK',      'OK'  , '',         4, 4 ],
+	], "filter with dumpspecs with host 'thatbox' and a write_timestamp");
 unlink($log_filename);
 
 # search_holding_disk and match_* are tested via Amanda::DB::Catalog's installcheck

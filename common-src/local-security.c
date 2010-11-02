@@ -61,6 +61,7 @@ const security_driver_t local_security_driver = {
     "LOCAL",
     local_connect,
     sec_accept,
+    sec_get_authenticated_peer_name_localhost,
     sec_close,
     stream_sendpkt,
     stream_recvpkt,
@@ -110,7 +111,7 @@ local_connect(
 
     auth_debug(1, _("local: local_connect: %s\n"), hostname);
 
-    rh = alloc(SIZEOF(*rh));
+    rh = g_new0(struct sec_handle, 1);
     security_handleinit(&rh->sech, &local_security_driver);
     rh->hostname = NULL;
     rh->rs = NULL;

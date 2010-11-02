@@ -64,6 +64,45 @@ changes described below for the relevant span of versions to determine what
 adjustments, if any, are required.  Also see the NEWS file shipped with
 each Amanda release for more detailed information.</para>
 
+<refsect2><title>Amanda 3.2</title>
+
+<para>The following configuration configration keywords are deprecated.  This is
+currently a warning, but will become an error soon.
+<itemizedlist>
+<listitem><para><amkeyword>amrecover-do-fsf</amkeyword> - amrecover always seeks to files when recovering</para></listitem>
+<listitem><para><amkeyword>amrecover-check-label</amkeyword> - amrecover always checks the volume label when recovering</para></listitem>
+<listitem>
+
+    <para>Dumptype parameters <amkeyword>tape-splitsize</amkeyword>,
+	<amkeyword>split-diskbuffer</amkeyword>, and
+	<amkeyword>fallback-splitsize</amkeyword> - see
+	<amkeyword>allow-split</amkeyword> and tapetype parameters
+	<amkeyword>part-size</amkeyword>,
+	<amkeyword>part-cache-type</amkeyword>,
+	<amkeyword>part-cache-dir</amkeyword>, and
+	<amkeyword>part-cache-max-size</amkeyword>.  See <manref
+	    name="amanda.conf" vol="5" /> for more information on these new
+	parameters, noting particularly that all but the first are tapetype
+	parameters, not dumptype parameters.</para>
+
+    <para>To convert most cases to the new parameters, set
+	<amkeyword>part-size</amkeyword> to the old value of
+	<amkeyword>tape-splitsize</amkeyword> and
+	<amkeyword>part-cache-dir</amkeyword> to the old value of
+	<amkeyword>split-diskbuffer</amkeyword>, if present.  If
+	<amkeyword>split-diskbuffer</amkeyword> was set, then set
+	<amkeyword>part-cache-type</amkeyword> to <amkeyword>disk</amkeyword>,
+	otherwise <amkeyword>memory</amkeyword>.  Finally, if using memory
+	caching, set <amkeyword>part-cache-max-size</amkeyword> to the previous
+	value of <amkeyword>fallback-splitsize</amkeyword>.  Be sure to remove
+	all of the old keywords from your configuration.</para>
+
+</listitem>
+</itemizedlist>
+</para>
+
+</refsect2>
+
 <refsect2><title>Amanda 3.1</title>
 
 <para>Although it is a significant rewrite, there are no incompatible changes
@@ -77,7 +116,7 @@ much more intelligent <emphasis>chg-robot</emphasis>.  See <manref
 name="amanda-changers" vol="7" /> for more information.</para>
 
 <para>The following configuration configration keywords are deprecated.  This is
-currently a warning, but will become an error soon.
+currently a warning, but will become an error in a future version.
 <itemizedlist>
 <listitem><para><computeroutput>label_new_tapes</computeroutput> - use <computeroutput>autolabel</computeroutput></para></listitem>
 </itemizedlist>

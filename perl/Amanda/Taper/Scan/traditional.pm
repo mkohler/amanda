@@ -63,7 +63,7 @@ sub scan {
     $self->{'user_msg_fn'} = $params{'user_msg_fn'} || sub {};
 
     # refresh the tapelist at every scan
-    $self->{'tapelist'} = $self->read_tapelist();
+    $self->read_tapelist();
 
     # count the number of scans we do, so we can only load 'current' on the
     # first scan
@@ -180,6 +180,7 @@ sub stage_1 {
     step do_load => sub {
 	$self->{'changer'}->load(
 	    label => $oldest_reusable,
+	    set_current => 1,
 	    res_cb => $steps->{'load_done'});
     };
 
@@ -282,20 +283,15 @@ sub try_volume {
 
     if ($status & $DEVICE_STATUS_VOLUME_UNLABELED and
 	$dev->volume_header and
-	$dev->volume_header->{'type'} == $Amanda::Header::F_EMPTY and
-	!$autolabel->{'empty'}) {
-	return 0;
-    }
-
-    if ($status & $DEVICE_STATUS_VOLUME_UNLABELED and
+	$dev->volume_header->{'type'} == $Amanda::Header::F_EMPTY) {
+	return 0 if (!$autolabel->{'empty'});
+    } elsif ($status & $DEVICE_STATUS_VOLUME_UNLABELED and
 	$dev->volume_header and
-	$dev->volume_header->{'type'} == $Amanda::Header::F_WEIRD and
-	!$autolabel->{'non_amanda'}) {
-	return 0;
-    }
-
-    if ($status & $DEVICE_STATUS_VOLUME_ERROR and
-	!$autolabel->{'volume_error'}) {
+	$dev->volume_header->{'type'} == $Amanda::Header::F_WEIRD) {
+	return 0 if (!$autolabel->{'non_amanda'});
+    } elsif ($status & $DEVICE_STATUS_VOLUME_ERROR) {
+	return 0 if (!$autolabel->{'volume_error'});
+    } elsif ($status != $DEVICE_STATUS_SUCCESS) {
 	return 0;
     }
 

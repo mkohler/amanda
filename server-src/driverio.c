@@ -51,7 +51,7 @@ init_driverio(void)
 {
     dumper_t *dumper;
 
-    taper = -1;
+    taper_fd = -1;
 
     for(dumper = dmptable; dumper < dmptable + MAX_DUMPERS; dumper++) {
 	dumper->fd = -1;
@@ -66,7 +66,7 @@ childstr(
     static char buf[NUM_STR_SIZE + 32];
     dumper_t *dumper;
 
-    if (fd == taper)
+    if (fd == taper_fd)
 	return ("taper");
 
     for (dumper = dmptable; dumper < dmptable + MAX_DUMPERS; dumper++) {
@@ -82,10 +82,42 @@ childstr(
 
 void
 startup_tape_process(
-    char *taper_program)
+    char *taper_program,
+    int   taper_parallel_write,
+    gboolean no_taper)
 {
-    int    fd[2];
-    char **config_options;
+    int       fd[2];
+    int       i;
+    char    **config_options;
+    taper_t  *taper;
+
+    /* always allocate the tapetable */
+    tapetable = calloc(sizeof(taper_t), taper_parallel_write+1);
+
+    for (taper = tapetable, i = 0; i < taper_parallel_write; taper++, i++) {
+	taper->name = g_strdup_printf("worker%d", i);
+	taper->sendresult = 0;
+	taper->input_error = NULL;
+	taper->tape_error = NULL;
+	taper->result = 0;
+	taper->dumper = NULL;
+	taper->disk = NULL;
+	taper->first_label = NULL;
+	taper->first_fileno = 0;
+	taper->state = TAPER_STATE_DEFAULT;
+	taper->left = 0;
+	taper->written = 0;
+
+	/* jump right to degraded mode if there's no taper */
+	if (no_taper) {
+	    taper->tape_error = g_strdup("no taper started (--no-taper)");
+	    taper->result = BOGUS;
+	}
+    }
+
+    /* don't start the taper if we're not supposed to */
+    if (no_taper)
+	return;
 
     if(socketpair(AF_UNIX, SOCK_STREAM, 0, fd) == -1) {
 	error(_("taper pipe: %s"), strerror(errno));
@@ -121,7 +153,7 @@ startup_tape_process(
 
     default:	/* parent process */
 	aclose(fd[1]);
-	taper = fd[0];
+	taper_fd = fd[0];
 	taper_ev_read = NULL;
     }
 }
@@ -248,8 +280,7 @@ getresult(
 
     if((line = areads(fd)) == NULL) {
 	if(errno) {
-	    error(_("reading result from %s: %s"), childstr(fd), strerror(errno));
-	    /*NOTREACHED*/
+	    g_fprintf(stderr, _("reading result from %s: %s"), childstr(fd), strerror(errno));
 	}
 	*result_argv = NULL;
 	*result_argc = 0;				/* EOF */
@@ -281,6 +312,96 @@ getresult(
 }
 
 
+static char *
+taper_splitting_args(
+	disk_t *dp)
+{
+    GString *args = NULL;
+    char *q = NULL;
+    dumptype_t *dt = dp->config;
+    tapetype_t *tt;
+
+    tt = lookup_tapetype(getconf_str(CNF_TAPETYPE));
+    g_assert(tt != NULL);
+
+    args = g_string_new("");
+
+    /* old dumptype-based parameters, using empty strings when not seen */
+    if (dt) { /* 'dt' may be NULL for flushes */
+	if (dumptype_seen(dt, DUMPTYPE_TAPE_SPLITSIZE)) {
+	    g_string_append_printf(args, "%ju ",
+			(uintmax_t)dumptype_get_tape_splitsize(dt)*1024);
+	} else {
+	    g_string_append(args, "\"\" ");
+	}
+
+	q = quote_string(dumptype_seen(dt, DUMPTYPE_SPLIT_DISKBUFFER)?
+		dumptype_get_split_diskbuffer(dt) : "");
+	g_string_append_printf(args, "%s ", q);
+	g_free(q);
+
+	if (dumptype_seen(dt, DUMPTYPE_FALLBACK_SPLITSIZE)) {
+	    g_string_append_printf(args, "%ju ",
+			(uintmax_t)dumptype_get_fallback_splitsize(dt)*1024);
+	} else {
+	    g_string_append(args, "\"\" ");
+	}
+
+	if (dumptype_seen(dt, DUMPTYPE_ALLOW_SPLIT)) {
+	    g_string_append_printf(args, "%d ",
+			(int)dumptype_get_allow_split(dt));
+	} else {
+	    g_string_append(args, "\"\" ");
+	}
+    } else {
+	g_string_append(args, "\"\" \"\" \"\" \"\" ");
+    }
+
+    /* new tapetype-based parameters */
+    if (tapetype_seen(tt, TAPETYPE_PART_SIZE)) {
+	g_string_append_printf(args, "%ju ",
+		    (uintmax_t)tapetype_get_part_size(tt)*1024);
+    } else {
+	g_string_append(args, "\"\" ");
+    }
+
+    q = "";
+    if (tapetype_seen(tt, TAPETYPE_PART_CACHE_TYPE)) {
+	switch (tapetype_get_part_cache_type(tt)) {
+	    default:
+	    case PART_CACHE_TYPE_NONE:
+		q = "none";
+		break;
+
+	    case PART_CACHE_TYPE_MEMORY:
+		q = "memory";
+		break;
+
+	    case PART_CACHE_TYPE_DISK:
+		q = "disk";
+		break;
+	}
+    }
+    q = quote_string(q);
+    g_string_append_printf(args, "%s ", q);
+    g_free(q);
+
+    q = quote_string(tapetype_seen(tt, TAPETYPE_PART_CACHE_DIR)?
+	    tapetype_get_part_cache_dir(tt) : "");
+    g_string_append_printf(args, "%s ", q);
+    g_free(q);
+
+    if (tapetype_seen(tt, TAPETYPE_PART_CACHE_MAX_SIZE)) {
+	g_string_append_printf(args, "%ju ",
+		    (uintmax_t)tapetype_get_part_cache_max_size(tt)*1024);
+    } else {
+	g_string_append(args, "\"\" ");
+    }
+
+
+    return g_string_free(args, FALSE);
+}
+
 int
 taper_cmd(
     cmd_t cmd,
@@ -291,77 +412,83 @@ taper_cmd(
 {
     char *cmdline = NULL;
     char number[NUM_STR_SIZE];
-    char splitsize[NUM_STR_SIZE];
-    char fallback_splitsize[NUM_STR_SIZE];
     char orig_kb[NUM_STR_SIZE];
-    char *diskbuffer = NULL;
+    char *data_path;
     disk_t *dp;
     char *qname;
     char *qdest;
     char *q;
+    char *splitargs;
+    uintmax_t origsize;
 
     switch(cmd) {
     case START_TAPER:
-	cmdline = vstralloc(cmdstr[cmd], " ", (char *)ptr, "\n", NULL);
+	cmdline = vstralloc(cmdstr[cmd],
+			    " ", destname,
+			    " ", datestamp,
+			    "\n", NULL);
 	break;
     case FILE_WRITE:
 	dp = (disk_t *) ptr;
         qname = quote_string(dp->name);
 	qdest = quote_string(destname);
 	g_snprintf(number, SIZEOF(number), "%d", level);
-	g_snprintf(splitsize, SIZEOF(splitsize), "%lld",
-		 (long long)dp->tape_splitsize * 1024);
-	g_snprintf(orig_kb, SIZEOF(orig_kb), "%jd",
-		 (intmax_t)sched(dp)->origsize);
+	if (sched(dp)->origsize >= 0)
+	    origsize = sched(dp)->origsize;
+	else
+	    origsize = 0;
+	g_snprintf(orig_kb, SIZEOF(orig_kb), "%ju", origsize);
+	splitargs = taper_splitting_args(dp);
 	cmdline = vstralloc(cmdstr[cmd],
+			    " ", sched(dp)->taper->name,
 			    " ", disk2serial(dp),
 			    " ", qdest,
 			    " ", dp->host->hostname,
 			    " ", qname,
 			    " ", number,
 			    " ", datestamp,
-			    " ", splitsize,
-			    " ", orig_kb,
+			    " ", splitargs,
+			         orig_kb,
 			    "\n", NULL);
+	amfree(splitargs);
 	amfree(qdest);
 	amfree(qname);
 	break;
+
     case PORT_WRITE:
 	dp = (disk_t *) ptr;
         qname = quote_string(dp->name);
 	g_snprintf(number, SIZEOF(number), "%d", level);
+	data_path = data_path_to_string(dp->data_path);
 
 	/*
           If we haven't been given a place to buffer split dumps to disk,
           make the argument something besides and empty string so's taper
           won't get confused
 	*/
-	if(!dp->split_diskbuffer || dp->split_diskbuffer[0] == '\0'){
-	    diskbuffer = "NULL";
-	} else {
-	    diskbuffer = dp->split_diskbuffer;
-	}
-	g_snprintf(splitsize, SIZEOF(splitsize), "%lld",
-		 (long long)dp->tape_splitsize * 1024);
-	g_snprintf(fallback_splitsize, SIZEOF(fallback_splitsize), "%lld",
-		 (long long)dp->fallback_splitsize * 1024);
+	splitargs = taper_splitting_args(dp);
 	cmdline = vstralloc(cmdstr[cmd],
+			    " ", sched(dp)->taper->name,
 			    " ", disk2serial(dp),
 			    " ", dp->host->hostname,
 			    " ", qname,
 			    " ", number,
 			    " ", datestamp,
-			    " ", splitsize,
-			    " ", diskbuffer,
-			    " ", fallback_splitsize,
+			    " ", splitargs,
+			         data_path,
 			    "\n", NULL);
+	amfree(splitargs);
 	amfree(qname);
 	break;
     case DONE: /* handle */
 	dp = (disk_t *) ptr;
-	g_snprintf(number, SIZEOF(number), "%jd",
-		 (intmax_t)(sched(dp)->origsize));
+	if (sched(dp)->origsize >= 0)
+	    origsize = sched(dp)->origsize;
+	else
+	    origsize = 0;
+	g_snprintf(number, SIZEOF(number), "%ju", origsize);
 	cmdline = vstralloc(cmdstr[cmd],
+			    " ", sched(dp)->taper->name,
 			    " ", disk2serial(dp),
 			    " ", number,
 			    "\n", NULL);
@@ -369,17 +496,42 @@ taper_cmd(
     case FAILED: /* handle */
 	dp = (disk_t *) ptr;
 	cmdline = vstralloc(cmdstr[cmd],
+			    " ", sched(dp)->taper->name,
 			    " ", disk2serial(dp),
 			    "\n", NULL);
 	break;
     case NO_NEW_TAPE:
-	q = quote_string((char *)ptr);
+	dp = (disk_t *) ptr;
+	q = quote_string(destname);	/* reason why no new tape */
 	cmdline = vstralloc(cmdstr[cmd],
+			    " ", sched(dp)->taper->name,
+			    " ", disk2serial(dp),
 			    " ", q,
 			    "\n", NULL);
 	amfree(q);
 	break;
     case NEW_TAPE:
+	dp = (disk_t *) ptr;
+	cmdline = vstralloc(cmdstr[cmd],
+			    " ", sched(dp)->taper->name,
+			    " ", disk2serial(dp),
+			    "\n", NULL);
+	break;
+    case START_SCAN:
+	dp = (disk_t *) ptr;
+	cmdline = vstralloc(cmdstr[cmd],
+			    " ", sched(dp)->taper->name,
+			    " ", disk2serial(dp),
+			    "\n", NULL);
+	break;
+    case TAKE_SCRIBE_FROM:
+	dp = (disk_t *) ptr;
+	cmdline = vstralloc(cmdstr[cmd],
+			    " ", sched(dp)->taper->name,
+			    " ", disk2serial(dp),
+			    " ", destname,  /* name of worker */
+			    "\n", NULL);
+	break;
     case QUIT:
 	cmdline = stralloc2(cmdstr[cmd], "\n");
 	break;
@@ -394,14 +546,14 @@ taper_cmd(
     g_printf(_("driver: send-cmd time %s to taper: %s"),
 	   walltime_str(curclock()), cmdline);
     fflush(stdout);
-    if ((full_write(taper, cmdline, strlen(cmdline))) < strlen(cmdline)) {
+    if ((full_write(taper_fd, cmdline, strlen(cmdline))) < strlen(cmdline)) {
 	g_printf(_("writing taper command '%s' failed: %s\n"),
 		cmdline, strerror(errno));
 	fflush(stdout);
 	amfree(cmdline);
 	return 0;
     }
-    if(cmd == QUIT) aclose(taper);
+    if(cmd == QUIT) aclose(taper_fd);
     amfree(cmdline);
     return 1;
 }
@@ -416,7 +568,7 @@ dumper_cmd(
     char *cmdline = NULL;
     char number[NUM_STR_SIZE];
     char numberport[NUM_STR_SIZE];
-    char *o;
+    char *o, *oo;
     char *device;
     char *features;
     char *qname;
@@ -462,7 +614,9 @@ dumper_cmd(
 		    vstrextend(&o, xml_app, NULL);
 		    amfree(xml_app);
 		}
-		o = quote_string(o);
+		oo = quote_string(o);
+		amfree(o);
+		o = oo;
 	    } else {
 		o = optionstr(dp);
 	    }
@@ -675,7 +829,7 @@ chunker_cmd(
     return 1;
 }
 
-#define MAX_SERIAL MAX_DUMPERS+1	/* one for the taper */
+#define MAX_SERIAL MAX_DUMPERS*2	/* one for each dumper and taper */
 
 long generation = 1;
 
@@ -743,8 +897,8 @@ free_serial_dp(
 	}
     }
 
-    g_printf(_("driver: error time %s serial not found\n"),
-	   walltime_str(curclock()));
+    g_printf(_("driver: error time %s serial not found for disk %s\n"),
+	   walltime_str(curclock()), dp->name);
 }
 
 
