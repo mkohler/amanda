@@ -42,7 +42,8 @@ configure-stamp:
 		--with-ssh-security \
 		--with-bsdtcp-security \
 		--with-bsdudp-security \
-		--without-ipv6
+		--without-ipv6 \
+		--enable-s3-device
 
 	touch missing
 	touch configure-stamp
