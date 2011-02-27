@@ -537,6 +537,7 @@ sub output_error_summaries
 
 	if ($report->get_flag('results_missing') and
 	    !defined($alldumps->{$report->{run_timestamp}}) and
+	    !$dle->{driver} and
 	    !$dle->{planner}) {
 	    push @missing_failures, "$hostname $qdisk RESULTS MISSING";
 	}
@@ -964,14 +965,6 @@ sub output_details
 
 		# note: copied & modified from calculate_stats.
 		if (
-		       exists $try->{dumper}
-		    && exists $try->{taper}
-		    && defined $try->{taper}->{kb}
-		    && (   $try->{taper}{status} eq 'done'
-			|| $try->{taper}{status} eq 'partial')
-		  ) {
-		    $outsize = $try->{taper}->{kb};
-		} elsif (
 		    exists $try->{dumper}
 		    && exists $try->{chunker}
 		    && defined $try->{chunker}->{kb}
@@ -979,6 +972,14 @@ sub output_details
 			|| $try->{chunker}{status} eq 'partial')
 		  ) {
 		    $outsize = $try->{chunker}->{kb};
+		} elsif (
+		       exists $try->{dumper}
+		    && exists $try->{taper}
+		    && defined $try->{taper}->{kb}
+		    && (   $try->{taper}{status} eq 'done'
+			|| $try->{taper}{status} eq 'partial')
+		  ) {
+		    $outsize = $try->{taper}->{kb};
 		}
 	    }
 	}
@@ -993,7 +994,8 @@ sub output_details
             push @$notes,
               "big estimate: $hostname $qdisk $dle->{estimate}{level}",
               sprintf('                est: %.0f%s    out %.0f%s',
-                $est->{ckb}, $disp_unit, $outsize, $disp_unit)
+                $self->tounits($est->{ckb}), $disp_unit,
+		$self->tounits($outsize), $disp_unit)
               if (defined $est->{'ckb'} && ($est->{ckb} * .9 > $outsize)
                 && ($est->{ckb} - $outsize > 1.0e5));
         }
@@ -1167,14 +1169,19 @@ sub get_summary_info
       : $tail_quote_trunc->($disk, $col_spec->[1]->[COLSPEC_WIDTH]);
 
     my $alldumps = $dle_info->{'dumps'};
-    if ($dle_info->{'planner'} &&
-        $dle_info->{'planner'}->{'status'} eq 'fail') {
-	my @rv;
-	push @rv, 'nodump-FAILED';
-	push @rv, $hostname;
-	push @rv, $disk_out;
-	push @rv, ("",) x 9;
-	push @rvs, [@rv];
+    if (($dle_info->{'planner'} &&
+         $dle_info->{'planner'}->{'status'} eq 'fail') or
+	($dle_info->{'driver'} &&
+         $dle_info->{'driver'}->{'status'} eq 'fail')) {
+	# Do not report driver error if we have a try
+	if (!exists $alldumps->{$report->{'run_timestamp'}}) {
+	    my @rv;
+	    push @rv, 'nodump-FAILED';
+	    push @rv, $hostname;
+	    push @rv, $disk_out;
+	    push @rv, ("",) x 9;
+	    push @rvs, [@rv];
+	}
     } elsif ($dle_info->{'planner'} &&
         $dle_info->{'planner'}->{'status'} eq 'skipped') {
 	my @rv;
@@ -1279,7 +1286,7 @@ sub get_summary_info
 
 	# sometimes the driver logs an orig_size of -1, which makes the
 	# compression percent very large and negative
-	$orig_size = 0 if ($orig_size < 0);
+	$orig_size = 0 if (defined $orig_size && $orig_size < 0);
 
 	# pre-format the compression column, with '--' replacing 100% (i.e.,
 	# no compression)

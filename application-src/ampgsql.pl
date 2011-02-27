@@ -89,10 +89,10 @@ sub new {
             $self->{'props'}->{$pname} = $conf_props->{$pname}->{'values'}->[0];
         }
     }
-    # check for properties like 'foo-pg-host' where the device is 'foo'
-    if ($self->{'args'}->{'device'}) {
+    # check for properties like 'foo-pg-host' where the diskname is 'foo'
+    if ($self->{'args'}->{'disk'}) {
         foreach my $pname (@PROP_NAMES) {
-            my $tmp = "$self->{'args'}->{'device'}-$pname";
+            my $tmp = "$self->{'args'}->{'disk'}-$pname";
             if ($conf_props->{$tmp}) {
                 debug("More than one value for $tmp. Using the first.")
                     if scalar(@{$conf_props->{$tmp}->{'values'}}) > 1;
@@ -491,7 +491,7 @@ sub _get_backup_info {
 	       # this works!)
                local *TAROUT;
                my $conf = $self->{'args'}->{'config'} || 'NOCONFIG';
-               my $cmd = "$self->{'runtar'} $conf $Amanda::Constants::GNUTAR --create --directory $self->{'props'}->{'pg-archivedir'} $fname | $Amanda::Constants::GNUTAR --extract --to-stdout";
+               my $cmd = "$self->{'runtar'} $conf $Amanda::Constants::GNUTAR --create --file - --directory $self->{'props'}->{'pg-archivedir'} $fname | $Amanda::Constants::GNUTAR --file - --extract --to-stdout";
                debug("running: $cmd");
                open(TAROUT, "$cmd |");
                my ($start, $end, $lab);
@@ -676,13 +676,13 @@ sub _base_backup {
 	   '--directory', $self->{'props'}->{'pg-archivedir'}, @wal_files);
    } else {
        my $dummydir = $self->_make_dummy_dir();
-       $self->{'done_cb'}->(_run_tar_totals($self,
+       $self->{'done_cb'}->(_run_tar_totals($self, '--file', '-',
            '--directory', $dummydir, "empty-incremental"));
        rmtree($dummydir);
    }
 
    # create the final tar file
-   my $size = _run_tar_totals($self, '--directory', $tmp,
+   my $size = _run_tar_totals($self, '--directory', $tmp, '--file', '-',
        $_ARCHIVE_DIR_TAR, $_DATA_DIR_TAR);
 
    $self->{'state_cb'}->($self, $end_wal);
@@ -719,11 +719,11 @@ sub _incr_backup {
    $self->{'state_cb'}->($self, $max_wal ? $max_wal : $end_wal);
 
    if (@wal_files) {
-       $self->{'done_cb'}->(_run_tar_totals($self,
+       $self->{'done_cb'}->(_run_tar_totals($self, '--file', '-',
            '--directory', $self->{'props'}->{'pg-archivedir'}, @wal_files));
    } else {
        my $dummydir = $self->_make_dummy_dir();
-       $self->{'done_cb'}->(_run_tar_totals($self,
+       $self->{'done_cb'}->(_run_tar_totals($self, '--file', '-',
            '--directory', $dummydir, "empty-incremental"));
        rmtree($dummydir);
    }
@@ -808,6 +808,7 @@ sub command_restore {
    if ($self->{'args'}->{'level'} > 0) {
        debug("extracting incremental backup to $cur_dir/$_ARCHIVE_DIR_RESTORE");
        $status = system($self->{'args'}->{'gnutar-path'}, '--extract',
+	   '--file', '-',
 	   '--ignore-zeros',
 	   '--exclude', 'empty-incremental',
            '--directory', $_ARCHIVE_DIR_RESTORE) >> 8;
@@ -817,7 +818,7 @@ sub command_restore {
        if (!-d $_DATA_DIR_RESTORE) {
            mkdir($_DATA_DIR_RESTORE) or die("could not create archive WAL directory: $!");
        }
-       $status = system($self->{'args'}->{'gnutar-path'}, '--extract') >> 8;
+       $status = system($self->{'args'}->{'gnutar-path'}, '--extract', '--file', '-',) >> 8;
        (0 == $status) or die("Failed to extract base backup (exit status: $status)");
 
        debug("extracting archive dir to $cur_dir/$_ARCHIVE_DIR_RESTORE");

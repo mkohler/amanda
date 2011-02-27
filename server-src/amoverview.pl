@@ -31,8 +31,8 @@ use POSIX;
 
 sub Usage {
     print STDERR <<END;
-Usage: $0 [[--config] CONFIG] [--hostwidth width] [--diskwidth width]
-	  [-skipmissed] [--last] [--num0] [--togo0] [--verbose]
+Usage: $0 [--hostwidth width] [--diskwidth width] [--skipmissed]
+	  [--last] [--num0] [--togo0] [--verbose] [[--config] CONFIG]
 
 This script generates to standard output an overview of the filesystems
 dumped over time and the type of dump done on a particular day, such as
@@ -66,10 +66,12 @@ GetOptions('config=s'		=> \$opt_config,
 	   'verbose'		=> \$opt_verbose)
 or Usage();
 
-if(@ARGV == 1) {
-  $opt_config = $ARGV[0];
-} else {
-  Usage();
+unless(defined($opt_config)) {
+    if (@ARGV == 1) {
+	$opt_config = $ARGV[0];
+    } else {
+	Usage();
+    }
 }
 
 #Initialize configuration

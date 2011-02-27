@@ -122,6 +122,8 @@ static time_t conf_dtimeout;
 static int indexfderror;
 static int set_datafd;
 static char *dle_str = NULL;
+static char *errfname = NULL;
+static int   errf_lines = 0;
 
 static dumpfile_t file;
 
@@ -162,7 +164,7 @@ static void	process_dumpeof(void);
 static void	process_dumpline(const char *);
 static void	add_msg_data(const char *, size_t);
 static void	parse_info_line(char *);
-static void	log_msgout(logtype_t);
+static int	log_msgout(logtype_t);
 static char *	dumper_get_security_conf (char *, void *);
 
 static int	runcompress(int, pid_t *, comp_t, char *);
@@ -905,6 +907,7 @@ bad_line:
 	break;
     }
     g_fprintf(errf, "%s\n", str);
+    errf_lines++;
     amfree(buf);
 }
 
@@ -992,24 +995,33 @@ add_msg_data(
 }
 
 
-static void
+static int
 log_msgout(
     logtype_t	typ)
 {
     char *line;
+    int   count = 0;
 
     fflush(errf);
     if (fseeko(errf, 0L, SEEK_SET) < 0) {
 	dbprintf(_("log_msgout: warning - seek failed: %s\n"), strerror(errno));
     }
     while ((line = agets(errf)) != NULL) {
+	if (errf_lines >= 100 && count >= 20)
+	    break;
 	if (line[0] != '\0') {
 		log_add(typ, "%s", line);
 	}
 	amfree(line);
+	count++;
+    }
+    amfree(line);
+
+    if (errf_lines >= 100) {
+	log_add(typ, "Look in the '%s' file for full error messages", errfname);
     }
 
-    afclose(errf);
+    return errf_lines < 100;
 }
 
 /* ------------- */
@@ -1157,13 +1169,14 @@ do_dump(
     char *indexfile_tmp = NULL;
     char *indexfile_real = NULL;
     char level_str[NUM_STR_SIZE];
+    char *time_str;
     char *fn;
     char *q;
     times_t runtime;
     double dumptime;	/* Time dump took in secs */
-    char *errfname = NULL;
     pid_t indexpid = -1;
     char *m;
+    int to_unlink = 1;
 
     startclock();
 
@@ -1174,23 +1187,29 @@ do_dump(
     fh_init(&file);
 
     g_snprintf(level_str, SIZEOF(level_str), "%d", level);
+    time_str = get_timestamp_from_time(0);
     fn = sanitise_filename(diskname);
+    errf_lines = 0;
     errfname = newvstralloc(errfname,
-			    AMANDA_TMPDIR,
-			    "/", hostname,
+			    AMANDA_DBGDIR,
+			    "/log.error", NULL);
+    mkdir(errfname, 0700);
+    errfname = newvstralloc(errfname,
+			    AMANDA_DBGDIR,
+			    "/log.error/", hostname,
 			    ".", fn,
 			    ".", level_str,
+			    ".", time_str,
 			    ".errout",
 			    NULL);
     amfree(fn);
+    amfree(time_str);
     if((errf = fopen(errfname, "w+")) == NULL) {
 	errstr = newvstrallocf(errstr, "errfile open \"%s\": %s",
 			      errfname, strerror(errno));
 	amfree(errfname);
 	goto failed;
     }
-    unlink(errfname);				/* so it goes away on close */
-    amfree(errfname);
 
     if (streams[INDEXFD].fd != NULL) {
 	indexfile_real = getindexfname(hostname, diskname, dumper_timestamp, level);
@@ -1298,13 +1317,19 @@ do_dump(
     case 1:
 	log_start_multiline();
 	log_add(L_STRANGE, "%s %s %d [%s]", hostname, qdiskname, level, errstr);
-	log_msgout(L_STRANGE);
+	to_unlink = log_msgout(L_STRANGE);
 	log_end_multiline();
 
 	break;
     }
 
-    if (errf) afclose(errf);
+    if (errf)
+	afclose(errf);
+    if (errfname) {
+	if (to_unlink)
+	    unlink(errfname);
+	amfree(errfname);
+    }
 
     if (data_path == DATA_PATH_AMANDA)
 	aclose(db->fd);
@@ -1398,11 +1423,17 @@ failed:
     log_add(L_FAIL, _("%s %s %s %d [%s]"), hostname, qdiskname, dumper_timestamp,
 	    level, errstr);
     if (errf) {
-	log_msgout(L_FAIL);
+	to_unlink = log_msgout(L_FAIL);
     }
     log_end_multiline();
 
-    if (errf) afclose(errf);
+    if (errf)
+	afclose(errf);
+    if (errfname) {
+	if (to_unlink)
+	    unlink(errfname);
+	amfree(errfname);
+    }
 
     if (indexfile_tmp) {
 	unlink(indexfile_tmp);
@@ -1484,7 +1515,7 @@ read_mesgfd(
 				   STREAM_BUFSIZE, 0, NULL, 0);
 	    if (db->fd == -1) {
 		errstr = newvstrallocf(errstr,
-				       _("Can't opendata output stream: %s"),
+				       _("Can't open data output stream: %s"),
 				       strerror(errno));
 		dump_result = 2;
 		stop_dump();
@@ -1771,7 +1802,7 @@ stop_dump(void)
     cmdargs = get_pending_cmd();
     if (cmdargs) {
 	if (cmdargs->cmd != ABORT) {
-	    error(_("beurk"));
+	    error(_("beurk %d"), cmdargs->cmd);
 	}
 	amfree(errstr);
 	errstr = stralloc(cmdargs->argv[1]);

@@ -67,7 +67,7 @@ my (@outputs, @output_queue);
 sub usage
 {
     print <<EOF;
-Usage: amreport conf [--version] [--help] [-o configoption]
+Usage: amreport [--version] [--help] [-o configoption] <conf>
   command-line mode options:
     [--log=logfile] [--ps=filename] [--text=filename] [--xml=filename]
     [--print=printer] [--mail-text=recipient]
@@ -363,7 +363,8 @@ sub open_mail_output
 
     my $datestamp =
       $report->get_program_info(
-        $report->get_flag("amflush_run") ? "amflush" : "planner", "start" );
+        $report->get_flag("amflush_run") ? "amflush" : 
+	$report->get_flag("amvault_run") ? "amvault" : "planner", "start" );
 
     $datestamp /= 1000000 if $datestamp > 99999999;
     $datestamp = int($datestamp);
