@@ -132,7 +132,7 @@ binary-arch: build
 		$(s)/usr/share/lintian/overrides/amanda-server
 	dh_makeshlibs -pamanda-common --noscripts
 	dh_installdeb -a
-	dh_perl -a
+	dh_perl -a usr/lib/amanda/perl
 	dh_shlibdeps -a -l"debian/amanda-common/usr/lib:debian/amanda-client/usr/lib:debian/amanda-server/usr/lib"
 	# strip out the non-versioned amanda-common references, we need
 	# the versioned ones in the control file and dupes are ugly...
