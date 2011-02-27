@@ -126,8 +126,8 @@ binary-arch: build
 		$(s)/usr/sbin/amcheck
 	install -o root -g root -m 0644 debian/amanda-client.lintian \
 		$(c)/usr/share/lintian/overrides/amanda-client
-#	install -o root -g root -m 0644 debian/amanda-common.lintian \
-#		$(r)/usr/share/lintian/overrides/amanda-common
+	install -o root -g root -m 0644 debian/amanda-common.lintian \
+		$(r)/usr/share/lintian/overrides/amanda-common
 	install -o root -g root -m 0644 debian/amanda-server.lintian \
 		$(s)/usr/share/lintian/overrides/amanda-server
 	dh_makeshlibs -pamanda-common --noscripts
