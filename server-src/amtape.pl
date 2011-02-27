@@ -49,7 +49,7 @@ sub usage {
     $finished_cb = sub { exit(1); } if (!$finished_cb or !(ref($finished_cb) eq "CODE"));
 
     print STDERR <<EOF;
-Usage: amtape <conf> <command> {<args>} [-o configoption]*
+Usage: amtape [-o configoption]* <conf> <command> {<args>}
   Valid commands are:
 EOF
     local $Text::Wrap::columns = 80 - 20;
@@ -258,11 +258,13 @@ sub {
 	    my $line = "slot $sl->{slot}:";
 	    if (!defined($sl->{device_status}) && !defined($sl->{label})) {
 		$line .= " unknown state";
-	    } elsif ($sl->{'status'} == Amanda::Changer::SLOT_EMPTY) {
+	    } elsif ($sl->{'state'} == Amanda::Changer::SLOT_EMPTY) {
 		$line .= " empty";
 	    } else {
 		if (defined $sl->{label}) {
 		    $line .= " label $sl->{label}";
+		} elsif ($sl->{'device_status'} == $DEVICE_STATUS_VOLUME_UNLABELED) {
+		    $line .= " blank";
 		} elsif ($sl->{'device_status'} != $DEVICE_STATUS_SUCCESS) {
 		    $line .= "device error";
 		} elsif ($sl->{'f_type'} != $Amanda::Header::F_TAPESTART) {

@@ -96,6 +96,9 @@ static char *dump_device_name = NULL;
 static char *errstr;
 static char *amidxtaped_line = NULL;
 extern char *localhost;
+static char header_buf[32768];
+static int  header_size = 0;
+
 
 /* global pid storage for interrupt handler */
 pid_t extract_restore_child_pid = -1;
@@ -2106,6 +2109,7 @@ writer_intermediary(
     ctl_data.bsu           = NULL;
     ctl_data.bytes_read    = 0;
 
+    header_size = 0;
     security_stream_read(amidxtaped_streams[DATAFD].fd,
 			 read_amidxtaped_data, &ctl_data);
 
@@ -2289,7 +2293,7 @@ extract_files(void)
 	all_level = g_slist_append(all_level, level);
     }
     if (dump_dle) {
-	g_slist_free_full(dump_dle->levellist);
+	slist_free_full(dump_dle->levellist, g_free);
 	dump_dle->levellist = all_level;
 	run_client_scripts(EXECUTE_ON_PRE_RECOVER, &g_options, dump_dle,
 			   stderr);
@@ -2337,7 +2341,7 @@ extract_files(void)
 	    dump_dle->levellist = g_slist_append(dump_dle->levellist, level);
 	    run_client_scripts(EXECUTE_ON_INTER_LEVEL_RECOVER, &g_options,
 			       dump_dle, stderr);
-	    g_slist_free_full(dump_dle->levellist);
+	    slist_free_full(dump_dle->levellist, g_free);
 	    dump_dle->levellist = NULL;
 	}
 
@@ -2373,7 +2377,7 @@ extract_files(void)
 	if (dump_dle) {
 	    run_client_scripts(EXECUTE_ON_POST_LEVEL_RECOVER, &g_options,
 			       dump_dle, stderr);
-	    g_slist_free_full(dump_dle->levellist);
+	    slist_free_full(dump_dle->levellist, g_free);
 	    dump_dle->levellist = NULL;
 	}
     }
@@ -2381,7 +2385,7 @@ extract_files(void)
 	dump_dle->levellist = all_level;
 	run_client_scripts(EXECUTE_ON_POST_RECOVER, &g_options, dump_dle,
 			   stderr);
-	g_slist_free_full(dump_dle->levellist);
+	slist_free_full(dump_dle->levellist, g_free);
 	all_level = NULL;
 	dump_dle->levellist = NULL;
     }
@@ -2687,10 +2691,24 @@ read_amidxtaped_data(
 	GPtrArray  *errarray;
 	g_option_t  g_options;
 	data_path_t data_path_set = DATA_PATH_AMANDA;
+	int to_move;
 
+	to_move = MIN(32768-header_size, size);
+	memcpy(header_buf+header_size, buf, to_move);
+	header_size += to_move;
+
+	g_debug("read header %zd => %d", size, header_size);
+	if (header_size < 32768) {
+            security_stream_read(amidxtaped_streams[DATAFD].fd,
+				 read_amidxtaped_data, cookie);
+	    return;
+	} else if (header_size > 32768) {
+	    error("header_size is %d\n", header_size);
+	}
+	assert (to_move == size);
 	/* parse the file header */
 	fh_init(&ctl_data->file);
-	parse_file_header(buf, &ctl_data->file, (size_t)size);
+	parse_file_header(header_buf, &ctl_data->file, (size_t)header_size);
 
 	/* call backup_support_option */
 	g_options.config = get_config_name();

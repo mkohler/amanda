@@ -2,12 +2,12 @@
 .\"     Title: tapelist
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 10/18/2010
+.\"      Date: 12/14/2010
 .\"    Manual: File formats and conventions
-.\"    Source: Amanda 3.2.0
+.\"    Source: Amanda 3.2.1
 .\"  Language: English
 .\"
-.TH "TAPELIST" "5" "10/18/2010" "Amanda 3\&.2\&.0" "File formats and conventions"
+.TH "TAPELIST" "5" "12/14/2010" "Amanda 3\&.2\&.1" "File formats and conventions"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -27,7 +27,7 @@ The
 file contains the list of tapes in active use\&. This file is not ordinarily ordinarily edited or examined manually\&. Its format may change, or it may be removed altogether, in future versions of Amanda\&. It contains lines of the form:
 .PP
 .nf
-YYYYMMDD label flags [#comment]
+YYYYMMDD label flags [BARCODE:barcode] [#comment]
 .fi
 .PP
 Where
@@ -43,7 +43,7 @@ is one of "reuse" or "no\-reuse" and tells Amanda whether the tape may be reused
 dumps\&. See the
 \fBreuse\fR
 options of
-\fBamadmin\fR(8)\&. The optional comment is prefixed with a \'#\' and continues to the end of the line\&. Amanda will maintain this comment until the tape is overwritten\&. Note that comments are not allowed on blank lines\&.
+\fBamadmin\fR(8)\&. The optional barcode is prefixed with \'BARCODE\' if the volume have a barcode\&. The optional comment is prefixed with a \'#\' and continues to the end of the line\&. Amanda will maintain this comment until the tape is overwritten\&. Note that comments are not allowed on blank lines\&.
 .PP
 The file is sorted such that the most\-recently used tape appears on the first line, and the oldest tape appears on the last line\&.
 .PP

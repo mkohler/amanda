@@ -499,31 +499,9 @@ main(
 	headqueue_disk(&directq, diskp);
     }
 
-    /* handle any remaining dumps by dumping directly to tape, if possible */
-    while(!empty(directq) && taper_fd > 0) {
-	time_t  sleep_time  = 100000000;
-	disk_t *sleep_diskp = NULL;
-	time_t  now         = time(0);
-
-	/* Find one we can do immediately or the sonner */
-	for (diskp = directq.head; diskp != NULL; diskp = diskp->next) {
-	    if (diskp->to_holdingdisk == HOLD_REQUIRED ||
-		degraded_mode) {
-		sleep_time = 0;
-		sleep_diskp = diskp;
-	    } else if (diskp->host->start_t - now < sleep_time &&
-		       diskp->start_t -now < sleep_time) {
-		if (diskp->host->start_t > diskp->start_t)
-		    sleep_time = diskp->host->start_t - now;
-		else
-		    sleep_time = diskp->start_t - now;
-		sleep_diskp = diskp;
-	    }
-	}
-	diskp = sleep_diskp;
-	if (sleep_time > 0)
-	    sleep(sleep_time);
-	remove_disk(&directq, diskp);
+    /* log error for any remaining dumps */
+    while(!empty(directq)) {
+	diskp = dequeue_disk(&directq);
 
 	if (diskp->to_holdingdisk == HOLD_REQUIRED) {
 	    char *qname = quote_string(diskp->name);
@@ -538,7 +516,7 @@ main(
 	    log_add(L_FAIL, "%s %s %s %d [%s]",
 		diskp->host->hostname, qname, sched(diskp)->datestamp,
 		sched(diskp)->level,
-		_("can't dump in degraded mode"));
+		_("can't dump in non degraded mode"));
 	    amfree(qname);
 	}
 	else {
@@ -554,10 +532,6 @@ main(
 	    amfree(qname);
 	}
     }
-
-    /* fill up the tape or start new one for taperflush */
-    startaflush();
-    event_loop(0);
 
     short_dump_state();				/* for amstatus */
 
@@ -1038,12 +1012,13 @@ allow_dump_dle(
     } else if (!taper && (holdp =
 	find_diskspace(sched(diskp)->est_size, cur_idle, NULL)) == NULL) {
 	*cur_idle = max(*cur_idle, IDLE_NO_DISKSPACE);
-	if (empty(tapeq) && dumper_to_holding == 0 && rq != &directq) {
+	if (empty(tapeq) && dumper_to_holding == 0 && rq != &directq && all_taper_idle()) {
 	    remove_disk(rq, diskp);
 	    if (diskp->to_holdingdisk != HOLD_REQUIRED) {
 		enqueue_disk(&directq, diskp);
 		diskp->to_holdingdisk = HOLD_NEVER;
 	    }
+	    if (empty(*rq)) force_flush = 1;
 	}
     } else if (client_constrained(diskp)) {
 	free_assignedhd(holdp);
@@ -1326,6 +1301,7 @@ start_some_dumps(
 		dumper_cmd(dumper, PORT_DUMP, diskp, NULL);
 	    }
 	    diskp->host->start_t = now + 15;
+	    if (empty(*rq)) force_flush = 1;
 
 	    if (result_argv)
 		g_strfreev(result_argv);
@@ -1607,6 +1583,9 @@ handle_taper_result(
 
 	    if (strcmp(result_argv[2], "INPUT-ERROR") == 0) {
 		taper->input_error = newstralloc(taper->input_error, result_argv[4]);
+		taper->result = FAILED;
+		amfree(qname);
+		break;
 	    } else if (strcmp(result_argv[2], "INPUT-GOOD") != 0) {
 		taper->tape_error = newstralloc(taper->tape_error,
 					       _("Taper protocol error"));
@@ -1620,6 +1599,9 @@ handle_taper_result(
 	    if (strcmp(result_argv[3], "TAPE-ERROR") == 0) {
 		taper->state &= ~TAPER_STATE_TAPE_STARTED;
 		taper->tape_error = newstralloc(taper->tape_error, result_argv[5]);
+		taper->result = FAILED;
+		amfree(qname);
+		break;
 	    } else if (strcmp(result_argv[3], "TAPE-GOOD") != 0) {
 		taper->state &= ~TAPER_STATE_TAPE_STARTED;
 		taper->tape_error = newstralloc(taper->tape_error,
@@ -1657,6 +1639,9 @@ handle_taper_result(
 
 	    if (strcmp(result_argv[2], "INPUT-ERROR") == 0) {
 		taper->input_error = newstralloc(taper->input_error, result_argv[5]);
+		taper->result = FAILED;
+		amfree(qname);
+		break;
 	    } else if (strcmp(result_argv[2], "INPUT-GOOD") != 0) {
 		taper->tape_error = newstralloc(taper->tape_error,
 					       _("Taper protocol error"));
@@ -1670,6 +1655,9 @@ handle_taper_result(
 	    if (strcmp(result_argv[3], "TAPE-ERROR") == 0) {
 		taper->state &= ~TAPER_STATE_TAPE_STARTED;
 		taper->tape_error = newstralloc(taper->tape_error, result_argv[6]);
+		taper->result = FAILED;
+		amfree(qname);
+		break;
 	    } else if (strcmp(result_argv[3], "TAPE-GOOD") != 0) {
 		taper->state &= ~TAPER_STATE_TAPE_STARTED;
 		taper->tape_error = newstralloc(taper->tape_error,
@@ -2114,6 +2102,7 @@ dumper_taper_result(
     dp->inprogress = 0;
     deallocate_bandwidth(dp->host->netif, sched(dp)->est_kps);
     taper->dumper = NULL;
+    taper->disk = NULL;
     sched(dp)->dumper = NULL;
     sched(dp)->taper = NULL;
     start_some_dumps(&runq);
@@ -2759,7 +2748,7 @@ read_flush(
 	    continue;
 	}
 
-	if(file.dumplevel < 0 || file.dumplevel > 9) {
+	if (file.dumplevel < 0 || file.dumplevel > 399) {
 	    log_add(L_INFO, _("%s: ignoring file with bogus dump level %d."),
 		    destname, file.dumplevel);
 	    amfree(destname);
@@ -2825,6 +2814,8 @@ read_flush(
     if (!nodump) {
 	schedule_ev_read = event_register((event_id_t)0, EV_READFD,
 					  read_schedule, NULL);
+    } else {
+	force_flush = 1;
     }
 }
 
@@ -3137,6 +3128,7 @@ read_schedule(
 	log_add(L_WARNING, _("WARNING: got empty schedule from planner"));
     if(need_degraded==1) start_degraded_mode(&runq);
     schedule_done = 1;
+    if (empty(runq)) force_flush = 1;
     start_some_dumps(&runq);
     startaflush();
 }
@@ -3805,13 +3797,9 @@ tape_action(
     }
 
     // when to start a flush
-    // We don't start a flush if taper_tape_started == 1 && dump_to_disk_terminated && force_flush == 0,
-    // it is a criteria need to exit the first event_loop without flushing everything to tape,
-    // they will be flush in another event_loop.
     if (taper->state & TAPER_STATE_IDLE) {
 	if (!degraded_mode && (!empty(tapeq) || !empty(directq)) &&
-	    (((taper->state & TAPER_STATE_TAPE_STARTED) &&
-	      force_flush == 1) ||				// if tape already started and force_flush
+	    (taper->state & TAPER_STATE_TAPE_STARTED ||		// tape already started 
              !empty(roomq) ||					// holding disk constraint
              idle_reason == IDLE_NO_DISKSPACE ||		// holding disk constraint
              (my_flush_threshold_dumped < tapeq_size &&		// flush-threshold-dumped &&

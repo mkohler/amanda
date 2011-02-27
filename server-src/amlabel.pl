@@ -42,8 +42,7 @@ my $exit_status = 0;
 my %subcommands;
 
 sub usage {
-    print STDERR "Usage: amlabel <conf> <label> [slot <slot-number>] "
-	       . "[-f] [-o configoption]*\n";
+    print STDERR "Usage: amlabel [-f] [-o configoption]* <conf> <label> [slot <slot-number>]\n";
     exit(1);
 }
 
@@ -219,7 +218,7 @@ sub main {
 	    # update the tapelist
 	    $tl->reload(1);
 	    $tl->remove_tapelabel($opt_label);
-	    $tl->add_tapelabel("0", $opt_label, undef, 1);
+	    $tl->add_tapelabel("0", $opt_label, undef, 1, undef, $res->{'barcode'});
 	    $tl->write();
 
 	    print "Success!\n";

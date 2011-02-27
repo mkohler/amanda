@@ -226,6 +226,10 @@ static int current_line_num = 0; /* (technically, managed by the parser) */
 /* A static buffer for storing tokens while they are being scanned. */
 static char tkbuf[4096];
 
+/* Return a token formated for output */
+static char *str_keyword(keytab_t *kt);
+
+static char *str_keyword(keytab_t *kt);
 /* Look up the name of the given token in the current keytable */
 static char *get_token_name(tok_t);
 
@@ -1638,7 +1642,7 @@ negative_number: /* look for goto negative_number below sign is set there */
 	    if (kwp->keyword == NULL)
 		str = _("token not");
 	    else
-		str = kwp->keyword;
+		str = str_keyword(kwp);
 	    break;
 	}
 	conf_parserror(_("%s is expected"), str);
@@ -3645,7 +3649,7 @@ read_execute_on(
 	case CONF_POST_LEVEL_RECOVER:  val->v.i |= EXECUTE_ON_POST_LEVEL_RECOVER;  break;
 	case CONF_INTER_LEVEL_RECOVER: val->v.i |= EXECUTE_ON_INTER_LEVEL_RECOVER; break;
 	default:
-	conf_parserror(_("Execute_on expected"));
+	conf_parserror(_("Execute-on expected"));
 	}
 	get_conftoken(CONF_ANY);
 	if (tok != CONF_COMMA) {
@@ -4668,7 +4672,7 @@ config_uninit(void)
 	   free_val_t(&hd->value[i]);
 	}
     }
-    g_slist_free_full(holdinglist);
+    slist_free_full(holdinglist, g_free);
     holdinglist = NULL;
 
     for(dp=dumplist; dp != NULL; dp = dpnext) {
@@ -4754,7 +4758,7 @@ config_uninit(void)
     amfree(config_dir);
     amfree(config_filename);
 
-    g_slist_free_full(seen_filenames);
+    slist_free_full(seen_filenames, g_free);
     seen_filenames = NULL;
 
     config_client = FALSE;
@@ -4837,7 +4841,7 @@ init_defaults(
     conf_init_int      (&conf_data[CNF_REQ_TRIES]            , 3);
     conf_init_int      (&conf_data[CNF_DEBUG_DAYS]           , AMANDA_DEBUG_DAYS);
     conf_init_int      (&conf_data[CNF_DEBUG_AMANDAD]        , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_RECOVERY]       , 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_RECOVERY]       , 1);
     conf_init_int      (&conf_data[CNF_DEBUG_AMIDXTAPED]     , 0);
     conf_init_int      (&conf_data[CNF_DEBUG_AMINDEXD]       , 0);
     conf_init_int      (&conf_data[CNF_DEBUG_AMRECOVER]      , 0);
@@ -5383,7 +5387,7 @@ free_property_t(
     gpointer p)
 {
     property_t *propery = (property_t *)p;
-    g_slist_free_full(propery->values);
+    slist_free_full(propery->values, g_free);
     amfree(propery);
 }
 
@@ -6508,11 +6512,11 @@ free_val_t(
 	    break;
 
 	case CONFTYPE_IDENTLIST:
-	    g_slist_free_full(val->v.identlist);
+	    slist_free_full(val->v.identlist, g_free);
 	    break;
 
 	case CONFTYPE_RECOVERY_LIMIT:
-	    g_slist_free_full(val->v.recovery_limit.match_pats);
+	    slist_free_full(val->v.recovery_limit.match_pats, g_free);
 	    break;
 
 	case CONFTYPE_TIME:
@@ -6833,7 +6837,7 @@ val_t_print_token(
         for(dispstr=dispstrs; *dispstr!=NULL; dispstr++) {
 	    if (prefix)
 		g_fprintf(output, "%s", prefix);
-	    g_fprintf(output, format, kt->keyword);
+	    g_fprintf(output, format, str_keyword(kt));
 	    g_fprintf(output, "%s\n", *dispstr);
 	}
     } else {
@@ -7122,7 +7126,7 @@ val_t_display_strs(
 	    buf[0] = stralloc("");
 
 	while (iter) {
-	    strappend(buf[0], (char *)iter->data);
+	    strappend(buf[0], quote_string_always((char *)iter->data));
 	    strappend(buf[0], " ");
 	    iter = iter->next;
 	}
@@ -7737,7 +7741,7 @@ config_errors(GSList **errstr)
 void
 config_clear_errors(void)
 {
-    g_slist_free_full(cfgerr_errors);
+    slist_free_full(cfgerr_errors, g_free);
 
     cfgerr_errors = NULL;
     cfgerr_level = CFGERR_OK;
@@ -7836,3 +7840,25 @@ amandaify_property_name(
     return ret;
 }
 
+static char keyword_str[1024];
+
+static char *
+str_keyword(
+    keytab_t *kt)
+{
+    char *p = kt->keyword;
+    char *s = keyword_str;
+
+    while(*p != '\0') {
+	if (*p == '_') {
+	    *s = '-';
+	} else {
+	    *s = *p;
+	}
+	p++;
+	s++;
+    }
+    *s = '\0';
+
+    return keyword_str;
+}
