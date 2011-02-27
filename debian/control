@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Bdale Garbee <bdale@gag.com>
 Vcs-Git: git://git.gag.com/debian/amanda
 Vcs-Browser: http://git.gag.com/?p=debian/amanda
-Build-Depends: debhelper (>= 5), dump, gnuplot, libncurses5-dev, libreadline-dev, libtool, flex, perl, smbclient, bsd-mailx | mailx, lpr, mtx, xfsdump, po-debconf, autotools-dev, libglib2.0-dev, procps, curl
+Build-Depends: debhelper (>= 5), dump, gnuplot, libncurses5-dev, libreadline-dev, libtool, flex, perl, smbclient, bsd-mailx | mailx, lpr, mtx, xfsdump, po-debconf, autotools-dev, libglib2.0-dev, procps, curl, libcurl4-openssl-dev
 Standards-Version: 3.9.1
 
 Package: amanda-common
