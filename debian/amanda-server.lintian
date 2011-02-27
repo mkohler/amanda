@@ -6,3 +6,4 @@ amanda-server: non-standard-dir-perm var/lib/amanda/ 0770 != 0755
 amanda-server: non-standard-dir-perm var/log/amanda/ 0770 != 0755
 amanda-server: maintainer-script-needs-depends-on-update-inetd prerm
 amanda-server: maintainer-script-needs-depends-on-update-inetd postinst
+amanda-server: possible-gpl-code-linked-with-openssl
