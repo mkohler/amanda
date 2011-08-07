@@ -22,10 +22,10 @@ use strict;
 use warnings;
 
 ##
-# Interactive class
+# Interactivity class
 
-package main::Interactive;
-use base 'Amanda::Interactive';
+package main::Interactivity;
+use base 'Amanda::Interactivity';
 use Amanda::Util qw( weaken_ref );
 use Amanda::MainLoop;
 use Amanda::Feature;
@@ -59,7 +59,7 @@ sub user_request {
     my $buffer = "";
 
     my $steps = define_steps
-	cb_ref => \$params{'finished_cb'};
+	cb_ref => \$params{'request_cb'};
 
     step send_message => sub {
 	if ($params{'err'}) {
@@ -73,7 +73,7 @@ sub user_request {
 	# note that fe_amrecover_FEEDME implies fe_amrecover_splits
 	if (!$self->{'clientservice'}->{'their_features'}->has(
 				    $Amanda::Feature::fe_amrecover_FEEDME)) {
-	    return $params{'finished_cb'}->("remote cannot prompt for volumes", undef);
+	    return $params{'request_cb'}->("remote cannot prompt for volumes", undef);
 	}
 	$steps->{'send_feedme'}->();
     };
@@ -84,7 +84,7 @@ sub user_request {
 
     step read_response => sub {
 	my ($err, $written) = @_;
-	return $params{'finished_cb'}->($err, undef) if $err;
+	return $params{'request_cb'}->($err, undef) if $err;
 
 	$self->{'clientservice'}->getline_async(
 		$self->{'clientservice'}->{'ctl_stream'}, $steps->{'got_response'});
@@ -92,18 +92,18 @@ sub user_request {
 
     step got_response => sub {
 	my ($err, $line) = @_;
-	return $params{'finished_cb'}->($err, undef) if $err;
+	return $params{'request_cb'}->($err, undef) if $err;
 
 	if ($line eq "OK\r\n") {
-	    return $params{'finished_cb'}->(undef, undef); # carry on as you were
+	    return $params{'request_cb'}->(undef, undef); # carry on as you were
 	} elsif ($line =~ /^TAPE (.*)\r\n$/) {
 	    my $tape = $1;
 	    if ($tape eq getconf($CNF_AMRECOVER_CHANGER)) {
 		$tape = $Amanda::Recovery::Scan::DEFAULT_CHANGER;
 	    }
-	    return $params{'finished_cb'}->(undef, $tape); # use this device
+	    return $params{'request_cb'}->(undef, $tape); # use this device
 	} else {
-	    return $params{'finished_cb'}->("got invalid response from remote", undef);
+	    return $params{'request_cb'}->("got invalid response from remote", undef);
 	}
     };
 };
@@ -114,7 +114,10 @@ sub user_request {
 package main::ClientService;
 use base 'Amanda::ClientService';
 
+use Sys::Hostname;
+
 use Amanda::Debug qw( debug info warning );
+use Amanda::MainLoop qw( :GIOCondition );
 use Amanda::Util qw( :constants );
 use Amanda::Feature;
 use Amanda::Config qw( :init :getconf );
@@ -138,6 +141,7 @@ sub run {
 
     $self->{'my_features'} = Amanda::Feature::Set->mine();
     $self->{'their_features'} = Amanda::Feature::Set->old();
+    $self->{'all_filter'} = {};
 
     $self->setup_streams();
 }
@@ -332,10 +336,12 @@ sub make_plan {
 	    $use_default = 1;
 	}
 
+	my $tlf = Amanda::Config::config_dir_relative(getconf($CNF_TAPELIST));
+	my $tl = Amanda::Tapelist->new($tlf);
 	if ($use_default) {
-	    $chg = Amanda::Changer->new();
+	    $chg = Amanda::Changer->new(undef, tapelist => $tl);
 	} else {
-	    $chg = Amanda::Changer->new($self->{'command'}{'DEVICE'});
+	    $chg = Amanda::Changer->new($self->{'command'}{'DEVICE'}, tapelist => $tl);
 	}
 
 	# if we got a bogus changer, log it to the debug log, but allow the
@@ -345,11 +351,15 @@ sub make_plan {
 	    $chg = Amanda::Changer->new("chg-null:");
 	}
     }
-    my $inter = main::Interactive->new(clientservice => $self);
+    $self->{'chg'} = $chg;
+
+    my $interactivity = main::Interactivity->new(clientservice => $self);
 
     my $scan = Amanda::Recovery::Scan->new(
 			chg => $chg,
-			interactive => $inter);
+			interactivity => $interactivity);
+    $self->{'scan'} = $scan;
+
     # XXX temporary
     $scan->{'scan_conf'}->{'driveinuse'} = Amanda::Recovery::Scan::SCAN_ASK;
     $scan->{'scan_conf'}->{'volinuse'} = Amanda::Recovery::Scan::SCAN_ASK;
@@ -436,9 +446,17 @@ sub plan_cb {
 	}
 	my $matched = 0;
 	for my $rl (@$recovery_limit) {
-	    if (!defined $rl) {
+	    if ($rl eq $Amanda::Config::LIMIT_SAMEHOST) {
 		# handle same-host with a case-insensitive string compare, not match_host
 		if (lc($peer) eq lc($dump->{'hostname'})) {
+		    $matched = 1;
+		    last;
+		}
+	    } elsif ($rl eq $Amanda::Config::LIMIT_SERVER) {
+		# handle server with a case-insensitive string compare, not match_host
+		my $myhostname = hostname;
+		debug("myhostname: $myhostname");
+		if (lc($peer) eq lc($myhostname)) {
 		    $matched = 1;
 		    last;
 		}
@@ -468,8 +486,9 @@ sub plan_cb {
     }
 
     # now set up the transfer
+    $self->{'dump'} = $plan->{'dumps'}[0];
     $self->{'clerk'}->get_xfer_src(
-	dump => $plan->{'dumps'}[0],
+	dump => $self->{'dump'},
 	xfer_src_cb => sub { $self->xfer_src_cb(@_); });
 }
 
@@ -496,48 +515,74 @@ sub xfer_src_cb {
 	if ($header->{'srv_encrypt'}) {
 	    push @filters,
 		Amanda::Xfer::Filter::Process->new(
-		    [ $header->{'srv_encrypt'}, $header->{'srv_decrypt_opt'} ], 0, 1);
+		    [ $header->{'srv_encrypt'}, $header->{'srv_decrypt_opt'} ], 0);
+	    $header->{'encrypted'} = 0;
+	    $header->{'srv_encrypt'} = '';
+	    $header->{'srv_decrypt_opt'} = '';
+	    $header->{'clnt_encrypt'} = '';
+	    $header->{'clnt_decrypt_opt'} = '';
+	    $header->{'encrypt_suffix'} = 'N';
 	} elsif ($header->{'clnt_encrypt'}) {
-	    push @filters,
-		Amanda::Xfer::Filter::Process->new(
-		    [ $header->{'clnt_encrypt'}, $header->{'clnt_decrypt_opt'} ], 0, 1);
+	    if (!$self->{'their_features'}->has($Amanda::Feature::fe_amrecover_receive_unfiltered)) {
+		push @filters,
+		    Amanda::Xfer::Filter::Process->new(
+		        [ $header->{'clnt_encrypt'},
+			  $header->{'clnt_decrypt_opt'} ], 0);
+		$header->{'encrypted'} = 0;
+		$header->{'srv_encrypt'} = '';
+		$header->{'srv_decrypt_opt'} = '';
+		$header->{'clnt_encrypt'} = '';
+		$header->{'clnt_decrypt_opt'} = '';
+		$header->{'encrypt_suffix'} = 'N';
+	    } else {
+		debug("Not decrypting client encrypted stream");
+	    }
 	} else {
 	    $self->sendmessage("could not decrypt encrypted dump: no program specified");
 	    return $self->quit();
 	}
 
-	$header->{'encrypted'} = 0;
-	$header->{'srv_encrypt'} = '';
-	$header->{'srv_decrypt_opt'} = '';
-	$header->{'clnt_encrypt'} = '';
-	$header->{'clnt_decrypt_opt'} = '';
-	$header->{'encrypt_suffix'} = 'N';
     }
 
     if ($header->{'compressed'}) {
 	# need to uncompress this file
 	debug("..with decompression applied");
+	my $dle = $header->get_dle();
 
 	if ($header->{'srvcompprog'}) {
 	    # TODO: this assumes that srvcompprog takes "-d" to decrypt
 	    push @filters,
 		Amanda::Xfer::Filter::Process->new(
-		    [ $header->{'srvcompprog'}, "-d" ], 0, 1);
+		    [ $header->{'srvcompprog'}, "-d" ], 0);
+	    # adjust the header
+	    $header->{'compressed'} = 0;
+	    $header->{'uncompress_cmd'} = '';
+	    $header->{'srvcompprog'} = '';
 	} elsif ($header->{'clntcompprog'}) {
-	    # TODO: this assumes that clntcompprog takes "-d" to decrypt
-	    push @filters,
-		Amanda::Xfer::Filter::Process->new(
-		    [ $header->{'clntcompprog'}, "-d" ], 0, 1);
+	    if (!$self->{'their_features'}->has($Amanda::Feature::fe_amrecover_receive_unfiltered)) {
+		# TODO: this assumes that clntcompprog takes "-d" to decrypt
+		push @filters,
+		    Amanda::Xfer::Filter::Process->new(
+			[ $header->{'clntcompprog'}, "-d" ], 0);
+		# adjust the header
+		$header->{'compressed'} = 0;
+		$header->{'uncompress_cmd'} = '';
+		$header->{'clntcompprog'} = '';
+	    }
 	} else {
-	    push @filters,
-		Amanda::Xfer::Filter::Process->new(
-		    [ $Amanda::Constants::UNCOMPRESS_PATH,
-		      $Amanda::Constants::UNCOMPRESS_OPT ], 0, 1);
+	    if (!$self->{'their_features'}->has($Amanda::Feature::fe_amrecover_receive_unfiltered) ||
+		$dle->{'compress'} == $Amanda::Config::COMP_SERVER_FAST ||
+		$dle->{'compress'} == $Amanda::Config::COMP_SERVER_BEST) {
+		push @filters,
+		    Amanda::Xfer::Filter::Process->new(
+			[ $Amanda::Constants::UNCOMPRESS_PATH,
+			  $Amanda::Constants::UNCOMPRESS_OPT ], 0);
+		# adjust the header
+		$header->{'compressed'} = 0;
+		$header->{'uncompress_cmd'} = '';
+	    }
 	}
 
-	# adjust the header
-	$header->{'compressed'} = 0;
-	$header->{'uncompress_cmd'} = '';
     }
     $self->{'xfer_filters'} = [ @filters ];
 
@@ -627,13 +672,50 @@ sub start_xfer {
 	}
     }
 
+    # start reading all filter stderr
+    foreach my $filter (@{$self->{'xfer_filters'}}) {
+	my $fd = $filter->get_stderr_fd();
+	$fd.="";
+	$fd = int($fd);
+	my $src = Amanda::MainLoop::fd_source($fd,
+					      $G_IO_IN|$G_IO_HUP|$G_IO_ERR);
+	my $buffer = "";
+	$self->{'all_filter'}{$src} = 1;
+	$src->set_callback( sub {
+	    my $b;
+	    my $n_read = POSIX::read($fd, $b, 1);
+	    if (!defined $n_read) {
+		return;
+	    } elsif ($n_read == 0) {
+		delete $self->{'all_filter'}->{$src};
+		$src->remove();
+		POSIX::close($fd);
+		if (!%{$self->{'all_filter'}} and $self->{'fetch_done'}) {
+		    Amanda::MainLoop::quit();
+		}
+	    } else {
+		$buffer .= $b;
+		if ($b eq "\n") {
+		    my $line = $buffer;
+		    #print STDERR "filter stderr: $line";
+		    chomp $line;
+		    $self->sendmessage("filter stderr: $line");
+		    debug("filter stderr: $line");
+		    $buffer = "";
+		}
+	    }
+	});
+    }
+
     # create and start the transfer
     $self->{'xfer'} = Amanda::Xfer->new([
 	$self->{'xfer_src'},
 	@{$self->{'xfer_filters'}},
 	$xfer_dest,
     ]);
-    $self->{'xfer'}->start(sub { $self->handle_xmsg(@_); });
+    my $size = 0;
+    $size = $self->{'dump'}->{'bytes'} if exists $self->{'dump'}->{'bytes'};
+    $self->{'xfer'}->start(sub { $self->handle_xmsg(@_); }, 0, $size);
     debug("started xfer; datapath=$self->{datapath}");
 
     # send the data-path response, if we have a datapath
@@ -702,13 +784,26 @@ sub quit {
     if ($self->{'clerk'}) {
 	$self->{'clerk'}->quit(finished_cb => sub {
 	    my ($err) = @_;
+	    $self->{'chg'}->quit() if defined $self->{'chg'};
 	    if ($err) {
 		# it's *way* too late to report this to amrecover now!
 		warning("while quitting clerk: $err");
 	    }
-	    Amanda::MainLoop::quit();
+	    $self->quit1();
 	});
     } else {
+	$self->{'scan'}->quit() if defined $self->{'scan'};
+	$self->{'chg'}->quit() if defined $self->{'chg'};
+	$self->quit1();
+    }
+
+}
+
+sub quit1 {
+    my $self = shift;
+
+    $self->{'fetch_done'} = 1;
+    if (!%{$self->{'all_filter'}}) {
 	Amanda::MainLoop::quit();
     }
 }

@@ -208,6 +208,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/macro-archive/docbook-xslt.m4 \
 	$(top_srcdir)/config/macro-archive/xsltproc.m4 \
 	$(top_srcdir)/config/amanda/amplot.m4 \
+	$(top_srcdir)/config/amanda/as_needed.m4 \
 	$(top_srcdir)/config/amanda/bsd-security.m4 \
 	$(top_srcdir)/config/amanda/bsdtcp-security.m4 \
 	$(top_srcdir)/config/amanda/bsdudp-security.m4 \
@@ -373,7 +374,7 @@ am__base_list = \
   sed '$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;s/\n/ /g' | \
   sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
 am__installdirs = "$(DESTDIR)$(amlibdir)" "$(DESTDIR)$(amlibexecdir)" \
-	"$(DESTDIR)$(amlibexecdir)"
+	"$(DESTDIR)$(amlibexecdir)" "$(DESTDIR)$(sbindir)"
 LTLIBRARIES = $(amlib_LTLIBRARIES)
 libamclient_la_DEPENDENCIES = ../common-src/libamanda.la
 am__libamclient_la_SOURCES_DIST = amandates.c getfsent.c unctime.c \
@@ -442,7 +443,7 @@ sendsize_LDADD = $(LDADD)
 sendsize_DEPENDENCIES = ../common-src/libamanda.la libamclient.la \
 	../amandad-src/libamandad.la ../common-src/libamanda.la \
 	../gnulib/libgnu.la
-SCRIPTS = $(amlibexec_SCRIPTS)
+SCRIPTS = $(amlibexec_SCRIPTS) $(sbin_SCRIPTS)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/config
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -489,6 +490,7 @@ APPLICATION_DIR = @APPLICATION_DIR@
 AR = @AR@
 ASM_SYMBOL_PREFIX = @ASM_SYMBOL_PREFIX@
 ASSERTIONS = @ASSERTIONS@
+AS_NEEDED_FLAGS = @AS_NEEDED_FLAGS@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
@@ -962,6 +964,7 @@ LTLIBTHREAD = @LTLIBTHREAD@
 MAILER = @MAILER@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
+MOUNT = @MOUNT@
 MSGFMT = @MSGFMT@
 MSGFMT_015 = @MSGFMT_015@
 MSGMERGE = @MSGMERGE@
@@ -1159,6 +1162,7 @@ STDBOOL_H = @STDBOOL_H@
 STDDEF_H = @STDDEF_H@
 STDINT_H = @STDINT_H@
 STRIP = @STRIP@
+SUNTAR = @SUNTAR@
 SVN = @SVN@
 SWIG = @SWIG@
 SWIG_LIB = @SWIG_LIB@
@@ -1166,6 +1170,7 @@ SYS_TIME_H_DEFINES_STRUCT_TIMESPEC = @SYS_TIME_H_DEFINES_STRUCT_TIMESPEC@
 TCPPORTRANGE = @TCPPORTRANGE@
 TIME_H_DEFINES_STRUCT_TIMESPEC = @TIME_H_DEFINES_STRUCT_TIMESPEC@
 UDPPORTRANGE = @UDPPORTRANGE@
+UMOUNT = @UMOUNT@
 UNCOMPRESS_OPT = @UNCOMPRESS_OPT@
 UNCOMPRESS_PATH = @UNCOMPRESS_PATH@
 UNDEFINE_STRTOK_R = @UNDEFINE_STRTOK_R@
@@ -1311,16 +1316,19 @@ INCLUDES = -I$(top_builddir)/common-src \
 		-I$(top_srcdir)/gnulib
 
 AM_CFLAGS = $(AMANDA_WARNING_CFLAGS)
-AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
+AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS) $(AS_NEEDED_FLAGS)
 LINT = $(AMLINT)
 LINTFLAGS = $(AMLINTFLAGS)
 amlib_LTLIBRARIES = libamclient.la
-amlibexec_SCRIPTS = patch-system
-SCRIPTS_PERL = $(sbin_SCRIPTS)
-SCRIPTS_SHELL = $(amlibexec_SCRIPTS)
+amlibexec_SCRIPTS_SHELL = patch-system
+sbin_SCRIPTS_PERL = amdump_client
+SCRIPTS_PERL = $(sbin_SCRIPTS_PERL)
+SCRIPTS_SHELL = $(amlibexec_SCRIPTS_SHELL)
+sbin_SCRIPTS = $(sbin_SCRIPTS_PERL)
+amlibexec_SCRIPTS = $(amlibexec_SCRIPTS_SHELL)
 libamclient_la_SOURCES = amandates.c getfsent.c unctime.c \
 	client_util.c $(am__append_2)
-libamclient_la_LDFLAGS = -release $(VERSION)
+libamclient_la_LDFLAGS = -release $(VERSION) $(AS_NEEDED_FLAGS)
 libamclient_la_LIBADD = ../common-src/libamanda.la
 
 ###
@@ -1520,6 +1528,40 @@ uninstall-amlibexecSCRIPTS:
 	test -n "$$list" || exit 0; \
 	echo " ( cd '$(DESTDIR)$(amlibexecdir)' && rm -f" $$files ")"; \
 	cd "$(DESTDIR)$(amlibexecdir)" && rm -f $$files
+install-sbinSCRIPTS: $(sbin_SCRIPTS)
+	@$(NORMAL_INSTALL)
+	test -z "$(sbindir)" || $(MKDIR_P) "$(DESTDIR)$(sbindir)"
+	@list='$(sbin_SCRIPTS)'; test -n "$(sbindir)" || list=; \
+	for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  if test -f "$$d$$p"; then echo "$$d$$p"; echo "$$p"; else :; fi; \
+	done | \
+	sed -e 'p;s,.*/,,;n' \
+	    -e 'h;s|.*|.|' \
+	    -e 'p;x;s,.*/,,;$(transform)' | sed 'N;N;N;s,\n, ,g' | \
+	$(AWK) 'BEGIN { files["."] = ""; dirs["."] = 1; } \
+	  { d=$$3; if (dirs[d] != 1) { print "d", d; dirs[d] = 1 } \
+	    if ($$2 == $$4) { files[d] = files[d] " " $$1; \
+	      if (++n[d] == $(am__install_max)) { \
+		print "f", d, files[d]; n[d] = 0; files[d] = "" } } \
+	    else { print "f", d "/" $$4, $$1 } } \
+	  END { for (d in files) print "f", d, files[d] }' | \
+	while read type dir files; do \
+	     if test "$$dir" = .; then dir=; else dir=/$$dir; fi; \
+	     test -z "$$files" || { \
+	       echo " $(INSTALL_SCRIPT) $$files '$(DESTDIR)$(sbindir)$$dir'"; \
+	       $(INSTALL_SCRIPT) $$files "$(DESTDIR)$(sbindir)$$dir" || exit $$?; \
+	     } \
+	; done
+
+uninstall-sbinSCRIPTS:
+	@$(NORMAL_UNINSTALL)
+	@list='$(sbin_SCRIPTS)'; test -n "$(sbindir)" || exit 0; \
+	files=`for p in $$list; do echo "$$p"; done | \
+	       sed -e 's,.*/,,;$(transform)'`; \
+	test -n "$$list" || exit 0; \
+	echo " ( cd '$(DESTDIR)$(sbindir)' && rm -f" $$files ")"; \
+	cd "$(DESTDIR)$(sbindir)" && rm -f $$files
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -1663,7 +1705,7 @@ check: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) check-am
 all-am: Makefile $(LTLIBRARIES) $(PROGRAMS) $(SCRIPTS) $(HEADERS)
 installdirs:
-	for dir in "$(DESTDIR)$(amlibdir)" "$(DESTDIR)$(amlibexecdir)" "$(DESTDIR)$(amlibexecdir)"; do \
+	for dir in "$(DESTDIR)$(amlibdir)" "$(DESTDIR)$(amlibexecdir)" "$(DESTDIR)$(amlibexecdir)" "$(DESTDIR)$(sbindir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: $(BUILT_SOURCES)
@@ -1727,7 +1769,8 @@ install-dvi: install-dvi-am
 
 install-dvi-am:
 
-install-exec-am: install-amlibexecPROGRAMS install-amlibexecSCRIPTS
+install-exec-am: install-amlibexecPROGRAMS install-amlibexecSCRIPTS \
+	install-sbinSCRIPTS
 	@$(NORMAL_INSTALL)
 	$(MAKE) $(AM_MAKEFLAGS) install-exec-hook
 install-html: install-html-am
@@ -1769,7 +1812,7 @@ ps: ps-am
 ps-am:
 
 uninstall-am: uninstall-amlibLTLIBRARIES uninstall-amlibexecPROGRAMS \
-	uninstall-amlibexecSCRIPTS
+	uninstall-amlibexecSCRIPTS uninstall-sbinSCRIPTS
 
 .MAKE: all check check-am install install-am install-data-am \
 	install-exec-am install-strip
@@ -1784,12 +1827,13 @@ uninstall-am: uninstall-amlibLTLIBRARIES uninstall-amlibexecPROGRAMS \
 	install-data-hook install-dvi install-dvi-am install-exec \
 	install-exec-am install-exec-hook install-html install-html-am \
 	install-info install-info-am install-man install-pdf \
-	install-pdf-am install-ps install-ps-am install-strip \
-	installcheck installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags uninstall uninstall-am uninstall-amlibLTLIBRARIES \
-	uninstall-amlibexecPROGRAMS uninstall-amlibexecSCRIPTS
+	install-pdf-am install-ps install-ps-am install-sbinSCRIPTS \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
+	pdf pdf-am ps ps-am tags uninstall uninstall-am \
+	uninstall-amlibLTLIBRARIES uninstall-amlibexecPROGRAMS \
+	uninstall-amlibexecSCRIPTS uninstall-sbinSCRIPTS
 
 
 # Perl

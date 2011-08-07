@@ -1,4 +1,3 @@
-#! @PERL@
 # Copyright (c) 2009, 2010 Zmanda Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
@@ -51,6 +50,7 @@ use Amanda::MainLoop;
 use Amanda::Taper::Protocol;
 use Amanda::Taper::Scan;
 use Amanda::Taper::Worker;
+use Amanda::Interactivity;
 use Amanda::Logfile qw( :logtype_t log_add );
 use Amanda::Xfer qw( :constants );
 use Amanda::Util qw( quote_string );
@@ -59,11 +59,13 @@ use File::Temp;
 
 sub new {
     my $class = shift;
+    my %params = @_;
 
     my $self = bless {
 
 	# filled in at start
 	proto => undef,
+	tapelist => $params{'tapelist'},
 
 	worker => {},
     }, $class;
@@ -115,7 +117,7 @@ sub start {
 	debug => $Amanda::Config::debug_taper?'driver/taper':'',
     );
 
-    my $changer = Amanda::Changer->new();
+    my $changer = Amanda::Changer->new(undef, tapelist => $self->{'tapelist'});
     if ($changer->isa("Amanda::Changer::Error")) {
 	# send a TAPE_ERROR right away
 	$self->{'proto'}->send(Amanda::Taper::Protocol::TAPE_ERROR,
@@ -134,7 +136,13 @@ sub start {
 	return;
     }
 
-    $self->{'taperscan'} = Amanda::Taper::Scan->new(changer => $changer);
+    my $interactivity = Amanda::Interactivity->new(
+					name => getconf($CNF_INTERACTIVITY));
+    my $scan_name = getconf($CNF_TAPERSCAN);
+    $self->{'taperscan'} = Amanda::Taper::Scan->new(algorithm => $scan_name,
+					    changer => $changer,
+					    interactivity => $interactivity,
+					    tapelist => $self->{'tapelist'});
 }
 
 sub quit {
@@ -176,6 +184,7 @@ sub quit {
     };
 
     step done => sub {
+	$self->{'taperscan'}->quit() if defined $self->{'taperscan'};
 	if (@errors) {
 	    $params{'finished_cb'}->(join("; ", @errors));
 	} else {

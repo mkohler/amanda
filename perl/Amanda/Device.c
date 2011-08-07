@@ -1542,6 +1542,8 @@ SWIGEXPORT void SWIG_init (CV *cv, CPerlObj *);
 #include "fileheader.h"
 #include "glib-util.h"
 #include "simpleprng.h"
+#include "amanda.h"
+#include "sockaddr-util.h"
 
 
 
@@ -2029,6 +2031,9 @@ SWIGINTERN void Device_property_get(Device *self,DevicePropertyBase *pbase,GValu
 	}
 SWIGINTERN gboolean Device_property_set(Device *self,DevicePropertyBase *pbase,SV *sv){
 	    GValue gval;
+
+	    if (!pbase)
+		goto fail;
 	    memset(&gval, 0, sizeof(gval));
 	    g_value_init(&gval, pbase->type);
 	    if (!set_gvalue_from_sv(sv, &gval))
@@ -3078,16 +3083,12 @@ XS(_wrap_Device_listen) {
         AV *av = newAV();
         int i = 0;
         
-        while (iter && iter->ipv4) {
-          struct in_addr in;
-          char *addr;
+        while (iter && SU_GET_FAMILY(iter) != 0) {
+          char *addr = str_sockaddr_no_port(iter);
           AV *tuple = newAV();
           
-          in.s_addr = htonl(iter->ipv4);
-          addr = inet_ntoa(in);
-          g_assert(NULL != av_store(tuple, 0,
-              newSVpv(addr, 0)));
-          g_assert(NULL != av_store(tuple, 1, newSViv(iter->port)));
+          g_assert(NULL != av_store(tuple, 0, newSVpv(addr, 0)));
+          g_assert(NULL != av_store(tuple, 1, newSViv(SU_GET_PORT(iter))));
           g_assert(NULL != av_store(av, i++, newRV_noinc((SV *)tuple)));
           iter++;
         }
@@ -3174,7 +3175,7 @@ XS(_wrap_Device_connect) {
       for (i = 0; i < num_addrs; i++) {
         SV **svp = av_fetch(addrs_av, i, 0);
         AV *addr_av;
-        struct in_addr addr;
+        sockaddr_union addr;
         IV port;
         
         if (!svp || !SvROK(*svp) || SvTYPE(SvRV(*svp)) != SVt_PVAV
@@ -3186,17 +3187,18 @@ XS(_wrap_Device_connect) {
         
         /* get address */
         svp = av_fetch(addr_av, 0, 0);
-        if (!svp || !SvPOK(*svp) || !inet_aton(SvPV_nolen(*svp), &addr)) {
+        if (!svp || !SvPOK(*svp) || !str_to_sockaddr(SvPV_nolen(*svp), &addr)) {
           SWIG_exception_fail(SWIG_TypeError, "invalid IPv4 addr in address");
         }
-        arg3[i].ipv4 = ntohl(addr.s_addr);
         
         /* get port */
         svp = av_fetch(addr_av, 1, 0);
         if (!svp || !SvIOK(*svp) || (port = SvIV(*svp)) <= 0 || port >= 65536) {
           SWIG_exception_fail(SWIG_TypeError, "invalid port in address");
         }
-        arg3[i].port = (guint16)port;
+        SU_SET_PORT(&addr, port);
+        
+        copy_sockaddr(arg3, &addr);
       }
     }
     result = (DirectTCPConnection *)Device_connect(arg1,arg2,arg3);

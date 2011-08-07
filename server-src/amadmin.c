@@ -1183,14 +1183,6 @@ find(
 		afind->next = new_output_find;
 		new_output_find = afind;
 	    } else {
-		amfree(afind->timestamp);
-		amfree(afind->write_timestamp);
-		amfree(afind->hostname);
-		amfree(afind->diskname);
-		amfree(afind->label);
-		amfree(afind->status);
-		amfree(afind->dump_status);
-		amfree(afind->message);
 		amfree(afind);
 	    }
 	}
@@ -1644,13 +1636,16 @@ export_one(
 {
     info_t info;
     int i,l;
+    char *qhost, *qdisk;
 
     if(get_info(dp->host->hostname, dp->name, &info)) {
 	g_fprintf(stderr, _("Warning: no curinfo record for %s:%s\n"),
 		dp->host->hostname, dp->name);
 	return;
     }
-    g_printf(_("host: %s\ndisk: %s\n"), dp->host->hostname, dp->name);
+    qhost = quote_string(dp->host->hostname);
+    qdisk = quote_string(dp->name);
+    g_printf(_("host: %s\ndisk: %s\n"), qhost, qdisk);
     g_printf(_("command: %u\n"), info.command);
     g_printf(_("last_level: %d\n"),info.last_level);
     g_printf(_("consecutive_runs: %d\n"),info.consecutive_runs);
@@ -1682,6 +1677,8 @@ export_one(
 	       (intmax_t)info.history[l].date);
     }
     g_printf("//\n");
+    amfree(qhost);
+    amfree(qdisk);
 }
 
 /* ----------------------------------------------- */
@@ -1828,9 +1825,9 @@ import_one(void)
     skip_whitespace(s, ch);
     if(ch == '\0') goto parse_err;
     fp = s-1;
-    skip_non_whitespace(s, ch);
+    skip_quoted_string(s, ch);
     s[-1] = '\0';
-    hostname = stralloc(fp);
+    hostname = unquote_string(fp);
     s[-1] = (char)ch;
 
     skip_whitespace(s, ch);
@@ -1845,9 +1842,9 @@ import_one(void)
     skip_whitespace(s, ch);
     if(ch == '\0') goto parse_err;
     fp = s-1;
-    skip_non_whitespace(s, ch);
+    skip_quoted_string(s, ch);
     s[-1] = '\0';
-    diskname = stralloc(fp);
+    diskname = unquote_string(fp);
     s[-1] = (char)ch;
 
     amfree(line);
@@ -2293,6 +2290,15 @@ disklist_one(
 				DUMPTYPE_RECOVERY_LIMIT), 1);
 	for(r1 = rl; *r1 != NULL; r1++) {
 	    g_printf("        recovery-limit %s\n", *r1);
+	free(*r1);
+	}
+    }
+    if (dumptype_seen(dtype, DUMPTYPE_DUMP_LIMIT)) {
+	char **rl, **r1;
+	rl = val_t_display_strs(dumptype_getconf((dtype),
+				DUMPTYPE_DUMP_LIMIT), 1);
+	for(r1 = rl; *r1 != NULL; r1++) {
+	    g_printf("        dump-limit %s\n", *r1);
 	free(*r1);
 	}
     }

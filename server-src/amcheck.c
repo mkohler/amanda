@@ -748,8 +748,8 @@ start_server_check(
 	}
 
 	if (getconf_int(CNF_TAPERFLUSH) > 0 &&
-	    !getconf_boolean(CNF_AUTOFLUSH)) {
-	    g_fprintf(outf, _("WARNING: autoflush must be set to 'yes' if taperflush (%d) is greater that 0.\n"),
+	    !getconf_no_yes_all(CNF_AUTOFLUSH)) {
+	    g_fprintf(outf, _("WARNING: autoflush must be set to 'yes' or 'all' if taperflush (%d) is greater that 0.\n"),
 		      getconf_int(CNF_TAPERFLUSH));
 	}
 
@@ -1928,6 +1928,13 @@ start_host(
 			    g_fprintf(outf,
 			      _("ERROR: application '%s' not found.\n"), dp->application);
 			} else {
+		    	    char *client_name = application_get_client_name(application);
+			    if (client_name && strlen(client_name) > 0 &&
+				!am_has_feature(hostp->features, fe_application_client_name)) {
+				g_fprintf(outf,
+			      _("WARNING: %s:%s does not support client-name in application.\n"),
+			      hostp->hostname, qname);
+			    }
 			    xml_app = xml_application(dp, application, hostp->features);
 			    vstrextend(&l, xml_app, NULL);
 			    amfree(xml_app);
@@ -1938,6 +1945,19 @@ start_host(
 			    g_fprintf(outf,
 			      _("ERROR: %s:%s does not support SCRIPT-API.\n"),
 			      hostp->hostname, qname);
+			} else {
+			    identlist_t pp_scriptlist;
+			    for (pp_scriptlist = dp->pp_scriptlist; pp_scriptlist != NULL;
+				pp_scriptlist = pp_scriptlist->next) {
+				pp_script_t *pp_script = lookup_pp_script((char *)pp_scriptlist->data);
+				char *client_name = pp_script_get_client_name(pp_script);;
+				if (client_name && strlen(client_name) > 0 &&
+				    !am_has_feature(hostp->features, fe_script_client_name)) {
+				    g_fprintf(outf,
+					_("WARNING: %s:%s does not support client-name in script.\n"),
+					hostp->hostname, dp->name);
+				}
+			    }
 			}
 		    }
 		    es = xml_estimate(dp->estimatelist, hostp->features);
@@ -2035,6 +2055,7 @@ start_client_checks(
     g_fprintf(outf, _("\nAmanda Backup Client Hosts Check\n"));
     g_fprintf(outf,   "--------------------------------\n");
 
+    run_server_global_scripts(EXECUTE_ON_PRE_AMCHECK, get_config_name());
     protocol_init();
 
     hostcount = remote_errors = 0;
@@ -2042,12 +2063,10 @@ start_client_checks(
     for(dp = origq.head; dp != NULL; dp = dp->next) {
 	hostp = dp->host;
 	if(hostp->up == HOST_READY && dp->todo == 1) {
+	    run_server_host_scripts(EXECUTE_ON_PRE_HOST_AMCHECK,
+				    get_config_name(), hostp);
 	    for(dp1 = hostp->disks; dp1 != NULL; dp1 = dp1->hostnext) {
-		run_server_scripts(EXECUTE_ON_PRE_HOST_AMCHECK,
-				   get_config_name(), dp1, -1);
-	    }
-	    for(dp1 = hostp->disks; dp1 != NULL; dp1 = dp1->hostnext) {
-		run_server_scripts(EXECUTE_ON_PRE_DLE_AMCHECK,
+		run_server_dle_scripts(EXECUTE_ON_PRE_DLE_AMCHECK,
 				   get_config_name(), dp1, -1);
 	    }
 	    start_host(hostp);
@@ -2057,6 +2076,7 @@ start_client_checks(
     }
 
     protocol_run();
+    run_server_global_scripts(EXECUTE_ON_POST_AMCHECK, get_config_name());
 
     g_fprintf(outf, plural(_("Client check: %d host checked in %s seconds."), 
 			 _("Client check: %d hosts checked in %s seconds."),
@@ -2182,13 +2202,11 @@ handle_result(
     if(hostp->up == HOST_DONE) {
 	security_close_connection(sech, hostp->hostname);
 	for(dp = hostp->disks; dp != NULL; dp = dp->hostnext) {
-	    run_server_scripts(EXECUTE_ON_POST_DLE_AMCHECK,
+	    run_server_dle_scripts(EXECUTE_ON_POST_DLE_AMCHECK,
 			       get_config_name(), dp, -1);
 	}
-	for(dp = hostp->disks; dp != NULL; dp = dp->hostnext) {
-	    run_server_scripts(EXECUTE_ON_POST_HOST_AMCHECK,
-			       get_config_name(), dp, -1);
-	}
+	run_server_host_scripts(EXECUTE_ON_POST_HOST_AMCHECK,
+				get_config_name(), hostp);
     }
     /* try to clean up any defunct processes, since Amanda doesn't wait() for
        them explicitly */

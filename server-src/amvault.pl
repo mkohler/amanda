@@ -21,11 +21,11 @@ use lib '@amperldir@';
 use strict;
 use warnings;
 
-package main::Interactive;
+package main::Interactivity;
 use POSIX qw( :errno_h );
 use Amanda::MainLoop qw( :GIOCondition );
 use vars qw( @ISA );
-@ISA = qw( Amanda::Interactive );
+@ISA = qw( Amanda::Interactivity );
 
 sub new {
     my $class = shift;
@@ -61,12 +61,12 @@ sub user_request {
 	if (!defined $n_read) {
 	    return if ($! == EINTR);
 	    $self->abort();
-	    return $params{'finished_cb'}->(
+	    return $params{'request_cb'}->(
 		Amanda::Changer::Error->new('fatal',
 			message => "Fail to read from stdin"));
 	} elsif ($n_read == 0) {
 	    $self->abort();
-	    return $params{'finished_cb'}->(
+	    return $params{'request_cb'}->(
 		Amanda::Changer::Error->new('fatal',
 			message => "Aborted by user"));
 	} else {
@@ -76,7 +76,7 @@ sub user_request {
 		chomp $line;
 		$buffer = "";
 		$self->abort();
-		return $params{'finished_cb'}->(undef, $line);
+		return $params{'request_cb'}->(undef, $line);
 	    }
 	}
     };
@@ -178,7 +178,7 @@ sub setup_src {
     my $src = $self->{'src'} = {};
 
     # put together a clerk, which of course requires a changer, scan,
-    # interactive, and feedback
+    # interactivity, and feedback
     my $chg = Amanda::Changer->new();
     return $self->failure("Error opening source changer: $chg")
 	if $chg->isa('Amanda::Changer::Error');
@@ -186,11 +186,11 @@ sub setup_src {
 
     $src->{'seen_labels'} = {};
 
-    $src->{'interactive'} = main::Interactive->new();
+    $src->{'interactivity'} = main::Interactivity->new();
 
     $src->{'scan'} = Amanda::Recovery::Scan->new(
 	    chg => $src->{'chg'},
-	    interactive => $src->{'interactive'});
+	    interactivity => $src->{'interactivity'});
 
     $src->{'clerk'} = Amanda::Recovery::Clerk->new(
 	    changer => $src->{'chg'},
@@ -341,17 +341,28 @@ sub plan_cb {
 sub setup_dst {
     my $self = shift;
     my $dst = $self->{'dst'} = {};
+    my $tlf = Amanda::Config::config_dir_relative(getconf($CNF_TAPELIST));
+    my $tl = Amanda::Tapelist->new($tlf);
 
     $dst->{'label'} = undef;
     $dst->{'tape_num'} = 0;
 
-    my $chg = Amanda::Changer->new($self->{'dst_changer'});
+    my $chg = Amanda::Changer->new($self->{'dst_changer'},
+				   tapelist => $tl,
+				   labelstr => getconf($CNF_LABELSTR),
+				   autolabel => $self->{'dst_autolabel'});
     return $self->failure("Error opening destination changer: $chg")
 	if $chg->isa('Amanda::Changer::Error');
     $dst->{'chg'} = $chg;
 
+    my $interactivity = Amanda::Interactivity->new(
+					name => getconf($CNF_INTERACTIVITY));
+    my $scan_name = getconf($CNF_TAPERSCAN);
     $dst->{'scan'} = Amanda::Taper::Scan->new(
+	algorithm => $scan_name,
 	changer => $dst->{'chg'},
+	interactivity => $interactivity,
+	tapelist => $tl,
 	labelstr => getconf($CNF_LABELSTR),
 	autolabel => $self->{'dst_autolabel'});
 
@@ -461,7 +472,9 @@ sub xfer_dumps {
 
 	# create and start the transfer
 	$xfer = Amanda::Xfer->new([ $xfer_src, $xfer_dst ]);
-	$xfer->start($steps->{'handle_xmsg'});
+	my $size = 0;
+	$size = $current->{'dump'}->{'bytes'} if exists $current->{'dump'}->{'bytes'};
+	$xfer->start($steps->{'handle_xmsg'}, 0, $size);
 
 	# count the "threads" running here (clerk and scribe)
 	$n_threads = 2;
@@ -564,6 +577,16 @@ sub quit {
     my $steps = define_steps
 	    cb_ref => \$exit_cb;
 
+    # the export may not start until we quit the scribe, so wait for it now..
+    step check_exporting => sub {
+	# if we're exporting the final volume, wait for that to complete
+	if ($self->{'exporting'}) {
+	    $self->{'call_after_export'} = $steps->{'quit_scribe'};
+	} else {
+	    $steps->{'quit_scribe'}->();
+	}
+    };
+
     # we may have several resources to clean up..
     step quit_scribe => sub {
 	if ($self->{'cleanup'}{'quit_scribe'}) {
@@ -571,28 +594,19 @@ sub quit {
 	    $self->{'dst'}{'scribe'}->quit(
 		finished_cb => $steps->{'quit_scribe_finished'});
 	} else {
-	    $steps->{'check_exporting'}->();
+	    $steps->{'quit_clerk'}->();
 	}
     };
 
     step quit_scribe_finished => sub {
+	$self->{'dst'}{'scan'}->quit();
 	my ($err) = @_;
 	if ($err) {
 	    print STDERR "$err\n";
 	    $exit_status = 1;
 	}
 
-	$steps->{'check_exporting'}->();
-    };
-
-    # the export may not start until we quit the scribe, so wait for it now..
-    step check_exporting => sub {
-	# if we're exporting the final volume, wait for that to complete
-	if ($self->{'exporting'}) {
-	    $self->{'call_after_export'} = $steps->{'quit_clerk'};
-	} else {
-	    $steps->{'quit_clerk'}->();
-	}
+	$steps->{'quit_clerk'}->();
     };
 
     step quit_clerk => sub {
@@ -739,7 +753,7 @@ sub scribe_notif_tape_done {
     # exports are going on simultaneously.
     $self->{'exporting'}++;
 
-    my $finished_cb = sub {};
+    my $finished_cb = $params{'finished_cb'};
     my $steps = define_steps
 	cb_ref => \$finished_cb;
 

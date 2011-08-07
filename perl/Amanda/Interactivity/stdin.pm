@@ -16,13 +16,13 @@
 # Contact information: Zmanda Inc., 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94085, USA, or: http://www.zmanda.com
 
-package Amanda::Interactive::stdin;
+package Amanda::Interactivity::stdin;
 
 use strict;
 use warnings;
 use POSIX qw( :errno_h );
 use vars qw( @ISA );
-@ISA = qw( Amanda::Interactive );
+@ISA = qw( Amanda::Interactivity );
 
 use Amanda::Paths;
 use Amanda::Util;
@@ -32,11 +32,11 @@ use Amanda::MainLoop qw( :GIOCondition );
 
 =head1 NAME
 
-Amanda::Interactive::stdin -- Interactive class to read user request from stdin
+Amanda::Interactivity::stdin -- Interactivity class to read user request from stdin
 
 =head1 SYNOPSIS
 
-Amanda::Interactive class to write user request on stdout and read reply
+Amanda::Interactivity class to write user request on stdout and read reply
 from stdin.
 
 =cut
@@ -75,12 +75,12 @@ sub user_request {
 	if (!defined $n_read) {
 	    return if ($! == EINTR);
 	    $self->abort();
-	    return $params{'finished_cb'}->(
+	    return $params{'request_cb'}->(
 			Amanda::Changer::Error->new('fatal',
 				message => "Fail to read from stdin"));
 	} elsif ($n_read == 0) {
 	    $self->abort();
-	    return $params{'finished_cb'}->(
+	    return $params{'request_cb'}->(
 			Amanda::Changer::Error->new('fatal',
 				message => "Aborted by user"));
 	} else {
@@ -90,7 +90,7 @@ sub user_request {
 		chomp $line;
 		$buffer = "";
 		$self->abort();
-		return $params{'finished_cb'}->(undef, $line);
+		return $params{'request_cb'}->(undef, $line);
 	    }
 	}
     };

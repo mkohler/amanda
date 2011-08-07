@@ -14,10 +14,12 @@ COMMON_MAN_PAGES =  amanda.8 \
 		    amanda-auth.7 \
 		    amanda-match.7 \
 		    amarchiver.8 \
+		    amservice.8 \
 		    script-email.8
 
 CLIENT_MAN_PAGES = \
     amanda-applications.7 \
+    amdump_client.8 \
     amgtar.8 \
     ampgsql.8 \
     amraw.8 \
@@ -31,6 +33,7 @@ SERVER_MAN_PAGES =  \
     amanda-devices.7 \
     amanda-compatibility.7 \
     amanda-changers.7 \
+    amanda-interactivity.7 \
     amanda-taperscan.7 \
     amaddclient.8    \
     amadmin.8 \
@@ -53,7 +56,6 @@ SERVER_MAN_PAGES =  \
     amreport.8 \
     amrmtape.8 \
     amserverconfig.8 \
-    amservice.8 \
     amstatus.8 \
     amtape.8 \
     amtapetype.8 \

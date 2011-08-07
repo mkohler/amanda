@@ -155,23 +155,29 @@ typedef enum {
 } taperalgo_t;
 
 /* execute_on types */
-#define EXECUTE_ON_PRE_DLE_AMCHECK     1<<0
-#define EXECUTE_ON_PRE_HOST_AMCHECK    1<<1
-#define EXECUTE_ON_POST_DLE_AMCHECK    1<<2
-#define EXECUTE_ON_POST_HOST_AMCHECK   1<<3
-#define EXECUTE_ON_PRE_DLE_ESTIMATE    1<<4
-#define EXECUTE_ON_PRE_HOST_ESTIMATE   1<<5
-#define EXECUTE_ON_POST_DLE_ESTIMATE   1<<6
-#define EXECUTE_ON_POST_HOST_ESTIMATE  1<<7
-#define EXECUTE_ON_PRE_DLE_BACKUP      1<<8
-#define EXECUTE_ON_PRE_HOST_BACKUP     1<<9
-#define EXECUTE_ON_POST_DLE_BACKUP     1<<10
-#define EXECUTE_ON_POST_HOST_BACKUP    1<<11
-#define EXECUTE_ON_PRE_RECOVER         1<<12
-#define EXECUTE_ON_POST_RECOVER        1<<13
-#define EXECUTE_ON_PRE_LEVEL_RECOVER   1<<14
-#define EXECUTE_ON_POST_LEVEL_RECOVER  1<<15
-#define EXECUTE_ON_INTER_LEVEL_RECOVER 1<<16
+#define EXECUTE_ON_PRE_AMCHECK         1<<0
+#define EXECUTE_ON_PRE_DLE_AMCHECK     1<<1
+#define EXECUTE_ON_PRE_HOST_AMCHECK    1<<2
+#define EXECUTE_ON_POST_AMCHECK        1<<3
+#define EXECUTE_ON_POST_DLE_AMCHECK    1<<4
+#define EXECUTE_ON_POST_HOST_AMCHECK   1<<5
+#define EXECUTE_ON_PRE_ESTIMATE        1<<6
+#define EXECUTE_ON_PRE_DLE_ESTIMATE    1<<7
+#define EXECUTE_ON_PRE_HOST_ESTIMATE   1<<8
+#define EXECUTE_ON_POST_ESTIMATE       1<<9
+#define EXECUTE_ON_POST_DLE_ESTIMATE   1<<10
+#define EXECUTE_ON_POST_HOST_ESTIMATE  1<<11
+#define EXECUTE_ON_PRE_BACKUP          1<<12
+#define EXECUTE_ON_PRE_DLE_BACKUP      1<<13
+#define EXECUTE_ON_PRE_HOST_BACKUP     1<<14
+#define EXECUTE_ON_POST_BACKUP         1<<15
+#define EXECUTE_ON_POST_DLE_BACKUP     1<<16
+#define EXECUTE_ON_POST_HOST_BACKUP    1<<17
+#define EXECUTE_ON_PRE_RECOVER         1<<18
+#define EXECUTE_ON_POST_RECOVER        1<<19
+#define EXECUTE_ON_PRE_LEVEL_RECOVER   1<<20
+#define EXECUTE_ON_POST_LEVEL_RECOVER  1<<21
+#define EXECUTE_ON_INTER_LEVEL_RECOVER 1<<22
 typedef int execute_on_t;
 
 typedef int execute_where_t;
@@ -211,11 +217,12 @@ typedef enum {
     PART_CACHE_TYPE_DISK,
 } part_cache_type_t;
 
-/* recovery_limit */
+/* host_limit */
 typedef struct {
+    gboolean server;
     gboolean same_host;
     GSList *match_pats;
-} recovery_limit_t;
+} host_limit_t;
 
 /* Names for the type of value in a val_t.  Mostly for internal use, but useful
  * for wrapping val_t's, too. */
@@ -247,7 +254,8 @@ typedef enum {
     CONFTYPE_DATA_PATH,
     CONFTYPE_AUTOLABEL,
     CONFTYPE_PART_CACHE_TYPE,
-    CONFTYPE_RECOVERY_LIMIT,
+    CONFTYPE_HOST_LIMIT,
+    CONFTYPE_NO_YES_ALL,
 } conftype_t;
 
 /* A "seen" struct.  Rather than allocate strings all over the place, this
@@ -276,7 +284,7 @@ typedef struct val_s {
 	estimatelist_t  estimatelist;
 	identlist_t     identlist;
         autolabel_t     autolabel;
-	recovery_limit_t recovery_limit;
+	host_limit_t    host_limit;
     } v;
     seen_t seen;
     conftype_t type;
@@ -294,6 +302,7 @@ identlist_t           val_t_to_identlist(val_t *);
 time_t                val_t_to_time     (val_t *);
 ssize_t               val_t_to_size     (val_t *);
 int                   val_t_to_boolean  (val_t *);
+int                   val_t_to_no_yes_all(val_t *);
 comp_t                val_t_to_compress (val_t *);
 encrypt_t             val_t_to_encrypt  (val_t *);
 dump_holdingdisk_t    val_t_to_holding  (val_t *);
@@ -312,7 +321,7 @@ send_amreport_t       val_t_to_send_amreport(val_t *);
 data_path_t           val_t_to_data_path(val_t *);
 autolabel_t           val_t_to_autolabel(val_t *);
 part_cache_type_t     val_t_to_part_cache_type(val_t *);
-recovery_limit_t     *val_t_to_recovery_limit(val_t *);
+host_limit_t         *val_t_to_host_limit(val_t *);
 
 /* Has the given val_t been seen in a configuration file or config overwrite?
  *
@@ -345,6 +354,7 @@ recovery_limit_t     *val_t_to_recovery_limit(val_t *);
 #define val_t__time(val)          ((val)->v.t)
 #define val_t__size(val)          ((val)->v.size)
 #define val_t__boolean(val)       ((val)->v.i)
+#define val_t__no_yes_all(val)    ((val)->v.i)
 #define val_t__compress(val)      ((val)->v.i)
 #define val_t__encrypt(val)       ((val)->v.i)
 #define val_t__holding(val)       ((val)->v.i)
@@ -363,7 +373,7 @@ recovery_limit_t     *val_t_to_recovery_limit(val_t *);
 #define val_t__data_path(val)     ((val)->v.i)
 #define val_t__autolabel(val)     ((val)->v.autolabel)
 #define val_t__part_cache_type(val) ((val)->v.i)
-#define val_t__recovery_limit(val) ((val)->v.recovery_limit)
+#define val_t__host_limit(val)    ((val)->v.host_limit)
 
 /*
  * Parameters
@@ -381,6 +391,7 @@ typedef enum {
     CNF_CONF,
     CNF_INDEX_SERVER,
     CNF_TAPE_SERVER,
+    CNF_AMDUMP_SERVER,
     CNF_AUTH,
     CNF_SSH_KEYS,
     CNF_AMANDAD_PATH,
@@ -393,6 +404,7 @@ typedef enum {
     CNF_TAPEDEV,
     CNF_DEVICE_PROPERTY,
     CNF_PROPERTY,
+    CNF_INTERACTIVITY,
     CNF_APPLICATION,
     CNF_APPLICATION_TOOL,
     CNF_EXECUTE_ON,
@@ -469,9 +481,11 @@ typedef enum {
     CNF_UNRESERVED_TCP_PORT,
     CNF_HOLDINGDISK,
     CNF_AUTOLABEL,
+    CNF_META_AUTOLABEL,
     CNF_DEBUG_DAYS,
     CNF_TAPER_PARALLEL_WRITE,
     CNF_RECOVERY_LIMIT,
+    CNF_TAPERSCAN,
     CNF_CNF /* sentinel */
 } confparm_key;
 
@@ -508,6 +522,7 @@ val_t *getconf(confparm_key key);
 #define getconf_time(key)         (val_t_to_time(getconf((key))))
 #define getconf_size(key)         (val_t_to_size(getconf((key))))
 #define getconf_boolean(key)      (val_t_to_boolean(getconf((key))))
+#define getconf_no_yes_all(key)   (val_t_to_no_yes_all(getconf((key))))
 #define getconf_compress(key)     (val_t_to_compress(getconf((key))))
 #define getconf_encrypt(key)      (val_t_to_encrypt(getconf((key))))
 #define getconf_holding(key)      (val_t_to_holding(getconf((key))))
@@ -522,7 +537,7 @@ val_t *getconf(confparm_key key);
 #define getconf_send_amreport(key) (val_t_to_send_amreport(getconf((key))))
 #define getconf_autolabel(key)    (val_t_to_autolabel(getconf((key))))
 #define getconf_part_cache_type(key) (val_t_to_part_cache_type(getconf((key))))
-#define getconf_recovery_limit(key) (val_t_to_recovery_limit(getconf((key))))
+#define getconf_recovery_limit(key) (val_t_to_host_limit(getconf((key))))
 
 /* Get a list of names for subsections of the given type
  *
@@ -697,6 +712,7 @@ typedef enum {
     DUMPTYPE_DATA_PATH,
     DUMPTYPE_ALLOW_SPLIT,
     DUMPTYPE_RECOVERY_LIMIT,
+    DUMPTYPE_DUMP_LIMIT,
     DUMPTYPE_DUMPTYPE /* sentinel */
 } dumptype_key;
 
@@ -783,10 +799,11 @@ char *dumptype_name(dumptype_t *dtyp);
 #define dumptype_get_application(dtyp)         (val_t_to_application(dumptype_getconf((dtyp), DUMPTYPE_APPLICATION)))
 #define dumptype_get_scriptlist(dtyp)          (val_t_to_identlist(dumptype_getconf((dtyp), DUMPTYPE_SCRIPTLIST)))
 #define dumptype_get_property(dtyp)            (val_t_to_proplist(dumptype_getconf((dtyp), DUMPTYPE_PROPERTY)))
-#define dumptype_get_client_port(dtyp)             (val_t_to_str(dumptype_getconf((dtyp), DUMPTYPE_CLIENT_PORT)))
-#define dumptype_get_data_path(dtyp)             (val_t_to_data_path(dumptype_getconf((dtyp), DUMPTYPE_DATA_PATH)))
+#define dumptype_get_client_port(dtyp)         (val_t_to_str(dumptype_getconf((dtyp), DUMPTYPE_CLIENT_PORT)))
+#define dumptype_get_data_path(dtyp)           (val_t_to_data_path(dumptype_getconf((dtyp), DUMPTYPE_DATA_PATH)))
 #define dumptype_get_allow_split(dtyp)         (val_t_to_boolean(dumptype_getconf((dtyp), DUMPTYPE_ALLOW_SPLIT)))
-#define dumptype_get_recovery_limit(dtyp)      (val_t_to_recovery_limit(dumptype_getconf((dtyp), DUMPTYPE_RECOVERY_LIMIT)))
+#define dumptype_get_recovery_limit(dtyp)      (val_t_to_host_limit(dumptype_getconf((dtyp), DUMPTYPE_RECOVERY_LIMIT)))
+#define dumptype_get_dump_limit(dtyp)          (val_t_to_host_limit(dumptype_getconf((dtyp), DUMPTYPE_DUMP_LIMIT)))
 
 /*
  * Interface parameter access
@@ -909,6 +926,7 @@ typedef enum application_e  {
     APPLICATION_COMMENT,
     APPLICATION_PLUGIN,
     APPLICATION_PROPERTY,
+    APPLICATION_CLIENT_NAME,
     APPLICATION_APPLICATION
 } application_key;
 
@@ -956,8 +974,7 @@ char *application_name(application_t *app);
 #define application_get_comment(application)  (val_t_to_str(application_getconf((application), APPLICATION_COMMENT))
 #define application_get_plugin(application)   (val_t_to_str(application_getconf((application), APPLICATION_PLUGIN)))
 #define application_get_property(application) (val_t_to_proplist(application_getconf((application), APPLICATION_PROPERTY)))
-
-application_t *read_application(char *name, FILE *from, char *fname, int *linenum);
+#define application_get_client_name(application) (val_t_to_str(application_getconf((application), APPLICATION_CLIENT_NAME)))
 
 /* A pp-script-tool interface */
 typedef enum pp_script_e  {
@@ -967,6 +984,8 @@ typedef enum pp_script_e  {
     PP_SCRIPT_EXECUTE_ON,
     PP_SCRIPT_EXECUTE_WHERE,
     PP_SCRIPT_ORDER,
+    PP_SCRIPT_SINGLE_EXECUTION,
+    PP_SCRIPT_CLIENT_NAME,
     PP_SCRIPT_PP_SCRIPT
 } pp_script_key;
 
@@ -1018,8 +1037,9 @@ char *pp_script_name(pp_script_t *pps);
 #define pp_script_get_execute_on(pp_script)   (val_t_to_execute_on(pp_script_getconf((pp_script), PP_SCRIPT_EXECUTE_ON)))
 #define pp_script_get_execute_where(pp_script)   (val_t_to_execute_where(pp_script_getconf((pp_script), PP_SCRIPT_EXECUTE_WHERE)))
 #define pp_script_get_order(pp_script)   (val_t_to_int(pp_script_getconf((pp_script), PP_SCRIPT_ORDER)))
+#define pp_script_get_single_execution(pp_script)   (val_t_to_boolean(pp_script_getconf((pp_script), PP_SCRIPT_SINGLE_EXECUTION)))
+#define pp_script_get_client_name(pp_script)   (val_t_to_str(pp_script_getconf((pp_script), PP_SCRIPT_CLIENT_NAME)))
 
-pp_script_t *read_pp_script(char *name, FILE *from, char *fname, int *linenum);
 pp_script_t *lookup_pp_script(char *identifier);
 
 /* A device definition */
@@ -1076,7 +1096,6 @@ char *device_config_name(device_config_t *devconf);
 #define device_config_get_tapedev(devconf)   (val_t_to_str(device_config_getconf((devconf), DEVICE_CONFIG_TAPEDEV)))
 #define device_config_get_property(devconf)   (val_t_to_proplist(device_config_getconf((devconf), DEVICE_CONFIG_DEVICE_PROPERTY)))
 
-device_config_t *read_device_config(char *name, FILE *from, char *fname, int *linenum);
 device_config_t *lookup_device_config(char *identifier);
 
 /* A changer definition */
@@ -1139,8 +1158,116 @@ char *changer_config_name(changer_config_t *devconf);
 #define changer_config_get_changerdev(devconf)   (val_t_to_str(changer_config_getconf((devconf), CHANGER_CONFIG_CHANGERDEV)))
 #define changer_config_get_changerfile(devconf)   (val_t_to_str(changer_config_getconf((devconf), CHANGER_CONFIG_CHANGERFILE)))
 
-changer_config_t *read_changer_config(char *name, FILE *from, char *fname, int *linenum);
 changer_config_t *lookup_changer_config(char *identifier);
+
+/* A interacrtivity interface */
+typedef enum interactivity_e  {
+    INTERACTIVITY_COMMENT,
+    INTERACTIVITY_PLUGIN,
+    INTERACTIVITY_PROPERTY,
+    INTERACTIVITY_INTERACTIVITY
+} interactivity_key;
+
+/* opaque object */
+typedef struct interactivity_s interactivity_t;
+
+/* Given the name of the interactivity, return a interactivity object.
+ *  Returns NULL if no matching interactivity exists.
+ *  Note that the match is case-insensitive.
+ *
+ * @param identifier: name of the desired interactivity
+ * @returns: object or NULL
+ */
+
+interactivity_t *lookup_interactivity(char *identifier);
+
+/* Given a interactivity and a key, return a pointer to the corresponding val_t.
+ *
+ * @param ttyp: the interactivity to examine
+ * @param key: interactivity (one of the INTERACTIVITY_* constants)
+ * @returns: pointer to value
+ */
+val_t *interactivity_getconf(interactivity_t *app, interactivity_key key);
+
+/* Get the name of this interactivity.
+ *
+ * @param ttyp: the interactivity to examine
+ * @returns: name of the interactivity
+ */
+char *interactivity_name(interactivity_t *app);
+
+/* (convenience macro) has this parameter been seen in this interactivity?
+ * This applies to the specific parameter *within* the interactivity.
+ *
+ * @param key: interactivity_key
+ * @returns: boolean
+ */
+#define interactivity_seen(app, key)       (val_t_seen(interactivity_getconf((app), (key))))
+
+/* (convenience macros)
+ * fetch a particular parameter; caller must know the correct type.
+ *
+ * @param ttyp: the interactivity to examine
+ * @returns: various
+ */
+#define interactivity_get_comment(interactivity)  (val_t_to_str(interactivity_getconf((interactivity), INTERACTIVITY_COMMENT))
+#define interactivity_get_plugin(interactivity)   (val_t_to_str(interactivity_getconf((interactivity), INTERACTIVITY_PLUGIN)))
+#define interactivity_get_property(interactivity) (val_t_to_proplist(interactivity_getconf((interactivity), INTERACTIVITY_PROPERTY)))
+
+/* A taperscan interface */
+typedef enum taperscan_e  {
+    TAPERSCAN_COMMENT,
+    TAPERSCAN_PLUGIN,
+    TAPERSCAN_PROPERTY,
+    TAPERSCAN_TAPERSCAN
+} taperscan_key;
+
+/* opaque object */
+typedef struct taperscan_s taperscan_t;
+
+/* Given the name of the taperscan, return a taperscan object.
+ *  Returns NULL if no matching taperscan exists.
+ *  Note that the match is case-insensitive.
+ *
+ * @param identifier: name of the desired taperscan
+ * @returns: object or NULL
+ */
+
+taperscan_t *lookup_taperscan(char *identifier);
+
+/* Given a taperscan and a key, return a pointer to the corresponding val_t.
+ *
+ * @param ttyp: the taperscan to examine
+ * @param key: taperscan (one of the TAPERSCAN_* constants)
+ * @returns: pointer to value
+ */
+val_t *taperscan_getconf(taperscan_t *app, taperscan_key key);
+
+/* Get the name of this taperscan.
+ *
+ * @param ttyp: the taperscan to examine
+ * @returns: name of the taperscan
+ */
+char *taperscan_name(taperscan_t *app);
+
+/* (convenience macro) has this parameter been seen in this taperscan?
+ * This applies to the specific parameter *within* the taperscan.
+ *
+ * @param key: taperscan_key
+ * @returns: boolean
+ */
+#define taperscan_seen(app, key)       (val_t_seen(taperscan_getconf((app), (key))))
+
+/* (convenience macros)
+ * fetch a particular parameter; caller must know the correct type.
+ *
+ * @param ttyp: the taperscan to examine
+ * @returns: various
+ */
+#define taperscan_get_comment(taperscan)  (val_t_to_str(taperscan_getconf((taperscan), TAPERSCAN_COMMENT))
+#define taperscan_get_plugin(taperscan)   (val_t_to_str(taperscan_getconf((taperscan), TAPERSCAN_PLUGIN)))
+#define taperscan_get_property(taperscan) (val_t_to_proplist(taperscan_getconf((taperscan), TAPERSCAN_PROPERTY)))
+
 
 /*
  * Error Handling

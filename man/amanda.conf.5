@@ -2,12 +2,12 @@
 .\"     Title: amanda.conf
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 12/14/2010
+.\"      Date: 06/02/2011
 .\"    Manual: File formats and conventions
-.\"    Source: Amanda 3.2.1
+.\"    Source: Amanda 3.3.0
 .\"  Language: English
 .\"
-.TH "AMANDA\&.CONF" "5" "12/14/2010" "Amanda 3\&.2\&.1" "File formats and conventions"
+.TH "AMANDA\&.CONF" "5" "06/02/2011" "Amanda 3\&.3\&.0" "File formats and conventions"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -370,8 +370,20 @@ Default: not set\&. When set, this directive will cause Amanda to automatically 
 .RS 4
 Default: not set\&. When set, this directive will cause Amanda to automatically write an Amanda tape label to most volume she encounters\&. This option is DANGEROUS because when set, Amanda may erase near\-failing tapes or tapes accidentally loaded in the wrong slot\&.
 .sp
-When using this directive, specify the template for new tape labels\&. The template should contain some number of contiguous \'%\' characters, which will be replaced with a generated number\&. Be sure to specify enough \'%\' characters that you do not run out of tape labels\&. Example:
-\fBautolabel "DailySet1\-%%%" empty\fR
+When using this directive, specify the template for new tape labels\&. The template can contains many variables that are substituted by their values:
+.sp
+.nf
+    $c : config name
+    $o : org configuration
+    $b : barcode of the volume
+    $m : meta label
+.fi
+.sp
+The template should contain some number of contiguous \'%\' characters, which will be replaced with a generated number\&. Be sure to specify enough \'%\' characters that you do not run out of tape labels\&. Example:
+\fB"DailySet1\-%%%"\fR,
+\fB"$c\-%%%"\fR,
+\fB"$m\-%%%"\fR,
+\fB"$m\-$b"\fR
 .sp
 Note that many devices cannot distinguish an empty tape from an error condition, so it may is often necessary to include
 \fBvolume\-error\fR
@@ -406,6 +418,24 @@ Danger: this may erase arbitrary volumes due to transient errors\&.
 .RS 4
 Label volumes where a read returns 0 bytes\&.
 .RE
+.RE
+.PP
+\fBmeta\-autolabel\fR \fIstring\fR
+.RS 4
+Default: not set\&. When set and if the changer support meta\-label, this directive will cause Amanda to automatically add a meta\-label to a meta\-volume\&.
+.sp
+A meta\-volume is a containers that contains many volumes, eg\&. a removable hard\-disk for use with chg\-disk, each hard disk have many slots (volume)\&. The meta\-label is the label to put on the meta\-volume\&.
+.sp
+When using this directive, specify the template for new meta labels\&. The template can contains many variables that are substituted by their values:
+.sp
+.nf
+    $c : config name
+    $o : org configuration
+.fi
+.sp
+The template should contain some number of contiguous \'%\' characters, which will be replaced with a generated number\&. Be sure to specify enough \'%\' characters that you do not run out of meta labels\&. Example:
+\fB"DailySet1\-%%%"\fR,
+\fB"$o\-%%%"\fR,
 .RE
 .PP
 \fBdumpuser\fR \fIstring\fR
@@ -461,6 +491,20 @@ is specified, although for backward compatibility both may be specified if
 gives the name of an old changer script\&. See
 \fBamanda-changers\fR(7)
 for more information on configuring changers\&.
+.RE
+.PP
+\fBinteractivity\fR \fIstring\fR
+.RS 4
+Default: not set\&. The interactivity module Amanda should use to interact with the user\&. See
+\fBamanda-interactivity\fR(7)
+for a list of modules\&.
+.RE
+.PP
+\fBtaperscan\fR \fIstring\fR
+.RS 4
+Default: traditional\&. The taperscan module amanda should use to find a tape to write to\&. See
+\fBamanda-taperscan\fR(7)
+for a list of modules\&.
 .RE
 .PP
 \fBchangerdev\fR \fIstring\fR
@@ -780,10 +824,12 @@ Default:
 \fI100\fR\&. The part of holding\-disk space that should be reserved for incremental backups if no tape is available, expressed as a percentage of the available holding\-disk space (0\-100)\&. By default, when there is no tape to write to, degraded mode (incremental) backups will be performed to the holding disk\&. If full backups should also be allowed in this case, the amount of holding disk space reserved for incrementals should be lowered\&.
 .RE
 .PP
-\fBautoflush\fR \fIbool\fR
+\fBautoflush\fR \fBno\fR|\fByes\fR|\fBall\fR
 .RS 4
 Default:
-\fBoff\fR\&. Whether an amdump run will flush the dumps from holding disk to tape\&.
+\fBno\fR\&. Whether an amdump run will flush the dumps from holding disk to tape\&. With
+\fByes\fR, only dump matching the command line argument are flushed\&. With
+\fBall\fR, all dump are flushed\&.
 .RE
 .PP
 \fBamrecover\-do\-fsf\fR \fIbool\fR
@@ -1033,11 +1079,18 @@ Default: \-\-with\-tcpportrange or
 \fI1024,65535\fR\&. Unreserved tcp port that will be used (bsd, bsdudp)\&. Range is inclusive\&.
 .RE
 .PP
-\fBrecovery\-limit\fR [ \fIstring\fR | \fBsame\-host\fR ]
+\fBrecovery\-limit\fR [ \fIstring\fR | \fBsame\-host\fR | \fBserver\fR]
 .RS 4
-Default: none (no limitations)\&. This parameter limits the hosts that may do remote recoveries\&. Hosts are identified by their authenticated peer name, as described in
+Default: none (no limitations)\&. This parameter limits the hosts that may do recoveries\&. Hosts are identified by their authenticated peer name, as described in
 \fBamanda-auth\fR(7); if this is not available and the recovery\-limit parameter is present, recovery will be denied\&. The arguments to the parameter are strings giving host match expressions (see
-\fBamanda-match\fR(7)) or the special keyword same\-host, which requires an exact match to the hostname of the DLE being recovered\&. Specifying no arguments at all will disable all recoveries from any host\&.
+\fBamanda-match\fR(7)) or the special keywords
+\fBsame\-host\fR
+or
+\fBserver\fR\&. The
+\fBsame\-host\fR
+keyword requires an exact match to the hostname of the DLE being recovered\&. The
+\fBserver\fR
+keyword require the connection come from the fqdn of the server\&. Specifying no arguments at all will disable all recoveries from any host\&.
 .sp
 Note that match expressions can be constructed to be forgiving of e\&.g\&., fully\-qualified vs\&. unqualified hostnames, but
 \fBsame\-host\fR
@@ -1138,7 +1191,7 @@ The dumptype options and values are:
 \fBauth\fR \fIstring\fR
 .RS 4
 Default:
-\fI"bsd"\fR\&. Type of authorization to perform between tape server and backup client hosts\&. See
+\fI"bsdtcp"\fR\&. Type of authorization to perform between tape server and backup client hosts\&. See
 \fBamanda-auth\fR(7)
 for more detail\&.
 .RE
@@ -1721,11 +1774,23 @@ Default:
 is specified, or when it is too small or does not exist, and thus the maximum amount of memory consumed for in\-memory splitting\&. The default unit is Kbytes if it is not specified\&.
 .RE
 .PP
-\fBrecovery\-limit\fR [ \fBsame\-host\fR | \fIstring\fR ]*
+\fBrecovery\-limit\fR [ \fBserver\fR | \fBsame\-host\fR | \fIstring\fR ]*
 .RS 4
 Default: global value\&. This parameter overrides the global
 \fBrecovery\-limit\fR
 parameter for DLEs of this dumptype\&.
+.RE
+.PP
+\fBdump\-limit\fR [ \fBserver\fR | \fBsame\-host\fR ]*
+.RS 4
+Default:
+\fBserver\fR\&. Specify which host can initiate a backup of the dle\&. With
+\fBserver\fR, the server can initiate a backup with the
+\fBamdump\fR
+command\&. With
+\fBsame\-host\fR, the client can initiate a backup with the
+\fBamdump_client\fR
+command\&.
 .RE
 .PP
 The following
@@ -1745,7 +1810,10 @@ define dumptype "srvcompress" {
     compress server fast
 }
 define dumptype "bsd\-auth" {
-    auth bsd
+    auth "bsd"
+}
+define dumptype "bsdtcp\-auth" {
+    auth "bsdtcp"
 }
 define dumptype "no\-record" {
     record no
@@ -1980,6 +2048,17 @@ is the name of this type of application\&. It is referenced from the
 .PP
 The application options and values are:
 .PP
+\fBclient\-name\fR \fIstring\fR
+.RS 4
+No default, specifies an application name that is in the amanda\-client\&.conf on the client\&. The setting from that application will be merged with the current application\&. If
+\fBclient\-name\fR
+is set then it is an error if that application is not defined on the client\&.
+.sp
+If
+\fBclient\-name\fR
+is not set then the merge is done with the application that have the name equal to the plugin\&. eg\&. if the plugin is \'amgtar\', then the setting from the application \'amgtar\' is used if it is defined\&.
+.RE
+.PP
 \fBcomment\fR \fIstring\fR
 .RS 4
 Default: not set\&. A comment string describing this application\&.
@@ -2022,6 +2101,17 @@ is the name of this type of script\&. It is referenced from the
 .PP
 The script options and values are:
 .PP
+\fBclient\-name\fR \fIstring\fR
+.RS 4
+No default, specifies a script name that is in the amanda\-client\&.conf on the client\&. The setting from that script will be merged with the currect script\&. If
+\fBclient\-name\fR
+is set then it is an error if that script is not defined on the client\&.
+.sp
+If
+\fBclient\-name\fR
+is not set then the merge is done with the script that have the name equal to the plugin\&. eg\&. if the plugin is \'amlog\-script\', then the setting from the script \'amlog\-script\' is used\&.
+.RE
+.PP
 \fBcomment\fR \fIstring\fR
 .RS 4
 Default: not set\&. A comment string describing this script\&.
@@ -2040,6 +2130,13 @@ Default:
 \fI5000\fR\&. Scripts are executed in that order, it is useful if you have many scripts and they must be executed in a spefific order\&.
 .RE
 .PP
+\fBsingle\-execution\fR \fIboolean\fR
+.RS 4
+Default:
+\fIno\fR\&. The script is executed for each dle\&. If
+\fIyes\fR, the script is executed one time only\&.
+.RE
+.PP
 \fBexecute\-where\fR [ \fBclient\fR | \fBserver\fR ]
 .RS 4
 Default:
@@ -2050,6 +2147,11 @@ Default:
 .RS 4
 No default\&. When the script must be executed, you can specify many of them:
 .PP
+\fBpre\-amcheck\fR
+.RS 4
+Execute before the amcheck command for all dle\&. Can only be run on server\&.
+.RE
+.PP
 \fBpre\-dle\-amcheck\fR
 .RS 4
 Execute before the amcheck command for the dle\&.
@@ -2058,6 +2160,11 @@ Execute before the amcheck command for the dle\&.
 \fBpre\-host\-amcheck\fR
 .RS 4
 Execute before the amcheck command for all dle for the client\&.
+.RE
+.PP
+\fBpost\-amcheck\fR
+.RS 4
+Execute after the amcheck command for all dle\&. Can only be run on server\&.
 .RE
 .PP
 \fBpost\-dle\-amcheck\fR
@@ -2070,6 +2177,11 @@ Execute after the amcheck command for the dle\&.
 Execute after the amcheck command for all dle for the client\&.
 .RE
 .PP
+\fBpre\-estimate\fR
+.RS 4
+Execute before the estimate command for all dle\&. Can only be run on server\&.
+.RE
+.PP
 \fBpre\-dle\-estimate\fR
 .RS 4
 Execute before the estimate command for the dle\&.
@@ -2078,6 +2190,11 @@ Execute before the estimate command for the dle\&.
 \fBpre\-host\-estimate\fR
 .RS 4
 Execute before the estimate command for all dle for the client\&.
+.RE
+.PP
+\fBpost\-estimate\fR
+.RS 4
+Execute after the estimate command for all dle\&. Can only be run on server\&.
 .RE
 .PP
 \fBpost\-dle\-estimate\fR
@@ -2090,6 +2207,11 @@ Execute after the estimate command for the dle\&.
 Execute after the estimate command for all dle for the client\&.
 .RE
 .PP
+\fBpre\-backup\fR
+.RS 4
+Execute before the backup command for all dle\&. Can only be run on server\&.
+.RE
+.PP
 \fBpre\-dle\-backup\fR
 .RS 4
 Execute before the backup command for the dle\&.
@@ -2098,6 +2220,11 @@ Execute before the backup command for the dle\&.
 \fBpre\-host\-backup\fR
 .RS 4
 Execute before the backup command for all dle for the client\&. It can\'t be run on client, it must be run on server
+.RE
+.PP
+\fBpost\-backup\fR
+.RS 4
+Execute after the backup command for all dle\&. Can only be run on server\&.
 .RE
 .PP
 \fBpost\-dle\-backup\fR
@@ -2211,6 +2338,93 @@ is the user\-specified name of this device\&. The remaining parameters are speci
 See
 \fBamanda-changers\fR(7)
 for more information on configuring changers\&.
+.SH "INTERACTIVITY SECTION"
+.PP
+The
+\fBamanda\&.conf\fR
+file may define multiple interactivyt methods, although only one will be used \- that specified by the
+\fBinteractivity\fR
+parameter\&. The information is entered in a
+\fBinteractivity\fR
+section, which looks like this:
+.nf
+define interactivity \fIname\fR {
+    \fIinteractivity\-option\fR \fIinteractivity\-value\fR
+    \&.\&.\&.
+}
+.fi
+.PP
+The { must appear at the end of a line, and the } on its own line\&.
+.PP
+\fIname\fR
+is the user\-specified name of this interactivity\&. The remaining parameters are specific to the interactivity type selected\&.
+.PP
+The interactivity options and values are:
+.PP
+\fBcomment\fR \fIstring\fR
+.RS 4
+Default: not set\&. A comment string describing this interactivity\&.
+.RE
+.PP
+\fBplugin\fR \fIstring\fR
+.RS 4
+No default\&. Must be set to the name of the interactivity module, as described in
+\fBamanda-interactivity\fR(7)\&.
+.RE
+.PP
+\fBproperty\fR [\fBappend\fR] \fIstring\fR \fIstring\fR+
+.RS 4
+No default\&. You can set arbitrary properties for the interactivity\&. Each interactivity module has a different set of properties\&. The first string contains the name of the property to set, and the others contains its values\&. All strings should be quoted\&. The
+\fBappend\fR
+keyword appends the given values to an existing list of values for that property\&.
+.RE
+.PP
+See
+\fBamanda-interactivity\fR(7)
+for more information on configuring interactivity methods\&.
+.SH "TAPERSCAN SECTION"
+.PP
+The
+\fBamanda\&.conf\fR
+file may define multiple taperscan methods, although only one will be used \- that specified by the
+\fBtaperscan\fR
+parameter\&. The information is entered in a
+\fBtaperscan\fR
+section, which looks like this:
+.nf
+define taperscan \fIname\fR {
+    \fItaperscan\-option\fR \fItaperscan\-value\fR
+    \&.\&.\&.
+}
+.fi
+.PP
+The { must appear at the end of a line, and the } on its own line\&.
+.PP
+\fIname\fR
+is the user\-specified name of this taperscan\&. The remaining parameters are specific to the taperscan type selected\&.
+.PP
+The taperscan options and values are:
+.PP
+\fBcomment\fR \fIstring\fR
+.RS 4
+Default: not set\&. A comment string describing this taperscan\&.
+.RE
+.PP
+\fBplugin\fR \fIstring\fR
+.RS 4
+No default\&. Must be set to the name of the taperscan module\&. See
+<man></man>
+for a list of defined taperscan modules\&.
+.RE
+.PP
+\fBproperty\fR [\fBappend\fR] \fIstring\fR \fIstring\fR+
+.RS 4
+No default\&. Operates just like properties for interactivity methods, above\&.
+.RE
+.PP
+See
+\fBamanda-taperscan\fR(7)
+for more information on configuring taperscan\&.
 .SH "DUMP SPLITTING CONFIGURATION"
 .PP
 Amanda can "split" dumps into parts while writing them to storage media\&. This allows Amanda to recover gracefully from a failure while writing a part to a volume, by simply selecting a new volume and re\-writing the dump from the beginning of the failed part\&. Parts also allow Amanda to seek directly to the required data, although this functionality is not yet used\&.
@@ -2247,7 +2461,9 @@ parameters describe how to behave when caching is required (on PORT\-WRITE)\&. F
 \fBamanda-auth\fR(7),
 \fBamanda-changers\fR(7),
 \fBamanda-devices\fR(7),
-\fBamanda-scripts\fR(7)
+\fBamanda-interactivity\fR(7),
+\fBamanda-scripts\fR(7),
+\fBamanda-taperscan\fR(7)
 .PP
 The Amanda Wiki:
 : http://wiki.zmanda.com/

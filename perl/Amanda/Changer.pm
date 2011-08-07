@@ -28,7 +28,7 @@ use vars qw( @ISA );
 
 use Amanda::Paths;
 use Amanda::Util;
-use Amanda::Config qw( :getconf string_to_boolean );
+use Amanda::Config qw( :getconf );
 use Amanda::Device qw( :constants );
 use Amanda::Debug qw( debug );
 use Amanda::MainLoop;
@@ -59,6 +59,9 @@ Amanda::Changer -- interface to changer scripts
     # later..
     $reservation->release(finished_cb => $start_next_volume);
 
+    # later..
+    $chg->quit();
+
 =head1 INTERFACE
 
 All operations in the module return immediately, and take as an argument a
@@ -69,12 +72,20 @@ continue.
 
 A new object is created with the C<new> function as follows:
 
-  my $chg = Amanda::Changer->new($changer_name);
+  my $chg = Amanda::Changer->new($changer_name,
+				 tapelist       => $tapelist,
+				 labelstr       => $labelstr,
+				 autolabel      => $autolabel,
+				 meta_autolabel => $meta_autolabel);
 
 to create a named changer (a name provided by the user, either specifying a
 changer directly or specifying a changer definition), or
 
-  my $chg = Amanda::Changer->new();
+  my $chg = Amanda::Changer->new(undef,
+				 tapelist       => $tapelist,
+				 labelstr       => $labelstr,
+				 autolabel      => $autolabel,
+				 meta_autolabel => $meta_autolabel);
 
 to run the default changer.  This function handles the many ways a user can
 configure a changer.
@@ -88,6 +99,13 @@ creating a new changer is
     die("Error creating changer $changer_name: $chg");
   }
 
+C<tapelist> must be an Amanda::Tapelist object. It is required if you want to
+use $chg->volume_is_labelable(), $chg->make_new_tape_label(),
+$chg->make_new_meta_label(), $res->make_new_tape_label() or
+$res->make_new_meta_label().
+C<labelstr> must be like getconf($CNF_LABELSTR), that value is used if C<labelstr> is not set.
+C<autolabel> must be like getconf($CNF_AUTOLABEL), that value is used if C<autolabel> is not set.
+C<meta_autolabel> must be like getconf($CNF_META_AUTOLABEL), that value is used if C<meta_autolabel> is not set.
 =head2 MEMBER VARIABLES
 
 Note that these variables are not set until after the subclass constructor is
@@ -167,6 +185,7 @@ has one of the following values:
   volinuse          The requested volume or slot is already in use
   driveinuse        All drives are in use
   unknown           Unknown reason
+  empty             The slot is empty
 
 Like types, checks for particular reasons should use the methods, to avoid
 undetected typos:
@@ -190,6 +209,10 @@ tape immediately (with C<load>), and to progress from tape to tape using the
 C<relative_slot> parameter to C<load>.
 
 =head2 CHANGER OBJECTS
+
+=head3 quit
+
+To terminate a changer object.
 
 =head3 load
 
@@ -359,6 +382,33 @@ change, but some entries can be added or removed.
 
 Each slot is represented by a hash with the following keys:
 
+=head3 make_new_tape_label
+
+  $chg->make_new_tape_label(barcode => $barcode,
+			    meta    => $meta);
+
+To devise a new name for a volume using the C<barcode> and C<meta> arguments.
+This will return C<undef> if no label could be created.
+
+=head3 make_new_meta_label
+
+  $chg->make_new_meta_label();
+
+To devise a new meta name for a meta volume.
+This will return C<undef> if no label could be created.
+
+=head3 have_inventory
+
+  $chg->have_inventory() 
+
+Return True if the changer have the inventory method.
+
+=head3 volume_is_labelable
+
+  $chg->volume_is_labelable($device_status, $f_type, $label);
+
+Return 1 if the volume is labelable acording to the autolabel setting.
+
 =over 4
 
 =item slot
@@ -426,6 +476,12 @@ user, and have meaning for the changer.
 
 =head2 RESERVATION OBJECTS
 
+=head3 Methods
+
+=head3 $res->{'chg'}
+
+This is the changer object.
+
 =head3 $res->{'device'}
 
 This is the fully configured device for the reserved volume.  The device is not
@@ -441,6 +497,16 @@ access this field after the reservation has been released.
 
 If this changer supports barcodes, then this is the barcode of the reserved
 volume.  This can be helpful for labeling tapes using their barcode.
+
+=head3 $label = $res->make_new_tape_label()
+
+To devise a new name for a volume.
+This will return C<undef> if no label could be created.
+
+=head3 $meta = $res->make_new_meta_label()
+
+To devise a new meta name for a meta volume.
+This will return C<undef> if no label could be created.
 
 =head3 $res->release(finished_cb => $cb, eject => $eject)
 
@@ -488,14 +554,6 @@ Next, for each requested key, C<info> calls
 including a regular C<info_cb> callback.  The C<info> method will wait for
 all C<info_key> invocations to finish, then collect the results or errors that
 occur.
-
-=head2 PROPERTY PARSING
-
-Many properties are boolean, and Amanda has a habit of accepting a number of
-different ways of writing boolean values.  The method
-C<< $self->get_boolean_property($config, $prop, $default) >> will parse such a
-property, returning 0 or 1 if the property is specified, C<$default> if it is
-not specified, or C<undef> if the property cannot be parsed.
 
 =head2 ERROR HANDLING
 
@@ -587,6 +645,12 @@ property, ignoring its the priority and other attributes.  In a list context,
 it returns all values for the property; in a scalar context, it returns the
 first value specified.
 
+Many properties are boolean, and Amanda has a habit of accepting a number of
+different ways of writing boolean values.  The method
+C<< $config->get_boolean_property($prop, $default) >> will parse such a
+property, returning 0 or 1 if the property is specified, C<$default> if it is
+not specified, or C<undef> if the property cannot be parsed.
+
 =head2 PERSISTENT STATE AND LOCKING
 
 Many changer subclasses need to track state across invocations and between
@@ -658,23 +722,24 @@ our %EXPORT_TAGS = (
 sub new {
     shift eq 'Amanda::Changer'
 	or die("Do not call the Amanda::Changer constructor from subclasses");
-    my ($name) = @_;
+    my ($name) = shift;
+    my %params = @_;
     my ($uri, $cc);
 
     # creating a named changer is a bit easier
     if (defined($name)) {
 	# first, is it a changer alias?
 	if (($uri,$cc) = _changer_alias_to_uri($name)) {
-	    return _new_from_uri($uri, $cc, $name);
+	    return _new_from_uri($uri, $cc, $name, %params);
 	}
 
 	# maybe a straight-up changer URI?
 	if (_uri_to_pkgname($name)) {
-	    return _new_from_uri($name, undef, $name);
+	    return _new_from_uri($name, undef, $name, %params);
 	}
 
 	# assume it's a device name or alias, and invoke the single-changer
-	return _new_from_uri("chg-single:$name", undef, $name);
+	return _new_from_uri("chg-single:$name", undef, $name, %params);
     } else { # !defined($name)
 	if ((getconf_linenum($CNF_TPCHANGER) == -2 ||
 	     (getconf_seen($CNF_TPCHANGER) &&
@@ -684,7 +749,7 @@ sub new {
 
 	    # first, is it an old changer script?
 	    if ($uri = _old_script_to_uri($tpchanger)) {
-		return _new_from_uri($uri, undef, $tpchanger);
+		return _new_from_uri($uri, undef, $tpchanger, %params);
 	    }
 
 	    # if not, then there had better be no tapdev
@@ -699,37 +764,52 @@ sub new {
 
 	    # maybe a changer alias?
 	    if (($uri,$cc) = _changer_alias_to_uri($tpchanger)) {
-		return _new_from_uri($uri, $cc, $tpchanger);
+		return _new_from_uri($uri, $cc, $tpchanger, %params);
 	    }
 
 	    # maybe a straight-up changer URI?
 	    if (_uri_to_pkgname($tpchanger)) {
-		return _new_from_uri($tpchanger, undef, $tpchanger);
+		return _new_from_uri($tpchanger, undef, $tpchanger, %params);
 	    }
 
 	    # assume it's a device name or alias, and invoke the single-changer
-	    return _new_from_uri("chg-single:$tpchanger", undef, $tpchanger);
+	    return _new_from_uri("chg-single:$tpchanger", undef, $tpchanger, %params);
 	} elsif (getconf_seen($CNF_TAPEDEV) and getconf($CNF_TAPEDEV) ne '') {
 	    my $tapedev = getconf($CNF_TAPEDEV);
 
 	    # first, is it a changer alias?
 	    if (($uri,$cc) = _changer_alias_to_uri($tapedev)) {
-		return _new_from_uri($uri, $cc, $tapedev);
+		return _new_from_uri($uri, $cc, $tapedev, %params);
 	    }
 
 	    # maybe a straight-up changer URI?
 	    if (_uri_to_pkgname($tapedev)) {
-		return _new_from_uri($tapedev, undef, $tapedev);
+		return _new_from_uri($tapedev, undef, $tapedev, %params);
 	    }
 
 	    # assume it's a device name or alias, and invoke chg-single.
 	    # chg-single will check the device immediately and error out
 	    # if the device name is invalid.
-	    return _new_from_uri("chg-single:$tapedev", undef, $tapedev);
+	    return _new_from_uri("chg-single:$tapedev", undef, $tapedev, %params);
 	} else {
 	    return Amanda::Changer::Error->new('fatal',
 		message => "You must specify one of 'tapedev' or 'tpchanger'");
 	}
+    }
+}
+
+sub DESTROY {
+    my $self = shift;
+
+    debug("Changer '$self->{'chg_name'}' not quit") if defined $self->{'chg_name'};
+}
+
+# do nothing in quit
+sub quit {
+    my $self = shift;
+
+    foreach (keys %$self) {
+        delete $self->{$_};
     }
 }
 
@@ -821,12 +901,11 @@ sub _uri_to_pkgname {
     return $pkgname;
 }
 
-# already-instantiated changer objects (using 'our' so that the installcheck
-# and reset this list as necessary)
-our %changers_by_uri_cc = ();
-
 sub _new_from_uri { # (note: this sub is patched by the installcheck)
-    my ($uri, $cc, $name) = @_;
+    my $uri = shift;
+    my $cc = shift;
+    my $name = shift;
+    my %params = @_;
 
     # as a special case, if the URI came back as an error, just pass
     # that along.  This lets the _xxx_to_uri methods return errors more
@@ -845,17 +924,14 @@ sub _new_from_uri { # (note: this sub is patched by the installcheck)
 
     # return a pre-existing changer, if possible
 
-    if (exists($changers_by_uri_cc{$uri_cc})) {
-	return $changers_by_uri_cc{$uri_cc};
-    }
-
     # look up the type and load the class
     my $pkgname = _uri_to_pkgname($uri);
     if (!$pkgname) {
 	die $@;
     }
 
-    my $rv = $pkgname->new(Amanda::Changer::Config->new($cc), $uri);
+    my $rv = eval {$pkgname->new(Amanda::Changer::Config->new($cc), $uri);};
+    die "$pkgname->new return undef" if $@;
     die "$pkgname->new did not return an Amanda::Changer object or an Amanda::Changer::Error"
 	unless ($rv->isa("Amanda::Changer") or $rv->isa("Amanda::Changer::Error"));
 
@@ -866,11 +942,18 @@ sub _new_from_uri { # (note: this sub is patched by the installcheck)
     if ($rv->isa("Amanda::Changer")) {
 	# add an instance variable or two
 	$rv->{'fatal_error'} = undef;
-
-	# store this in our cache for next time
-	$changers_by_uri_cc{$uri_cc} = $rv;
     }
 
+    $rv->{'tapelist'} = $params{'tapelist'};
+    $rv->{'autolabel'} = $params{'autolabel'};
+    $rv->{'autolabel'} = getconf($CNF_AUTOLABEL)
+	unless defined $rv->{'autolabel'};
+    $rv->{'labelstr'} = $params{'labelstr'};
+    $rv->{'labelstr'} = getconf($CNF_LABELSTR)
+	unless defined $rv->{'labelstr'};
+    $rv->{'meta_autolabel'} = $params{'meta_autolabel'};
+    $rv->{'meta_autolabel'} = getconf($CNF_META_AUTOLABEL)
+	unless defined $rv->{'meta_autolabel'};
     $rv->{'chg_name'} = $name;
     return $rv;
 }
@@ -895,6 +978,14 @@ sub eject { _stubop("eject", "finished_cb", @_); }
 sub update { _stubop("update", "finished_cb", @_); }
 sub inventory { _stubop("inventory", "inventory_cb", @_); }
 sub move { _stubop("move", "finished_cb", @_); }
+sub set_meta_label { _stubop("set_meta_label", "finished_cb", @_); }
+sub get_meta_label { _stubop("get_meta_label", "finished_cb", @_); }
+
+sub have_inventory {
+    my $self = shift;
+
+    return $self->can("inventory") ne \&Amanda::Changer::inventory;
+}
 
 # info calls out to info_setup and info_key; see POD above
 sub info {
@@ -978,18 +1069,6 @@ sub info {
 }
 
 # subclass helpers
-
-sub get_boolean_property {
-    my ($self) = shift;
-    my ($config, $propname, $default) = @_;
-
-    return $default
-	unless (exists $config->{'properties'}->{$propname});
-
-    my $propinfo = $config->{'properties'}->{$propname};
-    return undef unless @{$propinfo->{'values'}} == 1;
-    return string_to_boolean($propinfo->{'values'}->[0]);
-}
 
 sub make_error {
     my $self = shift;
@@ -1167,6 +1246,179 @@ sub validate_params {
     }
 }
 
+sub make_new_tape_label {
+    my $self = shift;
+    my %params = @_;
+
+    my $tl = $self->{'tapelist'};
+    die ("make_new_tape_label: no tapelist") if !$tl;
+    return undef if !defined $self->{'autolabel'}->{'template'};
+    return undef if !defined $self->{'labelstr'};
+    my $template = $self->{'autolabel'}->{'template'};
+    my $labelstr = $self->{'labelstr'};
+
+    if (!$template) {
+	return (undef, "template is not set, you must set autolabel");
+    }
+    $template =~ s/\$\$/SUBSTITUTE_DOLLAR/g;
+    $template =~ s/\$b/SUBSTITUTE_BARCODE/g;
+    $template =~ s/\$m/SUBSTITUTE_META/g;
+    $template =~ s/\$o/SUBSTITUTE_ORG/g;
+    $template =~ s/\$c/SUBSTITUTE_CONFIG/g;
+
+    my $org = getconf($CNF_ORG);
+    my $config = Amanda::Config::get_config_name();
+    my $barcode = $params{'barcode'};
+    $barcode = '' if !defined $barcode;
+    my $meta = $params{'meta'};
+    $meta = $self->make_new_meta_label(%params) if !defined $meta;
+    $meta = '' if !defined $meta;
+
+    $template =~ s/SUBSTITUTE_DOLLAR/\$/g;
+    $template =~ s/SUBSTITUTE_ORG/$org/g;
+    $template =~ s/SUBSTITUTE_CONFIG/$config/g;
+    $template =~ s/SUBSTITUTE_META/$meta/g;
+    # Do not susbtitute the barcode now
+
+    (my $npercents =
+	$template) =~ s/[^%]*(%+)[^%]*/length($1)/e;
+    my $nlabels = 10 ** $npercents;
+
+    my $label;
+    if ($npercents == 0) {
+	if ($template =~ /SUBSTITUTE_BARCODE/ && defined $barcode) {
+            $label = $template;
+            $label =~ s/SUBSTITUTE_BARCODE/$barcode/g;
+            if ($tl->lookup_tapelabel($label)) {
+		return (undef, "Label '$label' already exists");
+            }
+	} elsif ($template =~ /SUBSTITUTE_BARCODE/ && !defined $barcode) {
+	    return (undef, "Can't generate new label because volume have no barcode");
+	} else {
+	    return (undef, "autolabel require at least one '%'");
+	}
+    } else {
+	# make up a sprintf pattern
+	(my $sprintf_pat =
+	    $template) =~ s/(%+)/"%0" . length($1) . "d"/e;
+
+	my %existing_labels;
+	for my $tle (@{$tl->{'tles'}}) {
+	    if (defined $tle && defined $tle->{'label'}) {
+		my $tle_label = $tle->{'label'};
+		my $tle_barcode = $tle->{'barcode'};
+		if (defined $tle_barcode) {
+		    $tle_label =~ s/$tle_barcode/SUBSTITUTE_BARCODE/g;
+		}
+		$existing_labels{$tle_label} = 1 if defined $tle_label;
+	    }
+	}
+
+	my ($i);
+	for ($i = 1; $i < $nlabels; $i++) {
+	    $label = sprintf($sprintf_pat, $i);
+	    last unless (exists $existing_labels{$label});
+	}
+	# susbtitute the barcode
+
+	$label =~ s/SUBSTITUTE_BARCODE/$barcode/g;
+
+	# bail out if we didn't find an unused label
+	return (undef, "Can't label unlabeled volume: All label used")
+		if ($i >= $nlabels);
+    }
+
+    # verify $label matches $labelstr
+    if ($label !~ /$labelstr/) {
+        return (undef, "Newly-generated label '$label' does not match labelstr '$labelstr'");
+    }
+
+    if (!$label) {
+	return (undef, "Generated label is empty");
+    }
+
+    return $label;
+}
+
+sub make_new_meta_label {
+    my $self = shift;
+    my %params = @_;
+
+    my $tl = $self->{'tapelist'};
+    die ("make_new_meta_label: no tapelist") if !$tl;
+    return undef if !defined $self->{'meta_autolabel'};
+    my $template = $self->{'meta_autolabel'};
+    return if !defined $template;
+
+    if (!$template) {
+	return (undef, "template is not set, you must set meta-autolabel");
+    }
+    $template =~ s/\$\$/SUBSTITUTE_DOLLAR/g;
+    $template =~ s/\$o/SUBSTITUTE_ORG/g;
+    $template =~ s/\$c/SUBSTITUTE_CONFIG/g;
+
+    my $org = getconf($CNF_ORG);
+    my $config = Amanda::Config::get_config_name();
+
+    $template =~ s/SUBSTITUTE_DOLLAR/\$/g;
+    $template =~ s/SUBSTITUTE_ORG/$org/g;
+    $template =~ s/SUBSTITUTE_CONFIG/$config/g;
+
+    (my $npercents =
+	$template) =~ s/[^%]*(%+)[^%]*/length($1)/e;
+    my $nlabels = 10 ** $npercents;
+
+    # make up a sprintf pattern
+    (my $sprintf_pat = $template) =~ s/(%+)/"%0" . length($1) . "d"/e;
+
+    my %existing_meta_labels =
+	map { $_->{'meta'} => 1 } @{$tl->{'tles'}};
+
+    my ($i, $meta);
+    for ($i = 1; $i < $nlabels; $i++) {
+	$meta = sprintf($sprintf_pat, $i);
+	last unless (exists $existing_meta_labels{$meta});
+    }
+
+    # bail out if we didn't find an unused label
+    return (undef, "Can't label unlabeled meta volume: All meta label used")
+		if ($i >= $nlabels);
+
+    if (!$meta) {
+	return (undef, "Generated meta-label is empty");
+    }
+
+    return $meta;
+}
+
+sub volume_is_labelable {
+    my $self = shift;
+    my $dev_status  = shift;
+    my $f_type = shift;
+    my $label = shift;
+    my $autolabel = $self->{'autolabel'};
+
+    if (!defined $dev_status) {
+	return 0;
+    } elsif ($dev_status & $DEVICE_STATUS_VOLUME_UNLABELED and
+	$f_type == $Amanda::Header::F_EMPTY) {
+	return 0 if (!$autolabel->{'empty'});
+    } elsif ($dev_status & $DEVICE_STATUS_VOLUME_UNLABELED and
+	     $f_type == $Amanda::Header::F_WEIRD) {
+	return 0 if (!$autolabel->{'non_amanda'});
+    } elsif ($dev_status & $DEVICE_STATUS_VOLUME_ERROR) {
+	return 0 if (!$autolabel->{'volume_error'});
+    } elsif ($dev_status != $DEVICE_STATUS_SUCCESS) {
+	return 0;
+    } elsif ($dev_status & $DEVICE_STATUS_SUCCESS and
+	     $f_type == $Amanda::Header::F_TAPESTART and
+	     $label !~ /$self->{'labelstr'}/) {
+	return 0 if (!$autolabel->{'other_config'});
+    }
+
+    return 1;
+}
+
 package Amanda::Changer::Error;
 use Amanda::Debug qw( :logging );
 use Carp qw( cluck );
@@ -1176,7 +1428,7 @@ use overload
     'cmp' => sub { $_[0]->{'message'} cmp $_[1]; };
 
 my %known_err_types = map { ($_, 1) } qw( fatal failed );
-my %known_err_reasons = map { ($_, 1) } qw( notfound invalid notimpl driveinuse volinuse unknown device );
+my %known_err_reasons = map { ($_, 1) } qw( notfound invalid notimpl driveinuse volinuse unknown device empty );
 
 sub new {
     my $class = shift; # ignore class
@@ -1217,6 +1469,9 @@ sub new {
     return bless (\%info, $class);
 }
 
+# do nothing in quit
+sub quit {}
+
 # types
 sub fatal { $_[0]->{'type'} eq 'fatal'; }
 sub failed { $_[0]->{'type'} eq 'failed'; }
@@ -1228,12 +1483,14 @@ sub notimpl { $_[0]->failed && $_[0]->{'reason'} eq 'notimpl'; }
 sub driveinuse { $_[0]->failed && $_[0]->{'reason'} eq 'driveinuse'; }
 sub volinuse { $_[0]->failed && $_[0]->{'reason'} eq 'volinuse'; }
 sub unknown { $_[0]->failed && $_[0]->{'reason'} eq 'unknown'; }
+sub empty { $_[0]->failed && $_[0]->{'reason'} eq 'empty'; }
 
 # slot accessor
 sub slot { $_[0]->{'slot'}; }
 
 package Amanda::Changer::Reservation;
 # this is a simple base class with stub method or two.
+use Amanda::Config qw( :getconf );
 
 sub new {
     my $class = shift;
@@ -1294,8 +1551,47 @@ sub do_release {
     }
 }
 
+sub get_meta_label {
+    my $self = shift;
+    my %params = @_;
+
+    # this is the one subclasses should override
+
+    if (exists $params{'finished_cb'}) {
+	$params{'finished_cb'}->(undef) if $params{'finished_cb'};
+    }
+}
+
+sub set_meta_label {
+    my $self = shift;
+    my %params = @_;
+
+    # this is the one subclasses should override
+
+    if (exists $params{'finished_cb'}) {
+	$params{'finished_cb'}->(undef) if $params{'finished_cb'};
+    }
+}
+
+sub make_new_tape_label {
+    my $self = shift;
+    my %params = @_;
+
+    $params{'barcode'} = $self->{'barcode'} if !defined $params{'barcode'};
+    $params{'meta'} = $self->{'meta'} if !defined $params{'meta'};
+    return $self->{'chg'}->make_new_tape_label(%params);
+}
+
+
+sub make_new_meta_label {
+    my $self = shift;
+    my %params = @_;
+
+    return $self->{'chg'}->make_new_meta_label(%params);
+}
+
 package Amanda::Changer::Config;
-use Amanda::Config qw( :getconf );
+use Amanda::Config qw( :getconf string_to_boolean );
 use Amanda::Device;
 
 sub new {
@@ -1380,6 +1676,18 @@ sub get_property {
     return undef unless defined($prophash);
 
     return wantarray? @{$prophash->{'values'}} : $prophash->{'values'}->[0];
+}
+
+sub get_boolean_property {
+    my ($self) = shift;
+    my ($propname, $default) = @_;
+
+    return $default
+	unless (exists $self->{'properties'}->{$propname});
+
+    my $propinfo = $self->{'properties'}->{$propname};
+    return undef unless @{$propinfo->{'values'}} == 1;
+    return string_to_boolean($propinfo->{'values'}->[0]);
 }
 
 sub _get_implicit_properties {

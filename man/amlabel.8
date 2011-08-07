@@ -2,12 +2,12 @@
 .\"     Title: amlabel
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 12/14/2010
+.\"      Date: 06/02/2011
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.2.1
+.\"    Source: Amanda 3.3.0
 .\"  Language: English
 .\"
-.TH "AMLABEL" "8" "12/14/2010" "Amanda 3\&.2\&.1" "System Administration Commands"
+.TH "AMLABEL" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +22,7 @@
 amlabel \- label an Amanda tape
 .SH "SYNOPSIS"
 .HP \w'\fBamlabel\fR\ 'u
-\fBamlabel\fR [\fB\-f\fR] [\fB\-\-version\fR] [\fB\-o\fR\ \fIconfigoption\fR...] \fIconfig\fR \fIlabel\fR [slot\ \fIslot\fR]
+\fBamlabel\fR [\fB\-\-barcode\ \fR\fB\fIbarcode\fR\fR] [\fB\-\-meta\ \fR\fB\fImeta\-label\fR\fR] [\fB\-\-assign\fR] [\fB\-f\fR] [\fB\-\-version\fR] [\fB\-o\fR\ \fIconfigoption\fR...] \fIconfig\fR [\fIlabel\fR] [slot\ \fIslot\fR]
 .SH "DESCRIPTION"
 .PP
 This command applies a label to an Amanda volume, erasing the volume in the process\&.
@@ -35,14 +35,27 @@ verify the label before writing to make sure the proper volume is loaded, and th
 .PP
 If no
 [\fIslot\fR]
+and no
+[\fIbarcode\fR]
 is given, then
 \fBamlabel\fR
-labels the tape in the current slot of the default changer\&. If a slot is given, it labels the volume in that slot\&.
+labels the tape in the current slot of the default changer\&. If a slot is given, it labels the volume in that slot\&. If a barcode is given, it labels the volume with that barcode\&.
 \fILabel\fR
 may be any string that does not contain whitespace and that matches the
 \fBlabelstr\fR
 (see
 \fBamanda.conf\fR(5))\&.
+.PP
+If
+[\fIlabel\fR]
+is not given, an autolabel is generated, see
+\fBautolabel\fR
+in
+\fBamanda.conf\fR(5)\&.
+.PP
+If
+[\fB\-\-assign\fR]
+is given, the barcode and meta\-label are assigned to the label without labeling the volume\&. The label must already be in the tapelist file\&.
 .PP
 This command also appends the new volume to the
 \fBtapelist\fR(5)
@@ -55,6 +68,23 @@ will not write a label if the volume already contains an active label or if the 
 [\-f]
 (force) flag bypasses these verifications\&.
 .SH "OPTIONS"
+.PP
+\fB\-\-barcode \fR\fB\fIbarcode\fR\fR
+.RS 4
+With
+[\-\-assign], assign the barcode to the label\&. Without
+[\-\-assign], label the volume with that barcode\&.
+.RE
+.PP
+\fB\-\-meta \fR\fB\fImeta\-label\fR\fR
+.RS 4
+Assign the meta label to the label after labeling the volume\&.
+.RE
+.PP
+\fB\-\-assign\fR
+.RS 4
+Assign the barcode or meta\-label to the label without labeling the volume\&. The label must already be in the tapelist file\&.
+.RE
 .PP
 \fB\-f\fR
 .RS 4

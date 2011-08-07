@@ -43,6 +43,9 @@ This is an abstract base class for taperscan algorithms.
   };
   $taperscan->scan(result_cb => $result_cb, user_msg_fn => $user_msg_fn);
 
+  # later ..
+  $taperscan->quit(); # also quit the changer
+
 =head1 OVERVIEW
 
 C<Amanda::Taper::Scan> subclasses represent algorithms used by
@@ -54,10 +57,11 @@ algorithm.  The constructor takes the following keyword arguments:
 
     changer       Amanda::Changer object to use (required)
     algorithm     Taperscan algorithm to instantiate
-    tapelist_filename
+    tapelist      Amanda::Tapelist
     tapecycle
     labelstr
     autolabel
+    meta_autolabel
 
 The changer object must always be provided, but C<algorithm> may be omitted, in
 which case the class specified by the user in the Amanda configuration file is
@@ -90,6 +94,12 @@ The error message can be a simple string or an C<Amanda::Changer::Error> object
 (see L<Amanda::Changer>).  The C<$label> and C<$access_mode> specify parameters
 for starting the device contained in C<$reservation>.
 
+To cleanly terminate an Amanda::Taper::Scan object:
+
+  $taperscan->quit()
+
+It also terminate the changer by caller $chg->quit().
+
 =head1 SUBCLASS UTILITIES
 
 There are a few common tasks for subclasses that are implemented as methods in
@@ -114,19 +124,6 @@ C<oldest_reusable_volume>:
     $self->oldest_reusable_volume(
         new_label_ok => $nlo,    # count newly labeled vols as reusable?
     );
-
-Finally, to devise a new name for a volume, call C<make_new_tape_label>,
-passing a tapelist, a labelstr, and a template.  This will return C<undef>
-if no label could be created.
-
-    $label = $self->make_new_tape_label(
-	labelstr => "foo-[0-9]+",
-        template => "foo-%%%%",
-    );
-
-If no C<template> is provided, the function uses the value of
-C<autolabel> specified when the object was constructed; similarly,
-C<labelstr> defaults to the value specified at object construction.
 
 =head2 user_msg_fn
 
@@ -183,6 +180,43 @@ The result if the read label can't be used because it is active:
                    slot        => $slot,
                    res         => $res);
 
+The result if the volume can't be labeled because autolabel is not set:
+
+  user_msg_fn(slot_result => 1,
+                   not_autolabel => 1,
+                   slot          => $slot,
+                   res           => $res);
+
+The result if the volume is empty and can't be labeled because autolabel setting:
+
+  user_msg_fn(slot_result => 1,
+                   empty         => 1,
+                   slot          => $slot,
+                   res           => $res);
+
+The result if the volume is a non-amanda volume and can't be labeled because autolabel setting:
+
+  user_msg_fn(slot_result => 1,
+                   non_amanda    => 1,
+                   slot          => $slot,
+                   res           => $res);
+
+The result if the volume is in error and can't be labeled because autolabel setting:
+
+  user_msg_fn(slot_result => 1,
+                   volume_error  => 1,
+		   err           => $err,
+                   slot          => $slot,
+                   res           => $res);
+
+The result if the volume is in error and can't be labeled because autolabel setting:
+
+  user_msg_fn(slot_result => 1,
+                   not_success   => 1,
+		   err           => $err,
+                   slot          => $slot,
+                   res           => $res);
+
 The scan has failed, possibly with some additional information as to what the
 scan was looking for.
 
@@ -196,6 +230,7 @@ use strict;
 use warnings;
 use Amanda::Config qw( :getconf );
 use Amanda::Tapelist;
+use Amanda::Debug;
 
 sub new {
     my $class = shift;
@@ -203,22 +238,33 @@ sub new {
 
     die "No changer given to Amanda::Taper::Scan->new"
 	unless exists $params{'changer'};
-
     # fill in the optional parameters
-    $params{'algorithm'} = "traditional" # TODO: get from a configuration variable
-	unless exists $params{'algorithm'};
+    $params{'algorithm'} = "traditional"
+	unless defined $params{'algorithm'} and $params{'algorithm'} ne '';
     $params{'tapecycle'} = getconf($CNF_TAPECYCLE)
 	unless exists $params{'tapecycle'};
-    $params{'tapelist_filename'} =
-	Amanda::Config::config_dir_relative(getconf($CNF_TAPELIST))
-	    unless exists $params{'tapelist_filename'};
     $params{'labelstr'} = getconf($CNF_LABELSTR)
 	unless exists $params{'labelstr'};
     $params{'autolabel'} = getconf($CNF_AUTOLABEL)
 	unless exists $params{'autolabel'};
+    $params{'meta_autolabel'} = getconf($CNF_META_AUTOLABEL)
+	unless exists $params{'meta_autolabel'};
 
+    my $plugin;
+    if (!defined $params{'algorithm'} or $params{'algorithm'} eq '') {
+	$params{'algorithm'} = "traditional";
+	$plugin = "traditional";
+    } else {
+	my $taperscan = Amanda::Config::lookup_taperscan($params{'algorithm'});
+	if ($taperscan) {
+	    $plugin = Amanda::Config::taperscan_getconf($taperscan, $TAPERSCAN_PLUGIN);
+	    $params{'properties'} = Amanda::Config::taperscan_getconf($taperscan, $TAPERSCAN_PROPERTY);
+	} else {
+	    $plugin = $params{'algorithm'};
+	}
+    }
     # load the package
-    my $pkgname = "Amanda::Taper::Scan::" . $params{'algorithm'};
+    my $pkgname = "Amanda::Taper::Scan::" . $plugin;
     my $filename = $pkgname;
     $filename =~ s|::|/|g;
     $filename .= '.pm';
@@ -227,30 +273,53 @@ sub new {
 	if ($@) {
 	    # handle compile errors
 	    die($@) if (exists $INC{$filename});
-	    die("No such taperscan algorithm '$params{algorithm}'");
+	    die("No such taperscan algorithm '$plugin'");
 	}
     }
 
     # instantiate it
-    my $self = $pkgname->new(%params);
+    my $self = eval {$pkgname->new(%params);};
+    if ($@ || !defined $self) {
+	debug("Can't instantiate $pkgname");
+	die("Can't instantiate $pkgname");
+    }
 
     # and set the keys from the parameters
     $self->{'changer'} = $params{'changer'};
     $self->{'algorithm'} = $params{'algorithm'};
+    $self->{'plugin'} = $params{'plugin'};
     $self->{'tapecycle'} = $params{'tapecycle'};
-    $self->{'tapelist_filename'} = $params{'tapelist_filename'};
     $self->{'labelstr'} = $params{'labelstr'};
     $self->{'autolabel'} = $params{'autolabel'};
-    $self->{'tapelist'} = Amanda::Tapelist->new($self->{'tapelist_filename'});
+    $self->{'meta_autolabel'} = $params{'meta_autolabel'};
+    $self->{'tapelist'} = $params{'tapelist'};
 
     return $self;
+}
+
+sub DESTROY {
+    my $self = shift;
+
+    die("Taper::Scan did not quit") if defined $self->{'changer'};
+}
+
+sub quit {
+    my $self = shift;
+
+    if (defined $self->{'chg'} && $self->{'chg'} != $self->{'initial_chg'}) {
+	$self->{'chg'}->quit();
+    }
+    $self->{'changer'}->quit() if defined $self->{'changer'};
+    foreach (keys %$self) {
+        delete $self->{$_};
+    }
 }
 
 sub scan {
     my $self = shift;
     my %params = @_;
 
-    $params{'result_cb'}->("not implemented");
+    $params{'result_cb'}->("scan not implemented");
 }
 
 sub read_tapelist {
@@ -297,44 +366,7 @@ sub is_reusable_volume {
         return 1 if $tle eq $vol_tle;
     }
 
-
     return 0;
-}
-
-sub make_new_tape_label {
-    my $self = shift;
-    my %params = @_;
-
-    my $tl = exists $params{'tapelist'}? $params{'tapelist'} : $self->{'tapelist'};
-    my $template = exists $params{'template'}? $params{'template'} : $self->{'autolabel'}->{'template'};
-    my $labelstr = exists $params{'labelstr'}? $params{'labelstr'} : $self->{'labelstr'};
-
-    (my $npercents =
-	$template) =~ s/[^%]*(%+)[^%]*/length($1)/e;
-    my $nlabels = 10 ** $npercents;
-
-    # make up a sprintf pattern
-    (my $sprintf_pat =
-	$template) =~ s/(%+)/"%0" . length($1) . "d"/e;
-
-    my %existing_labels =
-	map { $_->{'label'} => 1 } @{$tl->{'tles'}};
-
-    my ($i, $label);
-    for ($i = 1; $i < $nlabels; $i++) {
-	$label = sprintf($sprintf_pat, $i);
-	last unless (exists $existing_labels{$label});
-    }
-
-    # bail out if we didn't find an unused label
-    return (undef, "Can't label unlabeled volume: All label used") if ($i >= $nlabels);
-
-    # verify $label matches $labelstr
-    if ($label !~ /$labelstr/) {
-        return (undef, "Newly-generated label '$label' does not match labelstr '$labelstr'");
-    }
-
-    return $label;
 }
 
 1;

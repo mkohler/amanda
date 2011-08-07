@@ -36,23 +36,83 @@
 static int match_word(const char *glob, const char *word, const char separator);
 static char *tar_to_regex(const char *glob);
 
+/*
+ * REGEX MATCHING FUNCTIONS
+ */
+
+/*
+ * Define a specific type to hold error messages in case regex compile/matching
+ * fails
+ */
+
+typedef char regex_errbuf[STR_SIZE];
+
+/*
+ * Validate one regular expression. If the regex is invalid, copy the error
+ * message into the supplied regex_errbuf pointer. Also, we want to know whether
+ * flags should include REG_NEWLINE (See regcomp(3) for details). Since this is
+ * the more frequent case, add REG_NEWLINE to the default flags, and remove it
+ * only if match_newline is set to FALSE.
+ */
+
+static gboolean do_validate_regex(const char *str, regex_t *regex,
+	regex_errbuf *errbuf, gboolean match_newline)
+{
+	int flags = REG_EXTENDED | REG_NOSUB | REG_NEWLINE;
+	int result;
+
+	if (!match_newline)
+		CLR(flags, REG_NEWLINE);
+
+	result = regcomp(regex, str, flags);
+
+	if (!result)
+		return TRUE;
+
+	regerror(result, regex, *errbuf, SIZEOF(*errbuf));
+	return FALSE;
+}
+
+/*
+ * See if a string matches a regular expression. Return one of MATCH_* defined
+ * below. If, for some reason, regexec() returns something other than not 0 or
+ * REG_NOMATCH, return MATCH_ERROR and print the error message in the supplied
+ * regex_errbuf.
+ */
+
+#define MATCH_OK (1)
+#define MATCH_NONE (0)
+#define MATCH_ERROR (-1)
+
+static int try_match(regex_t *regex, const char *str,
+    regex_errbuf *errbuf)
+{
+    int result = regexec(regex, str, 0, 0, 0);
+
+    switch(result) {
+        case 0:
+            return MATCH_OK;
+        case REG_NOMATCH:
+            return MATCH_NONE;
+        /* Fall through: something went really wrong */
+    }
+
+    regerror(result, regex, *errbuf, SIZEOF(*errbuf));
+    return MATCH_ERROR;
+}
+
 char *
 validate_regexp(
     const char *	regex)
 {
     regex_t regc;
-    int result;
-    static char errmsg[STR_SIZE];
+    static regex_errbuf errmsg;
+    gboolean valid;
 
-    if ((result = regcomp(&regc, regex,
-			  REG_EXTENDED|REG_NOSUB|REG_NEWLINE)) != 0) {
-      regerror(result, &regc, errmsg, SIZEOF(errmsg));
-      return errmsg;
-    }
+    valid = do_validate_regex(regex, &regc, &errmsg, TRUE);
 
     regfree(&regc);
-
-    return NULL;
+    return (valid) ? NULL : errmsg;
 }
 
 char *
@@ -79,152 +139,114 @@ clean_regex(
     return result;
 }
 
+/*
+ * Check whether a given character should be escaped (that is, prepended with a
+ * backslash), EXCEPT for one character.
+ */
+
+static gboolean should_be_escaped_except(char c, char not_this_one)
+{
+    if (c == not_this_one)
+        return FALSE;
+
+    switch (c) {
+        case '\\':
+        case '^':
+        case '$':
+        case '?':
+        case '*':
+        case '[':
+        case ']':
+        case '.':
+        case '/':
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+/*
+ * Take a disk/host expression and turn it into a full-blown amglob (with
+ * start and end anchors) following rules in amanda-match(7). The not_this_one
+ * argument represents a character which is NOT meant to be special in this
+ * case: '/' for disks and '.' for hosts.
+ */
+
+static char *full_amglob_from_expression(const char *str, char not_this_one)
+{
+    const char *src;
+    char *result, *dst;
+
+    result = alloc(2 * strlen(str) + 3);
+    dst = result;
+
+    *(dst++) = '^';
+
+    for (src = str; *src; src++) {
+        if (should_be_escaped_except(*src, not_this_one))
+            *(dst++) = '\\';
+        *(dst++) = *src;
+    }
+
+    *(dst++) = '$';
+    *dst = '\0';
+    return result;
+}
+
 char *
 make_exact_host_expression(
     const char *	host)
 {
-    char *result;
-    int j;
-    size_t i;
-    result = alloc(2*strlen(host)+3);
-
-    j = 0;
-    result[j++] = '^';
-    for(i=0;i<strlen(host);i++) {
-	/* quote host expression metcharacters *except* '.'.  Note that
-	 * most of these are invalid in a DNS hostname anyway. */
-	switch (host[i]) {
-	    case '\\':
-	    case '/':
-	    case '^':
-	    case '$':
-	    case '?':
-	    case '*':
-	    case '[':
-	    case ']':
-	    result[j++]='\\';
-	    /* fall through */
-
-	    default:
-	    result[j++]=host[i];
-	}
-    }
-    result[j++] = '$';
-    result[j] = '\0';
-    return result;
+    return full_amglob_from_expression(host, '.');
 }
 
 char *
 make_exact_disk_expression(
     const char *	disk)
 {
-    char *result;
-    int j;
-    size_t i;
-    result = alloc(2*strlen(disk)+3);
+    return full_amglob_from_expression(disk, '/');
+}
 
-    j = 0;
-    result[j++] = '^';
-    for(i=0;i<strlen(disk);i++) {
-	/* quote disk expression metcharacters *except* '/' */
-	switch (disk[i]) {
-	    case '\\':
-	    case '.':
-	    case '^':
-	    case '$':
-	    case '?':
-	    case '*':
-	    case '[':
-	    case ']':
-	    result[j++]='\\';
-	    /* fall through */
+int do_match(const char *regex, const char *str, gboolean match_newline)
+{
+    regex_t regc;
+    int result;
+    regex_errbuf errmsg;
+    gboolean ok;
 
-	    default:
-	    result[j++]=disk[i];
-	}
-    }
-    result[j++] = '$';
-    result[j] = '\0';
+    ok = do_validate_regex(regex, &regc, &errmsg, match_newline);
+
+    if (!ok)
+        error(_("regex \"%s\": %s"), regex, errmsg);
+        /*NOTREACHED*/
+
+    result = try_match(&regc, str, &errmsg);
+
+    if (result == MATCH_ERROR)
+        error(_("regex \"%s\": %s"), regex, errmsg);
+        /*NOTREACHED*/
+
+    regfree(&regc);
+
     return result;
-}
-
-int
-match(
-    const char *	regex,
-    const char *	str)
-{
-    regex_t regc;
-    int result;
-    char errmsg[STR_SIZE];
-
-    if((result = regcomp(&regc, regex,
-			 REG_EXTENDED|REG_NOSUB|REG_NEWLINE)) != 0) {
-        regerror(result, &regc, errmsg, SIZEOF(errmsg));
-	error(_("regex \"%s\": %s"), regex, errmsg);
-	/*NOTREACHED*/
-    }
-
-    if((result = regexec(&regc, str, 0, 0, 0)) != 0
-       && result != REG_NOMATCH) {
-        regerror(result, &regc, errmsg, SIZEOF(errmsg));
-	error(_("regex \"%s\": %s"), regex, errmsg);
-	/*NOTREACHED*/
-    }
-
-    regfree(&regc);
-
-    return result == 0;
-}
-
-int
-match_no_newline(
-    const char *	regex,
-    const char *	str)
-{
-    regex_t regc;
-    int result;
-    char errmsg[STR_SIZE];
-
-    if((result = regcomp(&regc, regex,
-			 REG_EXTENDED|REG_NOSUB)) != 0) {
-        regerror(result, &regc, errmsg, SIZEOF(errmsg));
-	error(_("regex \"%s\": %s"), regex, errmsg);
-	/*NOTREACHED*/
-    }
-
-    if((result = regexec(&regc, str, 0, 0, 0)) != 0
-       && result != REG_NOMATCH) {
-        regerror(result, &regc, errmsg, SIZEOF(errmsg));
-	error(_("regex \"%s\": %s"), regex, errmsg);
-	/*NOTREACHED*/
-    }
-
-    regfree(&regc);
-
-    return result == 0;
 }
 
 char *
 validate_glob(
     const char *	glob)
 {
-    char *regex;
+    char *regex, *ret = NULL;
     regex_t regc;
-    int result;
-    static char errmsg[STR_SIZE];
+    static regex_errbuf errmsg;
 
     regex = glob_to_regex(glob);
-    if ((result = regcomp(&regc, regex,
-			  REG_EXTENDED|REG_NOSUB|REG_NEWLINE)) != 0) {
-      regerror(result, &regc, errmsg, SIZEOF(errmsg));
-      amfree(regex);
-      return errmsg;
-    }
+
+    if (!do_validate_regex(regex, &regc, &errmsg, TRUE))
+        ret = errmsg;
 
     regfree(&regc);
     amfree(regex);
-
-    return NULL;
+    return ret;
 }
 
 int
@@ -235,106 +257,223 @@ match_glob(
     char *regex;
     regex_t regc;
     int result;
-    char errmsg[STR_SIZE];
+    regex_errbuf errmsg;
+    gboolean ok;
 
     regex = glob_to_regex(glob);
-    if((result = regcomp(&regc, regex,
-			 REG_EXTENDED|REG_NOSUB|REG_NEWLINE)) != 0) {
-        regerror(result, &regc, errmsg, SIZEOF(errmsg));
-	error(_("glob \"%s\" -> regex \"%s\": %s"), glob, regex, errmsg);
-	/*NOTREACHED*/
-    }
+    ok = do_validate_regex(regex, &regc, &errmsg, TRUE);
 
-    if((result = regexec(&regc, str, 0, 0, 0)) != 0
-       && result != REG_NOMATCH) {
-        regerror(result, &regc, errmsg, SIZEOF(errmsg));
-	error(_("glob \"%s\" -> regex \"%s\": %s"), glob, regex, errmsg);
-	/*NOTREACHED*/
-    }
+    if (!ok)
+        error(_("glob \"%s\" -> regex \"%s\": %s"), glob, regex, errmsg);
+        /*NOTREACHED*/
+
+    result = try_match(&regc, str, &errmsg);
+
+    if (result == MATCH_ERROR)
+        error(_("glob \"%s\" -> regex \"%s\": %s"), glob, regex, errmsg);
+        /*NOTREACHED*/
 
     regfree(&regc);
     amfree(regex);
 
-    return result == 0;
+    return result;
 }
+
+/*
+ * Macro to tell whether a character is a regex metacharacter. Note that '*'
+ * and '?' are NOT included: they are themselves special in globs.
+ */
+
+#define IS_REGEX_META(c) ( \
+    (c) == '.' || (c) == '(' || (c) == ')' || (c) == '{' || (c) == '}' || \
+    (c) == '+' || (c) == '^' || (c) == '$' || (c) == '|' \
+)
+
+/*
+ * EXPANDING A MATCH TO A REGEX (as per amanda-match(7))
+ *
+ * The function at the code of this operation is amglob_to_regex(). It
+ * takes three arguments: the string to convert, a substitution table and a
+ * worst-case expansion.
+ *
+ * The substitution table, defined right below, is used to replace particular
+ * string positions and/or characters. Its fields are:
+ * - begin: what the beginnin of the string should be replaced with;
+ * - end: what the end of the string should be replaced with;
+ * - question_mark: what the question mark ('?') should be replaced with;
+ * - star: what the star ('*') should be replaced with;
+ * - double_star: what two consecutive stars should be replaced with.
+ *
+ * Note that apart from double_star, ALL OTHER FIELDS MUST NOT BE NULL
+ */
+
+struct subst_table {
+    const char *begin;
+    const char *end;
+    const char *question_mark;
+    const char *star;
+    const char *double_star;
+};
+
+static char *amglob_to_regex(const char *str, struct subst_table *table,
+    size_t worst_case)
+{
+    const char *src;
+    char *result, *dst;
+    char c;
+
+    /*
+     * There are two particular cases when building a regex out of a glob:
+     * character classes (anything inside [...] or [!...] and quotes (anything
+     * preceded by a backslash). We start with none being true.
+     */
+
+    gboolean in_character_class = FALSE, in_quote = FALSE;
+
+    /*
+     * Allocate enough space for our string. At worst, the allocated space is
+     * the length of the following:
+     * - beginning of regex;
+     * - size of original string multiplied by worst-case expansion;
+     * - end of regex;
+     * - final 0.
+     */
+
+    result = alloc(strlen(table->begin) + strlen(str) * worst_case
+        + strlen(table->end) + 1);
+
+    /*
+     * Start by copying the beginning of the regex...
+     */
+
+    dst = g_stpcpy(result, table->begin);
+
+    /*
+     * ... Now to the meat of it.
+     */
+
+    for (src = str; *src; src++) {
+        c = *src;
+
+        /*
+         * First, check that we're in a character class: each and every
+         * character can be copied as is. We only need to be careful is the
+         * character is a closing bracket: it will end the character class IF
+         * AND ONLY IF it is not preceded by a backslash.
+         */
+
+        if (in_character_class) {
+            in_character_class = ((c != ']') || (*(src - 1) == '\\'));
+            goto straight_copy;
+        }
+
+        /*
+         * Are we in a quote? If yes, it is really simple: copy the current
+         * character, close the quote, the end.
+         */
+
+        if (in_quote) {
+            in_quote = FALSE;
+            goto straight_copy;
+        }
+
+        /*
+         * The only thing left to handle now is the "normal" case: we are not in
+         * a character class nor in a quote.
+         */
+
+        if (c == '\\') {
+            /*
+             * Backslash: append it, and open a new quote.
+             */
+            in_quote = TRUE;
+            goto straight_copy;
+        } else if (c == '[') {
+            /*
+             * Opening bracket: the beginning of a character class.
+             *
+             * Look ahead the next character: if it's an exclamation mark, then
+             * this is a complemented character class; append a caret to make
+             * the result string regex-friendly, and forward one character in
+             * advance.
+             */
+            *dst++ = c;
+            in_character_class = TRUE;
+            if (*(src + 1) == '!') {
+                *dst++ = '^';
+                src++;
+            }
+        } else if (IS_REGEX_META(c)) {
+            /*
+             * Regex metacharacter (except for ? and *, see below): append a
+             * backslash, and then the character itself.
+             */
+            *dst++ = '\\';
+            goto straight_copy;
+        } else if (c == '?')
+            /*
+             * Question mark: take the subsitution string out of our subst_table
+             * and append it to the string.
+             */
+            dst = g_stpcpy(dst, table->question_mark);
+        else if (c == '*') {
+            /*
+             * Star: append the subsitution string found in our subst_table.
+             * However, look forward the next character: if it's yet another
+             * star, then see if there is a substitution string for the double
+             * star and append this one instead.
+             *
+             * FIXME: this means that two consecutive stars in a glob string
+             * where there is no substition for double_star can lead to
+             * exponential regex execution time: consider [^/]*[^/]*.
+             */
+            const char *p = table->star;
+            if (*(src + 1) == '*' && table->double_star) {
+                src++;
+                p = table->double_star;
+            }
+            dst = g_stpcpy(dst, p);
+        } else {
+            /*
+             * Any other character: append each time.
+             */
+straight_copy:
+            *dst++ = c;
+        }
+    }
+
+    /*
+     * Done, now append the end, ONLY if we are not in a quote - a lone
+     * backslash at the end of a glob is illegal, just leave it as it, it will
+     * make the regex compile fail.
+     */
+
+    if (!in_quote)
+        dst = g_stpcpy(dst, table->end);
+    /*
+     * Finalize, return.
+     */
+
+    *dst = '\0';
+    return result;
+}
+
+static struct subst_table glob_subst_stable = {
+    "^", /* begin */
+    "$", /* end */
+    "[^/]", /* question_mark */
+    "[^/]*", /* star */
+    NULL /* double_star */
+};
+
+static size_t glob_worst_case = 5; /* star */
 
 char *
 glob_to_regex(
     const char *	glob)
 {
-    char *regex;
-    char *r;
-    size_t len;
-    int ch;
-    int last_ch;
-
-    /*
-     * Allocate an area to convert into.  The worst case is a five to
-     * one expansion.
-     */
-    len = strlen(glob);
-    regex = alloc(1 + len * 5 + 1 + 1);
-
-    /*
-     * Do the conversion:
-     *
-     *  ?      -> [^/]
-     *  *      -> [^/]*
-     *  [...] ->  [...]
-     *  [!...] -> [^...]
-     *
-     * The following are given a leading backslash to protect them
-     * unless they already have a backslash:
-     *
-     *   ( ) { } + . ^ $ |
-     *
-     * Put a leading ^ and trailing $ around the result.  If the last
-     * non-escaped character is \ leave the $ off to cause a syntax
-     * error when the regex is compiled.
-     */
-
-    r = regex;
-    *r++ = '^';
-    last_ch = '\0';
-    for (ch = *glob++; ch != '\0'; last_ch = ch, ch = *glob++) {
-	if (last_ch == '\\') {
-	    *r++ = (char)ch;
-	    ch = '\0';			/* so last_ch != '\\' next time */
-	} else if (last_ch == '[' && ch == '!') {
-	    *r++ = '^';
-	} else if (ch == '\\') {
-	    *r++ = (char)ch;
-	} else if (ch == '*' || ch == '?') {
-	    *r++ = '[';
-	    *r++ = '^';
-	    *r++ = '/';
-	    *r++ = ']';
-	    if (ch == '*') {
-		*r++ = '*';
-	    }
-	} else if (ch == '('
-		   || ch == ')'
-		   || ch == '{'
-		   || ch == '}'
-		   || ch == '+'
-		   || ch == '.'
-		   || ch == '^'
-		   || ch == '$'
-		   || ch == '|') {
-	    *r++ = '\\';
-	    *r++ = (char)ch;
-	} else {
-	    *r++ = (char)ch;
-	}
-    }
-    if (last_ch != '\\') {
-	*r++ = '$';
-    }
-    *r = '\0';
-
-    return regex;
+    return amglob_to_regex(glob, &glob_subst_stable, glob_worst_case);
 }
-
 
 int
 match_tar(
@@ -344,116 +483,110 @@ match_tar(
     char *regex;
     regex_t regc;
     int result;
-    char errmsg[STR_SIZE];
+    regex_errbuf errmsg;
+    gboolean ok;
 
     regex = tar_to_regex(glob);
-    if((result = regcomp(&regc, regex,
-			 REG_EXTENDED|REG_NOSUB|REG_NEWLINE)) != 0) {
-        regerror(result, &regc, errmsg, SIZEOF(errmsg));
-	error(_("glob \"%s\" -> regex \"%s\": %s"), glob, regex, errmsg);
-	/*NOTREACHED*/
-    }
+    ok = do_validate_regex(regex, &regc, &errmsg, TRUE);
 
-    if((result = regexec(&regc, str, 0, 0, 0)) != 0
-       && result != REG_NOMATCH) {
-        regerror(result, &regc, errmsg, SIZEOF(errmsg));
-	error(_("glob \"%s\" -> regex \"%s\": %s"), glob, regex, errmsg);
-	/*NOTREACHED*/
-    }
+    if (!ok)
+        error(_("glob \"%s\" -> regex \"%s\": %s"), glob, regex, errmsg);
+        /*NOTREACHED*/
+
+    result = try_match(&regc, str, &errmsg);
+
+    if (result == MATCH_ERROR)
+        error(_("glob \"%s\" -> regex \"%s\": %s"), glob, regex, errmsg);
+        /*NOTREACHED*/
 
     regfree(&regc);
     amfree(regex);
 
-    return result == 0;
+    return result;
 }
+
+static struct subst_table tar_subst_stable = {
+    "(^|/)", /* begin */
+    "($|/)", /* end */
+    "[^/]", /* question_mark */
+    ".*", /* star */
+    NULL /* double_star */
+};
+
+static size_t tar_worst_case = 5; /* begin or end */
 
 static char *
 tar_to_regex(
     const char *	glob)
 {
-    char *regex;
-    char *r;
-    size_t len;
-    int ch;
-    int last_ch;
-
-    /*
-     * Allocate an area to convert into.  The worst case is a five to
-     * one expansion.
-     */
-    len = strlen(glob);
-    regex = alloc(1 + len * 5 + 5 + 5);
-
-    /*
-     * Do the conversion:
-     *
-     *  ?      -> [^/]
-     *  *      -> .*
-     *  [...]  -> [...]
-     *  [!...] -> [^...]
-     *
-     * The following are given a leading backslash to protect them
-     * unless they already have a backslash:
-     *
-     *   ( ) { } + . ^ $ |
-     *
-     * The expression must begin and end either at the beginning/end of the string or
-     * at at a pathname separator.
-     *
-     * If the last non-escaped character is \ leave the $ off to cause a syntax
-     * error when the regex is compiled.
-     */
-
-    r = regex;
-    *r++ = '(';
-    *r++ = '^';
-    *r++ = '|';
-    *r++ = '/';
-    *r++ = ')';
-    last_ch = '\0';
-    for (ch = *glob++; ch != '\0'; last_ch = ch, ch = *glob++) {
-	if (last_ch == '\\') {
-	    *r++ = (char)ch;
-	    ch = '\0';			/* so last_ch != '\\' next time */
-	} else if (last_ch == '[' && ch == '!') {
-	    *r++ = '^';
-	} else if (ch == '\\') {
-	    *r++ = (char)ch;
-	} else if (ch == '*') {
-	    *r++ = '.';
-	    *r++ = '*';
-	} else if (ch == '?') {
-	    *r++ = '[';
-	    *r++ = '^';
-	    *r++ = '/';
-	    *r++ = ']';
-	} else if (ch == '('
-		   || ch == ')'
-		   || ch == '{'
-		   || ch == '}'
-		   || ch == '+'
-		   || ch == '.'
-		   || ch == '^'
-		   || ch == '$'
-		   || ch == '|') {
-	    *r++ = '\\';
-	    *r++ = (char)ch;
-	} else {
-	    *r++ = (char)ch;
-	}
-    }
-    if (last_ch != '\\') {
-	*r++ = '(';
-	*r++ = '$';
-	*r++ = '|';
-	*r++ = '/';
-	*r++ = ')';
-    }
-    *r = '\0';
-
-    return regex;
+    return amglob_to_regex(glob, &tar_subst_stable, tar_worst_case);
 }
 
+/*
+ * Two utility functions used by match_disk() below: they are used to convert a
+ * disk and glob from Windows expressed paths (backslashes) into Unix paths
+ * (slashes).
+ *
+ * Note: the resulting string is dynamically allocated, it is up to the caller
+ * to free it.
+ *
+ * Note 2: UNC in convert_unc_to_unix stands for Uniform Naming Convention.
+ */
+
+static char *convert_unc_to_unix(const char *unc)
+{
+    const char *src;
+    char *result, *dst;
+    result = alloc(strlen(unc) + 1);
+    dst = result;
+
+    for (src = unc; *src; src++)
+        *(dst++) = (*src == '\\') ? '/' : *src;
+
+    *dst = '\0';
+    return result;
+}
+
+static char *convert_winglob_to_unix(const char *glob)
+{
+    const char *src;
+    char *result, *dst;
+    result = alloc(strlen(glob) + 1);
+    dst = result;
+
+    for (src = glob; *src; src++) {
+        if (*src == '\\' && *(src + 1) == '\\') {
+            *(dst++) = '/';
+            src++;
+            continue;
+        }
+        *(dst++) = *src;
+    }
+    *dst = '\0';
+    return result;
+}
+
+/*
+ * Check whether a glob passed as an argument to match_word() only looks for the
+ * separator
+ */
+
+static gboolean glob_is_separator_only(const char *glob, char sep) {
+    size_t len = strlen(glob);
+    const char len2_1[] = { '^', sep , 0 }, len2_2[] = { sep, '$', 0 },
+        len3[] = { '^', sep, '$', 0 };
+
+    switch (len) {
+        case 1:
+            return (*glob == sep);
+        case 2:
+            return !(strcmp(glob, len2_1) && strcmp(glob, len2_2));
+        case 3:
+            return !strcmp(glob, len3);
+        default:
+            return FALSE;
+    }
+}
 
 static int
 match_word(
@@ -462,186 +595,143 @@ match_word(
     const char		separator)
 {
     char *regex;
-    char *r;
+    char *dst;
     size_t  len;
-    int  ch;
-    int  last_ch;
-    int  next_ch;
     size_t  lenword;
-    char  *mword, *nword;
-    char  *mglob, *nglob;
-    char *g; 
-    const char *w;
-    int  i;
+    char *nword;
+    char *nglob;
+    const char *src;
+    int ret;
 
     lenword = strlen(word);
     nword = (char *)alloc(lenword + 3);
 
-    if (separator == '/' && lenword > 2 && word[0] == '\\' && word[1] == '\\' && !strchr(word, '/')) {
-	/* Convert all "\" to '/' */
-	mword = (char *)alloc(lenword + 1);
-	r = mword;
-	w = word;
-	while (*w != '\0') {
-	    if (*w == '\\') {
-		*r++ = '/';
-		w += 1;
-	    } else {
-		*r++ = *w++;
-	    }
-	}
-	*r++ = '\0';
-	lenword = strlen(word);
+    dst = nword;
+    src = word;
+    if(lenword == 1 && *src == separator) {
+	*dst++ = separator;
+	*dst++ = separator;
+    }
+    else {
+	if(*src != separator)
+	    *dst++ = separator;
+	while(*src != '\0')
+	    *dst++ = *src++;
+	if(*(dst-1) != separator)
+	    *dst++ = separator;
+    }
+    *dst = '\0';
 
-	/* Convert all "\\" to '/' */
-	mglob = (char *)alloc(strlen(glob) + 1);
-	r = mglob;
-	w = glob;
-	while (*w != '\0') {
-	    if (*w == '\\' && *(w+1) == '\\') {
-		*r++ = '/';
-		w += 2;
-	    } else {
-		*r++ = *w++;
-	    }
-	}
-	*r++ = '\0';
+    len = strlen(glob);
+    nglob = stralloc(glob);
+
+    if(glob_is_separator_only(nglob, separator)) {
+        regex = alloc(7); /* Length of what is written below plus '\0' */
+        dst = regex;
+	*dst++ = '^';
+	*dst++ = '\\';
+	*dst++ = separator;
+	*dst++ = '\\';
+	*dst++ = separator;
+	*dst++ = '$';
+        *dst = '\0';
     } else {
-	mword = stralloc(word);
-	mglob = stralloc(glob);
+        /*
+         * Unlike what happens for tar and disk expressions, here the
+         * substitution table needs to be dynamically allocated. When we enter
+         * here, we know what the expansions will be for the question mark, the
+         * star and the double star, and also the worst case expansion. We
+         * calculate the begin and end expansions below.
+         */
+
+#define MATCHWORD_STAR_EXPANSION(c) (const char []) { \
+    '[', '^', (c), ']', '*', 0 \
+}
+#define MATCHWORD_QUESTIONMARK_EXPANSION(c) (const char []) { \
+    '[', '^', (c), ']', 0 \
+}
+#define MATCHWORD_DOUBLESTAR_EXPANSION ".*"
+
+        struct subst_table table;
+        size_t worst_case = 5;
+        const char *begin, *end;
+        char *p, *g = nglob;
+
+        /*
+         * Calculate the beginning of the regex:
+         * - by default, it is an unanchored separator;
+         * - if the glob begins with a caret, make that an anchored separator,
+         *   and increment g appropriately;
+         * - if it begins with a separator, make it the empty string.
+         */
+
+        p = nglob;
+
+#define REGEX_BEGIN_FULL(c) (const char[]) { '^', '\\', (c), 0 }
+#define REGEX_BEGIN_NOANCHOR(c) (const char[]) { '\\', (c), 0 }
+#define REGEX_BEGIN_ANCHORONLY "^" /* Unused, but defined for consistency */
+#define REGEX_BEGIN_EMPTY ""
+
+        begin = REGEX_BEGIN_NOANCHOR(separator);
+
+        if (*p == '^') {
+            begin = REGEX_BEGIN_FULL(separator);
+            p++, g++;
+            if (*p == separator)
+                g++;
+        } else if (*p == separator)
+            begin = REGEX_BEGIN_EMPTY;
+
+        /*
+         * Calculate the end of the regex:
+         * - an unanchored separator by default;
+         * - if the last character is a backslash or the separator itself, it
+         *   should be the empty string;
+         * - if it is a dollar sign, overwrite it with 0 and look at the
+         *   character before it: if it is the separator, only anchor at the
+         *   end, otherwise, add a separator before the anchor.
+         */
+
+        p = &(nglob[strlen(nglob) - 1]);
+
+#define REGEX_END_FULL(c) (const char[]) { '\\', (c), '$', 0 }
+#define REGEX_END_NOANCHOR(c) REGEX_BEGIN_NOANCHOR(c)
+#define REGEX_END_ANCHORONLY "$"
+#define REGEX_END_EMPTY REGEX_BEGIN_EMPTY
+
+        end = REGEX_END_NOANCHOR(separator);
+
+        if (*p == '\\' || *p == separator)
+            end = REGEX_END_EMPTY;
+        else if (*p == '$') {
+            char prev = *(p - 1);
+            *p = '\0';
+            if (prev == separator)
+                end = REGEX_END_ANCHORONLY;
+            else
+                end = REGEX_END_FULL(separator);
+        }
+
+        /*
+         * Fill in our substitution table and generate the regex
+         */
+
+        table.begin = begin;
+        table.end = end;
+        table.question_mark = MATCHWORD_QUESTIONMARK_EXPANSION(separator);
+        table.star = MATCHWORD_STAR_EXPANSION(separator);
+        table.double_star = MATCHWORD_DOUBLESTAR_EXPANSION;
+
+        regex = amglob_to_regex(g, &table, worst_case);
     }
 
-    r = nword;
-    w = mword;
-    if(lenword == 1 && *w == separator) {
-	*r++ = separator;
-	*r++ = separator;
-    }
-    else {
-	if(*w != separator)
-	    *r++ = separator;
-	while(*w != '\0')
-	    *r++ = *w++;
-	if(*(r-1) != separator)
-	    *r++ = separator;    
-    }
-    *r = '\0';
+    ret = do_match(regex, nword, TRUE);
 
-    /*
-     * Allocate an area to convert into.  The worst case is a six to
-     * one expansion.
-     */
-    len = strlen(mglob);
-    regex = (char *)alloc(1 + len * 6 + 1 + 1 + 2 + 2);
-    r = regex;
-    nglob = stralloc(mglob);
-    g = nglob;
-
-    if((len == 1 && nglob[0] == separator) ||
-       (len == 2 && nglob[0] == '^' && nglob[1] == separator) ||
-       (len == 2 && nglob[0] == separator && nglob[1] == '$') ||
-       (len == 3 && nglob[0] == '^' && nglob[1] == separator &&
-        nglob[2] == '$')) {
-	*r++ = '^';
-	*r++ = '\\';
-	*r++ = separator;
-	*r++ = '\\';
-	*r++ = separator;
-	*r++ = '$';
-    }
-    else {
-	/*
-	 * Do the conversion:
-	 *
-	 *  ?      -> [^\separator]
-	 *  *      -> [^\separator]*
-	 *  [!...] -> [^...]
-	 *  **     -> .*
-	 *
-	 * The following are given a leading backslash to protect them
-	 * unless they already have a backslash:
-	 *
-	 *   ( ) { } + . ^ $ |
-	 *
-	 * If the last
-	 * non-escaped character is \ leave it to cause a syntax
-	 * error when the regex is compiled.
-	 */
-
-	if(*g == '^') {
-	    *r++ = '^';
-	    *r++ = '\\';	/* escape the separator */
-	    *r++ = separator;
-	    g++;
-	    if(*g == separator) g++;
-	}
-	else if(*g != separator) {
-	    *r++ = '\\';	/* add a leading \separator */
-	    *r++ = separator;
-	}
-	last_ch = '\0';
-	for (ch = *g++; ch != '\0'; last_ch = ch, ch = *g++) {
-	    next_ch = *g;
-	    if (last_ch == '\\') {
-		*r++ = (char)ch;
-		ch = '\0';		/* so last_ch != '\\' next time */
-	    } else if (last_ch == '[' && ch == '!') {
-		*r++ = '^';
-	    } else if (ch == '\\') {
-		*r++ = (char)ch;
-	    } else if (ch == '*' || ch == '?') {
-		if(ch == '*' && next_ch == '*') {
-		    *r++ = '.';
-		    g++;
-		}
-		else {
-		    *r++ = '[';
-		    *r++ = '^';
-		    *r++ = '\\';
-		    *r++ = separator;
-		    *r++ = ']';
-		}
-		if (ch == '*') {
-		    *r++ = '*';
-		}
-	    } else if (ch == '$' && next_ch == '\0') {
-		if(last_ch != separator) {
-		    *r++ = '\\';
-		    *r++ = separator;
-		}
-		*r++ = (char)ch;
-	    } else if (   ch == '('
-		       || ch == ')'
-		       || ch == '{'
-		       || ch == '}'
-		       || ch == '+'
-		       || ch == '.'
-		       || ch == '^'
-		       || ch == '$'
-		       || ch == '|') {
-		*r++ = '\\';
-		*r++ = (char)ch;
-	    } else {
-		*r++ = (char)ch;
-	    }
-	}
-	if(last_ch != '\\') {
-	    if(last_ch != separator && last_ch != '$') {
-		*r++ = '\\';
-		*r++ = separator;		/* add a trailing \separator */
-	    }
-	}
-    }
-    *r = '\0';
-
-    i = match(regex,nword);
-
-    amfree(mword);
-    amfree(mglob);
     amfree(nword);
     amfree(nglob);
     amfree(regex);
-    return i;
+
+    return ret;
 }
 
 
@@ -651,27 +741,17 @@ match_host(
     const char *	host)
 {
     char *lglob, *lhost;
-    char *c;
-    const char *d;
-    int i;
+    int ret;
 
     
-    lglob = (char *)alloc(strlen(glob)+1);
-    c = lglob, d=glob;
-    while( *d != '\0')
-	*c++ = (char)tolower(*d++);
-    *c = *d;
+    lglob = g_ascii_strdown(glob, -1);
+    lhost = g_ascii_strdown(host, -1);
 
-    lhost = (char *)alloc(strlen(host)+1);
-    c = lhost, d=host;
-    while( *d != '\0')
-	*c++ = (char)tolower(*d++);
-    *c = *d;
+    ret = match_word(lglob, lhost, '.');
 
-    i = match_word(lglob, lhost, (int)'.');
     amfree(lglob);
     amfree(lhost);
-    return i;
+    return ret;
 }
 
 
@@ -680,7 +760,35 @@ match_disk(
     const char *	glob,
     const char *	disk)
 {
-    return match_word(glob, disk, '/');
+    char *glob2 = NULL, *disk2 = NULL;
+    const char *g = glob, *d = disk;
+    int result;
+
+    /*
+     * Check whether our disk potentially refers to a Windows share (the first
+     * two characters are '\' and there is no / in the word at all): if yes,
+     * convert all double backslashes to slashes in the glob, and simple
+     * backslashes into slashes in the disk, and pass these new strings as
+     * arguments instead of the originals.
+     */
+    gboolean windows_share = !(strncmp(disk, "\\\\", 2) || strchr(disk, '/'));
+
+    if (windows_share) {
+        glob2 = convert_winglob_to_unix(glob);
+        disk2 = convert_unc_to_unix(disk);
+        g = (const char *) glob2;
+        d = (const char *) disk2;
+    }
+
+    result = match_word(g, d, '/');
+
+    /*
+     * We can amfree(NULL), so this is "safe"
+     */
+    amfree(glob2);
+    amfree(disk2);
+
+    return result;
 }
 
 static int

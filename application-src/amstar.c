@@ -40,7 +40,8 @@
  * IGNORE
  * STRANGE
  * INCLUDE-LIST		(for restore only)
- * EXCLUDE-LIST		(for restore only)
+ * EXCLUDE-FILE
+ * EXCLUDE-LIST
  * DIRECTORY
  */
 
@@ -131,6 +132,7 @@ static char *star_tardumps;
 static int   star_dle_tardumps;
 static int   star_onefilesystem;
 static int   star_sparse;
+static int   star_acl;
 static char *star_directory;
 static GSList *normal_message = NULL;
 static GSList *ignore_message = NULL;
@@ -159,6 +161,8 @@ static struct option long_options[] = {
     {"exclude-list"    , 1, NULL, 20},
     {"directory"       , 1, NULL, 21},
     {"command-options" , 1, NULL, 22},
+    {"exclude-file"    , 1, NULL, 23},
+    {"acl"             , 1, NULL, 24},
     { NULL, 0, NULL, 0}
 };
 
@@ -181,6 +185,7 @@ main(
     star_dle_tardumps = 0;
     star_onefilesystem = 1;
     star_sparse = 1;
+    star_acl = 1;
     star_directory = NULL;
 
     /* initialize */
@@ -320,6 +325,17 @@ main(
 	case 22: argument.command_options =
 			g_slist_append(argument.command_options,
 				       stralloc(optarg));
+	case 23: if (optarg)
+		     argument.dle.exclude_file =
+			 append_sl(argument.dle.exclude_file, optarg);
+		 break;
+	case 24: if (optarg && strcasecmp(optarg, "NO") == 0)
+		     star_acl = 0;
+		 else if (optarg && strcasecmp(optarg, "YES") == 0)
+		     star_acl = 1;
+		 else if (strcasecmp(command, "selfcheck") == 0)
+		     printf(_("ERROR [%s: bad ACL property value (%s)]\n"), get_pname(), optarg);
+		 break;
 	case ':':
 	case '?':
 		break;
@@ -417,10 +433,6 @@ amstar_selfcheck(
 	argument->dle.include_list->nb_element >= 0) {
 	fprintf(stdout, "ERROR include-list not supported for backup\n");
     }
-    if (argument->dle.exclude_list &&
-	argument->dle.exclude_list->nb_element >= 0) {
-	fprintf(stdout, "ERROR exclude-list not supported for backup\n");
-    }
 
     if (!star_path) {
 	fprintf(stdout, "ERROR STAR-PATH not defined\n");
@@ -486,10 +498,6 @@ amstar_estimate(
 	argument->dle.include_list->nb_element >= 0) {
 	fprintf(stderr, "ERROR include-list not supported for backup\n");
     }
-    if (argument->dle.exclude_list &&
-	argument->dle.exclude_list->nb_element >= 0) {
-	fprintf(stderr, "ERROR exclude-list not supported for backup\n");
-    }
 
     if (check_device(argument) == 0) {
 	return;
@@ -500,9 +508,9 @@ amstar_estimate(
 	char *dirname;
 
 	if (star_directory) {
-	    dirname = amname_to_dirname(star_directory);
+	    dirname = star_directory;
 	} else {
-	    dirname = amname_to_dirname(argument->dle.device);
+	    dirname = argument->dle.device;
 	}
 	run_calcsize(argument->config, "STAR", argument->dle.disk, dirname,
 		     argument->level, NULL, NULL);
@@ -675,10 +683,6 @@ amstar_backup(
 	argument->dle.include_list->nb_element >= 0) {
 	fprintf(mesgstream, "? include-list not supported for backup\n");
     }
-    if (argument->dle.exclude_list &&
-	argument->dle.exclude_list->nb_element >= 0) {
-	fprintf(mesgstream, "? exclude-list not supported for backup\n");
-    }
 
     level = GPOINTER_TO_INT(argument->level->data);
 
@@ -750,7 +754,7 @@ amstar_backup(
 	    }
 	}
 	if (rp->typ == DMP_SIZE) {
-	    dump_size = (long)((the_num(line, rp->field)* rp->scale+1023.0)/1024.0);
+	    dump_size = (off_t)((the_num(line, rp->field)* rp->scale+1023.0)/1024.0);
 	}
 	switch (rp->typ) {
 	    case DMP_IGNORE:
@@ -855,12 +859,23 @@ amstar_restore(
 
     if (argument->dle.include_list &&
 	argument->dle.include_list->nb_element == 1) {
-	g_ptr_array_add(argv_ptr,
-			stralloc2("list=",
-				  argument->dle.include_list->first->name));
+	FILE *include_list = fopen(argument->dle.include_list->first->name, "r");
+	char  line[2*PATH_MAX+2];
+	while (fgets(line, 2*PATH_MAX, include_list)) {
+	    line[strlen(line)-1] = '\0'; /* remove '\n' */
+	    if (strncmp(line, "./", 2) == 0)
+		g_ptr_array_add(argv_ptr, stralloc(line+2)); /* remove ./ */
+	    else if (strcmp(line, ".") != 0)
+		g_ptr_array_add(argv_ptr, stralloc(line));
+	}
+	fclose(include_list);
     }
-    for (j=1; j< argument->argc; j++)
-	g_ptr_array_add(argv_ptr, stralloc(argument->argv[j]+2));/*remove ./ */
+    for (j=1; j< argument->argc; j++) {
+	if (strncmp(argument->argv[j], "./", 2) == 0)
+	    g_ptr_array_add(argv_ptr, stralloc(argument->argv[j]+2));/*remove ./ */
+	else if (strcmp(argument->argv[j], ".") != 0)
+	    g_ptr_array_add(argv_ptr, stralloc(argument->argv[j]));
+    }
     g_ptr_array_add(argv_ptr, NULL);
 
     debug_executing(argv_ptr);
@@ -922,9 +937,9 @@ static GPtrArray *amstar_build_argv(
     GSList    *copt;
 
     if (star_directory) {
-	dirname = amname_to_dirname(star_directory);
+	dirname = star_directory;
     } else {
-	dirname = amname_to_dirname(argument->dle.device);
+	dirname = argument->dle.device;
     }
     fsname = vstralloc("fs-name=", dirname, NULL);
     for (s = fsname; *s != '\0'; s++) {
@@ -951,6 +966,7 @@ static GPtrArray *amstar_build_argv(
 	g_ptr_array_add(argv_ptr, stralloc("-"));
     }
     g_ptr_array_add(argv_ptr, stralloc("-C"));
+
 #if defined(__CYGWIN__)
     {
 	char tmppath[PATH_MAX];
@@ -969,8 +985,10 @@ static GPtrArray *amstar_build_argv(
     g_ptr_array_add(argv_ptr, stralloc2("tardumps=", tardumpfile));
     if (command == CMD_BACKUP)
 	g_ptr_array_add(argv_ptr, stralloc("-wtardumps"));
+
     g_ptr_array_add(argv_ptr, stralloc("-xattr"));
-    g_ptr_array_add(argv_ptr, stralloc("-acl"));
+    if (star_acl)
+	g_ptr_array_add(argv_ptr, stralloc("-acl"));
     g_ptr_array_add(argv_ptr, stralloc("H=exustar"));
     g_ptr_array_add(argv_ptr, stralloc("errctl=WARN|SAMEFILE|DIFF|GROW|SHRINK|SPECIALFILE|GETXATTR|BADACL *"));
     if (star_sparse)
@@ -984,13 +1002,60 @@ static GPtrArray *amstar_build_argv(
     if (command == CMD_BACKUP && argument->dle.create_index)
 	g_ptr_array_add(argv_ptr, stralloc("-v"));
 
+    if ((argument->dle.exclude_file &&
+	 argument->dle.exclude_file->nb_element >= 1) ||
+	(argument->dle.exclude_list &&
+	 argument->dle.exclude_list->nb_element >= 1)) {
+	g_ptr_array_add(argv_ptr, stralloc("-match-tree"));
+	g_ptr_array_add(argv_ptr, stralloc("-not"));
+    }
+    if (argument->dle.exclude_file &&
+	argument->dle.exclude_file->nb_element >= 1) {
+	sle_t *excl;
+	for (excl = argument->dle.exclude_file->first; excl != NULL;
+	     excl = excl->next) {
+	    char *ex;
+	    if (strcmp(excl->name, "./") == 0) {
+		ex = g_strdup_printf("pat=%s", excl->name+2);
+	    } else {
+		ex = g_strdup_printf("pat=%s", excl->name);
+	    }
+	    g_ptr_array_add(argv_ptr, ex);
+	}
+    }
+    if (argument->dle.exclude_list &&
+	argument->dle.exclude_list->nb_element >= 1) {
+	sle_t *excl;
+	for (excl = argument->dle.exclude_list->first; excl != NULL;
+	     excl = excl->next) {
+	    char *exclname = fixup_relative(excl->name, argument->dle.device);
+	    FILE *exclude;
+	    char *aexc;
+	    if ((exclude = fopen(exclname, "r")) != NULL) {
+		while ((aexc = agets(exclude)) != NULL) {
+		    if (aexc[0] != '\0') {
+			char *ex;
+			if (strcmp(aexc, "./") == 0) {
+			    ex = g_strdup_printf("pat=%s", aexc+2);
+			} else {
+			    ex = g_strdup_printf("pat=%s", aexc);
+			}
+			g_ptr_array_add(argv_ptr, ex);
+		    }
+		    amfree(aexc);
+		}
+		fclose(exclude);
+	    }
+	    amfree(exclname);
+	}
+    }
+
     g_ptr_array_add(argv_ptr, stralloc("."));
 
     g_ptr_array_add(argv_ptr, NULL);
 
     amfree(tardumpfile);
     amfree(fsname);
-    amfree(dirname);
 
     return(argv_ptr);
 }

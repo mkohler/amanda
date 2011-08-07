@@ -16,7 +16,7 @@
 # Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More tests => 204;
+use Test::More tests => 224;
 use strict;
 use warnings;
 use Data::Dumper;
@@ -228,6 +228,17 @@ $testconf->add_changer('my_changer', [
   'property' => '"testprop" "testval"',
   'device_property' => '"testdprop" "testdval"',
 ]);
+$testconf->add_interactivity('my_interactivity', [
+  'comment' => '"my interactivity is mine, not yours"',
+  'plugin'  => '"MY-interactivity"',
+  'property' => '"testprop" "testval"',
+]);
+
+$testconf->add_taperscan('my_taperscan', [
+  'comment' => '"my taperscan is mine, not yours"',
+  'plugin'  => '"MY-taperscan"',
+  'property' => '"testprop" "testval"',
+]);
 
 $testconf->write();
 
@@ -363,7 +374,7 @@ is_deeply([ sort(+getconf_list("dumptype")) ],
 	  [ sort(qw(
 	    mydump-type second_dumptype third_dumptype
 	    NO-COMPRESS COMPRESS-FAST COMPRESS-BEST COMPRESS-CUST
-	    SRVCOMPRESS BSD-AUTH NO-RECORD NO-HOLD
+	    SRVCOMPRESS BSD-AUTH BSDTCP-AUTH NO-RECORD NO-HOLD
 	    NO-FULL
 	    )) ],
     "getconf_list lists all dumptypes (including defaults)");
@@ -514,6 +525,47 @@ is_deeply(changer_config_getconf($dc, $CHANGER_CONFIG_DEVICE_PROPERTY),
 is_deeply([ sort(+getconf_list("changer")) ],
 	  [ sort("my_changer") ],
     "getconf_list lists all changers");
+
+$dc = lookup_interactivity("my_interactivity");
+ok($dc, "found my_interactivity");
+is(interactivity_name($dc), "my_interactivity",
+    "my_interactivity knows its name");
+is(interactivity_getconf($dc, $INTERACTIVITY_COMMENT), 'my interactivity is mine, not yours',
+    "interactivity comment");
+is(interactivity_getconf($dc, $INTERACTIVITY_PLUGIN), 'MY-interactivity',
+    "interactivity plugin");
+is_deeply(interactivity_getconf($dc, $INTERACTIVITY_PROPERTY),
+    { 'testprop' => {
+	    'priority' => 0,
+	    'values' => [ 'testval' ],
+	    'append' => 0,
+	}
+    }, "interactivity properties represented correctly");
+
+is_deeply([ sort(+getconf_list("interactivity")) ],
+	  [ sort("my_interactivity") ],
+    "getconf_list lists all interactivity");
+
+$dc = lookup_taperscan("my_taperscan");
+ok($dc, "found my_taperscan");
+is(taperscan_name($dc), "my_taperscan",
+    "my_taperscan knows its name");
+is(taperscan_getconf($dc, $TAPERSCAN_COMMENT), 'my taperscan is mine, not yours',
+    "taperscan comment");
+is(taperscan_getconf($dc, $TAPERSCAN_PLUGIN), 'MY-taperscan',
+    "taperscan plugin");
+is_deeply(taperscan_getconf($dc, $TAPERSCAN_PROPERTY),
+    { 'testprop' => {
+	    'priority' => 0,
+	    'values' => [ 'testval' ],
+	    'append' => 0,
+	}
+    }, "taperscan properties represented correctly");
+
+is_deeply([ sort(+getconf_list("taperscan")) ],
+	  [ sort("my_taperscan") ],
+    "getconf_list lists all taperscan");
+
 
 ##
 # Test config overwrites (using the config from above)
@@ -667,13 +719,13 @@ SKIP: {
 $testconf = Installcheck::Config->new();
 $testconf->add_param('recovery-limit', '"foo" "bar"');
 $testconf->add_dumptype('rl1', [
-    'recovery-limit' => 'same-host',
+    'recovery-limit' => 'same-host server',
 ]);
 $testconf->add_dumptype('rl2', [
     'recovery-limit' => '"somehost"',
 ]);
 $testconf->add_dumptype('rl3', [
-    'recovery-limit' => 'same-host "somehost"',
+    'recovery-limit' => 'same-host server "somehost"',
 ]);
 $testconf->add_dumptype('rl4', [
     'recovery-limit' => '"foohost" same-host',
@@ -694,7 +746,7 @@ SKIP: {
 
     $dtyp = lookup_dumptype("rl1");
     is_deeply(dumptype_getconf($dtyp, $DUMPTYPE_RECOVERY_LIMIT),
-	[ undef ],
+	[ "SAMEHOST-SAMEHOST-SAMEHOST", "SERVER-SERVER-SERVER"  ],
 	"same-host => undef in list");
 
     $dtyp = lookup_dumptype("rl2");
@@ -704,14 +756,61 @@ SKIP: {
 
     $dtyp = lookup_dumptype("rl3");
     is_deeply(dumptype_getconf($dtyp, $DUMPTYPE_RECOVERY_LIMIT),
-	[ undef, "somehost" ],
+	[ "SAMEHOST-SAMEHOST-SAMEHOST", "SERVER-SERVER-SERVER", "somehost" ],
 	"hostname and same-host parsed correctly");
 
     $dtyp = lookup_dumptype("rl4");
     is_deeply(dumptype_getconf($dtyp, $DUMPTYPE_RECOVERY_LIMIT),
-	[ undef, "foohost" ], # note that the order is an implementation detail
+	[ "SAMEHOST-SAMEHOST-SAMEHOST", "foohost" ], # note that the order is an implementation detail
 	".. even if same-host comes last");
 }
+
+##
+# Check out dump-limit parsing
+
+$testconf = Installcheck::Config->new();
+$testconf->add_dumptype('dl1', [
+    'dump-limit' => 'same-host',
+]);
+$testconf->add_dumptype('dl2', [
+    'dump-limit' => 'server',
+]);
+$testconf->add_dumptype('dl3', [
+    'dump-limit' => 'same-host server',
+]);
+$testconf->write();
+
+$cfg_result = config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF");
+is($cfg_result, $CFGERR_OK,
+    "dump-limit config loaded")
+    or diag_config_errors();
+SKIP: {
+    skip "error loading config", 5 unless $cfg_result == $CFGERR_OK;
+    my $dtyp;
+
+    $dtyp = lookup_dumptype("dl1");
+    is_deeply(dumptype_getconf($dtyp, $DUMPTYPE_DUMP_LIMIT),
+	[ "SAMEHOST-SAMEHOST-SAMEHOST" ],
+	"same-host => \"SAMEHOST-SAMEHOST-SAMEHOST\" in list");
+
+    $dtyp = lookup_dumptype("dl2");
+    is_deeply(dumptype_getconf($dtyp, $DUMPTYPE_DUMP_LIMIT),
+	[ "SERVER-SERVER-SERVER"  ],
+	"server => \"SERVER-SERVER-SERVER\" in list");
+
+    $dtyp = lookup_dumptype("dl3");
+    is_deeply(dumptype_getconf($dtyp, $DUMPTYPE_DUMP_LIMIT),
+	[ "SAMEHOST-SAMEHOST-SAMEHOST", "SERVER-SERVER-SERVER"  ],
+	"same-host and server");
+}
+
+$testconf->add_dumptype('dl4', [
+    'dump-limit' => 'same-host server "somehost"',
+]);
+$testconf->write();
+$cfg_result = config_init($CONFIG_INIT_EXPLICIT_NAME, "TESTCONF");
+isnt($cfg_result, $CFGERR_OK,
+    "dump-limit do not accept hostname");
 
 ##
 # Try an autolabel with a template and 'any'
@@ -1037,4 +1136,17 @@ my $properties = getconf($CNF_PROPERTY);
 for my $pn (@prop_names) {
     is_deeply($properties->{$pn->{'val'}}->{values}, [ "VALUE" ]);
 }
+
+$testconf = Installcheck::Config->new();
+$testconf->add_client_config_param('amdump-server', '"amdump.localhost"');
+$testconf->add_client_config_param('index-server', '"index.localhost"');
+$testconf->add_client_config_param('tape-server', '"tape.localhost"');
+$testconf->write();
+config_init($CONFIG_INIT_CLIENT | $CONFIG_INIT_EXPLICIT_NAME, "TESTCONF");
+my $amdump_server = getconf($CNF_AMDUMP_SERVER);
+is ($amdump_server, "amdump.localhost", "amdump-server is \"amdump.localhost\"");
+my $index_server = getconf($CNF_INDEX_SERVER);
+is ($index_server, "index.localhost", "index-server is \"index.localhost\"");
+my $tape_server = getconf($CNF_TAPE_SERVER);
+is ($tape_server, "tape.localhost", "amdump is \"tape.localhost\"");
 

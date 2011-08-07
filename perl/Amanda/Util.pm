@@ -90,7 +90,10 @@ sub new {
 }
 
 *lock = *Amanda::Utilc::file_lock_lock;
+*lock_wr = *Amanda::Utilc::file_lock_lock_wr;
+*lock_rd = *Amanda::Utilc::file_lock_lock_rd;
 *unlock = *Amanda::Utilc::file_lock_unlock;
+*locked = *Amanda::Utilc::file_lock_locked;
 *write = *Amanda::Utilc::file_lock_write;
 *data = *Amanda::Utilc::file_lock_data;
 sub DESTROY {
@@ -281,7 +284,7 @@ bytes it read from the file descriptor.
 Return a "safe" environment hash.  For non-setuid programs, this means
 filtering out any localization variables.
 
-=item get_fs_usage(file, disk)
+=item get_fs_usage(file)
 
 This is a wrapper around the Gnulib function of the same name.  On success, it returns
 a hash with keys:
@@ -501,11 +504,17 @@ filename to lock:
 
   my $fl = Amanda::Util::file_lock->new($filename)
 
-then, lock the file:
+then, three ways to lock the file:
 
-  $fl->lock();
+  $fl->lock_wr();       # take a write lock (exclusive)
+  $fl->lock_rd();       # take a read lock
+  $fl->lock();	        # take a write lock and reads the contents of
+                        # the file into memory.
 
-which also reads the contents of the file into memory, accessible via
+they return -1 on failure, 0 if the lock is taken or 1 if the lock in not
+taken (you can retry later).
+
+to access the data in memory
 
   my $state = $fl->data();
 

@@ -2,12 +2,12 @@
 .\"     Title: amanda-taperscan
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 12/14/2010
+.\"      Date: 06/02/2011
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.2.1
+.\"    Source: Amanda 3.3.0
 .\"  Language: English
 .\"
-.TH "AMANDA\-TAPERSCAN" "7" "12/14/2010" "Amanda 3\&.2\&.1" "Miscellanea"
+.TH "AMANDA\-TAPERSCAN" "7" "06/02/2011" "Amanda 3\&.3\&.0" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -35,9 +35,36 @@ Taperscan algorithms are implemented as perl packages with the prefix
 Amanda::Taper::Scan::\&. See the perl documentation for
 Amanda::Taper::Scan
 for more information\&.
+.SH "DEFINING A TAPERSCAN"
+.PP
+An taperscan is defined in
+\fBamanda.conf\fR(5)
+as follows:
+.sp
+.nf
+define taperscan $taperscan_name {
+   comment "$comment"
+   plugin "$pluginname"
+   property "$PROPERTY_NAME" "$PROPERTY_VALUE"
+   \&.\&.\&.
+}
+.fi
+and then referenced in the global section as
+.sp
+.nf
+  taperscan "$taperscan_name"
+.fi
+.PP
+Taperscan properties, like Amanda configuration parameters, are insensitive to case, and
+\-
+(dash) and
+_
+(underscore) may be used interchangeably\&.
+.PP
+See the individual plugin documentation below for properties applicable to each plugin\&.
 .SH "TAPERSCAN ALGORITHMS"
 .PP
-In general, these volumes will only select reusable volumes\&. These are volumes which are listed in the
+In general, these algorithms will only select reusable volumes\&. These are volumes which are listed in the
 \fBtapelist\fR(5)
 with the
 \fIreuse\fR
@@ -84,12 +111,38 @@ algorithm are used and new tapes may be unexpectedly excluded\&.  If this causes
 an undesirable change in behavior, consider one of the other taperscan
 algorithms\&..sp .5v
 .RE
+.SS "oldest"
+.PP
+This algorithm works with the Changer API (see
+\fBamanda-changers\fR(7)), using the inventory returned by the changer to locate the oldest acceptable volume available\&. Note that this will not work with changers that do not support inventory (old changers)\&. The algorithms scans unknown slots only if no known usable volume is found in the inventory\&.
+.PP
+An acceptable volume is a reusable volume, a new labeled volume or an unlabeled volume that can be labeled according to
+\fBautolabel\fR\&. Note that changers do not always know the contents of every slot \- for example, a tape with an unknown barcode will not be considered usable\&.
+.PP
+Use
+\fBamtape CONF inventory\fR
+to see the changer\'s inventory, and use
+\fBamtape CONF update\fR
+to update it\&.
+.SS "lexical"
+.PP
+This algorithm also works with the Changer API, using the inventory to determine the acceptable volumes; it then uses the volume which follows the last\-used volume in lexical order\&. For volume labels containing leading zeros, e\&.g\&.,
+CORP\-010, this algorithm will run through the volumes in the natural order\&.
+.PP
+It scans unknown slots only if no usable volume is found in the inventory\&.
+.PP
+See
+\fBoldest\fR, above, for a definition of acceptable volumes\&.
+
+
+>>>>>>> 6a40a39\&.\&.\&. manpage edits
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),
 \fBamanda.conf\fR(5),
 \fBtapelist\fR(5),
-\fBamanda-changers\fR(7)
+\fBamanda-changers\fR(7),
+\fBamanda-interactivity\fR(7)
 .PP
 The Amanda Wiki:
 : http://wiki.zmanda.com/

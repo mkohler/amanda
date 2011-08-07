@@ -21,6 +21,7 @@
 
 #include "amanda.h"
 #include "amxfer.h"
+#include "sockaddr-util.h"
 
 /*
  * Class declaration
@@ -68,7 +69,7 @@ setup_impl(
 {
     XferSourceDirectTCPConnect *self = (XferSourceDirectTCPConnect *)elt;
 
-    g_assert(self->addrs && self->addrs->ipv4);
+    g_assert(self->addrs && SU_GET_FAMILY(self->addrs) != 0);
     elt->output_listen_addrs = self->addrs;
 
     return TRUE;
@@ -102,8 +103,8 @@ class_init(
     XferElementClass *klass = XFER_ELEMENT_CLASS(selfc);
     GObjectClass *goc = G_OBJECT_CLASS(selfc);
     static xfer_element_mech_pair_t mech_pairs[] = {
-	{ XFER_MECH_NONE, XFER_MECH_DIRECTTCP_CONNECT, 1, 0},
-	{ XFER_MECH_NONE, XFER_MECH_NONE, 0, 0},
+	{ XFER_MECH_NONE, XFER_MECH_DIRECTTCP_CONNECT, XFER_NROPS(1), XFER_NTHREADS(0) },
+	{ XFER_MECH_NONE, XFER_MECH_NONE, XFER_NROPS(0), XFER_NTHREADS(0) },
     };
 
     klass->setup = setup_impl;
@@ -151,7 +152,7 @@ xfer_source_directtcp_connect(DirectTCPAddr *addrs)
 
     g_assert(addrs != NULL);
 
-    for (i = 0; addrs[i].port; i++) ;
+    for (i = 0; SU_GET_FAMILY(&addrs[i]) != 0; i++);
     self->addrs = g_memdup(addrs, (i+1) * sizeof(*addrs));
 
     return elt;

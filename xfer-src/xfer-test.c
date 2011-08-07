@@ -124,8 +124,8 @@ source_readfd_class_init(
 {
     XferElementClass *xec = XFER_ELEMENT_CLASS(klass);
     static xfer_element_mech_pair_t mech_pairs[] = {
-	{ XFER_MECH_NONE, XFER_MECH_READFD, 1, 1},
-	{ XFER_MECH_NONE, XFER_MECH_NONE, 0, 0},
+	{ XFER_MECH_NONE, XFER_MECH_READFD, XFER_NROPS(1), XFER_NTHREADS(1) },
+	{ XFER_MECH_NONE, XFER_MECH_NONE, XFER_NROPS(0), XFER_NTHREADS(0) },
     };
 
     xec->setup = source_readfd_setup_impl;
@@ -223,8 +223,8 @@ source_writefd_class_init(
 {
     XferElementClass *xec = XFER_ELEMENT_CLASS(klass);
     static xfer_element_mech_pair_t mech_pairs[] = {
-	{ XFER_MECH_NONE, XFER_MECH_WRITEFD, 1, 1},
-	{ XFER_MECH_NONE, XFER_MECH_NONE, 0, 0},
+	{ XFER_MECH_NONE, XFER_MECH_WRITEFD, XFER_NROPS(1), XFER_NTHREADS(1) },
+	{ XFER_MECH_NONE, XFER_MECH_NONE, XFER_NROPS(0), XFER_NTHREADS(0) },
     };
 
     xec->start = source_writefd_start_impl;
@@ -325,8 +325,8 @@ source_push_class_init(
 {
     XferElementClass *xec = XFER_ELEMENT_CLASS(klass);
     static xfer_element_mech_pair_t mech_pairs[] = {
-	{ XFER_MECH_NONE, XFER_MECH_PUSH_BUFFER, 1, 1},
-	{ XFER_MECH_NONE, XFER_MECH_NONE, 0, 0},
+	{ XFER_MECH_NONE, XFER_MECH_PUSH_BUFFER, XFER_NROPS(1), XFER_NTHREADS(1) },
+	{ XFER_MECH_NONE, XFER_MECH_NONE, XFER_NROPS(0), XFER_NTHREADS(0) },
     };
 
     xec->start = source_push_start_impl;
@@ -420,8 +420,8 @@ source_pull_class_init(
 {
     XferElementClass *xec = XFER_ELEMENT_CLASS(klass);
     static xfer_element_mech_pair_t mech_pairs[] = {
-	{ XFER_MECH_NONE, XFER_MECH_PULL_BUFFER, 1, 0},
-	{ XFER_MECH_NONE, XFER_MECH_NONE, 0, 0},
+	{ XFER_MECH_NONE, XFER_MECH_PULL_BUFFER, XFER_NROPS(1), XFER_NTHREADS(0) },
+	{ XFER_MECH_NONE, XFER_MECH_NONE, XFER_NROPS(0), XFER_NTHREADS(0) },
     };
 
     xec->pull_buffer = source_pull_pull_buffer_impl;
@@ -482,28 +482,24 @@ source_listen_thread(
     XferSourceListen *self = XFER_SOURCE_LISTEN(data);
     XferElement *elt = XFER_ELEMENT(self);
     DirectTCPAddr *addrs;
-    sockaddr_union addr;
     int sock;
     char *buf;
     int i;
 
     /* set up the sockaddr -- IPv4 only */
-    SU_INIT(&addr, AF_INET);
     addrs = elt->downstream->input_listen_addrs;
     g_assert(addrs != NULL);
-    SU_SET_PORT(&addr, addrs->port);
-    ((struct sockaddr_in *)&addr)->sin_addr.s_addr = htonl(addrs->ipv4);
 
-    tu_dbg("making data connection to %s\n", str_sockaddr(&addr));
-    sock = socket(AF_INET, SOCK_STREAM, 0);
+    tu_dbg("making data connection to %s\n", str_sockaddr(addrs));
+    sock = socket(SU_GET_FAMILY(addrs), SOCK_STREAM, 0);
     if (sock < 0) {
 	error("socket(): %s", strerror(errno));
     }
-    if (connect(sock, (struct sockaddr *)&addr, SS_LEN(&addr)) < 0) {
+    if (connect(sock, (struct sockaddr *)addrs, SS_LEN(addrs)) < 0) {
 	error("connect(): %s", strerror(errno));
     }
 
-    tu_dbg("connected to %s\n", str_sockaddr(&addr));
+    tu_dbg("connected to %s\n", str_sockaddr(addrs));
 
     buf = g_malloc(TEST_BLOCK_SIZE);
     for (i = 0; i < TEST_BLOCK_COUNT; i++) {
@@ -547,8 +543,8 @@ source_listen_class_init(
 {
     XferElementClass *xec = XFER_ELEMENT_CLASS(klass);
     static xfer_element_mech_pair_t mech_pairs[] = {
-	{ XFER_MECH_NONE, XFER_MECH_DIRECTTCP_LISTEN, 1, 0},
-	{ XFER_MECH_NONE, XFER_MECH_NONE, 0, 0},
+	{ XFER_MECH_NONE, XFER_MECH_DIRECTTCP_LISTEN, XFER_NROPS(1), XFER_NTHREADS(0) },
+	{ XFER_MECH_NONE, XFER_MECH_NONE, XFER_NROPS(0), XFER_NTHREADS(0) },
     };
 
     xec->start = source_listen_start_impl;
@@ -674,8 +670,7 @@ source_connect_setup_impl(
     g_assert(SU_GET_FAMILY(&addr) == AF_INET);
 
     addrs = g_new0(DirectTCPAddr, 2);
-    addrs[0].ipv4 = ntohl(inet_addr("127.0.0.1"));
-    addrs[0].port = SU_GET_PORT(&addr);
+    copy_sockaddr(&addrs[0], &addr);
     elt->output_listen_addrs = addrs;
 
     return TRUE;
@@ -700,8 +695,8 @@ source_connect_class_init(
 {
     XferElementClass *xec = XFER_ELEMENT_CLASS(klass);
     static xfer_element_mech_pair_t mech_pairs[] = {
-	{ XFER_MECH_NONE, XFER_MECH_DIRECTTCP_CONNECT, 1, 0},
-	{ XFER_MECH_NONE, XFER_MECH_NONE, 0, 0},
+	{ XFER_MECH_NONE, XFER_MECH_DIRECTTCP_CONNECT, XFER_NROPS(1), XFER_NTHREADS(0) },
+	{ XFER_MECH_NONE, XFER_MECH_NONE, XFER_NROPS(0), XFER_NTHREADS(0) },
     };
 
     xec->setup = source_connect_setup_impl;
@@ -810,8 +805,8 @@ dest_readfd_class_init(
 {
     XferElementClass *xec = XFER_ELEMENT_CLASS(klass);
     static xfer_element_mech_pair_t mech_pairs[] = {
-	{ XFER_MECH_READFD, XFER_MECH_NONE, 1, 1},
-	{ XFER_MECH_NONE, XFER_MECH_NONE, 0, 0},
+	{ XFER_MECH_READFD, XFER_MECH_NONE, XFER_NROPS(1), XFER_NTHREADS(1) },
+	{ XFER_MECH_NONE, XFER_MECH_NONE, XFER_NROPS(0), XFER_NTHREADS(0) },
     };
 
     xec->start = dest_readfd_start_impl;
@@ -931,8 +926,8 @@ dest_writefd_class_init(
 {
     XferElementClass *xec = XFER_ELEMENT_CLASS(klass);
     static xfer_element_mech_pair_t mech_pairs[] = {
-	{ XFER_MECH_WRITEFD, XFER_MECH_NONE, 1, 1},
-	{ XFER_MECH_NONE, XFER_MECH_NONE, 0, 0},
+	{ XFER_MECH_WRITEFD, XFER_MECH_NONE, XFER_NROPS(1), XFER_NTHREADS(1) },
+	{ XFER_MECH_NONE, XFER_MECH_NONE, XFER_NROPS(0), XFER_NTHREADS(0) },
     };
 
     xec->setup = dest_writefd_setup_impl;
@@ -1029,8 +1024,8 @@ dest_push_class_init(
 {
     XferElementClass *xec = XFER_ELEMENT_CLASS(klass);
     static xfer_element_mech_pair_t mech_pairs[] = {
-	{ XFER_MECH_PUSH_BUFFER, XFER_MECH_NONE, 1, 0},
-	{ XFER_MECH_NONE, XFER_MECH_NONE, 0, 0},
+	{ XFER_MECH_PUSH_BUFFER, XFER_MECH_NONE, XFER_NROPS(1), XFER_NTHREADS(0) },
+	{ XFER_MECH_NONE, XFER_MECH_NONE, XFER_NROPS(0), XFER_NTHREADS(0) },
     };
 
     xec->push_buffer = dest_push_push_buffer_impl;
@@ -1129,8 +1124,8 @@ dest_pull_class_init(
 {
     XferElementClass *xec = XFER_ELEMENT_CLASS(klass);
     static xfer_element_mech_pair_t mech_pairs[] = {
-	{ XFER_MECH_PULL_BUFFER, XFER_MECH_NONE, 1, 1},
-	{ XFER_MECH_NONE, XFER_MECH_NONE, 0, 0},
+	{ XFER_MECH_PULL_BUFFER, XFER_MECH_NONE, XFER_NROPS(1), XFER_NTHREADS(1) },
+	{ XFER_MECH_NONE, XFER_MECH_NONE, XFER_NROPS(0), XFER_NTHREADS(0) },
     };
 
     xec->start = dest_pull_start_impl;
@@ -1248,8 +1243,7 @@ dest_listen_setup_impl(
     g_assert(SU_GET_FAMILY(&addr) == AF_INET);
 
     addrs = g_new0(DirectTCPAddr, 2);
-    addrs[0].ipv4 = ntohl(inet_addr("127.0.0.1"));
-    addrs[0].port = SU_GET_PORT(&addr);
+    copy_sockaddr(&addrs[0], &addr);
     elt->input_listen_addrs = addrs;
 
     return TRUE;
@@ -1274,8 +1268,8 @@ dest_listen_class_init(
 {
     XferElementClass *xec = XFER_ELEMENT_CLASS(klass);
     static xfer_element_mech_pair_t mech_pairs[] = {
-	{ XFER_MECH_DIRECTTCP_LISTEN, XFER_MECH_NONE, 1, 1},
-	{ XFER_MECH_NONE, XFER_MECH_NONE, 0, 0},
+	{ XFER_MECH_DIRECTTCP_LISTEN, XFER_MECH_NONE, XFER_NROPS(1), XFER_NTHREADS(1) },
+	{ XFER_MECH_NONE, XFER_MECH_NONE, XFER_NROPS(0), XFER_NTHREADS(0) },
     };
 
     xec->setup = dest_listen_setup_impl;
@@ -1347,11 +1341,10 @@ dest_connect_thread(
     SU_INIT(&addr, AF_INET);
     addrs = elt->upstream->output_listen_addrs;
     g_assert(addrs != NULL);
-    SU_SET_PORT(&addr, addrs->port);
-    ((struct sockaddr_in *)&addr)->sin_addr.s_addr = htonl(addrs->ipv4);
+    copy_sockaddr(&addr, addrs);
 
     tu_dbg("making data connection to %s\n", str_sockaddr(&addr));
-    sock = socket(AF_INET, SOCK_STREAM, 0);
+    sock = socket(SU_GET_FAMILY(&addr), SOCK_STREAM, 0);
     if (sock < 0) {
 	error("socket(): %s", strerror(errno));
     }
@@ -1397,8 +1390,8 @@ dest_connect_class_init(
 {
     XferElementClass *xec = XFER_ELEMENT_CLASS(klass);
     static xfer_element_mech_pair_t mech_pairs[] = {
-	{ XFER_MECH_DIRECTTCP_CONNECT, XFER_MECH_NONE, 1, 1},
-	{ XFER_MECH_NONE, XFER_MECH_NONE, 0, 0},
+	{ XFER_MECH_DIRECTTCP_CONNECT, XFER_MECH_NONE, XFER_NROPS(1), XFER_NTHREADS(1) },
+	{ XFER_MECH_NONE, XFER_MECH_NONE, XFER_NROPS(0), XFER_NTHREADS(0) },
     };
 
     xec->start = dest_connect_start_impl;
@@ -1486,7 +1479,7 @@ test_xfer_simple(void)
 	elements[i] = NULL;
     }
 
-    xfer_start(xfer);
+    xfer_start(xfer, 0, 0);
 
     g_main_loop_run(default_main_loop());
     g_assert(xfer->status == XFER_DONE);
@@ -1541,7 +1534,7 @@ test_xfer_files(gboolean add_filters)
 	elements[i] = NULL;
     }
 
-    xfer_start(xfer);
+    xfer_start(xfer, 0, 0);
 
     g_main_loop_run(default_main_loop());
     g_assert(xfer->status == XFER_DONE);
@@ -1590,7 +1583,7 @@ test_glue_combo(
 	elements[i] = NULL;
     }
 
-    xfer_start(xfer);
+    xfer_start(xfer, 0, 0);
 
     g_main_loop_run(default_main_loop());
     g_assert(xfer->status == XFER_DONE);

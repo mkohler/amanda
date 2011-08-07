@@ -191,6 +191,7 @@ main(
     int    planner_setuid;
     int exit_status = EXIT_SUCCESS;
     gboolean no_taper = FALSE;
+    gboolean from_client = FALSE;
 
     /*
      * Configure program for internationalization:
@@ -265,7 +266,13 @@ main(
 	no_taper = TRUE;
 	diskarg_offset += 1;
     }
+    if (argc - diskarg_offset > 0 && strcmp(argv[diskarg_offset], "--from-client") == 0) {
+	from_client = TRUE;
+	diskarg_offset += 1;
+    }
 
+
+    run_server_global_scripts(EXECUTE_ON_PRE_ESTIMATE, get_config_name());
 
     /*
      * 1. Networking Setup
@@ -315,7 +322,7 @@ main(
     conf_tapecycle = getconf_int(CNF_TAPECYCLE);
     conf_etimeout = (time_t)getconf_int(CNF_ETIMEOUT);
     conf_reserve  = getconf_int(CNF_RESERVE);
-    conf_autoflush = getconf_boolean(CNF_AUTOFLUSH);
+    conf_autoflush = getconf_no_yes_all(CNF_AUTOFLUSH);
     conf_usetimestamps = getconf_boolean(CNF_USETIMESTAMPS);
 
     today = time(0);
@@ -341,6 +348,19 @@ main(
 	g_fprintf(stderr,"%s",errstr);
         exit_status = EXIT_FAILURE;
     }
+
+    for (dp = origq.head; dp != NULL; dp = dp->next) {
+	if (dp->todo) {
+	    if (from_client) {
+		if (!dp->dump_limit || !dp->dump_limit->same_host)
+		    dp->todo = 0;
+	    } else {
+		if (dp->dump_limit && !dp->dump_limit->server)
+		    dp->todo = 0;
+	    }
+	}
+    }
+
     nb_disk = 0;
     for (dp = origq.head; dp != NULL; dp = dp->next) {
 	if (dp->todo) {
@@ -436,7 +456,8 @@ main(
 	    }
 
 	    /* see if this matches the command-line arguments */
-	    if (!match_dumpfile(&file, argc-diskarg_offset,
+	    if (conf_autoflush == 1 &&
+		!match_dumpfile(&file, argc-diskarg_offset,
 				       argv+diskarg_offset)) {
 		continue;
 	    }
@@ -551,6 +572,8 @@ main(
     schedq.head = schedq.tail = NULL;
     while(!empty(estq)) analyze_estimate(dequeue_disk(&estq));
     while(!empty(failq)) handle_failed(dequeue_disk(&failq));
+
+    run_server_global_scripts(EXECUTE_ON_POST_ESTIMATE, get_config_name());
 
     /*
      * At this point, all the disks are on schedq sorted by priority.
@@ -1321,15 +1344,11 @@ static void get_estimates(void)
 	    hostp = dp->host;
 	    if(hostp->up == HOST_READY) {
 		something_started = 1;
+		run_server_host_scripts(EXECUTE_ON_PRE_HOST_ESTIMATE,
+					get_config_name(), hostp);
 		for(dp1 = hostp->disks; dp1 != NULL; dp1 = dp1->hostnext) {
 		    if (dp1->todo)
-			run_server_scripts(EXECUTE_ON_PRE_HOST_ESTIMATE,
-					   get_config_name(), dp1,
-					   est(dp1)->estimate[0].level);
-		}
-		for(dp1 = hostp->disks; dp1 != NULL; dp1 = dp1->hostnext) {
-		    if (dp1->todo)
-			run_server_scripts(EXECUTE_ON_PRE_DLE_ESTIMATE,
+			run_server_dle_scripts(EXECUTE_ON_PRE_DLE_ESTIMATE,
 					   get_config_name(), dp1,
 					   est(dp1)->estimate[0].level);
 		}
@@ -1809,8 +1828,12 @@ static void handle_result(
     hostp->up = HOST_READY;
 
     if (pkt == NULL) {
-	errbuf = vstrallocf(_("Request to %s failed: %s"),
+	if (strcmp(security_geterror(sech), "timeout waiting for REP") == 0) {
+	    errbuf = vstrallocf("Some estimate timeout on %s, using server estimate if possible", hostp->hostname);
+	} else {
+	    errbuf = vstrallocf(_("Request to %s failed: %s"),
 			hostp->hostname, security_geterror(sech));
+	}
 	goto error_return;
     }
     if (pkt->type == P_NAK) {
@@ -2064,7 +2087,7 @@ static void handle_result(
                est(dp)->estimate[1].nsize > (gint64)0) &&
 	      (est(dp)->estimate[2].level == -1 ||
                est(dp)->estimate[2].nsize > (gint64)0)))) {
-	    run_server_scripts(EXECUTE_ON_POST_DLE_ESTIMATE,
+	    run_server_dle_scripts(EXECUTE_ON_POST_DLE_ESTIMATE,
 			       get_config_name(), dp,
                                est(dp)->estimate[0].level);
 	    est(dp)->post_dle = 1;
@@ -2073,13 +2096,9 @@ static void handle_result(
     }
 
     if(hostp->up == HOST_DONE) {
-	for(dp = hostp->disks; dp != NULL; dp = dp->hostnext) {
-	    if (dp->todo)
-		if (pkt->type == P_REP) {
-		    run_server_scripts(EXECUTE_ON_POST_HOST_ESTIMATE,
-				       get_config_name(), dp,
-                                       est(dp)->estimate[0].level);
-	    }
+	if (pkt->type == P_REP) {
+	    run_server_host_scripts(EXECUTE_ON_POST_HOST_ESTIMATE,
+				    get_config_name(), hostp);
 	}
     }
 
@@ -2263,7 +2282,15 @@ static void analyze_estimate(
 	lev0size = est_tape_size(dp, 0);
 	if(lev0size == (gint64)-1) lev0size = ep->last_lev0size;
 
-	balanced_size += (double)(lev0size / (gint64)runs_per_cycle);
+	if (dp->strategy == DS_NOINC) {
+	    balanced_size += (double)lev0size;
+	} else if (dp->dumpcycle == 0) {
+	    balanced_size += (double)(lev0size * conf_dumpcycle / (gint64)runs_per_cycle);
+	} else if (dp->dumpcycle != conf_dumpcycle) {
+	    balanced_size += (double)(lev0size * (conf_dumpcycle / dp->dumpcycle) / (gint64)runs_per_cycle);
+	} else {
+	    balanced_size += (double)(lev0size / (gint64)runs_per_cycle);
+	}
     }
 
     g_fprintf(stderr,_("total size %lld total_lev0 %1.0lf balanced-lev0size %1.0lf\n"),
@@ -2464,7 +2491,7 @@ static void delay_dumps(void)
 
     for(dp = schedq.head; dp != NULL; dp = ndp) {
 	int avail_tapes = 1;
-	if (dp->splitsize > (gint64)0)
+	if (dp->splitsize > (gint64)0 || dp->allow_split)
 	    avail_tapes = conf_runtapes;
 
 	ndp = dp->next; /* remove_disk zaps this */

@@ -2,12 +2,12 @@
 .\"     Title: amstar
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 12/14/2010
+.\"      Date: 06/02/2011
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.2.1
+.\"    Source: Amanda 3.3.0
 .\"  Language: English
 .\"
-.TH "AMSTAR" "8" "12/14/2010" "Amanda 3\&.2\&.1" "System Administration Commands"
+.TH "AMSTAR" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -23,11 +23,22 @@ amstar \- Amanda Application to interface with star
 .SH "DESCRIPTION"
 .PP
 Amstar is an Amanda Application API script\&. It should not be run by users directly\&. It uses star to backup and restore data\&.
+.SH "INCLUDE - EXCLUDE"
+.PP
+amstar doesn\'t support include\&. Both \'exclude list\' and \'exclude file\' are supported\&. There is a maximum of 100 patterns (limit of star)\&.
+.PP
+Moving directories into and out of directories on the exclude list causes incremental backups to not contain the files in the moved directories until the next full backup unless the moved files are modified after the move\&.
 .SH "PROPERTIES"
 .PP
 This section lists the properties that control amstar\'s functionality\&. See
 \fBamanda-applications\fR(7)
 for information on application properties and how they are configured\&.
+.PP
+ACL
+.RS 4
+
+If "YES" (the default), amstar will store files acl by passing the \fI\-acl\fR argument to star\&. If "NO", then the \fI\-acl\fR option is not given to star, and it will not try to backup the acl\&.
+.RE
 .PP
 COMMAND\-OPTIONS
 .RS 4

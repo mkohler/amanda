@@ -16,7 +16,7 @@
 # Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More tests => 321;
+use Test::More tests => 324;
 use File::Path;
 use Data::Dumper;
 use strict;
@@ -91,7 +91,8 @@ sub test_interface {
     my ($interface, $chg);
 
     my $steps = define_steps
-	cb_ref => \$finished_cb;
+	cb_ref => \$finished_cb,
+	finalize => sub { $chg->quit() };
 
     step start => sub {
 	my $testconf = Installcheck::Config->new();
@@ -115,6 +116,7 @@ sub test_interface {
 
 	$chg = Amanda::Changer->new("robo");
 	die "$chg" if $chg->isa("Amanda::Changer::Error");
+	is($chg->have_inventory(), '1', "changer have inventory");
 	$interface = $chg->{'interface'};
 
 	$interface->inquiry($steps->{'inquiry_cb'});
@@ -335,6 +337,7 @@ Amanda::MainLoop::run();
 
     my $chg = Amanda::Changer->new("delays");
     die "$chg" if $chg->isa("Amanda::Changer::Error");
+    is($chg->have_inventory(), '1', "changer have inventory");
     is($chg->{'status_interval'}, 60, "status-interval parsed");
     is($chg->{'eject_delay'}, 1, "eject-delay parsed");
     is($chg->{'unload_delay'}, 120, "unload-delay parsed");
@@ -346,10 +349,12 @@ Amanda::MainLoop::run();
     $dashed_mtx_state_file =~ s/^-*//;
     is($chg->{'statefile'}, "$localstatedir/amanda/chg-robot-$dashed_mtx_state_file",
         "statefile calculated correctly");
+    $chg->quit();
 
     # test no-fast-search
     $chg = Amanda::Changer->new("no-fast-search");
     die "$chg" if $chg->isa("Amanda::Changer::Error");
+    is($chg->have_inventory(), '1', "changer have inventory");
     $chg->info(
 	    info => ['fast_search'],
 	    info_cb => make_cb(info_cb => sub {
@@ -363,6 +368,7 @@ Amanda::MainLoop::run();
     my @allowed = map { $chg->_is_slot_allowed($_) } (0 .. 10);
     is_deeply([ @allowed ], [ 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0 ],
 	"_is_slot_allowed parses multiple properties and behaves as expected");
+    $chg->quit();
 }
 
 ##
@@ -376,12 +382,12 @@ sub test_changer {
     my $vtape_root = "$Installcheck::TMP/chg-robot-vtapes";
 
     my $steps = define_steps
-	cb_ref => \$finished_cb;
+	cb_ref => \$finished_cb,
+	finalize => sub { $chg->quit() };
 
     step setup => sub {
 	# clean up
 	unlink($chg_state_file) if -f $chg_state_file;
-	%Amanda::Changer::changers_by_uri_cc = ();
 
 	# set up some vtapes
 	rmtree($vtape_root);

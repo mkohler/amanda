@@ -191,6 +191,7 @@ DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(top_srcdir)/config/automake/scripts.am \
 	$(top_srcdir)/config/automake/vars.am
 @WANT_INSTALLPERMS_FALSE@am__append_1 = $(installperms_sh)
+sbin_PROGRAMS = amservice$(EXEEXT)
 @WANT_AMFLOCK_POSIX_TRUE@am__append_2 = amflock-posix.c
 @WANT_AMFLOCK_FLOCK_TRUE@am__append_3 = amflock-flock.c
 @WANT_AMFLOCK_LOCKF_TRUE@am__append_4 = amflock-lockf.c
@@ -220,6 +221,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/macro-archive/docbook-xslt.m4 \
 	$(top_srcdir)/config/macro-archive/xsltproc.m4 \
 	$(top_srcdir)/config/amanda/amplot.m4 \
+	$(top_srcdir)/config/amanda/as_needed.m4 \
 	$(top_srcdir)/config/amanda/bsd-security.m4 \
 	$(top_srcdir)/config/amanda/bsdtcp-security.m4 \
 	$(top_srcdir)/config/amanda/bsdudp-security.m4 \
@@ -384,8 +386,9 @@ am__nobase_list = $(am__nobase_strip_setup); \
 am__base_list = \
   sed '$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;s/\n/ /g' | \
   sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
-am__installdirs = "$(DESTDIR)$(amlibdir)" "$(DESTDIR)$(amlibexecdir)" \
-	"$(DESTDIR)$(sbindir)" "$(DESTDIR)$(amlibexecdir)"
+am__installdirs = "$(DESTDIR)$(amlibdir)" "$(DESTDIR)$(sbindir)" \
+	"$(DESTDIR)$(amlibexecdir)" "$(DESTDIR)$(sbindir)" \
+	"$(DESTDIR)$(amlibexecdir)"
 LTLIBRARIES = $(amlib_LTLIBRARIES) $(noinst_LTLIBRARIES)
 libamanda_la_DEPENDENCIES = ../gnulib/libgnu.la
 am__libamanda_la_SOURCES_DIST = alloc.c amfeatures.c amflock.c \
@@ -431,10 +434,14 @@ am__EXEEXT_2 = amflock-test$(EXEEXT) event-test$(EXEEXT) \
 	semaphore-test$(EXEEXT) quoting-test$(EXEEXT) \
 	ipc-binary-test$(EXEEXT) hexencode-test$(EXEEXT) \
 	fileheader-test$(EXEEXT) match-test$(EXEEXT)
-PROGRAMS = $(noinst_PROGRAMS)
+PROGRAMS = $(noinst_PROGRAMS) $(sbin_PROGRAMS)
 am_amflock_test_OBJECTS = amflock-test.$(OBJEXT)
 amflock_test_OBJECTS = $(am_amflock_test_OBJECTS)
 amflock_test_DEPENDENCIES = libamanda.la libtestutils.la
+amservice_SOURCES = amservice.c
+amservice_OBJECTS = amservice.$(OBJEXT)
+amservice_LDADD = $(LDADD)
+amservice_DEPENDENCIES = libamanda.la
 am_bsdsecurity_OBJECTS = bsd-security.test.$(OBJEXT)
 bsdsecurity_OBJECTS = $(am_bsdsecurity_OBJECTS)
 bsdsecurity_DEPENDENCIES = alloc.lo clock.lo debug.lo dgram.lo \
@@ -482,14 +489,14 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
 SOURCES = $(libamanda_la_SOURCES) $(nodist_libamanda_la_SOURCES) \
-	$(libtestutils_la_SOURCES) $(amflock_test_SOURCES) \
+	$(libtestutils_la_SOURCES) $(amflock_test_SOURCES) amservice.c \
 	$(bsdsecurity_SOURCES) $(event_test_SOURCES) $(file_SOURCES) \
 	$(fileheader_test_SOURCES) $(genversion_SOURCES) \
 	$(hexencode_test_SOURCES) $(ipc_binary_test_SOURCES) \
 	$(match_test_SOURCES) $(quoting_test_SOURCES) \
 	$(semaphore_test_SOURCES)
 DIST_SOURCES = $(am__libamanda_la_SOURCES_DIST) \
-	$(libtestutils_la_SOURCES) $(amflock_test_SOURCES) \
+	$(libtestutils_la_SOURCES) $(amflock_test_SOURCES) amservice.c \
 	$(bsdsecurity_SOURCES) $(event_test_SOURCES) $(file_SOURCES) \
 	$(fileheader_test_SOURCES) $(genversion_SOURCES) \
 	$(hexencode_test_SOURCES) $(ipc_binary_test_SOURCES) \
@@ -525,6 +532,7 @@ APPLICATION_DIR = @APPLICATION_DIR@
 AR = @AR@
 ASM_SYMBOL_PREFIX = @ASM_SYMBOL_PREFIX@
 ASSERTIONS = @ASSERTIONS@
+AS_NEEDED_FLAGS = @AS_NEEDED_FLAGS@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
@@ -998,6 +1006,7 @@ LTLIBTHREAD = @LTLIBTHREAD@
 MAILER = @MAILER@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
+MOUNT = @MOUNT@
 MSGFMT = @MSGFMT@
 MSGFMT_015 = @MSGFMT_015@
 MSGMERGE = @MSGMERGE@
@@ -1195,6 +1204,7 @@ STDBOOL_H = @STDBOOL_H@
 STDDEF_H = @STDDEF_H@
 STDINT_H = @STDINT_H@
 STRIP = @STRIP@
+SUNTAR = @SUNTAR@
 SVN = @SVN@
 SWIG = @SWIG@
 SWIG_LIB = @SWIG_LIB@
@@ -1202,6 +1212,7 @@ SYS_TIME_H_DEFINES_STRUCT_TIMESPEC = @SYS_TIME_H_DEFINES_STRUCT_TIMESPEC@
 TCPPORTRANGE = @TCPPORTRANGE@
 TIME_H_DEFINES_STRUCT_TIMESPEC = @TIME_H_DEFINES_STRUCT_TIMESPEC@
 UDPPORTRANGE = @UDPPORTRANGE@
+UMOUNT = @UMOUNT@
 UNCOMPRESS_OPT = @UNCOMPRESS_OPT@
 UNCOMPRESS_PATH = @UNCOMPRESS_PATH@
 UNDEFINE_STRTOK_R = @UNDEFINE_STRTOK_R@
@@ -1344,7 +1355,7 @@ do_installperms = dest=; chown=; chmod=; \
 
 INCLUDES = -I$(top_srcdir)/gnulib   
 AM_CFLAGS = $(AMANDA_WARNING_CFLAGS)
-AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
+AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS) $(AS_NEEDED_FLAGS)
 amlib_LTLIBRARIES = libamanda.la
 LINT = $(AMLINT)
 LINTFLAGS = $(AMLINTFLAGS)
@@ -1359,10 +1370,15 @@ libamanda_la_SOURCES = alloc.c amfeatures.c amflock.c ipc-binary.c \
 	$(am__append_11) local-security.c
 # version.c is generated; see below
 nodist_libamanda_la_SOURCES = version.c
+INSTALLPERMS_exec = \
+	dest=$(sbindir) chown=root:setuid chmod=04750 \
+		amservice
+
+LDADD = libamanda.la
 libamanda_la_LIBADD = \
 	../gnulib/libgnu.la
 
-libamanda_la_LDFLAGS = -release $(VERSION)
+libamanda_la_LDFLAGS = -release $(VERSION) $(AS_NEEDED_FLAGS)
 noinst_HEADERS = \
 	amanda.h		\
 	amfeatures.h		\
@@ -1582,9 +1598,55 @@ clean-noinstPROGRAMS:
 	list=`for p in $$list; do echo "$$p"; done | sed 's/$(EXEEXT)$$//'`; \
 	echo " rm -f" $$list; \
 	rm -f $$list
+install-sbinPROGRAMS: $(sbin_PROGRAMS)
+	@$(NORMAL_INSTALL)
+	test -z "$(sbindir)" || $(MKDIR_P) "$(DESTDIR)$(sbindir)"
+	@list='$(sbin_PROGRAMS)'; test -n "$(sbindir)" || list=; \
+	for p in $$list; do echo "$$p $$p"; done | \
+	sed 's/$(EXEEXT)$$//' | \
+	while read p p1; do if test -f $$p || test -f $$p1; \
+	  then echo "$$p"; echo "$$p"; else :; fi; \
+	done | \
+	sed -e 'p;s,.*/,,;n;h' -e 's|.*|.|' \
+	    -e 'p;x;s,.*/,,;s/$(EXEEXT)$$//;$(transform);s/$$/$(EXEEXT)/' | \
+	sed 'N;N;N;s,\n, ,g' | \
+	$(AWK) 'BEGIN { files["."] = ""; dirs["."] = 1 } \
+	  { d=$$3; if (dirs[d] != 1) { print "d", d; dirs[d] = 1 } \
+	    if ($$2 == $$4) files[d] = files[d] " " $$1; \
+	    else { print "f", $$3 "/" $$4, $$1; } } \
+	  END { for (d in files) print "f", d, files[d] }' | \
+	while read type dir files; do \
+	    if test "$$dir" = .; then dir=; else dir=/$$dir; fi; \
+	    test -z "$$files" || { \
+	    echo " $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files '$(DESTDIR)$(sbindir)$$dir'"; \
+	    $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files "$(DESTDIR)$(sbindir)$$dir" || exit $$?; \
+	    } \
+	; done
+
+uninstall-sbinPROGRAMS:
+	@$(NORMAL_UNINSTALL)
+	@list='$(sbin_PROGRAMS)'; test -n "$(sbindir)" || list=; \
+	files=`for p in $$list; do echo "$$p"; done | \
+	  sed -e 'h;s,^.*/,,;s/$(EXEEXT)$$//;$(transform)' \
+	      -e 's/$$/$(EXEEXT)/' `; \
+	test -n "$$list" || exit 0; \
+	echo " ( cd '$(DESTDIR)$(sbindir)' && rm -f" $$files ")"; \
+	cd "$(DESTDIR)$(sbindir)" && rm -f $$files
+
+clean-sbinPROGRAMS:
+	@list='$(sbin_PROGRAMS)'; test -n "$$list" || exit 0; \
+	echo " rm -f" $$list; \
+	rm -f $$list || exit $$?; \
+	test -n "$(EXEEXT)" || exit 0; \
+	list=`for p in $$list; do echo "$$p"; done | sed 's/$(EXEEXT)$$//'`; \
+	echo " rm -f" $$list; \
+	rm -f $$list
 amflock-test$(EXEEXT): $(amflock_test_OBJECTS) $(amflock_test_DEPENDENCIES) 
 	@rm -f amflock-test$(EXEEXT)
 	$(LINK) $(amflock_test_OBJECTS) $(amflock_test_LDADD) $(LIBS)
+amservice$(EXEEXT): $(amservice_OBJECTS) $(amservice_DEPENDENCIES) 
+	@rm -f amservice$(EXEEXT)
+	$(LINK) $(amservice_OBJECTS) $(amservice_LDADD) $(LIBS)
 bsdsecurity$(EXEEXT): $(bsdsecurity_OBJECTS) $(bsdsecurity_DEPENDENCIES) 
 	@rm -f bsdsecurity$(EXEEXT)
 	$(LINK) $(bsdsecurity_OBJECTS) $(bsdsecurity_LDADD) $(LIBS)
@@ -1698,6 +1760,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amflock-posix.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amflock-test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amflock.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amservice.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amxml.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bsd-security.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bsd-security.test.Po@am__quote@
@@ -1975,7 +2038,7 @@ check: $(BUILT_SOURCES)
 all-am: Makefile $(LTLIBRARIES) $(PROGRAMS) $(SCRIPTS) $(DATA) \
 		$(HEADERS)
 installdirs:
-	for dir in "$(DESTDIR)$(amlibdir)" "$(DESTDIR)$(amlibexecdir)" "$(DESTDIR)$(sbindir)" "$(DESTDIR)$(amlibexecdir)"; do \
+	for dir in "$(DESTDIR)$(amlibdir)" "$(DESTDIR)$(sbindir)" "$(DESTDIR)$(amlibexecdir)" "$(DESTDIR)$(sbindir)" "$(DESTDIR)$(amlibexecdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: $(BUILT_SOURCES)
@@ -2012,7 +2075,8 @@ maintainer-clean-generic:
 clean: clean-am
 
 clean-am: clean-amlibLTLIBRARIES clean-generic clean-libtool \
-	clean-noinstLTLIBRARIES clean-noinstPROGRAMS mostlyclean-am
+	clean-noinstLTLIBRARIES clean-noinstPROGRAMS \
+	clean-sbinPROGRAMS mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -2040,7 +2104,7 @@ install-dvi: install-dvi-am
 install-dvi-am:
 
 install-exec-am: install-amlibexecDATA install-amlibexecSCRIPTS \
-	install-sbinSCRIPTS
+	install-sbinPROGRAMS install-sbinSCRIPTS
 	@$(NORMAL_INSTALL)
 	$(MAKE) $(AM_MAKEFLAGS) install-exec-hook
 install-html: install-html-am
@@ -2082,29 +2146,31 @@ ps: ps-am
 ps-am:
 
 uninstall-am: uninstall-amlibLTLIBRARIES uninstall-amlibexecDATA \
-	uninstall-amlibexecSCRIPTS uninstall-sbinSCRIPTS
+	uninstall-amlibexecSCRIPTS uninstall-sbinPROGRAMS \
+	uninstall-sbinSCRIPTS
 
 .MAKE: all check check-am install install-am install-data-am \
 	install-exec-am install-strip
 
 .PHONY: CTAGS GTAGS all all-am check check-TESTS check-am check-local \
 	clean clean-amlibLTLIBRARIES clean-generic clean-libtool \
-	clean-noinstLTLIBRARIES clean-noinstPROGRAMS ctags dist-hook \
-	distclean distclean-compile distclean-generic \
-	distclean-libtool distclean-local distclean-tags distdir dvi \
-	dvi-am html html-am info info-am install install-am \
-	install-amlibLTLIBRARIES install-amlibexecDATA \
-	install-amlibexecSCRIPTS install-data install-data-am \
-	install-data-hook install-dvi install-dvi-am install-exec \
-	install-exec-am install-exec-hook install-html install-html-am \
-	install-info install-info-am install-man install-pdf \
-	install-pdf-am install-ps install-ps-am install-sbinSCRIPTS \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	pdf pdf-am ps ps-am tags uninstall uninstall-am \
-	uninstall-amlibLTLIBRARIES uninstall-amlibexecDATA \
-	uninstall-amlibexecSCRIPTS uninstall-sbinSCRIPTS
+	clean-noinstLTLIBRARIES clean-noinstPROGRAMS \
+	clean-sbinPROGRAMS ctags dist-hook distclean distclean-compile \
+	distclean-generic distclean-libtool distclean-local \
+	distclean-tags distdir dvi dvi-am html html-am info info-am \
+	install install-am install-amlibLTLIBRARIES \
+	install-amlibexecDATA install-amlibexecSCRIPTS install-data \
+	install-data-am install-data-hook install-dvi install-dvi-am \
+	install-exec install-exec-am install-exec-hook install-html \
+	install-html-am install-info install-info-am install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-sbinPROGRAMS install-sbinSCRIPTS install-strip \
+	installcheck installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am uninstall-amlibLTLIBRARIES \
+	uninstall-amlibexecDATA uninstall-amlibexecSCRIPTS \
+	uninstall-sbinPROGRAMS uninstall-sbinSCRIPTS
 
 
 # Perl

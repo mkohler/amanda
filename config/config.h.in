@@ -2028,6 +2028,9 @@
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
 
+/* Location of the 'suntar' binary */
+#undef SUNTAR
+
 /* A comma-separated list of two integers, determining the minimum and *
    maximum unreserved TCP port numbers sockets should be bound to. */
 #undef TCPPORTRANGE

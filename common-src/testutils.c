@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008, 2011 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -21,7 +21,14 @@
 #include "amanda.h"
 #include "testutils.h"
 
-int tu_debugging_enabled = FALSE;
+gboolean tu_debugging_enabled = FALSE;
+
+static gboolean run_all = TRUE;
+static gboolean ignore_timeouts = FALSE;
+static gboolean skip_fork = FALSE;
+static gboolean only_one = FALSE;
+static gboolean loop_forever = FALSE;
+static guint64 occurrences = 1;
 
 static void
 alarm_hdlr(int sig G_GNUC_UNUSED)
@@ -30,31 +37,85 @@ alarm_hdlr(int sig G_GNUC_UNUSED)
     exit(1);
 }
 
-/* Call testfn in a forked process, such that any failures will trigger a
- * test failure, but allow the other tests to proceed.
+/*
+ * Run a single test, accouting for the timeout (if timeouts are not ignored)
+ * and output runtime information (in milliseconds) at the end of the run.
+ * Output avg/min/max only if the number of runs is strictly greater than one.
  */
-static int
-callinfork(TestUtilsTest *test, int ignore_timeouts, gboolean skip_fork)
+
+static gboolean run_one_test(TestUtilsTest *test)
+{
+    guint64 count = 0;
+    gboolean ret = TRUE;
+    const char *test_name = test->name;
+    GTimer *timer;
+
+    gdouble total = 0.0, thisrun, mintime = G_MAXDOUBLE, maxtime = G_MINDOUBLE;
+
+    signal(SIGALRM, alarm_hdlr);
+
+    timer = g_timer_new();
+
+    while (count++ < occurrences) {
+        if (!ignore_timeouts)
+            alarm(test->timeout);
+
+        g_timer_start(timer);
+        ret = test->fn();
+        g_timer_stop(timer);
+
+        thisrun = g_timer_elapsed(timer, NULL);
+        total += thisrun;
+        if (mintime > thisrun)
+            mintime = thisrun;
+        if (maxtime < thisrun)
+            maxtime = thisrun;
+
+        if (!ret)
+            break;
+    }
+
+    g_timer_destroy(timer);
+
+    if (loop_forever)
+        goto out;
+
+    if (ret) {
+        g_fprintf(stderr, " PASS %s (total: %.06f", test_name, total);
+        if (occurrences > 1) {
+            total /= (gdouble) occurrences;
+            g_fprintf(stderr, ", avg/min/max: %.06f/%.06f/%.06f",
+                total, mintime, maxtime);
+        }
+        g_fprintf(stderr, ")\n");
+    } else
+        g_fprintf(stderr, " FAIL %s (run %ju of %ju, after %.06f secs)\n",
+            test_name, (uintmax_t)count, (uintmax_t)occurrences, total);
+
+out:
+    return ret;
+}
+
+/*
+ * Call testfn in a forked process, such that any failures will trigger a
+ * test failure, but allow the other tests to proceed. The only exception is if
+ * -n is supplied at the command line, but in this case only one test is allowed
+ * to run.
+ */
+
+static gboolean
+callinfork(TestUtilsTest *test)
 {
     pid_t pid;
     amwait_t status;
     gboolean result;
 
-    if (skip_fork) {
-	/* kill the test after a bit */
-	signal(SIGALRM, alarm_hdlr);
-	if (!ignore_timeouts) alarm(test->timeout);
-
-	result = test->fn();
-    } else {
+    if (skip_fork)
+        result = run_one_test(test);
+    else {
 	switch (pid = fork()) {
 	    case 0:	/* child */
-		/* kill the test after a bit */
-		signal(SIGALRM, alarm_hdlr);
-		if (!ignore_timeouts) alarm(test->timeout);
-
-		result = test->fn();
-		exit(result? 0:1);
+		exit(run_one_test(test) ? 0 : 1);
 
 	    case -1:
 		perror("fork");
@@ -67,12 +128,6 @@ callinfork(TestUtilsTest *test, int ignore_timeouts, gboolean skip_fork)
 	}
     }
 
-    if (result) {
-	g_fprintf(stderr, " PASS %s\n", test->name);
-    } else {
-	g_fprintf(stderr, " FAIL %s\n", test->name);
-    }
-
     return result;
 }
 
@@ -80,12 +135,15 @@ static void
 usage(
     TestUtilsTest *tests)
 {
-    printf("USAGE: <test-script> [-d] [-h] [testname [testname [..]]]\n"
+    printf("USAGE: <test-script> [options] [testname [testname [..]]]\n"
 	"\n"
+        "Options can be one of:\n"
+        "\n"
 	"\t-h: this message\n"
 	"\t-d: print debugging messages\n"
 	"\t-t: ignore timeouts\n"
         "\t-n: do not fork\n"
+        "\t-c <count>: run each test <count> times instead of only once\n"
         "\t-l: loop the same test repeatedly (use with -n for leak checks)\n"
 	"\n"
 	"If no test names are specified, all tests are run.  Available tests:\n"
@@ -112,12 +170,7 @@ testutils_run_tests(
     TestUtilsTest *tests)
 {
     TestUtilsTest *t;
-    int run_all = 1;
-    int success;
-    int ignore_timeouts = 0;
-    gboolean skip_fork = FALSE;
-    gboolean only_one = FALSE;
-    gboolean loop_forever = FALSE;
+    gboolean success;
 
     /* first_parse the command line */
     while (argc > 1) {
@@ -131,6 +184,23 @@ testutils_run_tests(
 	} else if (strcmp(argv[1], "-l") == 0) {
 	    loop_forever = TRUE;
 	    only_one = TRUE;
+	} else if (strcmp(argv[1], "-c") == 0) {
+            char *p;
+            argv++, argc--;
+            occurrences = g_ascii_strtoull(argv[1], &p, 10);
+            if (errno == ERANGE) {
+                g_fprintf(stderr, "%s is out of range\n", argv[1]);
+                exit(1);
+            }
+            if (*p) {
+                g_fprintf(stderr, "The -c option expects a positive integer "
+                    "as an argument, but \"%s\" isn't\n", argv[1]);
+                exit(1);
+            }
+            if (occurrences == 0) {
+                g_fprintf(stderr, "Sorry, I will not run tests 0 times\n");
+                exit(1);
+            }
 	} else if (strcmp(argv[1], "-h") == 0) {
 	    usage(tests);
 	    return 1;
@@ -150,10 +220,19 @@ testutils_run_tests(
 		return 1;
 	    }
 
-	    run_all = 0;
+	    run_all = FALSE;
 	}
 
 	argc--; argv++;
+    }
+
+    /*
+     * Check whether the -c option has been given. In this case, -l must not be
+     * specified at the same time.
+     */
+    if (occurrences > 1 && loop_forever) {
+        g_fprintf(stderr, "-c and -l are incompatible\n");
+        exit(1);
     }
 
     if (run_all) {
@@ -184,14 +263,14 @@ testutils_run_tests(
     }
 
     /* Now actually run the tests */
-    success = 1;
+    success = TRUE;
     for (t = tests; t->fn; t++) {
         if (t->selected) {
 	    do {
-		success = callinfork(t, ignore_timeouts, skip_fork) && success;
+		success = callinfork(t) && success;
 	    } while (loop_forever);
         }
     }
 
-    return success? 0:1;
+    return success ? 0 : 1;
 }

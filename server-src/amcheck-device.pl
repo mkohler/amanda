@@ -29,6 +29,7 @@ use Amanda::Device qw( :constants );
 use Amanda::MainLoop;
 use Amanda::Changer;
 use Amanda::Taper::Scan;
+use Amanda::Interactivity;
 use Getopt::Long;
 
 Amanda::Util::setup_application("amcheck-device", "server", $CONTEXT_CMDLINE);
@@ -141,16 +142,23 @@ sub failure {
 sub do_check {
     my ($finished_cb) = @_;
     my ($res, $label, $mode);
+    my $tlf = Amanda::Config::config_dir_relative(getconf($CNF_TAPELIST));
+    my $tl = Amanda::Tapelist->new($tlf);
+    my $chg = Amanda::Changer->new(undef, tapelist => $tl);
+    return failure($chg, $finished_cb) if ($chg->isa("Amanda::Changer::Error"));
+    my $interactivity = Amanda::Interactivity->new(
+					name => getconf($CNF_INTERACTIVITY));
+    my $scan_name = getconf($CNF_TAPERSCAN);
+    my $taperscan = Amanda::Taper::Scan->new(algorithm => $scan_name,
+					     changer => $chg,
+					     interactivity => $interactivity,
+					     tapelist => $tl);
 
     my $steps = define_steps
-	cb_ref => \$finished_cb;
+	cb_ref => \$finished_cb,
+	finalize => sub { $taperscan->quit(); };
 
     step start => sub {
-	my $chg = Amanda::Changer->new();
-
-	return failure($chg, $finished_cb) if ($chg->isa("Amanda::Changer::Error"));
-
-	my $taperscan = Amanda::Taper::Scan->new(changer => $chg);
 	$taperscan->scan(
 	    result_cb => $steps->{'result_cb'},
 	    user_msg_fn => \&_user_msg_fn
@@ -161,15 +169,6 @@ sub do_check {
 	(my $err, $res, $label, $mode) = @_;
 	return failure($err, $finished_cb) if $err;
 
-	if (defined $res->{'device'}->volume_label()) {
-	    $res->set_label(label => $res->{'device'}->volume_label(),
-			    finished_cb => $steps->{'set_labeled'});
-	} else {
-	    $steps->{'set_labeled'}->(undef);
-	};
-    };
-
-    step set_labeled => sub {
 	my $modestr = ($mode == $ACCESS_APPEND)? "append" : "write";
 	my $slot = $res->{'this_slot'};
 	if (defined $res->{'device'}->volume_label()) {

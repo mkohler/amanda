@@ -16,7 +16,7 @@
 # Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More tests => 24;
+use Test::More tests => 26;
 use strict;
 use warnings;
 
@@ -25,6 +25,7 @@ use Installcheck::Config;
 use Amanda::Tapelist;
 use Amanda::Config qw( :init :getconf config_dir_relative );
 use POSIX ":sys_wait_h";
+use Data::Dumper;
 
 # put the debug messages somewhere
 Amanda::Debug::dbopen("installcheck");
@@ -62,9 +63,9 @@ sub readtapelist {
 }
 
 @lines = (
-    "20071111010002 TESTCONF004 reuse\n",
+    "20071111010002 TESTCONF004 reuse META:META1\n",
     "20071110010002 TESTCONF003 reuse BARCODE:BAR-003\n",
-    "20071109010002 TESTCONF002 reuse BARCODE:BAR-002 #comment 2\n",
+    "20071109010002 TESTCONF002 reuse BARCODE:BAR-002 META:META2 #comment 2\n",
     "20071108010001 TESTCONF001 no-reuse #comment 1\n",
 );
 mktapelist($tapelist, @lines);
@@ -75,13 +76,17 @@ $tl_ok = is_deeply($tl,	{
  lockname => $tapelist . ".lock",
  tles => [
   { 'datestamp' => '20071111010002', 'label' => 'TESTCONF004',
-    'reuse' => 1, 'position' => 1, 'barcode' => undef, 'comment' => undef },
+    'reuse' => 1, 'position' => 1,
+    'barcode' => undef, 'meta' => 'META1', 'comment' => undef },
   { 'datestamp' => '20071110010002', 'label' => 'TESTCONF003',
-    'reuse' => 1, 'position' => 2, 'barcode' => 'BAR-003', 'comment' => undef },
+    'reuse' => 1, 'position' => 2,
+    'barcode' => 'BAR-003', 'meta' => undef, 'comment' => undef },
   { 'datestamp' => '20071109010002', 'label' => 'TESTCONF002',
-    'reuse' => 1, 'position' => 3, 'barcode' => 'BAR-002', 'comment' => 'comment 2' },
+    'reuse' => 1, 'position' => 3,
+    'barcode' => 'BAR-002', 'meta' => 'META2', 'comment' => 'comment 2' },
   { 'datestamp' => '20071108010001', 'label' => 'TESTCONF001',
-    'reuse' => '', 'position' => 4, 'barcode' => undef, 'comment' => 'comment 1' },
+    'reuse' => '', 'position' => 4,
+    'barcode' => undef, 'meta' => undef, 'comment' => 'comment 1' },
 ] }, "A simple tapelist is parsed correctly");
 
 SKIP: {
@@ -95,7 +100,8 @@ SKIP: {
 
     is_deeply($tl->lookup_tapelabel('TESTCONF002'),
 	{ 'datestamp' => '20071109010002', 'label' => 'TESTCONF002',
-	  'reuse' => 1, 'position' => 3, 'barcode' => 'BAR-002', 'comment' => 'comment 2' },
+	  'reuse' => 1, 'position' => 3,
+	  'barcode' => 'BAR-002', 'meta' => 'META2', 'comment' => 'comment 2' },
 	"lookup_tapelabel works");
 
     is_deeply($tl->lookup_tapelabel('TESTCONF009'), undef,
@@ -103,7 +109,8 @@ SKIP: {
 
     is_deeply($tl->lookup_tapepos(4),
 	{ 'datestamp' => '20071108010001', 'label' => 'TESTCONF001',
-	  'reuse' => '', 'position' => 4, 'barcode' => undef, 'comment' => 'comment 1' },
+	  'reuse' => '', 'position' => 4,
+	  'barcode' => undef, 'meta' => undef, 'comment' => 'comment 1' },
 	"lookup_tapepos works");
 
     is_deeply($tl->lookup_tapepos(9), undef,
@@ -111,29 +118,33 @@ SKIP: {
 
     is_deeply($tl->lookup_tapedate('20071110010002'),
 	{ 'datestamp' => '20071110010002', 'label' => 'TESTCONF003',
-	  'reuse' => 1, 'position' => 2, 'barcode' => 'BAR-003', 'comment' => undef },
+	  'reuse' => 1, 'position' => 2,
+	  'barcode' => 'BAR-003', 'meta' => undef, 'comment' => undef },
 	"lookup_tapedate works");
 
     is_deeply($tl->lookup_tapedate('12345678'), undef,
 	"lookup_tapedate returns undef on an unknown datestamp");
 
     # try some edits
-    $tl->add_tapelabel("20080112010203", "TESTCONF007", "seven", 1, undef, 'BAR-007');
+    $tl->add_tapelabel("20080112010203", "TESTCONF007", "seven", 1, 'META3', 'BAR-007');
     is(scalar @{$tl->{'tles'}}, 5, "add_tapelabel adds a new element to the tapelist");
 
     is_deeply($tl->lookup_tapepos(1),
 	{ 'datestamp' => '20080112010203', 'label' => 'TESTCONF007',
-	  'reuse' => 1, 'position' => 1, 'barcode' => 'BAR-007', 'comment' => 'seven' },
+	  'reuse' => 1, 'position' => 1,
+	  'barcode' => 'BAR-007', 'meta' => 'META3', 'comment' => 'seven' },
 	".. lookup_tapepos finds it at the beginning");
 
     is_deeply($tl->lookup_tapelabel("TESTCONF007"),
 	{ 'datestamp' => '20080112010203', 'label' => 'TESTCONF007',
-	  'reuse' => 1, 'position' => 1, 'barcode' => 'BAR-007', 'comment' => 'seven' },
+	  'reuse' => 1, 'position' => 1,
+	  'barcode' => 'BAR-007', 'meta' => 'META3' , 'comment' => 'seven' },
 	".. lookup_tapelabel finds it");
 
     is_deeply($tl->lookup_tapedate("20080112010203"),
 	{ 'datestamp' => '20080112010203', 'label' => 'TESTCONF007',
-	  'reuse' => 1, 'position' => 1, 'barcode' => 'BAR-007', 'comment' => 'seven' },
+	  'reuse' => 1, 'position' => 1,
+	  'barcode' => 'BAR-007', 'meta' => 'META3', 'comment' => 'seven' },
 	".. lookup_tapedate finds it");
 
     # try some edits
@@ -142,7 +153,8 @@ SKIP: {
 
     is_deeply($tl->lookup_tapelabel("TESTCONF008"),
 	{ 'datestamp' => '20080112010204', 'label' => 'TESTCONF008',
-	  'reuse' => 0, 'position' => 1, 'barcode' => undef, 'comment' => 'eight' },
+	  'reuse' => 0, 'position' => 1,
+	   'barcode' => undef, 'meta' => undef, 'comment' => 'eight' },
 	".. lookup_tapelabel finds it no-reuse");
 
     $tl->remove_tapelabel("TESTCONF008");
@@ -153,7 +165,8 @@ SKIP: {
 
     is_deeply($tl->lookup_tapepos(4), # used to be in position 5
 	{ 'datestamp' => '20071108010001', 'label' => 'TESTCONF001',
-	  'reuse' => '', 'position' => 4, 'barcode' => undef, 'comment' => 'comment 1' },
+	  'reuse' => '', 'position' => 4,
+	  'barcode' => undef, 'meta' => undef, 'comment' => 'comment 1' },
 	".. tape positions are adjusted correctly");
 
     is_deeply($tl->lookup_tapelabel("TESTCONF002"), undef,
@@ -161,6 +174,21 @@ SKIP: {
 
     is_deeply($tl->lookup_tapedate("20071109010002"), undef,
 	".. lookup_tapedate no longer finds it");
+
+    # insert in the middle of the list.
+    $tl->add_tapelabel("20071109010204", "TESTCONF009", "nine", 1);
+
+    is_deeply($tl->lookup_tapepos(4),
+	{ 'datestamp' => '20071109010204', 'label' => 'TESTCONF009',
+	  'reuse' => '1', 'position' => 4,
+	  'barcode' => undef, 'meta' => undef, 'comment' => 'nine' },
+	".. tape positions are adjusted correctly");
+
+    is_deeply($tl->lookup_tapelabel('TESTCONF009'),
+	{ 'datestamp' => '20071109010204', 'label' => 'TESTCONF009',
+	  'reuse' => '1', 'position' => 4,
+	  'barcode' => undef, 'meta' => undef, 'comment' => 'nine' },
+	".. tape positions are adjusted correctly");
 
     ## set tapecycle to 0 to perform the next couple tests
     config_uninit();
@@ -194,7 +222,8 @@ is_deeply($tl, {
   lockname => $tapelist . ".lock",
   tles => [
   { 'datestamp' => '2006123456', 'label' => 'FOO',
-    'reuse' => 1, 'position' => 1, 'barcode' => undef, 'comment' => undef },
+    'reuse' => 1, 'position' => 1,
+    'barcode' => undef, 'meta' => undef, 'comment' => undef },
 ] }, "Invalid lines are ignored");
 
 # make sure clear_tapelist is empty
@@ -209,6 +238,7 @@ is_deeply($tl, {
   lockname => $tapelist . ".lock",
   tles => [
   { 'datestamp' => '2006123456', 'label' => 'FOO',
-    'reuse' => 1, 'position' => 1, 'barcode' => undef, 'comment' => undef },
+    'reuse' => 1, 'position' => 1,
+    'barcode' => undef, 'meta' => undef, 'comment' => undef },
 ] }, "reload works");
 

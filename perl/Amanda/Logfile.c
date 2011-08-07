@@ -2499,6 +2499,41 @@ XS(_wrap_find_result_t_sec_get) {
 }
 
 
+XS(_wrap_find_result_t_bytes_get) {
+  {
+    find_result_t *arg1 = (find_result_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    off_t result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: find_result_t_bytes_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_find_result_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "find_result_t_bytes_get" "', argument " "1"" of type '" "find_result_t *""'"); 
+    }
+    arg1 = (find_result_t *)(argp1);
+    result =  ((arg1)->bytes);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_find_result_t_kb_get) {
   {
     find_result_t *arg1 = (find_result_t *) 0 ;
@@ -3293,6 +3328,7 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Logfilec::find_result_t_partnum_get", _wrap_find_result_t_partnum_get},
 {"Amanda::Logfilec::find_result_t_totalparts_get", _wrap_find_result_t_totalparts_get},
 {"Amanda::Logfilec::find_result_t_sec_get", _wrap_find_result_t_sec_get},
+{"Amanda::Logfilec::find_result_t_bytes_get", _wrap_find_result_t_bytes_get},
 {"Amanda::Logfilec::find_result_t_kb_get", _wrap_find_result_t_kb_get},
 {"Amanda::Logfilec::find_result_t_orig_kb_get", _wrap_find_result_t_orig_kb_get},
 {"Amanda::Logfilec::new_find_result_t", _wrap_new_find_result_t},

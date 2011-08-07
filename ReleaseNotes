@@ -1,3 +1,85 @@
+		Release Notes for amanda-3.3.0
+
+* The default auth is changed to "bsdtcp", if you are using the default bsd
+  then you must add it to your configuration.
+    o in amanda.conf
+    o in amanda-client.conf
+    o in dumptype/disklist
+    o in xinetd (if no '-auth' argument to amandad)
+* amdump trap crtl-c, it still send the report and do cleanup if you do
+  one crtl-c, do it more than once to abort the run.
+* s3 device
+    o use multiple threads to speedup the transfer
+    o can connect to eucalytus.
+    o new NB_THREADS_BACKUP property
+    o new NB_THREADS_RECOVERY property
+    o new S3_HOST property
+    o new S3_SERVICE_PATH property
+    o new S3_SUBDOMAIN property
+* chg-aggregate: new changer that use other changer sequentially.
+* meta-volume
+* Add meta label in tapelist file
+* chg-disk:
+    o support for removable disk
+    o new NUM-SLOT property
+    o new AUTO-CREATE-SLOT property
+    o new REMOVABLE property
+    o new MOUNT property
+    o new UMOUNT property
+    o new UMOUNT-LOCKFILE property
+    o new UMOUNT-IDLE property
+* new taperscan algorithm:
+    o oldest: this algorithm try to run through the volumes in the oldest
+      order
+    o lexical: this algorithm try to run through the volumes in the natural
+      order
+* Change in amanda.conf
+    o new meta-autolabel option
+    o autolabel can include org, config, barcode, meta in the label
+    o new client-name option in appication and script.
+* application and script in amanda-client.conf can be used to set default
+  properties for application or script.
+* amlabel
+    o The label argument is no longer required, an autolabel can be
+      generated
+    o new --meta option
+    o new --barcode option
+    o new --assign option
+* amgtar, amstar: The path must be specified, it will not works with a
+  device.
+* amrecover: decompression and decryption are now done on the client if
+             compression/encryption was done on the client.
+* amtape: inventory print the current slot
+* amanda.conf:
+    o autoflush have value "no|yes|all"
+    o script have single-execution setting.
+    o Add pre-amcheck, post-amcheck, pre-estimate, post-estimate, pre-backup
+      and post-backup to execute-on of script.
+    o Add taperscan and interactivity section.
+    o add 'server' value in recovery-limit.
+    o add dump-limit in a dumptype.
+* amanda-client.conf
+    o add amdump-server setting.
+* script are searched in $APPLICATION_DIR, $CONFIG_DIR/<conf>/application
+  and $CONFIG_DIR/application
+* amservice
+    o add -s argument
+    o is also installed on client
+* new amdumpd server service, if enable, it allow client to start a backup
+  of itself.
+* new amdump_client program, it is use on client to start a backup of itself
+* implement restore command amzfs-sendrecv, it can be use with amrecover.
+
+		Release Notes for amanda-3.2.2
+
+* Do not restore the NUL padding bytes, some program fail with them.
+* Fix driver doing nothing if taper crash early.
+* Fix taperalog *FIT no going to second volume.
+* Fix amrestore '-p' not going to next file.
+* flush even if flush threshold are not met if it save tape space.
+* fix crash in amtrmidx due to memory leak.
+* amsamba use 'Use smbclient -TF' for restore.
+
 		Release Notes for amanda-3.2.1
 
 * barcode are added to the tapelist file.
@@ -12,7 +94,6 @@
    o tape-device allow to set LEOM.
    o Crash in robot changer.
    o Script output property are not sent to application.
-
 
 		Release Notes for amanda-3.2.0
 

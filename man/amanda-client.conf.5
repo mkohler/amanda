@@ -2,12 +2,12 @@
 .\"     Title: amanda-client.conf
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 12/14/2010
+.\"      Date: 06/02/2011
 .\"    Manual: File formats and conventions
-.\"    Source: Amanda 3.2.1
+.\"    Source: Amanda 3.3.0
 .\"  Language: English
 .\"
-.TH "AMANDA\-CLIENT\&.CON" "5" "12/14/2010" "Amanda 3\&.2\&.1" "File formats and conventions"
+.TH "AMANDA\-CLIENT\&.CON" "5" "06/02/2011" "Amanda 3\&.3\&.0" "File formats and conventions"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -82,7 +82,7 @@ Default:
 \fBauth\fR \fIstring\fR
 .RS 4
 Default:
-\fB"bsd"\fR\&. Type of authorization to perform between tape server and backup client hosts\&.
+\fB"bsdtcp"\fR\&. Type of authorization to perform between tape server and backup client hosts\&.
 .sp
 \fB"bsd"\fR, bsd authorization with udp initial connection and one tcp connection by data stream\&.
 .sp
@@ -234,7 +234,7 @@ Adds a global property for this client host, useful for e\&.g\&., Application AP
 .SH "APPLICATION SECTION"
 .PP
 The
-\fBamanda\&.conf\fR
+\fBamanda\-client\&.conf\fR
 file may define multiple types of application\&. The information is entered in a
 \fBapplication\fR
 section, which looks like this:
@@ -246,10 +246,27 @@ define application "\fIname\fR" {
 .fi
 .PP
 \fIname\fR
-is the name of this type of application\&. It is referenced from the
-\fBdumptype\fR
+is the name of this type of application\&.
+.PP
+The setting from an application is merged with the dle setting if the
+\fIname\fR
+is the same as the
+\fBclient\-application\-name\fR
+from the dle or if the
+\fBclient\-application\-name\fR
+from the dle is not set and the
+\fIname\fR
+is the same as the
+\fBplugin\fR
+from the dle\&.
 .PP
 The application options and values are:
+.PP
+\fBclient\-application\-name\fR \fIstring\fR
+.RS 4
+Default:
+\fInone\fR\&. Not use on the client\&.
+.RE
 .PP
 \fBcomment\fR \fIstring\fR
 .RS 4
@@ -261,7 +278,8 @@ Default:
 .RS 4
 No default\&. Must be set to the name of the program\&. This program must be in the
 \fI$libexecdir/amanda/application\fR
-directory on the client\&.
+directory on the client\&. If set, it must be the same as the dle
+\fBplugin\fR\&.
 .RE
 .PP
 \fBproperty\fR [\fBappend\fR] [\fBpriority\fR] \fIstring\fR \fIstring\fR+
@@ -275,7 +293,7 @@ keyword disallow the setting of that property on the server\&.
 .SH "SCRIPT SECTION"
 .PP
 The
-\fBamanda\&.conf\fR
+\fBamanda\-client\&.conf\fR
 file may define multiple types of script\&. The information is entered in a
 \fBscript\fR
 section, which looks like this:
@@ -287,10 +305,27 @@ define script "\fIname\fR" {
 .fi
 .PP
 \fIname\fR
-is the name of this type of script\&. It is referenced from the
-\fBdumptype\fR
+is the name of this type of script\&.
+.PP
+The setting from a script is merged with the dle setting if the
+\fIname\fR
+is the same as the
+\fBclient\-script\-name\fR
+from the dle or if the
+\fBclient\-script\-name\fR
+from the dle is not set and the
+\fIname\fR
+is the same as the
+\fBplugin\fR
+from the dle\&.
 .PP
 The script options and values are:
+.PP
+\fBclient\-script\-name\fR \fIstring\fR
+.RS 4
+Default:
+\fInone\fR\&. Not used on the client\&.
+.RE
 .PP
 \fBcomment\fR \fIstring\fR
 .RS 4
@@ -302,15 +337,14 @@ Default:
 .RS 4
 No default\&. Must be set to the name of the program\&. This program must be in the
 \fI$libdir/amanda/application\fR
-directory on the client and/or server\&.
+directory on the client\&. If set, it must be the same as the dle
+\fBplugin\fR\&.
 .RE
 .PP
-\fBexecute\-where\fR [ \fBclient\fR | \fBserver\fR ]
+\fBexecute\-where\fR \fBclient\fR
 .RS 4
 Default:
-\fBclient\fR\&. Where the script must be executed, on the client or server\&. Only
-\fBclient\fR
-is valid\&.
+\fBclient\fR\&. Value can\'t be changed\&.
 .RE
 .PP
 \fBexecute\-on\fR \fIexecute_on\fR[,\fIexecute_on\fR]*
@@ -362,19 +396,9 @@ Execute after the estimate command for all dle for the client\&.
 Execute before the backup command for the dle\&.
 .RE
 .PP
-\fBpre\-host\-backup\fR
-.RS 4
-Execute before the backup command for all dle for the client\&.
-.RE
-.PP
 \fBpost\-dle\-backup\fR
 .RS 4
 Execute after the backup command for the dle\&.
-.RE
-.PP
-\fBpost\-host\-backup\fR
-.RS 4
-Execute after the backup command for all dle for the client\&.
 .RE
 .PP
 \fBpre\-recover\fR
