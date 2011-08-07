@@ -31,6 +31,8 @@
 #include "fileheader.h"
 #include "glib-util.h"
 #include "simpleprng.h"
+#include "amanda.h"
+#include "sockaddr-util.h"
 %}
 
 %init %{
@@ -495,6 +497,9 @@ typedef struct Device {
 	gboolean
 	property_set(DevicePropertyBase *pbase, SV *sv) {
 	    GValue gval;
+
+	    if (!pbase)
+		goto fail;
 	    memset(&gval, 0, sizeof(gval));
 	    g_value_init(&gval, pbase->type);
 	    if (!set_gvalue_from_sv(sv, &gval))

@@ -28,6 +28,7 @@
 #include <glib.h>
 #include <glib-object.h>
 #include "xfer.h"
+#include "amanda.h"
 #include "directtcp.h"
 
 typedef enum {
@@ -67,11 +68,19 @@ typedef enum {
     XFER_MECH_MAX,
 } xfer_mech;
 
-/* Description of a pair (input, output) of xfer mechanisms that an
+/*
+ * Description of a pair (input, output) of xfer mechanisms that an
  * element can support, along with the associated costs.  An array of these
  * pairs is stored in the class-level variable 'mech_pairs', describing
  * all of the mechanisms that an element supports.
+ *
+ * Use the XFER_NROPS() and XFER_NTHREADS() macros below in declarations in
+ * order to make declarations more understandable.
  */
+
+#define XFER_NROPS(x) (x)
+#define XFER_NTHREADS(x) (x)
+
 typedef struct {
     xfer_mech input_mech;
     xfer_mech output_mech;
@@ -139,6 +148,9 @@ typedef struct XferElement {
 
     /* cache for repr() */
     char *repr;
+
+    /* maximum size to transfer */
+    gint64 size;
 } XferElement;
 
 /*
@@ -182,6 +194,13 @@ typedef struct {
      */
     gboolean (*setup)(XferElement *elt);
 
+    /* set the size of data to transfer, to skip NUL padding bytes
+     * @param elt: the XferElement
+     * @param size: the size of data to transfer
+     * @return: TRUE
+     */
+    gboolean (*set_size)(XferElement *elt, gint64 size);
+
     /* Start transferring data.  The element downstream of this one will
      * already be started, while the upstream element will not, so data will
      * not begin flowing immediately.  It is safe to access attributes of
@@ -205,10 +224,9 @@ typedef struct {
      * If expect_eof is TRUE, then this element should expect an EOF from its
      * upstream element, and should drain any remaining data until that EOF
      * arrives and generate an EOF to the downstream element.  The utility
-     * functions xfer_element_drain_by_reading and
-     * xfer_element_drain_by_pulling may be useful for this purpose. This
-     * draining is important in order to avoid hung threads or unexpected
-     * SIGPIPEs.
+     * functions xfer_element_drain_fd and xfer_element_drain_buffers may be
+     * useful for this purpose. This draining is important in order to avoid
+     * hung threads or unexpected SIGPIPEs.
      *
      * If expect_eof is FALSE, then the upstream elements are unable to
      * generate an early EOF, so this element should *not* attempt to drain any
@@ -287,6 +305,7 @@ void xfer_element_unref(XferElement *elt);
 gboolean xfer_element_link_to(XferElement *elt, XferElement *successor);
 char *xfer_element_repr(XferElement *elt);
 gboolean xfer_element_setup(XferElement *elt);
+gboolean xfer_element_set_size(XferElement *elt, gint64 size);
 gboolean xfer_element_start(XferElement *elt);
 void xfer_element_push_buffer(XferElement *elt, gpointer buf, size_t size);
 gpointer xfer_element_pull_buffer(XferElement *elt, size_t *size);
@@ -303,14 +322,14 @@ xfer_element_mech_pair_t *xfer_element_get_mech_pairs(XferElement *elt);
  *
  * @param upstream: the element to drain
  */
-void xfer_element_drain_by_pulling(XferElement *upstream);
+void xfer_element_drain_buffers(XferElement *upstream);
 
 /* Drain UPSTREAM by reading until EOF.  This does not close
  * the file descriptor.
  *
  * @param fd: the file descriptor to drain
  */
-void xfer_element_drain_by_reading(int fd);
+void xfer_element_drain_fd(int fd);
 
 /* Atomically swap a value into elt->_input_fd and _output_fd, respectively.
  * Always use these methods to access the field.
@@ -407,13 +426,10 @@ XferElement * xfer_source_directtcp_connect(DirectTCPAddr *addrs);
  *
  * @param argv: NULL-terminated command-line arguments
  * @param need_root: become root before exec'ing the subprocess
- * @param log_stderr: if true, send stderr to the debug log; otherwise, send it
- * to the stderr of the current process
  * @return: new element
  */
 XferElement *xfer_filter_process(gchar **argv,
-    gboolean need_root,
-    gboolean log_stderr);
+    gboolean need_root);
 
 /* A transfer filter that just applies a bytewise XOR transformation to the data
  * that passes through it.

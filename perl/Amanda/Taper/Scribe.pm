@@ -34,6 +34,7 @@ Amanda::Taper::Scribe
   step start_xfer => sub {
     my ($err) = @_;
     my $xfer_dest = $scribe->get_xfer_dest(
+	allow_split => 1,
 	max_memory => 64 * 1024,
 	can_cache_inform => 0,
 	part_size => 150 * 1024**2,
@@ -160,6 +161,7 @@ Call C<get_xfer_dest> to get the transfer element, supplying information on how
 the dump should be split:
 
   $xdest = $scribe->get_xfer_dest(
+	allow_split => $allow_split,
         max_memory => $max_memory,
         # .. splitting parameters
         );
@@ -172,6 +174,10 @@ this purpose.
 The splitting parameters to C<get_xfer_dest> are:
 
 =over 4
+
+=item C<allow_split>
+
+this dle is allowed or not to split
 
 =item C<part_size>
 
@@ -213,6 +219,7 @@ should know about.
   use Amanda::Taper::Scribe qw( get_splitting_args_from_config );
   my %splitting_args = get_splitting_args_from_config(
     # Amanda dumptype configuration parameters,
+    dle_allow_split => ..,
     dle_tape_splitsize => ..,
     dle_split_diskbuffer => ..,
     dle_fallback_splitsize => ..,
@@ -463,6 +470,7 @@ sub new {
 	# information for the current dumpfile
 	dump_header => undef,
 	retry_part_on_peom => undef,
+	allow_split => undef,
 	xfer => undef,
 	xdt => undef,
 	xdt_ready => undef,
@@ -633,6 +641,7 @@ sub get_xfer_dest {
     # set the callback
     $self->{'dump_cb'} = undef;
     $self->{'retry_part_on_peom'} = 1;
+    $self->{'allow_split'} = 0;
     $self->{'start_part_on_xdt_ready'} = 0;
 
     # start getting parameters together to determine what kind of splitting
@@ -641,6 +650,7 @@ sub get_xfer_dest {
     my ($use_mem_cache, $disk_cache_dirname) = (0, undef);
     my $can_cache_inform = $params{'can_cache_inform'};
     my $part_cache_type = $params{'part_cache_type'} || 'none';
+    my $allow_split = $params{'allow_split'};
 
     my $xdt_first_dev = $self->get_device();
     if (!defined $xdt_first_dev) {
@@ -687,6 +697,19 @@ sub get_xfer_dest {
 	# no directtcp, no caching, no cache_inform, and no LEOM, so a PEOM will be fatal
 	$self->{'retry_part_on_peom'} = 0;
     }
+
+    if ($allow_split &&
+	($can_cache_inform ||
+	 !defined($part_cache_type) ||
+	 $part_cache_type eq 'disk' ||
+	 $part_cache_type eq 'memory' ||
+	 $leom_supported)) {
+	$self->{'allow_split'} = 1;
+    } else {
+	$self->{'allow_split'} = 0;
+    }
+
+    $self->{'retry_part_on_peom'} = 0 if !$self->{'allow_split'};
 
     debug("Amanda::Taper::Scribe preparing to write, part size $part_size, "
 	. "$dest_text ($dest_type) "
@@ -890,7 +913,7 @@ sub _xmsg_part_done {
 	    }
 
 	    # if the part failed..
-	    if (!$msg->{'successful'}) {
+	    if (!$msg->{'successful'} || !$self->{'allow_split'}) {
 		# if no caching was going on, then the dump has failed
 		if (!$self->{'retry_part_on_peom'}) {
 		    # mark this device as at EOM, since we are not going to look
@@ -901,7 +924,7 @@ sub _xmsg_part_done {
 		    if ($self->{'device'}->status() != $DEVICE_STATUS_SUCCESS) {
 			$msg = $self->{'device'}->error_or_status();
 		    }
-		    $self->_operation_failed(device_error => $msg);
+		    $self->_operation_failed(device_error => "$msg, splitting not enabled");
 		    return;
 		}
 
@@ -1073,10 +1096,13 @@ sub _release_reservation {
 
 	# notify the feedback that we've finished and released a tape
 	if ($label) {
-	    $self->{'feedback'}->scribe_notif_tape_done(
+	    return $self->{'feedback'}->scribe_notif_tape_done(
 		volume_label => $label,
 		size => $kb * 1024,
-		num_files => $fm);
+		num_files => $fm,
+		finished_cb => sub {
+		 $params{'finished_cb'}->(@errors? join("; ", @errors) : undef);
+		});
 	}
 
 	$params{'finished_cb'}->(@errors? join("; ", @errors) : undef);
@@ -1133,6 +1159,7 @@ sub _volume_cb  {
 	$new_scribe->{'dump_cb'} = $self->{'dump_cb'};
 	$new_scribe->{'dump_header'} = $self->{'dump_header'};
 	$new_scribe->{'retry_part_on_peom'} = $self->{'retry_part_on_peom'};
+	$new_scribe->{'allow_split'} = $self->{'allow_split'};
 	$new_scribe->{'split_method'} = $self->{'split_method'};
 	$new_scribe->{'xfer'} = $self->{'xfer'};
 	$new_scribe->{'xdt'} = $self->{'xdt'};
@@ -1205,75 +1232,91 @@ sub _volume_cb  {
     # inform the xdt about this new device before starting it
     $self->{'xdt'}->use_device($device);
 
-    my $result = $self->_device_start($reservation, $access_mode, $new_label, $is_new);
-    if ($result == 0) {
-	# try reading the label to see whether we erased the tape
-	my $erased = 0;
-	CHECK_READ_LABEL: {
+    my $cbX = sub {};
+    my $steps = define_steps
+	cb_ref => \$cbX;
+
+    step device_start => sub {
+	$self->_device_start($reservation, $access_mode, $new_label, $is_new,
+			     $steps->{'device_started'});
+    };
+
+    step device_started => sub {
+	my $result = shift;
+
+	if ($result == 0) {
+	    # try reading the label to see whether we erased the tape
+	    my $erased = 0;
+	    CHECK_READ_LABEL: {
 	    # don't worry about erasing new tapes
-	    if ($is_new) {
-		last CHECK_READ_LABEL;
+		if ($is_new) {
+		    last CHECK_READ_LABEL;
+		}
+
+		$device->finish();
+		$device->read_label();
+
+		# does the device think something is broken now?
+		if (($device->status & ~$DEVICE_STATUS_VOLUME_UNLABELED)
+		    and !($device->status & $DEVICE_STATUS_VOLUME_UNLABELED)) {
+		    $erased = 1;
+		    last CHECK_READ_LABEL;
+		}
+
+		# has the label changed?
+		my $vol_label = $device->volume_label;
+		if ((!defined $old_label and defined $vol_label)
+		    or (defined $old_label and !defined $vol_label)
+		    or (defined $old_label and $old_label ne $vol_label)) {
+		    $erased = 1;
+		    last CHECK_READ_LABEL;
+		}
+
+		# has the timestamp changed?
+		my $vol_timestamp = $device->volume_time;
+		if ((!defined $old_timestamp and defined $vol_timestamp)
+		    or (defined $old_timestamp and !defined $vol_timestamp)
+		    or (defined $old_timestamp and $old_timestamp ne $vol_timestamp)) {
+		    $erased = 1;
+		    last CHECK_READ_LABEL;
+		}
 	    }
 
-	    $device->read_label();
+	    $self->{'feedback'}->scribe_notif_new_tape(
+		error => "while labeling new volume: " . $device->error_or_status(),
+		volume_label => $erased? $new_label : undef);
 
-	    # does the device think something is broken now?
-	    if (($device->status & ~$DEVICE_STATUS_VOLUME_UNLABELED)
-		and !($device->status & $DEVICE_STATUS_VOLUME_UNLABELED)) {
-		$erased = 1;
-		last CHECK_READ_LABEL;
-	    }
-
-	    # has the label changed?
-	    my $vol_label = $device->volume_label;
-	    if ((!defined $old_label and defined $vol_label)
-		or (defined $old_label and !defined $vol_label)
-		or (defined $old_label and $old_label ne $vol_label)) {
-		$erased = 1;
-		last CHECK_READ_LABEL;
-	    }
-
-	    # has the timestamp changed?
-	    my $vol_timestamp = $device->volume_time;
-	    if ((!defined $old_timestamp and defined $vol_timestamp)
-		or (defined $old_timestamp and !defined $vol_timestamp)
-		or (defined $old_timestamp and $old_timestamp ne $vol_timestamp)) {
-		$erased = 1;
-		last CHECK_READ_LABEL;
-	    }
+	    $self->_get_new_volume();
+	    return $cbX->();
+	} elsif ($result != 1) {
+	    $self->{'feedback'}->scribe_notif_new_tape(
+		error => $result,
+		volume_label => undef);
+	    $self->_get_new_volume();
+	    return $cbX->();
 	}
 
+	$new_label = $device->volume_label;
+
+	# success!
 	$self->{'feedback'}->scribe_notif_new_tape(
-	    error => "while labeling new volume: " . $device->error_or_status(),
-	    volume_label => $erased? $new_label : undef);
+	    error => undef,
+	    volume_label => $new_label);
 
-	return $self->_get_new_volume();
-    } elsif ($result != 1) {
-	$self->{'feedback'}->scribe_notif_new_tape(
-	    error => $result,
-	    volume_label => undef);
-	return $self->_get_new_volume();
-    }
+	$self->{'reservation'}->set_label(label => $new_label,
+	    finished_cb => $steps->{'set_labelled'});
+    };
 
-    $new_label = $device->volume_label;
-
-    # success!
-    $self->{'feedback'}->scribe_notif_new_tape(
-	error => undef,
-	volume_label => $new_label);
-
-    # notify the changer that we've labeled the tape, and start the part.
-    my $label_set_cb = make_cb(label_set_cb => sub {
+    step set_labelled => sub {
 	my ($err) = @_;
 	if ($err) {
 	    $self->{'feedback'}->scribe_notif_log_info(
 		message => "Error from set_label: $err");
 	    # fall through to start_part anyway...
 	}
-	return $self->_start_part();
-    });
-    $self->{'reservation'}->set_label(label => $new_label,
-	finished_cb => $label_set_cb);
+	$self->_start_part();
+	return $cbX->();
+    }
 }
 
 # return 0 for device->start error
@@ -1281,53 +1324,82 @@ sub _volume_cb  {
 # return a message for others error
 sub _device_start {
     my $self = shift;
-    my ($reservation, $access_mode, $new_label, $is_new) = @_;
+    my ($reservation, $access_mode, $new_label, $is_new, $finished_cb) = @_;
 
     my $device = $reservation->{'device'};
     my $tl = $self->{'taperscan'}->{'tapelist'};
+    my $meta;
 
     if (!defined $tl) { # For Mock::Taperscan in installcheck
 	if (!$device->start($access_mode, $new_label, $self->{'write_timestamp'})) {
-	    return 0;
+	    return $finished_cb->(0);
 	} else {
-	    return 1;
+	    return $finished_cb->(1);
 	}
     }
 
-    if ($is_new) {
-	# generate the new label and write it to the tapelist file
-	$tl->reload(1);
-	($new_label, my $err) = $self->{'taperscan'}->make_new_tape_label();
-	if (!defined $new_label) {
-	    $tl->unlock();
-	    return $err;
-	} else {
-	    $tl->add_tapelabel('0', $new_label, undef, 0, undef, $reservation->{'barcode'});
-	    $tl->write();
-	}
-	$self->dbg("generate new label '$new_label'");
-    }
+    my $steps = define_steps
+	cb_ref => \$finished_cb;
 
-    # write the label to the device
-    if (!$device->start($access_mode, $new_label, $self->{'write_timestamp'})) {
+    step setup => sub {
+	return $reservation->get_meta_label(
+				finished_cb => $steps->{'got_meta_label'});
+    };
+
+    step got_meta_label => sub {
+	my ($err, $meta) = @_;
+
 	if ($is_new) {
-	    # remove the generated label from the tapelist file
+	    # generate the new label and write it to the tapelist file
 	    $tl->reload(1);
-	    $tl->remove_tapelabel($new_label);
+	    ($new_label, my $err) = $reservation->make_new_tape_label();
+	    if (!defined $new_label) {
+		$tl->unlock();
+		return $finished_cb->($err);
+	    }
+	    if (!$meta) {
+		($meta, $err) = $reservation->make_new_meta_label();
+		if (defined $err) {
+		    $tl->unlock();
+		    return $finished_cb->($err);
+		}
+	    }
+	    $tl->add_tapelabel('0', $new_label, undef, $meta, $reservation->{'barcode'});
 	    $tl->write();
-        }
-	return 0;
+	    $self->dbg("generate new label '$new_label'");
+	} elsif (!defined $meta) {
+	    $tl->reload(0);
+	    my $tle = $tl->lookup_tapelabel($new_label);
+	    my $meta = $tle->{'meta'};
+	}
+
+	# write the label to the device
+	if (!$device->start($access_mode, $new_label, $self->{'write_timestamp'})) {
+	    if ($is_new) {
+		# remove the generated label from the tapelist file
+		$tl->reload(1);
+		$tl->remove_tapelabel($new_label);
+		$tl->write();
+            }
+	    return $finished_cb->(0);
+	}
+
+	# rewrite the tapelist file
+	$tl->reload(1);
+	my $tle = $tl->lookup_tapelabel($new_label);
+	$meta = $tle->{'meta'} if !$meta && $tle->{'meta'};
+	$tl->remove_tapelabel($new_label);
+	$tl->add_tapelabel($self->{'write_timestamp'}, $new_label,
+			   $tle? $tle->{'comment'} : undef, 1, $meta);
+	$tl->write();
+
+	$reservation->set_meta_label(meta => $meta,
+				     finished_cb => $steps->{'set_meta_label'});
+    };
+
+    step set_meta_label => sub {
+	return $finished_cb->(1);
     }
-
-    # rewrite the tapelist file
-    $tl->reload(1);
-    my $tle = $tl->lookup_tapelabel($new_label);
-    $tl->remove_tapelabel($new_label);
-    $tl->add_tapelabel($self->{'write_timestamp'}, $new_label,
-		       $tle? $tle->{'comment'} : undef, 1);
-    $tl->write();
-
-    return 1;
 }
 
 sub dbg {
@@ -1340,12 +1412,12 @@ sub dbg {
 sub get_splitting_args_from_config {
     my %params = @_;
 
-    use Data::Dumper;
     my %splitting_args;
 
+    $splitting_args{'allow_split'} = 0;
     # if dle_splitting is false, then we don't split - easy.
     if (defined $params{'dle_allow_split'} and !$params{'dle_allow_split'}) {
-	return ();
+	return %splitting_args;
     }
 
     # utility for below
@@ -1356,7 +1428,7 @@ sub get_splitting_args_from_config {
 	my $fsusage = Amanda::Util::get_fs_usage($dirname);
 	confess "$dirname" if (!$fsusage);
 
-	my $avail = $fsusage->{'blocks'} * $fsusage->{'bavail'};
+	my $avail = $fsusage->{'blocksize'} * $fsusage->{'bavail'};
 	if ($avail < $part_size) {
 	    Amanda::Debug::debug("disk cache has $avail bytes available on $dirname, but " .
 				 "needs $part_size");
@@ -1395,6 +1467,7 @@ sub get_splitting_args_from_config {
 
 	# part cache type is memory unless we have a split_diskbuffer that fits the bill
 	if ($params{'part_size'}) {
+	    $splitting_args{'allow_split'} = 1;
 	    $params{'part_cache_type'} = 'memory';
 	    if (defined $params{'dle_split_diskbuffer'}
 		    and -d $params{'dle_split_diskbuffer'}) {
@@ -1418,6 +1491,8 @@ sub get_splitting_args_from_config {
 	my $ps = $params{'part_size'};
 	my $pcms = $params{'part_cache_max_size'};
 	$ps = $pcms if (!defined $ps or (defined $pcms and $pcms < $ps));
+	$splitting_args{'allow_split'} = 1 if ((defined $ps and $ps > 0) or
+					       $params{'leom_supported'});
 
 	# fail back from 'disk' to 'none' if the disk isn't set up correctly
 	if (defined $params{'part_cache_type'} and
@@ -1468,9 +1543,14 @@ sub request_volume_permission {
 }
 
 sub scribe_notif_new_tape { }
-sub scribe_notif_tape_done { }
 sub scribe_notif_part_done { }
 sub scribe_notif_log_info { }
+sub scribe_notif_tape_done {
+    my $self = shift;
+    my %params = @_;
+
+    $params{'finished_cb'}->();
+}
 
 ##
 ## Device Handling
@@ -1625,7 +1705,57 @@ sub _start_scanning {
 
     $self->{'scan_running'} = 1;
 
-    $self->{'taperscan'}->scan(result_cb => sub {
+    my $_user_msg_fn = sub {
+	my %params = @_;
+	if (exists($params{'slot_result'})) {
+	    if ($params{'does_not_match_labelstr'}) {
+		$self->{'feedback'}->scribe_notif_log_info(
+		    message => "Slot $params{'slot'} with label $params{'label'} do not match labelstr");
+	    } elsif ($params{'not_in_tapelist'}) {
+		$self->{'feedback'}->scribe_notif_log_info(
+		    message => "Slot $params{'slot'} with label $params{'label'} is not in the tapelist");
+	    } elsif ($params{'active'}) {
+		$self->{'feedback'}->scribe_notif_log_info(
+		    message => "Slot $params{'slot'} with label $params{'label'} is not reusable");
+	    } elsif ($params{'not_autolabel'}) {
+		if ($params{'label'}) {
+		    $self->{'feedback'}->scribe_notif_log_info(
+			message => "Slot $params{'slot'} with label $params{'label'} is not labelable ");
+		} else {
+		    $self->{'feedback'}->scribe_notif_log_info(
+			message => "Slot $params{'slot'} without label is not labelable ");
+		}
+	    } elsif ($params{'empty'}) {
+		$self->{'feedback'}->scribe_notif_log_info(
+		    message => "Slot $params{'slot'} is empty");
+	    } elsif ($params{'non_amanda'}) {
+		$self->{'feedback'}->scribe_notif_log_info(
+		    message => "Slot $params{'slot'} is a non-amanda volume");
+	    } elsif ($params{'volume_error'}) {
+		$self->{'feedback'}->scribe_notif_log_info(
+		    message => "Slot $params{'slot'} is a volume in error: $params{'err'}");
+	    } elsif ($params{'not_success'}) {
+		$self->{'feedback'}->scribe_notif_log_info(
+		    message => "Slot $params{'slot'} is a device in error: $params{'err'}");
+	    } elsif ($params{'err'}) {
+		$self->{'feedback'}->scribe_notif_log_info(
+		    message => "$params{'err'}");
+	    } elsif ($params{'not_labelable'}) {
+		$self->{'feedback'}->scribe_notif_log_info(
+		    message => "Slot $params{'slot'} without label can't be labeled");
+	    } elsif (!defined $params{'label'}) {
+		$self->{'feedback'}->scribe_notif_log_info(
+		    message => "Slot $params{'slot'} without label can be labeled");
+	    } else {
+		$self->{'feedback'}->scribe_notif_log_info(
+		    message => "Slot $params{'slot'} with label $params{'label'} is usable");
+	    }
+	}
+    };
+
+    $self->{'taperscan'}->scan(
+      user_msg_fn => $_user_msg_fn,
+      result_cb => sub {
 	my ($error, $reservation, $volume_label, $access_mode, $is_new) = @_;
 
 	$self->{'scan_running'} = 0;

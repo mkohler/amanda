@@ -2469,6 +2469,76 @@ XS(_wrap_file_lock_lock) {
 }
 
 
+XS(_wrap_file_lock_lock_wr) {
+  {
+    file_lock *arg1 = (file_lock *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: file_lock_lock_wr(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_file_lock, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "file_lock_lock_wr" "', argument " "1"" of type '" "file_lock *""'"); 
+    }
+    arg1 = (file_lock *)(argp1);
+    result = (int)file_lock_lock_wr(arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_file_lock_lock_rd) {
+  {
+    file_lock *arg1 = (file_lock *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: file_lock_lock_rd(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_file_lock, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "file_lock_lock_rd" "', argument " "1"" of type '" "file_lock *""'"); 
+    }
+    arg1 = (file_lock *)(argp1);
+    result = (int)file_lock_lock_rd(arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_file_lock_unlock) {
   {
     file_lock *arg1 = (file_lock *) 0 ;
@@ -2487,6 +2557,41 @@ XS(_wrap_file_lock_unlock) {
     }
     arg1 = (file_lock *)(argp1);
     result = (int)file_lock_unlock(arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_file_lock_locked) {
+  {
+    file_lock *arg1 = (file_lock *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: file_lock_locked(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_file_lock, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "file_lock_locked" "', argument " "1"" of type '" "file_lock *""'"); 
+    }
+    arg1 = (file_lock *)(argp1);
+    result = (int)file_lock_locked(arg1);
     {
       SV *for_stack;
       SP += argvi; PUTBACK;
@@ -3185,7 +3290,10 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Utilc::set_blocking", _wrap_set_blocking},
 {"Amanda::Utilc::new_file_lock", _wrap_new_file_lock},
 {"Amanda::Utilc::file_lock_lock", _wrap_file_lock_lock},
+{"Amanda::Utilc::file_lock_lock_wr", _wrap_file_lock_lock_wr},
+{"Amanda::Utilc::file_lock_lock_rd", _wrap_file_lock_lock_rd},
 {"Amanda::Utilc::file_lock_unlock", _wrap_file_lock_unlock},
+{"Amanda::Utilc::file_lock_locked", _wrap_file_lock_locked},
 {"Amanda::Utilc::file_lock_write", _wrap_file_lock_write},
 {"Amanda::Utilc::file_lock_data", _wrap_file_lock_data},
 {"Amanda::Utilc::delete_file_lock", _wrap_delete_file_lock},

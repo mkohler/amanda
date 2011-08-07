@@ -1484,16 +1484,17 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 #define SWIGTYPE_p_char swig_types[4]
 #define SWIGTYPE_p_double swig_types[5]
 #define SWIGTYPE_p_float swig_types[6]
-#define SWIGTYPE_p_gsize swig_types[7]
-#define SWIGTYPE_p_guint32 swig_types[8]
-#define SWIGTYPE_p_guint64 swig_types[9]
-#define SWIGTYPE_p_int swig_types[10]
-#define SWIGTYPE_p_p_XferElement swig_types[11]
-#define SWIGTYPE_p_p_char swig_types[12]
-#define SWIGTYPE_p_p_void swig_types[13]
-#define SWIGTYPE_p_unsigned_char swig_types[14]
-static swig_type_info *swig_types[16];
-static swig_module_info swig_module = {swig_types, 15, 0, 0, 0, 0};
+#define SWIGTYPE_p_gint64 swig_types[7]
+#define SWIGTYPE_p_gsize swig_types[8]
+#define SWIGTYPE_p_guint32 swig_types[9]
+#define SWIGTYPE_p_guint64 swig_types[10]
+#define SWIGTYPE_p_int swig_types[11]
+#define SWIGTYPE_p_p_XferElement swig_types[12]
+#define SWIGTYPE_p_p_char swig_types[13]
+#define SWIGTYPE_p_p_void swig_types[14]
+#define SWIGTYPE_p_unsigned_char swig_types[15]
+static swig_type_info *swig_types[17];
+static swig_module_info swig_module = {swig_types, 16, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1537,6 +1538,8 @@ SWIGEXPORT void SWIG_init (CV *cv, CPerlObj *);
 
 #include "glib-util.h"
 #include "amxfer.h"
+#include "amanda.h"
+#include "sockaddr-util.h"
 
 
 SWIGINTERNINLINE SV *
@@ -2124,16 +2127,24 @@ XS(_wrap_xfer_repr) {
 XS(_wrap_xfer_start) {
   {
     Xfer *arg1 = (Xfer *) 0 ;
+    gint64 arg2 ;
+    gint64 arg3 ;
     int argvi = 0;
     dXSARGS;
     
-    if ((items < 1) || (items > 1)) {
-      SWIG_croak("Usage: xfer_start(xfer);");
+    if ((items < 3) || (items > 3)) {
+      SWIG_croak("Usage: xfer_start(xfer,offset,size);");
     }
     {
       arg1 = xfer_from_sv(ST(0));
     }
-    xfer_start(arg1);
+    {
+      arg2 = amglue_SvI64(ST(1));
+    }
+    {
+      arg3 = amglue_SvI64(ST(2));
+    }
+    xfer_start(arg1,arg2,arg3);
     ST(argvi) = sv_newmortal();
     
     XSRETURN(argvi);
@@ -2452,18 +2463,12 @@ XS(_wrap_xfer_source_directtcp_listen_get_addrs) {
       
       i = 0;
       av = newAV();
-      while (iter && iter->ipv4) {
-        struct in_addr in;
-        char *addr;
-        AV *tuple;
+      while (iter && SU_GET_FAMILY(iter) != 0) {
+        char *addr = str_sockaddr_no_port(iter);
+        AV *tuple = newAV();
         
-        in.s_addr = htonl(iter->ipv4);
-        addr = inet_ntoa(in);
-        
-        tuple = newAV();
-        g_assert(NULL != av_store(tuple, 0,
-            newSVpv(addr, 0)));
-        g_assert(NULL != av_store(tuple, 1, newSViv(iter->port)));
+        g_assert(NULL != av_store(tuple, 0, newSVpv(addr, 0)));
+        g_assert(NULL != av_store(tuple, 1, newSViv(SU_GET_PORT(iter))));
         g_assert(NULL != av_store(av, i++, newRV_noinc((SV *)tuple)));
         iter++;
       }
@@ -2505,7 +2510,7 @@ XS(_wrap_xfer_source_directtcp_connect) {
       for (i = 0; i < num_addrs; i++) {
         SV **svp = av_fetch(addrs_av, i, 0);
         AV *addr_av;
-        struct in_addr addr;
+        sockaddr_union addr;
         IV port;
         
         if (!svp || !SvROK(*svp) || SvTYPE(SvRV(*svp)) != SVt_PVAV
@@ -2517,17 +2522,18 @@ XS(_wrap_xfer_source_directtcp_connect) {
         
         /* get address */
         svp = av_fetch(addr_av, 0, 0);
-        if (!svp || !SvPOK(*svp) || !inet_aton(SvPV_nolen(*svp), &addr)) {
+        if (!svp || !SvPOK(*svp) || !str_to_sockaddr(SvPV_nolen(*svp), &addr)) {
           SWIG_exception_fail(SWIG_TypeError, "invalid IPv4 addr in address");
         }
-        arg1[i].ipv4 = ntohl(addr.s_addr);
         
         /* get port */
         svp = av_fetch(addr_av, 1, 0);
         if (!svp || !SvIOK(*svp) || (port = SvIV(*svp)) <= 0 || port >= 65536) {
           SWIG_exception_fail(SWIG_TypeError, "invalid port in address");
         }
-        arg1[i].port = (guint16)port;
+        SU_SET_PORT(&addr, port);
+        
+        copy_sockaddr(arg1, &addr);
       }
     }
     result = (XferElement *)xfer_source_directtcp_connect(arg1);
@@ -2585,13 +2591,12 @@ XS(_wrap_xfer_filter_process) {
   {
     gchar **arg1 = (gchar **) 0 ;
     gboolean arg2 ;
-    gboolean arg3 ;
     int argvi = 0;
     XferElement *result = 0 ;
     dXSARGS;
     
-    if ((items < 3) || (items > 3)) {
-      SWIG_croak("Usage: xfer_filter_process(argv,need_root,log_stderr);");
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: xfer_filter_process(argv,need_root);");
     }
     {
       AV *av;
@@ -2623,15 +2628,11 @@ XS(_wrap_xfer_filter_process) {
     {
       arg2 = SvTRUE(ST(1));
     }
-    {
-      arg3 = SvTRUE(ST(2));
-    }
-    result = (XferElement *)xfer_filter_process(arg1,arg2,arg3);
+    result = (XferElement *)xfer_filter_process(arg1,arg2);
     {
       ST(argvi) = sv_2mortal(new_sv_for_xfer_element(result));
       argvi++;
     }
-    
     
     
     {
@@ -2641,6 +2642,36 @@ XS(_wrap_xfer_filter_process) {
   fail:
     
     
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_get_err_fd) {
+  {
+    XferElement *arg1 = (XferElement *) 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: get_err_fd(elt);");
+    }
+    {
+      arg1 = xfer_element_from_sv(ST(0));
+    }
+    result = (int)get_err_fd(arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
     
     SWIG_croak_null();
   }
@@ -2848,18 +2879,12 @@ XS(_wrap_xfer_dest_directtcp_listen_get_addrs) {
       
       i = 0;
       av = newAV();
-      while (iter && iter->ipv4) {
-        struct in_addr in;
-        char *addr;
-        AV *tuple;
+      while (iter && SU_GET_FAMILY(iter) != 0) {
+        char *addr = str_sockaddr_no_port(iter);
+        AV *tuple = newAV();
         
-        in.s_addr = htonl(iter->ipv4);
-        addr = inet_ntoa(in);
-        
-        tuple = newAV();
-        g_assert(NULL != av_store(tuple, 0,
-            newSVpv(addr, 0)));
-        g_assert(NULL != av_store(tuple, 1, newSViv(iter->port)));
+        g_assert(NULL != av_store(tuple, 0, newSVpv(addr, 0)));
+        g_assert(NULL != av_store(tuple, 1, newSViv(SU_GET_PORT(iter))));
         g_assert(NULL != av_store(av, i++, newRV_noinc((SV *)tuple)));
         iter++;
       }
@@ -2901,7 +2926,7 @@ XS(_wrap_xfer_dest_directtcp_connect) {
       for (i = 0; i < num_addrs; i++) {
         SV **svp = av_fetch(addrs_av, i, 0);
         AV *addr_av;
-        struct in_addr addr;
+        sockaddr_union addr;
         IV port;
         
         if (!svp || !SvROK(*svp) || SvTYPE(SvRV(*svp)) != SVt_PVAV
@@ -2913,17 +2938,18 @@ XS(_wrap_xfer_dest_directtcp_connect) {
         
         /* get address */
         svp = av_fetch(addr_av, 0, 0);
-        if (!svp || !SvPOK(*svp) || !inet_aton(SvPV_nolen(*svp), &addr)) {
+        if (!svp || !SvPOK(*svp) || !str_to_sockaddr(SvPV_nolen(*svp), &addr)) {
           SWIG_exception_fail(SWIG_TypeError, "invalid IPv4 addr in address");
         }
-        arg1[i].ipv4 = ntohl(addr.s_addr);
         
         /* get port */
         svp = av_fetch(addr_av, 1, 0);
         if (!svp || !SvIOK(*svp) || (port = SvIV(*svp)) <= 0 || port >= 65536) {
           SWIG_exception_fail(SWIG_TypeError, "invalid port in address");
         }
-        arg1[i].port = (guint16)port;
+        SU_SET_PORT(&addr, port);
+        
+        copy_sockaddr(arg1, &addr);
       }
     }
     result = (XferElement *)xfer_dest_directtcp_connect(arg1);
@@ -2977,6 +3003,7 @@ static swig_type_info _swigt__p_amglue_Source = {"_p_amglue_Source", "struct amg
 static swig_type_info _swigt__p_char = {"_p_char", "gchar *|char *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *|gfloat *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_gint64 = {"_p_gint64", "gint64 *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_gsize = {"_p_gsize", "gsize *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_guint32 = {"_p_guint32", "guint32 *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_guint64 = {"_p_guint64", "guint64 *", 0, 0, (void*)0, 0};
@@ -2994,6 +3021,7 @@ static swig_type_info *swig_type_initial[] = {
   &_swigt__p_char,
   &_swigt__p_double,
   &_swigt__p_float,
+  &_swigt__p_gint64,
   &_swigt__p_gsize,
   &_swigt__p_guint32,
   &_swigt__p_guint64,
@@ -3011,6 +3039,7 @@ static swig_cast_info _swigc__p_amglue_Source[] = {  {&_swigt__p_amglue_Source, 
 static swig_cast_info _swigc__p_char[] = {  {&_swigt__p_char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_double[] = {  {&_swigt__p_double, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_float[] = {  {&_swigt__p_float, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_gint64[] = {  {&_swigt__p_gint64, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_gsize[] = {  {&_swigt__p_gsize, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_guint32[] = {  {&_swigt__p_guint32, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_guint64[] = {  {&_swigt__p_guint64, 0, 0, 0},{0, 0, 0, 0}};
@@ -3028,6 +3057,7 @@ static swig_cast_info *swig_cast_initial[] = {
   _swigc__p_char,
   _swigc__p_double,
   _swigc__p_float,
+  _swigc__p_gint64,
   _swigc__p_gsize,
   _swigc__p_guint32,
   _swigc__p_guint64,
@@ -3069,6 +3099,7 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Xferc::xfer_source_directtcp_connect", _wrap_xfer_source_directtcp_connect},
 {"Amanda::Xferc::xfer_filter_xor", _wrap_xfer_filter_xor},
 {"Amanda::Xferc::xfer_filter_process", _wrap_xfer_filter_process},
+{"Amanda::Xferc::get_err_fd", _wrap_get_err_fd},
 {"Amanda::Xferc::xfer_dest_null", _wrap_xfer_dest_null},
 {"Amanda::Xferc::xfer_dest_buffer", _wrap_xfer_dest_buffer},
 {"Amanda::Xferc::xfer_dest_buffer_get", _wrap_xfer_dest_buffer_get},

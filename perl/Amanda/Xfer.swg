@@ -29,6 +29,8 @@
 %{
 #include "glib-util.h"
 #include "amxfer.h"
+#include "amanda.h"
+#include "sockaddr-util.h"
 %}
 
 /* The SWIGging of the transfer architecture.
@@ -228,7 +230,7 @@ Xfer *xfer_new(XferElement **elementlist, unsigned int nelements);
 void xfer_unref(Xfer *);
 xfer_status xfer_get_status(Xfer *xfer);
 char *xfer_repr(Xfer *xfer);
-void xfer_start(Xfer *xfer);
+void xfer_start(Xfer *xfer, gint64 offset, gint64 size);
 void xfer_cancel(Xfer *xfer);
 /* xfer_get_source is implemented below */
 
@@ -241,7 +243,7 @@ void xfer_cancel(Xfer *xfer);
  * passed to the GSource's set_callback */
 %perlcode %{
 sub xfer_start_with_callback {
-    my ($xfer, $cb) = @_;
+    my ($xfer, $cb, $offset, $size) = @_;
     if (defined $cb) {
 	my $releasing_cb = sub {
 	    my ($src, $msg, $xfer) = @_;
@@ -252,7 +254,9 @@ sub xfer_start_with_callback {
 	};
 	$xfer->get_source()->set_callback($releasing_cb);
     }
-    xfer_start($xfer);
+    $offset = 0 if !defined $offset;
+    $size = 0 if !defined $size;
+    xfer_start($xfer, $offset, $size);
 }
 %}
 
@@ -285,6 +289,7 @@ sub xfer_set_callback {
 void xfer_element_unref(XferElement *elt); /* (wrap the macro, above) */
 /* xfer_element_link_to -- private */
 char *xfer_element_repr(XferElement *elt);
+/* xfer_element_set_size -- private */
 /* xfer_element_start -- private */
 /* xfer_element_cancel -- private */
 
@@ -377,8 +382,9 @@ XferElement *xfer_filter_xor(
 %newobject xfer_filter_process;
 XferElement *xfer_filter_process(
     gchar **argv,
-    gboolean need_root,
-    gboolean log_stderr);
+    gboolean need_root);
+int get_err_fd(
+    XferElement *elt);
 
 %newobject xfer_dest_null;
 XferElement *xfer_dest_null(
@@ -613,6 +619,7 @@ DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_filter_xor)
 PACKAGE(Amanda::Xfer::Filter::Process)
 XFER_ELEMENT_SUBCLASS()
 DECLARE_CONSTRUCTOR(Amanda::Xfer::xfer_filter_process)
+DECLARE_METHOD(get_stderr_fd, Amanda::Xfer::get_err_fd)
 
 /* ---- */
 

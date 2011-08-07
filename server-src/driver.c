@@ -140,7 +140,7 @@ static void start_degraded_mode(disklist_t *queuep);
 static void start_some_dumps(disklist_t *rq);
 static void continue_port_dumps(void);
 static void update_failed_dump(disk_t *);
-static int all_taper_idle(void);
+static int no_taper_flushing(void);
 
 typedef enum {
     TAPE_ACTION_NO_ACTION         = 0,
@@ -199,6 +199,7 @@ main(
     find_result_t *holding_files;
     disklist_t holding_disklist = { NULL, NULL };
     int no_taper = FALSE;
+    int from_client = FALSE;
 
     /*
      * Configure program for internationalization:
@@ -262,6 +263,14 @@ main(
     if (argc > 2) {
 	if (strcmp(argv[2], "--no-taper") == 0) {
 	    no_taper = TRUE;
+	    argv++;
+	    argc--;
+	}
+    }
+
+    if (argc > 2) {
+	if (strcmp(argv[2], "--from-client") == 0) {
+	    from_client = TRUE;
 	    argv++;
 	    argc--;
 	}
@@ -498,6 +507,8 @@ main(
 	diskp = dequeue_disk(&runq);
 	headqueue_disk(&directq, diskp);
     }
+
+    run_server_global_scripts(EXECUTE_ON_POST_BACKUP, get_config_name());
 
     /* log error for any remaining dumps */
     while(!empty(directq)) {
@@ -914,6 +925,24 @@ startaflush_tape(
 		if(dp) remove_disk(&tapeq, dp);
 		break;
 	}
+	if (!dp) {
+	    if (!(result_tape_action & TAPE_ACTION_START_A_FLUSH_FIT)) {
+		if(conf_taperalgo != ALGO_SMALLEST)  {
+		    g_fprintf(stderr,
+			_("driver: startaflush: Using SMALLEST because nothing fit\n"));
+		}
+		
+		fit = dp = tapeq.head;
+		while (fit != NULL) {
+		    if (sched(fit)->act_size < sched(dp)->act_size &&
+			strcmp(sched(fit)->datestamp, datestamp) <= 0) {
+			dp = fit;
+		    }
+	            fit = fit->next;
+		}
+		if(dp) remove_disk(&tapeq, dp);
+	    }
+	}
 	if (dp) {
 	    taper->disk = dp;
 	    taper->dumper = NULL;
@@ -1012,7 +1041,7 @@ allow_dump_dle(
     } else if (!taper && (holdp =
 	find_diskspace(sched(diskp)->est_size, cur_idle, NULL)) == NULL) {
 	*cur_idle = max(*cur_idle, IDLE_NO_DISKSPACE);
-	if (empty(tapeq) && dumper_to_holding == 0 && rq != &directq && all_taper_idle()) {
+	if (empty(tapeq) && dumper_to_holding == 0 && rq != &directq && no_taper_flushing()) {
 	    remove_disk(rq, diskp);
 	    if (diskp->to_holdingdisk != HOLD_REQUIRED) {
 		enqueue_disk(&directq, diskp);
@@ -1069,7 +1098,7 @@ start_some_dumps(
 {
     const time_t now = time(NULL);
     int cur_idle;
-    disk_t *diskp, *delayed_diskp, *diskp_accept;
+    disk_t *diskp, *delayed_diskp, *diskp_accept, *diskp_next;
     disk_t *dp;
     assignedhd_t **holdp=NULL, **holdp_accept;
     cmd_t cmd;
@@ -1176,7 +1205,8 @@ start_some_dumps(
 		    }
 
 		    for (diskp = directq.head; diskp != NULL;
-					       diskp = diskp->next) {
+					       diskp = diskp_next) {
+			diskp_next = diskp->next;
 		        allow_dump_dle(diskp, taper, dumptype, &directq, now,
 				       dumper_to_holding, &cur_idle,
 				       &delayed_diskp, &diskp_accept,
@@ -1195,7 +1225,8 @@ start_some_dumps(
 	}
 
 	if (diskp == NULL) {
-	    for(diskp = rq->head; diskp != NULL; diskp = diskp->next) {
+	    for(diskp = rq->head; diskp != NULL; diskp = diskp_next) {
+		diskp_next = diskp->next;
 		assert(diskp->host != NULL && sched(diskp) != NULL);
 
 		allow_dump_dle(diskp, NULL, dumptype, rq, now,
@@ -1289,13 +1320,11 @@ start_some_dumps(
 		diskp->dataport_list = stralloc(result_argv[2]);
 
 		if (diskp->host->pre_script == 0) {
-		    for (dp=diskp->host->disks; dp != NULL; dp = dp->hostnext) {
-			run_server_scripts(EXECUTE_ON_PRE_HOST_BACKUP,
-					   get_config_name(), dp, -1);
-		    }
+		    run_server_host_scripts(EXECUTE_ON_PRE_HOST_BACKUP,
+					    get_config_name(), diskp->host);
 		    diskp->host->pre_script = 1;
 		}
-		run_server_scripts(EXECUTE_ON_PRE_DLE_BACKUP,
+		run_server_dle_scripts(EXECUTE_ON_PRE_DLE_BACKUP,
 				   get_config_name(), diskp,
 				   sched(diskp)->level);
 		dumper_cmd(dumper, PORT_DUMP, diskp, NULL);
@@ -1485,15 +1514,17 @@ continue_port_dumps(void)
 	if( dumper->busy ) {
 	    busy_dumpers++;
 	    if( !find_disk(&roomq, dumper->dp) ) {
-		active_dumpers++;
-	    } else if( !dp || 
+		if (dumper->chunker) {
+		    active_dumpers++;
+		}
+	    } else if( !dp ||
 		       sched(dp)->est_size > sched(dumper->dp)->est_size ) {
 		dp = dumper->dp;
 	    }
 	}
     }
-    if((dp != NULL) && (active_dumpers == 0) && (busy_dumpers > 0) && 
-        ((all_taper_idle() && empty(tapeq)) || degraded_mode) &&
+    if((dp != NULL) && (active_dumpers == 0) && (busy_dumpers > 0) &&
+        ((no_taper_flushing() && empty(tapeq)) || degraded_mode) &&
 	pending_aborts == 0 ) { /* case b */
 	sched(dp)->no_space = 1;
 	/* At this time, dp points to the dump with the smallest est_size.
@@ -1511,7 +1542,7 @@ static void
 handle_taper_result(
 	void *cookie G_GNUC_UNUSED)
 {
-    disk_t *dp = NULL, *dp1;
+    disk_t *dp = NULL;
     dumper_t *dumper;
     cmd_t cmd;
     int result_argc;
@@ -1674,6 +1705,12 @@ handle_taper_result(
 	    if (s) {
 		s += 4;
 		sched(dp)->dumpsize = atol(s);
+	    } else {
+		s = strstr(result_argv[4], " bytes ");
+		if (s) {
+		    s += 7;
+		    sched(dp)->dumpsize = atol(s)/1024;
+		}
 	    }
 
 	    taper->result = cmd;
@@ -1704,6 +1741,12 @@ handle_taper_result(
 	    if (s) {
 		s += 4;
 		partsize = atol(s);
+	    } else {
+		s = strstr(result_argv[5], " bytes ");
+		if (s) {
+		    s += 7;
+		    partsize = atol(s)/1024;
+		}
 	    }
 	    taper->left -= partsize;
 
@@ -1718,11 +1761,15 @@ handle_taper_result(
 
 	    dp = serial2disk(result_argv[1]);
 	    taper = sched(dp)->taper;
-	    taper->state &= ~TAPER_STATE_TAPE_STARTED;
-	    taper->state |= TAPER_STATE_TAPE_REQUESTED;
+	    if (taper->state & TAPER_STATE_DONE) {
+		taper_cmd(NO_NEW_TAPE, taper->disk, "taper found no tape", 0, NULL);
+	    } else {
+		taper->state &= ~TAPER_STATE_TAPE_STARTED;
+		taper->state |= TAPER_STATE_TAPE_REQUESTED;
 
-	    start_some_dumps(&runq);
-	    startaflush();
+		start_some_dumps(&runq);
+		startaflush();
+	    }
 	    break;
 
 	case NEW_TAPE: /* NEW-TAPE <handle> <label> */
@@ -1842,13 +1889,11 @@ handle_taper_result(
 	    taper->state |= TAPER_STATE_DUMP_TO_TAPE;
 
 	    if (dp->host->pre_script == 0) {
-		for (dp1=dp->host->disks; dp1 != NULL; dp1 = dp1->hostnext) {
-		    run_server_scripts(EXECUTE_ON_PRE_HOST_BACKUP,
-				       get_config_name(), dp1, -1);
-		}
+		run_server_host_scripts(EXECUTE_ON_PRE_HOST_BACKUP,
+					get_config_name(), dp->host);
 		dp->host->pre_script = 1;
 	    }
-	    run_server_scripts(EXECUTE_ON_PRE_DLE_BACKUP,
+	    run_server_dle_scripts(EXECUTE_ON_PRE_DLE_BACKUP,
 			       get_config_name(), dp,
 			       sched(dp)->level);
 	    /* tell the dumper to dump to a port */
@@ -1872,6 +1917,7 @@ handle_taper_result(
              * checks. If there are dumps waiting for diskspace to be freed,
              * cancel one.
              */
+	    taper_started = 1;
             if(!nodump) {
                 log_add(L_WARNING,
                         _("going into degraded mode because of taper component error."));
@@ -1927,6 +1973,7 @@ handle_taper_result(
 	}
 
     } while(areads_dataready(taper_fd));
+    start_some_dumps(&runq);
     startaflush();
 }
 
@@ -2364,7 +2411,7 @@ handle_dumper_result(
 	    int last_dump = 1;
 	    dumper_t *dumper;
 
-	    run_server_scripts(EXECUTE_ON_POST_DLE_BACKUP,
+	    run_server_dle_scripts(EXECUTE_ON_POST_DLE_BACKUP,
 			       get_config_name(), dp, sched(dp)->level);
 	    /* check dump not yet started */
 	    for (dp1=runq.head; dp1 != NULL; dp1 = dp1->next) {
@@ -2384,10 +2431,8 @@ handle_dumper_result(
 	    }
 	    if (last_dump && dp->host->post_script == 0) {
 		if (dp->host->post_script == 0) {
-		    for (dp1=dp->host->disks; dp1 != NULL; dp1 = dp1->hostnext) {
-			run_server_scripts(EXECUTE_ON_POST_HOST_BACKUP,
-					   get_config_name(), dp1, -1);
-		    }
+		    run_server_host_scripts(EXECUTE_ON_POST_HOST_BACKUP,
+					    get_config_name(), dp->host);
 		    dp->host->post_script = 1;
 		}
 	    }
@@ -3128,6 +3173,7 @@ read_schedule(
 	log_add(L_WARNING, _("WARNING: got empty schedule from planner"));
     if(need_degraded==1) start_degraded_mode(&runq);
     schedule_done = 1;
+    run_server_global_scripts(EXECUTE_ON_PRE_BACKUP, get_config_name());
     if (empty(runq)) force_flush = 1;
     start_some_dumps(&runq);
     startaflush();
@@ -3665,11 +3711,12 @@ tape_action(
     off_t sched_size;
     off_t dump_to_disk_size;
     int   dump_to_disk_terminated;
-    off_t my_flush_threshold_dumped;
-    off_t my_flush_threshold_scheduled;
-    off_t my_taperflush;
     int   nb_taper_active = nb_sent_new_tape;
     int   nb_taper_flushing = 0;
+    off_t data_next_tape = 0;
+    off_t data_free = 0;
+    off_t data_lost = 0;
+    off_t data_lost_next_tape = 0;
 
     dumpers_size = 0;
     for(dumper = dmptable; dumper < (dmptable+inparallel); dumper++) {
@@ -3710,13 +3757,27 @@ tape_action(
 	    tapeq_size -= taper1->left;
 	}
 	if (taper1->disk) {
+	    off_t data_to_go;
 	    if (taper1->dumper) {
-		tapeq_size += sched(taper1->disk)->est_size - taper1->written;
+		data_to_go = sched(taper1->disk)->est_size - taper1->written;
 	    } else {
-		tapeq_size += sched(taper1->disk)->act_size - taper1->written;
+		data_to_go = sched(taper1->disk)->act_size - taper1->written;
 	    }
+	    if (data_to_go > taper1->left) {
+		data_next_tape += data_to_go - taper1->left;
+		data_lost += taper1->written + taper1->left;
+	    } else {
+		data_free += taper1->left - data_to_go;
+	    }
+	    tapeq_size += data_to_go;
 	}
     }
+    data_lost_next_tape = tape_length + data_free - data_next_tape - runq_size - directq_size - tapeq_size;
+    driver_debug(1, _("data_lost: %lld\n"), (long long)data_lost);
+    driver_debug(1, _("data_free: %lld\n"), (long long)data_free);
+    driver_debug(1, _("data_next_tape: %lld\n"), (long long)data_next_tape);
+    driver_debug(1, _("data_lost_next_tape: %lld\n"), (long long)data_lost_next_tape);
+;
     driver_debug(1, _("tapeq_size: %lld\n"), (long long)tapeq_size);
 
     sched_size = runq_size + directq_size + tapeq_size + dumpers_size;
@@ -3733,19 +3794,6 @@ tape_action(
 	    nb_taper_active++;
 	}
     }
-    if (nb_taper_active >= 1) {
-    my_flush_threshold_dumped = flush_threshold_dumped +
-				(nb_taper_active-nb_taper_active) * tape_length;
-    my_flush_threshold_scheduled = flush_threshold_scheduled +
-				   (nb_taper_active-nb_taper_active) * tape_length;
-    my_taperflush = taperflush + (nb_taper_active-nb_taper_active) * tape_length;
-    } else {
-    my_flush_threshold_dumped = flush_threshold_dumped +
-				nb_taper_active * tape_length;
-    my_flush_threshold_scheduled = flush_threshold_scheduled +
-				   nb_taper_active * tape_length;
-    my_taperflush = taperflush + nb_taper_active * tape_length;
-    }
 
     // Changing conditionals can produce a driver hang, take care.
     // 
@@ -3758,8 +3806,9 @@ tape_action(
 	    result |= TAPE_ACTION_NO_NEW_TAPE;
 	} else if (current_tape < conf_runtapes &&
 		   taper_nb_scan_volume == 0 &&
-		   ((my_flush_threshold_dumped < tapeq_size &&
-		     my_flush_threshold_scheduled < sched_size) ||
+		   ((flush_threshold_dumped < tapeq_size &&
+		     flush_threshold_scheduled < sched_size) ||
+		    (data_lost > data_lost_next_tape) ||
 		    nb_taper_active == 0) &&
 		   (last_started_taper == NULL ||
 		    last_started_taper == taper)) {
@@ -3772,16 +3821,17 @@ tape_action(
 	 !empty(directq) ||				// if a dle is waiting for a dump to tape
          !empty(roomq) ||				// holding disk constraint
          idle_reason == IDLE_NO_DISKSPACE ||		// holding disk constraint
-         (my_flush_threshold_dumped < tapeq_size &&	// flush-threshold-dumped &&
-	  my_flush_threshold_scheduled < sched_size) ||	//  flush-threshold-scheduled
-	 (my_taperflush < tapeq_size &&			// taperflush
+         (flush_threshold_dumped < tapeq_size &&	// flush-threshold-dumped &&
+	  flush_threshold_scheduled < sched_size) ||	//  flush-threshold-scheduled
+	 (data_lost > data_lost_next_tape) ||
+	 (taperflush < tapeq_size &&			// taperflush
 	  (force_flush == 1 ||				//  if force_flush
 	   dump_to_disk_terminated))			//  or all dump to disk terminated
 	)) {
 	result |= TAPE_ACTION_NEW_TAPE;
     // when to stop using new tape
     } else if ((taper->state & TAPER_STATE_WAIT_FOR_TAPE) &&
-	       (my_taperflush >= tapeq_size &&		// taperflush criteria
+	       (taperflush >= tapeq_size &&		// taperflush criteria
 	       (force_flush == 1 ||			//  if force_flush
 	        dump_to_disk_terminated))		//  or all dump to disk
 	      ) {
@@ -3802,9 +3852,9 @@ tape_action(
 	    (taper->state & TAPER_STATE_TAPE_STARTED ||		// tape already started 
              !empty(roomq) ||					// holding disk constraint
              idle_reason == IDLE_NO_DISKSPACE ||		// holding disk constraint
-             (my_flush_threshold_dumped < tapeq_size &&		// flush-threshold-dumped &&
-	      my_flush_threshold_scheduled < sched_size) ||	//  flush-threshold-scheduled
-             (force_flush == 1 && my_taperflush < tapeq_size))) {	// taperflush if force_flush
+             (flush_threshold_dumped < tapeq_size &&		// flush-threshold-dumped &&
+	      flush_threshold_scheduled < sched_size) ||	//  flush-threshold-scheduled
+             (force_flush == 1 && taperflush < tapeq_size))) {	// taperflush if force_flush
 
 	    if (nb_taper_flushing == 0) {
 		result |= TAPE_ACTION_START_A_FLUSH;
@@ -3817,14 +3867,13 @@ tape_action(
 }
 
 static int
-all_taper_idle(void)
+no_taper_flushing(void)
 {
     taper_t *taper;
 
     for (taper = tapetable; taper < tapetable + conf_taper_parallel_write;
 	 taper++) {
-	if (taper->state & TAPER_STATE_DUMP_TO_TAPE ||
-	    taper->state & TAPER_STATE_FILE_TO_TAPE)
+	if (taper->state & TAPER_STATE_FILE_TO_TAPE)
 	    return 0;
     }
     return 1;

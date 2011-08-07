@@ -95,12 +95,12 @@ if ($cfgerr_level >= $CFGERR_WARNINGS) {
 
 Amanda::Util::finish_setup($RUNNING_AS_DUMPUSER);
 
-# Interactive package
-package Amanda::Interactive::amcheckdump;
+# Interactivity package
+package Amanda::Interactivity::amcheckdump;
 use POSIX qw( :errno_h );
 use Amanda::MainLoop qw( :GIOCondition );
 use vars qw( @ISA );
-@ISA = qw( Amanda::Interactive );
+@ISA = qw( Amanda::Interactivity );
 
 sub new {
     my $class = shift;
@@ -135,12 +135,12 @@ sub user_request {
 	if (!defined $n_read) {
 	    return if ($! == EINTR);
 	    $self->abort();
-	    return $params{'finished_cb'}->(
+	    return $params{'request_cb'}->(
 		Amanda::Changer::Error->new('fatal',
 			message => "Fail to read from stdin"));
 	} elsif ($n_read == 0) {
 	    $self->abort();
-	    return $params{'finished_cb'}->(
+	    return $params{'request_cb'}->(
 		Amanda::Changer::Error->new('fatal',
 			message => "Aborted by user"));
 	} else {
@@ -150,7 +150,7 @@ sub user_request {
 		chomp $line;
 		$buffer = "";
 		$self->abort();
-		return $params{'finished_cb'}->(undef, $line);
+		return $params{'request_cb'}->(undef, $line);
 	    }
 	}
     };
@@ -195,6 +195,8 @@ sub clerk_notif_holding {
 }
 
 package main;
+
+use Amanda::MainLoop qw( :GIOCondition );
 
 # Given a dumpfile_t, figure out the command line to validate, specified
 # as an argv array
@@ -249,16 +251,20 @@ sub main {
 
     my $tapelist;
     my $chg;
-    my $interactive;
+    my $interactivity;
     my $scan;
     my $clerk;
     my $plan;
     my $timestamp;
     my $all_success = 1;
     my @xfer_errs;
+    my %all_filter;
+    my $check_done;
 
     my $steps = define_steps
-	cb_ref => \$finished_cb;
+	cb_ref => \$finished_cb,
+	finalize => sub { $scan->quit() if defined $scan;
+			  $chg->quit() if defined $chg    };
 
     step start => sub {
 	# set up the tapelist
@@ -271,17 +277,17 @@ sub main {
 	    unless defined $opt_timestamp;
 
 	# make an interactivity plugin
-	$interactive = Amanda::Interactive::amcheckdump->new();
+	$interactivity = Amanda::Interactivity::amcheckdump->new();
 
 	# make a changer
-	$chg = Amanda::Changer->new();
+	$chg = Amanda::Changer->new(undef, tapelist => $tapelist);
 	return $steps->{'quit'}->($chg)
 	    if $chg->isa("Amanda::Changer::Error");
 
 	# make a scan
 	$scan = Amanda::Recovery::Scan->new(
 			    chg => $chg,
-			    interactive => $interactive);
+			    interactivity => $interactivity);
 	return $steps->{'quit'}->($scan)
 	    if $scan->isa("Amanda::Changer::Error");
 
@@ -357,11 +363,11 @@ sub main {
 	    if ($hdr->{'srv_encrypt'}) {
 		push @filters,
 		    Amanda::Xfer::Filter::Process->new(
-			[ $hdr->{'srv_encrypt'}, $hdr->{'srv_decrypt_opt'} ], 0, 0);
+			[ $hdr->{'srv_encrypt'}, $hdr->{'srv_decrypt_opt'} ], 0);
 	    } elsif ($hdr->{'clnt_encrypt'}) {
 		push @filters,
 		    Amanda::Xfer::Filter::Process->new(
-			[ $hdr->{'clnt_encrypt'}, $hdr->{'clnt_decrypt_opt'} ], 0, 0);
+			[ $hdr->{'clnt_encrypt'}, $hdr->{'clnt_decrypt_opt'} ], 0);
 	    } else {
 		return failure("could not decrypt encrypted dump: no program specified",
 			    $finished_cb);
@@ -382,17 +388,17 @@ sub main {
 		# TODO: this assumes that srvcompprog takes "-d" to decrypt
 		push @filters,
 		    Amanda::Xfer::Filter::Process->new(
-			[ $hdr->{'srvcompprog'}, "-d" ], 0, 0);
+			[ $hdr->{'srvcompprog'}, "-d" ], 0);
 	    } elsif ($hdr->{'clntcompprog'}) {
 		# TODO: this assumes that clntcompprog takes "-d" to decrypt
 		push @filters,
 		    Amanda::Xfer::Filter::Process->new(
-			[ $hdr->{'clntcompprog'}, "-d" ], 0, 0);
+			[ $hdr->{'clntcompprog'}, "-d" ], 0);
 	    } else {
 		push @filters,
 		    Amanda::Xfer::Filter::Process->new(
 			[ $Amanda::Constants::UNCOMPRESS_PATH,
-			  $Amanda::Constants::UNCOMPRESS_OPT ], 0, 0);
+			  $Amanda::Constants::UNCOMPRESS_OPT ], 0);
 	    }
 
 	    # adjust the header
@@ -404,11 +410,45 @@ sub main {
 	# we need to throw out its stdout
 	my $argv = find_validation_command($hdr);
 	if (defined $argv) {
-	    push @filters, Amanda::Xfer::Filter::Process->new($argv, 0, 0);
+	    push @filters, Amanda::Xfer::Filter::Process->new($argv, 0);
 	}
 
 	# we always throw out stdout
 	my $xfer_dest = Amanda::Xfer::Dest::Null->new(0);
+
+	# start reading all filter stderr
+	foreach my $filter (@filters) {
+	    my $fd = $filter->get_stderr_fd();
+	    $fd.="";
+	    $fd = int($fd);
+	    my $src = Amanda::MainLoop::fd_source($fd,
+						  $G_IO_IN|$G_IO_HUP|$G_IO_ERR);
+	    my $buffer = "";
+	    $all_filter{$src} = 1;
+	    $src->set_callback( sub {
+		my $b;
+		my $n_read = POSIX::read($fd, $b, 1);
+		if (!defined $n_read) {
+		    return;
+		} elsif ($n_read == 0) {
+		    delete $all_filter{$src};
+		    $src->remove();
+		    POSIX::close($fd);
+		    if (!%all_filter and $check_done) {
+			$finished_cb->();
+		    }
+		} else {
+		    $buffer .= $b;
+		    if ($b eq "\n") {
+			my $line = $buffer;
+			print STDERR "filter stderr: $line";
+			chomp $line;
+			debug("filter stderr: $line");
+			$buffer = "";
+		    }
+		}
+	    });
+	}
 
 	my $xfer = Amanda::Xfer->new([ $xfer_src, @filters, $xfer_dest ]);
 	$xfer->start($steps->{'handle_xmsg'});
@@ -458,7 +498,8 @@ sub main {
 	if ($err) {
 	    $exit_code = 1;
 	    print STDERR $err, "\n";
-	    return $clerk->quit(finished_cb => $finished_cb);
+	    return $clerk->quit(finished_cb => $steps->{'quit1'}) if defined $clerk;;
+	    return $steps->{'quit1'}->();
 	}
 
 	if ($all_success) {
@@ -468,8 +509,16 @@ sub main {
 	    $exit_code = 1;
 	}
 
-	return $clerk->quit(finished_cb => $finished_cb);
+	return $clerk->quit(finished_cb => $steps->{'quit1'});
     };
+
+    step quit1 => sub {
+	$check_done = 1;
+
+	if (!%all_filter) {
+	    $finished_cb->();
+	}
+    }
 }
 
 main(sub { Amanda::MainLoop::quit(); });

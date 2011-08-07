@@ -1487,14 +1487,16 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 #define SWIGTYPE_p_float swig_types[7]
 #define SWIGTYPE_p_holdingdisk_t swig_types[8]
 #define SWIGTYPE_p_int swig_types[9]
-#define SWIGTYPE_p_interface_t swig_types[10]
-#define SWIGTYPE_p_p_GSList swig_types[11]
-#define SWIGTYPE_p_p_char swig_types[12]
-#define SWIGTYPE_p_pp_script_t swig_types[13]
-#define SWIGTYPE_p_tapetype_t swig_types[14]
-#define SWIGTYPE_p_unsigned_char swig_types[15]
-static swig_type_info *swig_types[17];
-static swig_module_info swig_module = {swig_types, 16, 0, 0, 0, 0};
+#define SWIGTYPE_p_interactivity_t swig_types[10]
+#define SWIGTYPE_p_interface_t swig_types[11]
+#define SWIGTYPE_p_p_GSList swig_types[12]
+#define SWIGTYPE_p_p_char swig_types[13]
+#define SWIGTYPE_p_pp_script_t swig_types[14]
+#define SWIGTYPE_p_taperscan_t swig_types[15]
+#define SWIGTYPE_p_tapetype_t swig_types[16]
+#define SWIGTYPE_p_unsigned_char swig_types[17]
+static swig_type_info *swig_types[19];
+static swig_module_info swig_module = {swig_types, 18, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1635,6 +1637,7 @@ val_t_to_sv(val_t *val, SV **results) {
 		return 1;
 
 	    case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
+	    case CONFTYPE_NO_YES_ALL:
 	    case CONFTYPE_COMPRESS:
 	    case CONFTYPE_ENCRYPT:
 	    case CONFTYPE_STRATEGY:
@@ -1688,14 +1691,16 @@ val_t_to_sv(val_t *val, SV **results) {
 		return 1;
 	    }
 
-	    case CONFTYPE_RECOVERY_LIMIT: {
+	    case CONFTYPE_HOST_LIMIT: {
 		AV *av;
 		GSList *iter;
-		recovery_limit_t *rl = &val_t__recovery_limit(val);
+		host_limit_t *rl = &val_t__host_limit(val);
 
 		av = newAV();
 		if (rl->same_host)
-		    av_push(av, &PL_sv_undef);
+		    av_push(av, newSVpv("SAMEHOST-SAMEHOST-SAMEHOST", 0));
+		if (rl->server)
+		    av_push(av, newSVpv("SERVER-SERVER-SERVER", 0));
 		for (iter=rl->match_pats; iter != NULL; iter = iter->next) {
 		    av_push(av, newSVpv((char *)iter->data, 0));
 		}
@@ -4007,6 +4012,336 @@ XS(_wrap_changer_config_seen) {
 }
 
 
+XS(_wrap_lookup_interactivity) {
+  {
+    char *arg1 = (char *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int argvi = 0;
+    interactivity_t *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: lookup_interactivity(identifier);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "lookup_interactivity" "', argument " "1"" of type '" "char *""'");
+    }
+    arg1 = (char *)(buf1);
+    result = (interactivity_t *)lookup_interactivity(arg1);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_interactivity_t, 0 | 0); argvi++ ;
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_interactivity_getconf) {
+  {
+    interactivity_t *arg1 = (interactivity_t *) 0 ;
+    interactivity_key arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    val_t *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: interactivity_getconf(app,key);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_interactivity_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "interactivity_getconf" "', argument " "1"" of type '" "interactivity_t *""'"); 
+    }
+    arg1 = (interactivity_t *)(argp1);
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    result = (val_t *)interactivity_getconf(arg1,arg2);
+    {
+      SV *results[3], **iter;
+      int nresults;
+      
+      /* save the stack, since val_t_to_sv may invoke arbitrary Perl code */
+      SP += argvi; PUTBACK;
+      nresults = val_t_to_sv(result, results);
+      SPAGAIN; SP -= argvi;
+      
+      /* add val_t_to_sv's results to the stack */
+      for (iter = results; nresults; iter++, nresults--) {
+        ST(argvi) = *iter;
+        argvi++;
+      }
+    }
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_interactivity_name) {
+  {
+    interactivity_t *arg1 = (interactivity_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: interactivity_name(app);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_interactivity_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "interactivity_name" "', argument " "1"" of type '" "interactivity_t *""'"); 
+    }
+    arg1 = (interactivity_t *)(argp1);
+    result = (char *)interactivity_name(arg1);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_interactivity_seen) {
+  {
+    interactivity_t *arg1 = (interactivity_t *) 0 ;
+    interactivity_key arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    gboolean result;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: interactivity_seen(app,key);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_interactivity_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "interactivity_seen" "', argument " "1"" of type '" "interactivity_t *""'"); 
+    }
+    arg1 = (interactivity_t *)(argp1);
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    result = (gboolean)interactivity_seen(arg1,arg2);
+    {
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
+      argvi++;
+    }
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_lookup_taperscan) {
+  {
+    char *arg1 = (char *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int argvi = 0;
+    taperscan_t *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: lookup_taperscan(identifier);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "lookup_taperscan" "', argument " "1"" of type '" "char *""'");
+    }
+    arg1 = (char *)(buf1);
+    result = (taperscan_t *)lookup_taperscan(arg1);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_taperscan_t, 0 | 0); argvi++ ;
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_taperscan_getconf) {
+  {
+    taperscan_t *arg1 = (taperscan_t *) 0 ;
+    taperscan_key arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    val_t *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: taperscan_getconf(app,key);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_taperscan_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "taperscan_getconf" "', argument " "1"" of type '" "taperscan_t *""'"); 
+    }
+    arg1 = (taperscan_t *)(argp1);
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    result = (val_t *)taperscan_getconf(arg1,arg2);
+    {
+      SV *results[3], **iter;
+      int nresults;
+      
+      /* save the stack, since val_t_to_sv may invoke arbitrary Perl code */
+      SP += argvi; PUTBACK;
+      nresults = val_t_to_sv(result, results);
+      SPAGAIN; SP -= argvi;
+      
+      /* add val_t_to_sv's results to the stack */
+      for (iter = results; nresults; iter++, nresults--) {
+        ST(argvi) = *iter;
+        argvi++;
+      }
+    }
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_taperscan_name) {
+  {
+    taperscan_t *arg1 = (taperscan_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: taperscan_name(app);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_taperscan_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "taperscan_name" "', argument " "1"" of type '" "taperscan_t *""'"); 
+    }
+    arg1 = (taperscan_t *)(argp1);
+    result = (char *)taperscan_name(arg1);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_taperscan_seen) {
+  {
+    taperscan_t *arg1 = (taperscan_t *) 0 ;
+    taperscan_key arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    gboolean result;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: taperscan_seen(app,key);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_taperscan_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "taperscan_seen" "', argument " "1"" of type '" "taperscan_t *""'"); 
+    }
+    arg1 = (taperscan_t *)(argp1);
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    result = (gboolean)taperscan_seen(arg1,arg2);
+    {
+      if (result)
+      ST(argvi) = &PL_sv_yes;
+      else
+      ST(argvi) = &PL_sv_no;
+      argvi++;
+    }
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_getconf_unit_divisor) {
   {
     int argvi = 0;
@@ -4634,11 +4969,13 @@ static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 
 static swig_type_info _swigt__p_dumptype_t = {"_p_dumptype_t", "dumptype_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *|gfloat *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_holdingdisk_t = {"_p_holdingdisk_t", "holdingdisk_t *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_int = {"_p_int", "application_key *|strategy_t *|pp_script_key *|int *|autolabel_enum_t *|comp_t *|dump_holdingdisk_t *|device_config_key *|changer_config_key *|confparm_key *|interface_key *|holdingdisk_key *|dumptype_key *|tapetype_key *|part_cache_type_t *|cfgerr_level_t *|encrypt_t *|taperalgo_t *|gboolean *|data_path_t *|execute_on_t *|send_amreport_on_t *|estimate_t *|config_init_flags *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_int = {"_p_int", "taperscan_key *|application_key *|strategy_t *|pp_script_key *|int *|autolabel_enum_t *|comp_t *|dump_holdingdisk_t *|changer_config_key *|confparm_key *|interface_key *|device_config_key *|holdingdisk_key *|dumptype_key *|tapetype_key *|interactivity_key *|part_cache_type_t *|cfgerr_level_t *|encrypt_t *|taperalgo_t *|gboolean *|data_path_t *|execute_on_t *|send_amreport_on_t *|estimate_t *|config_init_flags *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_interactivity_t = {"_p_interactivity_t", "interactivity_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_interface_t = {"_p_interface_t", "interface_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_p_GSList = {"_p_p_GSList", "GSList **", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_p_char = {"_p_p_char", "char **", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_pp_script_t = {"_p_pp_script_t", "pp_script_t *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_taperscan_t = {"_p_taperscan_t", "taperscan_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_tapetype_t = {"_p_tapetype_t", "tapetype_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "guchar *|unsigned char *", 0, 0, (void*)0, 0};
 
@@ -4653,10 +4990,12 @@ static swig_type_info *swig_type_initial[] = {
   &_swigt__p_float,
   &_swigt__p_holdingdisk_t,
   &_swigt__p_int,
+  &_swigt__p_interactivity_t,
   &_swigt__p_interface_t,
   &_swigt__p_p_GSList,
   &_swigt__p_p_char,
   &_swigt__p_pp_script_t,
+  &_swigt__p_taperscan_t,
   &_swigt__p_tapetype_t,
   &_swigt__p_unsigned_char,
 };
@@ -4671,10 +5010,12 @@ static swig_cast_info _swigc__p_dumptype_t[] = {  {&_swigt__p_dumptype_t, 0, 0, 
 static swig_cast_info _swigc__p_float[] = {  {&_swigt__p_float, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_holdingdisk_t[] = {  {&_swigt__p_holdingdisk_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_int[] = {  {&_swigt__p_int, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_interactivity_t[] = {  {&_swigt__p_interactivity_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_interface_t[] = {  {&_swigt__p_interface_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_p_GSList[] = {  {&_swigt__p_p_GSList, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_p_char[] = {  {&_swigt__p_p_char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_pp_script_t[] = {  {&_swigt__p_pp_script_t, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_taperscan_t[] = {  {&_swigt__p_taperscan_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_tapetype_t[] = {  {&_swigt__p_tapetype_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_unsigned_char[] = {  {&_swigt__p_unsigned_char, 0, 0, 0},{0, 0, 0, 0}};
 
@@ -4689,10 +5030,12 @@ static swig_cast_info *swig_cast_initial[] = {
   _swigc__p_float,
   _swigc__p_holdingdisk_t,
   _swigc__p_int,
+  _swigc__p_interactivity_t,
   _swigc__p_interface_t,
   _swigc__p_p_GSList,
   _swigc__p_p_char,
   _swigc__p_pp_script_t,
+  _swigc__p_taperscan_t,
   _swigc__p_tapetype_t,
   _swigc__p_unsigned_char,
 };
@@ -4767,6 +5110,14 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Configc::changer_config_getconf", _wrap_changer_config_getconf},
 {"Amanda::Configc::changer_config_name", _wrap_changer_config_name},
 {"Amanda::Configc::changer_config_seen", _wrap_changer_config_seen},
+{"Amanda::Configc::lookup_interactivity", _wrap_lookup_interactivity},
+{"Amanda::Configc::interactivity_getconf", _wrap_interactivity_getconf},
+{"Amanda::Configc::interactivity_name", _wrap_interactivity_name},
+{"Amanda::Configc::interactivity_seen", _wrap_interactivity_seen},
+{"Amanda::Configc::lookup_taperscan", _wrap_lookup_taperscan},
+{"Amanda::Configc::taperscan_getconf", _wrap_taperscan_getconf},
+{"Amanda::Configc::taperscan_name", _wrap_taperscan_name},
+{"Amanda::Configc::taperscan_seen", _wrap_taperscan_seen},
 {"Amanda::Configc::getconf_unit_divisor", _wrap_getconf_unit_divisor},
 {"Amanda::Configc::config_init", _wrap_config_init},
 {"Amanda::Configc::config_uninit", _wrap_config_uninit},
@@ -5093,6 +5444,11 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "CNF_AMDUMP_SERVER", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_AMDUMP_SERVER)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "CNF_INDEX_SERVER", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_INDEX_SERVER)));
     SvREADONLY_on(sv);
@@ -5185,6 +5541,11 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "CNF_AUTOLABEL", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_AUTOLABEL)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "CNF_META_AUTOLABEL", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_META_AUTOLABEL)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
@@ -5523,6 +5884,16 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "CNF_INTERACTIVITY", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_INTERACTIVITY)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "CNF_TAPERSCAN", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_TAPERSCAN)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "TAPETYPE_COMMENT", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(TAPETYPE_COMMENT)));
     SvREADONLY_on(sv);
@@ -5803,6 +6174,11 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_DUMP_LIMIT", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_DUMP_LIMIT)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "INTER_COMMENT", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(INTER_COMMENT)));
     SvREADONLY_on(sv);
@@ -5848,6 +6224,11 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "APPLICATION_CLIENT_NAME", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(APPLICATION_CLIENT_NAME)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "PP_SCRIPT_COMMENT", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(PP_SCRIPT_COMMENT)));
     SvREADONLY_on(sv);
@@ -5875,6 +6256,16 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "PP_SCRIPT_ORDER", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(PP_SCRIPT_ORDER)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "PP_SCRIPT_SINGLE_EXECUTION", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(PP_SCRIPT_SINGLE_EXECUTION)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "PP_SCRIPT_CLIENT_NAME", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(PP_SCRIPT_CLIENT_NAME)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
@@ -5925,6 +6316,36 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "CHANGER_CONFIG_DEVICE_PROPERTY", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CHANGER_CONFIG_DEVICE_PROPERTY)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "INTERACTIVITY_COMMENT", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(INTERACTIVITY_COMMENT)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "INTERACTIVITY_PLUGIN", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(INTERACTIVITY_PLUGIN)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "INTERACTIVITY_PROPERTY", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(INTERACTIVITY_PROPERTY)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "TAPERSCAN_COMMENT", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(TAPERSCAN_COMMENT)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "TAPERSCAN_PLUGIN", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(TAPERSCAN_PLUGIN)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "TAPERSCAN_PROPERTY", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(TAPERSCAN_PROPERTY)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
@@ -6098,6 +6519,11 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "EXECUTE_ON_PRE_AMCHECK", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(EXECUTE_ON_PRE_AMCHECK)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "EXECUTE_ON_PRE_DLE_AMCHECK", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(EXECUTE_ON_PRE_DLE_AMCHECK)));
     SvREADONLY_on(sv);
@@ -6105,6 +6531,11 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "EXECUTE_ON_PRE_HOST_AMCHECK", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(EXECUTE_ON_PRE_HOST_AMCHECK)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "EXECUTE_ON_POST_AMCHECK", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(EXECUTE_ON_POST_AMCHECK)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
@@ -6118,6 +6549,11 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "EXECUTE_ON_PRE_ESTIMATE", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(EXECUTE_ON_PRE_ESTIMATE)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "EXECUTE_ON_PRE_DLE_ESTIMATE", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(EXECUTE_ON_PRE_DLE_ESTIMATE)));
     SvREADONLY_on(sv);
@@ -6125,6 +6561,11 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "EXECUTE_ON_PRE_HOST_ESTIMATE", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(EXECUTE_ON_PRE_HOST_ESTIMATE)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "EXECUTE_ON_POST_ESTIMATE", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(EXECUTE_ON_POST_ESTIMATE)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
@@ -6138,6 +6579,11 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "EXECUTE_ON_PRE_BACKUP", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(EXECUTE_ON_PRE_BACKUP)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "EXECUTE_ON_PRE_DLE_BACKUP", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(EXECUTE_ON_PRE_DLE_BACKUP)));
     SvREADONLY_on(sv);
@@ -6145,6 +6591,11 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "EXECUTE_ON_PRE_HOST_BACKUP", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(EXECUTE_ON_PRE_HOST_BACKUP)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "EXECUTE_ON_POST_BACKUP", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(EXECUTE_ON_POST_BACKUP)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/1.3.39/perl5/perltypemaps.swg,65,%set_constant@*/ do {

@@ -52,6 +52,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/macro-archive/docbook-xslt.m4 \
 	$(top_srcdir)/config/macro-archive/xsltproc.m4 \
 	$(top_srcdir)/config/amanda/amplot.m4 \
+	$(top_srcdir)/config/amanda/as_needed.m4 \
 	$(top_srcdir)/config/amanda/bsd-security.m4 \
 	$(top_srcdir)/config/amanda/bsdtcp-security.m4 \
 	$(top_srcdir)/config/amanda/bsdudp-security.m4 \
@@ -221,6 +222,7 @@ APPLICATION_DIR = @APPLICATION_DIR@
 AR = @AR@
 ASM_SYMBOL_PREFIX = @ASM_SYMBOL_PREFIX@
 ASSERTIONS = @ASSERTIONS@
+AS_NEEDED_FLAGS = @AS_NEEDED_FLAGS@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
@@ -694,6 +696,7 @@ LTLIBTHREAD = @LTLIBTHREAD@
 MAILER = @MAILER@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
+MOUNT = @MOUNT@
 MSGFMT = @MSGFMT@
 MSGFMT_015 = @MSGFMT_015@
 MSGMERGE = @MSGMERGE@
@@ -891,6 +894,7 @@ STDBOOL_H = @STDBOOL_H@
 STDDEF_H = @STDDEF_H@
 STDINT_H = @STDINT_H@
 STRIP = @STRIP@
+SUNTAR = @SUNTAR@
 SVN = @SVN@
 SWIG = @SWIG@
 SWIG_LIB = @SWIG_LIB@
@@ -898,6 +902,7 @@ SYS_TIME_H_DEFINES_STRUCT_TIMESPEC = @SYS_TIME_H_DEFINES_STRUCT_TIMESPEC@
 TCPPORTRANGE = @TCPPORTRANGE@
 TIME_H_DEFINES_STRUCT_TIMESPEC = @TIME_H_DEFINES_STRUCT_TIMESPEC@
 UDPPORTRANGE = @UDPPORTRANGE@
+UMOUNT = @UMOUNT@
 UNCOMPRESS_OPT = @UNCOMPRESS_OPT@
 UNCOMPRESS_PATH = @UNCOMPRESS_PATH@
 UNDEFINE_STRTOK_R = @UNDEFINE_STRTOK_R@
@@ -991,11 +996,11 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 EXTRA_DIST = config.guess config.sub install-sh libtool.m4 ltmain.sh \
 	missing mkinstalldirs set_full_version amanda/amplot.m4 \
-	amanda/bsd-security.m4 amanda/bsdtcp-security.m4 \
-	amanda/bsdudp-security.m4 amanda/components.m4 \
-	amanda/compress.m4 amanda/config.m4 amanda/debugging.m4 \
-	amanda/defaults.m4 amanda/devprefix.m4 amanda/dirs.m4 \
-	amanda/documentation.m4 amanda/dumpers.m4 \
+	amanda/as_needed.m4 amanda/bsd-security.m4 \
+	amanda/bsdtcp-security.m4 amanda/bsdudp-security.m4 \
+	amanda/components.m4 amanda/compress.m4 amanda/config.m4 \
+	amanda/debugging.m4 amanda/defaults.m4 amanda/devprefix.m4 \
+	amanda/dirs.m4 amanda/documentation.m4 amanda/dumpers.m4 \
 	amanda/dvdrw-device.m4 amanda/flags.m4 amanda/flock.m4 \
 	amanda/funcs.m4 amanda/getfsent.m4 amanda/i18n.m4 \
 	amanda/ipv6.m4 amanda/krb5-security.m4 amanda/lfs.m4 \

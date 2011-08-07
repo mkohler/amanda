@@ -16,7 +16,7 @@
 # Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More tests => 165;
+use Test::More tests => 171;
 use File::Path;
 use Data::Dumper;
 use strict;
@@ -74,7 +74,8 @@ sub test_interface {
     my ($interface, $chg);
 
     my $steps = define_steps
-	cb_ref => \$finished_cb;
+	cb_ref => \$finished_cb,
+	finalize => sub { $chg->quit() if defined $chg};
 
     step start => sub {
 	my $testconf = Installcheck::Config->new();
@@ -95,6 +96,7 @@ sub test_interface {
 
 	$chg = Amanda::Changer->new("robo");
 	die "$chg" if $chg->isa("Amanda::Changer::Error");
+	is($chg->have_inventory(), '1', "changer have inventory");
 
 	$interface = $chg->{'interface'};
 	$interface->inquiry($steps->{'inquiry_cb'});
@@ -290,12 +292,12 @@ sub test_changer {
     my $pfx = "BC=$mtx_config->{barcodes}; TORIG=$mtx_config->{track_orig}";
 
     my $steps = define_steps
-	cb_ref => \$finished_cb;
+	cb_ref => \$finished_cb,
+	finalize => sub { $chg->quit() if defined $chg};
 
     # clean up
     step setup => sub {
 	unlink($chg_state_file) if -f $chg_state_file;
-	%Amanda::Changer::changers_by_uri_cc = ();
 
 	my @ignore_barcodes = ( property => "\"ignore-barcodes\" \"y\"")
 	    if ($mtx_config->{'barcodes'} == -1);
@@ -335,6 +337,7 @@ sub test_changer {
 	    "$pfx: Create working chg-robot instance: $chg")
 	    or die("no sense going on");
 
+	is($chg->have_inventory(), '1', "changer have inventory");
 	$chg->info(info => [qw(vendor_string num_slots fast_search)],
 		    info_cb => $steps->{'info_cb'});
     };

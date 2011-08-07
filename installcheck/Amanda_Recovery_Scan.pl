@@ -41,11 +41,11 @@ Installcheck::log_test_output();
 Amanda::Debug::disable_die_override();
 
 # --------
-# Interactive package
+# Interactivity package
 
-package Amanda::Interactive::Installcheck;
+package Amanda::Interactivity::Installcheck;
 use vars qw( @ISA );
-@ISA = qw( Amanda::Interactive );
+@ISA = qw( Amanda::Interactivity );
 
 sub new {
     my $class = shift;
@@ -58,7 +58,7 @@ sub user_request {
     my %params = @_;
 
     Amanda::Debug::debug("Change changer to multi-changer");
-    $params{'finished_cb'}->(undef, "multi-changer");
+    $params{'request_cb'}->(undef, "multi-changer");
 };
 
 # --------
@@ -211,7 +211,8 @@ sub test_searching {
     my $res03;
 
     my $steps = define_steps
-	cb_ref => \$finished_cb;
+	cb_ref => \$finished_cb,
+	finalize => sub { $scan->quit() };
 
     step start => sub {
 	$scan = Amanda::Recovery::Scan->new(chg => $chg);
@@ -378,7 +379,8 @@ sub test_scan_poll {
     my $res04;
 
     my $steps = define_steps
-	cb_ref => \$finished_cb;
+	cb_ref => \$finished_cb,
+	finalize => sub { $scan->quit() };
 
     step start => sub {
 	$chg = Amanda::Changer->new($chg_name);
@@ -437,15 +439,17 @@ sub test_scan_ask_poll {
     my $chg_name = "multi-changer";
     my $chg = Amanda::Changer->new($chg_name);
     amlabel_sync($chg, $chg_name, 2, 'TESTCONF05');
+    $chg->quit();
     $chg = Amanda::Changer->new("disk-changer");
 
     my $steps = define_steps
-	cb_ref => \$finished_cb;
+	cb_ref => \$finished_cb,
+	finalize => sub { $scan->quit() };
 
     step start => sub {
-	my $interactive = Amanda::Interactive::Installcheck->new();
+	my $interactivity = Amanda::Interactivity::Installcheck->new();
 	$scan = Amanda::Recovery::Scan->new(chg =>         $chg,
-					    interactive => $interactive);
+					    interactivity => $interactivity);
 	$scan->{'scan_conf'}->{'poll_delay'} = 10; # 10 ms
 
 	$steps->{'find_05'}->();
@@ -460,7 +464,7 @@ sub test_scan_ask_poll {
 	(my $err, $res05) = @_;
 
 	ok(!$err, "found TESTCONF05 on changer multi");
-	ok($res05, "TESTCONF05 give a reservation after interactive");
+	ok($res05, "TESTCONF05 give a reservation after interactivity");
 	is($res05->{'chg'}->{'chg_name'}, $chg_name,
 	   "found TESTCONF05 on correct changer: $chg_name");
 

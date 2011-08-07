@@ -75,9 +75,10 @@ Ian Turner <ian@zmanda.com>
     Device API
     Contributions made under GPLv2
 
-Dustin J. Mitchell <dustin@zmanda.com>
+Dustin J. Mitchell <dustin@mozilla.com>
     Device API, Changer API, Xfer Architecture, and Perl rewrite
-    Contributions made under GPLv2
+    Contributions before Oct 18, 2010 made under GPLv2
+    Contributions after Oct 18, 2010 made under the UMD license
 
 Nikolas Coukouma <atrus@zmanda.com>
     S3 Device
@@ -113,4 +114,7 @@ Stephen Gelman <ssgelm@gmail.com>
     Contributions made under GPLv2
 
 Nikhil Bhupale <nikhilb@zmanda.com>
+    Contributions made under GPLv2
+
+Francis Galiegue <fgaliegue@gmail.com>
     Contributions made under GPLv2

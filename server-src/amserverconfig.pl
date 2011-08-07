@@ -254,15 +254,16 @@ sub create_vtape {
 	if (defined $tapecycle) {
 		$tapecycle=~/^\d+/; 
 		$tp_cyclelimit=$&;
-			# check space
-		my $dfout =`df $parentdir`;
-		my $mul=1024;
-		@dfdata=split(" ",$dfout);
-		unless ( $dfdata[1] eq "1K-blocks" ) {
-			$mul=512;	# 512-blocks displayed by df
-		}
-		if (($dfdata[10]*$mul) < (($tp_cyclelimit*73728)+10240)){
-			&mprint ("WARNING: Not enough space for vtapes. Creation of vtapes failed\n");
+
+		# check space
+		my $fsinfo = Amanda::Util::get_fs_usage($parentdir);
+		my $avail_bytes = $fsinfo->{'blocksize'} * $fsinfo->{'bavail'};
+
+		# mysteriously, we need at least 72k per slot, plus 10k overhead.  The
+		# origin of these numbers is unknown.
+		my $needed_bytes = (($tp_cyclelimit*73728)+10240);
+		if ($avail_bytes < $needed_bytes){
+			&mprint ("WARNING: Not enough space for vtapes. Need 72k per slot plus 10k ($needed_bytes bytes); have $avail_bytes available.  Creation of vtapes failed\n");
 			$vtape_err++;
 			return;
 		}
@@ -409,7 +410,7 @@ sub build_amanda_ssh_key{
     }
       close NEWAUTH;
       close PUB;
-      &mprint("$amandahomedir/.ssh/client_authorized_keys created. Please append to /var/lib/amanda/.ssh/authorized_keys file on Amanda clients\n");
+      &mprint("$amandahomedir/.ssh/client_authorized_keys created. Please append to $amandahomedir/.ssh/authorized_keys file on Amanda clients\n");
       }
   }
 }

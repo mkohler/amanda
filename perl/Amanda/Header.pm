@@ -145,6 +145,105 @@ sub ACQUIRE {
 }
 
 
+############# Class : Amanda::Header::HeaderXML ##############
+
+package Amanda::Header::HeaderXML;
+use vars qw(@ISA %OWNER %ITERATORS %BLESSEDMEMBERS);
+@ISA = qw( Amanda::Header );
+%OWNER = ();
+%ITERATORS = ();
+*swig_disk_get = *Amanda::Headerc::HeaderXML_disk_get;
+*swig_disk_set = *Amanda::Headerc::HeaderXML_disk_set;
+*swig_device_get = *Amanda::Headerc::HeaderXML_device_get;
+*swig_device_set = *Amanda::Headerc::HeaderXML_device_set;
+*swig_program_is_application_api_get = *Amanda::Headerc::HeaderXML_program_is_application_api_get;
+*swig_program_is_application_api_set = *Amanda::Headerc::HeaderXML_program_is_application_api_set;
+*swig_program_get = *Amanda::Headerc::HeaderXML_program_get;
+*swig_program_set = *Amanda::Headerc::HeaderXML_program_set;
+*swig_estimatelist_get = *Amanda::Headerc::HeaderXML_estimatelist_get;
+*swig_estimatelist_set = *Amanda::Headerc::HeaderXML_estimatelist_set;
+*swig_spindle_get = *Amanda::Headerc::HeaderXML_spindle_get;
+*swig_spindle_set = *Amanda::Headerc::HeaderXML_spindle_set;
+*swig_compress_get = *Amanda::Headerc::HeaderXML_compress_get;
+*swig_compress_set = *Amanda::Headerc::HeaderXML_compress_set;
+*swig_encrypt_get = *Amanda::Headerc::HeaderXML_encrypt_get;
+*swig_encrypt_set = *Amanda::Headerc::HeaderXML_encrypt_set;
+*swig_kencrypt_get = *Amanda::Headerc::HeaderXML_kencrypt_get;
+*swig_kencrypt_set = *Amanda::Headerc::HeaderXML_kencrypt_set;
+*swig_levellist_get = *Amanda::Headerc::HeaderXML_levellist_get;
+*swig_levellist_set = *Amanda::Headerc::HeaderXML_levellist_set;
+*swig_nb_level_get = *Amanda::Headerc::HeaderXML_nb_level_get;
+*swig_nb_level_set = *Amanda::Headerc::HeaderXML_nb_level_set;
+*swig_dumpdate_get = *Amanda::Headerc::HeaderXML_dumpdate_get;
+*swig_dumpdate_set = *Amanda::Headerc::HeaderXML_dumpdate_set;
+*swig_compprog_get = *Amanda::Headerc::HeaderXML_compprog_get;
+*swig_compprog_set = *Amanda::Headerc::HeaderXML_compprog_set;
+*swig_srv_encrypt_get = *Amanda::Headerc::HeaderXML_srv_encrypt_get;
+*swig_srv_encrypt_set = *Amanda::Headerc::HeaderXML_srv_encrypt_set;
+*swig_clnt_encrypt_get = *Amanda::Headerc::HeaderXML_clnt_encrypt_get;
+*swig_clnt_encrypt_set = *Amanda::Headerc::HeaderXML_clnt_encrypt_set;
+*swig_srv_decrypt_opt_get = *Amanda::Headerc::HeaderXML_srv_decrypt_opt_get;
+*swig_srv_decrypt_opt_set = *Amanda::Headerc::HeaderXML_srv_decrypt_opt_set;
+*swig_clnt_decrypt_opt_get = *Amanda::Headerc::HeaderXML_clnt_decrypt_opt_get;
+*swig_clnt_decrypt_opt_set = *Amanda::Headerc::HeaderXML_clnt_decrypt_opt_set;
+*swig_record_get = *Amanda::Headerc::HeaderXML_record_get;
+*swig_record_set = *Amanda::Headerc::HeaderXML_record_set;
+*swig_create_index_get = *Amanda::Headerc::HeaderXML_create_index_get;
+*swig_create_index_set = *Amanda::Headerc::HeaderXML_create_index_set;
+*swig_auth_get = *Amanda::Headerc::HeaderXML_auth_get;
+*swig_auth_set = *Amanda::Headerc::HeaderXML_auth_set;
+*swig_exclude_file_get = *Amanda::Headerc::HeaderXML_exclude_file_get;
+*swig_exclude_file_set = *Amanda::Headerc::HeaderXML_exclude_file_set;
+*swig_exclude_list_get = *Amanda::Headerc::HeaderXML_exclude_list_get;
+*swig_exclude_list_set = *Amanda::Headerc::HeaderXML_exclude_list_set;
+*swig_include_file_get = *Amanda::Headerc::HeaderXML_include_file_get;
+*swig_include_file_set = *Amanda::Headerc::HeaderXML_include_file_set;
+*swig_include_list_get = *Amanda::Headerc::HeaderXML_include_list_get;
+*swig_include_list_set = *Amanda::Headerc::HeaderXML_include_list_set;
+*swig_exclude_optional_get = *Amanda::Headerc::HeaderXML_exclude_optional_get;
+*swig_exclude_optional_set = *Amanda::Headerc::HeaderXML_exclude_optional_set;
+*swig_include_optional_get = *Amanda::Headerc::HeaderXML_include_optional_get;
+*swig_include_optional_set = *Amanda::Headerc::HeaderXML_include_optional_set;
+*swig_application_property_get = *Amanda::Headerc::HeaderXML_application_property_get;
+*swig_application_property_set = *Amanda::Headerc::HeaderXML_application_property_set;
+*swig_scriptlist_get = *Amanda::Headerc::HeaderXML_scriptlist_get;
+*swig_scriptlist_set = *Amanda::Headerc::HeaderXML_scriptlist_set;
+*swig_data_path_get = *Amanda::Headerc::HeaderXML_data_path_get;
+*swig_data_path_set = *Amanda::Headerc::HeaderXML_data_path_set;
+*swig_directtcp_list_get = *Amanda::Headerc::HeaderXML_directtcp_list_get;
+*swig_directtcp_list_set = *Amanda::Headerc::HeaderXML_directtcp_list_set;
+*swig_next_get = *Amanda::Headerc::HeaderXML_next_get;
+*swig_next_set = *Amanda::Headerc::HeaderXML_next_set;
+sub new {
+    my $pkg = shift;
+    my $self = Amanda::Headerc::new_HeaderXML(@_);
+    bless $self, $pkg if defined($self);
+}
+
+sub DESTROY {
+    return unless $_[0]->isa('HASH');
+    my $self = tied(%{$_[0]});
+    return unless defined $self;
+    delete $ITERATORS{$self};
+    if (exists $OWNER{$self}) {
+        Amanda::Headerc::delete_HeaderXML($self);
+        delete $OWNER{$self};
+    }
+}
+
+sub DISOWN {
+    my $self = shift;
+    my $ptr = tied(%$self);
+    delete $OWNER{$ptr};
+}
+
+sub ACQUIRE {
+    my $self = shift;
+    my $ptr = tied(%$self);
+    $OWNER{$ptr} = 1;
+}
+
+
 # ------- VARIABLE STUBS --------
 
 package Amanda::Header;
@@ -378,6 +477,12 @@ sub new {
 sub from_string {
     shift; # ignore class
     return C_from_string(@_);
+}
+
+sub get_dle {
+    my $self = shift;
+
+    return Amanda::Header::HeaderXML->new($self->{'dle_str'});
 }
 
 package Amanda::Header::Header;

@@ -460,11 +460,22 @@ tape label to most volume she encounters. This option is DANGEROUS
 because when set, Amanda may erase near-failing tapes or tapes accidentally
 loaded in the wrong slot.</para>
 <para>When using this directive, specify the template for new tape
-labels. The template should contain some number of contiguous '%'
+labels. The template can contains many variables that are substituted by their
+values:
+<programlisting>
+    $c : config name
+    $o : org configuration
+    $b : barcode of the volume
+    $m : meta label
+</programlisting></para>
+<para>The template should contain some number of contiguous '%'
 characters, which will be replaced with a generated number. Be sure to
 specify enough '%' characters that you do not run out of tape labels.
 Example:
-<markup>autolabel &quot;DailySet1-%%%&quot; empty</markup>
+<markup>&quot;DailySet1-%%%&quot;</markup>,
+<markup>&quot;$c-%%%&quot;</markup>,
+<markup>&quot;$m-%%%&quot;</markup>,
+<markup>&quot;$m-$b&quot;</markup>
 </para>
 <para>Note that many devices cannot distinguish an empty tape from an error
 condition, so it may is often necessary to include
@@ -503,6 +514,31 @@ Danger: this may erase arbitrary volumes due to transient errors.
 </variablelist>
 </listitem>
 </varlistentry>
+
+  <varlistentry>
+  <term><amkeyword>meta-autolabel</amkeyword>
+        <amtype>string</amtype></term>
+  <listitem>
+<para>Default: not set. When set and if the changer support meta-label, this directive will cause Amanda to automatically add a meta-label to a meta-volume.</para>
+<para>A meta-volume is a containers that contains many volumes, eg. a removable
+hard-disk for use with chg-disk, each hard disk have many slots (volume).
+The meta-label is the label to put on the meta-volume.</para>
+<para>When using this directive, specify the template for new meta
+labels. The template can contains many variables that are substituted by their
+values:
+<programlisting>
+    $c : config name
+    $o : org configuration
+</programlisting></para>
+<para>The template should contain some number of contiguous '%'
+characters, which will be replaced with a generated number. Be sure to
+specify enough '%' characters that you do not run out of meta labels.
+Example:
+<markup>&quot;DailySet1-%%%&quot;</markup>,
+<markup>&quot;$o-%%%&quot;</markup>,
+</para>
+  </listitem>
+  </varlistentry>
 
   <varlistentry>
   <term><amkeyword>dumpuser</amkeyword> <amtype>string</amtype></term>
@@ -577,6 +613,24 @@ specified, although for backward compatibility both may be specified if
 <amkeyword>tpchanger</amkeyword> gives the name of an old changer script.
 See <manref name="amanda-changers" vol="7" /> for more information on
 configuring changers.</para>
+  </listitem>
+  </varlistentry>
+
+  <varlistentry>
+  <term><amkeyword>interactivity</amkeyword> <amtype>string</amtype></term>
+  <listitem>
+<para>Default: not set.  The interactivity module Amanda should use to interact with
+the user.  See <manref name="amanda-interactivity" vol="7" /> for a list of
+modules.</para>
+  </listitem>
+  </varlistentry>
+
+  <varlistentry>
+  <term><amkeyword>taperscan</amkeyword> <amtype>string</amtype></term>
+  <listitem>
+<para>Default: traditional.  The taperscan module amanda should use to find a tape
+to write to. See <manref name="amanda-taperscan" vol="7" /> for a list of
+modules.</para>
   </listitem>
   </varlistentry>
 
@@ -1040,11 +1094,13 @@ the amount of holding disk space reserved for incrementals should be lowered.</p
   </listitem>
   </varlistentry>
   <varlistentry>
-  <term><amkeyword>autoflush</amkeyword> <amtype>bool</amtype></term>
+  <term><amkeyword>autoflush</amkeyword> <amkeyword>no</amkeyword>|<amkeyword>yes</amkeyword>|<amkeyword>all</amkeyword></term>
   <listitem>
 <para>Default:
-<amkeyword>off</amkeyword>.
-Whether an amdump run will flush the dumps from holding disk to tape.</para>
+<amkeyword>no</amkeyword>.
+Whether an amdump run will flush the dumps from holding disk to tape.
+With <amkeyword>yes</amkeyword>, only dump matching the command line argument are flushed.
+With <amkeyword>all</amkeyword>, all dump are flushed.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -1349,16 +1405,20 @@ Range is inclusive.</para>
   </varlistentry>
 
   <varlistentry>
-  <term><amkeyword>recovery-limit</amkeyword> [ <amtype>string</amtype> | <amkeyword>same-host</amkeyword> ]</term>
+  <term><amkeyword>recovery-limit</amkeyword> [ <amtype>string</amtype> | <amkeyword>same-host</amkeyword> | <amkeyword>server</amkeyword>]</term>
   <listitem>
 <para>Default: none (no limitations).  This parameter limits the hosts
-    that may do remote recoveries.  Hosts are identified by their authenticated
+    that may do recoveries.  Hosts are identified by their authenticated
     peer name, as described in <manref name="amanda-auth" vol="7"/>; if this is
     not available and the recovery-limit parameter is present, recovery will be
     denied.  The arguments to the parameter are strings giving host match
     expressions (see <manref name="amanda-match" vol="7"/>) or the special
-    keyword same-host, which requires an exact match to the hostname of the
-    DLE being recovered.  Specifying no arguments at all will disable all
+    keywords <amkeyword>same-host</amkeyword> or <amkeyword>server</amkeyword>.
+    The <amkeyword>same-host</amkeyword> keyword requires an exact
+    match to the hostname of the DLE being recovered.
+    The <amkeyword>server</amkeyword> keyword require the connection come from
+    the fqdn of the server.
+    Specifying no arguments at all will disable all
     recoveries from any host.</para>
 
 <para>Note that match expressions can be constructed to be
@@ -1505,7 +1565,7 @@ are defined.</para>
   <term><amkeyword>auth</amkeyword> <amtype>string</amtype></term>
   <listitem>
 <para>Default:
-<amdefault>&quot;bsd&quot;</amdefault>.
+<amdefault>&quot;bsdtcp&quot;</amdefault>.
 Type of authorization to perform between tape server and backup client hosts.  See <manref name="amanda-auth" vol="7"/> for more detail.</para>
   </listitem>
   </varlistentry>
@@ -1539,6 +1599,7 @@ Specifies the port to connect to on the client.  It can be a service name or a n
 </para>
   </listitem>
   </varlistentry>
+
 
 <!-- bumping parameters yanked from the global section above -->
 
@@ -2223,12 +2284,26 @@ The default unit is Kbytes if it is not specified.</para>
 
   <varlistentry>
       <term><amkeyword>recovery-limit</amkeyword>
-	    [ <amkeyword>same-host</amkeyword> | <amtype>string</amtype> ]*</term>
+	    [ <amkeyword>server</amkeyword> | <amkeyword>same-host</amkeyword> | <amtype>string</amtype> ]*</term>
   <listitem>
 
 <para>Default: global value.  This parameter overrides the global
     <amkeyword>recovery-limit</amkeyword> parameter for DLEs of this
     dumptype.</para>
+
+  </listitem>
+  </varlistentry>
+
+  <varlistentry>
+      <term><amkeyword>dump-limit</amkeyword>
+	    [ <amkeyword>server</amkeyword> | <amkeyword>same-host</amkeyword> ]*</term>
+  <listitem>
+
+<para>Default: <amkeyword>server</amkeyword>. Specify which host can initiate
+ a backup of the dle.  With <amkeyword>server</amkeyword>, the server
+ can initiate a backup with the <command>amdump</command> command.
+ With <amkeyword>same-host</amkeyword>, the client can initiate a backup with
+ the <command>amdump_client</command> command.</para>
 
   </listitem>
   </varlistentry>
@@ -2250,7 +2325,10 @@ define dumptype "srvcompress" {
     compress server fast
 }
 define dumptype "bsd-auth" {
-    auth bsd
+    auth "bsd"
+}
+define dumptype "bsdtcp-auth" {
+    auth "bsdtcp"
 }
 define dumptype "no-record" {
     record no
@@ -2559,6 +2637,21 @@ is the name of this type of application. It is referenced from the
 <para>The application options and values are:</para>
 <variablelist remap='TP'>
   <varlistentry>
+  <term><amkeyword>client-name</amkeyword> <amtype>string</amtype></term>
+  <listitem>
+<para>No default,
+specifies an application name that is in the amanda-client.conf on the client.
+The setting from that application will be merged with the current application.
+If <amkeyword>client-name</amkeyword> is set then it is an error
+if that application is not defined on the client.</para>
+<para>If <amkeyword>client-name</amkeyword> is not set then the
+merge is done with the application that have the name equal to the plugin.
+eg. if the plugin is 'amgtar', then the setting from the application 'amgtar'
+is used if it is defined.
+</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
   <term><amkeyword>comment</amkeyword> <amtype>string</amtype></term>
   <listitem>
 <para>Default: not set.
@@ -2606,6 +2699,20 @@ is the name of this type of script. It is referenced from the
 <para>The script options and values are:</para>
 <variablelist remap='TP'>
   <varlistentry>
+  <term><amkeyword>client-name</amkeyword> <amtype>string</amtype></term>
+  <listitem>
+<para>No default,
+specifies a script name that is in the amanda-client.conf on the client.
+The setting from that script will be merged with the currect script.
+If <amkeyword>client-name</amkeyword> is set then it is an error if that script is not defined on the client.</para>
+<para>If <amkeyword>client-name</amkeyword> is not set then the
+merge is done with the script that have the name equal to the plugin.
+eg. if the plugin is 'amlog-script', then the setting from the script
+'amlog-script' is used.
+</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
   <term><amkeyword>comment</amkeyword> <amtype>string</amtype></term>
   <listitem>
 <para>Default: not set.
@@ -2625,6 +2732,12 @@ A comment string describing this script.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
+  <term><amkeyword>single-execution</amkeyword> <amtype>boolean</amtype></term>
+  <listitem>
+<para>Default: <amdefault>no</amdefault>. The script is executed for each dle. If <amdefault>yes</amdefault>, the script is executed one time only.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
   <term><amkeyword>execute-where</amkeyword> [ <amkeyword>client</amkeyword> | <amkeyword>server</amkeyword> ]</term>
   <listitem>
 <para>Default: <amkeyword>client</amkeyword>. Where the script must be executed, on the client or server.</para>
@@ -2637,6 +2750,12 @@ A comment string describing this script.</para>
     <!-- .RS -->
     <variablelist remap='TP'>
       <varlistentry>
+      <term><amkeyword>pre-amcheck</amkeyword></term>
+      <listitem>
+<para>Execute before the amcheck command for all dle. Can only be run on server.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
       <term><amkeyword>pre-dle-amcheck</amkeyword></term>
       <listitem>
 <para>Execute before the amcheck command for the dle.</para>
@@ -2646,6 +2765,12 @@ A comment string describing this script.</para>
       <term><amkeyword>pre-host-amcheck</amkeyword></term>
       <listitem>
 <para>Execute before the amcheck command for all dle for the client.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><amkeyword>post-amcheck</amkeyword></term>
+      <listitem>
+<para>Execute after the amcheck command for all dle. Can only be run on server.</para>
       </listitem>
       </varlistentry>
       <varlistentry>
@@ -2661,6 +2786,12 @@ A comment string describing this script.</para>
       </listitem>
       </varlistentry>
       <varlistentry>
+      <term><amkeyword>pre-estimate</amkeyword></term>
+      <listitem>
+<para>Execute before the estimate command for all dle. Can only be run on server.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
       <term><amkeyword>pre-dle-estimate</amkeyword></term>
       <listitem>
 <para>Execute before the estimate command for the dle.</para>
@@ -2670,6 +2801,12 @@ A comment string describing this script.</para>
       <term><amkeyword>pre-host-estimate</amkeyword></term>
       <listitem>
 <para>Execute before the estimate command for all dle for the client.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><amkeyword>post-estimate</amkeyword></term>
+      <listitem>
+<para>Execute after the estimate command for all dle. Can only be run on server.</para>
       </listitem>
       </varlistentry>
       <varlistentry>
@@ -2685,6 +2822,12 @@ A comment string describing this script.</para>
       </listitem>
       </varlistentry>
       <varlistentry>
+      <term><amkeyword>pre-backup</amkeyword></term>
+      <listitem>
+<para>Execute before the backup command for all dle. Can only be run on server.</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
       <term><amkeyword>pre-dle-backup</amkeyword></term>
       <listitem>
 <para>Execute before the backup command for the dle.</para>
@@ -2694,6 +2837,12 @@ A comment string describing this script.</para>
       <term><amkeyword>pre-host-backup</amkeyword></term>
       <listitem>
 <para>Execute before the backup command for all dle for the client. It can't be run on client, it must be run on server</para>
+      </listitem>
+      </varlistentry>
+      <varlistentry>
+      <term><amkeyword>post-backup</amkeyword></term>
+      <listitem>
+<para>Execute after the backup command for all dle. Can only be run on server.</para>
       </listitem>
       </varlistentry>
       <varlistentry>
@@ -2821,6 +2970,105 @@ device. The remaining parameters are specific to the changer type selected.
 
 </refsect1>
 
+<refsect1><title>INTERACTIVITY SECTION</title>
+<para>The
+<emphasis remap='B'>amanda.conf</emphasis>
+file may define multiple interactivyt methods, although only one will be used - that specified
+by the <amkeyword>interactivity</amkeyword> parameter.
+The information is entered in a <amkeyword>interactivity</amkeyword>
+section, which looks like this:</para>
+
+<programlisting>
+define interactivity <emphasis remap='I'>name</emphasis> {
+    <emphasis remap='I'>interactivity-option</emphasis> <emphasis remap='I'>interactivity-value</emphasis>
+    <literal>...</literal>
+}
+</programlisting>
+
+<para>The { must appear at the end of a line, and the } on its own line.</para>
+<para><emphasis remap='I'>name</emphasis> is the user-specified name of this
+interactivity. The remaining parameters are specific to the interactivity type
+selected.
+</para>
+
+<para>The interactivity options and values are:</para>
+<variablelist remap='TP'>
+  <varlistentry>
+  <term><amkeyword>comment</amkeyword> <amtype>string</amtype></term>
+  <listitem>
+<para>Default: not set.
+A comment string describing this interactivity.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><amkeyword>plugin</amkeyword> <amtype>string</amtype></term>
+  <listitem>
+<para>No default. Must be set to the name of the interactivity module, as described in <manref name="amanda-interactivity" vol="7" />.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><amkeyword>property</amkeyword> [<amkeyword>append</amkeyword>] <amtype>string</amtype> <amtype>string</amtype>+</term>
+  <listitem>
+<para>No default. You can set arbitrary properties for the interactivity.  Each interactivity module has a different set of properties. The first string contains the name of
+the property to set, and the others contains its values.  All strings should be quoted.
+The <amkeyword>append</amkeyword> keyword appends the given values to an existing list of values for that property.
+</para>
+  </listitem>
+  </varlistentry>
+</variablelist>
+
+<para>See <manref name="amanda-interactivity" vol="7" /> for more information on configuring interactivity methods.</para>
+
+</refsect1>
+
+<refsect1><title>TAPERSCAN SECTION</title>
+<para>The
+<emphasis remap='B'>amanda.conf</emphasis>
+file may define multiple taperscan methods, although only one will be used - that specified
+by the <amkeyword>taperscan</amkeyword> parameter.
+The information is entered in a <amkeyword>taperscan</amkeyword>
+section, which looks like this:</para>
+
+<programlisting>
+define taperscan <emphasis remap='I'>name</emphasis> {
+    <emphasis remap='I'>taperscan-option</emphasis> <emphasis remap='I'>taperscan-value</emphasis>
+    <literal>...</literal>
+}
+</programlisting>
+
+<para>The { must appear at the end of a line, and the } on its own line.</para>
+<para><emphasis remap='I'>name</emphasis> is the user-specified name of this
+taperscan. The remaining parameters are specific to the taperscan type
+selected.
+</para>
+
+<para>The taperscan options and values are:</para>
+<variablelist remap='TP'>
+  <varlistentry>
+  <term><amkeyword>comment</amkeyword> <amtype>string</amtype></term>
+  <listitem>
+<para>Default: not set.
+A comment string describing this taperscan.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><amkeyword>plugin</amkeyword> <amtype>string</amtype></term>
+  <listitem>
+<para>No default. Must be set to the name of the taperscan module.  See <man name="amanda-taperscan" vol="7" /> for a list of defined taperscan modules.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><amkeyword>property</amkeyword> [<amkeyword>append</amkeyword>] <amtype>string</amtype> <amtype>string</amtype>+</term>
+  <listitem>
+<para>No default.  Operates just like properties for interactivity methods, above.</para>
+  </listitem>
+  </varlistentry>
+</variablelist>
+
+<para>See <manref name="amanda-taperscan" vol="7" /> for more information on configuring taperscan.</para>
+
+</refsect1>
+
 <refsect1><title>Dump Splitting Configuration</title>
 
     <para>Amanda can "split" dumps into parts while writing them to storage
@@ -2881,7 +3129,9 @@ device. The remaining parameters are specific to the changer type selected.
 <manref name="amanda-auth" vol="7"/>,
 <manref name="amanda-changers" vol="7"/>,
 <manref name="amanda-devices" vol="7"/>,
+<manref name="amanda-interactivity" vol="7"/>,
 <manref name="amanda-scripts" vol="7"/>
+<manref name="amanda-taperscan" vol="7"/>
 </seealso>
 
 

@@ -2,12 +2,12 @@
 .\"     Title: amservice
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 12/14/2010
+.\"      Date: 06/02/2011
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.2.1
+.\"    Source: Amanda 3.3.0
 .\"  Language: English
 .\"
-.TH "AMSERVICE" "8" "12/14/2010" "Amanda 3\&.2\&.1" "System Administration Commands"
+.TH "AMSERVICE" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +22,7 @@
 amservice \- run an amanda service on a client
 .SH "SYNOPSIS"
 .HP \w'\fBamservice\fR\ 'u
-\fBamservice\fR [\-f\ \fIinput_file\fR] [\fB\-o\fR\ \fIconfigoption\fR...] \fIhostname\fR \fIauth\fR \fIservice\fR
+\fBamservice\fR [\-f\ \fIinput_file\fR\ [\-s]] [\fB\-o\fR\ \fIconfigoption\fR...] \fIhostname\fR \fIauth\fR \fIservice\fR
 .SH "DESCRIPTION"
 .PP
 \fBAmservice\fR
@@ -53,6 +53,11 @@ The amanda service to execute on the client\&. One of noop, selfcheck or sendsiz
 Use the file input_file instead of stdin to read the REQ packet from\&.
 .RE
 .PP
+\fB\-s\fR
+.RS 4
+Redirect the first connected stream to stdin/stdout\&. The \-f argument is required for the REQ packet, the REP packet is not printed on stdout\&.
+.RE
+.PP
 \fB\-o \fR\fB\fIconfigoption\fR\fR
 .RS 4
 See the "CONFIGURATION OVERRIDE" section in
@@ -62,7 +67,8 @@ See the "CONFIGURATION OVERRIDE" section in
 .PP
 The noop service is easy to execute because it does not require a REQ packet:
 .nf
-amservice hostname bsdtcp noop < /dev/null.fi
+amservice hostname bsdtcp noop < /dev/null
+.fi
 .PP
 The example executes the noop service on the client using bsdtcp auth\&. This is useful for debugging connection problems\&. It print an OPTIONS line upon success\&.
 .PP

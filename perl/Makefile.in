@@ -145,8 +145,11 @@ DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 @WANT_SERVER_TRUE@	Amanda/Tapelist.c Amanda/Tapelist.pm \
 @WANT_SERVER_TRUE@	Amanda/Disklist.c Amanda/Disklist.pm
 
-# PACKAGE: Amanda::Interactive
-@WANT_SERVER_TRUE@am__append_6 = Amanda/Interactive.pm
+# PACKAGE: Amanda::ScanInventory
+
+# PACKAGE: Amanda::Interactivity
+@WANT_SERVER_TRUE@am__append_6 = Amanda/ScanInventory.pm \
+@WANT_SERVER_TRUE@	Amanda/Interactivity.pm
 
 # PACKAGE: Amanda::Changer
 
@@ -187,6 +190,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/macro-archive/docbook-xslt.m4 \
 	$(top_srcdir)/config/macro-archive/xsltproc.m4 \
 	$(top_srcdir)/config/amanda/amplot.m4 \
+	$(top_srcdir)/config/amanda/as_needed.m4 \
 	$(top_srcdir)/config/amanda/bsd-security.m4 \
 	$(top_srcdir)/config/amanda/bsdtcp-security.m4 \
 	$(top_srcdir)/config/amanda/bsdudp-security.m4 \
@@ -364,7 +368,7 @@ am__installdirs = "$(DESTDIR)$(libApplicationdir)" \
 	"$(DESTDIR)$(AmandaApplicationdir)" \
 	"$(DESTDIR)$(AmandaChangerdir)" "$(DESTDIR)$(AmandaConfigdir)" \
 	"$(DESTDIR)$(AmandaCurinfodir)" "$(DESTDIR)$(AmandaIPCdir)" \
-	"$(DESTDIR)$(AmandaInteractivedir)" \
+	"$(DESTDIR)$(AmandaInteractivitydir)" \
 	"$(DESTDIR)$(AmandaRecoverydir)" \
 	"$(DESTDIR)$(AmandaReportdir)" "$(DESTDIR)$(AmandaTaperdir)" \
 	"$(DESTDIR)$(AmandaTaperScandir)" "$(DESTDIR)$(Amanda_DBdir)"
@@ -601,7 +605,7 @@ RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	ps-recursive uninstall-recursive
 DATA = $(Amanda_DATA) $(AmandaApplication_DATA) $(AmandaChanger_DATA) \
 	$(AmandaConfig_DATA) $(AmandaCurinfo_DATA) $(AmandaIPC_DATA) \
-	$(AmandaInteractive_DATA) $(AmandaRecovery_DATA) \
+	$(AmandaInteractivity_DATA) $(AmandaRecovery_DATA) \
 	$(AmandaReport_DATA) $(AmandaTaper_DATA) \
 	$(AmandaTaperScan_DATA) $(Amanda_DB_DATA)
 RECURSIVE_CLEAN_TARGETS = mostlyclean-recursive clean-recursive	\
@@ -661,6 +665,7 @@ APPLICATION_DIR = @APPLICATION_DIR@
 AR = @AR@
 ASM_SYMBOL_PREFIX = @ASM_SYMBOL_PREFIX@
 ASSERTIONS = @ASSERTIONS@
+AS_NEEDED_FLAGS = @AS_NEEDED_FLAGS@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
@@ -1134,6 +1139,7 @@ LTLIBTHREAD = @LTLIBTHREAD@
 MAILER = @MAILER@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
+MOUNT = @MOUNT@
 MSGFMT = @MSGFMT@
 MSGFMT_015 = @MSGFMT_015@
 MSGMERGE = @MSGMERGE@
@@ -1331,6 +1337,7 @@ STDBOOL_H = @STDBOOL_H@
 STDDEF_H = @STDDEF_H@
 STDINT_H = @STDINT_H@
 STRIP = @STRIP@
+SUNTAR = @SUNTAR@
 SVN = @SVN@
 SWIG = @SWIG@
 SWIG_LIB = @SWIG_LIB@
@@ -1338,6 +1345,7 @@ SYS_TIME_H_DEFINES_STRUCT_TIMESPEC = @SYS_TIME_H_DEFINES_STRUCT_TIMESPEC@
 TCPPORTRANGE = @TCPPORTRANGE@
 TIME_H_DEFINES_STRUCT_TIMESPEC = @TIME_H_DEFINES_STRUCT_TIMESPEC@
 UDPPORTRANGE = @UDPPORTRANGE@
+UMOUNT = @UMOUNT@
 UNCOMPRESS_OPT = @UNCOMPRESS_OPT@
 UNCOMPRESS_PATH = @UNCOMPRESS_PATH@
 UNDEFINE_STRTOK_R = @UNDEFINE_STRTOK_R@
@@ -1437,21 +1445,21 @@ EXTRA_DIST = $(AMGLUE_SWG) Amanda/Archive.swg Amanda/Archive.pm \
 	Amanda/Cmdline.pm Amanda/Cmdline.pod Amanda/Tapelist.swg \
 	Amanda/Tapelist.pm Amanda/Tapelist.pod Amanda/Disklist.swg \
 	Amanda/Disklist.pm Amanda/Disklist.pod Amanda/Feature.swg \
-	Amanda/Feature.pm Amanda/Feature.pod Amanda/Interactive.pm \
-	Amanda/ClientService.pm $(AmandaInteractive_DATA) \
-	Amanda/Changer.pm $(AmandaChanger_DATA) Amanda/Curinfo.pm \
-	$(AmandaCurinfo_DATA) $(AmandaRecovery_DATA) \
-	$(AmandaTaper_DATA) $(AmandaTaperScan_DATA) \
-	Amanda/DB/Catalog.pm Amanda/Xfer.swg Amanda/Xfer.pm \
-	Amanda/Xfer.pod $(am__append_12) $(am__append_15) \
-	Amanda/BigIntCompat.pm Amanda/Debug.swg Amanda/Debug.pm \
-	Amanda/Debug.pod Amanda/Config.swg Amanda/Config.pm \
-	Amanda/Config.pod $(AmandaConfig_DATA) Amanda/Util.swg \
-	Amanda/Util.pm Amanda/Util.pod Amanda/Header.swg \
-	Amanda/Header.pm Amanda/Header.pod Amanda/Tests.swg \
-	Amanda/Tests.pm Amanda/Tests.pod Amanda/MainLoop.swg \
-	Amanda/MainLoop.pm Amanda/MainLoop.pod $(AmandaIPC_DATA) \
-	Amanda/IPC/Binary.swg Amanda/IPC/Binary.pm \
+	Amanda/Feature.pm Amanda/Feature.pod Amanda/ScanInventory.pm \
+	Amanda/Interactivity.pm Amanda/ClientService.pm \
+	$(AmandaInteractivity_DATA) Amanda/Changer.pm \
+	$(AmandaChanger_DATA) Amanda/Curinfo.pm $(AmandaCurinfo_DATA) \
+	$(AmandaRecovery_DATA) $(AmandaTaper_DATA) \
+	$(AmandaTaperScan_DATA) Amanda/DB/Catalog.pm Amanda/Xfer.swg \
+	Amanda/Xfer.pm Amanda/Xfer.pod $(am__append_12) \
+	$(am__append_15) Amanda/BigIntCompat.pm Amanda/Debug.swg \
+	Amanda/Debug.pm Amanda/Debug.pod Amanda/Config.swg \
+	Amanda/Config.pm Amanda/Config.pod $(AmandaConfig_DATA) \
+	Amanda/Util.swg Amanda/Util.pm Amanda/Util.pod \
+	Amanda/Header.swg Amanda/Header.pm Amanda/Header.pod \
+	Amanda/Tests.swg Amanda/Tests.pm Amanda/Tests.pod \
+	Amanda/MainLoop.swg Amanda/MainLoop.pm Amanda/MainLoop.pod \
+	$(AmandaIPC_DATA) Amanda/IPC/Binary.swg Amanda/IPC/Binary.pm \
 	Amanda/IPC/Binary.pod Amanda/Paths.pm.in \
 	Amanda/Constants.pm.in Amanda/Script_App.pm Amanda/Holding.pm \
 	Amanda/Application.swg Amanda/Application.pm \
@@ -1524,8 +1532,8 @@ SWIG_OPTIONS = -perl5 -proxy -DSWIG_TYPE_TABLE=SWIG_TYPES_Amanda -I$(srcdir)
 # PM_FILES should contain the .pm files from which the HTML should
 # be geneated.  This is just the concatenation of foo_DATA for all $(foodir)
 # into which perl modules are installed.
-PM_FILES = $(Amanda_DATA) $(am__append_9) $(AmandaIPC_DATA) \
-	$(am__append_19)
+PM_FILES = $(Amanda_DATA) $(AmandaInteractivity_DATA) $(am__append_9) \
+	$(AmandaIPC_DATA) $(am__append_19)
 Amandadir = $(amperldir)/Amanda
 
 # PACKAGE: Amanda::Process
@@ -1617,15 +1625,19 @@ libFeature_la_LIBADD = amglue/libamglue.la \
 	$(top_builddir)/common-src/libamanda.la
 
 
-# PACKAGE: Amanda::Interactive::*
-@WANT_SERVER_TRUE@AmandaInteractivedir = $(amperldir)/Amanda/Interactive
-@WANT_SERVER_TRUE@AmandaInteractive_DATA = \
-@WANT_SERVER_TRUE@	Amanda/Interactive/stdin.pm
+# PACKAGE: Amanda::Interactivity::*
+@WANT_SERVER_TRUE@AmandaInteractivitydir = $(amperldir)/Amanda/Interactivity
+@WANT_SERVER_TRUE@AmandaInteractivity_DATA = \
+@WANT_SERVER_TRUE@	Amanda/Interactivity/email.pm \
+@WANT_SERVER_TRUE@	Amanda/Interactivity/stdin.pm \
+@WANT_SERVER_TRUE@	Amanda/Interactivity/tty.pm \
+@WANT_SERVER_TRUE@	Amanda/Interactivity/tty_email.pm
 
 
 # PACKAGE: Amanda::Changer::*
 @WANT_SERVER_TRUE@AmandaChangerdir = $(amperldir)/Amanda/Changer
-@WANT_SERVER_TRUE@AmandaChanger_DATA = Amanda/Changer/compat.pm \
+@WANT_SERVER_TRUE@AmandaChanger_DATA = Amanda/Changer/aggregate.pm \
+@WANT_SERVER_TRUE@	Amanda/Changer/compat.pm \
 @WANT_SERVER_TRUE@	Amanda/Changer/disk.pm \
 @WANT_SERVER_TRUE@	Amanda/Changer/multi.pm \
 @WANT_SERVER_TRUE@	Amanda/Changer/null.pm \
@@ -1660,6 +1672,8 @@ libFeature_la_LIBADD = amglue/libamglue.la \
 # PACKAGE: Amanda::Taper::Scan::*
 @WANT_SERVER_TRUE@AmandaTaperScandir = $(amperldir)/Amanda/Taper/Scan
 @WANT_SERVER_TRUE@AmandaTaperScan_DATA = \
+@WANT_SERVER_TRUE@	Amanda/Taper/Scan/lexical.pm \
+@WANT_SERVER_TRUE@	Amanda/Taper/Scan/oldest.pm \
 @WANT_SERVER_TRUE@	Amanda/Taper/Scan/traditional.pm
 
 
@@ -2719,26 +2733,26 @@ uninstall-AmandaIPCDATA:
 	test -n "$$files" || exit 0; \
 	echo " ( cd '$(DESTDIR)$(AmandaIPCdir)' && rm -f" $$files ")"; \
 	cd "$(DESTDIR)$(AmandaIPCdir)" && rm -f $$files
-install-AmandaInteractiveDATA: $(AmandaInteractive_DATA)
+install-AmandaInteractivityDATA: $(AmandaInteractivity_DATA)
 	@$(NORMAL_INSTALL)
-	test -z "$(AmandaInteractivedir)" || $(MKDIR_P) "$(DESTDIR)$(AmandaInteractivedir)"
-	@list='$(AmandaInteractive_DATA)'; test -n "$(AmandaInteractivedir)" || list=; \
+	test -z "$(AmandaInteractivitydir)" || $(MKDIR_P) "$(DESTDIR)$(AmandaInteractivitydir)"
+	@list='$(AmandaInteractivity_DATA)'; test -n "$(AmandaInteractivitydir)" || list=; \
 	for p in $$list; do \
 	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
 	  echo "$$d$$p"; \
 	done | $(am__base_list) | \
 	while read files; do \
-	  echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(AmandaInteractivedir)'"; \
-	  $(INSTALL_DATA) $$files "$(DESTDIR)$(AmandaInteractivedir)" || exit $$?; \
+	  echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(AmandaInteractivitydir)'"; \
+	  $(INSTALL_DATA) $$files "$(DESTDIR)$(AmandaInteractivitydir)" || exit $$?; \
 	done
 
-uninstall-AmandaInteractiveDATA:
+uninstall-AmandaInteractivityDATA:
 	@$(NORMAL_UNINSTALL)
-	@list='$(AmandaInteractive_DATA)'; test -n "$(AmandaInteractivedir)" || list=; \
+	@list='$(AmandaInteractivity_DATA)'; test -n "$(AmandaInteractivitydir)" || list=; \
 	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
 	test -n "$$files" || exit 0; \
-	echo " ( cd '$(DESTDIR)$(AmandaInteractivedir)' && rm -f" $$files ")"; \
-	cd "$(DESTDIR)$(AmandaInteractivedir)" && rm -f $$files
+	echo " ( cd '$(DESTDIR)$(AmandaInteractivitydir)' && rm -f" $$files ")"; \
+	cd "$(DESTDIR)$(AmandaInteractivitydir)" && rm -f $$files
 install-AmandaRecoveryDATA: $(AmandaRecovery_DATA)
 	@$(NORMAL_INSTALL)
 	test -z "$(AmandaRecoverydir)" || $(MKDIR_P) "$(DESTDIR)$(AmandaRecoverydir)"
@@ -3044,7 +3058,7 @@ check: $(BUILT_SOURCES)
 all-am: Makefile $(LTLIBRARIES) $(DATA)
 installdirs: installdirs-recursive
 installdirs-am:
-	for dir in "$(DESTDIR)$(libApplicationdir)" "$(DESTDIR)$(libArchivedir)" "$(DESTDIR)$(libCmdlinedir)" "$(DESTDIR)$(libConfigdir)" "$(DESTDIR)$(libDebugdir)" "$(DESTDIR)$(libDevicedir)" "$(DESTDIR)$(libDisklistdir)" "$(DESTDIR)$(libFeaturedir)" "$(DESTDIR)$(libHeaderdir)" "$(DESTDIR)$(libIPCBinarydir)" "$(DESTDIR)$(libLogfiledir)" "$(DESTDIR)$(libMainLoopdir)" "$(DESTDIR)$(libNDMPdir)" "$(DESTDIR)$(libTapelistdir)" "$(DESTDIR)$(libTestsdir)" "$(DESTDIR)$(libUtildir)" "$(DESTDIR)$(libXferdir)" "$(DESTDIR)$(libXferServerdir)" "$(DESTDIR)$(Amandadir)" "$(DESTDIR)$(AmandaApplicationdir)" "$(DESTDIR)$(AmandaChangerdir)" "$(DESTDIR)$(AmandaConfigdir)" "$(DESTDIR)$(AmandaCurinfodir)" "$(DESTDIR)$(AmandaIPCdir)" "$(DESTDIR)$(AmandaInteractivedir)" "$(DESTDIR)$(AmandaRecoverydir)" "$(DESTDIR)$(AmandaReportdir)" "$(DESTDIR)$(AmandaTaperdir)" "$(DESTDIR)$(AmandaTaperScandir)" "$(DESTDIR)$(Amanda_DBdir)"; do \
+	for dir in "$(DESTDIR)$(libApplicationdir)" "$(DESTDIR)$(libArchivedir)" "$(DESTDIR)$(libCmdlinedir)" "$(DESTDIR)$(libConfigdir)" "$(DESTDIR)$(libDebugdir)" "$(DESTDIR)$(libDevicedir)" "$(DESTDIR)$(libDisklistdir)" "$(DESTDIR)$(libFeaturedir)" "$(DESTDIR)$(libHeaderdir)" "$(DESTDIR)$(libIPCBinarydir)" "$(DESTDIR)$(libLogfiledir)" "$(DESTDIR)$(libMainLoopdir)" "$(DESTDIR)$(libNDMPdir)" "$(DESTDIR)$(libTapelistdir)" "$(DESTDIR)$(libTestsdir)" "$(DESTDIR)$(libUtildir)" "$(DESTDIR)$(libXferdir)" "$(DESTDIR)$(libXferServerdir)" "$(DESTDIR)$(Amandadir)" "$(DESTDIR)$(AmandaApplicationdir)" "$(DESTDIR)$(AmandaChangerdir)" "$(DESTDIR)$(AmandaConfigdir)" "$(DESTDIR)$(AmandaCurinfodir)" "$(DESTDIR)$(AmandaIPCdir)" "$(DESTDIR)$(AmandaInteractivitydir)" "$(DESTDIR)$(AmandaRecoverydir)" "$(DESTDIR)$(AmandaReportdir)" "$(DESTDIR)$(AmandaTaperdir)" "$(DESTDIR)$(AmandaTaperScandir)" "$(DESTDIR)$(Amanda_DBdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: $(BUILT_SOURCES)
@@ -3113,7 +3127,7 @@ info-am:
 install-data-am: install-AmandaApplicationDATA \
 	install-AmandaChangerDATA install-AmandaConfigDATA \
 	install-AmandaCurinfoDATA install-AmandaDATA \
-	install-AmandaIPCDATA install-AmandaInteractiveDATA \
+	install-AmandaIPCDATA install-AmandaInteractivityDATA \
 	install-AmandaRecoveryDATA install-AmandaReportDATA \
 	install-AmandaTaperDATA install-AmandaTaperScanDATA \
 	install-Amanda_DBDATA install-data-local \
@@ -3176,7 +3190,7 @@ ps-am:
 uninstall-am: uninstall-AmandaApplicationDATA \
 	uninstall-AmandaChangerDATA uninstall-AmandaConfigDATA \
 	uninstall-AmandaCurinfoDATA uninstall-AmandaDATA \
-	uninstall-AmandaIPCDATA uninstall-AmandaInteractiveDATA \
+	uninstall-AmandaIPCDATA uninstall-AmandaInteractivityDATA \
 	uninstall-AmandaRecoveryDATA uninstall-AmandaReportDATA \
 	uninstall-AmandaTaperDATA uninstall-AmandaTaperScanDATA \
 	uninstall-Amanda_DBDATA uninstall-libApplicationLTLIBRARIES \
@@ -3213,7 +3227,7 @@ uninstall-am: uninstall-AmandaApplicationDATA \
 	install install-AmandaApplicationDATA \
 	install-AmandaChangerDATA install-AmandaConfigDATA \
 	install-AmandaCurinfoDATA install-AmandaDATA \
-	install-AmandaIPCDATA install-AmandaInteractiveDATA \
+	install-AmandaIPCDATA install-AmandaInteractivityDATA \
 	install-AmandaRecoveryDATA install-AmandaReportDATA \
 	install-AmandaTaperDATA install-AmandaTaperScanDATA \
 	install-Amanda_DBDATA install-am install-data install-data-am \
@@ -3238,7 +3252,7 @@ uninstall-am: uninstall-AmandaApplicationDATA \
 	uninstall uninstall-AmandaApplicationDATA \
 	uninstall-AmandaChangerDATA uninstall-AmandaConfigDATA \
 	uninstall-AmandaCurinfoDATA uninstall-AmandaDATA \
-	uninstall-AmandaIPCDATA uninstall-AmandaInteractiveDATA \
+	uninstall-AmandaIPCDATA uninstall-AmandaInteractivityDATA \
 	uninstall-AmandaRecoveryDATA uninstall-AmandaReportDATA \
 	uninstall-AmandaTaperDATA uninstall-AmandaTaperScanDATA \
 	uninstall-Amanda_DBDATA uninstall-am \

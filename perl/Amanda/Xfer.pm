@@ -68,6 +68,7 @@ package Amanda::Xfer;
 *xfer_source_directtcp_connect = *Amanda::Xferc::xfer_source_directtcp_connect;
 *xfer_filter_xor = *Amanda::Xferc::xfer_filter_xor;
 *xfer_filter_process = *Amanda::Xferc::xfer_filter_process;
+*get_err_fd = *Amanda::Xferc::get_err_fd;
 *xfer_dest_null = *Amanda::Xferc::xfer_dest_null;
 *xfer_dest_buffer = *Amanda::Xferc::xfer_dest_buffer;
 *xfer_dest_buffer_get = *Amanda::Xferc::xfer_dest_buffer_get;
@@ -118,7 +119,7 @@ Amanda::Xfer - the transfer architecture
       if ($msg->{'type'} == $XMSG_DONE) {
 	  Amanda::MainLoop::quit();
       }
-  });
+  }, 0, 0);
   Amanda::MainLoop::run();
 
 See L<http://wiki.zmanda.com/index.php/XFA> for background on the
@@ -134,9 +135,12 @@ The resulting object has the following methods:
 
 =over
 
-=item start($cb)
+=item start($cb, $offset, $size)
 
-Start this transfer.  Processing takes place asynchronously, and messages will
+Start this transfer.  It transfer $size bytes starting from offset $offset.
+$offset must be 0. $size is only supported by Amanda::Xfer::Source::Recovery.
+A size of 0 transfer everything to EOF.
+Processing takes place asynchronously, and messages will
 begin queueing up immediately.  If C<$cb> is given, then it is installed as the
 callback for messages from this transfer.  The callback receives three
 arguments: the event source, the message, and a reference to the controlling
@@ -304,15 +308,18 @@ C<$addrs> and reads the transfer data from the connection.
 
 =head3 Amanda::Xfer::Filter:Process
 
-  Amanda::Xfer::Filter::Process->new([@args], $need_root, $log_stderr);
+  $xfp = Amanda::Xfer::Filter::Process->new([@args], $need_root);
 
 This filter will pipe data through the standard file descriptors of the
 subprocess specified by C<@args>.  If C<$need_root> is true, it will attempt to
-change to uid 0 before executing the process.  Standard output from the process
-is redirected to the debug log.  Note that the process is invoked directly, not
-via a shell, so shell metacharcters (e.g., C<< 2>&1 >>) will not function as
-expected.  If C<$log_stderr> is set, then the filter's standard error is sent
-to the debug log; otherwise, it is sent to the parent process's stderr.
+change to uid 0 before executing the process.  Note that the process is
+invoked directly, not via a shell, so shell metacharcters (e.g., C<< 2>&1 >>)
+will not function as expected. This method create a pipe for the process
+stderr and the caller must read it or a hang may occur.
+
+  $xfp->get_stderr_fd()
+
+Return the file descriptor of the stderr pipe to read from.
 
 =head3 Amanda::Xfer::Filter:Xor
 
@@ -639,7 +646,7 @@ $_xmsg_type_VALUES{"XMSG_READY"} = $XMSG_READY;
 push @{$EXPORT_TAGS{"constants"}},  @{$EXPORT_TAGS{"xmsg_type"}};
 
 sub xfer_start_with_callback {
-    my ($xfer, $cb) = @_;
+    my ($xfer, $cb, $offset, $size) = @_;
     if (defined $cb) {
 	my $releasing_cb = sub {
 	    my ($src, $msg, $xfer) = @_;
@@ -650,7 +657,9 @@ sub xfer_start_with_callback {
 	};
 	$xfer->get_source()->set_callback($releasing_cb);
     }
-    xfer_start($xfer);
+    $offset = 0 if !defined $offset;
+    $size = 0 if !defined $size;
+    xfer_start($xfer, $offset, $size);
 }
 
 sub xfer_set_callback {
@@ -789,6 +798,7 @@ sub new {
 
     Amanda::Xfer::xfer_filter_process(@_);
 }
+*get_stderr_fd = *Amanda::Xfer::get_err_fd;
 
 package Amanda::Xfer::Dest::Fd;
 

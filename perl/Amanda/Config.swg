@@ -54,6 +54,7 @@ DESCRIPTION: amglue_constants_list(FORALL_FN)
 #define FOR_ALL_CONFPARM_KEY(APPLY)\
 APPLY(CNF_ORG)\
 APPLY(CNF_CONF)\
+APPLY(CNF_AMDUMP_SERVER)\
 APPLY(CNF_INDEX_SERVER)\
 APPLY(CNF_TAPE_SERVER)\
 APPLY(CNF_AUTH)\
@@ -73,6 +74,7 @@ APPLY(CNF_CHANGERDEV)\
 APPLY(CNF_CHANGERFILE)\
 APPLY(CNF_LABELSTR)\
 APPLY(CNF_AUTOLABEL)\
+APPLY(CNF_META_AUTOLABEL)\
 APPLY(CNF_TAPELIST)\
 APPLY(CNF_DISKFILE)\
 APPLY(CNF_INFOFILE)\
@@ -139,7 +141,9 @@ APPLY(CNF_UNRESERVED_TCP_PORT)\
 APPLY(CNF_HOLDINGDISK)\
 APPLY(CNF_SEND_AMREPORT_ON)\
 APPLY(CNF_TAPER_PARALLEL_WRITE)\
-APPLY(CNF_RECOVERY_LIMIT)
+APPLY(CNF_RECOVERY_LIMIT) \
+APPLY(CNF_INTERACTIVITY) \
+APPLY(CNF_TAPERSCAN)
 
 amglue_add_enum_tag_fns(confparm_key);
 amglue_add_constants(FOR_ALL_CONFPARM_KEY, confparm_key);
@@ -209,7 +213,8 @@ APPLY(DUMPTYPE_SCRIPTLIST)\
 APPLY(DUMPTYPE_PROPERTY)\
 APPLY(DUMPTYPE_DATA_PATH)\
 APPLY(DUMPTYPE_ALLOW_SPLIT)\
-APPLY(DUMPTYPE_RECOVERY_LIMIT)
+APPLY(DUMPTYPE_RECOVERY_LIMIT) \
+APPLY(DUMPTYPE_DUMP_LIMIT)
 
 amglue_add_enum_tag_fns(dumptype_key);
 amglue_add_constants(FOR_ALL_DUMPTYPE_KEY, dumptype_key);
@@ -239,7 +244,8 @@ constant_pod(Holdingdisk Parameters, FOR_ALL_HOLDINGDISK_KEY)
 #define FOR_ALL_APPLICATION_KEY(APPLY)\
 APPLY(APPLICATION_COMMENT)\
 APPLY(APPLICATION_PLUGIN)\
-APPLY(APPLICATION_PROPERTY)
+APPLY(APPLICATION_PROPERTY) \
+APPLY(APPLICATION_CLIENT_NAME)
 
 amglue_add_enum_tag_fns(application_key);
 amglue_add_constants(FOR_ALL_APPLICATION_KEY, application_key);
@@ -252,7 +258,9 @@ APPLY(PP_SCRIPT_PLUGIN)\
 APPLY(PP_SCRIPT_PROPERTY)\
 APPLY(PP_SCRIPT_EXECUTE_ON)\
 APPLY(PP_SCRIPT_EXECUTE_WHERE)\
-APPLY(PP_SCRIPT_ORDER)
+APPLY(PP_SCRIPT_ORDER)\
+APPLY(PP_SCRIPT_SINGLE_EXECUTION)\
+APPLY(PP_SCRIPT_CLIENT_NAME)
 
 amglue_add_enum_tag_fns(pp_script_key);
 amglue_add_constants(FOR_ALL_PP_SCRIPT_KEY, pp_script_key);
@@ -282,6 +290,26 @@ amglue_add_enum_tag_fns(changer_config_key);
 amglue_add_constants(FOR_ALL_CHANGER_CONFIG_KEY, changer_config_key);
 amglue_copy_to_tag(changer_config_key, getconf);
 constant_pod(Pre/Post-Script Parameters, FOR_ALL_CHANGER_CONFIG_KEY)
+
+#define FOR_ALL_INTERACTIVITY_KEY(APPLY)\
+APPLY(INTERACTIVITY_COMMENT)\
+APPLY(INTERACTIVITY_PLUGIN)\
+APPLY(INTERACTIVITY_PROPERTY)
+
+amglue_add_enum_tag_fns(interactivity_key);
+amglue_add_constants(FOR_ALL_INTERACTIVITY_KEY, interactivity_key);
+amglue_copy_to_tag(interactivity_key, getconf);
+constant_pod(Interactivity Parameters, FOR_ALL_INTERACTIVITY_KEY)
+
+#define FOR_ALL_TAPERSCAN_KEY(APPLY)\
+APPLY(TAPERSCAN_COMMENT)\
+APPLY(TAPERSCAN_PLUGIN)\
+APPLY(TAPERSCAN_PROPERTY)
+
+amglue_add_enum_tag_fns(taperscan_key);
+amglue_add_constants(FOR_ALL_TAPERSCAN_KEY, taperscan_key);
+amglue_copy_to_tag(taperscan_key, getconf);
+constant_pod(Taperscan Parameters, FOR_ALL_TAPERSCAN_KEY)
 
 /*
  * Various enumerated conftypes
@@ -343,16 +371,22 @@ amglue_add_constant(ALGO_LAST, taperalgo_t);
 amglue_copy_to_tag(taperalgo_t, getconf);
 
 amglue_add_enum_tag_fns(execute_on_t);
+amglue_add_constant(EXECUTE_ON_PRE_AMCHECK, execute_on_t);
 amglue_add_constant(EXECUTE_ON_PRE_DLE_AMCHECK, execute_on_t);
 amglue_add_constant(EXECUTE_ON_PRE_HOST_AMCHECK, execute_on_t);
+amglue_add_constant(EXECUTE_ON_POST_AMCHECK, execute_on_t);
 amglue_add_constant(EXECUTE_ON_POST_DLE_AMCHECK, execute_on_t);
 amglue_add_constant(EXECUTE_ON_POST_HOST_AMCHECK, execute_on_t);
+amglue_add_constant(EXECUTE_ON_PRE_ESTIMATE, execute_on_t);
 amglue_add_constant(EXECUTE_ON_PRE_DLE_ESTIMATE, execute_on_t);
 amglue_add_constant(EXECUTE_ON_PRE_HOST_ESTIMATE, execute_on_t);
+amglue_add_constant(EXECUTE_ON_POST_ESTIMATE, execute_on_t);
 amglue_add_constant(EXECUTE_ON_POST_DLE_ESTIMATE, execute_on_t);
 amglue_add_constant(EXECUTE_ON_POST_HOST_ESTIMATE, execute_on_t);
+amglue_add_constant(EXECUTE_ON_PRE_BACKUP, execute_on_t);
 amglue_add_constant(EXECUTE_ON_PRE_DLE_BACKUP, execute_on_t);
 amglue_add_constant(EXECUTE_ON_PRE_HOST_BACKUP, execute_on_t);
+amglue_add_constant(EXECUTE_ON_POST_BACKUP, execute_on_t);
 amglue_add_constant(EXECUTE_ON_POST_DLE_BACKUP, execute_on_t);
 amglue_add_constant(EXECUTE_ON_POST_HOST_BACKUP, execute_on_t);
 amglue_copy_to_tag(execute_on_t, getconf);
@@ -380,7 +414,7 @@ amglue_copy_to_tag(part_cache_type_t, getconf);
  */
 
 /* Typemap to convert a val_t to an SV, using a static function since it's huge.  This converts:
- *  - CONFTYPE_SIZE, CONFTYPE_INT, CONFTYPE_INT64,
+ *  - CONFTYPE_SIZE, CONFTYPE_INT, CONFTYPE_INT64, CONFTYPE_NO_YES_ALL,
  *    CONFTYPE_BOOLEAN -> IV
  *  - CONFTYPE_REAL -> NV
  *  - CONFTYPE_STR, CONFTYPE_IDENT -> PV
@@ -396,9 +430,16 @@ amglue_copy_to_tag(part_cache_type_t, getconf);
  *    and 'optional' (int)
  *  - CONFTYPE_PROPLIST -> hashref of hashref with keys 'append' (IV), 'priority' (IV),
  *							'values' (listref)
- *  - CONFTYPE_RECOVERY_LIMIT -> listref of match expressions; undef in list is taken
- *		    to mean 'same-host'
+ *  - CONFTYPE_HOST_LIMIT -> listref of match expressions;
+ *           "SAMEHOST-SAMEHOST-SAMEHOST" in list is taken to mean 'same-host'
+ *           "SERVER-SERVER-SERVER" in list is taken to mean 'server'
  */
+
+%perlcode %{
+$LIMIT_SAMEHOST="SAMEHOST-SAMEHOST-SAMEHOST";
+$LIMIT_SERVER="SERVER-SERVER-SERVER";
+%}
+
 %{
 static int
 val_t_to_sv(val_t *val, SV **results) {
@@ -480,6 +521,7 @@ val_t_to_sv(val_t *val, SV **results) {
 		return 1;
 
 	    case CONFTYPE_BOOLEAN:	    /* all same as INT.. */
+	    case CONFTYPE_NO_YES_ALL:
 	    case CONFTYPE_COMPRESS:
 	    case CONFTYPE_ENCRYPT:
 	    case CONFTYPE_STRATEGY:
@@ -533,14 +575,16 @@ val_t_to_sv(val_t *val, SV **results) {
 		return 1;
 	    }
 
-	    case CONFTYPE_RECOVERY_LIMIT: {
+	    case CONFTYPE_HOST_LIMIT: {
 		AV *av;
 		GSList *iter;
-		recovery_limit_t *rl = &val_t__recovery_limit(val);
+		host_limit_t *rl = &val_t__host_limit(val);
 
 		av = newAV();
 		if (rl->same_host)
-		    av_push(av, &PL_sv_undef);
+		    av_push(av, newSVpv("SAMEHOST-SAMEHOST-SAMEHOST", 0));
+		if (rl->server)
+		    av_push(av, newSVpv("SERVER-SERVER-SERVER", 0));
 		for (iter=rl->match_pats; iter != NULL; iter = iter->next) {
 		    av_push(av, newSVpv((char *)iter->data, 0));
 		}
@@ -729,6 +773,24 @@ gboolean changer_config_seen(changer_config_t *app, changer_config_key key);
 amglue_export_tag(getconf,
     lookup_changer_config changer_config_getconf changer_config_name
     changer_config_seen changer_config_seen
+);
+
+interactivity_t *lookup_interactivity(char *identifier);
+val_t *interactivity_getconf(interactivity_t *app, interactivity_key key);
+char *interactivity_name(interactivity_t *app);
+gboolean interactivity_seen(interactivity_t *app, interactivity_key key);
+amglue_export_tag(getconf,
+    lookup_interactivity interactivity_getconf interactivity_name
+    interactivity_seen interactivity_seen
+);
+
+taperscan_t *lookup_taperscan(char *identifier);
+val_t *taperscan_getconf(taperscan_t *app, taperscan_key key);
+char *taperscan_name(taperscan_t *app);
+gboolean taperscan_seen(taperscan_t *app, taperscan_key key);
+amglue_export_tag(getconf,
+    lookup_taperscan taperscan_getconf taperscan_name
+    taperscan_seen taperscan_seen
 );
 
 %perlcode %{

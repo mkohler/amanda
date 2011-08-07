@@ -110,6 +110,8 @@ sub DESTROY {
 *swig_totalparts_set = *Amanda::Logfilec::find_result_t_totalparts_set;
 *swig_sec_get = *Amanda::Logfilec::find_result_t_sec_get;
 *swig_sec_set = *Amanda::Logfilec::find_result_t_sec_set;
+*swig_bytes_get = *Amanda::Logfilec::find_result_t_bytes_get;
+*swig_bytes_set = *Amanda::Logfilec::find_result_t_bytes_set;
 *swig_kb_get = *Amanda::Logfilec::find_result_t_kb_get;
 *swig_kb_set = *Amanda::Logfilec::find_result_t_kb_set;
 *swig_orig_kb_get = *Amanda::Logfilec::find_result_t_orig_kb_get;
@@ -672,9 +674,9 @@ sub make_stats {
     my $kps = "$kb.0"/$duration; # Perlish cast from BigInt to float
 
     if (defined $orig_kb) {
-	return sprintf("[sec %f kb %d kps %f orig-kb %d]", $duration, $kb, $kps, $orig_kb);
+	return sprintf("[sec %f bytes %s kps %f orig-kb %s]", $duration, $size, $kps, $orig_kb);
     } else {
-	return sprintf("[sec %f kb %d kps %f]", $duration, $kb, $kps);
+	return sprintf("[sec %f bytes %s kps %f]", $duration, $size, $kps);
     }
 }
 

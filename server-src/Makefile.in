@@ -190,8 +190,7 @@ DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(top_srcdir)/config/automake/scripts.am \
 	$(top_srcdir)/config/automake/vars.am
 @WANT_INSTALLPERMS_FALSE@am__append_1 = $(installperms_sh)
-sbin_PROGRAMS = amadmin$(EXEEXT) amcheck$(EXEEXT) amflush$(EXEEXT) \
-	amservice$(EXEEXT)
+sbin_PROGRAMS = amadmin$(EXEEXT) amcheck$(EXEEXT) amflush$(EXEEXT)
 amlibexec_PROGRAMS = amindexd$(EXEEXT) amtrmidx$(EXEEXT) \
 	amtrmlog$(EXEEXT) driver$(EXEEXT) dumper$(EXEEXT) \
 	planner$(EXEEXT) amcleanupdisk$(EXEEXT) chunker$(EXEEXT)
@@ -216,6 +215,7 @@ am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/macro-archive/docbook-xslt.m4 \
 	$(top_srcdir)/config/macro-archive/xsltproc.m4 \
 	$(top_srcdir)/config/amanda/amplot.m4 \
+	$(top_srcdir)/config/amanda/as_needed.m4 \
 	$(top_srcdir)/config/amanda/bsd-security.m4 \
 	$(top_srcdir)/config/amanda/bsdtcp-security.m4 \
 	$(top_srcdir)/config/amanda/bsdudp-security.m4 \
@@ -420,11 +420,6 @@ am__objects_1 = amindexd.$(OBJEXT) disk_history.$(OBJEXT) \
 am_amindexd_OBJECTS = $(am__objects_1)
 amindexd_OBJECTS = $(am_amindexd_OBJECTS)
 amindexd_DEPENDENCIES = $(LDADD) ../amandad-src/libamandad.la
-amservice_SOURCES = amservice.c
-amservice_OBJECTS = amservice.$(OBJEXT)
-amservice_LDADD = $(LDADD)
-amservice_DEPENDENCIES = ../common-src/libamanda.la libamserver.la \
-	../device-src/libamdevice.la ../common-src/libamanda.la
 amtrmidx_SOURCES = amtrmidx.c
 amtrmidx_OBJECTS = amtrmidx.$(OBJEXT)
 amtrmidx_LDADD = $(LDADD)
@@ -480,13 +475,13 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
 SOURCES = $(libamserver_la_SOURCES) amadmin.c amcheck.c \
-	amcleanupdisk.c amflush.c $(amindexd_SOURCES) amservice.c \
-	amtrmidx.c amtrmlog.c chunker.c $(diskfile_SOURCES) driver.c \
-	dumper.c $(infofile_SOURCES) planner.c
+	amcleanupdisk.c amflush.c $(amindexd_SOURCES) amtrmidx.c \
+	amtrmlog.c chunker.c $(diskfile_SOURCES) driver.c dumper.c \
+	$(infofile_SOURCES) planner.c
 DIST_SOURCES = $(libamserver_la_SOURCES) amadmin.c amcheck.c \
-	amcleanupdisk.c amflush.c $(amindexd_SOURCES) amservice.c \
-	amtrmidx.c amtrmlog.c chunker.c $(diskfile_SOURCES) driver.c \
-	dumper.c $(infofile_SOURCES) planner.c
+	amcleanupdisk.c amflush.c $(amindexd_SOURCES) amtrmidx.c \
+	amtrmlog.c chunker.c $(diskfile_SOURCES) driver.c dumper.c \
+	$(infofile_SOURCES) planner.c
 HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
@@ -514,6 +509,7 @@ APPLICATION_DIR = @APPLICATION_DIR@
 AR = @AR@
 ASM_SYMBOL_PREFIX = @ASM_SYMBOL_PREFIX@
 ASSERTIONS = @ASSERTIONS@
+AS_NEEDED_FLAGS = @AS_NEEDED_FLAGS@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
@@ -987,6 +983,7 @@ LTLIBTHREAD = @LTLIBTHREAD@
 MAILER = @MAILER@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
+MOUNT = @MOUNT@
 MSGFMT = @MSGFMT@
 MSGFMT_015 = @MSGFMT_015@
 MSGMERGE = @MSGMERGE@
@@ -1184,6 +1181,7 @@ STDBOOL_H = @STDBOOL_H@
 STDDEF_H = @STDDEF_H@
 STDINT_H = @STDINT_H@
 STRIP = @STRIP@
+SUNTAR = @SUNTAR@
 SVN = @SVN@
 SWIG = @SWIG@
 SWIG_LIB = @SWIG_LIB@
@@ -1191,6 +1189,7 @@ SYS_TIME_H_DEFINES_STRUCT_TIMESPEC = @SYS_TIME_H_DEFINES_STRUCT_TIMESPEC@
 TCPPORTRANGE = @TCPPORTRANGE@
 TIME_H_DEFINES_STRUCT_TIMESPEC = @TIME_H_DEFINES_STRUCT_TIMESPEC@
 UDPPORTRANGE = @UDPPORTRANGE@
+UMOUNT = @UMOUNT@
 UNCOMPRESS_OPT = @UNCOMPRESS_OPT@
 UNCOMPRESS_PATH = @UNCOMPRESS_PATH@
 UNDEFINE_STRTOK_R = @UNDEFINE_STRTOK_R@
@@ -1338,11 +1337,11 @@ INCLUDES = -I$(top_builddir)/common-src \
 		-I$(top_srcdir)/gnulib
 
 AM_CFLAGS = $(AMANDA_WARNING_CFLAGS)
-AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
+AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS) $(AS_NEEDED_FLAGS)
 LINT = $(AMLINT)
 LINTFLAGS = $(AMLINTFLAGS)
 amlib_LTLIBRARIES = libamserver.la
-amlibexec_SCRIPTS_PERL = amlogroll taper amcheck-device \
+amlibexec_SCRIPTS_PERL = amlogroll amdumpd taper amcheck-device \
 	$(am__append_2)
 sbin_SCRIPTS_PERL = amaddclient amoverview amserverconfig amtoc \
 	amcheckdump amcleanup amrmtape amlabel amreport amtape amvault \
@@ -1356,7 +1355,7 @@ sbin_SCRIPTS = $(sbin_SCRIPTS_PERL) $(sbin_SCRIPTS_SHELL)
 amlibexec_SCRIPTS = $(amlibexec_SCRIPTS_PERL) $(amlibexec_SCRIPTS_SHELL)
 INSTALLPERMS_exec = \
 	dest=$(sbindir) chown=root:setuid chmod=04750 \
-		amcheck amservice \
+		amcheck \
 	dest=$(amlibexecdir) \
 		dumper planner
 
@@ -1378,7 +1377,7 @@ libamserver_la_SOURCES = amindex.c	\
 			tapefile.c	find.c		server_util.c   \
                         xfer-source-holding.c
 
-libamserver_la_LDFLAGS = -release $(VERSION)
+libamserver_la_LDFLAGS = -release $(VERSION) $(AS_NEEDED_FLAGS)
 libamserver_la_LIBADD = ../device-src/libamdevice.la \
 		       ../common-src/libamanda.la
 
@@ -1567,9 +1566,6 @@ amflush$(EXEEXT): $(amflush_OBJECTS) $(amflush_DEPENDENCIES)
 amindexd$(EXEEXT): $(amindexd_OBJECTS) $(amindexd_DEPENDENCIES) 
 	@rm -f amindexd$(EXEEXT)
 	$(LINK) $(amindexd_OBJECTS) $(amindexd_LDADD) $(LIBS)
-amservice$(EXEEXT): $(amservice_OBJECTS) $(amservice_DEPENDENCIES) 
-	@rm -f amservice$(EXEEXT)
-	$(LINK) $(amservice_OBJECTS) $(amservice_LDADD) $(LIBS)
 amtrmidx$(EXEEXT): $(amtrmidx_OBJECTS) $(amtrmidx_DEPENDENCIES) 
 	@rm -f amtrmidx$(EXEEXT)
 	$(LINK) $(amtrmidx_OBJECTS) $(amtrmidx_LDADD) $(LIBS)
@@ -1675,7 +1671,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amflush.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amindex.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amindexd.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amservice.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amtrmidx.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/amtrmlog.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chunker.Po@am__quote@

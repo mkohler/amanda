@@ -195,6 +195,9 @@ package Amanda::Feature;
 *fe_amidxtaped_abort = *Amanda::Featurec::fe_amidxtaped_abort;
 *fe_amrecover_correct_disk_quoting = *Amanda::Featurec::fe_amrecover_correct_disk_quoting;
 *fe_amindexd_quote_label = *Amanda::Featurec::fe_amindexd_quote_label;
+*fe_amrecover_receive_unfiltered = *Amanda::Featurec::fe_amrecover_receive_unfiltered;
+*fe_application_client_name = *Amanda::Featurec::fe_application_client_name;
+*fe_script_client_name = *Amanda::Featurec::fe_script_client_name;
 *last_feature = *Amanda::Featurec::last_feature;
 
 @EXPORT_OK = ();
@@ -414,6 +417,13 @@ those DISK lines should be ignored.
  FEATURE OF: server
 
 If set, amindexd quote the label (holdingdisk filename)
+
+=item fe_amrecover_receive_unfiltered
+
+ PROTOCOL: amidxtaped
+ FEATURE OF: client
+
+If set, amidxtaped do not decompress/decrypt client compressed/decrypted stream.
 
 =back
 

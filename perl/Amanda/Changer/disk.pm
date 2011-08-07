@@ -25,7 +25,8 @@ use vars qw( @ISA );
 
 use File::Glob qw( :glob );
 use File::Path;
-use Amanda::Config qw( :getconf );
+use File::Basename;
+use Amanda::Config qw( :getconf string_to_boolean );
 use Amanda::Debug;
 use Amanda::Changer;
 use Amanda::MainLoop;
@@ -80,11 +81,7 @@ sub new {
     my $class = shift;
     my ($config, $tpchanger) = @_;
     my ($dir) = ($tpchanger =~ /chg-disk:(.*)/);
-
-    unless (-d $dir) {
-	return Amanda::Changer->make_error("fatal", undef,
-	    message => "directory '$dir' does not exist");
-    }
+    my $properties = $config->{'properties'};
 
     # note that we don't track outstanding Reservation objects -- we know
     # they're gone when they delete their drive directory
@@ -93,13 +90,46 @@ sub new {
 	config => $config,
 	state_filename => "$dir/state",
 
+	# list of all reservations
+	reservation => {},
+
 	# this is set to 0 by various test scripts,
 	# notably Amanda_Taper_Scan_traditional
 	support_fast_search => 1,
     };
 
     bless ($self, $class);
+
+    $self->{'num-slot'} = $config->get_property('num-slot');
+    $self->{'auto-create-slot'} = $config->get_boolean_property(
+					'auto-create-slot', 0);
+    $self->{'removable'} = $config->get_boolean_property('removable', 0);
+    $self->{'mount'} = $config->get_boolean_property('mount', 0);
+    $self->{'umount'} = $config->get_boolean_property('umount', 0);
+    $self->{'umount_lockfile'} = $config->get_property('umount-lockfile');
+    $self->{'umount_idle'} = $config->get_property('umount-idle');
+    if (defined $self->{'umount_lockfile'}) {
+	$self->{'fl'} = Amanda::Util::file_lock->new($self->{'umount_lockfile'})
+    }
+
+    $self->_validate();
+    return $self->{'fatal_error'} if defined $self->{'fatal_error'};
+
     return $self;
+}
+
+sub DESTROY {
+    my $self = shift;
+
+    $self->SUPER::DESTROY();
+}
+
+sub quit {
+    my $self = shift;
+
+    $self->force_unlock();
+    delete $self->{'fl'};
+    $self->SUPER::quit();
 }
 
 sub load {
@@ -112,8 +142,7 @@ sub load {
 
     return if $self->check_error($params{'res_cb'});
 
-    $self->with_locked_state($self->{'state_filename'},
-				     $params{'res_cb'}, sub {
+    $self->with_disk_locked_state($params{'res_cb'}, sub {
 	my ($state, $res_cb) = @_;
 	$params{'state'} = $state;
 
@@ -132,21 +161,34 @@ sub info_key {
     my $self = shift;
     my ($key, %params) = @_;
     my %results;
+    my $info_cb = $params{'info_cb'};
 
-    return if $self->check_error($params{'info_cb'});
+    return if $self->check_error($info_cb);
 
-    # no need for synchronization -- all of these values are static
+    my $steps = define_steps
+	cb_ref => \$info_cb;
 
-    if ($key eq 'num_slots') {
-	my @slots = $self->_all_slots();
-	$results{$key} = scalar @slots;
-    } elsif ($key eq 'vendor_string') {
-	$results{$key} = 'chg-disk'; # mostly just for testing
-    } elsif ($key eq 'fast_search') {
-	$results{$key} = $self->{'support_fast_search'};
+    step init => sub {
+	$self->try_lock($steps->{'locked'});
+    };
+
+    step locked => sub {
+	return if $self->check_error($info_cb);
+
+	# no need for synchronization -- all of these values are static
+
+	if ($key eq 'num_slots') {
+	    my @slots = $self->_all_slots();
+	    $results{$key} = scalar @slots;
+	} elsif ($key eq 'vendor_string') {
+	    $results{$key} = 'chg-disk'; # mostly just for testing
+	} elsif ($key eq 'fast_search') {
+	    $results{$key} = $self->{'support_fast_search'};
+	}
+
+	$self->try_unlock();
+	$info_cb->(undef, %results) if $info_cb;
     }
-
-    $params{'info_cb'}->(undef, %results) if $params{'info_cb'};
 }
 
 sub reset {
@@ -157,8 +199,7 @@ sub reset {
 
     return if $self->check_error($params{'finished_cb'});
 
-    $self->with_locked_state($self->{'state_filename'},
-				     $params{'finished_cb'}, sub {
+    $self->with_disk_locked_state($params{'finished_cb'}, sub {
 	my ($state, $finished_cb) = @_;
 
 	$slot = (scalar @slots)? $slots[0] : 0;
@@ -174,13 +215,11 @@ sub inventory {
 
     return if $self->check_error($params{'inventory_cb'});
 
-    my @slots = $self->_all_slots();
-
-    $self->with_locked_state($self->{'state_filename'},
-			     $params{'inventory_cb'}, sub {
+    $self->with_disk_locked_state($params{'inventory_cb'}, sub {
 	my ($state, $finished_cb) = @_;
 	my @inventory;
 
+	my @slots = $self->_all_slots();
 	my $current = $self->_get_current();
 	for my $slot (@slots) {
 	    my $s = { slot => $slot, state => Amanda::Changer::SLOT_FULL };
@@ -199,6 +238,54 @@ sub inventory {
 	    push @inventory, $s;
 	}
 	$finished_cb->(undef, \@inventory);
+    });
+}
+
+sub set_meta_label {
+    my $self = shift;
+    my %params = @_;
+
+    return if $self->check_error($params{'finished_cb'});
+
+    $self->with_disk_locked_state($params{'finished_cb'}, sub {
+	my ($state, $finished_cb) = @_;
+
+	$state->{'meta'} = $params{'meta'};
+	$finished_cb->(undef);
+    });
+}
+
+sub with_disk_locked_state {
+    my $self = shift;
+    my ($cb, $sub) = @_;
+
+    my $steps = define_steps
+	cb_ref => \$cb;
+
+    step init => sub {
+	$self->try_lock($steps->{'locked'});
+    };
+
+    step locked => sub {
+	$self->with_locked_state($self->{'state_filename'},
+	    sub { my @args = @_;
+		  $self->try_unlock();
+		  $cb->(@args);
+		},
+	    $sub);
+    };
+}
+
+sub get_meta_label {
+    my $self = shift;
+    my %params = @_;
+
+    return if $self->check_error($params{'finished_cb'});
+
+    $self->with_disk_locked_state($params{'finished_cb'}, sub {
+	my ($state, $finished_cb) = @_;
+
+	$finished_cb->(undef, $state->{'meta'});
     });
 }
 
@@ -487,7 +574,7 @@ sub _set_current {
     my ($self, $slot) = @_;
     my $curlink = $self->{'dir'} . "/data";
 
-    if (-e $curlink) {
+    if (-l $curlink or -e $curlink) {
         unlink($curlink)
             or warn("Could not unlink '$curlink'");
     }
@@ -501,6 +588,172 @@ sub _quote_glob {
     my ($filename) = @_;
     $filename =~ s/([]{}\\?*[])/\\$1/g;
     return $filename;
+}
+
+sub _validate() {
+    my $self = shift;
+    my $dir = $self->{'dir'};
+
+    unless (-d $dir) {
+	$self->{'fatal_error'} = Amanda::Changer->make_error("fatal", undef,
+	    message => "directory '$dir' does not exist");
+	return;
+    }
+
+    if ($self->{'removable'}) {
+	my ($dev, $ino) = stat $dir;
+	my $parentdir = dirname $dir;
+	my ($pdev, $pino) = stat $parentdir;
+	if ($dev == $pdev) {
+	    if ($self->{'mount'}) {
+		system $Amanda::Constants::MOUNT, $dir;
+		($dev, $ino) = stat $dir;
+	    }
+	}
+	if ($dev == $pdev) {
+	    $self->{'fatal_error'} = Amanda::Changer->make_error("fatal", undef,
+		message => "No removable disk mounted on '$dir'");
+	    return;
+	}
+    }
+
+    if ($self->{'num-slot'}) {
+	for my $i (1..$self->{'num-slot'}) {
+	    my $slot_dir = "$dir/slot$i";
+	    if (!-e $slot_dir) {
+		if ($self->{'auto-create-slot'}) {
+		    if (!mkdir ($slot_dir)) {
+			$self->{'fatal_error'} = Amanda::Changer->make_error("fatal", undef,
+			    message => "Can't create '$slot_dir': $!");
+			return;
+		    }
+		} else {
+		    $self->{'fatal_error'} = Amanda::Changer->make_error("fatal", undef,
+			message => "slot $i doesn't exists '$slot_dir'");
+		    return;
+		}
+	    }
+	}
+    } else {
+	if ($self->{'auto-create-slot'}) {
+	    $self->{'fatal_error'} = Amanda::Changer->make_error("fatal", undef,
+		message => "property 'auto-create-slot' set but property 'num-slot' is not set");
+	    return;
+	}
+    }
+}
+
+sub try_lock {
+    my $self = shift;
+    my $cb = shift;
+    my $poll = 0; # first delay will be 0.1s; see below
+
+    my $steps = define_steps
+	cb_ref => \$cb;
+
+    step init => sub {
+	if ($self->{'mount'} && defined $self->{'fl'} &&
+	    !$self->{'fl'}->locked()) {
+	    return $steps->{'lock'}->();
+	}
+	$steps->{'done'}->();
+    };
+
+    step lock => sub {
+	my $rv = $self->{'fl'}->lock_rd();
+	if ($rv == 1) {
+	    # loop until we get the lock, increasing $poll to 10s
+	    $poll += 100 unless $poll >= 10000;
+	    return Amanda::MainLoop::call_after($poll, $steps->{'lock'});
+	} elsif ($rv == -1) {
+	    return $self->make_error("fatal", $cb,
+		message => "Error locking '$self->{'umount_lockfile'}'");
+	} elsif ($rv == 0) {
+	    if (defined $self->{'umount_src'}) {
+		$self->{'umount_src'}->remove();
+		$self->{'umount_src'} = undef;
+	    }
+	    return $steps->{'done'}->();
+	}
+    };
+
+    step done => sub {
+	$self->_validate();
+	$cb->();
+    };
+
+}
+
+sub try_umount {
+    my $self = shift;
+
+    my $dir = $self->{'dir'};
+    if ($self->{'removable'} && $self->{'umount'}) {
+	my ($dev, $ino) = stat $dir;
+	my $parentdir = dirname $dir;
+	my ($pdev, $pino) = stat $parentdir;
+	if ($dev != $pdev) {
+	    system $Amanda::Constants::UMOUNT, $dir;
+	}
+    }
+}
+
+sub force_unlock {
+    my $self = shift;
+
+    if (keys( %{$self->{'reservation'}}) == 0 ) {
+	if ($self->{'fl'}) {
+	    if ($self->{'fl'}->locked()) {
+		$self->{'fl'}->unlock();
+	    }
+	    if ($self->{'umount'}) {
+		if (defined $self->{'umount_src'}) {
+		    $self->{'umount_src'}->remove();
+		    $self->{'umount_src'} = undef;
+		}
+		if ($self->{'fl'}->lock_wr() == 0) {
+		    $self->try_umount();
+		    $self->{'fl'}->unlock();
+		}
+	    }
+	}
+    }
+}
+
+sub try_unlock {
+    my $self = shift;
+
+    my $do_umount = sub {
+	local $?;
+
+	$self->{'umount_src'} = undef;
+	if ($self->{'fl'}->lock_wr() == 0) {
+	    $self->try_umount();
+	    $self->{'fl'}->unlock();
+	}
+    };
+
+    if (defined $self->{'umount_idle'}) {
+	if ($self->{'umount_idle'} == 0) {
+	    return $self->force_unlock();
+	}
+	if (defined $self->{'fl'}) {
+	    if (keys( %{$self->{'reservation'}}) == 0 ) {
+		if ($self->{'fl'}->locked()) {
+		    $self->{'fl'}->unlock();
+		}
+		if ($self->{'umount'}) {
+		    if (defined $self->{'umount_src'}) {
+			$self->{'umount_src'}->remove();
+			$self->{'umount_src'} = undef;
+		    }
+		    $self->{'umount_src'} = Amanda::MainLoop::call_after(
+						0+$self->{'umount_idle'},
+						$do_umount);
+		}
+	    }
+	}
+    }
 }
 
 package Amanda::Changer::disk::Reservation;
@@ -518,6 +771,7 @@ sub new {
     $self->{'device'} = $device;
     $self->{'this_slot'} = $slot;
 
+    $self->{'chg'}->{'reservation'}->{$slot} += 1;
     return $self;
 }
 
@@ -533,19 +787,46 @@ sub do_release {
 
     # unref the device, for good measure
     $self->{'device'} = undef;
+    my $slot = $self->{'this_slot'};
+
+    my $finish = sub {
+	$self->{'chg'}->{'reservation'}->{$slot} -= 1;
+	delete $self->{'chg'}->{'reservation'}->{$slot} if
+		$self->{'chg'}->{'reservation'}->{$slot} == 0;
+	$self->{'chg'}->try_unlock();
+	delete $self->{'chg'};
+	$self = undef;
+	return $params{'finished_cb'}->();
+    };
 
     if (exists $params{'unlocked'}) {
         my $state = $params{state};
 	delete $state->{drives}->{$drive}->{pid};
-        return $params{'finished_cb'}->();
+	return $finish->();
     }
 
     $self->{chg}->with_locked_state($self->{chg}->{'state_filename'},
-				    $params{'finished_cb'}, sub {
+				    $finish, sub {
 	my ($state, $finished_cb) = @_;
 
 	delete $state->{drives}->{$drive}->{pid};
 
 	$finished_cb->();
     });
+}
+
+sub get_meta_label {
+    my $self = shift;
+    my %params = @_;
+
+    $params{'slot'} = $self->{'this_slot'};
+    $self->{'chg'}->get_meta_label(%params);
+}
+
+sub set_meta_label {
+    my $self = shift;
+    my %params = @_;
+
+    $params{'slot'} = $self->{'this_slot'};
+    $self->{'chg'}->set_meta_label(%params);
 }

@@ -104,6 +104,8 @@ write_tapelist(
 	else g_fprintf(tapef, " no-reuse");
 	if (tp->barcode)
 	    g_fprintf(tapef, " BARCODE:%s", tp->barcode);
+	if (tp->meta)
+	    g_fprintf(tapef, " META:%s", tp->meta);
 	if (tp->comment)
 	    g_fprintf(tapef, " #%s", tp->comment);
 	g_fprintf(tapef, "\n");
@@ -398,6 +400,7 @@ parse_tapeline(
 	s[-1] = '\0';
 	skip_whitespace(s, ch);
     }
+
     if (strncmp_const(s - 1, "BARCODE:") == 0) {
 	s1 = s - 1 + 8;
 	skip_non_whitespace(s, ch);
@@ -408,6 +411,15 @@ parse_tapeline(
 	tp->barcode = NULL;
     }
 
+    if (strncmp_const(s - 1, "META:") == 0) {
+	s1 = s - 1 + 5;
+	skip_non_whitespace(s, ch);
+	s[-1] = '\0';
+	skip_whitespace(s, ch);
+	tp->meta = stralloc(s1);
+    } else {
+	tp->meta = NULL;
+    }
 
     if (*(s - 1) == '#') {
 	tp->comment = stralloc(s); /* skip leading '#' */

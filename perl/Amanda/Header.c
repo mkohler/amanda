@@ -1477,16 +1477,25 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 
 /* -------- TYPES TABLE (BEGIN) -------- */
 
-#define SWIGTYPE_p_a_STRMAX__char swig_types[0]
-#define SWIGTYPE_p_char swig_types[1]
-#define SWIGTYPE_p_double swig_types[2]
-#define SWIGTYPE_p_dumpfile_t swig_types[3]
-#define SWIGTYPE_p_float swig_types[4]
-#define SWIGTYPE_p_int swig_types[5]
-#define SWIGTYPE_p_off_t swig_types[6]
-#define SWIGTYPE_p_unsigned_char swig_types[7]
-static swig_type_info *swig_types[9];
-static swig_module_info swig_module = {swig_types, 8, 0, 0, 0, 0};
+#define SWIGTYPE_p_GSList swig_types[0]
+#define SWIGTYPE_p_a_STRMAX__char swig_types[1]
+#define SWIGTYPE_p_a_dle_s swig_types[2]
+#define SWIGTYPE_p_char swig_types[3]
+#define SWIGTYPE_p_data_path_t swig_types[4]
+#define SWIGTYPE_p_dle_t swig_types[5]
+#define SWIGTYPE_p_double swig_types[6]
+#define SWIGTYPE_p_dumpfile_t swig_types[7]
+#define SWIGTYPE_p_estimatelist_t swig_types[8]
+#define SWIGTYPE_p_float swig_types[9]
+#define SWIGTYPE_p_int swig_types[10]
+#define SWIGTYPE_p_levellist_t swig_types[11]
+#define SWIGTYPE_p_off_t swig_types[12]
+#define SWIGTYPE_p_proplist_t swig_types[13]
+#define SWIGTYPE_p_scriptlist_t swig_types[14]
+#define SWIGTYPE_p_sl_t swig_types[15]
+#define SWIGTYPE_p_unsigned_char swig_types[16]
+static swig_type_info *swig_types[18];
+static swig_module_info swig_module = {swig_types, 17, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1867,6 +1876,17 @@ static dumpfile_t *C_from_string(const char *string) {
     return result;
 }
 
+
+#include "amxml.h"
+
+SWIGINTERN dle_t *new_dle_t(char *dle_str){
+	    char  *errmsg = NULL;
+	    dle_t *dle;
+	    dle = amxml_parse_node_CHAR(dle_str, &errmsg);
+	    amfree(errmsg);
+	    
+	    return dle;
+	}
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -4172,46 +4192,2412 @@ XS(_wrap_C_from_string) {
 }
 
 
+XS(_wrap_HeaderXML_disk_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    char *arg2 = (char *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_disk_set(self,disk);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_disk_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_disk_set" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    if (arg1->disk) free((char*)arg1->disk);
+    if (arg2) {
+      size_t size = strlen((const char *)(arg2)) + 1;
+      arg1->disk = (char *)(char *)memcpy((char *)malloc((size)*sizeof(char)), (const char *)(arg2), sizeof(char)*(size));
+    } else {
+      arg1->disk = 0;
+    }
+    ST(argvi) = sv_newmortal();
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_disk_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_disk_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_disk_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (char *) ((arg1)->disk);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_device_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    char *arg2 = (char *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_device_set(self,device);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_device_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_device_set" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    if (arg1->device) free((char*)arg1->device);
+    if (arg2) {
+      size_t size = strlen((const char *)(arg2)) + 1;
+      arg1->device = (char *)(char *)memcpy((char *)malloc((size)*sizeof(char)), (const char *)(arg2), sizeof(char)*(size));
+    } else {
+      arg1->device = 0;
+    }
+    ST(argvi) = sv_newmortal();
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_device_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_device_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_device_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (char *) ((arg1)->device);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_program_is_application_api_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    int arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_program_is_application_api_set(self,program_is_application_api);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_program_is_application_api_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    if (arg1) (arg1)->program_is_application_api = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_program_is_application_api_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_program_is_application_api_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_program_is_application_api_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (int) ((arg1)->program_is_application_api);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_program_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    char *arg2 = (char *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_program_set(self,program);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_program_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_program_set" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    if (arg1->program) free((char*)arg1->program);
+    if (arg2) {
+      size_t size = strlen((const char *)(arg2)) + 1;
+      arg1->program = (char *)(char *)memcpy((char *)malloc((size)*sizeof(char)), (const char *)(arg2), sizeof(char)*(size));
+    } else {
+      arg1->program = 0;
+    }
+    ST(argvi) = sv_newmortal();
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_program_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_program_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_program_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (char *) ((arg1)->program);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_estimatelist_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    estimatelist_t arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    void *argp2 ;
+    int res2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_estimatelist_set(self,estimatelist);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_estimatelist_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      res2 = SWIG_ConvertPtr(ST(1), &argp2, SWIGTYPE_p_estimatelist_t,  0 );
+      if (!SWIG_IsOK(res2)) {
+        SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_estimatelist_set" "', argument " "2"" of type '" "estimatelist_t""'"); 
+      }  
+      if (!argp2) {
+        SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "HeaderXML_estimatelist_set" "', argument " "2"" of type '" "estimatelist_t""'");
+      } else {
+        arg2 = *((estimatelist_t *)(argp2));
+      }
+    }
+    if (arg1) (arg1)->estimatelist = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_estimatelist_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    estimatelist_t result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_estimatelist_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_estimatelist_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result =  ((arg1)->estimatelist);
+    ST(argvi) = SWIG_NewPointerObj((estimatelist_t *)memcpy((estimatelist_t *)malloc(sizeof(estimatelist_t)),&result,sizeof(estimatelist_t)), SWIGTYPE_p_estimatelist_t, SWIG_POINTER_OWN | 0); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_spindle_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    int arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_spindle_set(self,spindle);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_spindle_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    if (arg1) (arg1)->spindle = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_spindle_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_spindle_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_spindle_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (int) ((arg1)->spindle);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_compress_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    int arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_compress_set(self,compress);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_compress_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    if (arg1) (arg1)->compress = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_compress_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_compress_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_compress_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (int) ((arg1)->compress);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_encrypt_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    int arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_encrypt_set(self,encrypt);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_encrypt_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    if (arg1) (arg1)->encrypt = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_encrypt_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_encrypt_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_encrypt_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (int) ((arg1)->encrypt);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_kencrypt_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    int arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_kencrypt_set(self,kencrypt);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_kencrypt_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    if (arg1) (arg1)->kencrypt = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_kencrypt_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_kencrypt_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_kencrypt_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (int) ((arg1)->kencrypt);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_levellist_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    levellist_t arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    void *argp2 ;
+    int res2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_levellist_set(self,levellist);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_levellist_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      res2 = SWIG_ConvertPtr(ST(1), &argp2, SWIGTYPE_p_levellist_t,  0 );
+      if (!SWIG_IsOK(res2)) {
+        SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_levellist_set" "', argument " "2"" of type '" "levellist_t""'"); 
+      }  
+      if (!argp2) {
+        SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "HeaderXML_levellist_set" "', argument " "2"" of type '" "levellist_t""'");
+      } else {
+        arg2 = *((levellist_t *)(argp2));
+      }
+    }
+    if (arg1) (arg1)->levellist = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_levellist_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    levellist_t result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_levellist_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_levellist_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result =  ((arg1)->levellist);
+    ST(argvi) = SWIG_NewPointerObj((levellist_t *)memcpy((levellist_t *)malloc(sizeof(levellist_t)),&result,sizeof(levellist_t)), SWIGTYPE_p_levellist_t, SWIG_POINTER_OWN | 0); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_nb_level_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    int arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_nb_level_set(self,nb_level);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_nb_level_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    if (arg1) (arg1)->nb_level = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_nb_level_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_nb_level_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_nb_level_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (int) ((arg1)->nb_level);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_dumpdate_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    char *arg2 = (char *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_dumpdate_set(self,dumpdate);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_dumpdate_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_dumpdate_set" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    if (arg1->dumpdate) free((char*)arg1->dumpdate);
+    if (arg2) {
+      size_t size = strlen((const char *)(arg2)) + 1;
+      arg1->dumpdate = (char *)(char *)memcpy((char *)malloc((size)*sizeof(char)), (const char *)(arg2), sizeof(char)*(size));
+    } else {
+      arg1->dumpdate = 0;
+    }
+    ST(argvi) = sv_newmortal();
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_dumpdate_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_dumpdate_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_dumpdate_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (char *) ((arg1)->dumpdate);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_compprog_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    char *arg2 = (char *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_compprog_set(self,compprog);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_compprog_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_compprog_set" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    if (arg1->compprog) free((char*)arg1->compprog);
+    if (arg2) {
+      size_t size = strlen((const char *)(arg2)) + 1;
+      arg1->compprog = (char *)(char *)memcpy((char *)malloc((size)*sizeof(char)), (const char *)(arg2), sizeof(char)*(size));
+    } else {
+      arg1->compprog = 0;
+    }
+    ST(argvi) = sv_newmortal();
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_compprog_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_compprog_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_compprog_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (char *) ((arg1)->compprog);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_srv_encrypt_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    char *arg2 = (char *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_srv_encrypt_set(self,srv_encrypt);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_srv_encrypt_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_srv_encrypt_set" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    if (arg1->srv_encrypt) free((char*)arg1->srv_encrypt);
+    if (arg2) {
+      size_t size = strlen((const char *)(arg2)) + 1;
+      arg1->srv_encrypt = (char *)(char *)memcpy((char *)malloc((size)*sizeof(char)), (const char *)(arg2), sizeof(char)*(size));
+    } else {
+      arg1->srv_encrypt = 0;
+    }
+    ST(argvi) = sv_newmortal();
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_srv_encrypt_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_srv_encrypt_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_srv_encrypt_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (char *) ((arg1)->srv_encrypt);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_clnt_encrypt_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    char *arg2 = (char *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_clnt_encrypt_set(self,clnt_encrypt);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_clnt_encrypt_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_clnt_encrypt_set" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    if (arg1->clnt_encrypt) free((char*)arg1->clnt_encrypt);
+    if (arg2) {
+      size_t size = strlen((const char *)(arg2)) + 1;
+      arg1->clnt_encrypt = (char *)(char *)memcpy((char *)malloc((size)*sizeof(char)), (const char *)(arg2), sizeof(char)*(size));
+    } else {
+      arg1->clnt_encrypt = 0;
+    }
+    ST(argvi) = sv_newmortal();
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_clnt_encrypt_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_clnt_encrypt_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_clnt_encrypt_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (char *) ((arg1)->clnt_encrypt);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_srv_decrypt_opt_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    char *arg2 = (char *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_srv_decrypt_opt_set(self,srv_decrypt_opt);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_srv_decrypt_opt_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_srv_decrypt_opt_set" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    if (arg1->srv_decrypt_opt) free((char*)arg1->srv_decrypt_opt);
+    if (arg2) {
+      size_t size = strlen((const char *)(arg2)) + 1;
+      arg1->srv_decrypt_opt = (char *)(char *)memcpy((char *)malloc((size)*sizeof(char)), (const char *)(arg2), sizeof(char)*(size));
+    } else {
+      arg1->srv_decrypt_opt = 0;
+    }
+    ST(argvi) = sv_newmortal();
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_srv_decrypt_opt_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_srv_decrypt_opt_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_srv_decrypt_opt_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (char *) ((arg1)->srv_decrypt_opt);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_clnt_decrypt_opt_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    char *arg2 = (char *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_clnt_decrypt_opt_set(self,clnt_decrypt_opt);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_clnt_decrypt_opt_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_clnt_decrypt_opt_set" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    if (arg1->clnt_decrypt_opt) free((char*)arg1->clnt_decrypt_opt);
+    if (arg2) {
+      size_t size = strlen((const char *)(arg2)) + 1;
+      arg1->clnt_decrypt_opt = (char *)(char *)memcpy((char *)malloc((size)*sizeof(char)), (const char *)(arg2), sizeof(char)*(size));
+    } else {
+      arg1->clnt_decrypt_opt = 0;
+    }
+    ST(argvi) = sv_newmortal();
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_clnt_decrypt_opt_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_clnt_decrypt_opt_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_clnt_decrypt_opt_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (char *) ((arg1)->clnt_decrypt_opt);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_record_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    int arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_record_set(self,record);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_record_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    if (arg1) (arg1)->record = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_record_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_record_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_record_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (int) ((arg1)->record);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_create_index_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    int arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_create_index_set(self,create_index);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_create_index_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    if (arg1) (arg1)->create_index = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_create_index_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_create_index_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_create_index_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (int) ((arg1)->create_index);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_auth_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    char *arg2 = (char *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int res2 ;
+    char *buf2 = 0 ;
+    int alloc2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_auth_set(self,auth);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_auth_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_AsCharPtrAndSize(ST(1), &buf2, NULL, &alloc2);
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_auth_set" "', argument " "2"" of type '" "char *""'");
+    }
+    arg2 = (char *)(buf2);
+    if (arg1->auth) free((char*)arg1->auth);
+    if (arg2) {
+      size_t size = strlen((const char *)(arg2)) + 1;
+      arg1->auth = (char *)(char *)memcpy((char *)malloc((size)*sizeof(char)), (const char *)(arg2), sizeof(char)*(size));
+    } else {
+      arg1->auth = 0;
+    }
+    ST(argvi) = sv_newmortal();
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    XSRETURN(argvi);
+  fail:
+    
+    if (alloc2 == SWIG_NEWOBJ) free((char*)buf2);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_auth_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    char *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_auth_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_auth_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (char *) ((arg1)->auth);
+    ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_exclude_file_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    sl_t *arg2 = (sl_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    void *argp2 = 0 ;
+    int res2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_exclude_file_set(self,exclude_file);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_exclude_file_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_sl_t, SWIG_POINTER_DISOWN |  0 );
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_exclude_file_set" "', argument " "2"" of type '" "sl_t *""'"); 
+    }
+    arg2 = (sl_t *)(argp2);
+    if (arg1) (arg1)->exclude_file = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_exclude_file_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    sl_t *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_exclude_file_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_exclude_file_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (sl_t *) ((arg1)->exclude_file);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_sl_t, 0 | 0); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_exclude_list_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    sl_t *arg2 = (sl_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    void *argp2 = 0 ;
+    int res2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_exclude_list_set(self,exclude_list);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_exclude_list_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_sl_t, SWIG_POINTER_DISOWN |  0 );
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_exclude_list_set" "', argument " "2"" of type '" "sl_t *""'"); 
+    }
+    arg2 = (sl_t *)(argp2);
+    if (arg1) (arg1)->exclude_list = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_exclude_list_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    sl_t *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_exclude_list_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_exclude_list_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (sl_t *) ((arg1)->exclude_list);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_sl_t, 0 | 0); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_include_file_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    sl_t *arg2 = (sl_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    void *argp2 = 0 ;
+    int res2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_include_file_set(self,include_file);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_include_file_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_sl_t, SWIG_POINTER_DISOWN |  0 );
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_include_file_set" "', argument " "2"" of type '" "sl_t *""'"); 
+    }
+    arg2 = (sl_t *)(argp2);
+    if (arg1) (arg1)->include_file = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_include_file_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    sl_t *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_include_file_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_include_file_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (sl_t *) ((arg1)->include_file);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_sl_t, 0 | 0); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_include_list_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    sl_t *arg2 = (sl_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    void *argp2 = 0 ;
+    int res2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_include_list_set(self,include_list);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_include_list_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_sl_t, SWIG_POINTER_DISOWN |  0 );
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_include_list_set" "', argument " "2"" of type '" "sl_t *""'"); 
+    }
+    arg2 = (sl_t *)(argp2);
+    if (arg1) (arg1)->include_list = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_include_list_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    sl_t *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_include_list_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_include_list_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (sl_t *) ((arg1)->include_list);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_sl_t, 0 | 0); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_exclude_optional_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    int arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_exclude_optional_set(self,exclude_optional);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_exclude_optional_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    if (arg1) (arg1)->exclude_optional = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_exclude_optional_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_exclude_optional_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_exclude_optional_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (int) ((arg1)->exclude_optional);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_include_optional_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    int arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_include_optional_set(self,include_optional);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_include_optional_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      if (sizeof(signed int) == 1) {
+        arg2 = amglue_SvI8(ST(1));
+      } else if (sizeof(signed int) == 2) {
+        arg2 = amglue_SvI16(ST(1));
+      } else if (sizeof(signed int) == 4) {
+        arg2 = amglue_SvI32(ST(1));
+      } else if (sizeof(signed int) == 8) {
+        arg2 = amglue_SvI64(ST(1));
+      } else {
+        g_critical("Unexpected signed int >64 bits?"); /* should be optimized out unless sizeof(signed int) > 8 */
+      }
+    }
+    if (arg1) (arg1)->include_optional = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_include_optional_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    int result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_include_optional_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_include_optional_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (int) ((arg1)->include_optional);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVi64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_application_property_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    proplist_t arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    void *argp2 ;
+    int res2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_application_property_set(self,application_property);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_application_property_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      res2 = SWIG_ConvertPtr(ST(1), &argp2, SWIGTYPE_p_proplist_t,  0 );
+      if (!SWIG_IsOK(res2)) {
+        SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_application_property_set" "', argument " "2"" of type '" "proplist_t""'"); 
+      }  
+      if (!argp2) {
+        SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "HeaderXML_application_property_set" "', argument " "2"" of type '" "proplist_t""'");
+      } else {
+        arg2 = *((proplist_t *)(argp2));
+      }
+    }
+    if (arg1) (arg1)->application_property = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_application_property_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    proplist_t result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_application_property_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_application_property_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result =  ((arg1)->application_property);
+    ST(argvi) = SWIG_NewPointerObj((proplist_t *)memcpy((proplist_t *)malloc(sizeof(proplist_t)),&result,sizeof(proplist_t)), SWIGTYPE_p_proplist_t, SWIG_POINTER_OWN | 0); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_scriptlist_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    scriptlist_t arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    void *argp2 ;
+    int res2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_scriptlist_set(self,scriptlist);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_scriptlist_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      res2 = SWIG_ConvertPtr(ST(1), &argp2, SWIGTYPE_p_scriptlist_t,  0 );
+      if (!SWIG_IsOK(res2)) {
+        SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_scriptlist_set" "', argument " "2"" of type '" "scriptlist_t""'"); 
+      }  
+      if (!argp2) {
+        SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "HeaderXML_scriptlist_set" "', argument " "2"" of type '" "scriptlist_t""'");
+      } else {
+        arg2 = *((scriptlist_t *)(argp2));
+      }
+    }
+    if (arg1) (arg1)->scriptlist = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_scriptlist_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    scriptlist_t result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_scriptlist_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_scriptlist_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result =  ((arg1)->scriptlist);
+    ST(argvi) = SWIG_NewPointerObj((scriptlist_t *)memcpy((scriptlist_t *)malloc(sizeof(scriptlist_t)),&result,sizeof(scriptlist_t)), SWIGTYPE_p_scriptlist_t, SWIG_POINTER_OWN | 0); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_data_path_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    data_path_t arg2 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    void *argp2 ;
+    int res2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_data_path_set(self,data_path);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_data_path_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    {
+      res2 = SWIG_ConvertPtr(ST(1), &argp2, SWIGTYPE_p_data_path_t,  0 );
+      if (!SWIG_IsOK(res2)) {
+        SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_data_path_set" "', argument " "2"" of type '" "data_path_t""'"); 
+      }  
+      if (!argp2) {
+        SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "HeaderXML_data_path_set" "', argument " "2"" of type '" "data_path_t""'");
+      } else {
+        arg2 = *((data_path_t *)(argp2));
+      }
+    }
+    if (arg1) (arg1)->data_path = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_data_path_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    data_path_t result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_data_path_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_data_path_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result =  ((arg1)->data_path);
+    ST(argvi) = SWIG_NewPointerObj((data_path_t *)memcpy((data_path_t *)malloc(sizeof(data_path_t)),&result,sizeof(data_path_t)), SWIGTYPE_p_data_path_t, SWIG_POINTER_OWN | 0); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_directtcp_list_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    GSList *arg2 = (GSList *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    void *argp2 = 0 ;
+    int res2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_directtcp_list_set(self,directtcp_list);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_directtcp_list_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_GSList, SWIG_POINTER_DISOWN |  0 );
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_directtcp_list_set" "', argument " "2"" of type '" "GSList *""'"); 
+    }
+    arg2 = (GSList *)(argp2);
+    if (arg1) (arg1)->directtcp_list = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_directtcp_list_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    GSList *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_directtcp_list_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_directtcp_list_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (GSList *) ((arg1)->directtcp_list);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_GSList, 0 | 0); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_next_set) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    struct a_dle_s *arg2 = (struct a_dle_s *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    void *argp2 = 0 ;
+    int res2 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: HeaderXML_next_set(self,next);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_next_set" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_a_dle_s, SWIG_POINTER_DISOWN |  0 );
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_next_set" "', argument " "2"" of type '" "struct a_dle_s *""'"); 
+    }
+    arg2 = (struct a_dle_s *)(argp2);
+    if (arg1) (arg1)->next = arg2;
+    ST(argvi) = sv_newmortal();
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_HeaderXML_next_get) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    struct a_dle_s *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: HeaderXML_next_get(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_next_get" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    result = (struct a_dle_s *) ((arg1)->next);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_a_dle_s, 0 | 0); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_new_HeaderXML) {
+  {
+    char *arg1 = (char *) 0 ;
+    int res1 ;
+    char *buf1 = 0 ;
+    int alloc1 = 0 ;
+    int argvi = 0;
+    dle_t *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: new_HeaderXML(dle_str);");
+    }
+    res1 = SWIG_AsCharPtrAndSize(ST(0), &buf1, NULL, &alloc1);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "new_HeaderXML" "', argument " "1"" of type '" "char *""'");
+    }
+    arg1 = (char *)(buf1);
+    result = (dle_t *)new_dle_t(arg1);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_dle_t, SWIG_OWNER | SWIG_SHADOW); argvi++ ;
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    XSRETURN(argvi);
+  fail:
+    if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_delete_HeaderXML__SWIG_1) {
+  {
+    dle_t *arg1 = (dle_t *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: delete_HeaderXML(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_dle_t, SWIG_POINTER_DISOWN |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "delete_HeaderXML" "', argument " "1"" of type '" "dle_t *""'"); 
+    }
+    arg1 = (dle_t *)(argp1);
+    free((char *) arg1);
+    ST(argvi) = sv_newmortal();
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_delete_HeaderXML) {
+  dXSARGS;
+  
+  {
+    unsigned long _index = 0;
+    SWIG_TypeRank _rank = 0; 
+    if (items == 1) {
+      SWIG_TypeRank _ranki = 0;
+      SWIG_TypeRank _rankm = 0;
+      SWIG_TypeRank _pi = 1;
+      int _v = 0;
+      {
+        void *vptr = 0;
+        int res = SWIG_ConvertPtr(ST(0), &vptr, SWIGTYPE_p_dle_t, 0);
+        _v = SWIG_CheckState(res);
+      }
+      if (!_v) goto check_1;
+      _ranki += _v*_pi;
+      _rankm += _pi;
+      _pi *= SWIG_MAXCASTRANK;
+      if (!_index || (_ranki < _rank)) {
+        _rank = _ranki; _index = 1;
+        if (_rank == _rankm) goto dispatch;
+      }
+    }
+  check_1:
+    
+  dispatch:
+    switch(_index) {
+    case 1:
+      ++PL_markstack_ptr; SWIG_CALLXS(_wrap_delete_HeaderXML__SWIG_1); return;
+    }
+  }
+  
+  croak("No matching function for overloaded 'delete_HeaderXML'");
+  XSRETURN(0);
+}
+
+
 
 /* -------- TYPE CONVERSION AND EQUIVALENCE RULES (BEGIN) -------- */
 
+static swig_type_info _swigt__p_GSList = {"_p_GSList", "GSList *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_a_STRMAX__char = {"_p_a_STRMAX__char", "char (*)[STRMAX]|string_t *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_a_dle_s = {"_p_a_dle_s", "struct a_dle_s *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_char = {"_p_char", "gchar *|char *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_data_path_t = {"_p_data_path_t", "data_path_t *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_dle_t = {"_p_dle_t", "dle_t *", 0, 0, (void*)"Amanda::Header::HeaderXML", 0};
 static swig_type_info _swigt__p_double = {"_p_double", "double *|gdouble *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_dumpfile_t = {"_p_dumpfile_t", "dumpfile_t *", 0, 0, (void*)"Amanda::Header::Header", 0};
+static swig_type_info _swigt__p_estimatelist_t = {"_p_estimatelist_t", "estimatelist_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_float = {"_p_float", "float *|gfloat *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_int = {"_p_int", "int *|filetype_t *|gboolean *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_levellist_t = {"_p_levellist_t", "levellist_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_off_t = {"_p_off_t", "off_t *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_proplist_t = {"_p_proplist_t", "proplist_t *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_scriptlist_t = {"_p_scriptlist_t", "scriptlist_t *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_sl_t = {"_p_sl_t", "sl_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "guchar *|unsigned char *", 0, 0, (void*)0, 0};
 
 static swig_type_info *swig_type_initial[] = {
+  &_swigt__p_GSList,
   &_swigt__p_a_STRMAX__char,
+  &_swigt__p_a_dle_s,
   &_swigt__p_char,
+  &_swigt__p_data_path_t,
+  &_swigt__p_dle_t,
   &_swigt__p_double,
   &_swigt__p_dumpfile_t,
+  &_swigt__p_estimatelist_t,
   &_swigt__p_float,
   &_swigt__p_int,
+  &_swigt__p_levellist_t,
   &_swigt__p_off_t,
+  &_swigt__p_proplist_t,
+  &_swigt__p_scriptlist_t,
+  &_swigt__p_sl_t,
   &_swigt__p_unsigned_char,
 };
 
+static swig_cast_info _swigc__p_GSList[] = {  {&_swigt__p_GSList, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_a_STRMAX__char[] = {  {&_swigt__p_a_STRMAX__char, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_a_dle_s[] = {  {&_swigt__p_a_dle_s, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_char[] = {  {&_swigt__p_char, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_data_path_t[] = {  {&_swigt__p_data_path_t, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_dle_t[] = {  {&_swigt__p_dle_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_double[] = {  {&_swigt__p_double, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_dumpfile_t[] = {  {&_swigt__p_dumpfile_t, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_estimatelist_t[] = {  {&_swigt__p_estimatelist_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_float[] = {  {&_swigt__p_float, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_int[] = {  {&_swigt__p_int, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_levellist_t[] = {  {&_swigt__p_levellist_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_off_t[] = {  {&_swigt__p_off_t, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_proplist_t[] = {  {&_swigt__p_proplist_t, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_scriptlist_t[] = {  {&_swigt__p_scriptlist_t, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_sl_t[] = {  {&_swigt__p_sl_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_unsigned_char[] = {  {&_swigt__p_unsigned_char, 0, 0, 0},{0, 0, 0, 0}};
 
 static swig_cast_info *swig_cast_initial[] = {
+  _swigc__p_GSList,
   _swigc__p_a_STRMAX__char,
+  _swigc__p_a_dle_s,
   _swigc__p_char,
+  _swigc__p_data_path_t,
+  _swigc__p_dle_t,
   _swigc__p_double,
   _swigc__p_dumpfile_t,
+  _swigc__p_estimatelist_t,
   _swigc__p_float,
   _swigc__p_int,
+  _swigc__p_levellist_t,
   _swigc__p_off_t,
+  _swigc__p_proplist_t,
+  _swigc__p_scriptlist_t,
+  _swigc__p_sl_t,
   _swigc__p_unsigned_char,
 };
 
@@ -4288,6 +6674,70 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Headerc::Header_summary", _wrap_Header_summary},
 {"Amanda::Headerc::delete_Header", _wrap_delete_Header},
 {"Amanda::Headerc::C_from_string", _wrap_C_from_string},
+{"Amanda::Headerc::HeaderXML_disk_set", _wrap_HeaderXML_disk_set},
+{"Amanda::Headerc::HeaderXML_disk_get", _wrap_HeaderXML_disk_get},
+{"Amanda::Headerc::HeaderXML_device_set", _wrap_HeaderXML_device_set},
+{"Amanda::Headerc::HeaderXML_device_get", _wrap_HeaderXML_device_get},
+{"Amanda::Headerc::HeaderXML_program_is_application_api_set", _wrap_HeaderXML_program_is_application_api_set},
+{"Amanda::Headerc::HeaderXML_program_is_application_api_get", _wrap_HeaderXML_program_is_application_api_get},
+{"Amanda::Headerc::HeaderXML_program_set", _wrap_HeaderXML_program_set},
+{"Amanda::Headerc::HeaderXML_program_get", _wrap_HeaderXML_program_get},
+{"Amanda::Headerc::HeaderXML_estimatelist_set", _wrap_HeaderXML_estimatelist_set},
+{"Amanda::Headerc::HeaderXML_estimatelist_get", _wrap_HeaderXML_estimatelist_get},
+{"Amanda::Headerc::HeaderXML_spindle_set", _wrap_HeaderXML_spindle_set},
+{"Amanda::Headerc::HeaderXML_spindle_get", _wrap_HeaderXML_spindle_get},
+{"Amanda::Headerc::HeaderXML_compress_set", _wrap_HeaderXML_compress_set},
+{"Amanda::Headerc::HeaderXML_compress_get", _wrap_HeaderXML_compress_get},
+{"Amanda::Headerc::HeaderXML_encrypt_set", _wrap_HeaderXML_encrypt_set},
+{"Amanda::Headerc::HeaderXML_encrypt_get", _wrap_HeaderXML_encrypt_get},
+{"Amanda::Headerc::HeaderXML_kencrypt_set", _wrap_HeaderXML_kencrypt_set},
+{"Amanda::Headerc::HeaderXML_kencrypt_get", _wrap_HeaderXML_kencrypt_get},
+{"Amanda::Headerc::HeaderXML_levellist_set", _wrap_HeaderXML_levellist_set},
+{"Amanda::Headerc::HeaderXML_levellist_get", _wrap_HeaderXML_levellist_get},
+{"Amanda::Headerc::HeaderXML_nb_level_set", _wrap_HeaderXML_nb_level_set},
+{"Amanda::Headerc::HeaderXML_nb_level_get", _wrap_HeaderXML_nb_level_get},
+{"Amanda::Headerc::HeaderXML_dumpdate_set", _wrap_HeaderXML_dumpdate_set},
+{"Amanda::Headerc::HeaderXML_dumpdate_get", _wrap_HeaderXML_dumpdate_get},
+{"Amanda::Headerc::HeaderXML_compprog_set", _wrap_HeaderXML_compprog_set},
+{"Amanda::Headerc::HeaderXML_compprog_get", _wrap_HeaderXML_compprog_get},
+{"Amanda::Headerc::HeaderXML_srv_encrypt_set", _wrap_HeaderXML_srv_encrypt_set},
+{"Amanda::Headerc::HeaderXML_srv_encrypt_get", _wrap_HeaderXML_srv_encrypt_get},
+{"Amanda::Headerc::HeaderXML_clnt_encrypt_set", _wrap_HeaderXML_clnt_encrypt_set},
+{"Amanda::Headerc::HeaderXML_clnt_encrypt_get", _wrap_HeaderXML_clnt_encrypt_get},
+{"Amanda::Headerc::HeaderXML_srv_decrypt_opt_set", _wrap_HeaderXML_srv_decrypt_opt_set},
+{"Amanda::Headerc::HeaderXML_srv_decrypt_opt_get", _wrap_HeaderXML_srv_decrypt_opt_get},
+{"Amanda::Headerc::HeaderXML_clnt_decrypt_opt_set", _wrap_HeaderXML_clnt_decrypt_opt_set},
+{"Amanda::Headerc::HeaderXML_clnt_decrypt_opt_get", _wrap_HeaderXML_clnt_decrypt_opt_get},
+{"Amanda::Headerc::HeaderXML_record_set", _wrap_HeaderXML_record_set},
+{"Amanda::Headerc::HeaderXML_record_get", _wrap_HeaderXML_record_get},
+{"Amanda::Headerc::HeaderXML_create_index_set", _wrap_HeaderXML_create_index_set},
+{"Amanda::Headerc::HeaderXML_create_index_get", _wrap_HeaderXML_create_index_get},
+{"Amanda::Headerc::HeaderXML_auth_set", _wrap_HeaderXML_auth_set},
+{"Amanda::Headerc::HeaderXML_auth_get", _wrap_HeaderXML_auth_get},
+{"Amanda::Headerc::HeaderXML_exclude_file_set", _wrap_HeaderXML_exclude_file_set},
+{"Amanda::Headerc::HeaderXML_exclude_file_get", _wrap_HeaderXML_exclude_file_get},
+{"Amanda::Headerc::HeaderXML_exclude_list_set", _wrap_HeaderXML_exclude_list_set},
+{"Amanda::Headerc::HeaderXML_exclude_list_get", _wrap_HeaderXML_exclude_list_get},
+{"Amanda::Headerc::HeaderXML_include_file_set", _wrap_HeaderXML_include_file_set},
+{"Amanda::Headerc::HeaderXML_include_file_get", _wrap_HeaderXML_include_file_get},
+{"Amanda::Headerc::HeaderXML_include_list_set", _wrap_HeaderXML_include_list_set},
+{"Amanda::Headerc::HeaderXML_include_list_get", _wrap_HeaderXML_include_list_get},
+{"Amanda::Headerc::HeaderXML_exclude_optional_set", _wrap_HeaderXML_exclude_optional_set},
+{"Amanda::Headerc::HeaderXML_exclude_optional_get", _wrap_HeaderXML_exclude_optional_get},
+{"Amanda::Headerc::HeaderXML_include_optional_set", _wrap_HeaderXML_include_optional_set},
+{"Amanda::Headerc::HeaderXML_include_optional_get", _wrap_HeaderXML_include_optional_get},
+{"Amanda::Headerc::HeaderXML_application_property_set", _wrap_HeaderXML_application_property_set},
+{"Amanda::Headerc::HeaderXML_application_property_get", _wrap_HeaderXML_application_property_get},
+{"Amanda::Headerc::HeaderXML_scriptlist_set", _wrap_HeaderXML_scriptlist_set},
+{"Amanda::Headerc::HeaderXML_scriptlist_get", _wrap_HeaderXML_scriptlist_get},
+{"Amanda::Headerc::HeaderXML_data_path_set", _wrap_HeaderXML_data_path_set},
+{"Amanda::Headerc::HeaderXML_data_path_get", _wrap_HeaderXML_data_path_get},
+{"Amanda::Headerc::HeaderXML_directtcp_list_set", _wrap_HeaderXML_directtcp_list_set},
+{"Amanda::Headerc::HeaderXML_directtcp_list_get", _wrap_HeaderXML_directtcp_list_get},
+{"Amanda::Headerc::HeaderXML_next_set", _wrap_HeaderXML_next_set},
+{"Amanda::Headerc::HeaderXML_next_get", _wrap_HeaderXML_next_get},
+{"Amanda::Headerc::new_HeaderXML", _wrap_new_HeaderXML},
+{"Amanda::Headerc::delete_HeaderXML", _wrap_delete_HeaderXML},
 {0,0}
 };
 /* -----------------------------------------------------------------------------
@@ -4623,6 +7073,7 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   SWIG_TypeClientData(SWIGTYPE_p_dumpfile_t, (void*) "Amanda::Header::Header");
+  SWIG_TypeClientData(SWIGTYPE_p_dle_t, (void*) "Amanda::Header::HeaderXML");
   ST(0) = &PL_sv_yes;
   XSRETURN(1);
 }

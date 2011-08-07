@@ -2,12 +2,12 @@
 .\"     Title: amanda-scripts
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 12/14/2010
+.\"      Date: 06/02/2011
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.2.1
+.\"    Source: Amanda 3.3.0
 .\"  Language: English
 .\"
-.TH "AMANDA\-SCRIPTS" "7" "12/14/2010" "Amanda 3\&.2\&.1" "Miscellanea"
+.TH "AMANDA\-SCRIPTS" "7" "06/02/2011" "Amanda 3\&.3\&.0" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -56,6 +56,9 @@ Script properties work just like application properties: they are insensitive to
 (dash) and
 _
 (underscore) may be used interchangeably\&.
+.SH "SCRIPTS OUTPUT PROPERTY"
+.PP
+A pre\-dle\-amcheck, pre\-dle\-estimate or pre\-dle\-backup executed on the client can output property on stdout that are sent to the application\&. If the output line matches "PROPERTY str1 str2", Amanda sets a property called "str1" by the value of "str2", that property is sent to the application\&.
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),

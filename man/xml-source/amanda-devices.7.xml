@@ -204,6 +204,10 @@ for future expansion.  Not all devices implement all of these properties.</para>
  (read-write) On devices that support it, this property will limit the total amount of data written to a volume; attempts to write beyond this point will cause the device to simulate "out of space."  Zero means no limit.  The tapetype parameter <emphasis>length</emphasis> sets this property.
 </listitem></varlistentry>
  <!-- ==== -->
+ <varlistentry><term>ENFORCE_MAX_VOLUME_USAGE</term><listitem>
+ (read-write) If this property is false, limit set by MAX_VOLUME_USAGE property (and thus the tapetype LENGTH parameter) will not be verified while writing to device, allowing the volume to expand without limit. If this property is true, then MAX_VOLUME_USAGE willbe enforced, limiting the total size of the volume. This property is not available on all devices; see below.
+</listitem></varlistentry>
+ <!-- ==== -->
  <varlistentry><term>PARTIAL_DELETION</term><listitem>
  (read-only) This property indicates whether the device supports deletion of specific files.  Aside from linear tapes and S3, most devices can support this feature.  It is currently unused by Amanda.
 </listitem></varlistentry>
@@ -371,7 +375,7 @@ as properties.</para>
 
 <para>The S3 device driver stores each block in a distinct S3 object.  Due to
 high HTTP overhead for each request, use of larger than normal block
-  sizes (&gt; 1 megabyte) is reccomended with the S3 device.</para>
+  sizes (&gt; 1 megabyte) is recommended with the S3 device.</para>
 
 <para>
 Amanda automatically creates a bucket when writing, if the bucket doesn't
@@ -400,6 +404,8 @@ chasing down a problem in communications with Amazon's servers.</para>
 
 <para>Since Amazon storage is unlimited, the device never encounteres EOM, so
 LEOM detection is trivially enabled for this device.</para>
+
+<para>This driver supports the ENFORCE_MAX_VOLUME_USAGE property. Default value is false. See COMMON_PROPERTIES, above.</para>
 
 <refsect3><title>Device-Specific Properties</title>
 
@@ -430,6 +436,14 @@ data to S3.  If the average speed exceeds this value, the device will stop
 writing long enough to bring the average below this value.
 </listitem></varlistentry>
  <!-- ==== -->
+ <varlistentry><term>NB_THREADS_BACKUP</term><listitem>
+(read-write) The number of thread that send data to the s3 device, higher value can provide more throutput.
+</listitem></varlistentry>
+ <!-- ==== -->
+ <varlistentry><term>NB_THREADS_RECOVERY</term><listitem>
+(read-write) The number of thread that read data from the s3 device, higher value can provide more throutput.
+</listitem></varlistentry>
+ <!-- ==== -->
  <varlistentry><term>S3_ACCESS_KEY</term><listitem>
  (read-write) This property gives the Amazon S3 access key used to access the service.
 </listitem></varlistentry>
@@ -452,8 +466,16 @@ If NSS is being used, then it is the directory that the database resides in.
 The value is passed to curl_easy_setopt(3) as CURLOPT_CAINFO.
 </listitem></varlistentry>
  <!-- ==== -->
+ <varlistentry><term>S3_HOST</term><listitem>
+(read-write) The host name to connect, in the form "hostname:port" or "ip:port", default is "s3.amazonaws.com"
+</listitem></varlistentry>
+ <!-- ==== -->
  <varlistentry><term>S3_SECRET_KEY</term><listitem>
- (read-write) This property gives the Amazon S3 secret key used to access the service.
+(read-write) This property gives the Amazon S3 secret key used to access the service.
+</listitem></varlistentry>
+ <!-- ==== -->
+ <varlistentry><term>S3_SERVICE_PATH</term><listitem>
+(read-write) A path to add at the beginning of the URL.
 </listitem></varlistentry>
  <!-- ==== -->
  <varlistentry><term>S3_STORAGE_CLASS</term><listitem>
@@ -464,19 +486,29 @@ for the most up-to-date list.
 </listitem></varlistentry>
  <!-- ==== -->
  <varlistentry><term>S3_SSL</term><listitem>
- (read-write) Whether or not to use SSL/TLS to secure communications with Amazon S3.
+(read-write) Whether or not to use SSL/TLS to secure communications with Amazon S3.
+</listitem></varlistentry>
+ <!-- ==== -->
+ <varlistentry><term>S3_SUBDOMAIN</term><listitem>
+ (read-write) Whether or not to use subdomain hostname.
 </listitem></varlistentry>
  <!-- ==== -->
  <varlistentry><term>S3_USER_TOKEN</term><listitem>
- (read-write) This property specifies the user token for Amanda Enterprise Edition customers.
+(read-write) This property specifies the user token for Amanda Enterprise Edition customers.
 </listitem></varlistentry>
  <!-- ==== -->
  <varlistentry><term>VERBOSE</term><listitem>
- (read-write) If true, verbose data about each HTTP transaction is sent to the debug log.
+(read-write) If true, verbose data about each HTTP transaction is sent to the debug log.
 </listitem></varlistentry>
  <!-- ==== -->
 </variablelist>
 
+</refsect3>
+<refsect3><title>S3 URL</title>
+     SSL &amp;&amp;  SUBDOMAIN:   https://bucket.host/service_path/file
+     SSL &amp;&amp; !SUBDOMAIN:   https://host/service_path/bucket/file
+    !SSL &amp;&amp;  SUBDOMAIN:   http://bucket.host/service_path/file
+    !SSL &amp;&amp; !SUBDOMAIN:   http://host/service_path/bucket/file
 </refsect3>
 
 </refsect2>
@@ -639,6 +671,7 @@ size, regardless of the blocksize used to write the data.</para>
     LEOM detection can be disabled by setting the LEOM property to
     false.</para>
 
+<para>This device supports the ENFORCE_MAX_VOLUME_USAGE property. Default value is true. See COMMON PROPERTIES, above.</para>
 <refsect3><title>Device-Specific Properties</title>
 
 <variablelist>

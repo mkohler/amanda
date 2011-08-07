@@ -36,7 +36,7 @@ use Amanda::Paths;
 sub usage {
     my ($msg) = @_;
     print STDERR <<EOF;
-Usage: amdump <conf> [--no-taper] [-o configoption]* [host/disk]*
+Usage: amdump <conf> [--no-taper] [--from-client] [-o configoption]* [host/disk]*
 EOF
     print STDERR "$msg\n" if $msg;
     exit 1;
@@ -48,10 +48,12 @@ my $config_overrides = new_config_overrides($#ARGV+1);
 my @config_overrides_opts;
 
 my $opt_no_taper = 0;
+my $opt_from_client = 0;
 Getopt::Long::Configure(qw(bundling));
 GetOptions(
     'help|usage|?' => \&usage,
     'no-taper' => \$opt_no_taper,
+    'from-client' => \$opt_from_client,
     'o=s' => sub {
 	push @config_overrides_opts, "-o" . $_[1];
 	add_config_override_opt($config_overrides, $_[1]);
@@ -201,6 +203,7 @@ sub planner_driver_pipeline {
     my $planner = "$amlibexecdir/planner";
     my $driver = "$amlibexecdir/driver";
     my @no_taper = $opt_no_taper? ('--no-taper'):();
+    my @from_client = $opt_from_client? ('--from-client'):();
 
     check_exec($planner);
     check_exec($driver);
@@ -222,7 +225,7 @@ sub planner_driver_pipeline {
 	close($amdump_log);
 	exec $planner,
 	    # note that @no_taper must follow --starttime
-	    $config_name, '--starttime', $timestamp, @no_taper, @config_overrides_opts, @hostdisk;
+	    $config_name, '--starttime', $timestamp, @no_taper, @from_client, @config_overrides_opts, @hostdisk;
 	die "Could not exec $planner: $!";
     }
     debug(" planner: $pl_pid");
@@ -239,7 +242,7 @@ sub planner_driver_pipeline {
 	POSIX::dup2(fileno($amdump_log), 2);
 	close($amdump_log);
 	exec $driver,
-	    $config_name, @no_taper, @config_overrides_opts;
+	    $config_name, @no_taper, @from_client, @config_overrides_opts;
 	die "Could not exec $driver: $!";
     }
     debug(" driver: $dr_pid");
@@ -305,6 +308,13 @@ wait_for_hold();
 # bail out
 do_amcleanup();
 
+my $crtl_c = 0;
+$SIG{INT} = \&interrupt;
+
+sub interrupt {
+    $crtl_c = 1;
+}
+
 # start up the log file
 start_logfiles();
 
@@ -316,6 +326,14 @@ amdump_log("starttime-locale-independent $starttime_locale_independent");
 
 # run the planner and driver, the one piped to the other
 planner_driver_pipeline();
+
+if ($crtl_c == 1) {
+    print "Caught a ctrl-c\n";
+    log_add($L_FATAL, "amdump killed by ctrl-c");
+    debug("Caught a ctrl-c");
+    $exit_code = 1;
+}
+$SIG{INT} = 'DEFAULT';
 
 my $end_longdate = strftime "%a %b %e %H:%M:%S %Z %Y", localtime;
 amdump_log("end at $end_longdate");

@@ -1,4 +1,3 @@
-#! @PERL@
 # Copyright (c) 2009, 2010 Zmanda Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
@@ -42,6 +41,7 @@ package Amanda::Taper::Worker;
 use POSIX qw( :errno_h );
 use Amanda::Changer;
 use Amanda::Config qw( :getconf config_dir_relative );
+use Amanda::Debug qw( :logging );
 use Amanda::Header;
 use Amanda::Holding;
 use Amanda::MainLoop qw( :GIOCondition );
@@ -373,6 +373,8 @@ sub scribe_notif_new_tape {
 
     # TODO: if $params{error} is set, report it back to the driver
     # (this will be a change to the protocol)
+    log_add($L_INFO, $params{'error'}) if defined $params{'error'};
+
     if ($params{'volume_label'}) {
 	$self->{'label'} = $params{'volume_label'};
 
@@ -508,9 +510,6 @@ sub send_port_and_get_header {
 	$header_xfer->start($steps->{'header_xfer_xmsg_cb'});
 
 	my $header_addrs = $xsrc->get_addrs();
-	$header_addrs = [ grep { $_->[0] eq '127.0.0.1' } @$header_addrs ];
-	die "Source::DirectTCPListen did not return a localhost address"
-	    unless @$header_addrs;
 	my $header_port = $header_addrs->[0][1];
 
 	# and tell the driver which ports we're listening on
@@ -606,18 +605,23 @@ sub setup_and_start_dump {
 		if (exists $splitting_args{$_});
 	}
 
+	my $device = $self->{'scribe'}->get_device();
+	if (!defined $device) {
+	    die "no device is available to create an xfer_dest";
+	}
+	$splitting_args{'leom_supported'} = $device->property_get("leom");
 	# and convert those to get_xfer_dest args
         %get_xfer_dest_args = get_splitting_args_from_config(
 		%splitting_args);
 	$get_xfer_dest_args{'max_memory'} = getconf($CNF_DEVICE_OUTPUT_BUFFER_SIZE);
 	if (!getconf_seen($CNF_DEVICE_OUTPUT_BUFFER_SIZE)) {
-	    my $device = $self->{'scribe'}->get_device();
 	    my $block_size4 = $device->block_size * 4;
 	    if ($block_size4 > $get_xfer_dest_args{'max_memory'}) {
 		$get_xfer_dest_args{'max_memory'} = $block_size4;
 	    }
 	}
-	$get_xfer_dest_args{'can_cache_inform'} = ($msgtype eq Amanda::Taper::Protocol::FILE_WRITE);
+	$device = undef;
+	$get_xfer_dest_args{'can_cache_inform'} = ($msgtype eq Amanda::Taper::Protocol::FILE_WRITE and $get_xfer_dest_args{'allow_split'});
 
 	# if we're unable to fulfill the user's splitting needs, we can still give
 	# the dump a shot - but we'll warn them about the problem

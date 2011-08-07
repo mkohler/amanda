@@ -38,10 +38,11 @@ Installcheck::log_test_output();
 # and disable Debug's die() and warn() overrides
 Amanda::Debug::disable_die_override();
 
-my $tapelist = "$Installcheck::TMP/tapelist";
+my $tapelist_filename = "$Installcheck::TMP/tapelist";
+my $tapelist = Amanda::Tapelist->new($tapelist_filename);
 sub set_tapelist {
     my ($content) = @_;
-    open(my $fh, ">", $tapelist) or die("opening '$tapelist': $!");
+    open(my $fh, ">", $tapelist_filename) or die("opening '$tapelist_filename': $!");
     print $fh $content;
     close($fh);
 }
@@ -51,8 +52,8 @@ sub set_tapelist {
 # methods are never invoked in this test.
 my $taperscan = Amanda::Taper::Scan->new(
     algorithm => "traditional",
-    changer => {}, # (not used)
-    tapelist_filename => $tapelist,
+    changer => undef, # (not used)
+    tapelist => $tapelist,
     tapecycle => 1, # will be changed periodically below
     labelstr => "TEST-[0-9]",
     autolabel => { 'template'    => "TEST-%",
@@ -139,4 +140,6 @@ ok( $taperscan->is_reusable_volume(label => "TEST-1", new_label_ok => 0), " TEST
 ok(!$taperscan->is_reusable_volume(label => "TEST-2", new_label_ok => 0), " TEST-2 not reusable");
 ok(!$taperscan->is_reusable_volume(label => "TEST-3", new_label_ok => 0), " TEST-3 not reusable");
 ok(!$taperscan->is_reusable_volume(label => "TEST-4", new_label_ok => 0), " TEST-4 not reusable");
+
+$taperscan->quit();
 

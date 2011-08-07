@@ -13,7 +13,7 @@ INCLUDES =	-I$(top_builddir)/common-src \
 		-I$(top_srcdir)/gnulib
 
 AM_CFLAGS = $(AMANDA_WARNING_CFLAGS)
-AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
+AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS) $(AS_NEEDED_FLAGS)
 
 LINT=$(AMLINT)
 LINTFLAGS=$(AMLINTFLAGS)
@@ -21,8 +21,7 @@ LINTFLAGS=$(AMLINTFLAGS)
 amlib_LTLIBRARIES = 	libamserver.la
 
 sbin_PROGRAMS =		amadmin		amcheck		\
-			amflush		\
-			amservice
+			amflush
 
 amlibexec_PROGRAMS =	amindexd	amtrmidx	\
 			amtrmlog	driver		dumper		\
@@ -31,6 +30,7 @@ amlibexec_PROGRAMS =	amindexd	amtrmidx	\
 
 amlibexec_SCRIPTS_PERL = \
 	    amlogroll \
+	    amdumpd \
 	    taper \
 	    amcheck-device
 
@@ -67,7 +67,7 @@ amlibexec_SCRIPTS = $(amlibexec_SCRIPTS_PERL) $(amlibexec_SCRIPTS_SHELL)
 
 INSTALLPERMS_exec = \
 	dest=$(sbindir) chown=root:setuid chmod=04750 \
-		amcheck amservice \
+		amcheck \
 	dest=$(amlibexecdir) \
 		dumper planner
 
@@ -89,7 +89,7 @@ libamserver_la_SOURCES=	amindex.c	\
 			tapefile.c	find.c		server_util.c   \
                         xfer-source-holding.c
 
-libamserver_la_LDFLAGS= -release $(VERSION)
+libamserver_la_LDFLAGS= -release $(VERSION) $(AS_NEEDED_FLAGS)
 libamserver_la_LIBADD= ../device-src/libamdevice.la \
 		       ../common-src/libamanda.la
 

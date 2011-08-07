@@ -1,5 +1,722 @@
-2010-12-14  Jean-Louis Martineau <martineau@zmanda.com>
-	* VERSION: 3.2.1
+2011-05-31  Jean-Louis Martineau <martineau@zmanda.com>
+	* VERSION: 3.3.0
+
+2011-05-31  Jean-Louis Martineau <martineau@zmanda.com>
+	* configure.in: Move AMANDA_S3_DEVICE to do libcurl detection later.
+
+2011-05-31  Jean-Louis Martineau <martineau@zmanda.com>
+	* NEWS, ReleaseNotes: Update for 3.3.0 release.
+
+2011-05-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/list_dir.c: fix add_dir_list_item.
+
+2011-05-27 Dan Locks <dwlocks@zmanda.com>
+	*  packaging/rpm/amanda.spec.src: replace enable-as-needed rpm macro
+	   with enable_as_needed.
+
+2011-05-24 Dan Locks <dwlocks@zmanda.com>
+	*  packaging/deb/rules: use --enable-as-needed
+	*  packaging/rpm/amanda.spec.src: use --enable-as-needed except on
+	   sles9, where ld does not have the --as-needed flag.
+
+2011-05-24  Jean-Louis Martineau <martineau@zmanda.com>
+	* installcheck/gnutar.pl: Fix gnutar pattern matching for gtar 1.25.
+
+2011-05-24  Jean-Louis Martineau <martineau@zmanda.com>
+	* application-src/ampgsql.pl: Parse and filter stdout/stderr of
+	  commands.
+
+2011-01-20  Francis Galiegue <fgaliegue@gmail.com>
+	* server-src/driverio.c: fix non-NULL terminated argument list in
+	  vstralloc()
+
+2011-05-18  Jean-Louis Martineau <martineau@zmanda.com>
+	* Fix for default BSDTCP auth.
+
+2011-05-18  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c,
+	  common-src/conffile.c: Change default auth to bsdtcp.
+	* NEWS, ReleaseNotes: Change default auth to bsdtcp.
+	* example/amanda-client.conf.in,
+	  example/amanda.conf.in: Change default auth to bsdtcp.
+	* man/xml-source/amanda-auth.7.xml,
+	  man/xml-source/amanda-client.conf.5.xml,
+	  man/xml-source/amanda.conf.5.xml,
+	  man/xml-source/amrecover.8.xml: Change default auth to bsdtcp.
+
+2011-05-17  Jean-Louis Martineau <martineau@zmanda.com>
+	* device-src/ndmp-device.c: s/NDMP4_/NDMP9_/g
+
+2011-05-17  Jean-Louis Martineau <martineau@zmanda.com>
+	* man/xml-source/amrecover.8.xml: Add an AUTH section.
+
+2011-05-13  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Taper/Controller.pm, perl/Amanda/Taper/Protocol.pm,
+	  perl/Amanda/Taper/Worker.pm: Remove uneeded '#! @PERL@' first line.
+
+2011-05-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amdump.pl: s/Catched/Caught/
+
+2011-05-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amdump.pl: Trap ctrl-c while backup is running, resume by
+	  sending email and log rotation.
+
+2011-05-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Taper/Scribe.pm: Call $device->finish() before
+	  $device->read_label(), A device must be in ACCESS_NULL for read_label.
+
+2011-05-05  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: Do not crash on unterminated quoted string.
+
+2011-05-05  Jean-Louis Martineau <martineau@zmanda.com>
+	* application-src/amzfs-sendrecv.pl: Implement restore.
+	  Generate index with only '/'.
+	* perl/Amanda/Application/Zfs.pm: Add $self->{filesystem} on some
+	  command, improve zfs_build_snapshotname.
+	* server-src/list_dir.c (add_dir_list_item): Check if same dump.
+
+2011-05-05  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/local-security.c: Call initgroups before executing amandad
+
+2011-05-05  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: Do not count dup to tape when checking space
+	  on holdingdisk.
+
+2011-04-29  Jean-Louis Martineau <martineau@zmanda.com>
+	* device-src/s3.c: Do not get "location" if bucket_location is not set.
+
+2011-04-29  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: Reply immediately a NO_NEW_TAPE if taper ask
+	  REQUEST_NEW_TAPE after it is in TAPER_STATE_DONE.
+
+2011-04-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Device.swg: Do not crash if an unknown device-property
+	  is set.
+
+2011-04-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* device-src/s3-device.c: Add thread and new properties to identify
+	  the device.
+	* device-src/s3.c: New properties to identify the device.
+	* device-src/s3.h: New s3_open prototype.
+	* man/xml-source/amanda-devices.7.xml: Document new properties.
+	* NEWS, ReleaseNotes: Document new features.
+
+2011-04-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/planner.c: Improve balancing if some dle have strategy
+	  noinc or a smaller dumpcycle.
+
+2011-04-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amidxtaped.pl: Do the uncompress if client can't do it.
+
+2011-04-19  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Changer.pm: new changer error: empty.
+	* perl/Amanda/Changer/robot.pm: return empty slot.
+	* perl/Amanda/Taper/Scan/traditional.pm: Handle empty slot.
+
+2011-04-18  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Changer.pm: Check generated label and meta-label.
+
+2011-04-18  Jean-Louis Martineau <martineau@zmanda.com>
+	* man/xml-source/amlabel.8.xml: Improve doc.
+	* server-src/amlabel.pl: Remove spurious print.
+
+2011-04-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amadmin.c: Do not free find result string.
+	* server-src/find.c: Use GStringChunk to store all find_dump string.
+
+2011-04-11  Jean-Louis Martineau <martineau@zmanda.com>
+	* configure.in: Use AMANDA_AS_NEEDED.
+	* config/amanda/as_needed.m4: Add --as-needed, set AS_NEEDED_FLAGS.
+	* client-src/Makefile.am, amandad-src/Makefile.am,
+	  ndmp-src/Makefile.am, device-src/Makefile.am,
+	  application-src/Makefile.am, xfer-src/Makefile.am,
+	  server-src/Makefile.am, amar-src/Makefile.am,
+	  common-src/Makefile.am: Add AS_NEEDED_FLAGS to many *_LDFLAGS.
+
+2011-04-11  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/DB/Catalog.pm: Parse negative kb and orig-kb.
+	* perl/Amanda/Logfile.swg: Do not write negative orig-kb.
+
+2011-04-06  Jean-Louis Martineau <martineau@zmanda.com>
+	* man/xml-source/amanda-devices.7.xml: Typo.
+
+2011-04-06  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Interactivity.pm: Add documentation.
+
+2011-04-06  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: Fix Computation of data_lost on current and
+	  next tape.
+
+2011-04-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* NEWS, ReleaseNotes: Update for 3.3.0beta1.
+
+2011-04-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* amplot/amplot.awk: Fix for new log format, fix small -t display,
+	  fix 'set key' syntax.
+	* amplot/amplot.g: Fix 'set data' and 'plot' syntax.
+
+2011-03-31  Jean-Louis Martineau <martineau@zmanda.com>
+	* VERSION: 3.3.0beta1
+
+2011-03-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* installcheck/taper.pl: Fix installcheck for 'splitting not enabled'.
+
+2011-03-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* VERSION: 3.3.0_beta1
+
+2011-03-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* device-src/vfs-device.c: LEOM property default to TRUE.
+
+2011-03-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Taper/Scribe.pm: Log 'splitting not enabled' on write
+	  failure.
+
+2011-03-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* NEWS, ReleaseNotes: Update for 3.3.0
+
+2011-03-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: Add client-name option to application and
+				 script
+	* common-src/conffile.h: Add client-name option to application and
+				 script
+	* perl/Amanda/Config.swg: Add APPLICATION_CLIENT_NAME and
+				  PP_SCRIPT_CLIENT_NAME.
+	* common-src/amfeatures.c: Add fe_application_client_name and
+				   fe_script_client_name.
+	* common-src/amfeatures.h: Add fe_application_client_name and
+				   fe_script_client_name.
+	* common-src/amxml.c: Pares client_name
+	* common-src/amxml.h: Add application_client_nake in dle_t and
+			      client_name in script_t.
+	* server-src/diskfile.c: Put client-name in xml output.
+	* server-src/amcheck.c: Check client-name and fe_*_client_name.
+	* client-src/client_util.c (merge_properties, merge_dles_properties):
+				    new function.
+	* client-src/client_util.h (merge_properties, merge_dles_properties):
+				    new prototype.
+	* client-src/selfcheck.c, client-src/sendbackup.c,
+	  client-src/sendsize.c: Call merge_dles_properties to merge properties
+	* man/xml-source/amanda-client.conf.5.xml,
+	  man/xml-source/amanda.conf.5.xml: Document client-name.
+	* recover-src/extract_list.c: merge properties.
+	* NEWS: Add new features.
+
+2011-03-28  Jean-Louis Martineau <martineau@zmanda.com>
+	* application-src/amlog-script.pl: Remove warning of unused variable.
+
+2011-03-28  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amcheckdump.pl, server-src/amfetchdump.pl,
+	  server-src/amidxtaped.pl, server-src/amrestore.pl: Use int().
+
+2011-03-28  Jean-Louis Martineau <martineau@zmanda.com>
+	* xfer-src/filter-process.c: Call g_critical if pipe() fail.
+
+2011-03-28  Jean-Louis Martineau <martineau@zmanda.com>
+	Change the Amanda:Xfer::Filter::Process api, it always create a pipe
+	for the process stderr, the callers must read from it. Callers can send
+	it to debug file, stderr or to amrecover.
+	* installcheck/Amanda_Xfer.pl: Change for new AXF::Process API.
+	* perl/Amanda/Xfer.pod: Document new AXF::Process API.
+	* perl/Amanda/Xfer.swg: Change for new AXF::Process API.
+	* server-src/amcheckdump.pl, server-src/amfetchdump.pl,
+	  server-src/amrestore.pl: Use new AXF::Process API, send it to stderr
+	  and debug file.
+	* server-src/amidxtaped.pl: Use new AXF::Process API, send it to debug
+	  file and amrecover.
+	* xfer-src/filter-process.c: Remove log_stderr argument of
+	  xfer_filter_process, add new get_err_fd method.
+	* xfer-src/xfer-element.h: Change xfer_filter_process prototype.
+
+2011-03-27  Dustin J. Mitchell <dustin@mozilla.com>
+	* perl/Amanda/Util.swg: revert previous patch
+	* gnulib/Makefile.am gnulib/fsusage.h
+	  gnulib/regenerate/fsusage-no-bool.patch gnulib/regenerate/regenerate:
+	  patch fsusage.h to not use stdbool
+	* device-src/vfs-device.c: don't use 'false' and 'true' (from stdbool)
+
+2011-03-26  Dustin J. Mitchell <dustin@mozilla.com>
+	* perl/Amanda/Util.swg: include fsusage.h early in the generated C
+	  to avoid problems with SWIG #undefine-ing 'bool' on Mac OS X with
+	  the system-installed Perl
+
+2011-03-25  Jan Görig <jgorig@redhat.com>
+	* config/amanda/krb5-security.m4: fix linking against wrong libraries
+	  on systems where krb5 directory is libdir and amanda is installed
+
+2011-03-25  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: Fix iteration over a list it modify.
+
+2011-03-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* application-src/amstar.c: read include_list and pass each line as
+	  argument for restore operation.
+
+2011-03-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* application-src/amgtar.c: Cast with off_t.
+	* application-src/amstar.c: Cast with off_t.
+
+2011-03-21  Jean-Louis Martineau <martineau@zmanda.com>
+	* application-src/amstar.c: Add ACL property.
+	* man/xml-source/amstar.8.xml: Document ACL property.
+
+2011-03-21  Jean-Louis Martineau <martineau@zmanda.com>
+	* config/amanda/dumpers.m4: Add AMANDA_PROG_SUNTAR, --with-suntar=??
+	* configure.in: Use AMANDA_PROG_SUNTAR.
+	* perl/Amanda/Constants.pm.in: Define $Amanda::Constants::SUNTAR
+	* application-src/amsuntar.pl: Use $Amanda::Constants::SUNTAR,
+				       Add SUNTAR-PATH property.
+	* man/xml-source/amsuntar.8.xml: Document SUNTAR-PATH property.
+
+2011-03-15  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/find.c: Compute maxparts from the list of part.
+
+2011-03-11  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Taper/Scribe.pm: If leom is supported by device,
+	  then the dle can be split.
+	* perl/Amanda/Taper/Worker.pm: Send leom setting to
+	  get_splitting_args_from_config.
+	* server-src/planner.c: dle can use more than one tape if allow-split
+	  is set, this is to handle leom device where splitsize can be 0.
+
+2011-03-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Changer/disk.pm: Use -l to check symlink existance.
+
+2011-03-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amadmin.c: export quote host and disk name, import parse
+	  quoted host and disk name.
+
+2011-03-09  Jean-Louis Martineau <martineau@zmanda.com>
+        * ReleaseNotes, NEWS: Add changes for 3.2.2 and 3.3.0.
+
+2011-03-08  Jean-Louis Martineau <martineau@zmanda.com>
+	* application-src/amsamba.pl: Use smbclient -TF for restore.
+
+2011-03-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amtrmidx.c: Fix memory leak.
+
+2011-03-02  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/amservice.c; Moved from server-src/amservice.c
+	* server-src/amservice.c: Moved to server-src/amservice.c
+	* common-src/Makefile.am: Add amservice
+	* man/Makefile.am: Install amservice man page on client.
+	* server-src/Makefile.am: Remove amservice
+
+2011-03-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Changer.pm (make_new_tape_label): Fix if $tle is undef.
+	* perl/Amanda/ScanInventory.pm: Call _user_msg with label argument.
+	* perl/Amanda/Taper/Scan.pm: Document new user_msg_fn argument.
+	* perl/Amanda/Taper/Scan/traditional.pm: Call _user_msg on various
+	  tape error.
+	* perl/Amanda/Taper/Scribe.pm (_user_msg_fn): Call
+	  scribe_notif_log_info with error message.
+	* perl/Amanda/Taper/Worker.pm: Log error in scribe_notif_new_tape.
+	* installcheck/Installcheck/Config.pm: Add taperscan definition.
+	* installcheck/taper.pl: Test new log.
+
+2011-03-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Header.swg: Remove bogus %module.
+
+2011-03-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/amfeatures.c: Add fe_amrecover_receive_unfiltered.
+	* common-src/amfeatures.h: Add fe_amrecover_receive_unfiltered.
+	* perl/Amanda/Feature.pod: Add fe_amrecover_receive_unfiltered.
+	* perl/Amanda/Header.swg: Add get_dle method, handle dle_t.
+	* recover-src/extract_list.c: Pipe decompression or decyption.
+	* server-src/amidxtaped.pl: Do not decompress/decrypt if amrecover
+				    can do it.
+
+2011-02-14  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: flush even if flush threshold are not met if
+	  it save tape space.
+
+2011-02-03  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Taper/Scribe.pm: get_splitting_args_from_config() always
+	  return 'allow_split', get_xfer_dest() take a allow_split param,
+	  set $self->{'allow_split'}, Abort a dump on EOM if splitting is
+	  not allowed.
+	* perl/Amanda/Taper/Worker.pm: Do not set can_cache_inform if splitting
+	  is not allowed.
+	* installcheck/Amanda_Taper_Scribe.pl: Fix for previous change.
+	* installcheck/taper.pl: Test that dump are aborted on EOM.
+
+2011-02-01  Jean-Louis Martineau <martineau@zmanda.com>
+	Patch by Jan Görig
+	* server-src/amrestore.pl: Allow to go to next file with -p.
+
+2011-01-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Logfile.swg: "%lld" do not works with perl-5.6.
+
+2011-01-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amdumpd.pl: Add CHECK command.
+	* client-src/amdump_client.pl: Add check command.
+	* man/xml-source/amdump_client.8.xml: Document check command.
+
+2011-01-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: Parse 'bytes' in reply.
+
+2011-01-25  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: Fix taperalog *FIT no going to second volume.
+
+2011-01-25  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Logfile.swg: print 'bytes' with 64 bits type.
+
+2011-01-25  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Logfile.swg: kb must be integer.
+
+2011-01-24  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amcheckdump.pl: Do not quit the clerk if it is not defined
+
+2011-01-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amdumpd.pl: Execute "$sbindir/amdump"
+
+2011-01-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* installcheck/Amanda_Config.pl: Check recovery-limit, dump-limit,
+	  amdump-server, index-server, tape-server.
+	* installcheck/Makefile.am: Add amdump_client.
+	* installcheck/amdump_client.pl: Test new amdump_client program.
+
+2011-01-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* client-src/Makefile.am: Add amdump_client.
+	* client-src/amdump_client.pl: New client program.
+	* common-src/conffile.c: Add amdump-server in client config file.
+	* common-src/conffile.h: Add CNF_AMDUMP_SERVER
+	* perl/Amanda/Config.swg: Add CNF_AMDUMP_SERVER
+	* man/Makefile.am: Add amdump_client.8.
+	* man/xml-source/amdump_client.8.xml: New man page for amdump_client.
+
+2011-01-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* amandad-src/amandad.c: Add SERVICE_AMDUMPD, All service are active
+	  by default for rsh, ssh and local auth.
+	* common-src/conffile.c: Add dump-limit dumptype option.
+	* common-src/conffile.h: Add dump-limit dumptype option.
+	* man/xml-source/amanda.conf.5.xml: Document new dump-limit option.
+	* common-src/local-security.c, common-src/rsh-security.c,
+	  common-src/ssh-security.c: Do not add the service on the command line
+	* perl/Amanda/Config.swg: swig dump-limt
+	* server-src/Makefile.am: Add amdumpd perl script.
+	* server-src/amadmin.c (disklist_one): Print dump-limit.
+	* server-src/amdumpd.pl: New deamon script.
+	* server-src/amdump.pl: New --from-client option.
+	* server-src/diskfile.h: Add dump_limit in disk_t.
+	* server-src/diskfile.c: Set dump_limit.
+	* server-src/driver.c: New --from-client option.
+	* server-src/planner.c: New --from-client option.
+
+2011-01-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: Rename *recovery_limit* *host_limit*,
+	  add 'server' in a host-limit.
+	* common-src/conffile.h: Rename.
+	* common-src/local-security.c: Use
+	  sec_get_authenticated_peer_name_gethostname.
+	* common-src/security-util.c:
+	  New sec_get_authenticated_peer_name_gethostname function to return
+	  gethostname.
+	* common-src/security-util.h: New prototype.
+	* man/xml-source/amanda.conf.5.xml: Document 'server' for
+	  recovery-limit.
+	* perl/Amanda/Config.swg: Return $Amanda::Config::LIMIT_SAMEHOST
+	  same-host, return $Amanda::Config::LIMIT_SERVER for server.
+	* server-src/amidxtaped.pl: Use $Amanda::Config::LIMIT_SAMEHOST and
+	  $Amanda::Config::LIMIT_SERVER.
+	* server-src/amindexd.c: Use 'server' value.
+	* installcheck/Amanda_Config.pl: Fix for change.
+
+2011-01-22  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/driver.c: Fix driver doing nothing if taper crash early.
+
+2011-01-20  Francis Galiegue <fgaliegue@gmail.com>
+	* xfer-src/source-pattern.c: remove duplicate test
+
+2011-01-20  Dustin J. Mitchell <dustin@mozilla.com>
+	* man/xml-source/amanda-interactivity.7.xml
+	  man/xml-source/amanda-taperscan.7.xml
+	  man/xml-source/amanda.conf.5.xml: copyediting
+	* perl/Amanda/Interactivity/tty_email.pm: fix POD to indicate
+	  the nature of the class
+
+2011-01-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* man/xml-source/amservice.8.xml: typo, </programlisting> must be at
+	  the beginning of a line.
+
+2011-01-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amservice.c: Use full_write, check for error.
+
+2011-01-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/diskfile.c: Do not report error if a dle is listed twice
+	  in argument list.
+	* installcheck/amadmin.pl: Test it.
+
+2011-01-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amservice.c: Add -s option.
+	* man/xml-source/amservice.8.xml: Document -s option.
+
+2011-01-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* installcheck/Amanda_Taper_Scan_lexical.pl,
+	  installcheck/Amanda_Taper_Scan_oldest.pl: Fix for perl-5.6.
+
+2011-01-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: Add interactivity and taperscan section.
+	* common-src/conffile.h: Add interactivity and taperscan section.
+	* perl/Amanda/Config.swg: Add interactivity and taperscan.
+	* example/amanda.conf.in: Add interactivity and taperscan example.
+	* man/Makefile.am: Add new amanda-interactivity.7
+	* man/xml-source/amanda-interactivity.7.xml: Document interactivity.
+	* man/xml-source/amanda-taperscan.7.xml: Document new taperscan.
+	* man/xml-source/amanda.8.xml: Add link to amanda-interactivity man
+				       page.
+	* man/xml-source/amanda.conf.5.xml: Document interactivity and
+					    taperscan section.
+	* perl/Amanda/Changer.pm (new): Take tapelist, labelstr, autolabel and
+	  meta_autolabel arguments.
+	* perl/Amanda/Changer.pm (volume_is_labelable, make_new_meta_label, 
+	  make_new_tape_label, have_inventory: New method.
+	* perl/Amanda/Interactive.pm: Renamed
+	* perl/Amanda/Interactive/stdin.pm: Renamed
+	* perl/Amanda/Interactivity.pm: Copy of Interactive.pm:
+	* perl/Amanda/Interactivity/stdin.pm: Copy of Interactive/stdin.pm.
+	* perl/Amanda/Interactivity/email.pm: New interactivity module.
+	* perl/Amanda/Interactivity/tty.pm: New interactivity module.
+	* perl/Amanda/Interactivity/tty_email.pm: New interactivity module.
+	* perl/Amanda/Recovery/Scan.pm: s/Interactive/Interactivity/.
+	* perl/Amanda/ScanInventory.pm: Base class for scan algorithm.
+	* perl/Amanda/Tapelist.swg (add_tapelabel): Do the add in order.
+	* perl/Amanda/Taper/Controller.pm: Use interactivity and taperscan.
+	* perl/Amanda/Taper/Scan.pm: Allow plugable module.
+	* perl/Amanda/Taper/Scan/lexical.pm: new scan algorithm.
+	* perl/Amanda/Taper/Scan/oldest.pm: new scan algorithm.
+	* perl/Makefile.am: Add new files.
+	* server-src/amcheck-device.pl: Use interactivity and taperscan.
+	* server-src/amcheckdump.pl: Use interactivity and taperscan.
+	* server-src/amfetchdump.pl: Use interactivity and taperscan.
+	* server-src/amidxtaped.pl: Use interactivity and taperscan.
+	* server-src/amtape.pl: Use interactivity and taperscan.
+	* server-src/amvault.pl: Use interactivity and taperscan.
+	* installcheck/Amanda_Changer.pl: Test new methods.
+	* installcheck/Amanda_Changer_compat.pl: Test have_inventory.
+	* installcheck/Amanda_Changer_disk.pl: Test have_inventory.
+	* installcheck/Amanda_Changer_multi.pl: Test have_inventory.
+	* installcheck/Amanda_Changer_ndmp.pl: Test have_inventory.
+	* installcheck/Amanda_Changer_null.pl: Test have_inventory.
+	* installcheck/Amanda_Changer_rait.pl: Test have_inventory.
+	* installcheck/Amanda_Changer_robot.pl: Test have_inventory.
+	* installcheck/Amanda_Config.pl: Test new interactivity and taperscan
+	  section.
+	* installcheck/Amanda_Recovery_Scan.pl: s/Interactive/Interactivity/
+	* installcheck/Amanda_Tapelist.pl: test new add_tapelabel behavior.
+	* installcheck/Amanda_Taper_Scan_lexical.pl: Test new module.
+	* installcheck/Amanda_Taper_Scan_oldest.pl: Test new module.
+	* installcheck/Installcheck/Config.pm (add_interactivity,
+	  add_taperscan): New methods.
+	* installcheck/Makefile.am: Add new files.
+
+2011-01-17  Francis Galiegue <fgaliegue@gmail.com>
+	* xfer-src/element-glue.c: fix memory leak in read_and_push()
+
+2011-01-16  Francis Galiegue <fgaliegue@gmail.com>
+	* xfer-src/element-glue.c xfer-src/filter-xor.c
+	  xfer-src/xfer-element.c xfer-src/xfer-element.h: xfer: rename
+	  xfer_element_drain* utility functions - Both functions are used to
+	  pulling data from an upstream element, either buffers or reading a
+	  file descriptor, until it is "empty". 
+
+2011-01-14  Jean-Louis Martineau <martineau@zmanda.com>
+	* ndmp-src/amndma_tape_simulator.c: Use full_read.
+	* ndmp-src/ndma_tape.c: Use ndmchan_n_avail_record to guarantee space
+	  for a record.
+	* ndmp-src/ndml_chan.c (ndmchan_n_avail_record): New function.
+	* ndmp-src/ndmlib.h  (ndmchan_n_avail_record): New prototype.
+
+2011-01-13  Francis Galiegue <fgaliegue@gmail.com>
+	* xfer-src/source-pattern.c: xfer-src/source-pattern.c: externalize
+	  pattern copying
+
+2011-01-13  Francis Galiegue <fgaliegue@gmail.com>
+	* xfer-src/element-glue.c: xfer-src/element-glue.c: fix memory leak in
+	  pull_buffer_impl()
+
+2011-01-11  Francis Galiegue <fgaliegue@gmail.com>
+	* xfer-src/xfer-element.h: xfer: define XFER_NROPS() and
+	  XFER_NTHREADS() macros
+	* xfer-src/dest-buffer.c xfer-src/dest-directtcp-connect.c
+	  xfer-src/dest-directtcp-listen.c xfer-src/dest-fd.c
+	  xfer-src/dest-null.c xfer-src/element-glue.c xfer-src/filter-process.c
+	  xfer-src/filter-xor.c xfer-src/source-directtcp-connect.c
+	  xfer-src/source-directtcp-listen.c xfer-src/source-fd.c
+	  xfer-src/source-pattern.c xfer-src/source-random.c
+	  xfer-src/xfer-test.c: use them
+
+2011-01-11  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: rename ammtch_to_regex() into
+	  amglob_to_regex()
+
+2011-01-11  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: rename full_regex_from_expression() to
+	  full_amglob_from_expression()
+
+2011-01-11  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/planner.c: Change message of "timeout waiting for REP" to
+	  "Some estimate timeout on %s, using server estimate if possible".
+
+2011-01-11  Jean-Louis Martineau <martineau@zmanda.com>
+	* man/xml-source/amanda-scripts.7.xml: Document script output property.
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: rework regex generation from globs
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: match_word(): change the way regex
+	  begin and end are calculated/copied
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: better handling of "separator only"
+	  globs in match_word()
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: move glob/disk backslash substitution
+	  out of match_word()
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: factorize regex construction from
+	  expression
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: factorize character escaping in
+	  make_exact_*_expression()
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: factorize regex matching
+	* common-src/match.h: make match and match_no_newline into
+	  macros calling do_match
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: factorize regex compile
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: match_host(): use g_ascii_strdown() to
+	  convert to lowercase
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: fix '*' and '?' expansion in
+	  match_word()
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: define a macro to recognize regex
+	  metacharacters
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: match_host(): remove unneeded cast
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: match_word(): rename "i" local variable
+	  to "ret"
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: match_word(): rename two local
+	  variables. Rename r to dst, and w to src, in order to clarify their
+	  roles.
+
+2011-01-10  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/match.c: match.c: match_word(): remove unused assignment
+
+2011-01-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* application-src/amgtar.c, application-src/amstar.c: Do not call
+	  amname_to_dirname.
+
+2011-01-07  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/bsd-security.c: Check input fd is a socket.
+
+2011-01-07  Dustin J. Mitchell <dustin@mozilla.com>
+	* common-src/testutils.c: use %ju instead of %lu to print big numbers
+
+2011-01-07  Francis Galiegue <fgaliegue@gmail.com>
+	* testutils.c: report time of execution for each test
+
+2011-01-07  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/testutils.c: add -c <count> option to run tests more than
+	  once
+
+2011-01-07  Francis Galiegue <fgaliegue@gmail.com>
+	* testutils.c: create a run_one_test() function The way to run a test
+	  is the same, whether we fork() or not. Make that a function.
+
+2011-01-06  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/testutils.c: testutils.c: externalize test behaviour
+	  variables
+
+2011-01-06  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/amflock-test.c common-src/event-test.c
+	  common-src/fileheader-test.c common-src/hexencode-test.c
+	  common-src/ipc-binary-test.c common-src/match-test.c
+	  common-src/quoting-test.c: Ensure all tests return gbooleans.  Most,
+	  if not all, tests returned ints, and quite a few of them returned TRUE
+	  or FALSE. While the effect is basically the same as a gboolean, make
+	  all tests return a gboolean for coherency, since this is what
+	  callinfork() expects anyway.
+	* common-src/testutils.c: Also enforce that callinfork() return that
+	  type, which, in turn, allows the "success" local variable in
+	  testutil_run_tests() to also be converted.
+
+2011-01-06  Francis Galiegue <fgaliegue@gmail.com>
+	* common-src/testutils.c: convert ints to gbooleans where appropriate;
+	  run_all, tu_debugging_enabled and ignore_timeouts are all used as
+	  gbooleans in the code even though they are declared as ints. Convert
+	  them to booleans, and also change declarations.
+
+2011-01-05  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Xfer.pod: new offset and size arguments of xfer->start.
+	* perl/Amanda/Xfer.swg: Add xfer_element_set_size.
+
+2011-01-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* device-src/xfer-source-recovery.c: Never send more than the number
+	  of bytes requested.
+	* perl/Amanda/Xfer.swg (xfer_start): New offset and size arguments.
+	* xfer-src/xfer-element.c: Add set_size method.
+	* xfer-src/xfer-element.h (XferElement): Add size field.
+	* xfer-src/xfer-test.c: Add offset=0 and size=0 to xfer_start call.
+	* xfer-src/xfer.c (xfer_start): Add offset and size arguments. Call
+	  xfer_element_set_size for the first element if size is set.
+	* xfer-src/xfer.h (xfer_start): New prototype.
+	* server-src/amfetchdump.pl, server-src/amidxtaped.pl,
+	  server-src/amvault.pl: Call xfer->start() with offset and size
+	  arguments.
+
+2011-01-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Logfile.swg: Print size in bytes for taper log.
+	* server-src/find.h (find_result_t): Add bytes.
+	* server-src/find.c: Parse 'bytes' in 'log' file.
+	* perl/Amanda/Report.pm: Parse 'bytes' in 'log' file.
+	* perl/Amanda/DB/Catalog.pm: Parse 'bytes' in 'log' file.
+	* server-src/amstatus.pl: Parse 'bytes' in 'amdump' log file.
+	* installcheck/Amanda_DB_Catalog.pl: Fix for log file format change.
+	* installcheck/taper.pl: Fix for log file format change.
+
+2011-01-03  Jean-Louis Martineau <martineau@zmanda.com>
+	* example/template.d/advanced.conf.in: Remove dumpuser.
+	* server-src/amaddclient.pl: mkdir -p
+	* server-src/amserverconfig.pl: Print dumpuser, Print the
+	  authorized_keys file location based on $amhomedir
+
+2010-12-27 Dan Locks <dwlocks@zmanda.com>
+	*  packaging/deb/rules, packaging/rpm/amanda.spec.src: add missing
+	   amservice entry to set perms at install time. Thanks to vpatton for
+	   finding this.
+
+2010-12-23  Dustin J. Mitchell <dustin@mozilla.com>
+	* client-src/client_util.c: improve error message when no includes
+	  match on disk
+
+2010-12-23  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Script_App.pm: Add FAILURE.
+
+2010-12-21  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Taper/Scribe.pm: Use 'blocksize' to compute the
+	  available space.
+
+2010-12-20  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/find.c: Fix parsing 'PARTIAL taper' line with no part.
+	* perl/Amanda/DB/Catalog.pm: Ditto
+
+2010-12-16  Jean-Louis Martineau <martineau@zmanda.com>
+	* amar-src/amar.c: Don't fail on trailing NUL bytes.
 
 2010-12-14  Jean-Louis Martineau <martineau@zmanda.com>
 	* common-src/ssh-security.c: Use client_port.
@@ -11,6 +728,14 @@
 2010-12-14  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/amidxtaped.pl: Don't crash if same-host doesn't match.
 
+2010-12-13  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Interactive.pm: rename finished_cb to request_cb.
+	* installcheck/Amanda_Recovery_Scan.pl,
+	  perl/Amanda/Interactive/stdin.pm,
+	  perl/Amanda/Recovery/Scan.pm, server-src/amcheckdump.pl,
+	  server-src/amfetchdump.pl, server-src/amidxtaped.pl,
+	  server-src/amvault.pl: s/finished_cb/request_cb/
+
 2010-12-12  Jean-Louis Martineau <martineau@zmanda.com>
 	* perl/Amanda/Changer/disk.pm: inventory must return the same as
 				       read_label.
@@ -20,12 +745,15 @@
 
 2010-12-11  Daniel Néri <dne@mayonnaise.net>
 	* application-src/ampgsql.pl: Don't assume that gtar is configured to
-	  use stdin/stdout as default archive.
+	  use stdin/stdout as default archive
 
-2010-12-12  Daniel Néri <dne@mayonnaise.net>
+2010-12-11  Daniel Néri <dne@mayonnaise.net>
 	* application-src/ampgsql.pl: Use diskname, not devicename, as prefix
 	  when checking for properties. Now works as documented in the ampgsql
 	  man page.
+
+2010-12-10 Dan Locks <dwlocks@zmanda.com>
+	*  packaging/deb/control: move gnuplot to Suggests: and swap the order
 
 2010-12-10  David Bogen <bogen@wisc.edu>
 	* server-src/amoverview.pl: fix amoverview's argument parsing
@@ -42,7 +770,7 @@
 2010-12-09  Jean-Louis Martineau <martineau@zmanda.com>
 	* device-src/xfer-dest-taper-cacher.c: Print why the malloc failed.
 
-2010-12-08  Dustin J. Mitchell <dustin@zmanda.com>
+2010-12-08  Dustin J. Mitchell <dustin@mozilla.com>
 	* common-src/glib-util.c common-src/glib-util.h: do not define
 	  symbol g_slist_free_full, as it exists in glib-2.27 and higher;
 	  use slist_free_full, and alias that to g_slist_free_full when
@@ -53,9 +781,6 @@
 	  server-src/amadmin.c server-src/amflush.c server-src/cmdline.c
 	  server-src/cmdline.h server-src/find.c server-src/holding.c
 	  server-src/planner.c: rename function
-
-2010-12-08  Jean-Louis Martineau <martineau@zmanda.com>
-	* ReleaseNotes, NEWS: Add changes for 3.2.1
 
 2010-12-07 Dan Locks <dwlocks@zmanda.com>
 	*  packaging/rpm/amanda.spec.src: remove manual library requires and
@@ -84,8 +809,54 @@
 	* server-src/dumper.c: Put error message in separate files to
 	  reduce the size of the log file.
 
-2010-11-29  Jean-Louis Martineau <martineau@zmanda.com>
-	* man/xml-source/amlabel.8.xml: Typo.
+2010-12-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/chunker.c, xfer-src/element-glue.c: Prefer IPV4 over IPV6.
+
+2010-12-01  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/directtcp.h: DirectTCPAddr is a sockaddr_union.
+	* common-src/sockaddr-util.c (str_sockaddr_no_port): new function.
+	* common-src/sockaddr-util.h (str_sockaddr_no_port): New prototype.
+	* perl/amglue/directtcp.swg: Swig new DirectTCPAddr.
+	* server-src/dumper.c: Parse IPV6 in dataport_list.
+	* ndmp-src/ndmpconnobj.c, perl/Amanda/Device.swg,
+	  perl/Amanda/Taper/Worker.pm, perl/Amanda/Xfer.swg,
+	  server-src/chunker.c, xfer-src/dest-directtcp-connect.c,
+	  xfer-src/element-glue.c, xfer-src/source-directtcp-connect.c,
+	  xfer-src/source-directtcp-listen.c, xfer-src/xfer-element.h,
+	  xfer-src/xfer-test.c: Use new DirectTCPAddr.
+
+2010-11-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: Add pre-amcheck, post-amcheck, pre-estimate,
+	  post-estimate, pre-backup and post-backup to execute-on of script.
+	* common-src/conffile.h: Add EXECUTE_ON_* constants.
+	* application-src/amlog-script.pl: Add new execute-on.
+	* common-src/amxml.c: Parse new execute-on.
+	* man/xml-source/amanda.conf.5.xml: Document them.
+	* perl/Amanda/Config.swg: Add new EXECUTE_ON_* constants.
+	* perl/Amanda/Script.pm: Add new execute-on.
+	* server-src/amcheck.c: Call run_server_global_scripts.
+	* server-src/diskfile.c (get_hostlist): Return the host list.
+	* server-src/diskfile.h (get_hostlist): Add prototype.
+	* server-src/driver.c: Call run_server_global_scripts.
+	* server-src/planner.c: Call run_server_global_scripts.
+	* server-src/server_util.c (run_server_global_scripts): New function.
+	* server-src/server_util.h (run_server_global_scripts): Prototype.
+
+2010-11-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/server_util.c: Search scripts in APPLICATION_DIR,
+	  CONFIG_DIR/<conf>/application and CONFIG_DIR/application.
+
+2010-11-30  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: Add SINGLE-EXECUTION in scripts.
+	* common-src/conffile.h: Add pp_script_get_single_execution.
+	* installcheck/pp-scripts.pl: Test single-execution.
+	* man/xml-source/amanda.conf.5.xml: Document single-execution.
+	* perl/Amanda/Config.swg: Add PP_SCRIPT_SINGLE_EXECUTION.
+	* server-src/server_util.c: Add run_server_host_scripts,
+	  rename run_server_scripts to run_server_dle_scripts.
+	* server-src/server_util.h: New prototype.
+	* server-src/amcheck.c, server-src/driver.c,
+	  server-src/planner.c: Call new functions.
 
 2010-11-26  Jean-Louis Martineau <martineau@zmanda.com>
 	* installcheck/amreport.pl: Fix for previous patch.
@@ -120,6 +891,19 @@
 2010-11-22  Jean-Louis Martineau <martineau@zmanda.com>
 	* device-src/Makefile.am: activate-devpay needs gnulib.
 
+2010-11-18 Dan Locks <dwlocks@zmanda.com>
+	*  packaging/rpm/amanda.spec.src: quote both items in boolean
+	   comparison to avoid type mismatch.
+
+2010-11-17  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: Add CONFTYPE_NO_YES_ALL, change type for
+	  autoflush.
+	* common-src/conffile.h: Add CONFTYPE_NO_YES_ALL.
+	* man/xml-source/amanda.conf.5.xml: New autoflush option.
+	* perl/Amanda/Config.swg: Add CONFTYPE_NO_YES_ALL.
+	* server-src/amcheck.c: Use new value of autoflush.
+	* server-src/planner.c: Use new value of autoflush.
+
 2010-11-17  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/driver.c: Correctly handle INPUT-ERROR and TAPE-ERROR.
 
@@ -138,17 +922,87 @@
 	*  packaging/rpm/amanda.spec.src: add rhel6 stanza to distro detection
 
 2010-11-16  Jean-Louis Martineau <martineau@zmanda.com>
+	* installcheck/Amanda_Changer_single.pl: Typo.
+	* server-src/amtape.pl: Typo.
+
+2010-11-16  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/find.c: Keep the complete error message.
+
+2010-11-16  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Changer/disk.pm: new MOUNT, UMOUNT, UMOUNT-LOCKFILE and
+				       UMOUNT-IDLE properties.
+	* man/xml-source/amanda-changers.7.xml: Add new chg-disk property.
+	* NEWS: Add new chg-disk property.
+
+2010-11-16  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Changer.pm: Add quit method.
+	* perl/Amanda/Changer/aggregate.pm: Add quit method.
+	* perl/Amanda/Changer/rait.pm: Add quit method.
+	* perl/Amanda/Recovery/Clerk.pm: Call scan quit method.
+	* perl/Amanda/Recovery/Scan.pm: Add quit method.
+	* perl/Amanda/Taper/Controller.pm: Call scan quit method.
+	* perl/Amanda/Taper/Scan.pm: Add quit method.
+	* perl/Amanda/Taper/Scribe.pm: finished_cb to Add scribe_notif_tape_done
+	* server-src/amcheck-device.pl, server-src/amcheckdump.pl,
+	  server-src/amidxtaped.pl, server-src/amlabel.pl,
+	  server-src/amrestore.pl, server-src/amrmtape.pl,
+	  server-src/amtape.pl: Call scan/changer quit method.
+	* server-src/amvault.pl scribe_notif_tape_done with finished_cb.
+	* installcheck/Amanda_Changer.pl,
+	  installcheck/Amanda_Changer_compat.pl,
+	  installcheck/Amanda_Changer_disk.pl,
+	  installcheck/Amanda_Changer_multi.pl,
+	  installcheck/Amanda_Changer_ndmp.pl,
+	  installcheck/Amanda_Changer_null.pl,
+	  installcheck/Amanda_Changer_rait.pl,
+	  installcheck/Amanda_Changer_robot.pl,
+	  installcheck/Amanda_Changer_single.pl,
+	  installcheck/Amanda_Recovery_Clerk.pl,
+	  installcheck/Amanda_Recovery_Scan.pl,
+	  installcheck/Amanda_Taper_Scan.pl,
+	  installcheck/Amanda_Taper_Scan_traditional.pl,
+	  installcheck/Amanda_Taper_Scribe.pl,
+	  installcheck/amvault.pl: Add call to scan/changer quit method.
 
 2010-11-12  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/driverio.c: Don't update last_level/consecutive_runs if
 	  the dump failed.
+
+2010-11-11  Nikhil Bhupale <nikhilb@zmanda.com>
+	* server-src/amtape.pl: Remove call to set_label.
+	* server-src/amrestore.pl: Remove call to set_label.
+
+2010-11-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* config/amanda/progs.m4(AMANDA_PROG_MOUNT, AMANDA_PROG_UMOUNT):
+	  find mount and umount binaries
+	* configure.in: Use AMANDA_PROG_MOUNT and AMANDA_PROG_UMOUNT.
+	* perl/Amanda/Constants.pm.in: Define MOUNT and UMOUNT.
 
 2010-11-10  Jean-Louis Martineau <martineau@zmanda.com>
 	* device-src/tape-device.c: Accept LEOM property.
 
 2010-11-10  Jean-Louis Martineau <martineau@zmanda.com>
 	* perl/Amanda/Changer/robot.pm: Fix use of Amanda::Changer->make_error
+
+2010-11-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/amflock.c (lock_wr, lock_rd, lock_locked): New function
+	* common-src/amflock.h: Add their prototype.
+	* perl/Amanda/Util.swg: Swig them.
+	* perl/Amanda/Util.pod: Docuemnt them.
+
+2010-11-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Changer.pm: Remove the changer cache.
+	* installcheck/Amanda_Taper_Scan_traditional.pl,
+	  installcheck/Amanda_Changer_robot.pl,
+	  installcheck/Amanda_Changer_ndmp.pl: Do not reset the changer cache.
+
+2010-11-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/MainLoop.swg: Add finalize in define_step.
+	* perl/Amanda/MainLoop.pod: Document finalize.
+
+2010-11-10  Jean-Louis Martineau <martineau@zmanda.com>
+	* application-src/amstar.c: Support 'exclude file' and 'exclude list'.
+	* man/xml-source/amstar.8.xml: Document exclude limitation.
 
 2010-11-08  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/driver.c: Better handling of dump to tape.
@@ -161,24 +1015,62 @@
 				       is a try.
 
 2010-11-05  Jean-Louis Martineau <martineau@zmanda.com>
-	* man/xml-source/tapelist.5.xml: Document BARCODE.
+	* man/xml-source/tapelist.5.xml: Document BARCODE and META.
 
 2010-11-05  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/amdump.pl: Execute subprocess with the config overwrite.
 	* server-src/amvault.pl: Execute subprocess with the config overwrite.
 
 2010-11-04  Jean-Louis Martineau <martineau@zmanda.com>
-	* server-src/amreport.pl: Set date correctly for amvault run.
-	* perl/Amanda/Report/human.pm: Fix warning.
+        * server-src/amreport.pl: Set date correctly for amvault run.
+        * perl/Amanda/Report/human.pm: Fix warning.
 
 2010-11-04  Jean-Louis Martineau <martineau@zmanda.com>
-	* server-src/tapefile.c: Add barcode in tapelist.
-	* server-src/tapefile.h: Add barcode in tapelist.
-	* perl/Amanda/Tapelist.swg: Add barcode in tapelist.
+	* perl/Amanda/Changer/aggregate.pm: New changer.
+	* man/xml-source/amanda-changers.7.xml: Document chg-aggregate.
+	* perl/Makefile.am: Add it.
+	* server-src/amtape.pl: Print better message if inventory is not
+				implemented.
+
+2010-11-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Changer.pm: $o $c $m $b in autolabel.
+	* perl/Amanda/Changer.pm: $o $c in meta-autolabel.
+	* server-src/amlabel.pl: New --barcode option, <label> is no longer
+	  required, an autolabel can be generated.
+	* server-src/find.c: Fix for quoted label.
+	* man/xml-source/amanda.conf.5.xml: Document new autolable variable.
+	* man/xml-source/amlabel.8.xml: Document new amlabel features.
+	* installcheck/Amanda_Tapelist.pl: Test it.
+	* installcheck/Installcheck/Run.pm (setup): Argument to set the number
+						    of slot.
+	* installcheck/amlabel.pl: Test it.
+
+2010-11-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/tapefile.c: Add barcode intapelist.
+	* server-src/tapefile.h: Add barcode intapelist.
+	* perl/Amanda/Tapelist.swg: Add barcode intapelist.
 	* perl/Amanda/Taper/Scribe.pm: Set the barcode.
 	* server-src/amlabel.pl: Set the barcode.
 	* installcheck/Amanda_Tapelist.pl: Test it.
 	* installcheck/amlabel.pl: Test it.
+
+2010-11-04  Jean-Louis Martineau <martineau@zmanda.com>
+	* perl/Amanda/Taper/Scan.pm (new): Take a tapelist argument, not a
+					   filename.
+	* perl/Amanda/Taper/Scan.pm: Remove make_new_tape_label and
+				     make_new_meta_label methods.
+	* perl/Amanda/Changer.pm (new): Take a tapelist argument.
+	* perl/Amanda/Changer.pm: Add make_new_tape_label and
+	  make_new_meta_label methods to Amanda::Changer::Reservation.
+	* installcheck/Amanda_Taper_Scan.pl,
+	  installcheck/Amanda_Taper_Scan_traditional.pl,
+	  installcheck/amdevcheck.pl, perl/Amanda/Taper/Controller.pm,
+	  perl/Amanda/Taper/Scan/traditional.pm, perl/Amanda/Taper/Scribe.pm,
+	  server-src/amcheck-device.pl, server-src/amcheckdump.pl,
+	  server-src/amidxtaped.pl, server-src/amlabel.pl,
+	  server-src/amrestore.pl, server-src/amrmtape.pl,
+	  server-src/amtape.pl, server-src/amvault.pl,
+	  server-src/taper.pl: Change for new tapelist argument.
 
 2010-11-02  Jean-Louis Martineau <martineau@zmanda.com>
 	* common-src/util.c (quote_string_maybe): Don't use match.
@@ -191,6 +1083,14 @@
 2010-11-02  Jean-Louis Martineau <martineau@zmanda.com>
 	* common-src/conffile.c: debug-recovery default to 1.
 	* man/xml-source/amanda.conf.5.xml: Document it.
+
+2010-11-02  Nikhil Bhupale <nikhilb@zmanda.com>
+	* server-src/amtape.pl: Remove call to set_label.
+	* server-src/amcheck-device.pl: Remove call to set_label.
+ 
+2010-10-29  Dustin J. Mitchell <dustin@mozilla.com>
+	* man/xml-source/amanda-changers.7.xml: improve chg-disk properties
+	  documentation
 
 2010-10-29  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/chunker.c: Close listening socket are accepted socket.
@@ -210,7 +1110,40 @@
 	* client-src/client_util.c: Don't free script->result.
 
 2010-10-27  Jean-Louis Martineau <martineau@zmanda.com>
+	* man/xml-source/amanda.conf.5.xml: What is a meta label.
+
+2010-10-27  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/dumper.c: Typo.
+
+2010-10-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: New meta-autolabel.
+	* common-src/conffile.h: CNF_META_AUTOLABEL.
+	* perl/Amanda/Config.swg: CNF_META_AUTOLABEL.
+	* man/xml-source/amanda.conf.5.xml: Document meta-autolabel
+	* server-src/tapefile.c: Read/write meta-label to tapelist file
+	* server-src/tapefile.h (struct tape_s): Add meta.
+	* perl/Amanda/Tapelist.swg: Read/write meta-label to tapelist file
+	* perl/Amanda/Changer.pm (get_meta_label, set_meta_label): New methods
+	  in A::Changer and A::Changer::Reservation.
+	* perl/Amanda/Changer/disk.pm: Keep meta-label in state file.
+	* perl/Amanda/Changer/disk.pm (get_meta_label, set_meta_label):
+	  New methods
+	* perl/Amanda/Taper/Scan.pm (make_new_meta_label): New method.
+	* perl/Amanda/Taper/Scribe.pm: get/set meta label.
+	* server-src/amlabel.pl: New --meta and --assign option.
+	* server-src/amtape.pl (inventory): Print meta-label.
+	* man/xml-source/amlabel.8.xml: Document --meta and --assign options.
+	* installcheck/Amanda_Tapelist.pl: Test tapelist with meta-label.
+	* installcheck/amlabel.pl: Check meta.
+
+2010-10-26  Jean-Louis Martineau <martineau@zmanda.com>
+	* man/xml-source/amanda-changers.7.xml: Document new NUM-SLOT,
+	  AUTO-CREATE-SLOT and REMOVABLE chg-disk properties.
+	* perl/Amanda/Changer.pm (get_boolean_property) Moved from A::Changer
+	  to A::Changer::Config.
+	* perl/Amanda/Changer/disk.pm: New NUM-SLOT, AUTO-CREATE-SLOT and
+	  REMOVABLE properties. Use new get_boolean_property.
+	* perl/Amanda/Changer/robot.pm: Use new get_boolean_property.
 
 2010-10-26  Jean-Louis Martineau <martineau@zmanda.com>
 	* common-src/fileheader.c (parse_file_header): Print buf.
@@ -248,8 +1181,17 @@
 2010-10-19  Jean-Louis Martineau <martineau@zmanda.com>
 	* ReleaseNotes NEWS: amdump --no-taper option.
 
-2010-10-18  Jean-Louis Martineau <martineau@zmanda.com>
-	* VERSION: 3.2.0
+2010-10-19  Nikhil Bhupale <nikhilb@zmanda.com>
+	* device-src/vfs-device.h device-src/vfs-device.c:
+	  add enforce_max_volume_usage
+	* device-src/s3-device.c: Added support for MAX_VOLUME_USAGE and
+	  ENFORCE_MAX_VOLUME_USAGE
+	* device-src/property.h device-src/property.c: Added property
+	  ENFORCE_MAX_VOLUME_USAGE
+	* device-src/s3.h device-src/s3.c: Calculate total volume usage for
+	  s3 device
+	* installcheck/Amanda_Device.pl: Test it
+	* man/xml-source/amanda-devices.7.xml: Document it
 
 2010-10-18  Jean-Louis Martineau <martineau@zmanda.com>
 	* application-src/ampgsql.pl: Give an error if client property
@@ -263,6 +1205,10 @@
 	* common-src/conffile.c (read_size_byte/get_size_byte):
 	  CNF_DEVICE_OUTPUT_BUFFER_SIZE is in bytes.
 
+2010-10-14  Jean-Louis Martineau <martineau@zmanda.com>
+	* server-src/amtape.pl (inventory): print current slot.
+	* installcheck/amtape.pl: check it.
+
 2010-10-14 Dan Locks <dwlocks@zmanda.com>
 	*  packaging/deb/rules, packaging/deb/buildpkg,
 	   packaging/rpm/amanda.spec.src: remove port range limits for
@@ -272,7 +1218,7 @@
 	* perl/amglue/ghashtable.c: Define PERL_MAGIC_tied.
 
 2010-10-12  Jean-Louis Martineau <martineau@zmanda.com>
-        * device-src/s3-device.c: Don't check 'self->use_ssl && !self->ca_info'.
+	* device-src/s3-device.c: Don't check 'self->use_ssl && !self->ca_info'.
 
 2010-10-12  Dustin J. Mitchell <dustin@zmanda.com>
 	* ndmp-src/ndma_comm_session.c: add a g_debug message
@@ -281,6 +1227,17 @@
 2010-10-12 Dan Locks <dwlocks@zmanda.com>
 	*  config/amanda/progs.m4: add comment about sysloc- and locsys- path,
 	   make MTX a precious variable.
+
+2010-10-12  Jean-Louis Martineau <martineau@zmanda.com>
+	* common-src/conffile.c: Set default netusage to 80000 kbps.
+
+2010-10-12  Dustin J. Mitchell <dustin@zmanda.com>
+	* perl/Amanda/Util.pod: fix typo
+	* server-src/amserverconfig.pl: don't specify duplicate 'dumpuser'
+	  parameter in amserverconfig (it's also in advanced.conf); use
+	  get_fs_usage; include weird size requirements in error message
+	* installcheck/amserverconfig.pl: test for this arrangement (used in
+	  the template + custom options case, I think)
 
 2010-10-12  Dustin J. Mitchell <dustin@zmanda.com>
 	* ndmp-src/amndmjob_main.c: remove exit on eof thread
@@ -306,8 +1263,10 @@
 	* perl/Amanda/Recovery/Clerk.pm: remove it when restoring, too
 
 2010-10-08  Dustin J. Mitchell <dustin@zmanda.com>
-	* server-src/amvault.pl: --autolabel any, not --autolabel all
 	* installcheck/amvault.pl: update the tests to use --autolabel=any
+
+2010-10-08  Dustin J. Mitchell <dustin@zmanda.com>
+	* server-src/amvault.pl: --autolabel any, not --autolabel all
 
 2010-10-08  Jean-Louis Martineau <martineau@zmanda.com>
 	* device-src/s3-device.c: Don't give an error is ssl_ca_info is set
@@ -341,17 +1300,26 @@
 	* installcheck/Makefile.am:
 	  Add installcheck/Amanda_Config_FoldingHash.pl
 
+2010-10-07  Dustin J. Mitchell <dustin@zmanda.com>
+	* man/xml-source/amoverview.8.xml: fix typos in usage
+	* server-src/amoverview.pl: config is mandatory; --config is not
+
 2010-10-07  Jean-Louis Martineau <martineau@zmanda.com>
 	* server-src/planner.c: Log packet sent and received.
 
-2010-10-06  Dustin J. Mitchell <dustin@zmanda.com>
-	* VERSION: 3.2.0beta3
+2010-10-07  Dustin J. Mitchell <dustin@zmanda.com>
+	* amandad-src/amandad.c: don't wait 5 seconds if the service has
+	  already exited
+
+2010-10-06 Dan Locks <dwlocks@zmanda.com>
+	*  config/amanda/libs.m4: update LIBCURL_CHECK_CONFIG help string,
+	   fix AC_PATH_PROG usage.
 
 2010-10-06  Dustin J. Mitchell <dustin@zmanda.com>
 	* perl/Makefile.am: only run the threading test after install
 
 2010-10-06  Jean-Louis Martineau <martineau@zmanda.com>
-	* VERSION: 3.2.0beta2
+	* VERSION: 3.3.0alpha
 
 2010-10-06  Dustin J. Mitchell <dustin@zmanda.com>
 	* perl/Makefile.am: fix the FreeBSD threading test to actually fail

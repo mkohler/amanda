@@ -498,6 +498,13 @@ To do the same for a single step, add the same keyword to the C<step> invocation
     step immediate => 1,
 	 connect => sub { .. };
 
+In some case, you want to execute some code when the step finish, it can
+be done by defining a finalize code in define_steps:
+
+    my $steps = define_steps
+	    cb_ref => \$finished_cb,
+	    finalize => sub { .. };
+
 =head2 JOINING ASYNCHRONOUS "THREADS"
 
 With slow operations, it is often useful to perform multiple operations
@@ -989,6 +996,7 @@ push @EXPORT_OK, "synchronized";
     sub define_steps (@) {
 	my (%params) = @_;
 	my $cb_ref = $params{'cb_ref'};
+	my $finalize = $params{'finalize'};
 	my %steps;
 
 	croak "cb_ref is undefined" unless defined $cb_ref;
@@ -1003,6 +1011,7 @@ push @EXPORT_OK, "synchronized";
 	$$cb_ref = sub {
 	    %steps = ();
 	    $current_steps = undef;
+	    $finalize->() if defined($finalize);
 	    goto $orig_cb;
 	};
 

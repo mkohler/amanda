@@ -720,7 +720,7 @@ amgtar_estimate(
 	if (gnutar_directory) {
 	    dirname = gnutar_directory;
 	} else {
-	    dirname = amname_to_dirname(argument->dle.device);
+	    dirname = argument->dle.device;
 	}
 	amgtar_build_exinclude(&argument->dle, 1,
 			       &nb_exclude, &file_exclude,
@@ -968,7 +968,7 @@ amgtar_backup(
 		}
 	    }
 	    if(rp->typ == DMP_SIZE) {
-		dump_size = (long)((the_num(line, rp->field)* rp->scale+1023.0)/1024.0);
+		dump_size = (off_t)((the_num(line, rp->field)* rp->scale+1023.0)/1024.0);
 	    }
 	    switch(rp->typ) {
 	    case DMP_NORMAL:
@@ -1440,7 +1440,7 @@ GPtrArray *amgtar_build_argv(
     if (gnutar_directory) {
 	dirname = gnutar_directory;
     } else {
-	dirname = amname_to_dirname(argument->dle.device);
+	dirname = argument->dle.device;
     }
 
     g_ptr_array_add(argv_ptr, stralloc(gnutar_path));

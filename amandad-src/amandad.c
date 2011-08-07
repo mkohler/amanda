@@ -81,7 +81,8 @@ typedef enum {
     SERVICE_SENDBACKUP,
     SERVICE_SELFCHECK,
     SERVICE_AMINDEXD,
-    SERVICE_AMIDXTAPED
+    SERVICE_AMIDXTAPED,
+    SERVICE_AMDUMPD
 } service_t;
 
 static struct services {
@@ -94,7 +95,8 @@ static struct services {
    { "sendbackup", 1, SERVICE_SENDBACKUP },
    { "selfcheck", 1, SERVICE_SELFCHECK },
    { "amindexd", 0, SERVICE_AMINDEXD },
-   { "amidxtaped", 0, SERVICE_AMIDXTAPED }
+   { "amidxtaped", 0, SERVICE_AMIDXTAPED },
+   { "amdumpd", 0, SERVICE_AMDUMPD }
 };
 #define	NSERVICES	(int)(sizeof(services) / sizeof(services[0]))
 
@@ -285,6 +287,14 @@ main(
 		error(_("no driver for security type '%s'\n"), argv[i]);
                 /*NOTREACHED*/
 	    }
+	    if (strcmp(auth, "local") == 0 ||
+		strcmp(auth, "rsh") == 0 ||
+		strcmp(auth, "ssh") == 0) {
+		int i;
+		for (i=0; i < NSERVICES; i++) {
+		    services[i].active = 1;
+		}
+	    }
 	    continue;
 	}
 
@@ -421,13 +431,13 @@ main(
     }
 
     /*
-     * If no security type specified, use BSD
+     * If no security type specified, use BSDTCP
      */
     if (secdrv == NULL) {
-	secdrv = security_getdriver("BSD");
-	auth = "bsd";
+	secdrv = security_getdriver("BSDTCP");
+	auth = "bsdtcp";
 	if (secdrv == NULL) {
-	    error(_("no driver for default security type 'BSD'\n"));
+	    error(_("no driver for default security type 'BSDTCP'\n"));
 	    /*NOTREACHED*/
 	}
     }
@@ -1811,17 +1821,22 @@ service_delete(
     if (as->security_handle != NULL)
 	security_close(as->security_handle);
 
+    /* try to kill the process; if this fails, then it's already dead and
+     * likely some of the other zombie cleanup ate its brains, so we don't
+     * bother to waitpid for it */
     assert(as->pid > 0);
-    kill(as->pid, SIGTERM);
     pid = waitpid(as->pid, NULL, WNOHANG);
-    count = 5;
-    while (pid != as->pid && count > 0) {
-	count--;
-	sleep(1);
+    if (pid != as->pid && kill(as->pid, SIGTERM) == 0) {
 	pid = waitpid(as->pid, NULL, WNOHANG);
-    }
-    if (pid != as->pid) {
-	g_debug("Process %d failed to exit", (int)as->pid);
+	count = 5;
+	while (pid != as->pid && count > 0) {
+	    count--;
+	    sleep(1);
+	    pid = waitpid(as->pid, NULL, WNOHANG);
+	}
+	if (pid != as->pid) {
+	    g_debug("Process %d failed to exit", (int)as->pid);
+	}
     }
 
     serviceq = g_slist_remove(serviceq, (gpointer)as);

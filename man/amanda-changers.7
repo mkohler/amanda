@@ -2,12 +2,12 @@
 .\"     Title: amanda-changers
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 12/14/2010
+.\"      Date: 06/02/2011
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.2.1
+.\"    Source: Amanda 3.3.0
 .\"  Language: English
 .\"
-.TH "AMANDA\-CHANGERS" "7" "12/14/2010" "Amanda 3\&.2\&.1" "Miscellanea"
+.TH "AMANDA\-CHANGERS" "7" "06/02/2011" "Amanda 3\&.3\&.0" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -103,9 +103,38 @@ Global device properties always apply\&. If the changer specifies a device by al
 .SH "CHANGER DRIVERS"
 .PP
 This section lists the changer drivers included with Amanda, and basic instructions for using them\&. For complete How\-To information, consult the Amanda wiki at http://wiki\&.zmanda\&.com\&.
+.SS "chg\-aggregate:changer (new)"
+.nf
+define changer robot0 {
+  tpchanger "chg\-robot:/dev/sg0"
+  property "tape\-device" "0=tape:/dev/rmt/0" "1=tape:/dev/rmt/1"
+}
+define changer robot1 {
+  tpchanger "chg\-robot:/dev/sg1"
+  property "tape\-device" "0=tape:/dev/rmt/2" "1=tape:/dev/rmt/3"
+}
+define changer single {
+  tpchanger "chg\-single:/dev/rmt/4"
+}
+define changer aggregate {
+  tpchanger "chg\-aggregate:{robot0,robot1,single}"
+  property "state\-filename" "/etc/amanda/CONF/aggregate\&.state"
+
+}
+tpchanger "aggregate"
+.fi
+.PP
+This changer driver allow to use two or more changers or standalone drive in sequence\&.
 .SS "chg\-disk:VTAPEROOT (new)"
 .nf
-tpchanger "chg\-disk:/u01/vtapes"
+tpchanger "chg\-disk:/var/mnt/vtapes"
+property "num\-slot" "10"
+property "auto\-create\-slot" "yes"
+property "removable" "yes"
+property "mount" "yes"
+property "umount" "yes"
+property "umount\-lockfile" "/etc/amanda/conf/vtapes\-lock"
+property "umount\-idle" "1"
 .fi
 .PP
 This changer driver replaces the old
@@ -118,6 +147,53 @@ The current slot can be accessed using the device name
 file:VTAPEROOT\&. This is useful for the
 \fBamrestore\fR(8)
 command line\&.
+.SS "Properties"
+.PP
+AUTO\-CREATE\-SLOT
+.RS 4
+
+If a slotN directory in the range 1 to NUM\-SLOT does not already exist, and this property is true, then the changer will create the directory\&.
+.RE
+.PP
+MOUNT
+.RS 4
+
+If this property is true, the changer try to mount the removable disk if nothing is mounted\&. The system must be configured to allow the amanda user to mount it\&.
+.RE
+.PP
+NUM\-SLOT
+.RS 4
+
+The minimum number of slots in the changer, where the first slot is slot1\&.  If additional slot directories exist, they will also be used\&.
+.RE
+.PP
+REMOVABLE
+.RS 4
+
+If this property is true, then the changer will verify that the changer
+directory (e\&.g\&., /var/mnt/vtapes) is on a different
+filesystem from its parent directory (e\&.g\&., /var/mnt)\&.
+This is useful for removable disks, as it will prevent Amanda from creating
+slot directories when the removable disk is not mounted\&.
+.RE
+.PP
+UMOUNT
+.RS 4
+
+If this property is true, the changer try to umount the removable disk when it exit\&. The system must be configured to allow the amanda user to umount it\&.
+.RE
+.PP
+UMOUNT\-LOCKFILE
+.RS 4
+
+If UMOUNT is set, it require a lockfile outside of the mount point to prevent race\&.
+.RE
+.PP
+UMOUNT\-IDLE
+.RS 4
+
+If set, the changer try to umount the removable disk when it is not in use\&. The umount\-idle value is a delay in second to wait before doing the umount\&. A value >= 1 is required to prevent useless mount/umount\&.
+.RE
 .SS "chg\-disk (old)"
 .nf
 tapedev "file:/u01/vtapes"

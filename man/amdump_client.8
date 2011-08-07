@@ -1,0 +1,58 @@
+'\" t
+.\"     Title: amdump_client
+.\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
+.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
+.\"      Date: 06/02/2011
+.\"    Manual: System Administration Commands
+.\"    Source: Amanda 3.3.0
+.\"  Language: English
+.\"
+.TH "AMDUMP_CLIENT" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "NAME"
+amdump_client \- back up all disks in an Amanda configuration
+.SH "SYNOPSIS"
+.HP \w'\fBamdump_client\fR\ 'u
+\fBamdump_client\fR [\fB\-o\fR\ \fIconfigoption\fR...] [\fB\-\-config\fR\ \fIconfig\fR] \fICMD\fR [\fIdiskname\fR...]
+.SH "DESCRIPTION"
+.PP
+\fBAmdump_client\fR
+initiate backup on the client\&. There are two commands (CMD):
+.PP
+\fBlist\fR
+.RS 4
+list all diskname that can be dumped\&.
+.RE
+.PP
+\fBcheck\fR
+.RS 4
+Check the configuration of the client and disk\&.
+.RE
+.PP
+\fBdump\fR
+.RS 4
+Start a backup of the specified diskname, or all diskname if none are specified\&.
+.RE
+.SH "SEE ALSO"
+.PP
+\fBamanda\fR(8),
+\fBamdump\fR(8),
+\fBamanda-match\fR(7)
+.PP
+The Amanda Wiki:
+: http://wiki.zmanda.com/
+.SH "AUTHOR"
+.PP
+\fBJean\-Louis Martineau\fR <\&martineau@zmanda\&.com\&>
+.RS 4
+Zmanda, Inc\&. (http://www\&.zmanda\&.com)
+.RE

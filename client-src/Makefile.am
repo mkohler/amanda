@@ -11,7 +11,7 @@ INCLUDES =	-I$(top_builddir)/common-src \
 		-I$(top_srcdir)/gnulib
 
 AM_CFLAGS = $(AMANDA_WARNING_CFLAGS)
-AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS)
+AM_LDFLAGS = $(AMANDA_STATIC_LDFLAGS) $(AS_NEEDED_FLAGS)
 
 LINT=$(AMLINT)
 LINTFLAGS=$(AMLINTFLAGS)
@@ -20,10 +20,14 @@ amlib_LTLIBRARIES =	libamclient.la
 
 amlibexec_PROGRAMS =	noop calcsize killpgrp rundump runtar selfcheck sendbackup sendsize
 
-amlibexec_SCRIPTS = patch-system
+amlibexec_SCRIPTS_SHELL = patch-system
 
-SCRIPTS_PERL = $(sbin_SCRIPTS)
-SCRIPTS_SHELL = $(amlibexec_SCRIPTS)
+sbin_SCRIPTS_PERL = amdump_client
+
+SCRIPTS_PERL = $(sbin_SCRIPTS_PERL)
+SCRIPTS_SHELL = $(amlibexec_SCRIPTS_SHELL)
+sbin_SCRIPTS = $(sbin_SCRIPTS_PERL)
+amlibexec_SCRIPTS = $(amlibexec_SCRIPTS_SHELL)
 
 libamclient_la_SOURCES=	amandates.c		getfsent.c	\
 			unctime.c		client_util.c
@@ -31,7 +35,7 @@ if WANT_SAMBA
 libamclient_la_SOURCES += findpass.c
 endif
 
-libamclient_la_LDFLAGS = -release $(VERSION)
+libamclient_la_LDFLAGS = -release $(VERSION) $(AS_NEEDED_FLAGS)
 libamclient_la_LIBADD  = ../common-src/libamanda.la
 
 ###

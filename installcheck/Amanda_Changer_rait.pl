@@ -16,7 +16,7 @@
 # Contact information: Zmanda Inc, 465 S. Mathilda Ave., Suite 300
 # Sunnyvale, CA 94086, USA, or: http://www.zmanda.com
 
-use Test::More tests => 42;
+use Test::More tests => 43;
 use File::Path;
 use Data::Dumper;
 use strict;
@@ -103,7 +103,8 @@ sub test_threeway {
     pass("Create 3-way RAIT of vtapes");
 
     my $steps = define_steps
-	cb_ref => \$finished_cb;
+	cb_ref => \$finished_cb,
+	finalize => sub { $chg->quit() };
 
     step get_info => sub {
         $chg->info(info_cb => $steps->{'check_info'},
@@ -297,9 +298,11 @@ sub test_threeway_error {
 
     my $chg = Amanda::Changer->new("chg-rait:{chg-disk:$tapebase/1,chg-disk:$tapebase/2,ERROR}");
     pass("Create 3-way RAIT of vtapes, with the third errored out");
+    is($chg->have_inventory(), '1', "changer have inventory");
 
     my $steps = define_steps
-	cb_ref => \$finished_cb;
+	cb_ref => \$finished_cb,
+	finalize => sub { $chg->quit() };
 
     step get_info => sub {
         $chg->info(info_cb => $steps->{'check_info'},
@@ -389,7 +392,8 @@ sub test_normal_inventory {
     pass("Create 3-way RAIT of vtapes with correctly-labeled children");
 
     my $steps = define_steps
-	cb_ref => \$finished_cb;
+	cb_ref => \$finished_cb,
+	finalize => sub { $chg->quit() };
 
     step setup => sub {
 	reset_taperoot();
@@ -454,7 +458,8 @@ sub test_properties {
 	"Create RAIT device from a named config subsection");
 
     my $steps = define_steps
-	cb_ref => \$finished_cb;
+	cb_ref => \$finished_cb,
+	finalize => sub { $chg->quit() };
 
     step do_load_1 => sub {
 	reset_taperoot();
@@ -498,7 +503,8 @@ sub test_except_slots {
     my $chg;
 
     my $steps = define_steps
-	cb_ref => \$finished_cb;
+	cb_ref => \$finished_cb,
+	finalize => sub { $chg->quit() if defined $chg };
 
     step start => sub {
 	$chg = Amanda::Changer->new("myrait");

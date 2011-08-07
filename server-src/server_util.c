@@ -244,6 +244,8 @@ run_server_script(
     char      *line;
     char      *plugin;
     char       level_number[NUM_STR_SIZE];
+    struct stat cmd_stat;
+    int         result;
 
     if ((pp_script_get_execute_on(pp_script) & execute_on) == 0)
 	return;
@@ -251,15 +253,41 @@ run_server_script(
 	return;
 
     plugin = pp_script_get_plugin(pp_script);
+
     cmd = vstralloc(APPLICATION_DIR, "/", plugin, NULL);
+    result = stat(cmd, &cmd_stat);
+    if (result == -1) {
+	dbprintf("Can't stat script '%s': %s\n", cmd, strerror(errno));
+	amfree(cmd);
+	cmd = vstralloc(get_config_dir(), "/application/", plugin, NULL);
+	result = stat(cmd, &cmd_stat);
+	if (result == -1) {
+	    dbprintf("Can't stat script '%s': %s\n", cmd, strerror(errno));
+	    amfree(cmd);
+	    cmd = vstralloc(CONFIG_DIR, "/application/", plugin, NULL);
+	    result = stat(cmd, &cmd_stat);
+	    if (result == -1) {
+		dbprintf("Can't stat script '%s': %s\n", cmd, strerror(errno));
+		amfree(cmd);
+		cmd = vstralloc(APPLICATION_DIR, "/", plugin, NULL);
+	    }
+	}
+    }
+
     g_ptr_array_add(argv_ptr, stralloc(plugin));
 
     switch (execute_on) {
+    case EXECUTE_ON_PRE_AMCHECK:
+	command = "PRE-AMCHECK";
+	break;
     case EXECUTE_ON_PRE_DLE_AMCHECK:
 	command = "PRE-DLE-AMCHECK";
 	break;
     case EXECUTE_ON_PRE_HOST_AMCHECK:
 	command = "PRE-HOST-AMCHECK";
+	break;
+    case EXECUTE_ON_POST_AMCHECK:
+	command = "POST-AMCHECK";
 	break;
     case EXECUTE_ON_POST_DLE_AMCHECK:
 	command = "POST-DLE-AMCHECK";
@@ -267,11 +295,17 @@ run_server_script(
     case EXECUTE_ON_POST_HOST_AMCHECK:
 	command = "POST-HOST-AMCHECK";
 	break;
+    case EXECUTE_ON_PRE_ESTIMATE:
+	command = "PRE-ESTIMATE";
+	break;
     case EXECUTE_ON_PRE_DLE_ESTIMATE:
 	command = "PRE-DLE-ESTIMATE";
 	break;
     case EXECUTE_ON_PRE_HOST_ESTIMATE:
 	command = "PRE-HOST-ESTIMATE";
+	break;
+    case EXECUTE_ON_POST_ESTIMATE:
+	command = "POST-ESTIMATE";
 	break;
     case EXECUTE_ON_POST_DLE_ESTIMATE:
 	command = "POST-DLE-ESTIMATE";
@@ -279,11 +313,17 @@ run_server_script(
     case EXECUTE_ON_POST_HOST_ESTIMATE:
 	command = "POST-HOST-ESTIMATE";
 	break;
+    case EXECUTE_ON_PRE_BACKUP:
+	command = "PRE-BACKUP";
+	break;
     case EXECUTE_ON_PRE_DLE_BACKUP:
 	command = "PRE-DLE-BACKUP";
 	break;
     case EXECUTE_ON_PRE_HOST_BACKUP:
 	command = "PRE-HOST-BACKUP";
+	break;
+    case EXECUTE_ON_POST_BACKUP:
+	command = "POST-BACKUP";
 	break;
     case EXECUTE_ON_POST_DLE_BACKUP:
 	command = "POST-DLE-BACKUP";
@@ -352,7 +392,7 @@ run_server_script(
 
 
 void
-run_server_scripts(
+run_server_dle_scripts(
     execute_on_t  execute_on,
     char         *config,
     disk_t	 *dp,
@@ -366,6 +406,84 @@ run_server_scripts(
 	g_assert(pp_script != NULL);
 	run_server_script(pp_script, execute_on, config, dp, level);
     }
+}
+
+void
+run_server_host_scripts(
+    execute_on_t  execute_on,
+    char         *config,
+    am_host_t	 *hostp)
+{
+    identlist_t pp_scriptlist;
+    disk_t *dp;
+
+    GHashTable* executed = g_hash_table_new_full(g_str_hash, g_str_equal,
+						 NULL, NULL);
+    for (dp = hostp->disks; dp != NULL; dp = dp->hostnext) {
+	if (dp->todo) {
+	    for (pp_scriptlist = dp->pp_scriptlist; pp_scriptlist != NULL;
+		 pp_scriptlist = pp_scriptlist->next) {
+		int todo = 1;
+		pp_script_t *pp_script = lookup_pp_script((char *)pp_scriptlist->data);
+		g_assert(pp_script != NULL);
+		if (pp_script_get_single_execution(pp_script)) {
+		    todo = g_hash_table_lookup(executed,
+					       pp_script_get_plugin(pp_script))
+			   == NULL;
+		}
+		if (todo) {
+		    run_server_script(pp_script, execute_on, config, dp, -1);
+		    if (pp_script_get_single_execution(pp_script)) {
+			g_hash_table_insert(executed,
+					    pp_script_get_plugin(pp_script),
+					    GINT_TO_POINTER(1));
+		    }
+		}
+	    }
+	}
+    }
+
+    g_hash_table_destroy(executed);
+}
+
+void
+run_server_global_scripts(
+    execute_on_t  execute_on,
+    char         *config)
+{
+    identlist_t  pp_scriptlist;
+    disk_t      *dp;
+    am_host_t   *host;
+
+    GHashTable* executed = g_hash_table_new_full(g_str_hash, g_str_equal,
+						 NULL, NULL);
+    for (host = get_hostlist(); host != NULL; host = host->next) {
+	for (dp = host->disks; dp != NULL; dp = dp->hostnext) {
+	    if (dp->todo) {
+		for (pp_scriptlist = dp->pp_scriptlist; pp_scriptlist != NULL;
+		     pp_scriptlist = pp_scriptlist->next) {
+		    int todo = 1;
+		    pp_script_t *pp_script =
+				 lookup_pp_script((char *)pp_scriptlist->data);
+		    g_assert(pp_script != NULL);
+		    if (pp_script_get_single_execution(pp_script)) {
+			todo = g_hash_table_lookup(executed,
+				pp_script_get_plugin(pp_script)) == NULL;
+		    }
+		    if (todo) {
+			run_server_script(pp_script, execute_on, config,
+					  dp, -1);
+			if (pp_script_get_single_execution(pp_script)) {
+			    g_hash_table_insert(executed,
+					pp_script_get_plugin(pp_script),
+					GINT_TO_POINTER(1));
+			}
+		    }
+		}
+	    }
+	}
+    }
+    g_hash_table_destroy(executed);
 }
 
 void
