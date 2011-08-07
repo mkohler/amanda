@@ -78,6 +78,7 @@ binary-arch: build
 	dh_clean -k
 	dh_installdirs -a
 	make install DESTDIR=$(r)
+	sed -i "/dependency_libs/ s/'.*'/''/" `find $(r)/usr/lib/amanda/ -name '*.la'`
 	install -m 644 debian/amandahosts $(r)/etc/amandahosts
 	dh_installdocs -a
 	dh_installexamples -a
