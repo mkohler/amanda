@@ -11,6 +11,7 @@ usr/lib/amanda/driver
 usr/lib/amanda/dumper
 usr/lib/amanda/planner
 usr/lib/amanda/taper
+usr/sbin/activate-devpay
 usr/sbin/amadmin
 usr/sbin/amcheck
 usr/sbin/amcheckdb
