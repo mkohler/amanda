@@ -1,0 +1,191 @@
+Description: make dumpdates path in docs match Debian configuration
+Author: Bdale Garbee <bdale@gag.com>
+
+--- amanda-3.3.0.orig/man/disklist.5
++++ amanda-3.3.0/man/disklist.5
+@@ -89,7 +89,7 @@ defined in the
+ \fBamanda\&.conf\fR
+ file\&.
+ \fIDumptype\fRs specify backup related parameters, such as whether to compress the backups, whether to record backup results in
+-/etc/dumpdates, the disk\'s relative priority, etc\&.
++/var/lib/dumpdates, the disk\'s relative priority, etc\&.
+ .RE
+ .PP
+ \fIspindle\fR
+--- amanda-3.3.0.orig/man/amanda.conf.5
++++ amanda-3.3.0/man/amanda.conf.5
+@@ -1672,8 +1672,8 @@ keyword append the values to the list of
+ \fBrecord\fR \fIboolean\fR
+ .RS 4
+ Default:
+-\fByes\fR\&. Whether to ask the backup program to update its database (e\&.g\&.
+-/etc/dumpdates
++\fIyes\fR\&. Whether to ask the backup program to update its database (e\&.g\&.
++/var/lib/dumpdates
+ for DUMP or
+ /usr/local/var/amanda/gnutar\-lists
+ for GNUTAR) of time stamps\&. This is normally enabled for daily backups and turned off for periodic archival runs\&.
+--- amanda-3.3.0.orig/man/entities/global.entities.in
++++ amanda-3.3.0/man/entities/global.entities.in
+@@ -98,7 +98,7 @@
+ <!ENTITY tapelist '<manref name="tapelist" vol="5"/>'>
+ 
+ <!-- IDs for files used by AMANDA-->
+-<!ENTITY dumpdates '<filename>/etc/dumpdates</filename>'>
++<!ENTITY dumpdates '<filename>/var/lib/dumpdates</filename>'>
+ 
+ <!-- IDs for AMANDA commands-->
+ <!ENTITY amadmin ' <command>amadmin</command>'>
+--- amanda-3.3.0.orig/man/xml-source/disklist.5.xml
++++ amanda-3.3.0/man/xml-source/disklist.5.xml
+@@ -112,7 +112,7 @@ file.
+ specify backup related parameters,
+ such as whether to compress the backups,
+ whether to record backup results in
+-<filename>/etc/dumpdates</filename>, the disk's relative priority, etc.</para>
++<filename>/var/lib/dumpdates</filename>, the disk's relative priority, etc.</para>
+   </listitem>
+   </varlistentry>
+   <varlistentry>
+--- amanda-3.3.0.orig/man/xml-source/amanda.conf.5.xml
++++ amanda-3.3.0/man/xml-source/amanda.conf.5.xml
+@@ -2155,8 +2155,8 @@ the property to set, and the others cont
+   <term><amkeyword>record</amkeyword> <amtype>boolean</amtype></term>
+   <listitem>
+ <para>Default:
+-<amkeyword>yes</amkeyword>.
+-Whether to ask the backup program to update its database (e.g. <filename>/etc/dumpdates</filename>
++<emphasis remap='I'>yes</emphasis>.
++Whether to ask the backup program to update its database (e.g. <filename>/var/lib/dumpdates</filename>
+ for DUMP or <filename>/usr/local/var/amanda/gnutar-lists</filename> for GNUTAR) of time stamps.
+ This is normally enabled for daily backups and turned off for periodic archival runs.</para>
+   </listitem>
+--- amanda-3.3.0.orig/client-src/amandates.c
++++ amanda-3.3.0/client-src/amandates.c
+@@ -26,7 +26,7 @@
+ /*
+  * $Id: amandates.c,v 1.21 2006/07/25 18:35:21 martinea Exp $
+  *
+- * manage amandates file, that mimics /etc/dumpdates, but stores
++ * manage amandates file, that mimics /var/lib/dumpdates, but stores
+  * GNUTAR dates
+  */
+ 
+@@ -314,7 +314,7 @@ import_dumpdates(
+ 
+     devname = amname_to_devname(amdp->name);
+ 
+-    if((dumpdf = fopen("/etc/dumpdates", "r")) == NULL) {
++    if((dumpdf = fopen("/var/lib/dumpdates", "r")) == NULL) {
+ 	amfree(devname);
+ 	return;
+     }
+--- amanda-3.3.0.orig/client-src/selfcheck.c
++++ amanda-3.3.0/client-src/selfcheck.c
+@@ -1128,8 +1128,8 @@ check_overall(void)
+ 	check_file(COMPRESS_PATH, X_OK);
+ 
+     if (need_dump || need_xfsdump ) {
+-	if (check_file_exist("/etc/dumpdates")) {
+-	    check_file("/etc/dumpdates",
++	if (check_file_exist("/var/lib/dumpdates")) {
++	    check_file("/var/lib/dumpdates",
+ #ifdef USE_RUNDUMP
+ 		       F_OK
+ #else
+@@ -1139,15 +1139,15 @@ check_overall(void)
+ 	} else {
+ #ifndef USE_RUNDUMP
+ 	    if (access("/etc", R_OK|W_OK) == -1) {
+-		g_printf(_("ERROR [dump will not be able to create the /etc/dumpdates file: %s]\n"), strerror(errno));
++		g_printf(_("ERROR [dump will not be able to create the /var/lib/dumpdates file: %s]\n"), strerror(errno));
+ 	    }
+ #endif
+ 	}
+     }
+ 
+     if (need_vdump) {
+-	if (check_file_exist("/etc/vdumpdates")) {
+-            check_file("/etc/vdumpdates", F_OK);
++	if (check_file_exist("/var/lib/vdumpdates")) {
++            check_file("/var/lib/vdumpdates", F_OK);
+ 	}
+     }
+ 
+@@ -1159,6 +1159,7 @@ check_overall(void)
+     check_space(AMANDA_DBGDIR, (off_t)64);	/* for amandad i/o */
+ #endif
+ 
++    check_space("/var/lib", (off_t)64);		/* for /var/lib/dumpdates writing */
+     check_space("/etc", (off_t)64);		/* for /etc/dumpdates writing */
+     }
+ }
+--- amanda-3.3.0.orig/server-src/diskfile.h
++++ amanda-3.3.0/server-src/diskfile.h
+@@ -110,7 +110,7 @@ typedef struct disk_s {
+     char	*clnt_decrypt_opt;	/* client-side decryption option parameter to use */
+     double	comprate[2];		/* default compression rates */
+     /* flag options */
+-    int		record;			/* record dump in /etc/dumpdates ? */
++    int		record;			/* record dump in /var/lib/dumpdates ? */
+     int		skip_incr;		/* incs done externally ? */
+     int		skip_full;		/* fulls done externally ? */
+     int		to_holdingdisk;		/* use holding disk ? */
+--- amanda-3.3.0.orig/example/amanda.conf.in
++++ amanda-3.3.0/example/amanda.conf.in
+@@ -460,7 +460,7 @@ define tapetype SEAGATE-ULTRIUM-LTO {
+ #   program	- specify the dump system to use.  Valid values are "DUMP",
+ #                 or "GNUTAR".  Default: [program "DUMP"].
+ #   record	- record the backup in the time-stamp-database of the backup
+-#		  program (e.g. /etc/dumpdates for DUMP or
++#		  program (e.g. /var/lib/dumpdates for DUMP or
+ #		  @GNUTAR_LISTED_INCREMENTAL_DIRX@ for GNUTAR.).
+ #		  Default: [record yes]
+ #   skip-full	- skip the disk when a level 0 is due, to allow full backups
+@@ -621,7 +621,7 @@ define dumptype nocomp-high {
+ 
+ define dumptype nocomp-test {
+     global
+-    comment "test dump without compression, no /etc/dumpdates recording"
++    comment "test dump without compression, no /var/lib/dumpdates recording"
+     compress none
+     record no
+     priority medium
+@@ -629,7 +629,7 @@ define dumptype nocomp-test {
+ 
+ define dumptype comp-test {
+     nocomp-test
+-    comment "test dump with compression, no /etc/dumpdates recording"
++    comment "test dump with compression, no /var/lib/dumpdates recording"
+     compress client fast
+ }
+ 
+--- amanda-3.3.0.orig/example/template.d/dumptypes
++++ amanda-3.3.0/example/template.d/dumptypes
+@@ -106,7 +106,7 @@
+ #   program	- specify the dump system to use.  Valid values are "DUMP" 
+ #		  "STAR" and "GNUTAR".  Default: [program "DUMP"].
+ #   record	- record the backup in the time-stamp-database of the backup
+-#		  program (e.g. /etc/dumpdates for DUMP or
++#		  program (e.g. /var/lib/dumpdates for DUMP or
+ #		  /var/lib/amanda/gnutar-lists for GNUTAR.).
+ #		  Default: [record yes]
+ #   skip-full	- skip the disk when a level 0 is due, to allow full backups
+@@ -302,7 +302,7 @@ define dumptype nocomp-high {
+ 
+ define dumptype nocomp-test {
+     global
+-    comment "test dump without compression, no /etc/dumpdates recording"
++    comment "test dump without compression, no /var/lib/dumpdates recording"
+     compress none
+     record no
+     priority medium
+@@ -310,7 +310,7 @@ define dumptype nocomp-test {
+ 
+ define dumptype comp-test {
+     nocomp-test
+-    comment "test dump with compression, no /etc/dumpdates recording"
++    comment "test dump with compression, no /var/lib/dumpdates recording"
+     compress client fast
+ }
+ 
