@@ -1,15 +1,13 @@
 Notes on making amanda-client work on a Debian system
 
-
 To get indexing (or specifically amrecover) to work right two things need
 to be done:
 
-1. Edit server's /etc/hosts.allow and allow all client machines into
-   the daemons amindexd & amidxtaped.
+1. If you're using tcpd, make sure to edit the server's /etc/hosts.allow and 
+   allow all client machines into the daemon amandad
 
 2. Edit the server(s) ~backup/.amandahosts and add an entry like:
    "<client_hostname>   root"
-
 
 As always: for more complex setups consult the manpages and available
 documentation in /usr/share/doc/amanda-common ;-) 

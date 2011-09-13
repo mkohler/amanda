@@ -47,11 +47,9 @@ machine.  On Debian systems, this is usually linked to /etc/amandahosts, but
 if you have clients running other operating systems you'll have to find the
 right place yourself.
 
-
 NOTE:  If you want to backup your server too, you need to treat it as both a
 client *and* a server, see /usr/share/doc/amanda-client/README.Debian for 
 more information.
-
 
 For more complex setups, consult the manpages and the extra documents and
 example files in /usr/share/doc/amanda-common, or look at www.amanda.org on
@@ -71,7 +69,6 @@ his experience using ftape:
     alias char-major-27 zftape
     pre-install zftape /sbin/swapout 5
     post-install zftape /bin/ftmt -f /dev/nzqft0 setblk 32768
-
 
 To ease use with firewalls, Amanda has been built with options restricting the
 use of TCP to the port range 50000-50100,  and UDP to the port range 840-860.
@@ -144,6 +141,4 @@ This information from Marc Schaefer may relevant:
 >	  because e.g. SCSI reselection might happen later)
 >	- use the proposed work-around
 >	- ignore those messages in your logcheck.
-
-
 
