@@ -1,9 +1,7 @@
 #!/usr/bin/make -f
-# debian/rules for amanda using debhelper
-# Copyright 1998-2009 by Bdale Garbee.  License GPL v2
+# Copyright 1998-2011 by Bdale Garbee.  License GPL v2
 
-# Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
+export DH_VERBOSE=1
 
 r=$(shell pwd)/debian/amanda-common
 s=$(shell pwd)/debian/amanda-server
@@ -48,7 +46,9 @@ configure-stamp:
 	touch missing
 	touch configure-stamp
 
-build: build-stamp 
+build: build-arch build-indep
+build-arch: build-stamp
+build-indep: build-stamp
 build-stamp: configure-stamp
 	dh_testdir
 	MAILER=/usr/bin/mail $(MAKE) CFLAGS="-O2 -g -Wall \
@@ -83,9 +83,7 @@ binary-arch: build
 	dh_installdocs -a
 	dh_installexamples -a
 	cp ChangeLog $(r)/usr/share/doc/amanda-common/changelog
-	cp debian/xinetd.d/amandaidx $(s)/etc/xinetd.d
-	cp debian/xinetd.d/amidxtape $(s)/etc/xinetd.d
-	cp debian/xinetd.d/amanda $(r)/etc/xinetd.d			
+	cp example/xinetd.amandaserver $(r)/etc/xinetd.d/amanda
 	dh_installmenu -a
 	dh_installcron -a
 	dh_installchangelogs -a
@@ -149,4 +147,4 @@ source diff:
 	@echo >&2 'source and diff are obsolete - use dpkg-source -b'; false
 
 binary: binary-indep binary-arch
-.PHONY: build clean binary-indep binary-arch binary
+.PHONY: configure build-indep build-arch build clean binary-indep binary-arch binary

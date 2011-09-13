@@ -1,6 +1,0 @@
-#!/bin/sh -e
-
-update-inetd --remove amandaidx
-update-inetd --remove amidxtape
-
-#DEBHELPER#

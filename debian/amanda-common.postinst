@@ -58,4 +58,6 @@ if [ "$1" = configure ]; then
 	chmod 770 /var/log/amanda
 fi
 
+update-inetd --add "amanda stream tcp nowait backup /usr/lib/amanda/amandad amandad -auth=bsdtcp amdump amindexd amidxtaped"
+
 #DEBHELPER#

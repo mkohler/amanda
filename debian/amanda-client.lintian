@@ -6,6 +6,4 @@ amanda-client: setuid-binary usr/lib/amanda/rundump 4754 root/backup
 amanda-client: setuid-binary usr/lib/amanda/runtar 4754 root/backup
 amanda-client: non-standard-dir-perm var/lib/amanda/ 0770 != 0755
 amanda-client: non-standard-dir-perm var/lib/amanda/gnutar-lists/ 0770 != 0755
-amanda-client: maintainer-script-needs-depends-on-update-inetd prerm
-amanda-client: maintainer-script-needs-depends-on-update-inetd postinst
 amanda-client: possible-gpl-code-linked-with-openssl
