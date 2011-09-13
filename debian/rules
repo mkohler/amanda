@@ -81,6 +81,7 @@ binary-arch: build
 	sed -i "/dependency_libs/ s/'.*'/''/" `find $(r)/usr/lib/amanda/ -name '*.la'`
 	install -m 644 debian/amandahosts $(r)/etc/amandahosts
 	dh_installdocs -a
+	dh_installexamples -a
 	ln -s /usr/share/amanda/example $(r)/usr/share/doc/examples
 	cp ChangeLog $(r)/usr/share/doc/amanda-common/changelog
 	cp example/xinetd.amandaserver $(r)/etc/xinetd.d/amanda
