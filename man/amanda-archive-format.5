@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amanda-archive-format
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: File formats and conventions
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMANDA\-ARCHIVE\-FOR" "5" "06/02/2011" "Amanda 3\&.3\&.0" "File formats and conventions"
+.TH "AMANDA\-ARCHIVE\-FOR" "5" "02/21/2012" "Amanda 3\&.3\&.1" "File formats and conventions"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -38,7 +47,7 @@ A header record has a fixed size of 28 bytes, as follows:
 .nf
   28 bytes:    magic string
 .fi
-The magic string is the ASCII text "AMANDA ARCHIVE FORMAT " followed by a decimal representation of the format version number (currently \'1\'), padded to 28 bytes with NUL bytes\&.
+The magic string is the ASCII text "AMANDA ARCHIVE FORMAT " followed by a decimal representation of the format version number (currently \*(Aq1\*(Aq), padded to 28 bytes with NUL bytes\&.
 .PP
 A data record has a variable size, as follows:
 .sp

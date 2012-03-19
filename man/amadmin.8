@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amadmin
 .\"    Author: James da Silva <jds@amanda.org>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMADMIN" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMADMIN" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -189,11 +198,11 @@ Delete holding files matching the given specification\&. At least a hostname mus
 .RS 4
 List holding files matching the given dump specification, or all holding files if no specification is provided\&. See
 \fBamanda-match\fR(7)
-for more information on dump specifications\&. With \'\-l\', additional information (size, level, and whether the dump is outdated) is provided\&. With \'\-d\', only outdated dumps are shown\&.
+for more information on dump specifications\&. With \*(Aq\-l\*(Aq, additional information (size, level, and whether the dump is outdated) is provided\&. With \*(Aq\-d\*(Aq, only outdated dumps are shown\&.
 .sp
 An outdated holding file is one which is not required for a restore of the
 \fImost recent\fR
-dump\&. Note that outdated dumps may still be required for restores at earlier dates\&. For example, assume that a DLE had a level 0 on Monday, level 1\'s Tuesday through Thursday, and a level 2 on Friday\&. Then the files required for a restore of Fridays (the most recent) dump are those from Monday (level 0), Thursday (level 1), and Friday (level 2)\&. Tuesday and Wednesday\'s files are outdated\&.
+dump\&. Note that outdated dumps may still be required for restores at earlier dates\&. For example, assume that a DLE had a level 0 on Monday, level 1\*(Aqs Tuesday through Thursday, and a level 2 on Friday\&. Then the files required for a restore of Fridays (the most recent) dump are those from Monday (level 0), Thursday (level 1), and Friday (level 2)\&. Tuesday and Wednesday\*(Aqs files are outdated\&.
 .RE
 .PP
 \fBdelete\fR [ \fIhostname\fR [ \fIdisks\fR ]* ]+
@@ -355,7 +364,7 @@ file, Amanda will treat it as a new disk during the next run\&.
 .nf
 $ amadmin daily delete machine\-d /workspace
 amadmin: machine\-d:/workspace deleted from database\&.
-amadmin: NOTE: you\'ll have to remove these from the \fBdisklist\fR(5) yourself\&.
+amadmin: NOTE: you\*(Aqll have to remove these from the \fBdisklist\fR(5) yourself\&.
 .fi
 .PP
 Find the next tape Amanda will use (in this case,
@@ -377,7 +386,7 @@ show the estimated total size of the backups before and after any compression, r
 .PP
 The
 \fIbalance\fR
-column shows how far off that night\'s backups are from the average size (shown at the bottom of the balance column)\&. Amanda tries to keep the backups within +/\- 5%, but since the amount of data on each filesystem is always changing, and Amanda will never delay backups just to rebalance the schedule, it is common for the schedule to fluctuate by larger percentages\&. In particular, in the case of a tape or backup failure, a bump will occur the following night, which will not be smoothed out until the next pass through the schedule\&.
+column shows how far off that night\*(Aqs backups are from the average size (shown at the bottom of the balance column)\&. Amanda tries to keep the backups within +/\- 5%, but since the amount of data on each filesystem is always changing, and Amanda will never delay backups just to rebalance the schedule, it is common for the schedule to fluctuate by larger percentages\&. In particular, in the case of a tape or backup failure, a bump will occur the following night, which will not be smoothed out until the next pass through the schedule\&.
 .PP
 The last line also shows an estimate of how many Amanda runs will be made between full backups for a file system\&. In the example, a file system will probably have a full backup done every eight times Amanda is run (e\&.g\&. every eight days)\&.
 .nf

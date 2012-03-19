@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amtoc
 .\"    Author: Nicolas Mayencourt <Nicolas.Mayencourt@cui.unige.ch>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMTOC" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMTOC" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -26,7 +35,7 @@ amtoc \- generate TOC (Table Of Contents) for an Amanda run
 .SH "DESCRIPTION"
 .PP
 \fIAmtoc\fR
-generates a table of contents for an Amanda run\&. It\'s a perl script (if you don\'t have perl, install it first!)\&.
+generates a table of contents for an Amanda run\&. It\*(Aqs a perl script (if you don\*(Aqt have perl, install it first!)\&.
 .SH "OPTIONS"
 .PP
 \fB\-a\fR
@@ -49,7 +58,7 @@ Generate the output in tabular form\&.
 .PP
 \fB\-f file\fR
 .RS 4
-Write the output to a file (\'\-\' for stdout)\&.
+Write the output to a file (\*(Aq\-\*(Aq for stdout)\&.
 .RE
 .PP
 \fB\-s subs\fR
@@ -60,7 +69,7 @@ Evaluate the output file name from
 \fB\-a\fR
 option is equivalent to
 \fB\-s\fR
-\fI\'s/$_/\&.toc/\'\fR\&.
+\fI\*(Aqs/$_/\&.toc/\*(Aq\fR\&.
 .RE
 .PP
 \fB\-w\fR
@@ -76,7 +85,7 @@ Marks the last option so the next parameter is the
 .PP
 \fBlogfile\fR
 .RS 4
-(use \'\-\' for stdin)
+(use \*(Aq\-\*(Aq for stdin)
 .RE
 .SH "OUTPUT FORMAT"
 .PP

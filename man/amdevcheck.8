@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amdevcheck
 .\"    Author: Ian Turner <ian@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMDEVCHECK" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMDEVCHECK" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -27,7 +36,7 @@ amdevcheck \- Validate an Amanda device and volume\&.
 .PP
 
 \fBAmdevcheck\fR
-provides a way to check that a particular Amanda device is accessible, whether or not it contains a volume, and whether or not that volume is labeled\&. Some devices can\'t distinguish between all of these cases; a missing volume and an unlabeled volume might generate the same error code, for example\&. In those cases, this tool reports all possible causes of the error\&. Optionally this tools lists the properties for the device\&.
+provides a way to check that a particular Amanda device is accessible, whether or not it contains a volume, and whether or not that volume is labeled\&. Some devices can\*(Aqt distinguish between all of these cases; a missing volume and an unlabeled volume might generate the same error code, for example\&. In those cases, this tool reports all possible causes of the error\&. Optionally this tools lists the properties for the device\&.
 .PP
 See the
 \fBamanda\fR(8)
@@ -50,12 +59,12 @@ Amanda device to use\&. This option overrides any tapedev configuration specifie
 .PP
 \fI\-\-label\fR
 .RS 4
-Get the device\'s label\&. If this option is given, the usual check output is omitted, and the label of the loaded volume is printed to stdout\&. Returns with error if the label is not found\&.
+Get the device\*(Aqs label\&. If this option is given, the usual check output is omitted, and the label of the loaded volume is printed to stdout\&. Returns with error if the label is not found\&.
 .RE
 .PP
 \fI\-\-properties [list]\fR
 .RS 4
-List device properties\&. If this option is given, the usual check output is omitted, and property values are printed to stdout, one per line, as a property name, followed by \'=\', followed by the property value\&. Returns with error if properties are not available\&.
+List device properties\&. If this option is given, the usual check output is omitted, and property values are printed to stdout, one per line, as a property name, followed by \*(Aq=\*(Aq, followed by the property value\&. Returns with error if properties are not available\&.
 .sp
 If
 \fIlist\fR

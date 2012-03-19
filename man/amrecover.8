@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amrecover
 .\"    Author: Alan M. McIvor <alan@kauri.auck.irl.cri.nz>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMRECOVER" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMRECOVER" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -86,7 +95,7 @@ Tape device to use on the tape server host\&.
 .PP
 \fB\-h hostname\fR
 .RS 4
-Hostname to begin restoring; defaults to the system\'s hostname\&.
+Hostname to begin restoring; defaults to the system\*(Aqs hostname\&.
 .RE
 .PP
 \fB\-o\fR \fIclientconfigoption\fR
@@ -98,9 +107,9 @@ See the "\fBCONFIGURATION OVERRIDE\fR" section in
 .PP
 The default
 \fBauth\fR
-is \'BSDTCP\', you can set a different auth in the
+is \*(AqBSDTCP\*(Aq, you can set a different auth in the
 \fBamanda\-client\&.conf\fR
-file or by specifying the \'\-oauth=bsd\' command line argument\&.
+file or by specifying the \*(Aq\-oauth=bsd\*(Aq command line argument\&.
 .SH "COMMANDS"
 .PP
 \fBAmrecover\fR
@@ -248,6 +257,13 @@ is
 \fBtar\fR, they are extracted on the local machine the same way tar volumes are extracted\&.
 .RE
 .PP
+\fBsettranslate\fR [\fBon\fR|\fBoff\fR]
+.RS 4
+Default: on\&. Translate escaped octal value (\*(Aq\e000\*(Aq) in the index file to their corespondig characters, it improve the interface if amrecover is run in the same charset as the filename\&. Set it to
+\fBoff\fR
+if the charset of some filename is not compatible with the amrecover charset\&.
+.RE
+.PP
 \fBmode\fR
 .RS 4
 Displays the extracting mode for Samba shares\&.
@@ -372,7 +388,7 @@ Setting restore date to today (1997\-12\-09)
 200 Working date set to 1997\-12\-09\&.
 200 Config set to MyConfig\&.
 200 Dump host set to this\-host\&.some\&.org\&.
-$CWD \'/var/log\' is on disk \'/var\' mounted at \'/var\'\&.
+$CWD \*(Aq/var/log\*(Aq is on disk \*(Aq/var\*(Aq mounted at \*(Aq/var\*(Aq\&.
 200 Disk set to /var\&.
 /var/log
 WARNING: not on root of selected filesystem, check man\-page!
@@ -406,7 +422,7 @@ Continue? [Y/n]: y
 
 Load tape DMP014 now
 Continue? [Y/n/t]: y
-set owner/mode for \'\&.\'? [yn] n
+set owner/mode for \*(Aq\&.\*(Aq? [yn] n
 amrecover> quit
 200 Good bye\&.
 # ls \-l syslog\&.7

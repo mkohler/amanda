@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amcrypt-ossl
 .\"    Author: Kevin Till <kevin.till@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMCRYPT\-OSSL" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMCRYPT\-OSSL" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -45,7 +54,7 @@ uses the same pass phrase to encrypt and decrypt data\&. It is very important to
 \fBonly\fR
 be recovered with the correct passphrase\&.
 .PP
-OpenSSL\'s key derivation routines use a salt to guard against dictionary attacks on the pass phrase; still it is important to pick a pass phrase that is hard to guess\&. The Diceware method (see
+OpenSSL\*(Aqs key derivation routines use a salt to guard against dictionary attacks on the pass phrase; still it is important to pick a pass phrase that is hard to guess\&. The Diceware method (see
 www\&.diceware\&.com) can be used to create passphrases that are difficult to guess and easy to remember\&.
 .SH "FILES"
 .PP

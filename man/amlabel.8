@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amlabel
 .\"    Author: James da Silva <jds@amanda.org>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMLABEL" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMLABEL" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -114,26 +123,26 @@ Label the tape in slot 3 of the changer with the label "DMP003":
 .fi
 .SH "MESSAGES"
 .PP
-Label \'\fIlabel\fR\' doesn\'t match labelstr \'\fIlabelstr\fR\'
+Label \*(Aq\fIlabel\fR\*(Aq doesn\*(Aqt match labelstr \*(Aq\fIlabelstr\fR\*(Aq
 .RS 4
 The given label does not match the configured labelstr\&. Even with
 \fB\-f\fR, this is an error\&.
 .RE
 .PP
-Label \'\fIlabel\fR\' already on a volume
+Label \*(Aq\fIlabel\fR\*(Aq already on a volume
 .RS 4
 The given label is already on another volume in the tapelist, and Amanda will not write it to this volume unless forced\&.
 .RE
 .PP
-Found label \'\fIlabel\fR\', but it is not from configuration \fIconfig\fR\&.
+Found label \*(Aq\fIlabel\fR\*(Aq, but it is not from configuration \fIconfig\fR\&.
 .RS 4
 The label
 \fBamlabel\fR
-found on the volume does not match this configuration\'s
+found on the volume does not match this configuration\*(Aqs
 \fBlabelstr\fR, so it is probably part of a different Amanda configuration\&. Amanda will not overwrite the label unless it is forced\&.
 .RE
 .PP
-Volume with label \'\fIlabel\fR\' contains data from this configuration\&.
+Volume with label \*(Aq\fIlabel\fR\*(Aq contains data from this configuration\&.
 .RS 4
 The label
 \fBamlabel\fR

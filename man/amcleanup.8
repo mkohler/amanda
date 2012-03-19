@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amcleanup
 .\"    Author: James da Silva <jds@amanda.org>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMCLEANUP" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMCLEANUP" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +31,7 @@
 amcleanup \- run the Amanda cleanup process after a failure
 .SH "SYNOPSIS"
 .HP \w'\fBamcleanup\fR\ 'u
-\fBamcleanup\fR [\fB\-k\fR] [\fB\-p\fR] [\fB\-v\fR] \fIconfig\fR
+\fBamcleanup\fR [\fB\-k\fR] [\fB\-p\fR] [\fB\-r\fR] [\fB\-v\fR] \fIconfig\fR
 .SH "DESCRIPTION"
 .PP
 \fBAmcleanup\fR
@@ -35,6 +44,14 @@ program, but if
 cannot complete for some reason (usually because of a tape server host crash),
 \fBamcleanup\fR
 must be run some time later (usually during system boot)\&.
+.PP
+The
+\fBamcleanupdisk\fR
+program is run with the same
+[\fB\-r\fR]
+and
+[\fB\-v\fR]
+options\&.
 .PP
 See the
 \fBamanda\fR(8)
@@ -51,9 +68,14 @@ Kill all process listed in the log file are their child\&. if there is no log fi
 Do the cleanup only if all process listed in the log file are already terminated\&.
 .RE
 .PP
+\fB\-r\fR
+.RS 4
+Remove bad file in holding disk\&. This options is passed to amcleanupdisk\&.
+.RE
+.PP
 \fB\-v\fR
 .RS 4
-Generate verbose output\&.
+Generate verbose output\&. This options is passed to amcleanupdisk\&.
 .RE
 .SH "EXAMPLES"
 .PP

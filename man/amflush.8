@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amflush
 .\"    Author: James da Silva <jds@amanda.org>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMFLUSH" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMFLUSH" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -130,12 +139,12 @@ to tape drive /dev/rmt/0mn\&.
 Expecting tape DMP014 or a new tape\&.  (The last dumps were to tape DMP013)
 Are you sure you want to do this? yes
 Running in background, you can log off now\&.
-You\'ll get mail when amflush is finished\&.
+You\*(Aqll get mail when amflush is finished\&.
 .fi
 .PP
-The following example causes amflush to flush everything to tape, then ejects tape, using \'at\' to run the task in the background\&.
+The following example causes amflush to flush everything to tape, then ejects tape, using \*(Aqat\*(Aq to run the task in the background\&.
 .nf
-% echo \'amflush \-b \-f MyConfig && mt offline\' | at now
+% echo \*(Aqamflush \-b \-f MyConfig && mt offline\*(Aq | at now
 .fi
 .SH "EXIT CODE"
 
@@ -144,7 +153,7 @@ The exit code of \fBamflush\fR is the ORed value of:
  0  = success
  1  = error
  4  = a dle failed
- 8  = Don\'t know the status of a dle (RESULT_MISSING in the report)
+ 8  = Don\*(Aqt know the status of a dle (RESULT_MISSING in the report)
  16 = tape error or no more tape
 .fi
 .SH "SEE ALSO"

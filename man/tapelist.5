@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: tapelist
 .\"    Author: James da Silva <jds@amanda.org>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: File formats and conventions
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "TAPELIST" "5" "06/02/2011" "Amanda 3\&.3\&.0" "File formats and conventions"
+.TH "TAPELIST" "5" "02/21/2012" "Amanda 3\&.3\&.1" "File formats and conventions"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -43,7 +52,7 @@ is one of "reuse" or "no\-reuse" and tells Amanda whether the tape may be reused
 dumps\&. See the
 \fBreuse\fR
 options of
-\fBamadmin\fR(8)\&. The optional barcode is prefixed with \'BARCODE\' if the volume have a barcode\&. The optional meta label is prefixed with \'META\' if the volume is on a meta volume\&. The optional comment is prefixed with a \'#\' and continues to the end of the line\&. Amanda will maintain this comment until the tape is overwritten\&. Note that comments are not allowed on blank lines\&.
+\fBamadmin\fR(8)\&. The optional barcode is prefixed with \*(AqBARCODE\*(Aq if the volume have a barcode\&. The optional meta label is prefixed with \*(AqMETA\*(Aq if the volume is on a meta volume\&. The optional comment is prefixed with a \*(Aq#\*(Aq and continues to the end of the line\&. Amanda will maintain this comment until the tape is overwritten\&. Note that comments are not allowed on blank lines\&.
 .PP
 The file is sorted such that the most\-recently used tape appears on the first line, and the oldest tape appears on the last line\&.
 .PP

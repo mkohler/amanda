@@ -7,8 +7,8 @@ Author: Bdale Garbee <bdale@gag.com>
  \fBamanda\&.conf\fR
  file\&.
  \fIDumptype\fRs specify backup related parameters, such as whether to compress the backups, whether to record backup results in
--/etc/dumpdates, the disk\'s relative priority, etc\&.
-+/var/lib/dumpdates, the disk\'s relative priority, etc\&.
+-/etc/dumpdates, the disk\*(Aqs relative priority, etc\&.
++/var/lib/dumpdates, the disk\*(Aqs relative priority, etc\&.
  .RE
  .PP
  \fIspindle\fR

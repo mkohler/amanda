@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amanda-auth
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMANDA\-AUTH" "7" "06/02/2011" "Amanda 3\&.3\&.0" "Miscellanea"
+.TH "AMANDA\-AUTH" "7" "02/21/2012" "Amanda 3\&.3\&.1" "Miscellanea"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -106,7 +115,7 @@ There are additional configure options for Kerberos if you so desire\&. All but 
    \-\-with\-krb5\-security=DIR       where libkrb\&.a lives   [see below]
 .fi
 .PP
-If configuring with \-\-with\-krb5\-security, the configure script will search under /usr/kerberos/lib, /usr/cygnus/lib, /usr/lib, and /opt/kerberos/lib for the kerberos bits, libkrb\&.a, in this order\&. Kerberos support will not be added if it does not find them\&. If the kerberos bits are found under some other hierarchy, you can specify this via \-\-with\-krb5\-security=DIR where DIR is where the kerberos bits live\&. The configure script will then look in the \'lib\' directory under this hierarchy for libkrb\&.a\&.
+If configuring with \-\-with\-krb5\-security, the configure script will search under /usr/kerberos/lib, /usr/cygnus/lib, /usr/lib, and /opt/kerberos/lib for the kerberos bits, libkrb\&.a, in this order\&. Kerberos support will not be added if it does not find them\&. If the kerberos bits are found under some other hierarchy, you can specify this via \-\-with\-krb5\-security=DIR where DIR is where the kerberos bits live\&. The configure script will then look in the \*(Aqlib\*(Aq directory under this hierarchy for libkrb\&.a\&.
 .PP
 The
 \fBauth\fR
@@ -115,10 +124,10 @@ parameter selects a communication/authentication method to use between the clien
 .PP
 When Amanda is built, a username is specified with the
 \fB\-\-with\-user\fR
-option\&. Most Amanda processes run under this user\'s identity, to minimize security risks\&. In binary distributions, this username is usually one of \'amanda\', \'amandabackup\', or \'backup\'\&. The examples below use \'amandabackup\' since it is unambiguous\&. You may need to adjust accordingly for your system\&.
+option\&. Most Amanda processes run under this user\*(Aqs identity, to minimize security risks\&. In binary distributions, this username is usually one of \*(Aqamanda\*(Aq, \*(Aqamandabackup\*(Aq, or \*(Aqbackup\*(Aq\&. The examples below use \*(Aqamandabackup\*(Aq since it is unambiguous\&. You may need to adjust accordingly for your system\&.
 .SS "Authenticated Peer Hostnames"
 .PP
-Amanda\'s authentication mechanisms provide an authenticated hostname of the system on the other end of the connection, which is used to restrict access to only particular hosts\&. The degree of "authentication" performed on this hostname varies with the authentication mechanism, and is discussed below\&.
+Amanda\*(Aqs authentication mechanisms provide an authenticated hostname of the system on the other end of the connection, which is used to restrict access to only particular hosts\&. The degree of "authentication" performed on this hostname varies with the authentication mechanism, and is discussed below\&.
 .SH "BSD, BSDUDP, AND BSDTCP COMMUNICATION AND AUTHENTICATION"
 .PP
 For additional information including example configurations, see http://wiki\&.zmanda\&.com/index\&.php/Configuring_bsd/bsdudp/bsdtcp_authentication\&.
@@ -137,7 +146,7 @@ above), the authentication method that the client is configured to receive is sp
 \fBauth\fR
 parameter in the network service configuration for Amanda\&. The authentication method used by an Amanda client to reach the server during recovery is the authentication method specified by the
 \fIauth\fR
-parameter in the client\'s Amanda network service configuration or in its amanda\-client\&.conf file (see amanda\-client\&.conf(5))\&.
+parameter in the client\*(Aqs Amanda network service configuration or in its amanda\-client\&.conf file (see amanda\-client\&.conf(5))\&.
 .PP
 By default, Amanda use the "amanda" service name and associated port set in /etc/services\&. It can be changed by setting the dumptype
 \fIclient\-port\fR
@@ -146,7 +155,7 @@ option to a different port number or a different service name\&. All examples ar
 .PP
 Servers and clients using the bsd, bsdudp, and bsdtcp authentication methods refer to the \&.amandahosts file to control access\&. Amanda should be compiled for this access control if one of these methods will be used and is the default compilation option for Amanda 2\&.6 (use \-\-with\-amandahosts when compiling pre\-2\&.6 versions of Amanda)\&.
 .PP
-Amanda looks for the \&.amandahosts file in the Amanda user\'s home directory, commonly /var/lib/amanda\&.
+Amanda looks for the \&.amandahosts file in the Amanda user\*(Aqs home directory, commonly /var/lib/amanda\&.
 .PP
 Each authorization is on its own line in the following format
 .PP
@@ -183,7 +192,7 @@ If service is omitted, it defaults to
 (which is equivalent to
 \fBamdump\fR)\&.
 .PP
-Example of the \&.amandahosts file on an Amanda client, where \'amandabackup\' is the Amanda dumpuser\&.
+Example of the \&.amandahosts file on an Amanda client, where \*(Aqamandabackup\*(Aq is the Amanda dumpuser\&.
 .sp
 .nf
     \fBamandaserver\&.example\&.com   amandabackup   amdump\fR
@@ -196,13 +205,13 @@ Example of the \&.amandahosts file on an Amanda server
 .fi
 .SS "bsd communication and authentication"
 .PP
-The authentication is done using \&.amandahosts file in the Amanda user\'s home directory\&. The protocol between Amanda server and client is UDP\&. The number of disk list entries (DLEs)\-\-number of Amanda clients\-\-is limited by the UDP packet size\&. This authentication protocol will use a different port for each data stream (see PORT USAGE below)
+The authentication is done using \&.amandahosts file in the Amanda user\*(Aqs home directory\&. The protocol between Amanda server and client is UDP\&. The number of disk list entries (DLEs)\-\-number of Amanda clients\-\-is limited by the UDP packet size\&. This authentication protocol will use a different port for each data stream (see PORT USAGE below)
 .SS "bsdudp communication and authentication"
 .PP
-The authentication is done using \&.amandahosts files in the Amanda user\'s home directory\&. It uses UDP protocol between Amanda server and client for data and hence the number of DLEs is limited by the UDP packet size\&. It uses one TCP port to establish the connection and multiplexes all data streams using one port on the server (see PORT USAGE below)\&.
+The authentication is done using \&.amandahosts files in the Amanda user\*(Aqs home directory\&. It uses UDP protocol between Amanda server and client for data and hence the number of DLEs is limited by the UDP packet size\&. It uses one TCP port to establish the connection and multiplexes all data streams using one port on the server (see PORT USAGE below)\&.
 .SS "bsdtcp communication and authentication"
 .PP
-The authentication is done using \&.amandahosts files in the backup user\'s (for example: amandabackup) home directory\&. It uses TCP protocol between Amanda server and client\&. On the client, two reserved ports are used\&. On the server, all data streams are multiplexed to one port (see PORT USAGE below)\&.
+The authentication is done using \&.amandahosts files in the backup user\*(Aqs (for example: amandabackup) home directory\&. It uses TCP protocol between Amanda server and client\&. On the client, two reserved ports are used\&. On the server, all data streams are multiplexed to one port (see PORT USAGE below)\&.
 .SS "USING INETD SERVER"
 .PP
 Template for Amanda client inetd service entry
@@ -440,7 +449,7 @@ and
 \fBamanda-client.conf\fR(5))\&.
 .SS "Authenticated Peer Hostnames with BSD Authentications"
 .PP
-The BSD authentication mechanisms only verify that the remote host\'s DNS is configured correctly and that the remote user has access to reserved ports\&. As such, the peer hostname should only be trusted to the extent that the local DNS service is trusted\&.
+The BSD authentication mechanisms only verify that the remote host\*(Aqs DNS is configured correctly and that the remote user has access to reserved ports\&. As such, the peer hostname should only be trusted to the extent that the local DNS service is trusted\&.
 .SH "KERBEROS COMMUNICATION AND AUTHENTICATION"
 
 For more detail, see http://wiki\&.zmanda\&.com/index\&.php/Kerberos_authentication\&.
@@ -481,7 +490,7 @@ And the /etc/inetd\&.conf line is:
    k5amanda stream tcp nowait root /usr/local/libexec/amanda/amandad amandad \-auth=krb5
 .fi
 .PP
-Note that you\'re running this as root, rather than as your dump user\&. AMANDA will set its UID down to the dump user at times it doesn\'t need to read the keytab file, and give up root permissions entirely before it goes off and runs dump\&. Alternately you can change your keytab files to be readable by user amanda\&. You should understand the security implications of this before changing the permissions on the keytab\&.
+Note that you\*(Aqre running this as root, rather than as your dump user\&. AMANDA will set its UID down to the dump user at times it doesn\*(Aqt need to read the keytab file, and give up root permissions entirely before it goes off and runs dump\&. Alternately you can change your keytab files to be readable by user amanda\&. You should understand the security implications of this before changing the permissions on the keytab\&.
 .PP
 The following dumptype options apply to
 \fBkrb5\fR:
@@ -505,7 +514,7 @@ For example:
    krb5principal  "amanda/saidin\&.omniscient\&.com"
 .fi
 .PP
-The principal in the second option must be contained in the first\&. The keytab should be readable by the amanda user (and definitely not world readable!) and is (obviously) on the server\&. In MIT\'s kadmin, the following:
+The principal in the second option must be contained in the first\&. The keytab should be readable by the amanda user (and definitely not world readable!) and is (obviously) on the server\&. In MIT\*(Aqs kadmin, the following:
 .sp
 .nf
    addprinc \-randkey amanda/saidin\&.omniscient\&.com
@@ -518,7 +527,7 @@ You must also configure each client to allow the amanda principal in for dumps\&
 .PP
 There are several ways to go about authorizing a server to connect to a client\&.
 .PP
-The normal way is via a \&.k5amandausers file or a \&.k5login file in the client user\'s home directory\&. The determination of which file to use is based on the way you ran configure on AMANDA\&. By default, AMANDA will use \&.k5amandahosts, but if you configured with \-\-without\-amandahosts, AMANDA will use \&.k5login\&. (similar to the default for \&.rhosts/\&.amandahosts\-style security)\&. The \&.k5login file syntax is a superset of the default
+The normal way is via a \&.k5amandausers file or a \&.k5login file in the client user\*(Aqs home directory\&. The determination of which file to use is based on the way you ran configure on AMANDA\&. By default, AMANDA will use \&.k5amandahosts, but if you configured with \-\-without\-amandahosts, AMANDA will use \&.k5login\&. (similar to the default for \&.rhosts/\&.amandahosts\-style security)\&. The \&.k5login file syntax is a superset of the default
 \fBkrb5\fR
 \&.k5login\&. The routines to check it are implemented in amanda rather than using krb5_kuserok because the connections are actually gssapi based\&.
 .PP
@@ -535,12 +544,12 @@ Here are examples of valid entries in the \&.k5amandahosts:
    dumpmaster\&.test\&.com service/amanda@TEST\&.COM
 .fi
 .PP
-Rather than using a \&.k5amandahosts or \&.k5login file, the easiest way is to use a principal named after the destination user, (such as amanda@TEST\&.COM in our example) and not have either a \&.k5amandahosts or \&.k5login file in the destination user\'s home directory\&.
+Rather than using a \&.k5amandahosts or \&.k5login file, the easiest way is to use a principal named after the destination user, (such as amanda@TEST\&.COM in our example) and not have either a \&.k5amandahosts or \&.k5login file in the destination user\*(Aqs home directory\&.
 .PP
 There is no attempt to verify the realm in this case (only a concern if you have cross\-realm authentication setup)\&.
 .SS "Authenticated Peer Hostnames with Kerberos Authentication"
 .PP
-When accepting a new incoming connection, the Kerberos authentication mechanism performs a similar check to that done by the BSD authentications: the forward and reverse DNS entries for the remote host must match\&. As such, while Kerberos authentication can cryptographically ensure that the remote system is recognized (since it has a ticket), its assurances about the remote host\'s identity are weaker and depend on the integrity of the DNS\&.
+When accepting a new incoming connection, the Kerberos authentication mechanism performs a similar check to that done by the BSD authentications: the forward and reverse DNS entries for the remote host must match\&. As such, while Kerberos authentication can cryptographically ensure that the remote system is recognized (since it has a ticket), its assurances about the remote host\*(Aqs identity are weaker and depend on the integrity of the DNS\&.
 .SH "LOCAL COMMUNICATION"
 .PP
 The Amanda server communicates with the client internally versus over the network, ie\&. the client is also the server\&.
@@ -617,7 +626,7 @@ If your server  \fBamandad\fR path and client  \fBamandad\fR path are different,
 
   amandad\-path "/client/amandad/path"
 .PP
-For a marginal increase in security, prepend the keys used for AMANDA in the clients\' authorized_keys file with the following:
+For a marginal increase in security, prepend the keys used for AMANDA in the clients\*(Aq authorized_keys file with the following:
 .sp
 .nf
   from="amanda_server\&.your\&.domain\&.com",no\-port\-forwarding,no\-X11\-forwarding,no\-agent\-forwarding,command="/absolute/path/to/amandad \-auth=ssh amdump"
@@ -626,7 +635,7 @@ For a marginal increase in security, prepend the keys used for AMANDA in the cli
 This will limit that key to connect only from Amanda server and only be able to execute
 \fBamandad\fR(8)\&.
 .PP
-In the same way, prepend the key used for AMANDA in the server\'s authorized_keys file with:
+In the same way, prepend the key used for AMANDA in the server\*(Aqs authorized_keys file with:
 .sp
 .nf
   from="amanda_client\&.your\&.domain\&.com",no\-port\-forwarding,no\-X11\-forwarding,no\-agent\-forwarding,command="/absolute/path/to/amandad \-auth=ssh amindexd amidxtaped"
@@ -649,7 +658,7 @@ Besides user keys, SSH uses host keys to uniquely identify each host, to prevent
 .sp
 .nf
   $ ssh client1\&.zmanda\&.com
-  The authenticity of host \'client1\&.zmanda\&.com (192\&.168\&.10\&.1)\' can\'t be established\&.
+  The authenticity of host \*(Aqclient1\&.zmanda\&.com (192\&.168\&.10\&.1)\*(Aq can\*(Aqt be established\&.
   RSA key fingerprint is 26:4e:df:a2:be:c8:cb:20:1c:68:8b:cc:c0:3b:8e:9d\&.
   Are you sure you want to continue connecting (yes/no)?yes
 .fi
@@ -657,7 +666,7 @@ Besides user keys, SSH uses host keys to uniquely identify each host, to prevent
 As Amanda will not answer this question itself, you must manually make every connection (server to client and client to server) that you expect Amanda to make\&. Note that you must use the same username that Amanda will use (that is, ssh client and ssh client\&.domain\&.com are distinct)\&.
 .SS "Authenticated Peer Hostnames with SSH Authentication"
 .PP
-When accepting an incoming conneciton, the SSH daemon gives Amanda information about the remote system in the $SSH_CONNECTION environment variable\&. Amanda parses this information to determine the remote address, and then performs a similar check to that done by the BSD authentications: the forward and reverse DNS entries for the remote host must match\&. As such, while SSH authentication can cryptographically ensure that the remote system is recognized (since it had a recognized secret key), its assurances about the remote host\'s identity are weaker and depend on the integrity of the DNS\&.
+When accepting an incoming conneciton, the SSH daemon gives Amanda information about the remote system in the $SSH_CONNECTION environment variable\&. Amanda parses this information to determine the remote address, and then performs a similar check to that done by the BSD authentications: the forward and reverse DNS entries for the remote host must match\&. As such, while SSH authentication can cryptographically ensure that the remote system is recognized (since it had a recognized secret key), its assurances about the remote host\*(Aqs identity are weaker and depend on the integrity of the DNS\&.
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),

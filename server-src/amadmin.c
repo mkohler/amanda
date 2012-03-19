@@ -1723,7 +1723,10 @@ import_db(
     skip_whitespace(s, ch);
     if(ch == '\0'
        || sscanf(s - 1, "%d.%d.%d", &vers_maj, &vers_min, &vers_patch) != 3) {
-	goto bad_header;
+	vers_patch = -1;
+	if (sscanf(s - 1, "%d.%d", &vers_maj, &vers_min) != 2) {
+	    goto bad_header;
+	}
     }
 
     skip_integer(s, ch);			/* skip over major */
@@ -1732,11 +1735,15 @@ import_db(
     }
     ch = *s++;
     skip_integer(s, ch);			/* skip over minor */
-    if(ch != '.') {
-	goto bad_header;
+    if (vers_patch != -1) {
+	if (ch != '.') {
+	    goto bad_header;
+	}
+	ch = *s++;
+	skip_integer(s, ch);			/* skip over patch */
+    } else {
+	vers_patch = 0;
     }
-    ch = *s++;
-    skip_integer(s, ch);			/* skip over patch */
 
     hdr = "comment";
     if(ch == '\0') {
@@ -2093,7 +2100,7 @@ disklist_one(
     hp = dp->host;
     ip = hp->netif;
 
-    g_printf("line %d:\n", dp->line);
+    g_printf("line %d (%s):\n", dp->line, dp->filename);
 
     g_printf("    host %s:\n", hp->hostname);
     g_printf("        interface %s\n",

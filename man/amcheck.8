@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amcheck
 .\"    Author: James da Silva <jds@amanda.org>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMCHECK" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMCHECK" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +31,7 @@
 amcheck \- run Amanda self\-checks
 .SH "SYNOPSIS"
 .HP \w'\fBamcheck\fR\ 'u
-\fBamcheck\fR [\-am] [\-w] [\-sclt] [\-M\ \fIaddress\fR] [\fB\-o\fR\ \fIconfigoption\fR...] \fIconfig\fR [\fIhost\fR\ [\fIdisk\fR...]...]
+\fBamcheck\fR [\-am] [\-w] [\-sclt] [\-M\ \fIaddress\fR] [\-\-client\-verbose] [\fB\-o\fR\ \fIconfigoption\fR...] \fIconfig\fR [\fIhost\fR\ [\fIdisk\fR...]...]
 .SH "DESCRIPTION"
 .PP
 \fBAmcheck\fR
@@ -105,6 +114,11 @@ value from
 \fB\-m\fR\&.
 .RE
 .PP
+\fB\-\-client\-verbose\fR
+.RS 4
+Print all client messages\&.
+.RE
+.PP
 \fIhost\fR [\fIdisk\fR]*
 .RS 4
 Specify the host and disk on which the command will work\&.
@@ -125,7 +139,7 @@ In this example, both the tape server and client tests are run\&. The results ar
 % amcheck daily
 Amanda Tape Server Host Check
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
-/amanda2/amanda/work: 911475 KB disk space available, that\'s plenty\&.
+/amanda2/amanda/work: 911475 KB disk space available, that\*(Aqs plenty\&.
 NOTE: skipping tape\-writable test\&.
 Tape VOL10 label ok\&.
 Server check took 34\&.966 seconds\&.
@@ -469,7 +483,7 @@ to exit with a non\-zero status\&.
 .RE
 .RE
 .PP
-Holding disk \fIdisk\fR: \fIN\fR KB disk space available, that\'s plenty\&.
+Holding disk \fIdisk\fR: \fIN\fR KB disk space available, that\*(Aqs plenty\&.
 .RS 4
 (info) There was sufficient free space on holding disk
 \fIdisk\fR\&.
@@ -524,7 +538,7 @@ ERROR: cannot overwrite active tape \fIlabel\fR\&.
 is still active and cannot be used\&.
 .RE
 .PP
-ERROR: label \fIlabel\fR doesn\'t match labelstr \fIpattern\fR \&.
+ERROR: label \fIlabel\fR doesn\*(Aqt match labelstr \fIpattern\fR \&.
 .RS 4
 (error) The label on tape
 \fIlabel\fR

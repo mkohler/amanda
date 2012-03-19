@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amstar
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMSTAR" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMSTAR" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -23,14 +32,18 @@ amstar \- Amanda Application to interface with star
 .SH "DESCRIPTION"
 .PP
 Amstar is an Amanda Application API script\&. It should not be run by users directly\&. It uses star to backup and restore data\&.
+.PP
+The
+\fBdiskdevice\fR
+in the disklist (DLE) must be the directory to backup\&.
 .SH "INCLUDE - EXCLUDE"
 .PP
-amstar doesn\'t support include\&. Both \'exclude list\' and \'exclude file\' are supported\&. There is a maximum of 100 patterns (limit of star)\&.
+amstar doesn\*(Aqt support include\&. Both \*(Aqexclude list\*(Aq and \*(Aqexclude file\*(Aq are supported\&. There is a maximum of 100 patterns (limit of star)\&.
 .PP
 Moving directories into and out of directories on the exclude list causes incremental backups to not contain the files in the moved directories until the next full backup unless the moved files are modified after the move\&.
 .SH "PROPERTIES"
 .PP
-This section lists the properties that control amstar\'s functionality\&. See
+This section lists the properties that control amstar\*(Aqs functionality\&. See
 \fBamanda-applications\fR(7)
 for information on application properties and how they are configured\&.
 .PP
@@ -64,7 +77,7 @@ If set, gnutar will backup from that directory instead of the \fIdiskdevice\fR s
 ONE\-FILE\-SYSTEM
 .RS 4
 
-The default is "YES"\&. This property is deprecated and the default value can\'t be changed\&. star requires it when it works in dump mode\&.  This corresponds to the \fI\-xdev\fR option of star\&.
+The default is "YES"\&. This property is deprecated and the default value can\*(Aqt be changed\&. star requires it when it works in dump mode\&.  This corresponds to the \fI\-xdev\fR option of star\&.
 .RE
 .PP
 SPARSE
@@ -122,7 +135,7 @@ List all regex (POSIX Extended Regular Expression syntax) that amanda ignore\&. 
 STRANGE
 .RS 4
 
-List all regex (POSIX Extended Regular Expression syntax) that are strange output from star\&. All star output that doesn\'t match a normal or ignore regex are strange by default\&. The result of the dump is STRANGE if star produce a strange output\&. These output are in the "FAILED DUMP DETAILS" section of the email report\&.
+List all regex (POSIX Extended Regular Expression syntax) that are strange output from star\&. All star output that doesn\*(Aqt match a normal or ignore regex are strange by default\&. The result of the dump is STRANGE if star produce a strange output\&. These output are in the "FAILED DUMP DETAILS" section of the email report\&.
 .nf
   "^Perform a level 0 dump first\&.*$"
 .fi

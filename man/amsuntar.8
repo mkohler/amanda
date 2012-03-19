@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amsuntar
 .\"    Author: Satya Ganga <gast@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMSUNTAR" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMSUNTAR" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -24,10 +33,14 @@ amsuntar \- Amanda Application to interface with native tar utility available on
 .PP
 Amsuntar is an Amanda Application API script\&. It should not be run by users directly\&. It uses Solaris bundled tar utility to backup and restore data\&. Currenty ACLs from ZFS file system can only be backed up using the solaris supplied tar utility\&.
 .PP
-Solaris 10 supports Role Based Access Control(RBAC) which is enabled by default\&. To run backup operations using sun tar utility by under privileged user like amandabackup, amandabackup user need to have proper roles and profiles, specially "Media Backup" profile/role\&. This can be done using \'usermod \-P "Media Backup" amandabackup\' command\&.
+The
+\fBdiskdevice\fR
+in the disklist (DLE) must be the directory to backup\&.
+.PP
+Solaris 10 supports Role Based Access Control(RBAC) which is enabled by default\&. To run backup operations using sun tar utility by under privileged user like amandabackup, amandabackup user need to have proper roles and profiles, specially "Media Backup" profile/role\&. This can be done using \*(Aqusermod \-P "Media Backup" amandabackup\*(Aq command\&.
 .SH "PROPERTIES"
 .PP
-This section lists the properties that control amsuntar\'s functionality\&. See
+This section lists the properties that control amsuntar\*(Aqs functionality\&. See
 \fBamanda-applications\fR(7)
 for information on application properties and how they are configured\&.
 .PP
@@ -100,7 +113,7 @@ To treat one of these default patterns differently, specify it explicitly in a d
 .PP
 ERROR
 .RS 4
-List all regex (perl Regular Expression syntax) that are error output from sun tar\&. All sun tar output that doesn\'t match a normal, ignore or strange regex are error by default\&. The result of the dump is FAILED if sun tar produce an error output\&. These output are in the "FAILED DUMP DETAILS" section of the email report\&. Default values:
+List all regex (perl Regular Expression syntax) that are error output from sun tar\&. All sun tar output that doesn\*(Aqt match a normal, ignore or strange regex are error by default\&. The result of the dump is FAILED if sun tar produce an error output\&. These output are in the "FAILED DUMP DETAILS" section of the email report\&. Default values:
 .sp
 .nf
 : Permission denied\e$

@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amgtar
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMGTAR" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMGTAR" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -23,9 +32,13 @@ amgtar \- Amanda Application to interface with GNU Tar
 .SH "DESCRIPTION"
 .PP
 Amgtar is an Amanda Application API script\&. It should not be run by users directly\&. It uses GNU Tar to backup and restore data\&.
+.PP
+The
+\fBdiskdevice\fR
+in the disklist (DLE) must be the directory to backup\&.
 .SH "PROPERTIES"
 .PP
-This section lists the properties that control amgtar\'s functionality\&. See
+This section lists the properties that control amgtar\*(Aqs functionality\&. See
 \fBamanda-applications\fR(7)
 for information on application properties and how they are configured\&.
 .PP
@@ -38,7 +51,7 @@ If "YES" (the default), amgtar use the \fI\-\-atime\-preserve=system\fR option o
 CHECK\-DEVICE
 .RS 4
 
-If "YES" (the default), amgtar checks that the device number doesn\'t change for each file\&. If "NO", changes in device number are ignored\&.  To ignore device numbers, tar must support the \fI\-\-no\-check\-device\fR option (gnutar 1\&.19\&.90 and newer)\&. This option is needed for some filesystems and devices on which device numbers change frequently, such as LVM or FiberChannel\&.
+If "YES" (the default), amgtar checks that the device number doesn\*(Aqt change for each file\&. If "NO", changes in device number are ignored\&.  To ignore device numbers, tar must support the \fI\-\-no\-check\-device\fR option (gnutar 1\&.19\&.90 and newer)\&. This option is needed for some filesystems and devices on which device numbers change frequently, such as LVM or FiberChannel\&.
 .RE
 .PP
 COMMAND\-OPTIONS
@@ -107,7 +120,7 @@ If "YES" (the default), gnutar will store sparse files efficiently\&. If "NO", t
 NO\-UNQUOTE
 .RS 4
 
-If "NO" (the default), gnutar doesn\'t get the \fI\-\-no\-unquote\fR option and the diskname can\'t have some characters, eg\&. \'\e\'\&. If "YES", then the \fI\-\-no\-unquote\fR option is given to gnutar and the diskname can have any characters\&.  This option is available only if you are using tar\-1\&.16 or newer\&.
+If "NO" (the default), gnutar doesn\*(Aqt get the \fI\-\-no\-unquote\fR option and the diskname can\*(Aqt have some characters, eg\&. \*(Aq\e\*(Aq\&. If "YES", then the \fI\-\-no\-unquote\fR option is given to gnutar and the diskname can have any characters\&.  This option is available only if you are using tar\-1\&.16 or newer\&.
 .RE
 .PP
 ACLS
@@ -164,7 +177,7 @@ To treat one of these default patterns differently, specify it explicitly in a d
 STRANGE
 .RS 4
 
-List all regex (POSIX Extended Regular Expression syntax) that are strange output from gtar\&. All gtar output that doesn\'t match a normal or ignore regex are strange by default\&. The result of the dump is STRANGE if gtar produce a strange output\&. These output are in the "FAILED DUMP DETAILS" section of the email report\&.
+List all regex (POSIX Extended Regular Expression syntax) that are strange output from gtar\&. All gtar output that doesn\*(Aqt match a normal or ignore regex are strange by default\&. The result of the dump is STRANGE if gtar produce a strange output\&. These output are in the "FAILED DUMP DETAILS" section of the email report\&.
 .RE
 .PP
 VERBOSE
@@ -196,7 +209,7 @@ to match a single character\&. Character classes are represented with
 .fi
 .PP
 Similarly, include expressions are supplied to
-\fBGNU\-tar\fR\'s
+\fBGNU\-tar\fR\*(Aqs
 \fB\-\-files\-from\fR
 option\&. This option ordinarily does not accept any sort of wildcards, but amgtar "manually" applies glob pattern matching to include expressions with only one slash\&. The expressions must still begin with "\&./", so this effectively only allows expressions like "\&./[abc]*" or "\&./*\&.txt"\&.
 .SH "EXAMPLE"

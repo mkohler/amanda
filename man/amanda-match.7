@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amanda-match
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMANDA\-MATCH" "7" "06/02/2011" "Amanda 3\&.3\&.0" "Miscellanea"
+.TH "AMANDA\-MATCH" "7" "02/21/2012" "Amanda 3\&.3\&.1" "Miscellanea"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -27,9 +36,9 @@ Several Amanda commands allow the user to specify dumps using "match expressions
 In some places, only certain match expressions are allowed\&. However, several commands take a dump specification ("dumpspec") consisting of a sequence of several expressions intended to match particular dumps in the catalog\&. Other applications take a DLE specification which indicates a set of DLEs to be operated on\&. These formats are described below\&.
 .SH "HOST & DISK EXPRESSIONS"
 .PP
-The hosts and disks match by word\&. Each word is a glob expression, and words are separated by the character \'\&.\' for host expressions and \'/\' for disk expressions\&. You can anchor the expression on the left with a \'^\' or on the right with a \'$\'\&. The matcher is case insensitive for hosts but case sensitive for disks\&. A match succeeds if all words in the expression match contiguous words in the host or disk\&.
+The hosts and disks match by word\&. Each word is a glob expression, and words are separated by the character \*(Aq\&.\*(Aq for host expressions and \*(Aq/\*(Aq for disk expressions\&. You can anchor the expression on the left with a \*(Aq^\*(Aq or on the right with a \*(Aq$\*(Aq\&. The matcher is case insensitive for hosts but case sensitive for disks\&. A match succeeds if all words in the expression match contiguous words in the host or disk\&.
 .PP
-If the disk is a UNC ("\e\ewindows\eshare") then all \'\e\' are converted to \'/\' before the match\&. Using \'\e\' is complicated because of the extra quoting required by the shell and amanda\&. It\'s easier to use \'/\' because it requires less quoting ("//windows/share")
+If the disk is a UNC ("\e\ewindows\eshare") then all \*(Aq\e\*(Aq are converted to \*(Aq/\*(Aq before the match\&. Using \*(Aq\e\*(Aq is complicated because of the extra quoting required by the shell and amanda\&. It\*(Aqs easier to use \*(Aq/\*(Aq because it requires less quoting ("//windows/share")
 .PP
 The special characters follow\&. Note that the shell interprets some of these characters, so when used on the command line, they must be escaped appropriately for the shell\&.
 .PP
@@ -207,7 +216,7 @@ Will match the disk
 .RE
 .SH "DATESTAMP EXPRESSIONS"
 .PP
-A datestamp expression is either a prefix of the datestamp, or a range expression (separated by \'\-\') matching several prefixes\&. A leading ^ is removed, while arailing $ will force an exact match\&.
+A datestamp expression is either a prefix of the datestamp, or a range expression (separated by \*(Aq\-\*(Aq) matching several prefixes\&. A leading ^ is removed, while arailing $ will force an exact match\&.
 .SS "Examples"
 .PP
 20001212\-14
@@ -257,14 +266,14 @@ amtool MyConfig ^vpdesktop$
 all dumps of host "vpdesktop"
 .RE
 .PP
-amtool MyConfig \'*\' /var/stage
+amtool MyConfig \*(Aq*\*(Aq /var/stage
 .RS 4
 All dumps of
 /var/stage
 on any host
 .RE
 .PP
-amtool MyConfig www1 /var/www \'*\' www2 /var/www \'*\'
+amtool MyConfig www1 /var/www \*(Aq*\*(Aq www2 /var/www \*(Aq*\*(Aq
 .RS 4
 All dumps of /var/www on www1 and www2 (assuming amtool does not require a level argument)
 .RE
@@ -280,7 +289,7 @@ amtool MyConfig vpdesktop /home/anderson
 on host vpdesktop
 .RE
 .PP
-amtool MyConfig \'*\' ^/etc \'*\' ^/var
+amtool MyConfig \*(Aq*\*(Aq ^/etc \*(Aq*\*(Aq ^/var
 .RS 4
 All DLEs matching
 ^/var

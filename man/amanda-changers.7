@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amanda-changers
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMANDA\-CHANGERS" "7" "06/02/2011" "Amanda 3\&.3\&.0" "Miscellanea"
+.TH "AMANDA\-CHANGERS" "7" "02/21/2012" "Amanda 3\&.3\&.1" "Miscellanea"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -30,7 +39,7 @@ overview of the API, and does not address details that are only of concern to de
 The Amanda Changer API is in transition from version 1\&.0 \- driven by shell scripts invoked for each changer operation \- to version 2\&.0, composed of perl objects that can manage parallel access to multiple devices and other complexity\&. At this point, all Amanda programs use the new Changer API directly, although 1\&.0 changer scripts are still fully supported via
 chg\-compat\&.
 .PP
-The Changer API strives to treat all changers identically, so that Amanda\'s behavior is independent of the changer in use\&. However, some parts of Amanda operate differently depending on whether a changer can efficiently search for a volume with a given label\&. This distinction is really only apparent with tape libraries: those with barcode readers can quickly find a desired tape, while those without may fall back to an inefficient scan of each volume\&. The capability to perform quick searches is called "fast\-search", and each changer is annotated below to indicate its support\&.
+The Changer API strives to treat all changers identically, so that Amanda\*(Aqs behavior is independent of the changer in use\&. However, some parts of Amanda operate differently depending on whether a changer can efficiently search for a volume with a given label\&. This distinction is really only apparent with tape libraries: those with barcode readers can quickly find a desired tape, while those without may fall back to an inefficient scan of each volume\&. The capability to perform quick searches is called "fast\-search", and each changer is annotated below to indicate its support\&.
 .SH "SPECIFYING CHANGERS"
 .PP
 Changer specifications are strings like
@@ -293,15 +302,15 @@ The configuration file has simple lines with a parameter and its value separated
 .PP
 multieject
 .RS 4
-If this is 1, use an \'mt
-offline\' command to change to the next tape, or multiple such commands for
+If this is 1, use an \*(Aqmt
+offline\*(Aq command to change to the next tape, or multiple such commands for
 skipping several tapes at a time\&.
 .RE
 .PP
 needeject
 .RS 4
 This option is incompatible with
-\'multieject\'\&. This should be 1 for changers accessed through several virtual
+\*(Aqmultieject\*(Aq\&. This should be 1 for changers accessed through several virtual
 tape devices, when the changer needs the current tape to be ejected before
 changing to another device\&.
 .RE
@@ -310,14 +319,14 @@ gravity
 .RS 4
 Set this to 1 if the
 changer/stacker is unable to loop back to the first tape after unloading the
-last one, or if you don\'t want amanda to go through the tape stack looking for
+last one, or if you don\*(Aqt want amanda to go through the tape stack looking for
 the exact tape it wants instead of using the first acceptable one\&.
 .RE
 .PP
 slot X
 .RS 4
 The configuration file should list
-as many \'slot X\' statements as the number of slots supported by the changer or
+as many \*(Aqslot X\*(Aq statements as the number of slots supported by the changer or
 the number of separate tape drives used\&.
 .RE
 .PP
@@ -335,7 +344,7 @@ resend_mail=900       # resend mail every __ seconds
 timeout_mail=604800   # time out after this many seconds (default 7 days)
 request="[type]"      # How to request a new tape (default "tty_email")
   request="tty"       # Use the tty to ask the user to change tape\&.
-                      # Can\'t be use by cron
+                      # Can\*(Aqt be use by cron
   request="email"     # Send an email to ask the user to change tape\&.
   request="tty_email" # Use the tty if it exist or send an email\&.
 .fi
@@ -344,12 +353,12 @@ This changer is not fast\-search capable\&.
 .SS "chg\-zd\-mtx (old)"
 .nf
 tpchanger "chg\-zd\-mtx"
-changerdev "/dev/sg0"         # used with \'mtx \-f\'
+changerdev "/dev/sg0"         # used with \*(Aqmtx \-f\*(Aq
 changerfile "chg\-zd\-mtx\&.conf"
 tapedev "tape:/dev/nst0"
 .fi
 .PP
-This script interfaces with a tape drive using the Zubkoff/Dandelion version of mtx\&. That\'s the version that takes a device specifier with the
+This script interfaces with a tape drive using the Zubkoff/Dandelion version of mtx\&. That\*(Aqs the version that takes a device specifier with the
 \fB\-f\fR
 option and has subcommands like
 \fBstatus\fR\&. The configuration file parameters are (as listed in the script itself):
@@ -360,12 +369,12 @@ lastslot=?                  #### Last storage slot (element)
 cleanslot=\-1                #### Slot with cleaner tape \-\- default is "\-1"
                             #### Set negative to indicate no cleaner available
 driveslot=0                 #### Drive slot number\&.  Defaults to 0
-                            #### Use the \'Data Transfer Element\' you want
-autoclean=0                 #### Set to \'1\' or greater to enable
+                            #### Use the \*(AqData Transfer Element\*(Aq you want
+autoclean=0                 #### Set to \*(Aq1\*(Aq or greater to enable
 autocleancount=99           #### Number of access before a clean\&.
 havereader=0                #### If you have a barcode reader, set to 1\&.
 offline_before_unload=0     #### Does your robot require an
-                            #### \'mt offline\' before mtx unload?
+                            #### \*(Aqmt offline\*(Aq before mtx unload?
 poll_drive_ready=NN         #### Time (seconds) between tests to see if
                             #### the tape drive has gone ready (default: 3)\&.
 max_drive_wait=NN           #### Maximum time (seconds) to wait for the
@@ -382,7 +391,7 @@ is true\&.
 .SS "chg\-rait:{CHILD1,CHILD2,\&.\&.}"
 .nf
 define changer vtape {
-    tpcanger "chg\-disk:/path/to/vtape"
+    tpchanger "chg\-disk:/path/to/vtape"
 }
 define changer robot {
     tpchanger "chg\-robot:/dev/sg0"
@@ -437,7 +446,7 @@ define changer robot {
 tpchanger "robot"
 .fi
 .PP
-This changer drives a robotic tape library using the operating system\'s
+This changer drives a robotic tape library using the operating system\*(Aqs
 \fBmtx\fR
 command\&. It replaces the ancient
 \fBchg\-zd\-mtx\fR
@@ -453,7 +462,7 @@ parameter can be used to specify a filename at which it should store its state\&
 .PP
 With a barcode reader present, it is possible for
 \fBchg\-robot\fR
-to track the state of the library reliably, even recognizing tapes that are removed and later re\-inserted (by remembering their barcodes)\&. Without barcodes, the changer can still remember the slot in which it last saw the tape with a particular label, although this information can become stale if the tapes are rearranged by an operator\&. In any case, the changer will never "hunt" for a tape by repeatedly loading slots and checking labels\&. If the changer\'s state is inaccurate, use the
+to track the state of the library reliably, even recognizing tapes that are removed and later re\-inserted (by remembering their barcodes)\&. Without barcodes, the changer can still remember the slot in which it last saw the tape with a particular label, although this information can become stale if the tapes are rearranged by an operator\&. In any case, the changer will never "hunt" for a tape by repeatedly loading slots and checking labels\&. If the changer\*(Aqs state is inaccurate, use the
 \fBamtape\fR(8)
 subcommand
 \fBupdate\fR\&.
@@ -464,7 +473,7 @@ the changer when tapes are added to or removed from the library\&.
 .PP
 There is a shell script in the
 contrib/
-directory of Amanda\'s source distribution which can help you convert a
+directory of Amanda\*(Aqs source distribution which can help you convert a
 \fBchg\-zd\-mtx\fR
 configuration into a
 \fBchg\-robot\fR
@@ -563,7 +572,7 @@ returns incorrect barcodes, for example due to a malfunction in the barcode read
 .PP
 LOAD\-POLL
 .RS 4
-This property specifies the timing of Amanda\'s polling for the tape drive to be ready after loading a new tape\&. See "Timing", below\&.
+This property specifies the timing of Amanda\*(Aqs polling for the tape drive to be ready after loading a new tape\&. See "Timing", below\&.
 .sp
 The script "polls" by trying to open the tape device repeatedly until no error is encountered\&. The property specifies the time to wait before the first poll (D), the frequency at which to poll and retry on errors (P); and the time after which it should give up (U)\&. The format is
 .sp
@@ -592,7 +601,7 @@ The default value is
 MTX
 .RS 4
 
-The path to the \'mtx\' binary\&.  The default value is defined at compile time\&.
+The path to the \*(Aqmtx\*(Aq binary\&.  The default value is defined at compile time\&.
 .RE
 .PP
 STATUS\-INTERVAL
@@ -706,8 +715,18 @@ The username for the NDMP server\&.
 VERBOSE
 .RS 4
 
-If true, enables the NDMJOB library\'s verbose (packet\-level) debugging\&.
+If true, enables the NDMJOB library\*(Aqs verbose (packet\-level) debugging\&.
 .RE
+.SS "chg\-single:DEVICE"
+.nf
+tpchanger "chg\-single:tape:/dev/nst0"
+.fi
+.PP
+This changer is for use with standalone drive, it can work with any device\&. The device (\fBtape:/dev/nst0\fR) must be set in the tpchanger definition\&.
+.PP
+The
+\fBchg\-single\fR
+changer has no property\&.
 .SS "Unmaintained Changers"
 .PP
 Amanda has many other changer scripts and programs beyond those described here (see the

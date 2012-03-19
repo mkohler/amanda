@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: disklist
 .\"    Author: James da Silva <jds@amanda.org>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: File formats and conventions
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "DISKLIST" "5" "06/02/2011" "Amanda 3\&.3\&.0" "File formats and conventions"
+.TH "DISKLIST" "5" "02/21/2012" "Amanda 3\&.3\&.1" "File formats and conventions"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -50,12 +59,12 @@ The name of the disk (a label)\&. In most case, you set your
 \fBdiskname\fR
 to the
 \fBdiskdevice\fR
-and you don\'t set the
+and you don\*(Aqt set the
 \fBdiskdevice\&.\fR
 If you want multiple entries with the same
 \fBdiskdevice\fR, you must set a different
 \fBdiskname\fR
-for each entry\&. It\'s the
+for each entry\&. It\*(Aqs the
 \fBdiskname\fR
 that you use on the commandline for any Amanda command\&. Look at the example/disklist file for example\&.
 .RE
@@ -89,7 +98,7 @@ defined in the
 \fBamanda\&.conf\fR
 file\&.
 \fIDumptype\fRs specify backup related parameters, such as whether to compress the backups, whether to record backup results in
-/var/lib/dumpdates, the disk\'s relative priority, etc\&.
+/var/lib/dumpdates, the disk\*(Aqs relative priority, etc\&.
 .RE
 .PP
 \fIspindle\fR
