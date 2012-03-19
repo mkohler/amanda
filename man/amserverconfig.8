@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amserverconfig
 .\"    Author: Kevin Till <kevin.till@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMSERVERCONFIG" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMSERVERCONFIG" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -34,7 +43,7 @@ does not change existing Amanda configurations\&.
 must be run by user amandabackup\&.
 .SH "OPTIONS"
 .PP
-Options may be abbreviated, as long as the abbreviation is not ambiguous\&. Option argument can either separated by \'=\' or a space\&. Example: \-\-templ=harddisk \-\-tapedev /dev/nst0
+Options may be abbreviated, as long as the abbreviation is not ambiguous\&. Option argument can either separated by \*(Aq=\*(Aq or a space\&. Example: \-\-templ=harddisk \-\-tapedev /dev/nst0
 .PP
 
 \fBamserverconfig\fR
@@ -52,7 +61,7 @@ are the valid inputs for this option\&. Pre\-configured template files can be fo
 .sp
 If tape\-changer is chosen for this option, program mtx is required\&.
 \fBamserverconfig\fR
-will search for mtx in the following directory: "/usr/sbin", "/usr/local/sbin", "/usr/local/bin", "/usr/bin", "/bin" and amandabackup\'s PATH\&.
+will search for mtx in the following directory: "/usr/sbin", "/usr/local/sbin", "/usr/local/bin", "/usr/bin", "/bin" and amandabackup\*(Aqs PATH\&.
 .sp
 If harddisk is chosen and \-\-no\-vtape is not specified,
 \fBamserverconfig\fR

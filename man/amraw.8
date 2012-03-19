@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amraw
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMRAW" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMRAW" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -26,12 +35,16 @@ Amraw is an Amanda Application API script\&. It should not be run by users direc
 .PP
 Amraw can backup only one directory entry, it can be a single file, a raw device, anything that amanda can open and read\&.
 .PP
-Restore is done in place, an open is done and the data is written to it\&. A file owned by root and permission 0600 is create if the directory entry doesn\'t exist before the restore\&.
+The
+\fBdiskdevice\fR
+in the disklist (DLE) must be the filename amraw open and read\&.
+.PP
+Restore is done in place, an open is done and the data is written to it\&. A file owned by root and permission 0600 is create if the directory entry doesn\*(Aqt exist before the restore\&.
 .PP
 Only full backup is allowed
 .SH "PROPERTIES"
 .PP
-This section lists the properties that control amgtar\'s functionality\&. See
+This section lists the properties that control amgtar\*(Aqs functionality\&. See
 \fBamanda-applications\fR(7)
 for information on application properties and how they are configured\&.
 .PP

@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amvault
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMVAULT" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMVAULT" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +31,7 @@
 amvault \- Copy Amanda dumps from one volume to another
 .SH "SYNOPSIS"
 .HP \w'\fBamvault\fR\ 'u
-\fBamvault\fR [\fB\-o\fR\ \fIconfigoption\fR...] [\-q] [\-\-quiet] [\-n] [\-\-dry\-run] [\-\-fulls\-only] [\-\-export] [\fB\-\-src\-timestamp\fR\ \fIsrc\-timestamp\fR]
+\fBamvault\fR [\fB\-o\fR\ \fIconfigoption\fR...] [\-\-dry\-run | \-n] [\-\-quiet | \-q] [\-\-fulls\-only] [\-\-export] [\fB\-\-src\-timestamp\fR\ \fIsrc\-timestamp\fR]
 .br
 \fB\-\-label\-template\fR\ \fIlabel\-template\fR \fB\-\-dst\-changer\fR\ \fIdst\-changer\fR [\fB\-\-autolabel\fR\ \fIautolabel\-arg\fR...]
 .br
@@ -43,17 +52,7 @@ Copies data from the run with timestamp
 \fBsrc\-timestamp\fR
 onto volumes using the changer
 \fBdst\-changer\fR, and labeling new volumes with
-\fBlabel\-template\fR\&. If
-\fBsrc\-timestamp\fR
-is "latest", then the most recent amdump or amflush run will be used\&. If
-\fB\-\-fulls\-only\fR
-is given, then only full (level\-0) dumps are copied\&.
-.PP
-The
-\fB\-\-quiet\fR
-(\fB\-q\fR) option will eliminate non\-error messages, and is useful when running amvault from cron\&. The
-\fB\-\-dry\-run\fR
-(\fB\-n\fR) option will cause amvault to print the dumps it would vault, but not actually perform any vaulting operations\&.
+\fBlabel\-template\fR\&.
 .SS "Secondary Media"
 .PP
 The dumps to be read from secondary media can be specified by any combination of dump specifications,
@@ -72,28 +71,7 @@ timestamp \- the run in which the dump was written to secondary media\&. The lat
 .PP
 The
 \fB\-\-dst\-changer\fR
-must be specified, and names the changer in which tertiary media are stored\&. In general, this should be different from the secondary changer, to eliminate the possibility of overwriting secondary media with tertiary data\&.
-.PP
-The changer parameter should specify the name of a changer defined in
-\fBamanda.conf\fR(5)\&. For example:
-.sp
-.nf
-define changer vaulting_tape {
-    tapedev "/dev/rmt/1n"
-    tpchanger "chg\-zd\-mtx"
-    changerdev "/dev/sg0"
-    changerfile "vaulting\-changer\&.conf"
-}
-.fi
-.PP
-The
-\fB\-\-label\-template\fR
-option is required, and specifies a label template which is used to generate new labels for tertiary volumes\&. The
-\fB\-\-autolabel\fR
-option works just like the
-\fBautolabel\fR
-parameter in
-\fBamanda.conf\fR(5), and can be specified multiple times if necessary\&. The default is \'empty\'\&.
+must be specified, and names the changer in which tertiary media are stored\&.
 .PP
 If
 \fBamanda.conf\fR(5)
@@ -109,10 +87,86 @@ and other appropriate parameters there\&. Then reference that tapetype in the am
 .nf
     amvault \-otapetype=TERTIARY \&.\&.\&.
 .fi
+.SH "OPTIONS"
 .PP
+\fB\-\-autolabel\fR [any] [other\-config] [non\-amanda] [volume\-error] [empty]
+.RS 4
+Works just like the
+\fBautolabel\fR
+parameter in
+\fBamanda.conf\fR(5), and can be specified multiple times if necessary\&. The default is \*(Aqempty\*(Aq\&.
+.RE
+.PP
+\fB\-\-dst\-changer\fR \fIdst\-changer\fR
+.RS 4
+Specifies the changer in which tertiary media are stored\&. In general, this should be different from the secondary changer, to eliminate the possibility of overwriting secondary media with tertiary data\&.
+.sp
 The
+\fBdst\-changer\fR
+parameter should specify the name of a changer defined in
+\fBamanda.conf\fR(5)\&. For example:
+.sp
+.nf
+define changer vaulting_tape {
+    tapedev "/dev/rmt/1n"
+    tpchanger "chg\-zd\-mtx"
+    changerdev "/dev/sg0"
+    changerfile "vaulting\-changer\&.conf"
+}
+.fi
+.RE
+.PP
+\fB\-\-dry\-run\fR, \fB\-n\fR
+.RS 4
+Cause amvault to print the dumps it would vault, but not actually perform any vaulting operations\&.
+.RE
+.PP
 \fB\-\-export\fR
-option will cause amvault to attempt to move completed tertiary volumes to import/export slots, where they can be more easily removed by an operator\&.
+.RS 4
+Cause amvault to attempt to move completed tertiary volumes to import/export slots, where they can be more easily removed by an operator\&.
+.RE
+.PP
+\fB\-\-\-fulls\-only\fR
+.RS 4
+Only full (level\-0) dumps are copied\&.
+.RE
+.PP
+\fB\-\-label\-template\fR \fIlabel\-template\fR
+.RS 4
+Specifies a label template which is used to generate new labels for tertiary volumes\&.
+.RE
+.PP
+\fB\-\-quiet\fR, \fB\-q\fR
+.RS 4
+Eliminate non\-error messages, and is useful when running amvault from cron\&.
+.RE
+.PP
+\fB\-\-src\-timestamps\fR \fIsrc\-timestamps\fR
+.RS 4
+Specifies the timestamps in the format \*(AqYYYYMMDDHHMMSS\*(Aq of the run to vault, can be "latest", then the most recent amdump or amflush run will be used\&.
+.RE
+.PP
+\fB\-o\fR \fIconfigoption\fR
+.RS 4
+See the "\fBCONFIGURATION OVERRIDE\fR" section in
+\fBamanda\fR(8)\&.
+.RE
+.SH "EXAMPLES"
+.PP
+Vault all dump written to tape in the latest amdump or amflush run:
+.nf
+$ amvault \-\-src\-timestamps latest \-\-label\-template "CONF\-%%%" \-\-dst\-changer vault\-changer CONF
+.fi
+.PP
+Vault all dump written on the run of December 7 2011 12:13:14 :
+.nf
+$ amvault \-\-src\-timestamps 20111207121314 \-\-label\-template "CONF\-%%%" \-\-dst\-changer vault\-changer CONF
+.fi
+.PP
+Vault all dump dumped on any run of December 7 2011:
+.nf
+$ amvault \-\-label\-template "CONF\-%%%" \-\-dst\-changer vault\-changer CONF \e* \e* 20111207
+.fi
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),

@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amanda-compatibility
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMANDA\-COMPATIBILIT" "7" "06/02/2011" "Amanda 3\&.3\&.0" "Miscellanea"
+.TH "AMANDA\-COMPATIBILIT" "7" "02/21/2012" "Amanda 3\&.3\&.1" "Miscellanea"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -32,7 +41,7 @@ Amanda 2\&.5\&.0 uses the same protocol as 2\&.4\&. One can use a 2\&.5\&.0 serv
 .PP
 Kerberos4 authentication in 2\&.5 is compatible with 2\&.4\&. In 2\&.5, kerberos4 encryption is broken, at least for the server\&.
 .PP
-Amanda 2\&.5\&.1 introduced a new recover protocol\&. Backup communication works with any combination of versions, but 2\&.5\&.1\'s amrecover cannot communicate with an older server\&. Use oldamrecover on 2\&.5\&.1 and higher clients when communicating with an older server\&.
+Amanda 2\&.5\&.1 introduced a new recover protocol\&. Backup communication works with any combination of versions, but 2\&.5\&.1\*(Aqs amrecover cannot communicate with an older server\&. Use oldamrecover on 2\&.5\&.1 and higher clients when communicating with an older server\&.
 .PP
 Amanda 2\&.6\&.0 and later are completely compatible with 2\&.5\&.1\&.
 .PP
@@ -109,7 +118,6 @@ to the previous value of
 \fBfallback\-splitsize\fR\&. Be sure to remove all of the old keywords from your configuration\&.
 .RE
 .sp
-.RE
 .SS "Amanda 3\&.1"
 .PP
 Although it is a significant rewrite, there are no incompatible changes in this release\&.
@@ -136,7 +144,6 @@ label_new_tapes
 autolabel
 .RE
 .sp
-.RE
 .SS "Amanda 2\&.6\&.1"
 .PP
 There are no incompatible changes in this release, but consider switching to some of the new applications instead of the old GNUTAR and DUMP programs\&.
@@ -183,7 +190,6 @@ file\-pad
 \- this is no longer optional, and all files are padded
 .RE
 .sp
-.RE
 .SS "Amanda 2\&.6\&.0"
 .PP
 amverify

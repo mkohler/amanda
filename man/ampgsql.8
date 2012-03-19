@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: ampgsql
 .\"    Author: Nikolas Coukouma <atrus@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMPGSQL" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMPGSQL" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -128,7 +137,6 @@ back up the required WAL files
 optionally delete WAL files that are no longer necessary
 .RE
 .sp
-.RE
 The two dumps are made with GNU Tar, to
 data_dir\&.tar
 and
@@ -139,49 +147,88 @@ A level N backup creates a single tar file containing all WAL files since the pr
 .PP
 This section lists the
 \fBamanda.conf\fR(5)
-properties that control ampsql\'s functionality\&. See
+properties that control ampsql\*(Aqs functionality\&. See
 \fBamanda-applications\fR(7)
 for information on application properties and how they are configured\&.
 .PP
+ARCHIVEDIR
+.RS 4
+Directory that WAL segment files are archived to, as specified by the archive_command in PosgreSQL\*(Aqs postgresql\&.conf\&. The amanda user on the client must have at least read and execute permission on this directory, and preferably write\&. Without write permission, Amanda cannot clean up expired WAL and backup files\&.
+.RE
+.PP
+CLEANUPWAL
+.RS 4
+Whether or not to remove old WAL segment files during base backups\&. Defaults to yes\&.
+.RE
+.PP
+DB
+.RS 4
+Database to connect to\&. Defaults to "template1" (which exists by default)\&.
+.RE
+.PP
 DIRECTORY
 .RS 4
-
 For restore command only, the data is recoved in that directory\&. Must be a unix path\&.
 .RE
 .PP
 GNUTAR\-PATH
 .RS 4
-
-Path to the GNU tar executable\&. This option only has an effect during restore\&.
-The default is set when Amanda is built by the \-\-with\-gnutar configure option\&.
+Path to the GNU tar executable\&. This option only has an effect during restore\&. The default is set when Amanda is built by the \-\-with\-gnutar configure option\&.
+.RE
+.PP
+HOST
+.RS 4
+Host to connect to\&. If it starts with "/" it will be interepreted as a directory that holds the socket file\&. PostgreSQL defaults to /tmp\&.
+.RE
+.PP
+MAX\-WAL\-WAIT
+.RS 4
+The maximum amount of time to wait for PG_STOP_BACKUP to archive a WAL file\&. In versions of PostgreSQL before 8\&.2, PG_STOP_BACKUP does not automatically archive the latest WAL file, so a quiet database may wait a very long time before archiving the WAL file\&. Default: 60 seconds\&. Set to 0 to wait forever\&.
+.RE
+.PP
+PASSFILE
+.RS 4
+Connect using the creditials in this file\&. Each line should have the format "hostname:port:database:username:password"\&. The permissions must permit it to be read only by the user, or the file will not be used\&. Only usable with Postgres 8\&.1 and up\&.
+.RE
+.PP
+PORT
+.RS 4
+The TCP port to connect to, or the suffix of the socket file\&. PostgreSQL defaults to 5432\&.
+.RE
+.PP
+PSQL\-PATH
+.RS 4
+Path to the psql binary\&. If not specified, the PATH environment variable will be searched\&.
 .RE
 .PP
 STATEDIR
 .RS 4
-
-Directory for saving state about backups already made\&. The default is set
-when Amanda is built by the \-\-with\-gnutar\-listdir configure option\&.
+Directory for saving state about backups already made\&. The default is set when Amanda is built by the \-\-with\-gnutar\-listdir configure option\&.
 .RE
 .PP
 TMPDIR
 .RS 4
-
-Directory to use for temporary files during the backup process\&. It should
-have enough space to store a complete copy of the database\&. The default is set
-when Amanda is built by the \-\-with\-tmpdir configure option\&.
+Directory to use for temporary files during the backup process\&. It should have enough space to store a complete copy of the database\&. The default is set when Amanda is built by the \-\-with\-tmpdir configure option\&.
+.RE
+.PP
+USER
+.RS 4
+User to connect as\&. It must be a superuser\&.
 .RE
 .SH "CLIENT PROPERTIES"
 .PP
+Client properties are deprecated\&. All properties should be set in the dumptype\&.
+.PP
 This section lists the
 \fBamanda-client.conf\fR(5)
-properties that control ampsql\'s functionality\&. If a property is prefixed with the diskname and an underscore, then it will be used when that diskname is being backed up\&. For example, if the properties PG\-DATADIR and foo\-PG\-DATADIR are set, the value of PG\-DATADIR will be used when bar and baz are being backed up, but foo\-PG\-DATADIR will be used when foo is being backed up\&. Disknames are specified in the
+properties that control ampsql\*(Aqs functionality\&. If a property is prefixed with the diskname and an underscore, then it will be used when that diskname is being backed up\&. For example, if the properties PG\-DATADIR and foo\-PG\-DATADIR are set, the value of PG\-DATADIR will be used when bar and baz are being backed up, but foo\-PG\-DATADIR will be used when foo is being backed up\&. Disknames are specified in the
 \fBdisklist\fR(5)\&.
 .PP
 PG\-ARCHIVEDIR
 .RS 4
 
 Directory that WAL segment files are archived to, as specified by the archive_command
-in PosgreSQL\'s postgresql\&.conf\&.  The amanda user on the client must have at least read
+in PosgreSQL\*(Aqs postgresql\&.conf\&.  The amanda user on the client must have at least read
 and execute permission on this directory, and preferably write\&.  Without write permission,
 Amanda cannot clean up expired WAL and backup files\&.
 .RE
@@ -263,7 +310,7 @@ in the data directory, owned by the proper user and with proper permissions\&. A
 \fBrestore_command\fR
 to it, e\&.g\&.,
 .nf
-restore_command = \'cp /path/to/archive_dir/%f "%p"\'
+restore_command = \*(Aqcp /path/to/archive_dir/%f "%p"\*(Aq
 .fi
 .PP
 Start the database server, and examine the logs to track the process of the recovery\&. When the recovery is complete, the server will transition into a running state, and will move the

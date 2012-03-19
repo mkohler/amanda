@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amfetchdump
 .\"    Author: John Stange <building@nap.edu>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMFETCHDUMP" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMFETCHDUMP" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +31,7 @@
 amfetchdump \- extract backup images from multiple Amanda tapes\&.
 .SH "SYNOPSIS"
 .HP \w'\fBamfetchdump\fR\ 'u
-\fBamfetchdump\fR [\-phcClawns] [\-d\ \fIdevice\fR] [\-O\ \fIdirectory\fR] [\-b\ \fIblocksize\fR] [\-\-header\-fd\ \fIfd\fR] [\-\-header\-file\ \fIfilename\fR] [\fB\-o\fR\ \fIconfigoption\fR...] \fIconfig\fR \fIhostname\fR [\fIdisk\fR\ [\ \fIdate\fR\ [\ \fIlevel\fR\ [\ \fIhostname\fR\ [\&.\&.\&.]\ ]\ ]\ ]]
+\fBamfetchdump\fR [\-c|\-C|\-L] [\-p|\-n] [\-a] [\-O\ \fIdirectory\fR] [\-d\ \fIdevice\fR] [\-h] [\-\-header\-file\ \fIfilename\fR] [\-\-header\-fd\ \fIfd\fR] [\fB\-o\fR\ \fIconfigoption\fR...] \fIconfig\fR \fIhostname\fR [\fIdisk\fR\ [\ \fIdate\fR\ [\ \fIlevel\fR\ [\ \fIhostname\fR\ [\&.\&.\&.]\ ]\ ]\ ]]
 .SH "DESCRIPTION"
 .PP
 \fBAmfetchdump\fR
@@ -123,12 +132,12 @@ See the "\fBCONFIGURATION OVERRIDE\fR" section in
 All the examples here assume your configuration is called
 \fISetA\fR\&.
 .PP
-Here\'s a simple case, restoring all known dumps of the host vanya to the current working directory\&.
+Here\*(Aqs a simple case, restoring all known dumps of the host vanya to the current working directory\&.
 .nf
 $ amfetchdump SetA vanya
 .fi
 .PP
-A more likely scenario involves restoring a particular dump from a particular date\&. We\'ll pipe this one to
+A more likely scenario involves restoring a particular dump from a particular date\&. We\*(Aqll pipe this one to
 \fBGNU\-tar\fR
 as well, to automatically extract the dump\&.
 .nf
@@ -137,7 +146,7 @@ $ amfetchdump \-p SetA vanya /home 20051020 | gtar \-xvpf \-
 .SH "CAVEATS"
 .PP
 \fBAmfetchdump\fR
-is dependent on accessing your server\'s config, tape changer, and (normally) dump logs\&. As such, it\'s not necessarily the most useful tool when those have all been wiped out and you desperately need to pull things from your tape\&. Pains have been taken to make it as capable as possible, but for seriously minimialist restores, look to
+is dependent on accessing your server\*(Aqs config, tape changer, and (normally) dump logs\&. As such, it\*(Aqs not necessarily the most useful tool when those have all been wiped out and you desperately need to pull things from your tape\&. Pains have been taken to make it as capable as possible, but for seriously minimialist restores, look to
 \fBamrestore\fR(8)
 or
 \fBdd\fR(8)

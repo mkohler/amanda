@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amanda-client.conf
 .\"    Author: James da Silva <jds@amanda.org>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: File formats and conventions
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMANDA\-CLIENT\&.CON" "5" "06/02/2011" "Amanda 3\&.3\&.0" "File formats and conventions"
+.TH "AMANDA\-CLIENT\&.CON" "5" "02/21/2012" "Amanda 3\&.3\&.1" "File formats and conventions"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -61,6 +70,12 @@ Default:
 \fBamanda.conf\fR(5), this specifies the port to connect on the server\&. It can be a service name or a numeric port number\&.
 .RE
 .PP
+\fBamdump\-server\fR \fIstring\fR
+.RS 4
+No default:
+\fISet by configure\fR\&. The amanda server to connect with the amdump_client program\&.
+.RE
+.PP
 \fBindex\-server\fR \fIstring\fR
 .RS 4
 Default:
@@ -93,7 +108,7 @@ Default:
 \fB"krb5"\fR
 to use Kerberos\-V authorization\&.
 .sp
-\fB"local"\fR, if the client is the server, it doesn\'t require authencation setup\&.
+\fB"local"\fR, if the client is the server, it doesn\*(Aqt require authencation setup\&.
 .sp
 \fB"rsh"\fR
 to use rsh authorization\&.
@@ -116,7 +131,7 @@ Default from configure
 .PP
 \fBmailer\fR \fIstring\fR
 .RS 4
-Default found by configure\&. A mail program that can send mail with \'\fIMAILER \-s "subject" user < message_file\fR\'\&.
+Default found by configure\&. A mail program that can send mail with \*(Aq\fIMAILER \-s "subject" user < message_file\fR\*(Aq\&.
 .RE
 .PP
 \fBamandates\fR \fIstring\fR
@@ -134,7 +149,7 @@ Default:
 \fBrep\-tries\fR \fIint\fR
 .RS 4
 Default:
-\fI5\fR\&. How many times amandad will resend a REP packet if it doesn\'t get the ACK packet\&.
+\fI5\fR\&. How many times amandad will resend a REP packet if it doesn\*(Aqt get the ACK packet\&.
 .RE
 .PP
 \fBdebug\-days\fR \fIint\fR
@@ -344,7 +359,7 @@ directory on the client\&. If set, it must be the same as the dle
 \fBexecute\-where\fR \fBclient\fR
 .RS 4
 Default:
-\fBclient\fR\&. Value can\'t be changed\&.
+\fBclient\fR\&. Value can\*(Aqt be changed\&.
 .RE
 .PP
 \fBexecute\-on\fR \fIexecute_on\fR[,\fIexecute_on\fR]*

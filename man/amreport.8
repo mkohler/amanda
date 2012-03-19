@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amreport
 .\"    Author: Stefan G. Weichinger <sgw@amanda.org>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMREPORT" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMREPORT" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -101,7 +110,7 @@ from the Amanda configuration\&.
 .PP
 \fB\-i\fR
 .RS 4
-Don\'t email the report\&.
+Don\*(Aqt email the report\&.
 .RE
 .PP
 \fB\-M\fR \fIaddress\fR
@@ -151,9 +160,9 @@ Force script mode\&. Has no other effect\&.
 .RE
 .SH "TEXT REPORT FORMAT"
 .PP
-Amanda\'s text report format is divided into several sections\&. Some of these sections only appear if they are not empty\&.
+Amanda\*(Aqs text report format is divided into several sections\&. Some of these sections only appear if they are not empty\&.
 .PP
-Although newer versions of Amanda try to use the term "volume" to refer to a unit of storage, amreport still uses the term "tape", even if backups are done to non\-tape devices, to allow scripts which parse amreport\'s output to continue to function\&.
+Although newer versions of Amanda try to use the term "volume" to refer to a unit of storage, amreport still uses the term "tape", even if backups are done to non\-tape devices, to allow scripts which parse amreport\*(Aqs output to continue to function\&.
 .SS "Summary"
 .nf
 Hostname: bkserver
@@ -271,7 +280,7 @@ Number of split parts writtten to storage\&. If this number is very large, then 
 .PP
 Avg Tp Write Rate
 .RS 4
-Taper speed, based on the tape time and tape size, above\&. Note that, because the tape time includes time spent on tasks other than writing to tape, this does not necessary reflect the device\'s real write speed\&. However, the value is useful for capacity planning, as it reflects a realistic estimate of how quickly Amanda can write data to storage\&.
+Taper speed, based on the tape time and tape size, above\&. Note that, because the tape time includes time spent on tasks other than writing to tape, this does not necessary reflect the device\*(Aqs real write speed\&. However, the value is useful for capacity planning, as it reflects a realistic estimate of how quickly Amanda can write data to storage\&.
 .RE
 .SS "Usage by Tape"
 .nf
@@ -348,7 +357,7 @@ The information printed varies slightly between label templates due to size cons
 .PP
 Add the
 \fIlbl\-templ\fR
-parameter to the tapetype definition in amanda\&.conf to enable labels\&. If you don\'t add this line to your tapetype definition,
+parameter to the tapetype definition in amanda\&.conf to enable labels\&. If you don\*(Aqt add this line to your tapetype definition,
 \fBamreport\fR
 will not print tape labels\&.
 .PP
@@ -381,7 +390,7 @@ The exit code of \fBamreport\fR is the ORed value of:
  1  = error
  2  = a dle give strange message
  4  = a dle failed
- 8  = Don\'t know the status of a dle (RESULT_MISSING in the report)
+ 8  = Don\*(Aqt know the status of a dle (RESULT_MISSING in the report)
  16 = tape error or no more tape
 .fi
 .SH "SEE ALSO"

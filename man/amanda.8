@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amanda
 .\"    Author: James da Silva <jds@amanda.org>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMANDA" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMANDA" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -699,14 +708,14 @@ amdump \-o INTERFACE:local:use="2000 kbps"
 When overriding device properties, one must carefully quote the command line to simulate the syntax of real configuration files\&. The following example should serve as a guide:
 .sp
 .nf
-amdump \-o \'device\-property="PROPERTY_MAX_VOLUME_USAGE" "100000"\'
+amdump \-o \*(Aqdevice\-property="PROPERTY_MAX_VOLUME_USAGE" "100000"\*(Aq
 .fi
 .PP
 Note that configuration overrides are not effective for tape changers, which supply a tapedev based on their own configuration\&. In order to override
 \fItapedev\fR, you must also disable any changer:
 .sp
 .nf
-amdump \-otapedev=/dev/nst1 \-otpchanger=\'\'
+amdump \-otapedev=/dev/nst1 \-otpchanger=\*(Aq\*(Aq
 .fi
 .SH "AUTHORS"
 .PP

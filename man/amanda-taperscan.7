@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amanda-taperscan
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMANDA\-TAPERSCAN" "7" "06/02/2011" "Amanda 3\&.3\&.0" "Miscellanea"
+.TH "AMANDA\-TAPERSCAN" "7" "02/21/2012" "Amanda 3\&.3\&.1" "Miscellanea"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -79,7 +88,7 @@ but never used) are considered reusable\&.
 Many of these algorithms look for the oldest reusable volume\&. In most cases, this is the best volume to overwrite, as the data it contains is older than that on any other volume\&. If there are no reusable volumes, then there is no oldest reusable volume\&.
 .SS "traditional"
 .PP
-This algorithm duplicates Amanda\'s historical behavior, and it operates in two stages\&.
+This algorithm duplicates Amanda\*(Aqs historical behavior, and it operates in two stages\&.
 .PP
 First, if there is an oldest reusable volume and if the changer supports "fast" searches, then the algorithm uses the changer to search for that volume\&. Newly labeled volumes are not considered when calculating the oldest reusable volume\&. Consequently, this taperscan algorithm prefers volumes which have been used before to newly\-labeled volumes when a fast\-searchable changer is in use\&.
 .PP
@@ -121,7 +130,7 @@ An acceptable volume is a reusable volume, a new labeled volume or an unlabeled 
 .PP
 Use
 \fBamtape CONF inventory\fR
-to see the changer\'s inventory, and use
+to see the changer\*(Aqs inventory, and use
 \fBamtape CONF update\fR
 to update it\&.
 .SS "lexical"
@@ -133,9 +142,6 @@ It scans unknown slots only if no usable volume is found in the inventory\&.
 .PP
 See
 \fBoldest\fR, above, for a definition of acceptable volumes\&.
-
-
->>>>>>> 6a40a39\&.\&.\&. manpage edits
 .SH "SEE ALSO"
 .PP
 \fBamanda\fR(8),

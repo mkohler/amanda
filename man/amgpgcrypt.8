@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amgpgcrypt
 .\"    Author: Kevin Till <kevin.till@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMGPGCRYPT" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMGPGCRYPT" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -126,12 +135,12 @@ encrypt data with this public key along with the cipher algorithm\&.
 .PP
 \fB$AMANDA_HOME/\&.gnupg/secring\&.gpg\fR
 .RS 4
-The private/secret key\&. It\'s only needed during amrecover/amrestore\&. Store and protect it properly during other time\&.
+The private/secret key\&. It\*(Aqs only needed during amrecover/amrestore\&. Store and protect it properly during other time\&.
 .RE
 .PP
 \fB$AMANDA_HOME/\&.am_passphrase\fR
 .RS 4
-The passphrase\&. It\'s only needed during amrecover/amrestore\&. Store and protect it properly during other time\&.
+The passphrase\&. It\*(Aqs only needed during amrecover/amrestore\&. Store and protect it properly during other time\&.
 .RE
 .SH "BUGS"
 .PP

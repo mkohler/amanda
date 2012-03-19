@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amzfs-sendrecv
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMZFS\-SENDRECV" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMZFS\-SENDRECV" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +31,7 @@
 amzfs-sendrecv \- Amanda script to create zfs sendrecv
 .SH "DESCRIPTION"
 .PP
-amzfs\-sendrecv is an Amanda application implementing the Application API\&. It should not be run by users directly\&. It create a zfs snapshot of the filesystem and backup the snapshot with \'zfs send\'\&. Snapshot are kept after the backup is done, this increase the disk space use on the client but it is neccesary to be able do to incremental backup\&. If you want only full backup, you can disable this feature by setting the KEEP\-SNAPSHOT property to \'NO\'\&. Only the restoration of the complete backup is allowed, it is impossible to restore a single file\&.
+amzfs\-sendrecv is an Amanda application implementing the Application API\&. It should not be run by users directly\&. It create a zfs snapshot of the filesystem and backup the snapshot with \*(Aqzfs send\*(Aq\&. Snapshot are kept after the backup is done, this increase the disk space use on the client but it is neccesary to be able do to incremental backup\&. If you want only full backup, you can disable this feature by setting the KEEP\-SNAPSHOT property to \*(AqNO\*(Aq\&. Only the restoration of the complete backup is allowed, it is impossible to restore a single file\&.
 .PP
 The application is run as the amanda user, it must have many zfs priviledge:
 .sp
@@ -30,14 +39,16 @@ The application is run as the amanda user, it must have many zfs priviledge:
     zfs allow \-ldu AMANDA_USER mount,create,rename,snapshot,destroy,send,receive FILESYSTEM
 .fi
 .PP
-Some system doesn\'t have "zfs allow", but you can give the Amanda backup user the rights to manipulate ZFS filesystems by using the following command:
+Some system doesn\*(Aqt have "zfs allow", but you can give the Amanda backup user the rights to manipulate ZFS filesystems by using the following command:
 .sp
 .nf
 usermod \-P "ZFS File System Management,ZFS Storage Management" AMANDA_USER
 .fi
 This will require that your run zfs under pfexec, set the PFEXEC property to YES\&.
 .PP
-The format of the DLE must be one of:
+The format of the
+\fBdiskdevice\fR
+in the disklist (DLE) must be one of:
 .sp
 .nf
 Desciption              Example
@@ -48,17 +59,17 @@ ZFS filesystem          datapool/database
 ZFS logical volume      datapool/dbvol
 .fi
 .PP
-The filesystem doesn\'t need to be mounted\&.
+The filesystem doesn\*(Aqt need to be mounted\&.
 .SH "PROPERTIES"
 .PP
-This section lists the properties that control amzfs\-sendrecv\'s functionality\&. See
+This section lists the properties that control amzfs\-sendrecv\*(Aqs functionality\&. See
 \fBamanda-applications\fR(7)
 for information on the Application API, application configuration\&.
 .PP
 DF\-PATH
 .RS 4
 
-Path to the \'df\' binary, search in $PATH by default\&.
+Path to the \*(Aqdf\*(Aq binary, search in $PATH by default\&.
 .RE
 .PP
 KEEP\-SNAPSHOT
@@ -70,13 +81,13 @@ If "YES" (the default), snapshot are kept after the backup, if set to "NO" then 
 ZFS\-PATH
 .RS 4
 
-Path to the \'zfs\' binary, search in $PATH by default\&.
+Path to the \*(Aqzfs\*(Aq binary, search in $PATH by default\&.
 .RE
 .PP
 PFEXEC\-PATH
 .RS 4
 
-Path to the \'pfexec\' binary, search in $PATH by default\&.
+Path to the \*(Aqpfexec\*(Aq binary, search in $PATH by default\&.
 .RE
 .PP
 PFEXEC

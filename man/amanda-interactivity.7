@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amanda-interactivity
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMANDA\-INTERACTIVIT" "7" "06/02/2011" "Amanda 3\&.3\&.0" "Miscellanea"
+.TH "AMANDA\-INTERACTIVIT" "7" "02/21/2012" "Amanda 3\&.3\&.1" "Miscellanea"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -26,7 +35,7 @@ Amanda uses interactivity to ask user to load specific volumes when they are nee
 .PP
 This is a
 \fIuser\-level\fR
-description of the API, and does not address details that are only of concern to developers of new interactivity plugins\&. For that purpose, consult the Amanda source code, perldoc \'Amanda::Interactivity\' and http://wiki\&.zmanda\&.com\&.
+description of the API, and does not address details that are only of concern to developers of new interactivity plugins\&. For that purpose, consult the Amanda source code, perldoc \*(AqAmanda::Interactivity\*(Aq and http://wiki\&.zmanda\&.com\&.
 .SH "DEFINING INTERACTIVITY"
 .PP
 Interactivity is specified in
@@ -67,7 +76,7 @@ The
 \fItty\fR
 interactivity module uses the tty to communicate with the user, it works only if a terminal is available, which is the case if amanda is executed from a command line\&.
 .PP
-When promted for a volume, the user must put the requested volume in the changer and type <enter>\&. User can type the name of another changer if the volume is available in that changer\&. Typing \'abort\' will abort the operation\&.
+When promted for a volume, the user must put the requested volume in the changer and type <enter>\&. User can type the name of another changer if the volume is available in that changer\&. Typing \*(Aqabort\*(Aq will abort the operation\&.
 .SS "EMAIL"
 .PP
 The
@@ -84,7 +93,7 @@ check\-file
 If set, amanda will check this file for user input\&.  The user can touch the
 file to tell amanda that the requested volume was inserted in the changer\&.  If the user
 writes the name of a changer into the file, Amanda will use that changer\&.  If the user
-writes the word \'abort\' into the file, the scan will be aborted\&.
+writes the word \*(Aqabort\*(Aq into the file, the scan will be aborted\&.
 .RE
 .PP
 check\-file\-delay

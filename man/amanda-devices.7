@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amanda-devices
 .\"    Author: Ian Turner <ian@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMANDA\-DEVICES" "7" "06/02/2011" "Amanda 3\&.3\&.0" "Miscellanea"
+.TH "AMANDA\-DEVICES" "7" "02/21/2012" "Amanda 3\&.3\&.1" "Miscellanea"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -107,7 +116,7 @@ There is no way to reset a device property to its default value\&.
 .PP
 Device drivers use
 \fIproperties\fR
-as a generic means to interact with other parts of Amanda\&. Some properties are set by the device driver and used by Amanda to determine how its devices should be used\&. Other properties can be set by Amanda or by the user to influence the driver\'s behavior\&. Properties are set for a particular device, so that if you have two tape devices, they will not share property values\&.
+as a generic means to interact with other parts of Amanda\&. Some properties are set by the device driver and used by Amanda to determine how its devices should be used\&. Other properties can be set by Amanda or by the user to influence the driver\*(Aqs behavior\&. Properties are set for a particular device, so that if you have two tape devices, they will not share property values\&.
 .PP
 Properties are specified in
 \fIamanda\&.conf\fR
@@ -181,7 +190,7 @@ CANONICAL_NAME
 COMMENT
 .RS 4
 
- (read\-write) This string property is entirely for the user\'s convenience\&.  It is supported by all devices, but no device interprets its value in any way\&.
+ (read\-write) This string property is entirely for the user\*(Aqs convenience\&.  It is supported by all devices, but no device interprets its value in any way\&.
 .RE
 .PP
 COMPRESSION
@@ -274,7 +283,7 @@ Amanda writes device data in blocks\&. On most devices the block boundaries are 
 .PP
 Amanda has historically supported a single, fixed block size \-\- usually 32k\&. The Device API adds the ability to specify a block size at runtime, using the BLOCK_SIZE property\&. Devices provide MIN_BLOCK_SIZE and MAX_BLOCK_SIZE as a guide to the range of acceptable block sizes\&. Note that this does not imply that all sizes in the range MIN_BLOCK_SIZE \- MAX_BLOCK_SIZE are available \-\- the device may require that block sizes are even multiples of some power of two, for example\&. Consult the documentation for your hardware and operating system for more information\&.
 .PP
-Most devices are flexible enough to read a volume using a different block size than that with which it was written\&. This can be useful when handling old volumes written with a smaller blocksize, or volumes of unknown blocksize\&. Unfortunately, some tape devices do not detect oversized blocks correctly, and may lose data if the configured block size is smaller than the volume\'s block size\&. The tape device driver has a READ_BLOCK_SIZE property which specifies the minimum buffer size that will be allocated for reads from tape\&. If the hardware supports it, setting this property allows Amanda to correctly read from tapes written with any blocksize less than or equal to READ_BLOCK_SIZE\&.
+Most devices are flexible enough to read a volume using a different block size than that with which it was written\&. This can be useful when handling old volumes written with a smaller blocksize, or volumes of unknown blocksize\&. Unfortunately, some tape devices do not detect oversized blocks correctly, and may lose data if the configured block size is smaller than the volume\*(Aqs block size\&. The tape device driver has a READ_BLOCK_SIZE property which specifies the minimum buffer size that will be allocated for reads from tape\&. If the hardware supports it, setting this property allows Amanda to correctly read from tapes written with any blocksize less than or equal to READ_BLOCK_SIZE\&.
 .if n \{\
 .sp
 .\}
@@ -352,7 +361,7 @@ The access and secret keys used to authenticate to Amazon S3 are provided as pro
 .PP
 The S3 device driver stores each block in a distinct S3 object\&. Due to high HTTP overhead for each request, use of larger than normal block sizes (> 1 megabyte) is recommended with the S3 device\&.
 .PP
-Amanda automatically creates a bucket when writing, if the bucket doesn\'t already exist\&. At that time, it specifies where Amazon should store the data based on the S3_BUCKET_LOCATION property\&. If this property is not set, Amazon\'s default value (equivalent to "*") is used\&. The bucket location has both billing and legal concerns, so you are encouraged to consult Amazon\'s documentation for details\&.
+Amanda automatically creates a bucket when writing, if the bucket doesn\*(Aqt already exist\&. At that time, it specifies where Amazon should store the data based on the S3_BUCKET_LOCATION property\&. If this property is not set, Amazon\*(Aqs default value (equivalent to "*") is used\&. The bucket location has both billing and legal concerns, so you are encouraged to consult Amazon\*(Aqs documentation for details\&.
 .PP
 Amazon does not permit changes to bucket locations, so this is a permanent specification\&. If the bucket already exists and the property is set, then Amanda checks the property against the location of the bucket, and produces an error if they do not match\&.
 .if n \{\
@@ -372,7 +381,7 @@ If a location constraint is set, the bucket name must consist only of lower\-cas
 .sp .5v
 .RE
 .PP
-This driver supports the VERBOSE property, but use it carefully \-\- it produces a great deal of output, and may cause spurious failures by filling your debug log partition\&. Its logging is generally only useful for developers chasing down a problem in communications with Amazon\'s servers\&.
+This driver supports the VERBOSE property, but use it carefully \-\- it produces a great deal of output, and may cause spurious failures by filling your debug log partition\&. Its logging is generally only useful for developers chasing down a problem in communications with Amazon\*(Aqs servers\&.
 .PP
 Since Amazon storage is unlimited, the device never encounteres EOM, so LEOM detection is trivially enabled for this device\&.
 .PP
@@ -416,6 +425,12 @@ NB_THREADS_RECOVERY
 (read\-write) The number of thread that read data from the s3 device, higher value can provide more throutput\&.
 .RE
 .PP
+OPENSTACK_SWIFT_API
+.RS 4
+
+ (read\-write) Set to yes if it is an openstack storage device\&.
+.RE
+.PP
 S3_ACCESS_KEY
 .RS 4
 
@@ -428,7 +443,7 @@ S3_BUCKET_LOCATION
  (read\-write) Location constraint for buckets on Amazon S3\&.
 As of this writing, it can be set to "*" (US Standard, i\&.e\&. lowest\-latency
 choice of US East or West), "us\-west\-1" (US West, Northern California), "EU"
-(European Union), or "ap\-southeast\-1" (Asia Pacific)\&.  See : http://docs.amazonwebservices.com/AmazonS3/latest/index.html?LocationSelection.html for the most up\-to\-date list\&.
+(European Union), or "ap\-southeast\-1" (Asia Pacific)\&.  See : http://docs.amazonwebservices.com/general/latest/gr/index.html?rande.html for the most up\-to\-date list\&.
 .RE
 .PP
 SSL_CA_INFO
@@ -452,6 +467,16 @@ S3_SECRET_KEY
 .RS 4
 
 (read\-write) This property gives the Amazon S3 secret key used to access the service\&.
+.RE
+.PP
+S3_SERVER_SIDE_ENCRYPTION
+.RS 4
+
+(read\-write) Set to the server side encryption algorithm to use\&.
+There is actually only one algorithm, it is "AES256"\&.  The encryption is done
+by Amazon on their server\&. See
+: http://docs.amazonwebservices.com/AmazonS3/latest/API/index.html?RESTObjectPUT.html
+for the most up\-to\-date list\&.
 .RE
 .PP
 S3_SERVICE_PATH
@@ -503,9 +528,9 @@ VERBOSE
 tapedev "tape:/dev/nst0"
 .fi
 .PP
-The tape device driver interacts with a tape drive\&. The device uses the operating system\'s built\-in tape support, which is generally similar to that available via the command\-line utilities dd(1) and mt(1)\&.
+The tape device driver interacts with a tape drive\&. The device uses the operating system\*(Aqs built\-in tape support, which is generally similar to that available via the command\-line utilities dd(1) and mt(1)\&.
 .PP
-The tape device name should specify a path to the operating system\'s device file\&.
+The tape device name should specify a path to the operating system\*(Aqs device file\&.
 .PP
 There is no simple way to determine whether a particular system (operating system and tape hardware) supports LEOM, so as a safe default the tape device has LEOM detection disabled\&. However, on modern hardware and common operating systems (Linux, *BSD, and Solaris, at least), LEOM support is functional\&. On these systems, enable LEOM by setting the LEOM property to "true" at the appropriate place in the Amanda configuration\&.
 .SS "Device-Specific Properties"
@@ -515,7 +540,7 @@ Most of these properties are automatically detected, but can be overridden in th
 BROKEN_GMT_ONLINE
 .RS 4
 
- (read\-write) Set this boolean property if the system\'s GMT_ONLINE macro gives incorrect results\&.  This is currently true for the Linux IDE\-TAPE driver\&.
+ (read\-write) Set this boolean property if the system\*(Aqs GMT_ONLINE macro gives incorrect results\&.  This is currently true for the Linux IDE\-TAPE driver\&.
 .RE
 .PP
 BSF
@@ -574,7 +599,7 @@ FSR
 NONBLOCKING_OPEN
 .RS 4
 
- (read\-write) Set this boolean property to "true" if O_NONBLOCK must be used on the open call\&. Default to "true" on Linux and "false" on all others machines\&. Witout it, Linux wait for a few seconds if no tape are loaded\&. Solaris have strange error it is set to "yes"\&.
+ (read\-write) Set this boolean property to "true" if O_NONBLOCK must be used on the open call\&. Default to "true" on Linux and "false" on all others machines\&. Without it, Linux wait for a few seconds if no tape are loaded\&. Solaris have strange error it is set to "yes"\&.
 .RE
 .PP
 READ_BLOCK_SIZE
@@ -645,7 +670,7 @@ MONITOR_FREE_SPACE
 .RS 4
 
 	 (read\-write) This property controls whether the device will monitor
-	 the filesystem\'s free space to detect a full filesystem before an
+	 the filesystem\*(Aqs free space to detect a full filesystem before an
 	 error occurs, and defaults to true\&.  The monitoring operation works on
 	 most filesystems, but if it causes problems, use this property to
 	 disable it\&.

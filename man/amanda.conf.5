@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amanda.conf
 .\"    Author: James da Silva <jds@amanda.org>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: File formats and conventions
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMANDA\&.CONF" "5" "06/02/2011" "Amanda 3\&.3\&.0" "File formats and conventions"
+.TH "AMANDA\&.CONF" "5" "02/21/2012" "Amanda 3\&.3\&.1" "File formats and conventions"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -42,13 +51,13 @@ Keywords are case insensitive, i\&.e\&.
 \fBmailto\fR
 and
 \fBMailTo\fR
-are treated the same\&. Also, the characters \'\fB\-\fR\' and \'\fB_\fR\' are interchangeable in all predefined Amanda keywords:
+are treated the same\&. Also, the characters \*(Aq\fB\-\fR\*(Aq and \*(Aq\fB_\fR\*(Aq are interchangeable in all predefined Amanda keywords:
 \fBdevice_property\fR
 and
 \fBdevice\-property\fR
 have the same meaning\&. This manpage uses the dashed versions, but the underscored versions will be accepted for backward compatibility
 .PP
-Identifiers are names which are defined in the configuration itself, such as dumptypes or interfaces\&. Identifiers are are case\-insensitive, but sensitive to \'\fB\-\fR\' vs\&. \'\fB_\fR\'\&. Identifiers should be quoted in the configuration file, although For historical reasons, the quotes are optional\&.
+Identifiers are names which are defined in the configuration itself, such as dumptypes or interfaces\&. Identifiers are are case\-insensitive, but sensitive to \*(Aq\fB\-\fR\*(Aq vs\&. \*(Aq\fB_\fR\*(Aq\&. Identifiers should be quoted in the configuration file, although For historical reasons, the quotes are optional\&.
 .PP
 Strings are always quoted with double quotes ("), and any double quotes or backslashes within the string are escaped with a backslash:
 .sp
@@ -191,7 +200,7 @@ Illegally quoted strings are handled on a "best\-effort" basis, which may lead t
 Examples:
 .sp
 .nf
-finserver "/data/finance/XYZ Corp\'s \e"real\e" finances" finance\-high eth0 \-1
+finserver "/data/finance/XYZ Corp\*(Aqs \e"real\e" finances" finance\-high eth0 \-1
 property "syspath" "C:\e\eWINDOWS\e\eSYSTEM"
 .fi
 .SS "SUBSECTIONS AND INHERITANCE"
@@ -208,7 +217,7 @@ define dumptype global {
 }
 
 define dumptype nocomp {
-    global      # inherit the parameters in dumptype \'global\'
+    global      # inherit the parameters in dumptype \*(Aqglobal\*(Aq
     compress none
 }
 .fi
@@ -233,7 +242,7 @@ define tapetype child {
     filemark 32k
 }
 .fi
-In this example, \'child\' will have a filemark of 32k, a speed of 400bps, and a length of 200M\&.
+In this example, \*(Aqchild\*(Aq will have a filemark of 32k, a speed of 400bps, and a length of 200M\&.
 .SH "GLOBAL PARAMETERS"
 .PP
 \fBorg\fR \fIstring\fR
@@ -244,7 +253,7 @@ Default:
 .PP
 \fBmailer\fR \fIstring\fR
 .RS 4
-Default found by configure\&. A mail program that can send mail with \'\fIMAILER \-s "subject" user < message_file\fR\'\&.
+Default found by configure\&. A mail program that can send mail with \*(Aq\fIMAILER \-s "subject" user < message_file\fR\*(Aq\&.
 .RE
 .PP
 \fBmailto\fR \fIstring\fR
@@ -276,6 +285,12 @@ Send an email only on error messages\&.
 .RS 4
 Never send an email\&.
 .RE
+.RE
+.PP
+\fBmax\-dle\-by\-volume\fR \fIint\fR
+.RS 4
+Default:
+\fI1000000000\fR\&. The maximum number of dle written to a single volume\&.
 .RE
 .PP
 \fBdumpcycle\fR \fIint\fR
@@ -322,8 +337,8 @@ days /
 \fBtapecycle\fR \fIint\fR
 .RS 4
 Default:
-\fI15 tapes\fR\&. Specifies the number of "active" volumes \- volumes that Amanda will not overwrite\&. While Amanda is always willing to write to a new volume, it refuses to overwrite a volume unless at least \'\fBtapecycle\fR
-\-1\' volumes have been written since\&.
+\fI15 tapes\fR\&. Specifies the number of "active" volumes \- volumes that Amanda will not overwrite\&. While Amanda is always willing to write to a new volume, it refuses to overwrite a volume unless at least \*(Aq\fBtapecycle\fR
+\-1\*(Aq volumes have been written since\&.
 .sp
 It is considered good administrative practice to set the
 \fBtapecycle\fR
@@ -352,7 +367,7 @@ is set to two or four times the tapes per dumpcycle\&.
 \fBusetimestamps\fR \fIbool\fR
 .RS 4
 Default:
-\fBYes\fR\&. This option allows Amanda to track multiple runs per calendar day\&. The only reason one might disable it is that Amanda versions before 2\&.5\&.1 can\'t read logfiles written when this option was enabled\&.
+\fBYes\fR\&. This option allows Amanda to track multiple runs per calendar day\&. The only reason one might disable it is that Amanda versions before 2\&.5\&.1 can\*(Aqt read logfiles written when this option was enabled\&.
 .RE
 .PP
 \fBlabel\-new\-tapes\fR \fIstring\fR
@@ -376,14 +391,22 @@ When using this directive, specify the template for new tape labels\&. The templ
     $c : config name
     $o : org configuration
     $b : barcode of the volume
+    $s : slot number, can specify a minimun number of digit:
+         $3s to get \*(Aq001\*(Aq
     $m : meta label
 .fi
 .sp
-The template should contain some number of contiguous \'%\' characters, which will be replaced with a generated number\&. Be sure to specify enough \'%\' characters that you do not run out of tape labels\&. Example:
+The template can contain some number of contiguous \*(Aq%\*(Aq characters, which will be replaced with a generated number\&. Be sure to specify enough \*(Aq%\*(Aq characters that you do not run out of tape labels\&. Example:
 \fB"DailySet1\-%%%"\fR,
 \fB"$c\-%%%"\fR,
 \fB"$m\-%%%"\fR,
 \fB"$m\-$b"\fR
+.sp
+The generared label can be used only if it match the
+\fBlabelstr\fR
+setting\&. The volume will not be used if the generated label doesn\*(Aqt match the
+\fBlabelstr\fR
+setting\&.
 .sp
 Note that many devices cannot distinguish an empty tape from an error condition, so it may is often necessary to include
 \fBvolume\-error\fR
@@ -391,7 +414,7 @@ as an autolabel condition\&.
 .PP
 \fBany\fR
 .RS 4
-equivalent to \'\fBother\-config non\-amanda volume\-error empty\fR\'
+equivalent to \*(Aq\fBother\-config non\-amanda volume\-error empty\fR\*(Aq
 .RE
 .PP
 \fBother\-config\fR
@@ -433,7 +456,7 @@ When using this directive, specify the template for new meta labels\&. The templ
     $o : org configuration
 .fi
 .sp
-The template should contain some number of contiguous \'%\' characters, which will be replaced with a generated number\&. Be sure to specify enough \'%\' characters that you do not run out of meta labels\&. Example:
+The template should contain some number of contiguous \*(Aq%\*(Aq characters, which will be replaced with a generated number\&. Be sure to specify enough \*(Aq%\*(Aq characters that you do not run out of meta labels\&. Example:
 \fB"DailySet1\-%%%"\fR,
 \fB"$o\-%%%"\fR,
 .RE
@@ -579,16 +602,23 @@ Last in, first out\&.
 .PP
 \fBtaper\-parallel\-write\fR \fIint\fR
 .RS 4
-.PP
 Default:
 \fI1\fR\&. Amanda can write simultaneously up to that number of volume at any given time\&. The changer must have as many drives\&.
+.RE
+.PP
+\fBeject\-volume\fR \fIint\fR
+.RS 4
+Default:
+\fIno\fR\&. Set to
+\fByes\fR
+if you want the volume to be ejected after Amanda wrote data to it\&. It works only with some changer and device\&.
 .RE
 .PP
 \fBlabelstr\fR \fIstring\fR
 .RS 4
 Default:
 \fI"\&.*"\fR\&. The tape label constraint regular expression\&. All tape labels generated (see
-\fBamlabel\fR(8)) and used by this configuration must match the regular expression\&. If multiple configurations are run from the same tape server host, it is helpful to set their labels to different strings (for example, "DAILY[0\-9][0\-9]*" vs\&. "ARCHIVE[0\-9][0\-9]*") to avoid overwriting each other\'s tapes\&.
+\fBamlabel\fR(8)) and used by this configuration must match the regular expression\&. If multiple configurations are run from the same tape server host, it is helpful to set their labels to different strings (for example, "DAILY[0\-9][0\-9]*" vs\&. "ARCHIVE[0\-9][0\-9]*") to avoid overwriting each other\*(Aqs tapes\&.
 .RE
 .PP
 \fBtapetype\fR \fIstring\fR
@@ -631,7 +661,7 @@ Default:
 \fBplanner\fR
 step of
 \fBamdump\fR
-will wait to get the dump size estimates (note: Amanda runs up to 3 estimates for each DLE)\&. For instance, with the default of 300 seconds and four DLE\'s, each estimating level 0 and level 1 on client A,
+will wait to get the dump size estimates (note: Amanda runs up to 3 estimates for each DLE)\&. For instance, with the default of 300 seconds and four DLE\*(Aqs, each estimating level 0 and level 1 on client A,
 \fBplanner\fR
 will wait up to 40 minutes for that machine\&. A negative value will be interpreted as a total amount of time to wait per client instead of per disk\&.
 .RE
@@ -645,13 +675,13 @@ Default:
 \fBreq\-tries\fR \fIint\fR
 .RS 4
 Default:
-\fI3\fR\&. How many times the server will resend a REQ packet if it doesn\'t get the ACK packet\&.
+\fI3\fR\&. How many times the server will resend a REQ packet if it doesn\*(Aqt get the ACK packet\&.
 .RE
 .PP
 \fBnetusage\fR \fIint\fR
 .RS 4
 Default:
-\fI8000 Kbps\fR\&. The maximum network bandwidth allocated to Amanda, in Kbytes per second\&. See also the
+\fI80000 Kbps\fR\&. The maximum network bandwidth allocated to Amanda, in Kbytes per second\&. See also the
 \fBinterface\fR
 section\&.
 .RE
@@ -659,7 +689,7 @@ section\&.
 \fBinparallel\fR \fIint\fR
 .RS 4
 Default:
-\fI10\fR\&. The maximum number of backups that Amanda will attempt to run in parallel\&. Amanda will stay within the constraints of network bandwidth and holding disk space available, so it doesn\'t hurt to set this number a bit high\&. Some contention can occur with larger numbers of backups, but this effect is relatively small on most systems\&.
+\fI10\fR\&. The maximum number of backups that Amanda will attempt to run in parallel\&. Amanda will stay within the constraints of network bandwidth and holding disk space available, so it doesn\*(Aqt hurt to set this number a bit high\&. Some contention can occur with larger numbers of backups, but this effect is relatively small on most systems\&.
 .RE
 .PP
 \fBdisplayunit\fR "k|m|g|t"
@@ -850,7 +880,7 @@ Default:
 .PP
 \fBamrecover\-changer\fR \fIstring\fR
 .RS 4
-Default: not set\&. Amrecover will use the changer if you use \'settape <string>\' and that string is the same as the
+Default: not set\&. Amrecover will use the changer if you use \*(Aqsettape <string>\*(Aq and that string is the same as the
 \fBamrecover\-changer\fR
 setting\&.
 .RE
@@ -863,7 +893,7 @@ Defines the width of columns
 \fBamreport\fR
 should use\&.
 \fIString\fR
-is a comma (\',\') separated list of triples\&. Each triple consists of three parts which are separated by a equal sign (\'=\') and a colon (\':\') (see the example)\&. These four parts specify:
+is a comma (\*(Aq,\*(Aq) separated list of triples\&. Each triple consists of three parts which are separated by a equal sign (\*(Aq=\*(Aq) and a colon (\*(Aq:\*(Aq) (see the example)\&. These four parts specify:
 .sp
 .RS 4
 .ie n \{\
@@ -1056,7 +1086,7 @@ The value of this parameter may not exceed that of the
 \fBflush\-threshold\-scheduled\fR
 parameter\&.;
 \fBautoflush\fR
-must be set to \'yes\' if
+must be set to \*(Aqyes\*(Aq if
 \fBtaperflush\fR
 is greater than 0\&.
 .RE
@@ -1436,7 +1466,7 @@ Use a faster program to do estimates, but the result is less accurate\&.
 .PP
 server
 .RS 4
-Use only statistics from the previous few runs to give an estimate\&. This very quick, but the result is not accurate if your disk usage changes from day to day\&. If this method is specified, but the server does not have enough data to make an estimate, then the option is internally moved to the end of the list, thereby preferring \'client\' or \'calcsize\' in this case\&.
+Use only statistics from the previous few runs to give an estimate\&. This very quick, but the result is not accurate if your disk usage changes from day to day\&. If this method is specified, but the server does not have enough data to make an estimate, then the option is internally moved to the end of the list, thereby preferring \*(Aqclient\*(Aq or \*(Aqcalcsize\*(Aq in this case\&.
 .RE
 .RE
 .PP
@@ -1464,7 +1494,7 @@ is an exclude expression\&. With
 \fIstring\fR
 is a file name on the client containing
 \fBGNU\-tar\fR
-exclude expressions\&. The path to the specified exclude list file, if present (see description of \'optional\' below), must be readable by the Amanda user\&.
+exclude expressions\&. The path to the specified exclude list file, if present (see description of \*(Aqoptional\*(Aq below), must be readable by the Amanda user\&.
 .sp
 All exclude expressions are concatenated in one file and passed to the application as an
 \fB\-\-exclude\-from\fR
@@ -1485,7 +1515,7 @@ If
 \fBoptional\fR
 is specified for
 \fBexclude\fR
-\fBlist\fR, then amcheck will not complain if the file doesn\'t exist or is not readable\&.
+\fBlist\fR, then amcheck will not complain if the file doesn\*(Aqt exist or is not readable\&.
 .sp
 For
 \fBexclude\fR
@@ -1518,12 +1548,12 @@ Never use a holdingdisk, the dump will always go directly to tape\&. There will 
 .PP
 \fBauto\fR|yes|true|on
 .RS 4
-Use the holding disk, unless there is a problem with the holding disk, the dump won\'t fit there or the medium doesn\'t require spooling (e\&.g\&., VFS device)
+Use the holding disk, unless there is a problem with the holding disk, the dump won\*(Aqt fit there or the medium doesn\*(Aqt require spooling (e\&.g\&., VFS device)
 .RE
 .PP
 \fBrequired\fR
 .RS 4
-Always dump to holdingdisk, never directly to tape\&. There will be no dump if it doesn\'t fit on holdingdisk
+Always dump to holdingdisk, never directly to tape\&. There will be no dump if it doesn\*(Aqt fit on holdingdisk
 .RE
 .RE
 .PP
@@ -1586,7 +1616,7 @@ overwrites the list\&.
 If
 \fBoptional\fR
 is specified for
-\fBinclude list\fR, then amcheck will not complain if the file doesn\'t exist or is not readable\&.
+\fBinclude list\fR, then amcheck will not complain if the file doesn\*(Aqt exist or is not readable\&.
 .sp
 For
 \fBinclude list\fR, If the file name is relative, the disk name being backed up is prepended\&.
@@ -1617,7 +1647,7 @@ Default:
 \fBmaxpromoteday\fR \fIint\fR
 .RS 4
 Default:
-\fI10000\fR\&. The maximum number of day for a promotion, set it 0 if you don\'t want promotion, set it to 1 or 2 if your disks get overpromoted\&.
+\fI10000\fR\&. The maximum number of day for a promotion, set it 0 if you don\*(Aqt want promotion, set it to 1 or 2 if your disks get overpromoted\&.
 .RE
 .PP
 \fBpriority\fR [ \fBlow\fR | \fBmedium\fR | \fBhigh\fR ]
@@ -1732,7 +1762,7 @@ Never do incremental backups, only full dumps\&.
 .PP
 \fBskip\fR
 .RS 4
-Treat this DLE as if it doesn\'t exist (useful to disable DLEs when sharing the
+Treat this DLE as if it doesn\*(Aqt exist (useful to disable DLEs when sharing the
 \fIdisklist\fR
 file between multiple configurations)\&. Skipped DLEs will not be checked or dumped, and will not be matched by disklist expressions\&.
 .RE
@@ -1919,7 +1949,7 @@ device property, but if the blocksize is not a multiple of 1024 bytes, then this
 .RS 4
 Default:
 \fI32 kytes\fR
-How much data will be read in each tape record\&. This can be used to override a device\'s block size for reads only\&. This may be useful, for example, in reading a tape written with a 256k block size when Amanda is configured to use 128k blocks\&. This unusual feature is not supported by all operating systems and tape devices\&.
+How much data will be read in each tape record\&. This can be used to override a device\*(Aqs block size for reads only\&. This may be useful, for example, in reading a tape written with a 256k block size when Amanda is configured to use 128k blocks\&. This unusual feature is not supported by all operating systems and tape devices\&.
 .sp
 The default unit is Kbytes if it is not specified\&.
 .RE
@@ -2017,7 +2047,7 @@ Default: not set\&. A comment string describing this set of network information\
 \fBuse\fR \fIint\fR
 .RS 4
 Default:
-\fI8000 Kbps\fR\&. The speed of the interface in Kbytes per second\&.
+\fI80000 Kbps\fR\&. The speed of the interface in Kbytes per second\&.
 .RE
 .PP
 In addition to options, another
@@ -2056,7 +2086,7 @@ is set then it is an error if that application is not defined on the client\&.
 .sp
 If
 \fBclient\-name\fR
-is not set then the merge is done with the application that have the name equal to the plugin\&. eg\&. if the plugin is \'amgtar\', then the setting from the application \'amgtar\' is used if it is defined\&.
+is not set then the merge is done with the application that have the name equal to the plugin\&. eg\&. if the plugin is \*(Aqamgtar\*(Aq, then the setting from the application \*(Aqamgtar\*(Aq is used if it is defined\&.
 .RE
 .PP
 \fBcomment\fR \fIstring\fR
@@ -2109,7 +2139,7 @@ is set then it is an error if that script is not defined on the client\&.
 .sp
 If
 \fBclient\-name\fR
-is not set then the merge is done with the script that have the name equal to the plugin\&. eg\&. if the plugin is \'amlog\-script\', then the setting from the script \'amlog\-script\' is used\&.
+is not set then the merge is done with the script that have the name equal to the plugin\&. eg\&. if the plugin is \*(Aqamlog\-script\*(Aq, then the setting from the script \*(Aqamlog\-script\*(Aq is used\&.
 .RE
 .PP
 \fBcomment\fR \fIstring\fR
@@ -2219,7 +2249,7 @@ Execute before the backup command for the dle\&.
 .PP
 \fBpre\-host\-backup\fR
 .RS 4
-Execute before the backup command for all dle for the client\&. It can\'t be run on client, it must be run on server
+Execute before the backup command for all dle for the client\&. It can\*(Aqt be run on client, it must be run on server
 .RE
 .PP
 \fBpost\-backup\fR
@@ -2234,7 +2264,7 @@ Execute after the backup command for the dle\&.
 .PP
 \fBpost\-host\-backup\fR
 .RS 4
-Execute after the backup command for all dle for the client\&. It can\'t be run on client, it must be run on server
+Execute after the backup command for all dle for the client\&. It can\*(Aqt be run on client, it must be run on server
 .RE
 .PP
 \fBpre\-recover\fR
@@ -2308,7 +2338,7 @@ parameter\&. The
 specifies the device name to use; see
 \fBamanda-devices\fR(7)\&. As with most sections, the
 \fIcomment\fR
-parmeter is optional and only for the user\'s convenience\&.
+parmeter is optional and only for the user\*(Aqs convenience\&.
 .PP
 An arbitrary number of
 \fIdevice\-property\fR

@@ -1,13 +1,22 @@
 '\" t
 .\"     Title: amtape
 .\"    Author: Dustin J. Mitchell <dustin@zmanda.com>
-.\" Generator: DocBook XSL Stylesheets vsnapshot_8273 <http://docbook.sf.net/>
-.\"      Date: 06/02/2011
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 02/21/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.0
+.\"    Source: Amanda 3.3.1
 .\"  Language: English
 .\"
-.TH "AMTAPE" "8" "06/02/2011" "Amanda 3\&.3\&.0" "System Administration Commands"
+.TH "AMTAPE" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -26,7 +35,7 @@ amtape \- Control Amanda changers
 .SH "DESCRIPTION"
 .PP
 \fBAmtape\fR
-is the command\-line interface to Amanda\'s tape changers (\fBamanda-changers\fR(7)) and to the taperscan algorithm (\fBamanda-taperscan\fR(7))\&.
+is the command\-line interface to Amanda\*(Aqs tape changers (\fBamanda-changers\fR(7)) and to the taperscan algorithm (\fBamanda-taperscan\fR(7))\&.
 .PP
 Tape changers maintain a notion of the
 \fIcurrent\fR
@@ -61,12 +70,12 @@ current\&.
 .PP
 \fBinventory\fR
 .RS 4
-Show the contents of all slots, based on the changer\'s cached metadata\&. This is a quick operation as it does not load or unload any volumes, but is not supported by all changers\&.
+Show the contents of all slots, based on the changer\*(Aqs cached metadata\&. This is a quick operation as it does not load or unload any volumes, but is not supported by all changers\&.
 .RE
 .PP
-\fBshow\fR
+\fBshow\fR [slots]
 .RS 4
-Show the contents of all slots by loading each slot and reading its label\&. This can be very slow\&.
+Show the contents of all slots (or listed slots) by loading each slot and reading its label\&. This can be very slow\&. The slots arguments is of the form 1,3\-5,7\&.
 .RE
 .PP
 \fBreset\fR
