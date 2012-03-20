@@ -3,6 +3,9 @@
 
 export DH_VERBOSE=1
 
+DPKG_EXPORT_BUILDFLAGS = 1
+-include /usr/share/dpkg/buildflags.mk
+
 r=$(shell pwd)/debian/amanda-common
 s=$(shell pwd)/debian/amanda-server
 c=$(shell pwd)/debian/amanda-client
@@ -51,7 +54,7 @@ build-arch: build-stamp
 build-indep: build-stamp
 build-stamp: configure-stamp
 	dh_testdir
-	MAILER=/usr/bin/mail $(MAKE) CFLAGS="-O2 -g -Wall \
+	MAILER=/usr/bin/mail $(MAKE) CFLAGS="$(CFLAGS) -O2 -g -Wall \
 		-DAMANDATES_FILE='\"/var/lib/amanda/amandates\"' \
 		-DIGNORE_TAR_ERRORS "
 	touch build-stamp
