@@ -3,8 +3,10 @@ amanda (1:3.3.1-1) UNRELEASED; urgency=low
   * new upstream version, closes: #655025, #658933
   * enable hardening build flags, closes: #644437
   * include Indonesian translation, closes: #658482
+  * relax build-deps by having dump and xfsdump only required on linux-any, 
+    to allow amanda to build on kFreeBSD, closes: #661702
 
- -- Bdale Garbee <bdale@gag.com>  Mon, 19 Mar 2012 15:43:05 +0100
+ -- Bdale Garbee <bdale@gag.com>  Tue, 20 Mar 2012 12:10:18 +0100
 
 amanda (1:3.3.0-1) unstable; urgency=low
 
