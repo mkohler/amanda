@@ -1,5 +1,4 @@
 usr/lib/amanda/amcat.awk
-usr/lib/amanda/amcleanupdisk
 usr/lib/amanda/amidxtaped
 usr/lib/amanda/amindexd
 usr/lib/amanda/amlogroll
@@ -17,6 +16,7 @@ usr/sbin/amcheck
 usr/sbin/amcheckdb
 usr/sbin/amcheckdump
 usr/sbin/amcleanup
+usr/sbin/amcleanupdisk
 usr/sbin/amdump
 usr/sbin/amflush
 usr/sbin/amgetconf
