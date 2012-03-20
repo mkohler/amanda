@@ -1,1 +1,16 @@
 debian/crontab.amanda
+example/chg-multi.conf
+example/chg-scsi.conf
+example/disklist
+example/amanda.conf
+example/inetd.conf.amandaserver
+example/xinetd.amandaserver
+example/template.d/dumptypes
+example/template.d/tapetypes
+example/template.d/README
+example/template.d/chg-manual.conf
+example/template.d/advanced.conf
+example/template.d/amanda-harddisk.conf
+example/template.d/amanda-single-tape.conf
+example/template.d/amanda-tape-changer.conf
+example/template.d/amanda-S3.conf
