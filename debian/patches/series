@@ -1,3 +1,4 @@
 dumpdates-path
 glib-2.32.patch
 kfreebsd-ftbfs.diff
+VTAPES-access.diff

@@ -482,7 +482,12 @@ sub from_string {
 sub get_dle {
     my $self = shift;
 
-    return Amanda::Header::HeaderXML->new($self->{'dle_str'});
+# Patch taken from mailing list amanda-users on 2012/03/08
+    if ($self->{'dle_str'}) {
+        return Amanda::Header::HeaderXML->new($self->{'dle_str'});
+    } else {
+        return undef;
+    }
 }
 
 package Amanda::Header::Header;

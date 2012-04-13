@@ -1,6 +1,8 @@
 amanda (1:3.3.1-3) unstable; urgency=low
 
   * patch from Robert Milan to fix kfreebsd FTBFS, closes: #667836
+  * patch from amanda-users mailing list via Jose Manuel dos Santos Calhariz
+    that fixes amrecover issue with VTAPE access, closes: #666088
 
  -- Bdale Garbee <bdale@gag.com>  Thu, 12 Apr 2012 23:29:14 -0600
 
