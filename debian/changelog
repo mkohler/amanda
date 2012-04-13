@@ -1,3 +1,9 @@
+amanda (1:3.3.1-3) unstable; urgency=low
+
+  * patch from Robert Milan to fix kfreebsd FTBFS, closes: #667836
+
+ -- Bdale Garbee <bdale@gag.com>  Thu, 12 Apr 2012 23:29:14 -0600
+
 amanda (1:3.3.1-2) unstable; urgency=low
 
   * patch from Michael Biebl to elide g_queue_free_full definition that
