@@ -100,8 +100,6 @@ binary-arch: build
 	# fix perms manually
 	chown -R backup:backup debian/*/var/lib/*
 	chmod -R u=rwX,g=rwX,o-rwx debian/*/var/lib/*
-	chown -R backup:backup $(s)/var/log/amanda
-	chmod -R u=rwX,g=rwX,o-rwx $(s)/var/log/amanda
 	chown -R backup:backup $(s)/etc/amanda
 	chmod -R u=rwX,g=rwX,o-rwx $(s)/etc/amanda
 	chown -R backup:backup $(c)/var/lib/amanda/gnutar-lists
