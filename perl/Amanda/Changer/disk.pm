@@ -1,4 +1,4 @@
-# Copyright (c) 2008,2009,2010 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2008-2012 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -20,6 +20,7 @@ package Amanda::Changer::disk;
 
 use strict;
 use warnings;
+use Carp;
 use vars qw( @ISA );
 @ISA = qw( Amanda::Changer );
 
@@ -497,7 +498,7 @@ sub _get_slot_label {
 sub _load_drive {
     my ($self, $drive, $slot) = @_;
 
-    die "'$drive' does not exist" unless (-d $drive);
+    confess "'$drive' does not exist" unless (-d $drive);
     if (-e "$drive/data") {
 	unlink("$drive/data");
     }

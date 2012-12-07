@@ -1,4 +1,4 @@
-# Copyright (c) 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2009-2012 Zmanda, Inc.  All Rights Reserved.
 #
 # This library is free software; you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License version 2.1 as
@@ -498,7 +498,7 @@ sub start {
 	    unless exists $params{$rq_param};
     }
 
-    die "scribe already started" if $self->{'started'};
+    confess "scribe already started" if $self->{'started'};
 
     $self->dbg("starting");
     $self->{'write_timestamp'} = $params{'write_timestamp'};
@@ -527,7 +527,7 @@ sub quit {
 	$self->dbg("quitting");
 
 	if ($self->{'xfer'}) {
-	    die "Scribe cannot quit while a transfer is active";
+	    confess "Scribe cannot quit while a transfer is active";
 	    # Supporting this would be complicated:
 	    # - cancel the xfer and wait for it to complete
 	    # - ensure that the taperscan not be started afterward
@@ -590,7 +590,7 @@ sub check_data_path {
     my $device = $self->get_device();
 
     if (!defined $device) {
-	die "no device is available to check the datapath";
+	confess "no device is available to check the datapath";
     }
 
     my $use_directtcp = $device->directtcp_supported();
@@ -622,11 +622,11 @@ sub get_xfer_dest {
 	    unless exists $params{$rq_param};
     }
 
-    die "not yet started"
+    confess "not yet started"
 	unless $self->{'write_timestamp'} and $self->{'started'};
-    die "xfer element already returned"
+    confess "xfer element already returned"
 	if ($self->{'xdt'});
-    die "xfer already running"
+    confess "xfer already running"
 	if ($self->{'xfer'});
 
     $self->{'xfer'} = undef;
@@ -656,7 +656,7 @@ sub get_xfer_dest {
 
     my $xdt_first_dev = $self->get_device();
     if (!defined $xdt_first_dev) {
-	die "no device is available to create an xfer_dest";
+	confess "no device is available to create an xfer_dest";
     }
     my $leom_supported = $xdt_first_dev->property_get("leom");
     my $use_directtcp = $xdt_first_dev->directtcp_supported();
@@ -747,7 +747,7 @@ sub start_dump {
     my $self = shift;
     my %params = @_;
 
-    die "no xfer dest set up; call get_xfer_dest first"
+    confess "no xfer dest set up; call get_xfer_dest first"
         unless defined $self->{'xdt'};
 
     # get the header ready for writing (totalparts was set by the caller)
@@ -767,29 +767,17 @@ sub cancel_dump {
     my $self = shift;
     my %params = @_;
 
-    die "no xfer dest set up; call get_xfer_dest first"
+    confess "no xfer dest set up; call get_xfer_dest first"
 	unless defined $self->{'xdt'};
 
     # set up the dump_cb for when this dump is done, and keep the xfer
     $self->{'dump_cb'} = $params{'dump_cb'};
     $self->{'xfer'} = $params{'xfer'};
 
-    # XXX The cancel should call dump_cb, but right now the xfer stays hung in
-    # accept.  So we leave the xfer to its hang, and dump_cb is called and xdt
-    # and xfer are set to undef.  This should be fixed in 3.2.
+    # The cancel will can dump_cb.
 
     $self->{'xfer'}->cancel();
 
-    $self->{'dump_cb'}->(
-	result => "FAILED",
-	device_errors => [],
-	config_denial_message => undef,
-	size => 0,
-	duration => 0.0,
-	total_duration => 0,
-	nparts => 0);
-    $self->{'xdt'} = undef;
-    $self->{'xfer'} = undef;
 }
 
 sub close_volume {
@@ -886,7 +874,7 @@ sub _xmsg_part_done {
 	$self->dbg("not notifying for empty, successful part");
     } else {
 	# double-check partnum
-	die "Part numbers do not match!"
+	confess "Part numbers do not match!"
 	    unless ($self->{'dump_header'}->{'partnum'} == $msg->{'partnum'});
 
 	# notify
@@ -1067,7 +1055,7 @@ sub _operation_failed {
             # _dump_done constructs the dump_cb from $self parameters
             $self->_dump_done();
         } else {
-            die "error with no callback to handle it: $error_message";
+            confess "error with no callback to handle it: $error_message";
         }
     }
 }
@@ -1386,10 +1374,14 @@ sub _device_start {
 			       $reservation->{'barcode'});
 	    $tl->write();
 	    $self->dbg("generate new label '$new_label'");
-	} elsif (!defined $meta) {
+	} else {
 	    $tl->reload(0);
 	    my $tle = $tl->lookup_tapelabel($new_label);
-	    my $meta = $tle->{'meta'};
+	    $meta = $tle->{'meta'} if !defined $meta && $tle->{'meta'};
+	    my $barcode = $tle->{'barcode'};
+	    if (defined $barcode and $barcode ne $reservation->{'barcode'}) {
+		return $finished_cb->("tapelist for label '$new_label' have barcode '$barcode' but changer report '" . $reservation->{'barcode'} . "'");
+	    }
 	}
 
 	# write the label to the device
@@ -1689,7 +1681,7 @@ sub get_volume {
     my $self = shift;
     my (%params) = @_;
 
-    die "already processing a volume request"
+    confess "already processing a volume request"
 	if ($self->{'volume_cb'});
 
     $self->{'volume_cb'} = $params{'volume_cb'};
@@ -1742,6 +1734,21 @@ sub _start_scanning {
 		if ($params{'label'}) {
 		    $self->{'feedback'}->scribe_notif_log_info(
 			message => "Slot $params{'slot'} with label $params{'label'} is not labelable ");
+		} elsif ($params{'empty'}) {
+		    $self->{'feedback'}->scribe_notif_log_info(
+			message => "Slot $params{'slot'} is empty, autolabel not set");
+		} elsif ($params{'non_amanda'}) {
+		    $self->{'feedback'}->scribe_notif_log_info(
+			message => "Slot $params{'slot'} is a non-amanda volume, autolabel not set");
+		} elsif ($params{'volume_error'}) {
+		    $self->{'feedback'}->scribe_notif_log_info(
+			message => "Slot $params{'slot'} is a volume in error: $params{'err'}, autolabel not set");
+		} elsif ($params{'not_success'}) {
+		    $self->{'feedback'}->scribe_notif_log_info(
+			message => "Slot $params{'slot'} is a device in error: $params{'err'}, autolabel not set");
+		} elsif ($params{'err'}) {
+		    $self->{'feedback'}->scribe_notif_log_info(
+			message => "$params{'err'}");
 		} else {
 		    $self->{'feedback'}->scribe_notif_log_info(
 			message => "Slot $params{'slot'} without label is not labelable ");
@@ -1767,6 +1774,9 @@ sub _start_scanning {
 	    } elsif (!defined $params{'label'}) {
 		$self->{'feedback'}->scribe_notif_log_info(
 		    message => "Slot $params{'slot'} without label can be labeled");
+	    } elsif ($params{'relabeled'}) {
+		$self->{'feedback'}->scribe_notif_log_info(
+		    message => "Slot $params{'slot'} with label $params{'label'} will be relabeled");
 	    } else {
 		$self->{'feedback'}->scribe_notif_log_info(
 		    message => "Slot $params{'slot'} with label $params{'label'} is usable");
@@ -1817,10 +1827,10 @@ sub _start_request {
 	    } elsif ($params{'cause'} eq 'error') {
 		$self->{'error_denial_message'} = $params{'message'};
 	    } else {
-		die "bad cause '" . $params{'cause'} . "'";
+		confess "bad cause '" . $params{'cause'} . "'";
 	    }
 	} elsif (!defined $params{'allow'}) {
-	    die "no allow or cause defined";
+	    confess "no allow or cause defined";
 	}
 
 	$self->_maybe_callback();

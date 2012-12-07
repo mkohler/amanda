@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2009-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -142,5 +142,9 @@ xfer_source_recovery_start_part(
 void xfer_source_recovery_use_device(
     XferElement *self,
     Device *device);
+
+guint64
+xfer_source_recovery_get_bytes_read(
+    XferElement *elt);
 
 #endif

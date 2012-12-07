@@ -2,12 +2,12 @@
 .\"     Title: amfetchdump
 .\"    Author: John Stange <building@nap.edu>
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 02/21/2012
+.\"      Date: 07/25/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.1
+.\"    Source: Amanda 3.3.2
 .\"  Language: English
 .\"
-.TH "AMFETCHDUMP" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.TH "AMFETCHDUMP" "8" "07/25/2012" "Amanda 3\&.3\&.2" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -31,11 +31,11 @@
 amfetchdump \- extract backup images from multiple Amanda tapes\&.
 .SH "SYNOPSIS"
 .HP \w'\fBamfetchdump\fR\ 'u
-\fBamfetchdump\fR [\-c|\-C|\-L] [\-p|\-n] [\-a] [\-O\ \fIdirectory\fR] [\-d\ \fIdevice\fR] [\-h] [\-\-header\-file\ \fIfilename\fR] [\-\-header\-fd\ \fIfd\fR] [\fB\-o\fR\ \fIconfigoption\fR...] \fIconfig\fR \fIhostname\fR [\fIdisk\fR\ [\ \fIdate\fR\ [\ \fIlevel\fR\ [\ \fIhostname\fR\ [\&.\&.\&.]\ ]\ ]\ ]]
+\fBamfetchdump\fR [\-c | \-C | \-l] [\-p | \-n] [\-a] [\-O\ \fIdirectory\fR] [\-d\ \fIdevice\fR] [\-h | \-\-header\-file\ \fIfilename\fR | \-\-header\-fd\ \fIfd\fR] [\-\-decompress | \-\-no\-decompress | \-\-server\-decompress | \-\-client\-decompress] [\-\-decrypt | \-\-no\-decrypt | \-\-server\-decrypt | \-\-client\-decrypt] [\fB\-o\fR\ \fIconfigoption\fR...] \fIconfig\fR \fIhostname\fR [\fIdisk\fR\ [\ \fIdate\fR\ [\ \fIlevel\fR\ [\ \fIhostname\fR\ [\&.\&.\&.]\ ]\ ]\ ]]
 .SH "DESCRIPTION"
 .PP
 \fBAmfetchdump\fR
-pulls one or more matching dumps from tape or from the holding disk, handling the reassembly of multi\-tape split dump files as well as any tape autochanger operations\&.
+pulls one or more matching dumps from tape or from the holding disk, handling the reassembly of multi\-tape split dump files as well as any tape autochanger operations\&. The dump are by default decompressed and decrypted\&.
 .PP
 It will automatically use the Amanda catalog to locate available dumps on tape, in the same way that the
 \fBfind\fR
@@ -105,11 +105,51 @@ Compress output, fastest method available\&.
 Compress output, smallest file size method available\&.
 .RE
 .PP
+\fB\-\-decompress\fR
+.RS 4
+Always do the decompression, this is the default\&.
+.RE
+.PP
+\fB\-\-no\-decompress\fR
+.RS 4
+Never do the decompression\&.
+.RE
+.PP
+\fB\-\-server\-decompress\fR
+.RS 4
+Do the decompression only if the compression was done on the server\&.
+.RE
+.PP
+\fB\-\-client\-decompress\fR
+.RS 4
+Do the decompression only if the compression was done on the client\&.
+.RE
+.PP
+\fB\-\-decrypt\fR
+.RS 4
+Always do the decryption, this is the default\&.
+.RE
+.PP
+\fB\-\-no\-decrypt\fR
+.RS 4
+Never do the decryption\&.
+.RE
+.PP
+\fB\-\-server\-decrypt\fR
+.RS 4
+Do the decryption only if the encryption was done on the server\&.
+.RE
+.PP
+\fB\-\-client\-decrypt\fR
+.RS 4
+Do the decryption only if the encryption was done on the client\&.
+.RE
+.PP
 \fB\-l\fR
 .RS 4
-Leave dumps in the compressed/uncompressed state in which they were found on tape\&. By default,
-\fBamfetchdump\fR
-will automatically uncompress when restoring\&.
+Leave dumps in the compressed/uncompressed and encrypted/unencrypted state in which they were found on tape\&. It is a synonym for
+\fB\-\-no\-decompression\fR
+\fB\-\-no\-decryption\fR
 .RE
 .PP
 \fB\-a\fR

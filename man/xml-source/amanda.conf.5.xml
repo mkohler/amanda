@@ -1159,7 +1159,7 @@ is the same as the <amkeyword>amrecover-changer</amkeyword> setting.</para>
   <varlistentry>
   <term><amkeyword>columnspec</amkeyword> <amtype>string</amtype></term>
   <listitem>
-<para> default: "HostName=0:12:12,Disk=1:11:11,Level=1:1:1,OrigKB=1:-7:0,OutKB=1:-7:0,Compress=1:-6:1,DumpTime=1:-7:7,Dumprate=1:-6:1,TapeTime=1:-6:6,TapeRate=1:-6:1"</para>
+<para> default: "HostName=0:-12:12,Disk=1:-11:11,Level=1:-1:1,OrigKB=1:-7:0,OutKB=1:-7:0,Compress=1:-6:1,DumpTime=1:-7:7,Dumprate=1:-6:1,TapeTime=1:-6:6,TapeRate=1:-6:1"</para>
 <para>Defines the width of columns <emphasis remap='B'>amreport</emphasis>
 should use.
 <emphasis remap='I'>String</emphasis>
@@ -1465,6 +1465,13 @@ Range is inclusive.</para>
   </listitem>
   </varlistentry>
 
+  <varlistentry>
+  <term><amkeyword>tmpdir</amkeyword> <amtype>string</amtype></term>
+  <listitem>
+<para>Default: none (system default).  Set it to a directory with lots of free
+space if sort in amindexd fail with 'No space left on device'.</para>
+  </listitem>
+  </varlistentry>
 </variablelist>
 </refsect1>
 
@@ -2114,6 +2121,17 @@ See also the main section parameter <amkeyword>inparallel</amkeyword>.</para>
 <amdefault>10000</amdefault>.
 The maximum number of day for a promotion, set it 0 if you don't want
 promotion, set it to 1 or 2 if your disks get overpromoted.</para>
+  </listitem>
+  </varlistentry>
+  <varlistentry>
+  <term><amkeyword>max-warnings</amkeyword> <amtype>int</amtype></term>
+  <listitem>
+<para>Default:
+<amdefault>20</amdefault>.
+The maximum number of error lines in the report for a dle. A value of '0'
+means unlimited. This is useful to reduce the size of the log file and the
+size of the report. All errors are put in separate files if a dle have more
+errors.</para>
   </listitem>
   </varlistentry>
   <varlistentry>
@@ -3081,7 +3099,7 @@ A comment string describing this taperscan.</para>
   <varlistentry>
   <term><amkeyword>plugin</amkeyword> <amtype>string</amtype></term>
   <listitem>
-<para>No default. Must be set to the name of the taperscan module.  See <man name="amanda-taperscan" vol="7" /> for a list of defined taperscan modules.</para>
+<para>No default. Must be set to the name of the taperscan module.  See <manref name="amanda-taperscan" vol="7" /> for a list of defined taperscan modules.</para>
   </listitem>
   </varlistentry>
   <varlistentry>

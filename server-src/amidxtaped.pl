@@ -1,5 +1,5 @@
 #! @PERL@
-# Copyright (c) 2010 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2010-2012 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -403,6 +403,7 @@ sub make_plan {
 
 	return Amanda::Recovery::Planner::make_plan(
 	    filelist => $filelist,
+	    chg => $chg,
 	    $spec? (dumpspec => $spec) : (),
 	    plan_cb => sub { $self->plan_cb(@_); });
     }
@@ -546,7 +547,6 @@ sub xfer_src_cb {
     if ($header->{'compressed'}) {
 	# need to uncompress this file
 	debug("..with decompression applied");
-	my $dle = $header->get_dle();
 
 	if ($header->{'srvcompprog'}) {
 	    # TODO: this assumes that srvcompprog takes "-d" to decrypt
@@ -569,9 +569,11 @@ sub xfer_src_cb {
 		$header->{'clntcompprog'} = '';
 	    }
 	} else {
-	    if (!$self->{'their_features'}->has($Amanda::Feature::fe_amrecover_receive_unfiltered) ||
-		$dle->{'compress'} == $Amanda::Config::COMP_SERVER_FAST ||
-		$dle->{'compress'} == $Amanda::Config::COMP_SERVER_BEST) {
+	    my $dle = $header->get_dle();
+	    if ($dle &&
+		(!$self->{'their_features'}->has($Amanda::Feature::fe_amrecover_receive_unfiltered) ||
+		 $dle->{'compress'} == $Amanda::Config::COMP_SERVER_FAST ||
+		 $dle->{'compress'} == $Amanda::Config::COMP_SERVER_BEST)) {
 		push @filters,
 		    Amanda::Xfer::Filter::Process->new(
 			[ $Amanda::Constants::UNCOMPRESS_PATH,

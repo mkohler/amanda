@@ -2,12 +2,12 @@
 .\"     Title: amanda-devices
 .\"    Author: Ian Turner <ian@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 02/21/2012
+.\"      Date: 07/25/2012
 .\"    Manual: Miscellanea
-.\"    Source: Amanda 3.3.1
+.\"    Source: Amanda 3.3.2
 .\"  Language: English
 .\"
-.TH "AMANDA\-DEVICES" "7" "02/21/2012" "Amanda 3\&.3\&.1" "Miscellanea"
+.TH "AMANDA\-DEVICES" "7" "07/25/2012" "Amanda 3\&.3\&.2" "Miscellanea"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -397,6 +397,30 @@ device\-property "S3_ACCESS_KEY" "27D3B8C6C4E7AA423C2B37C72A0D22C8"
 device\-property "S3_SECRET_KEY" "agphc2Q7Zmxragphc2RmO2xragpzZGY7a2xqCgr"
 .fi
 .PP
+CLIENT_ID
+.RS 4
+
+(read\-write) The client_id for oauth2\&.
+.RE
+.PP
+CLIENT_SECRET
+.RS 4
+
+(read\-write) The client_secret for oauth2\&.
+.RE
+.PP
+CREATE\-BUCKET
+.RS 4
+
+(read\-write) Default: yes\&. If amanda create/delete the bucket\&.
+.RE
+.PP
+REFRESH_TOKEN
+.RS 4
+
+(read\-write) The refresh\-token for oauth2\&.
+.RE
+.PP
 MAX_RECV_SPEED
 .RS 4
 
@@ -411,6 +435,13 @@ MAX_SEND_SPEED
 (read\-write) Maximum speed, in bytes per second, that this device will send
 data to S3\&.  If the average speed exceeds this value, the device will stop
 writing long enough to bring the average below this value\&.
+.RE
+.PP
+S3_MULTI_DELETE
+.RS 4
+
+(read\-write) If the server support the multi delete protocol (only Amazon S3),
+default is "YES"\&. If it fail, it revert to single delete\&.
 .RE
 .PP
 NB_THREADS_BACKUP
@@ -428,7 +459,31 @@ NB_THREADS_RECOVERY
 OPENSTACK_SWIFT_API
 .RS 4
 
- (read\-write) Set to yes if it is an openstack storage device\&.
+ (read\-write) Deprecated, set "STORAGE_API to "SWIFT\-1\&.0"\&.
+.RE
+.PP
+PROXY
+.RS 4
+
+ (read\-write) The proxy hostname or IP in the format "host[:port]"\&.
+.RE
+.PP
+PASSWORD
+.RS 4
+
+(read\-write) The password (for swift v2)\&.
+.RE
+.PP
+PROJECT\-ID
+.RS 4
+
+(read\-write) The projectid (for google)\&.
+.RE
+.PP
+REUSE\-CONNECTION
+.RS 4
+
+(read\-write) Default: YES\&. Set it to "NO" if reusing a connection cause some bug, this is sometime the case with big block size\&.
 .RE
 .PP
 S3_ACCESS_KEY
@@ -510,6 +565,35 @@ S3_USER_TOKEN
 .RS 4
 
 (read\-write) This property specifies the user token for Amanda Enterprise Edition customers\&.
+.RE
+.PP
+STORAGE_API
+.RS 4
+
+ (read\-write) Which API to use for the cloud:
+.nf
+  S3            Amanzon S3 api
+  SWITF\-1\&.0     Openstack swift v1\&.0
+  SWIFT\-2\&.0     Openstack swift v2\&.0
+.fi
+.RE
+.PP
+TENANT_ID
+.RS 4
+
+(read\-write) The tenant_id (for swift v2)\&.
+.RE
+.PP
+TENANT_NAME
+.RS 4
+
+(read\-write) The tenant_name (for swift v2)\&.
+.RE
+.PP
+USERNAME
+.RS 4
+
+(read\-write) The username (for swift v2)\&.
 .RE
 .PP
 VERBOSE
@@ -626,6 +710,13 @@ The properties
 and
 \fBNDMP_PASSWORD\fR
 set the username and password with which to access the NDMP server\&. The default for both is "ndmp"\&.
+.PP
+INDIRECT
+.RS 4
+
+(read\-write) Set to "yes" if the ndmp server doesn\*(Aqt allow to set a window length to 0\&.
+The default is "no"\&.
+.RE
 .PP
 NDMP_AUTH
 .RS 4

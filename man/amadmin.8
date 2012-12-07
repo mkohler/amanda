@@ -2,12 +2,12 @@
 .\"     Title: amadmin
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 02/21/2012
+.\"      Date: 07/25/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.1
+.\"    Source: Amanda 3.3.2
 .\"  Language: English
 .\"
-.TH "AMADMIN" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.TH "AMADMIN" "8" "07/25/2012" "Amanda 3\&.3\&.2" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -31,7 +31,7 @@
 amadmin \- administrative interface to control Amanda backups
 .SH "SYNOPSIS"
 .HP \w'\fBamadmin\fR\ 'u
-\fBamadmin\fR [\fB\-o\fR\ \fIconfigoption\fR...] \fIconfig\fR \fIcommand\fR [\fIcommand_options\fR...]
+\fBamadmin\fR [\-\-version] [\-\-no\-default] [\-\-print\-source] [\fB\-o\fR\ \fIconfigoption\fR...] \fIconfig\fR \fIcommand\fR [\fIcommand_options\fR...]
 .SH "DESCRIPTION"
 .PP
 \fBAmadmin\fR
@@ -42,6 +42,30 @@ Amanda configuration\&.
 See the
 \fBamanda\fR(8)
 man page for more details about Amanda\&.
+.SH "OPTIONS"
+.PP
+\fB\-\-version\fR
+.RS 4
+Print the version and exit\&.
+.RE
+.PP
+\fB\-\-no\-default\fR
+.RS 4
+Do not print default values for
+\fBconfig\fR
+and
+\fBdisklist\fR
+commands\&.
+.RE
+.PP
+\fB\-\-print\-source\fR
+.RS 4
+Print where a value is definedi for
+\fBconfig\fR
+and
+\fBdisklist\fR
+commands\&.
+.RE
 .SH "COMMANDS"
 .PP
 Commands that take a

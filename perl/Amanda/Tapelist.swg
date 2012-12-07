@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -269,6 +269,7 @@ sub _update_positions {
 %}
 
 char *get_last_reusable_tape_label(int skip);
+%newobject list_new_tapes;
 char *list_new_tapes(int nb);
 
 /* C functions -- should be called *only* from within this module */

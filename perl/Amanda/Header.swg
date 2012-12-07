@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2009-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -123,7 +123,6 @@ typedef struct {
     }
 } dumpfile_t;
 
-%newobject C_from_string;
 %inline %{
 static dumpfile_t *C_from_string(const char *string) {
     dumpfile_t *result = g_new(dumpfile_t, 1);
@@ -151,7 +150,11 @@ sub from_string {
 sub get_dle {
     my $self = shift;
 
-    return Amanda::Header::HeaderXML->new($self->{'dle_str'});
+    if ($self->{'dle_str'}) {
+	return Amanda::Header::HeaderXML->new($self->{'dle_str'});
+    } else {
+	return undef;
+    }
 }
 
 package Amanda::Header::Header;
@@ -192,10 +195,10 @@ typedef struct {
     int     record;
     int     create_index;
     char   *auth;
-    sl_t   *exclude_file;
-    sl_t   *exclude_list;
-    sl_t   *include_file;
-    sl_t   *include_list;
+    am_sl_t   *exclude_file;
+    am_sl_t   *exclude_list;
+    am_sl_t   *include_file;
+    am_sl_t   *include_list;
     int     exclude_optional;
     int     include_optional;
     proplist_t application_property;

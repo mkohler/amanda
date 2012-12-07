@@ -960,6 +960,7 @@ expand_braced_alternates(
     char * source)
 {
     GPtrArray *rval = g_ptr_array_new();
+    gpointer *pdata;
 
     g_ptr_array_add(rval, g_strdup(""));
 
@@ -971,6 +972,8 @@ expand_braced_alternates(
 	new_components = parse_braced_component(&source);
 	if (!new_components) {
 	    /* parse error */
+	    for (i = 0, pdata = rval->pdata; i < rval->len; i++)
+		g_free(*pdata++);
 	    g_ptr_array_free(rval, TRUE);
 	    return NULL;
 	}
@@ -987,7 +990,11 @@ expand_braced_alternates(
 	    }
 	}
 
+	for (i = 0, pdata = rval->pdata; i < rval->len; i++)
+	    g_free(*pdata++);
 	g_ptr_array_free(rval, TRUE);
+	for (i = 0, pdata = new_components->pdata; i < new_components->len; i++)
+	    g_free(*pdata++);
 	g_ptr_array_free(new_components, TRUE);
 	rval = new_rval;
     }
@@ -1139,6 +1146,11 @@ add_history(
 # error No readdir() or readdir64() available!
 #endif
 
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 31))
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#endif
+
 char * portable_readdir(DIR* handle) {
 
 #ifdef USE_DIRENT64
@@ -1168,6 +1180,9 @@ char * portable_readdir(DIR* handle) {
        sure what to do about that case. */
     return strdup(entry_p->d_name);
 }
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 31))
+# pragma GCC diagnostic pop
+#endif
 
 int search_directory(DIR * handle, const char * regex,
                      SearchDirectoryFunctor functor, gpointer user_data) {

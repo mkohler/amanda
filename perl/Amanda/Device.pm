@@ -125,6 +125,8 @@ sub DESTROY {
 *read_label = *Amanda::Devicec::Device_read_label;
 *start = *Amanda::Devicec::Device_start;
 *finish = *Amanda::Devicec::Device_finish;
+*get_bytes_read = *Amanda::Devicec::Device_get_bytes_read;
+*get_bytes_written = *Amanda::Devicec::Device_get_bytes_written;
 *start_file = *Amanda::Devicec::Device_start_file;
 *write_block = *Amanda::Devicec::Device_write_block;
 *finish_file = *Amanda::Devicec::Device_finish_file;
@@ -136,7 +138,9 @@ sub DESTROY {
 *directtcp_supported = *Amanda::Devicec::Device_directtcp_supported;
 *listen = *Amanda::Devicec::Device_listen;
 *accept = *Amanda::Devicec::Device_accept;
+*accept_with_cond = *Amanda::Devicec::Device_accept_with_cond;
 *connect = *Amanda::Devicec::Device_connect;
+*connect_with_cond = *Amanda::Devicec::Device_connect_with_cond;
 *use_connection = *Amanda::Devicec::Device_use_connection;
 *write_from_connection = *Amanda::Devicec::Device_write_from_connection;
 *read_to_connection = *Amanda::Devicec::Device_read_to_connection;

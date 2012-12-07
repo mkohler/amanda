@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2007-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -30,7 +30,64 @@
 
 #ifdef HAVE_LIBCURL
 #include <curl/curl.h>
-#endif
+
+#ifdef LIBCURL_USE_OPENSSL
+#include <openssl/crypto.h>
+static GMutex **openssl_mutex_array;
+static void openssl_lock_callback(int mode, int type, const char *file, int line)
+{
+    (void)file;
+    (void)line;
+    if (mode & CRYPTO_LOCK) {
+	g_mutex_lock(openssl_mutex_array[type]);
+    }
+    else {
+	g_mutex_unlock(openssl_mutex_array[type]);
+    }
+}
+
+static void
+init_ssl(void)
+{
+    int i;
+
+    openssl_mutex_array = g_new0(GMutex *, CRYPTO_num_locks());
+
+    for (i=0; i<CRYPTO_num_locks(); i++) {
+	openssl_mutex_array[i] = g_mutex_new();
+    }
+    CRYPTO_set_locking_callback(openssl_lock_callback);
+
+}
+
+#else /* LIBCURL_USE_OPENSSL */
+#if defined LIBCURL_USE_GNUTLS
+
+#include <gcrypt.h>
+#include <errno.h>
+
+GCRY_THREAD_OPTION_PTHREAD_IMPL;
+static void
+init_ssl(void)
+{
+  gcry_control(GCRYCTL_SET_THREAD_CBS);
+}
+
+#else	/* LIBCURL_USE_GNUTLS  */
+
+static void
+init_ssl(void)
+{
+}
+#endif	/* LIBCURL_USE_GNUTLS  */
+#endif  /* LIBCURL_USE_OPENSSL */
+
+#else	/* HAVE_LIBCURL */
+static void
+init_ssl(void)
+{
+}
+#endif /* HAVE_LIBCURL */
 
 void
 glib_init(void) {
@@ -40,6 +97,11 @@ glib_init(void) {
 
     /* set up libcurl */
 #ifdef HAVE_LIBCURL
+# ifdef G_THREADS_ENABLED
+#  if (GLIB_MAJOR_VERSION < 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION < 31))
+    g_assert(!g_thread_supported()); /* assert threads aren't initialized yet */
+#  endif
+# endif
     g_assert(curl_global_init(CURL_GLOBAL_ALL) == 0);
 #endif
 
@@ -60,6 +122,10 @@ glib_init(void) {
     /* Initialize glib's type system.  On glib >= 2.24, this will initialize
      * threads, so it must be done after curl is initialized. */
     g_type_init();
+
+    /* initialize ssl */
+    init_ssl();
+
 }
 
 typedef enum {

@@ -1510,21 +1510,23 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 #define SWIGTYPE_p_DevicePropertyBase swig_types[1]
 #define SWIGTYPE_p_DirectTCPAddr swig_types[2]
 #define SWIGTYPE_p_DirectTCPConnection swig_types[3]
-#define SWIGTYPE_p_GSList swig_types[4]
-#define SWIGTYPE_p_GValue swig_types[5]
-#define SWIGTYPE_p_a_STRMAX__char swig_types[6]
-#define SWIGTYPE_p_char swig_types[7]
-#define SWIGTYPE_p_double swig_types[8]
-#define SWIGTYPE_p_dumpfile_t swig_types[9]
-#define SWIGTYPE_p_float swig_types[10]
-#define SWIGTYPE_p_guint swig_types[11]
-#define SWIGTYPE_p_guint32 swig_types[12]
-#define SWIGTYPE_p_guint64 swig_types[13]
-#define SWIGTYPE_p_int swig_types[14]
-#define SWIGTYPE_p_p_DirectTCPAddr swig_types[15]
-#define SWIGTYPE_p_unsigned_char swig_types[16]
-static swig_type_info *swig_types[18];
-static swig_module_info swig_module = {swig_types, 17, 0, 0, 0, 0};
+#define SWIGTYPE_p_GCond swig_types[4]
+#define SWIGTYPE_p_GMutex swig_types[5]
+#define SWIGTYPE_p_GSList swig_types[6]
+#define SWIGTYPE_p_GValue swig_types[7]
+#define SWIGTYPE_p_a_STRMAX__char swig_types[8]
+#define SWIGTYPE_p_char swig_types[9]
+#define SWIGTYPE_p_double swig_types[10]
+#define SWIGTYPE_p_dumpfile_t swig_types[11]
+#define SWIGTYPE_p_float swig_types[12]
+#define SWIGTYPE_p_guint swig_types[13]
+#define SWIGTYPE_p_guint32 swig_types[14]
+#define SWIGTYPE_p_guint64 swig_types[15]
+#define SWIGTYPE_p_int swig_types[16]
+#define SWIGTYPE_p_p_DirectTCPAddr swig_types[17]
+#define SWIGTYPE_p_unsigned_char swig_types[18]
+static swig_type_info *swig_types[20];
+static swig_module_info swig_module = {swig_types, 19, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1985,6 +1987,12 @@ SWIGINTERN gboolean Device_start(Device *self,DeviceAccessMode mode,char *label,
 SWIGINTERN gboolean Device_finish(Device *self){
 	    return device_finish(self);
 	}
+SWIGINTERN guint64 Device_get_bytes_read(Device *self){
+	    return device_get_bytes_read(self);
+	}
+SWIGINTERN guint64 Device_get_bytes_written(Device *self){
+	    return device_get_bytes_written(self);
+	}
 SWIGINTERN gboolean Device_start_file(Device *self,dumpfile_t *jobInfo){
 	    return device_start_file(self, jobInfo);
 	}
@@ -2029,11 +2037,36 @@ SWIGINTERN DirectTCPConnection *Device_accept(Device *self){
 	    }
 	    return conn;
 	}
+SWIGINTERN DirectTCPConnection *Device_accept_with_cond(Device *self,GMutex *abort_mutex,GCond *abort_cond){
+	    DirectTCPConnection *conn = NULL;
+	    gboolean rv;
+
+	    rv = device_accept_with_cond(self, &conn, abort_mutex, abort_cond);
+	    if (!rv && conn) {
+		/* conn is ref'd for our convenience, but we don't want it */
+		g_object_unref(conn);
+		conn = NULL;
+	    }
+	    return conn;
+	}
 SWIGINTERN DirectTCPConnection *Device_connect(Device *self,gboolean for_writing,DirectTCPAddr *addrs){
 	    DirectTCPConnection *conn = NULL;
 	    gboolean rv;
 
 	    rv = device_connect(self, for_writing, addrs, &conn, NULL, NULL);
+	    if (!rv && conn) {
+		/* conn is ref'd for our convenience, but we don't want it */
+		g_object_unref(conn);
+		conn = NULL;
+	    }
+	    return conn;
+	}
+SWIGINTERN DirectTCPConnection *Device_connect_with_cond(Device *self,gboolean for_writing,DirectTCPAddr *addrs,GMutex *abort_mutex,GCond *abort_cond){
+	    DirectTCPConnection *conn = NULL;
+	    gboolean rv;
+
+	    rv = device_connect_with_cond(self, for_writing, addrs, &conn,
+					  abort_mutex, abort_cond);
 	    if (!rv && conn) {
 		/* conn is ref'd for our convenience, but we don't want it */
 		g_object_unref(conn);
@@ -2713,6 +2746,76 @@ XS(_wrap_Device_finish) {
 }
 
 
+XS(_wrap_Device_get_bytes_read) {
+  {
+    Device *arg1 = (Device *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    guint64 result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: Device_get_bytes_read(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_Device, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "Device_get_bytes_read" "', argument " "1"" of type '" "Device *""'"); 
+    }
+    arg1 = (Device *)(argp1);
+    result = Device_get_bytes_read(arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_Device_get_bytes_written) {
+  {
+    Device *arg1 = (Device *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    int argvi = 0;
+    guint64 result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: Device_get_bytes_written(self);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_Device, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "Device_get_bytes_written" "', argument " "1"" of type '" "Device *""'"); 
+    }
+    arg1 = (Device *)(argp1);
+    result = Device_get_bytes_written(arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_Device_start_file) {
   {
     Device *arg1 = (Device *) 0 ;
@@ -3171,6 +3274,54 @@ XS(_wrap_Device_accept) {
 }
 
 
+XS(_wrap_Device_accept_with_cond) {
+  {
+    Device *arg1 = (Device *) 0 ;
+    GMutex *arg2 = (GMutex *) 0 ;
+    GCond *arg3 = (GCond *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    void *argp2 = 0 ;
+    int res2 = 0 ;
+    void *argp3 = 0 ;
+    int res3 = 0 ;
+    int argvi = 0;
+    DirectTCPConnection *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 3) || (items > 3)) {
+      SWIG_croak("Usage: Device_accept_with_cond(self,abort_mutex,abort_cond);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_Device, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "Device_accept_with_cond" "', argument " "1"" of type '" "Device *""'"); 
+    }
+    arg1 = (Device *)(argp1);
+    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_GMutex, 0 |  0 );
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "Device_accept_with_cond" "', argument " "2"" of type '" "GMutex *""'"); 
+    }
+    arg2 = (GMutex *)(argp2);
+    res3 = SWIG_ConvertPtr(ST(2), &argp3,SWIGTYPE_p_GCond, 0 |  0 );
+    if (!SWIG_IsOK(res3)) {
+      SWIG_exception_fail(SWIG_ArgError(res3), "in method '" "Device_accept_with_cond" "', argument " "3"" of type '" "GCond *""'"); 
+    }
+    arg3 = (GCond *)(argp3);
+    result = (DirectTCPConnection *)Device_accept_with_cond(arg1,arg2,arg3);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_DirectTCPConnection, SWIG_OWNER | SWIG_SHADOW); argvi++ ;
+    
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_Device_connect) {
   {
     Device *arg1 = (Device *) 0 ;
@@ -3241,6 +3392,104 @@ XS(_wrap_Device_connect) {
     
     XSRETURN(argvi);
   fail:
+    
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_Device_connect_with_cond) {
+  {
+    Device *arg1 = (Device *) 0 ;
+    gboolean arg2 ;
+    DirectTCPAddr *arg3 = (DirectTCPAddr *) 0 ;
+    GMutex *arg4 = (GMutex *) 0 ;
+    GCond *arg5 = (GCond *) 0 ;
+    void *argp1 = 0 ;
+    int res1 = 0 ;
+    void *argp4 = 0 ;
+    int res4 = 0 ;
+    void *argp5 = 0 ;
+    int res5 = 0 ;
+    int argvi = 0;
+    DirectTCPConnection *result = 0 ;
+    dXSARGS;
+    
+    if ((items < 5) || (items > 5)) {
+      SWIG_croak("Usage: Device_connect_with_cond(self,for_writing,addrs,abort_mutex,abort_cond);");
+    }
+    res1 = SWIG_ConvertPtr(ST(0), &argp1,SWIGTYPE_p_Device, 0 |  0 );
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "Device_connect_with_cond" "', argument " "1"" of type '" "Device *""'"); 
+    }
+    arg1 = (Device *)(argp1);
+    {
+      arg2 = SvTRUE(ST(1));
+    }
+    {
+      AV *addrs_av;
+      int num_addrs, i;
+      
+      if (!SvROK(ST(2)) || SvTYPE(SvRV(ST(2))) != SVt_PVAV) {
+        SWIG_exception_fail(SWIG_TypeError, "must provide an arrayref of DirectTCPAddrs");
+      }
+      addrs_av = (AV *)SvRV(ST(2));
+      num_addrs = av_len(addrs_av)+1;
+      
+      arg3 = g_new0(DirectTCPAddr, num_addrs+1);
+      
+      for (i = 0; i < num_addrs; i++) {
+        SV **svp = av_fetch(addrs_av, i, 0);
+        AV *addr_av;
+        sockaddr_union addr;
+        IV port;
+        
+        if (!svp || !SvROK(*svp) || SvTYPE(SvRV(*svp)) != SVt_PVAV
+          || av_len((AV *)SvRV(*svp))+1 != 2) {
+          SWIG_exception_fail(SWIG_TypeError, "each DirectTCPAddr must be a 2-element arrayref");
+        }
+        
+        addr_av = (AV *)SvRV(*svp);
+        
+        /* get address */
+        svp = av_fetch(addr_av, 0, 0);
+        if (!svp || !SvPOK(*svp) || !str_to_sockaddr(SvPV_nolen(*svp), &addr)) {
+          SWIG_exception_fail(SWIG_TypeError, "invalid IPv4 addr in address");
+        }
+        
+        /* get port */
+        svp = av_fetch(addr_av, 1, 0);
+        if (!svp || !SvIOK(*svp) || (port = SvIV(*svp)) <= 0 || port >= 65536) {
+          SWIG_exception_fail(SWIG_TypeError, "invalid port in address");
+        }
+        SU_SET_PORT(&addr, port);
+        
+        copy_sockaddr(arg3, &addr);
+      }
+    }
+    res4 = SWIG_ConvertPtr(ST(3), &argp4,SWIGTYPE_p_GMutex, 0 |  0 );
+    if (!SWIG_IsOK(res4)) {
+      SWIG_exception_fail(SWIG_ArgError(res4), "in method '" "Device_connect_with_cond" "', argument " "4"" of type '" "GMutex *""'"); 
+    }
+    arg4 = (GMutex *)(argp4);
+    res5 = SWIG_ConvertPtr(ST(4), &argp5,SWIGTYPE_p_GCond, 0 |  0 );
+    if (!SWIG_IsOK(res5)) {
+      SWIG_exception_fail(SWIG_ArgError(res5), "in method '" "Device_connect_with_cond" "', argument " "5"" of type '" "GCond *""'"); 
+    }
+    arg5 = (GCond *)(argp5);
+    result = (DirectTCPConnection *)Device_connect_with_cond(arg1,arg2,arg3,arg4,arg5);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_DirectTCPConnection, SWIG_OWNER | SWIG_SHADOW); argvi++ ;
+    
+    
+    
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
     
     
     
@@ -4409,6 +4658,8 @@ static swig_type_info _swigt__p_Device = {"_p_Device", "struct Device *|Device *
 static swig_type_info _swigt__p_DevicePropertyBase = {"_p_DevicePropertyBase", "DevicePropertyBase *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_DirectTCPAddr = {"_p_DirectTCPAddr", "DirectTCPAddr *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_DirectTCPConnection = {"_p_DirectTCPConnection", "struct DirectTCPConnection *|DirectTCPConnection *", 0, 0, (void*)"Amanda::Device::DirectTCPConnection", 0};
+static swig_type_info _swigt__p_GCond = {"_p_GCond", "GCond *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_GMutex = {"_p_GMutex", "GMutex *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_GSList = {"_p_GSList", "GSList *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_GValue = {"_p_GValue", "GValue *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_a_STRMAX__char = {"_p_a_STRMAX__char", "char (*)[STRMAX]|string_t *", 0, 0, (void*)0, 0};
@@ -4428,6 +4679,8 @@ static swig_type_info *swig_type_initial[] = {
   &_swigt__p_DevicePropertyBase,
   &_swigt__p_DirectTCPAddr,
   &_swigt__p_DirectTCPConnection,
+  &_swigt__p_GCond,
+  &_swigt__p_GMutex,
   &_swigt__p_GSList,
   &_swigt__p_GValue,
   &_swigt__p_a_STRMAX__char,
@@ -4447,6 +4700,8 @@ static swig_cast_info _swigc__p_Device[] = {  {&_swigt__p_Device, 0, 0, 0},{0, 0
 static swig_cast_info _swigc__p_DevicePropertyBase[] = {  {&_swigt__p_DevicePropertyBase, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_DirectTCPAddr[] = {  {&_swigt__p_DirectTCPAddr, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_DirectTCPConnection[] = {  {&_swigt__p_DirectTCPConnection, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_GCond[] = {  {&_swigt__p_GCond, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_GMutex[] = {  {&_swigt__p_GMutex, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_GSList[] = {  {&_swigt__p_GSList, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_GValue[] = {  {&_swigt__p_GValue, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_a_STRMAX__char[] = {  {&_swigt__p_a_STRMAX__char, 0, 0, 0},{0, 0, 0, 0}};
@@ -4466,6 +4721,8 @@ static swig_cast_info *swig_cast_initial[] = {
   _swigc__p_DevicePropertyBase,
   _swigc__p_DirectTCPAddr,
   _swigc__p_DirectTCPConnection,
+  _swigc__p_GCond,
+  _swigc__p_GMutex,
   _swigc__p_GSList,
   _swigc__p_GValue,
   _swigc__p_a_STRMAX__char,
@@ -4507,6 +4764,8 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Devicec::Device_read_label", _wrap_Device_read_label},
 {"Amanda::Devicec::Device_start", _wrap_Device_start},
 {"Amanda::Devicec::Device_finish", _wrap_Device_finish},
+{"Amanda::Devicec::Device_get_bytes_read", _wrap_Device_get_bytes_read},
+{"Amanda::Devicec::Device_get_bytes_written", _wrap_Device_get_bytes_written},
 {"Amanda::Devicec::Device_start_file", _wrap_Device_start_file},
 {"Amanda::Devicec::Device_write_block", _wrap_Device_write_block},
 {"Amanda::Devicec::Device_finish_file", _wrap_Device_finish_file},
@@ -4518,7 +4777,9 @@ static swig_command_info swig_commands[] = {
 {"Amanda::Devicec::Device_directtcp_supported", _wrap_Device_directtcp_supported},
 {"Amanda::Devicec::Device_listen", _wrap_Device_listen},
 {"Amanda::Devicec::Device_accept", _wrap_Device_accept},
+{"Amanda::Devicec::Device_accept_with_cond", _wrap_Device_accept_with_cond},
 {"Amanda::Devicec::Device_connect", _wrap_Device_connect},
+{"Amanda::Devicec::Device_connect_with_cond", _wrap_Device_connect_with_cond},
 {"Amanda::Devicec::Device_use_connection", _wrap_Device_use_connection},
 {"Amanda::Devicec::Device_write_from_connection", _wrap_Device_write_from_connection},
 {"Amanda::Devicec::Device_read_to_connection", _wrap_Device_read_to_connection},

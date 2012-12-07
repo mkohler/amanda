@@ -1,4 +1,4 @@
-# Copyright (c) 2009, 2010 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2009-2012 Zmanda Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -38,6 +38,7 @@ use warnings;
 
 package Amanda::Taper::Worker;
 
+use Carp;
 use POSIX qw( :errno_h );
 use Amanda::Changer;
 use Amanda::Config qw( :getconf config_dir_relative );
@@ -221,11 +222,14 @@ sub DONE {
     my $self = shift;
     my ($msgtype, %params) = @_;
 
-    $self->_assert_in_state("writing") or return;
-    $self->{'dumper_status'} = "DONE";
-    $self->{'orig_kb'} = $params{'orig_kb'};
-    if (defined $self->{'result'}) {
-	$self->result_cb(undef);
+    if (!defined $self->{'dumper_status'}) {
+	$self->{'dumper_status'} = "DONE";
+	$self->{'orig_kb'} = $params{'orig_kb'};
+	if (defined $self->{'result'}) {
+	    $self->result_cb(undef);
+	}
+    } else {
+	# ignore the message
     }
 }
 
@@ -233,11 +237,20 @@ sub FAILED {
     my $self = shift;
     my ($msgtype, %params) = @_;
 
-    $self->_assert_in_state("writing") or return;
-
     $self->{'dumper_status'} = "FAILED";
-    if (defined $self->{'result'}) {
+    if (defined $self->{'header_xfer'}) {
+	$self->{'header_xfer'}->cancel();
+    } elsif (defined $self->{'result'}) {
 	$self->result_cb(undef);
+    } elsif (!defined $self->{'scribe'}->{'xdt'}) {
+	# ignore, the dump is already cancelled or not yet started.
+    } elsif (!defined $self->{'scribe'}->{'xfer'}) {
+	# ignore, the dump is already cancelled or not yet started.
+    } else { # Abort the dump
+	push @{$self->{'input_errors'}}, "dumper failed";
+	$self->{'scribe'}->cancel_dump(
+		xfer => $self->{'scribe'}->{'xfer'},
+		dump_cb => $self->{'dump_cb'});
     }
 }
 
@@ -488,7 +501,7 @@ sub create_status_file {
     $self->{timer}->set_callback(sub {
 	my $size = $self->{scribe}->get_bytes_written();
 	seek $self->{status_fh}, 0, 0;
-	print {$self->{status_fh}} $size;
+	print {$self->{status_fh}} $size, '     ';
 	$self->{status_fh}->flush();
     });
 }
@@ -497,7 +510,6 @@ sub send_port_and_get_header {
     my $self = shift;
     my ($finished_cb) = @_;
 
-    my $header_xfer;
     my ($xsrc, $xdst);
     my $errmsg;
 
@@ -517,8 +529,8 @@ sub send_port_and_get_header {
 	($xsrc, $xdst) = (
 	    Amanda::Xfer::Source::DirectTCPListen->new(),
 	    Amanda::Xfer::Dest::Buffer->new(0));
-	$header_xfer = Amanda::Xfer->new([$xsrc, $xdst]);
-	$header_xfer->start($steps->{'header_xfer_xmsg_cb'});
+	$self->{'header_xfer'} = Amanda::Xfer->new([$xsrc, $xdst]);
+	$self->{'header_xfer'}->start($steps->{'header_xfer_xmsg_cb'});
 
 	my $header_addrs = $xsrc->get_addrs();
 	my $header_port = $header_addrs->[0][1];
@@ -550,7 +562,7 @@ sub send_port_and_get_header {
 	my $hdr_buf = $xdst->get();
 
 	# close stuff up
-	$header_xfer = $xsrc = $xdst = undef;
+	$self->{'header_xfer'} = $xsrc = $xdst = undef;
 
 	if (!defined $hdr_buf) {
 	    return $finished_cb->("Got empty header");
@@ -569,6 +581,8 @@ sub setup_and_start_dump {
     my $self = shift;
     my ($msgtype, %params) = @_;
     my %get_xfer_dest_args;
+
+    $self->{'dump_cb'} = $params{'dump_cb'};
 
     # setting up the dump is a bit complex, due to the requirements of
     # a directtcp port_write.  This function:
@@ -618,7 +632,7 @@ sub setup_and_start_dump {
 
 	my $device = $self->{'scribe'}->get_device();
 	if (!defined $device) {
-	    die "no device is available to create an xfer_dest";
+	    confess "no device is available to create an xfer_dest";
 	}
 	$splitting_args{'leom_supported'} = $device->property_get("leom");
 	# and convert those to get_xfer_dest args
@@ -690,7 +704,7 @@ sub setup_and_start_dump {
 	    $hdr->{'cont_filename'} = '';
 
 	    if (!defined $hdr || $hdr->{'type'} != $Amanda::Header::F_DUMPFILE) {
-		die("Could not read header from '$params{filename}'");
+		confess("Could not read header from '$params{filename}'");
 	    }
 	    $steps->{'start_dump'}->(undef);
 	} else {
@@ -721,7 +735,7 @@ sub setup_and_start_dump {
             or $hdr->{'name'} ne $params{'hostname'}
             or $hdr->{'disk'} ne $params{'diskname'}
 	    or $hdr->{'datestamp'} ne $params{'datestamp'}) {
-            die("Header of dumpfile does not match command from driver");
+            confess("Header of dumpfile does not match command from driver");
         }
 
 	# start producing status

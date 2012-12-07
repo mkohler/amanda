@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -139,15 +139,27 @@ struct S3Handle {
     char *user_token;
     char *swift_account_id;
     char *swift_access_key;
+    char *username;
+    char *password;
+    char *tenant_id;
+    char *tenant_name;
+    char *client_id;
+    char *client_secret;
+    char *refresh_token;
+    char *access_token;
+    time_t expires;
+    gboolean getting_oauth2_access_token;
+    gboolean getting_swift_2_token;
 
     /* attributes for new objects */
     char *bucket_location;
     char *storage_class;
     char *server_side_encryption;
+    char *proxy;
     char *host;
     char *service_path;
     gboolean use_subdomain;
-    gboolean openstack_swift_api;
+    S3_api s3_api;
     char *ca_info;
     char *x_auth_token;
     char *x_storage_url;
@@ -171,6 +183,9 @@ struct S3Handle {
 
     /* offset with s3 */
     time_t time_offset_with_s3;
+    char *content_type;
+
+    gboolean reuse_connection;
 };
 
 typedef struct {
@@ -248,7 +263,8 @@ s3_error_name_from_code(s3_error_code_t s3_error_code);
 typedef enum {
     S3_RESULT_RETRY = -1,
     S3_RESULT_FAIL = 0,
-    S3_RESULT_OK = 1
+    S3_RESULT_OK = 1,
+    S3_RESULT_NOTIMPL = 2
 } s3_result_t;
 
 typedef struct result_handling {
@@ -257,6 +273,11 @@ typedef struct result_handling {
     CURLcode curl_code;
     s3_result_t result;
 } result_handling_t;
+
+/*
+ * get the access token for OAUTH2
+ */
+static gboolean oauth2_get_access_token(S3Handle *hdl);
 
 /* Lookup a result in C{result_handling}.
  *
@@ -276,7 +297,8 @@ lookup_result(const result_handling_t *result_handling,
  * Precompiled regular expressions */
 static regex_t etag_regex, error_name_regex, message_regex, subdomain_regex,
     location_con_regex, date_sync_regex, x_auth_token_regex,
-    x_storage_url_regex;
+    x_storage_url_regex, access_token_regex, expires_in_regex,
+    content_type_regex, details_regex, code_regex;
 
 
 /*
@@ -335,7 +357,10 @@ authenticate_request(S3Handle *hdl,
                      const char *bucket,
                      const char *key,
                      const char *subresource,
-                     const char *md5_hash);
+                     const char *md5_hash,
+                     const char *content_type,
+                     const size_t content_length,
+                     const char *project_id);
 
 
 
@@ -401,6 +426,8 @@ perform_request(S3Handle *hdl,
                 const char *key,
                 const char *subresource,
                 const char *query,
+                const char *content_type,
+                const char *project_id,
                 s3_read_func read_func,
                 s3_reset_func read_reset_func,
                 s3_size_func size_func,
@@ -434,6 +461,9 @@ s3_internal_header_func(void *ptr, size_t size, size_t nmemb, void * stream);
 
 static gboolean
 compile_regexes(void);
+
+static gboolean get_openstack_swift_api_v1_setting(S3Handle *hdl);
+static gboolean get_openstack_swift_api_v2_setting(S3Handle *hdl);
 
 /*
  * Static function implementations
@@ -520,6 +550,130 @@ lookup_result(const result_handling_t *result_handling,
     return result_handling->result;
 }
 
+static time_t
+rfc3339_date(
+    const char *date)
+{
+    gint year, month, day, hour, minute, seconds;
+    const char *atz;
+
+    if (strlen(date) < 19)
+	return 1073741824;
+
+    year = atoi(date);
+    month = atoi(date+5);
+    day = atoi(date+8);
+    hour = atoi(date+11);
+    minute = atoi(date+14);
+    seconds = atoi(date+17);
+    atz = date+19;
+    if (*atz == '.') {   /* skip decimal seconds */
+	atz++;
+	while (*atz >= '0' && *atz <= '9') {
+	    atz++;
+	}
+    }
+
+#if GLIB_CHECK_VERSION(2,26,0)
+    if (!glib_check_version(2,26,0)) {
+	GTimeZone *tz;
+	GDateTime *dt;
+	time_t a;
+
+	tz = g_time_zone_new(atz);
+	dt = g_date_time_new(tz, year, month, day, hour, minute, seconds);
+	a = g_date_time_to_unix(dt);
+	g_time_zone_unref(tz);
+	g_date_time_unref(dt);
+	return a;
+    } else
+#endif
+    {
+	struct tm tm;
+	time_t t;
+
+	tm.tm_year = year - 1900;
+	tm.tm_mon = month - 1;
+	tm.tm_mday = day;
+	tm.tm_hour = hour;
+	tm.tm_min = minute;
+	tm.tm_sec = seconds;
+	tm.tm_wday = 0;
+	tm.tm_yday = 0;
+	tm.tm_isdst = -1;
+	t = time(NULL);
+
+	if (*atz == '-' || *atz == '+') {  /* numeric timezone */
+	    time_t lt, gt;
+	    time_t a;
+	    struct tm ltt, gtt;
+	    gint Hour = atoi(atz);
+	    gint Min  = atoi(atz+4);
+
+	    if (Hour < 0)
+		Min = -Min;
+	    tm.tm_hour -= Hour;
+	    tm.tm_min -= Min;
+	    tm.tm_isdst = 0;
+	    localtime_r(&t, &ltt);
+	    lt = mktime(&ltt);
+	    gmtime_r(&t, &gtt);
+	    gt = mktime(&gtt);
+	    tm.tm_sec += lt - gt;
+	    a = mktime(&tm);
+	    return a;
+	} else if (*atz == 'Z' && *(atz+1) == '\0') { /* Z timezone */
+	    time_t lt, gt;
+	    time_t a;
+	    struct tm ltt, gtt;
+
+	    tm.tm_isdst = 0;
+	    localtime_r(&t, &ltt);
+	    lt = mktime(&ltt);
+	    gmtime_r(&t, &gtt);
+	    gt = mktime(&gtt);
+	    tm.tm_sec += lt - gt;
+	    a = mktime(&tm);
+	    return a;
+	} else { /* named timezone */
+	    int pid;
+	    int fd[2];
+	    char buf[101];
+	    time_t a;
+	    size_t size;
+
+	    if (pipe(fd) == -1)
+		return 1073741824;
+	    pid = fork();
+	    switch (pid) {
+		case -1:
+		    close(fd[0]);
+		    close(fd[1]);
+		    return 1073741824;
+		    break;
+		case 0:
+		    close(fd[0]);
+		    setenv("TZ", atz, 1);
+		    tzset();
+		    a = mktime(&tm);
+		    g_snprintf(buf, 100, "%d", (int)a);
+		    size = write(fd[1], buf, strlen(buf));
+		    close(fd[1]);
+		    exit(0);
+		default:
+		    close(fd[1]);
+		    size = read(fd[0], buf, 100);
+		    close(fd[0]);
+		    buf[size] = '\0';
+		    waitpid(pid, NULL, 0);
+		    break;
+	    }
+	    return atoi(buf);
+	}
+    }
+}
+
+
 static gboolean
 is_non_empty_string(const char *str)
 {
@@ -537,7 +691,9 @@ build_url(
     GString *url = NULL;
     char *esc_bucket = NULL, *esc_key = NULL;
 
-    if (hdl->openstack_swift_api && hdl->x_storage_url) {
+    if ((hdl->s3_api == S3_API_SWIFT_1 || hdl->s3_api == S3_API_SWIFT_2 ||
+	 hdl->s3_api == S3_API_OAUTH2) &&
+	 hdl->x_storage_url) {
 	url = g_string_new(hdl->x_storage_url);
 	g_string_append(url, "/");
     } else {
@@ -600,6 +756,10 @@ build_url(
 	curl_free(esc_key);
     }
 
+    if (url->str[strlen(url->str)-1] == '/') {
+	g_string_truncate(url, strlen(url->str)-1);
+    }
+
     /* query string */
     if (subresource || query)
         g_string_append(url, "?");
@@ -624,7 +784,10 @@ authenticate_request(S3Handle *hdl,
                      const char *bucket,
                      const char *key,
                      const char *subresource,
-                     const char *md5_hash)
+                     const char *md5_hash,
+                     const char *content_type,
+                     const size_t content_length,
+                     const char *project_id)
 {
     time_t t;
     struct tm tmp;
@@ -641,7 +804,6 @@ authenticate_request(S3Handle *hdl,
     static const char *wkday[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
     static const char *month[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-
 
     /* calculate the date */
     t = time(NULL);
@@ -660,7 +822,7 @@ authenticate_request(S3Handle *hdl,
         wkday[tmp.tm_wday], tmp.tm_mday, month[tmp.tm_mon], 1900+tmp.tm_year,
         tmp.tm_hour, tmp.tm_min, tmp.tm_sec);
 
-    if (hdl->openstack_swift_api) {
+    if (hdl->s3_api == S3_API_SWIFT_1) {
 	if (!bucket) {
             buf = g_strdup_printf("X-Auth-User: %s", hdl->swift_account_id);
             headers = curl_slist_append(headers, buf);
@@ -670,6 +832,21 @@ authenticate_request(S3Handle *hdl,
             g_free(buf);
 	} else {
             buf = g_strdup_printf("X-Auth-Token: %s", hdl->x_auth_token);
+            headers = curl_slist_append(headers, buf);
+            g_free(buf);
+	}
+    } else if (hdl->s3_api == S3_API_SWIFT_2) {
+	if (bucket) {
+            buf = g_strdup_printf("X-Auth-Token: %s", hdl->x_auth_token);
+            headers = curl_slist_append(headers, buf);
+            g_free(buf);
+	}
+	buf = g_strdup_printf("Accept: %s", "application/xml");
+	headers = curl_slist_append(headers, buf);
+	g_free(buf);
+    } else if (hdl->s3_api == S3_API_OAUTH2) {
+	if (bucket) {
+            buf = g_strdup_printf("Authorization: Bearer %s", hdl->access_token);
             headers = curl_slist_append(headers, buf);
             g_free(buf);
 	}
@@ -687,7 +864,9 @@ authenticate_request(S3Handle *hdl,
             g_string_append(auth_string, md5_hash);
 	g_string_append(auth_string, "\n");
 
-	/* Content-Type is empty*/
+	if (content_type) {
+	    g_string_append(auth_string, content_type);
+	}
 	g_string_append(auth_string, "\n");
 
 	/* Date */
@@ -797,6 +976,29 @@ authenticate_request(S3Handle *hdl,
         headers = curl_slist_append(headers, buf);
         g_free(buf);
     }
+    if (content_length > 0) {
+        buf = g_strdup_printf("Content-Length: %zu", content_length);
+        headers = curl_slist_append(headers, buf);
+        g_free(buf);
+    }
+
+    if (content_type) {
+        buf = g_strdup_printf("Content-Type: %s", content_type);
+        headers = curl_slist_append(headers, buf);
+        g_free(buf);
+    }
+
+    if (hdl->s3_api == S3_API_OAUTH2) {
+        buf = g_strdup_printf("x-goog-api-version: 2");
+        headers = curl_slist_append(headers, buf);
+        g_free(buf);
+    }
+
+    if (project_id && hdl->s3_api == S3_API_OAUTH2) {
+        buf = g_strdup_printf("x-goog-project-id: %s", project_id);
+        headers = curl_slist_append(headers, buf);
+        g_free(buf);
+    }
 
     buf = g_strdup_printf("Date: %s", date);
     headers = curl_slist_append(headers, buf);
@@ -824,24 +1026,36 @@ struct failure_thunk {
     gboolean in_body;
     gboolean in_code;
     gboolean in_message;
+    gboolean in_details;
+    gboolean in_access;
+    gboolean in_token;
+    gboolean in_serviceCatalog;
+    gboolean in_service;
+    gboolean in_endpoint;
     gint     in_others;
 
     gchar *text;
     gsize text_len;
 
     gchar *message;
+    gchar *details;
     gchar *error_name;
+    gchar *token_id;
+    gchar *service_type;
+    gchar *service_public_url;
+    gint64 expires;
 };
 
 static void
 failure_start_element(GMarkupParseContext *context G_GNUC_UNUSED,
                    const gchar *element_name,
-                   const gchar **attribute_names G_GNUC_UNUSED,
-                   const gchar **attribute_values G_GNUC_UNUSED,
+                   const gchar **attribute_names,
+                   const gchar **attribute_values,
                    gpointer user_data,
                    GError **error G_GNUC_UNUSED)
 {
     struct failure_thunk *thunk = (struct failure_thunk *)user_data;
+    const gchar **att_name, **att_value;
 
     if (g_ascii_strcasecmp(element_name, "title") == 0) {
         thunk->in_title = 1;
@@ -859,6 +1073,60 @@ failure_start_element(GMarkupParseContext *context G_GNUC_UNUSED,
         thunk->in_message = 1;
 	thunk->in_others = 0;
         thunk->want_text = 1;
+    } else if (g_ascii_strcasecmp(element_name, "details") == 0) {
+        thunk->in_details = 1;
+	thunk->in_others = 0;
+        thunk->want_text = 1;
+    } else if (g_ascii_strcasecmp(element_name, "access") == 0) {
+        thunk->in_access = 1;
+	thunk->in_others = 0;
+    } else if (g_ascii_strcasecmp(element_name, "token") == 0) {
+        thunk->in_token = 1;
+	thunk->in_others = 0;
+	for (att_name=attribute_names, att_value=attribute_values;
+	     *att_name != NULL;
+	     att_name++, att_value++) {
+	    if (g_str_equal(*att_name, "id")) {
+		thunk->token_id = g_strdup(*att_value);
+	    }
+	    if (g_str_equal(*att_name, "expires") && strlen(*att_value) >= 19) {
+		thunk->expires = rfc3339_date(*att_value) - 600;
+	    }
+	}
+    } else if (g_ascii_strcasecmp(element_name, "serviceCatalog") == 0) {
+        thunk->in_serviceCatalog = 1;
+	thunk->in_others = 0;
+    } else if (g_ascii_strcasecmp(element_name, "service") == 0) {
+        thunk->in_service = 1;
+	thunk->in_others = 0;
+	for (att_name=attribute_names, att_value=attribute_values;
+	     *att_name != NULL;
+	     att_name++, att_value++) {
+	    if (g_str_equal(*att_name, "type")) {
+		thunk->service_type = g_strdup(*att_value);
+	    }
+	}
+    } else if (g_ascii_strcasecmp(element_name, "endpoint") == 0) {
+        thunk->in_endpoint = 1;
+	thunk->in_others = 0;
+	if (thunk->service_type &&
+	    g_str_equal(thunk->service_type, "object-store")) {
+	    for (att_name=attribute_names, att_value=attribute_values;
+		 *att_name != NULL;
+		 att_name++, att_value++) {
+		if (g_str_equal(*att_name, "publicURL")) {
+		    thunk->service_public_url = g_strdup(*att_value);
+		}
+	    }
+	}
+    } else if (g_ascii_strcasecmp(element_name, "error") == 0) {
+	for (att_name=attribute_names, att_value=attribute_values;
+	     *att_name != NULL;
+	     att_name++, att_value++) {
+	    if (g_str_equal(*att_name, "message")) {
+		thunk->message = g_strdup(*att_value);
+	    }
+	}
     } else {
 	thunk->in_others++;
     }
@@ -896,6 +1164,32 @@ failure_end_element(GMarkupParseContext *context G_GNUC_UNUSED,
 	thunk->message = thunk->text;
 	thunk->text = NULL;
         thunk->in_message = 0;
+    } else if (g_ascii_strcasecmp(element_name, "details") == 0) {
+	thunk->details = thunk->text;
+	thunk->text = NULL;
+        thunk->in_details = 0;
+    } else if (g_ascii_strcasecmp(element_name, "access") == 0) {
+	thunk->message = thunk->text;
+	thunk->text = NULL;
+        thunk->in_access = 0;
+    } else if (g_ascii_strcasecmp(element_name, "token") == 0) {
+	thunk->message = thunk->text;
+	thunk->text = NULL;
+        thunk->in_token = 0;
+    } else if (g_ascii_strcasecmp(element_name, "serviceCatalog") == 0) {
+	thunk->message = thunk->text;
+	thunk->text = NULL;
+        thunk->in_serviceCatalog = 0;
+    } else if (g_ascii_strcasecmp(element_name, "service") == 0) {
+	thunk->message = thunk->text;
+	thunk->text = NULL;
+	g_free(thunk->service_type);
+	thunk->service_type = NULL;
+        thunk->in_service = 0;
+    } else if (g_ascii_strcasecmp(element_name, "endpoint") == 0) {
+	thunk->message = thunk->text;
+	thunk->text = NULL;
+        thunk->in_endpoint = 0;
     } else {
 	thunk->in_others--;
     }
@@ -963,11 +1257,6 @@ interpret_response(S3Handle *hdl,
             ret = FALSE;
         return ret;
     }
-    if (200 <= response_code && response_code < 400) {
-        /* 2xx and 3xx codes won't have a response body we care about */
-        hdl->last_s3_error_code = S3_ERROR_None;
-        return FALSE;
-    }
 
     /* Now look at the body to try to get the actual Amazon error message. */
 
@@ -976,24 +1265,45 @@ interpret_response(S3Handle *hdl,
         hdl->last_message = g_strdup("S3 Error: Unknown (response body too large to parse)");
         return FALSE;
     } else if (!body || body_len == 0) {
-        hdl->last_message = g_strdup("S3 Error: Unknown (empty response body)");
-        return TRUE; /* perhaps a network error; retry the request */
+	if (response_code < 100 || response_code >= 400) {
+	    hdl->last_message =
+			g_strdup("S3 Error: Unknown (empty response body)");
+            return TRUE; /* perhaps a network error; retry the request */
+	} else {
+	    /* 2xx and 3xx codes without body are good result */
+	    hdl->last_s3_error_code = S3_ERROR_None;
+	    return FALSE;
+	}
     }
 
     thunk.in_title = FALSE;
     thunk.in_body = FALSE;
     thunk.in_code = FALSE;
     thunk.in_message = FALSE;
+    thunk.in_details = FALSE;
+    thunk.in_access = FALSE;
+    thunk.in_token = FALSE;
+    thunk.in_serviceCatalog = FALSE;
+    thunk.in_service = FALSE;
+    thunk.in_endpoint = FALSE;
     thunk.in_others = 0;
     thunk.text = NULL;
     thunk.want_text = FALSE;
     thunk.text_len = 0;
     thunk.message = NULL;
+    thunk.details = NULL;
     thunk.error_name = NULL;
+    thunk.token_id = NULL;
+    thunk.service_type = NULL;
+    thunk.service_public_url = NULL;
+    thunk.expires = 0;
 
-    if (hdl->openstack_swift_api &&
-	!g_strstr_len(body, body_len, "xml version") &&
-	!g_strstr_len(body, body_len, "<html>")) {
+    if ((hdl->s3_api == S3_API_SWIFT_1 ||
+         hdl->s3_api == S3_API_SWIFT_2) &&
+	hdl->content_type &&
+	(g_str_equal(hdl->content_type, "text/html") ||
+	 g_str_equal(hdl->content_type, "text/plain"))) {
+
 	char *body_copy = g_strndup(body, body_len);
 	char *b = body_copy;
 	char *p = strchr(b, '\n');
@@ -1019,6 +1329,37 @@ interpret_response(S3Handle *hdl,
 	    b = p;
 	}
 	goto parsing_done;
+    } else if ((hdl->s3_api == S3_API_SWIFT_1 ||
+		hdl->s3_api == S3_API_SWIFT_2) &&
+	       hdl->content_type &&
+	       g_str_equal(hdl->content_type, "application/json")) {
+	char *body_copy = g_strndup(body, body_len);
+	char *code = NULL;
+	char *details = NULL;
+	regmatch_t pmatch[2];
+
+	if (!s3_regexec_wrap(&code_regex, body_copy, 2, pmatch, 0)) {
+            code = find_regex_substring(body_copy, pmatch[1]);
+	}
+	if (!s3_regexec_wrap(&details_regex, body_copy, 2, pmatch, 0)) {
+            details = find_regex_substring(body_copy, pmatch[1]);
+	}
+	if (code && details) {
+	    hdl->last_message = g_strdup_printf("%s (%s)", details, code);
+	} else if (code) {
+	    hdl->last_message = g_strdup_printf("(%s)", code);
+	} else if (details) {
+	    hdl->last_message = g_strdup_printf("%s", details);
+	} else {
+	    hdl->last_message = NULL;
+	}
+	g_free(code);
+	g_free(details);
+	g_free(body_copy);
+	return FALSE;
+    } else if (!hdl->content_type ||
+	       !g_str_equal(hdl->content_type, "application/xml")) {
+	return FALSE;
     }
 
     /* run the parser over it */
@@ -1038,6 +1379,20 @@ interpret_response(S3Handle *hdl,
     g_markup_parse_context_free(ctxt);
     ctxt = NULL;
 
+    if (hdl->s3_api == S3_API_SWIFT_2) {
+	if (!hdl->x_auth_token && thunk.token_id) {
+	    hdl->x_auth_token = thunk.token_id;
+	    thunk.token_id = NULL;
+	}
+	if (!hdl->x_storage_url && thunk.service_public_url) {
+	    hdl->x_storage_url = thunk.service_public_url;
+	    thunk.service_public_url = NULL;
+	}
+    }
+
+    if (thunk.expires > 0) {
+	hdl->expires = thunk.expires;
+    }
 parsing_done:
     if (thunk.error_name) {
         hdl->last_s3_error_code = s3_error_code_from_name(thunk.error_name);
@@ -1047,14 +1402,24 @@ parsing_done:
 
     if (thunk.message) {
 	g_free(hdl->last_message);
-        hdl->last_message = thunk.message;
-        thunk.message = NULL; /* steal the reference to the string */
+	if (thunk.details) {
+	    hdl->last_message = g_strdup_printf("%s: %s", thunk.message,
+							  thunk.details);
+	    amfree(thunk.message);
+	    amfree(thunk.details);
+	} else {
+            hdl->last_message = thunk.message;
+            thunk.message = NULL; /* steal the reference to the string */
+	}
     }
 
 cleanup:
     g_free(thunk.text);
     g_free(thunk.message);
     g_free(thunk.error_name);
+    g_free(thunk.token_id);
+    g_free(thunk.service_public_url);
+    g_free(thunk.service_type);
     return FALSE;
 }
 
@@ -1251,6 +1616,7 @@ curl_debug_message(CURL *curl G_GNUC_UNUSED,
     char *lineprefix;
     char *message;
     char **lines, **line;
+    size_t i;
 
     switch (type) {
     case CURLINFO_TEXT:
@@ -1264,17 +1630,27 @@ curl_debug_message(CURL *curl G_GNUC_UNUSED,
     case CURLINFO_HEADER_OUT:
         lineprefix="Hdr Out: ";
         break;
-/*
+
     case CURLINFO_DATA_IN:
-	if (len > 1000) return 0;
+	if (len > 3000) return 0;
+	for (i=0;i<len;i++) {
+	    if (!g_ascii_isprint(s[i])) {
+		return 0;
+	    }
+	}
         lineprefix="Data In: ";
         break;
 
     case CURLINFO_DATA_OUT:
-	if (len > 1000) return 0;
+	if (len > 3000) return 0;
+	for (i=0;i<len;i++) {
+	    if (!g_ascii_isprint(s[i])) {
+		return 0;
+	    }
+	}
         lineprefix="Data Out: ";
         break;
-*/
+
     default:
         /* ignore data in/out -- nobody wants to see that in the
          * debug logs! */
@@ -1287,8 +1663,8 @@ curl_debug_message(CURL *curl G_GNUC_UNUSED,
     g_free(message);
 
     for (line = lines; *line; line++) {
-    if (**line == '\0') continue; /* skip blank lines */
-    g_debug("%s%s", lineprefix, *line);
+	if (**line == '\0') continue; /* skip blank lines */
+	g_debug("%s%s", lineprefix, *line);
     }
     g_strfreev(lines);
 
@@ -1302,6 +1678,8 @@ perform_request(S3Handle *hdl,
                 const char *key,
                 const char *subresource,
                 const char *query,
+                const char *content_type,
+                const char *project_id,
                 s3_read_func read_func,
                 s3_reset_func read_reset_func,
                 s3_size_func size_func,
@@ -1334,6 +1712,22 @@ perform_request(S3Handle *hdl,
     size_t request_body_size = 0;
 
     g_assert(hdl != NULL && hdl->curl != NULL);
+
+    if (hdl->s3_api == S3_API_OAUTH2 && !hdl->getting_oauth2_access_token &&
+	(!hdl->access_token || hdl->expires < time(NULL))) {
+	result = oauth2_get_access_token(hdl);
+	if (!result) {
+	    g_debug("oauth2_get_access_token returned %d", result);
+	    return result;
+	}
+    } else if (hdl->s3_api == S3_API_SWIFT_2 && !hdl->getting_swift_2_token &&
+	       (!hdl->x_auth_token || hdl->expires < time(NULL))) {
+	result = get_openstack_swift_api_v2_setting(hdl);
+	if (!result) {
+	    g_debug("get_openstack_swift_api_v2_setting returned %d", result);
+	    return result;
+	}
+    }
 
     s3_reset(hdl);
 
@@ -1395,9 +1789,9 @@ perform_request(S3Handle *hdl,
 
         /* set up the request */
         headers = authenticate_request(hdl, verb, bucket, key, subresource,
-            md5_hash_b64);
+            md5_hash_b64, content_type, request_body_size, project_id);
 
-        if (hdl->use_ssl && hdl->ca_info) {
+        if (hdl->ca_info) {
             if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_CAINFO, hdl->ca_info)))
                 goto curl_error;
         }
@@ -1433,6 +1827,10 @@ perform_request(S3Handle *hdl,
             goto curl_error;
         if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_PROGRESSFUNCTION, progress_func)))
             goto curl_error;
+	if (progress_func) {
+	    if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_NOPROGRESS,0)))
+		goto curl_error;
+	}
         if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_PROGRESSDATA, progress_data)))
             goto curl_error;
 
@@ -1444,6 +1842,15 @@ perform_request(S3Handle *hdl,
         if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_INFILESIZE, (long)request_body_size)))
             goto curl_error;
 #endif
+/* CURLOPT_POSTFIELDSIZE_LARGE added in 7.11.1 */
+#if LIBCURL_VERSION_NUM >= 0x070b01
+        if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)request_body_size)))
+            goto curl_error;
+#else
+        if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_POSTFIELDSIZE, (long)request_body_size)))
+            goto curl_error;
+#endif
+
 /* CURLOPT_MAX_{RECV,SEND}_SPEED_LARGE added in 7.15.5 */
 #if LIBCURL_VERSION_NUM >= 0x070f05
 	if (s3_curl_throttling_compat()) {
@@ -1470,7 +1877,7 @@ perform_request(S3Handle *hdl,
             goto curl_error;
 
 
-        if (curlopt_upload) {
+        if (curlopt_upload || curlopt_post) {
             if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_READFUNCTION, read_func)))
                 goto curl_error;
             if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_READDATA, read_data)))
@@ -1484,6 +1891,20 @@ perform_request(S3Handle *hdl,
                                               NULL)))
                 goto curl_error;
         }
+	if (hdl->proxy) {
+            if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_PROXY,
+                                              hdl->proxy)))
+                goto curl_error;
+	}
+
+	if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_FRESH_CONNECT,
+		(long)(hdl->reuse_connection? 0 : 1)))) {
+	    goto curl_error;
+	}
+	if ((curl_code = curl_easy_setopt(hdl->curl, CURLOPT_FORBID_REUSE,
+		(long)(hdl->reuse_connection? 0 : 1)))) {
+	    goto curl_error;
+	}
 
         /* Perform the request */
         curl_code = curl_easy_perform(hdl->curl);
@@ -1494,6 +1915,11 @@ perform_request(S3Handle *hdl,
         should_retry = interpret_response(hdl, curl_code, curl_error_buffer,
             int_writedata.resp_buf.buffer, int_writedata.resp_buf.buffer_pos, int_writedata.etag, md5_hash_hex);
 
+	if (hdl->s3_api == S3_API_OAUTH2 &&
+	    hdl->last_response_code == 401 &&
+	    hdl->last_s3_error_code == S3_ERROR_AuthenticationRequired) {
+	    should_retry = oauth2_get_access_token(hdl);
+	}
         /* and, unless we know we need to retry, see what we're to do now */
         if (!should_retry) {
             result = lookup_result(result_handling, hdl->last_response_code,
@@ -1603,6 +2029,9 @@ s3_internal_header_func(void *ptr, size_t size, size_t nmemb, void * stream)
     if (!s3_regexec_wrap(&x_storage_url_regex, header, 2, pmatch, 0))
 	data->hdl->x_storage_url = find_regex_substring(header, pmatch[1]);
 
+    if (!s3_regexec_wrap(&content_type_regex, header, 2, pmatch, 0))
+       data->hdl->content_type = find_regex_substring(header, pmatch[1]);
+
     if (strlen(header) == 0)
 	data->headers_done = TRUE;
     if (g_str_equal(final_header, header))
@@ -1646,10 +2075,15 @@ compile_regexes(void)
         {"^ETag:[[:space:]]*\"([^\"]+)\"[[:space:]]*$", REG_EXTENDED | REG_ICASE | REG_NEWLINE, &etag_regex},
         {"^X-Auth-Token:[[:space:]]*([^ ]+)[[:space:]]*$", REG_EXTENDED | REG_ICASE | REG_NEWLINE, &x_auth_token_regex},
         {"^X-Storage-Url:[[:space:]]*([^ ]+)[[:space:]]*$", REG_EXTENDED | REG_ICASE | REG_NEWLINE, &x_storage_url_regex},
+        {"^Content-Type:[[:space:]]*([^ ;]+).*$", REG_EXTENDED | REG_ICASE | REG_NEWLINE, &content_type_regex},
         {"<Message>[[:space:]]*([^<]*)[[:space:]]*</Message>", REG_EXTENDED | REG_ICASE, &message_regex},
         {"^[a-z0-9](-*[a-z0-9]){2,62}$", REG_EXTENDED | REG_NOSUB, &subdomain_regex},
         {"(/>)|(>([^<]*)</LocationConstraint>)", REG_EXTENDED | REG_ICASE, &location_con_regex},
         {"^Date:(.*)\r",REG_EXTENDED | REG_ICASE | REG_NEWLINE, &date_sync_regex},
+        {"\"access_token\" : \"([^\"]*)\",", REG_EXTENDED | REG_ICASE | REG_NEWLINE, &access_token_regex},
+	{"\"expires_in\" : (.*)", REG_EXTENDED | REG_ICASE | REG_NEWLINE, &expires_in_regex},
+        {"\"details\": \"([^\"]*)\",", REG_EXTENDED | REG_ICASE | REG_NEWLINE, &details_regex},
+        {"\"code\": (.*),", REG_EXTENDED | REG_ICASE | REG_NEWLINE, &code_regex},
         {NULL, 0, NULL}
     };
     char regmessage[1024];
@@ -1673,6 +2107,15 @@ compile_regexes(void)
         {"^ETag:\\s*\"([^\"]+)\"\\s*$",
          G_REGEX_OPTIMIZE | G_REGEX_CASELESS,
          &etag_regex},
+        {"^X-Auth-Token:\\s*([^ ]+)\\s*$",
+         G_REGEX_OPTIMIZE | G_REGEX_CASELESS,
+         &x_auth_token_regex},
+        {"^X-Storage-Url:\\s*([^ ]+)\\s*$",
+         G_REGEX_OPTIMIZE | G_REGEX_CASELESS,
+         &x_storage_url_regex},
+        {"^Content-Type:\\s*([^ ]+)\\s*$",
+         G_REGEX_OPTIMIZE | G_REGEX_CASELESS,
+         &content_type_regex},
         {"<Message>\\s*([^<]*)\\s*</Message>",
          G_REGEX_OPTIMIZE | G_REGEX_CASELESS,
          &message_regex},
@@ -1685,6 +2128,18 @@ compile_regexes(void)
         {"^Date:(.*)\\r",
          G_REGEX_OPTIMIZE | G_REGEX_CASELESS,
          &date_sync_regex},
+        {"\"access_token\" : \"([^\"]*)\"",
+         G_REGEX_OPTIMIZE | G_REGEX_CASELESS,
+         &access_token_regex},
+        {"\"expires_n\" : (.*)",
+         G_REGEX_OPTIMIZE | G_REGEX_CASELESS,
+         &expires_in_regex},
+        {"\"details\" : \"([^\"]*)\"",
+	 G_REGEX_OPTIMIZE | G_REGEX_CASELESS,
+	 &details_regex},
+        {"\"code\" : (.*)",
+	 G_REGEX_OPTIMIZE | G_REGEX_CASELESS,
+	 &code_regex},
         {NULL, 0, NULL}
   };
   int i;
@@ -1706,6 +2161,10 @@ compile_regexes(void)
  * Public function implementations
  */
 
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 31))
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#endif
 gboolean s3_init(void)
 {
     static GStaticMutex mutex = G_STATIC_MUTEX_INIT;
@@ -1721,6 +2180,9 @@ gboolean s3_init(void)
     g_static_mutex_unlock(&mutex);
     return ret;
 }
+#if (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 31))
+# pragma GCC diagnostic pop
+#endif
 
 gboolean
 s3_curl_location_compat(void)
@@ -1738,7 +2200,7 @@ s3_bucket_location_compat(const char *bucket)
 }
 
 static gboolean
-get_openstack_swift_api_setting(
+get_openstack_swift_api_v1_setting(
 	S3Handle *hdl)
 {
     s3_result_t result = S3_RESULT_FAIL;
@@ -1749,12 +2211,60 @@ get_openstack_swift_api_setting(
 	};
 
     s3_verbose(hdl, 1);
-    result = perform_request(hdl, "GET", NULL, NULL, NULL, NULL,
+    result = perform_request(hdl, "GET", NULL, NULL, NULL, NULL, NULL, NULL,
                              NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
                              NULL, NULL, result_handling);
 
     return result == S3_RESULT_OK;
+}
 
+static gboolean
+get_openstack_swift_api_v2_setting(
+	S3Handle *hdl)
+{
+    s3_result_t result = S3_RESULT_FAIL;
+    static result_handling_t result_handling[] = {
+	{ 200,  0,                    0, S3_RESULT_OK },
+	RESULT_HANDLING_ALWAYS_RETRY,
+	{ 0, 0,                       0, /* default: */ S3_RESULT_FAIL  }
+	};
+
+    CurlBuffer buf = {NULL, 0, 0, 0};
+    GString *body = g_string_new("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+    if (hdl->username && hdl->password) {
+	g_string_append_printf(body, "<auth xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns=\"http://docs.openstack.org/identity/api/v2.0\"");
+    } else {
+	g_string_append_printf(body, "<auth xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns=\"http://www.hp.com/identity/api/ext/HP-IDM/v1.0\"");
+    }
+
+    if (hdl->tenant_id) {
+	g_string_append_printf(body, " tenantId=\"%s\"", hdl->tenant_id);
+    }
+    if (hdl->tenant_name) {
+	g_string_append_printf(body, " tenantName=\"%s\"", hdl->tenant_name);
+    }
+    g_string_append(body, ">");
+    if (hdl->username && hdl->password) {
+	g_string_append_printf(body, "<passwordCredentials username=\"%s\" password=\"%s\"/>", hdl->username, hdl->password);
+    } else {
+	g_string_append_printf(body, "<apiAccessKeyCredentials accessKey=\"%s\" secretKey=\"%s\"/>", hdl->access_key, hdl->secret_key);
+    }
+    g_string_append(body, "</auth>");
+
+    buf.buffer = g_string_free(body, FALSE);
+    buf.buffer_len = strlen(buf.buffer);
+    s3_verbose(hdl, 1);
+    hdl->getting_swift_2_token = 1;
+    g_free(hdl->x_storage_url);
+    hdl->x_storage_url = NULL;
+    result = perform_request(hdl, "POST", NULL, NULL, NULL, NULL,
+			     "application/xml", NULL,
+			     S3_BUFFER_READ_FUNCS, &buf,
+			     NULL, NULL, NULL,
+                             NULL, NULL, result_handling);
+    hdl->getting_swift_2_token = 0;
+
+    return result == S3_RESULT_OK;
 }
 
 S3Handle *
@@ -1770,26 +2280,49 @@ s3_open(const char *access_key,
         const char *storage_class,
         const char *ca_info,
         const char *server_side_encryption,
-        const gboolean openstack_swift_api)
+        const char *proxy,
+        const S3_api s3_api,
+        const char *username,
+        const char *password,
+        const char *tenant_id,
+        const char *tenant_name,
+	const char *client_id,
+	const char *client_secret,
+	const char *refresh_token,
+	const gboolean reuse_connection)
 {
     S3Handle *hdl;
 
     hdl = g_new0(S3Handle, 1);
     if (!hdl) goto error;
 
-    hdl->verbose = FALSE;
+    hdl->verbose = TRUE;
     hdl->use_ssl = s3_curl_supports_ssl();
+    hdl->reuse_connection = reuse_connection;
 
-    if (!openstack_swift_api) {
+    if (s3_api == S3_API_S3) {
 	g_assert(access_key);
 	hdl->access_key = g_strdup(access_key);
 	g_assert(secret_key);
 	hdl->secret_key = g_strdup(secret_key);
-    } else {
+    } else if (s3_api == S3_API_SWIFT_1) {
 	g_assert(swift_account_id);
 	hdl->swift_account_id = g_strdup(swift_account_id);
 	g_assert(swift_access_key);
 	hdl->swift_access_key = g_strdup(swift_access_key);
+    } else if (s3_api == S3_API_SWIFT_2) {
+	g_assert((username && password) || (access_key && secret_key));
+	hdl->username = g_strdup(username);
+	hdl->password = g_strdup(password);
+	hdl->access_key = g_strdup(access_key);
+	hdl->secret_key = g_strdup(secret_key);
+	g_assert(tenant_id || tenant_name);
+	hdl->tenant_id = g_strdup(tenant_id);
+	hdl->tenant_name = g_strdup(tenant_name);
+    } else if (s3_api == S3_API_OAUTH2) {
+	hdl->client_id = g_strdup(client_id);
+	hdl->client_secret = g_strdup(client_secret);
+	hdl->refresh_token = g_strdup(refresh_token);
     }
 
     /* NULL is okay */
@@ -1804,6 +2337,9 @@ s3_open(const char *access_key,
     /* NULL is ok */
     hdl->server_side_encryption = g_strdup(server_side_encryption);
 
+    /* NULL is ok */
+    hdl->proxy = g_strdup(proxy);
+
     /* NULL is okay */
     hdl->ca_info = g_strdup(ca_info);
 
@@ -1813,7 +2349,7 @@ s3_open(const char *access_key,
     hdl->use_subdomain = use_subdomain ||
 			 (strcmp(hdl->host, "s3.amazonaws.com") == 0 &&
 			  is_non_empty_string(hdl->bucket_location));
-    hdl->openstack_swift_api = openstack_swift_api;
+    hdl->s3_api = s3_api;
     if (service_path) {
 	if (strlen(service_path) == 0 ||
 	    (strlen(service_path) == 1 && service_path[0] == '/')) {
@@ -1836,14 +2372,27 @@ s3_open(const char *access_key,
     hdl->curl = curl_easy_init();
     if (!hdl->curl) goto error;
 
-    if (openstack_swift_api) { /* get the X-Storage-Url and X-Auth-Token */
-	get_openstack_swift_api_setting(hdl);
-    }
     return hdl;
 
 error:
     s3_free(hdl);
     return NULL;
+}
+
+gboolean
+s3_open2(
+    S3Handle *hdl)
+{
+    gboolean ret = TRUE;
+
+    /* get the X-Storage-Url and X-Auth-Token */
+    if (hdl->s3_api == S3_API_SWIFT_1) {
+	ret = get_openstack_swift_api_v1_setting(hdl);
+    } else if (hdl->s3_api == S3_API_SWIFT_2) {
+	ret = get_openstack_swift_api_v2_setting(hdl);
+    }
+
+    return ret;
 }
 
 void
@@ -1856,6 +2405,18 @@ s3_free(S3Handle *hdl)
         g_free(hdl->secret_key);
         g_free(hdl->swift_account_id);
         g_free(hdl->swift_access_key);
+        g_free(hdl->content_type);
+        g_free(hdl->user_token);
+        g_free(hdl->ca_info);
+        g_free(hdl->proxy);
+        g_free(hdl->username);
+        g_free(hdl->password);
+        g_free(hdl->tenant_id);
+        g_free(hdl->tenant_name);
+        g_free(hdl->client_id);
+        g_free(hdl->client_secret);
+        g_free(hdl->refresh_token);
+        g_free(hdl->access_token);
         if (hdl->user_token) g_free(hdl->user_token);
         if (hdl->bucket_location) g_free(hdl->bucket_location);
         if (hdl->storage_class) g_free(hdl->storage_class);
@@ -1888,6 +2449,10 @@ s3_reset(S3Handle *hdl)
         if (hdl->last_response_body) {
             g_free(hdl->last_response_body);
             hdl->last_response_body = NULL;
+        }
+        if (hdl->content_type) {
+            g_free(hdl->content_type);
+            hdl->content_type = NULL;
         }
 
         hdl->last_response_body_size = 0;
@@ -2023,7 +2588,7 @@ s3_upload(S3Handle *hdl,
 
     g_assert(hdl != NULL);
 
-    result = perform_request(hdl, "PUT", bucket, key, NULL, NULL,
+    result = perform_request(hdl, "PUT", bucket, key, NULL, NULL, NULL, NULL,
                  read_func, reset_func, size_func, md5_func, read_data,
                  NULL, NULL, NULL, progress_func, progress_data,
                  result_handling);
@@ -2180,21 +2745,24 @@ list_fetch(S3Handle *hdl,
 		have_prev_part = TRUE;
             esc_value = curl_escape(pos_parts[i][1], 0);
 	    keyword = pos_parts[i][0];
-	    if (hdl->openstack_swift_api && strcmp(keyword, "max-keys") == 0) {
+	    if ((hdl->s3_api == S3_API_SWIFT_1 ||
+		 hdl->s3_api == S3_API_SWIFT_2) &&
+		strcmp(keyword, "max-keys") == 0) {
 		keyword = "limit";
 	    }
             g_string_append_printf(query, "%s=%s", keyword, esc_value);
             curl_free(esc_value);
 	}
     }
-    if (hdl->openstack_swift_api) {
+    if (hdl->s3_api == S3_API_SWIFT_1 || hdl->s3_api == S3_API_SWIFT_2) {
 	if (have_prev_part)
 	    g_string_append(query, "&");
 	g_string_append(query, "format=xml");
     }
 
     /* and perform the request on that URI */
-    result = perform_request(hdl, "GET", bucket, NULL, NULL, query->str,
+    result = perform_request(hdl, "GET", bucket, NULL, NULL, query->str, NULL,
+			     NULL,
                              NULL, NULL, NULL, NULL, NULL,
                              S3_BUFFER_WRITE_FUNCS, buf, NULL, NULL,
                              result_handling);
@@ -2313,7 +2881,8 @@ s3_read(S3Handle *hdl,
 
     g_assert(hdl != NULL);
     g_assert(write_func != NULL);
-    result = perform_request(hdl, "GET", bucket, key, NULL, NULL,
+
+    result = perform_request(hdl, "GET", bucket, key, NULL, NULL, NULL, NULL,
         NULL, NULL, NULL, NULL, NULL, write_func, reset_func, write_data,
         progress_func, progress_data, result_handling);
 
@@ -2337,16 +2906,73 @@ s3_delete(S3Handle *hdl,
 
     g_assert(hdl != NULL);
 
-    result = perform_request(hdl, "DELETE", bucket, key, NULL, NULL,
+    result = perform_request(hdl, "DELETE", bucket, key, NULL, NULL, NULL, NULL,
                  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
                  result_handling);
 
     return result == S3_RESULT_OK;
 }
 
+int
+s3_multi_delete(S3Handle *hdl,
+		const char *bucket,
+		const char **key)
+{
+    GString *query;
+    CurlBuffer data;
+    s3_result_t result = S3_RESULT_FAIL;
+    static result_handling_t result_handling[] = {
+        { 200,  0,                     0, S3_RESULT_OK },
+        { 204,  0,                     0, S3_RESULT_OK },
+        { 400,  0,                     0, S3_RESULT_NOTIMPL },
+        { 404,  S3_ERROR_NoSuchBucket, 0, S3_RESULT_OK },
+        RESULT_HANDLING_ALWAYS_RETRY,
+        { 0,    0,                     0, /* default: */ S3_RESULT_FAIL  }
+        };
+
+    g_assert(hdl != NULL);
+
+    query = g_string_new(NULL);
+    g_string_append(query, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    g_string_append(query, "<Delete>\n");
+    if (!hdl->verbose) {
+	g_string_append(query, "  <Quiet>true</Quiet>\n");
+    }
+    while (*key != NULL) {
+	g_string_append(query, "  <Object>\n");
+	g_string_append(query, "    <Key>");
+	g_string_append(query, *key);
+	g_string_append(query, "</Key>\n");
+	g_string_append(query, "  </Object>\n");
+	key++;
+    }
+    g_string_append(query, "</Delete>\n");
+
+    data.buffer_len = query->len;
+    data.buffer = query->str;
+    data.buffer_pos = 0;
+    data.max_buffer_size = data.buffer_len;
+
+    result = perform_request(hdl, "POST", bucket, NULL, "delete", NULL,
+		 "application/xml", NULL,
+		 s3_buffer_read_func, s3_buffer_reset_func,
+		 s3_buffer_size_func, s3_buffer_md5_func,
+		 &data, NULL, NULL, NULL, NULL, NULL,
+                 result_handling);
+
+    g_string_free(query, TRUE);
+    if (result == S3_RESULT_OK)
+	return 1;
+    else if (result == S3_RESULT_NOTIMPL)
+	return 2;
+    else
+	return 0;
+}
+
 gboolean
 s3_make_bucket(S3Handle *hdl,
-               const char *bucket)
+               const char *bucket,
+	       const char *project_id)
 {
     char *body = NULL;
     s3_result_t result = S3_RESULT_FAIL;
@@ -2393,7 +3019,8 @@ s3_make_bucket(S3Handle *hdl,
         }
     }
 
-    result = perform_request(hdl, "PUT", bucket, NULL, NULL, NULL,
+    result = perform_request(hdl, "PUT", bucket, NULL, NULL, NULL, NULL,
+		 project_id,
                  read_func, reset_func, size_func, md5_func, ptr,
                  NULL, NULL, NULL, NULL, NULL, result_handling);
 
@@ -2404,11 +3031,11 @@ s3_make_bucket(S3Handle *hdl,
          * the one that's configured.
          */
 	if (is_non_empty_string(hdl->bucket_location)) {
-            result = perform_request(hdl, "GET", bucket, NULL, "location", NULL,
+            result = perform_request(hdl, "GET", bucket, NULL, "location", NULL, NULL, NULL,
                                      NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
                                      NULL, NULL, result_handling);
 	} else {
-            result = perform_request(hdl, "GET", bucket, NULL, NULL, NULL,
+            result = perform_request(hdl, "GET", bucket, NULL, NULL, NULL, NULL, NULL,
                                      NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
                                      NULL, NULL, result_handling);
 	}
@@ -2459,10 +3086,12 @@ cleanup:
 
 }
 
-gboolean
-s3_is_bucket_exists(S3Handle *hdl,
-                     const char *bucket)
+static s3_result_t
+oauth2_get_access_token(
+    S3Handle *hdl)
 {
+    GString *query;
+    CurlBuffer data;
     s3_result_t result = S3_RESULT_FAIL;
     static result_handling_t result_handling[] = {
         { 200,  0,                    0, S3_RESULT_OK },
@@ -2470,9 +3099,84 @@ s3_is_bucket_exists(S3Handle *hdl,
         RESULT_HANDLING_ALWAYS_RETRY,
         { 0, 0,                       0, /* default: */ S3_RESULT_FAIL  }
         };
+    char *body;
+    regmatch_t pmatch[2];
 
-    result = perform_request(hdl, "GET", bucket, NULL, NULL,
-			     hdl->openstack_swift_api?"limit=1":"max-keys=1",
+    g_assert(hdl != NULL);
+
+    query = g_string_new(NULL);
+    g_string_append(query, "client_id=");
+    g_string_append(query, hdl->client_id);
+    g_string_append(query, "&client_secret=");
+    g_string_append(query, hdl->client_secret);
+    g_string_append(query, "&refresh_token=");
+    g_string_append(query, hdl->refresh_token);
+    g_string_append(query, "&grant_type=refresh_token");
+
+    data.buffer_len = query->len;
+    data.buffer = query->str;
+    data.buffer_pos = 0;
+    data.max_buffer_size = data.buffer_len;
+
+    hdl->x_storage_url = "https://accounts.google.com/o/oauth2/token";
+    hdl->getting_oauth2_access_token = 1;
+    result = perform_request(hdl, "POST", NULL, NULL, NULL, NULL,
+			     "application/x-www-form-urlencoded", NULL,
+			     s3_buffer_read_func, s3_buffer_reset_func,
+			     s3_buffer_size_func, s3_buffer_md5_func,
+                             &data, NULL, NULL, NULL, NULL, NULL,
+			     result_handling);
+    hdl->x_storage_url = NULL;
+    hdl->getting_oauth2_access_token = 0;
+
+    /* use strndup to get a null-terminated string */
+    body = g_strndup(hdl->last_response_body, hdl->last_response_body_size);
+    if (!body) {
+        hdl->last_message = g_strdup(_("No body received for location request"));
+        goto cleanup;
+    } else if ('\0' == body[0]) {
+        hdl->last_message = g_strdup(_("Empty body received for location request"));
+        goto cleanup;
+    }
+
+    if (!s3_regexec_wrap(&access_token_regex, body, 2, pmatch, 0)) {
+        hdl->access_token = find_regex_substring(body, pmatch[1]);
+        hdl->x_auth_token = g_strdup(hdl->access_token);
+    }
+    if (!s3_regexec_wrap(&expires_in_regex, body, 2, pmatch, 0)) {
+        char *expires_in = find_regex_substring(body, pmatch[1]);
+	hdl->expires = time(NULL) + atoi(expires_in) - 600;
+	g_free(expires_in);
+    }
+
+cleanup:
+    g_free(body);
+    return result == S3_RESULT_OK;
+}
+
+gboolean
+s3_is_bucket_exists(S3Handle *hdl,
+		    const char *bucket,
+		    const char *project_id)
+{
+    s3_result_t result = S3_RESULT_FAIL;
+    char *query;
+    static result_handling_t result_handling[] = {
+        { 200,  0,                    0, S3_RESULT_OK },
+        { 204,  0,                    0, S3_RESULT_OK },
+        RESULT_HANDLING_ALWAYS_RETRY,
+        { 0, 0,                       0, /* default: */ S3_RESULT_FAIL  }
+        };
+
+    if (hdl->s3_api == S3_API_SWIFT_1 ||
+	hdl->s3_api == S3_API_SWIFT_2) {
+	query = "limit=1";
+    } else {
+	query = "max-keys=1";
+    }
+
+    result = perform_request(hdl, "GET", bucket, NULL, NULL, query,
+			     NULL, project_id,
                              NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
                              NULL, NULL, result_handling);
 

@@ -2063,6 +2063,7 @@ XS(_wrap_sanitise_filename) {
     result = (char *)sanitise_filename(arg1);
     ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    free((char*)result);
     XSRETURN(argvi);
   fail:
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -2092,6 +2093,7 @@ XS(_wrap_quote_string) {
     result = (char *)quote_string(arg1);
     ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    free((char*)result);
     XSRETURN(argvi);
   fail:
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -2121,6 +2123,7 @@ XS(_wrap_unquote_string) {
     result = (char *)unquote_string(arg1);
     ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    free((char*)result);
     XSRETURN(argvi);
   fail:
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -2249,8 +2252,10 @@ XS(_wrap_split_quoted_strings) {
         
         for (iter = result; *iter; iter++) {
           ST(argvi) = sv_2mortal(newSVpv(*iter, 0));
+          g_free(*iter);
           argvi++;
         }
+        g_free(result);
       }
     }
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);

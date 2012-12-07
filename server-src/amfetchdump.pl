@@ -1,5 +1,5 @@
 #! @PERL@
-# Copyright (c) 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2009-2012 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -113,7 +113,10 @@ sub usage {
     my ($msg) = @_;
     print STDERR <<EOF;
 Usage: amfetchdump [-c|-C|-l] [-p|-n] [-a] [-O directory] [-d device]
-    [-h] [--header-file file] [--header-fd fd] [-o configoption]* config
+    [-h|--header-file file|--header-fd fd]i
+    [--decrypt|--no-decrypt|--server-decrypt|--client-decrypt]
+    [--decompress|--no-decompress|--server-decompress|--client-decompress]
+    [-o configoption]* config
     hostname [diskname [datestamp [hostname [diskname [datestamp ... ]]]]]
 EOF
     print STDERR "ERROR: $msg\n" if $msg;
@@ -129,7 +132,16 @@ my $config_overrides = new_config_overrides($#ARGV+1);
 
 my ($opt_config, $opt_no_reassembly, $opt_compress, $opt_compress_best, $opt_pipe,
     $opt_assume, $opt_leave, $opt_blocksize, $opt_device, $opt_chdir, $opt_header,
-    $opt_header_file, $opt_header_fd, @opt_dumpspecs);
+    $opt_header_file, $opt_header_fd, @opt_dumpspecs,
+    $opt_decrypt, $opt_server_decrypt, $opt_client_decrypt,
+    $opt_decompress, $opt_server_decompress, $opt_client_decompress);
+
+my $NEVER = 0;
+my $ALWAYS = 1;
+my $ONLY_SERVER = 2;
+my $ONLY_CLIENT = 3;
+my $decrypt;
+my $decompress;
 
 debug("Arguments: " . join(' ', @ARGV));
 Getopt::Long::Configure(qw(bundling));
@@ -145,6 +157,12 @@ GetOptions(
     'h' => \$opt_header,
     'header-file=s' => \$opt_header_file,
     'header-fd=i' => \$opt_header_fd,
+    'decrypt!' => \$opt_decrypt,
+    'server-decrypt' => \$opt_server_decrypt,
+    'client-decrypt' => \$opt_client_decrypt,
+    'decompress!' => \$opt_decompress,
+    'server-decompress' => \$opt_server_decompress,
+    'client-decompress' => \$opt_client_decompress,
     'b=s' => \$opt_blocksize,
     'd=s' => \$opt_device,
     'O=s' => \$opt_chdir,
@@ -153,11 +171,10 @@ GetOptions(
 usage() unless (@ARGV);
 $opt_config = shift @ARGV;
 
-$opt_compress = 1 if $opt_compress_best;
-
-usage("must specify at least a hostname") unless @ARGV;
-@opt_dumpspecs = Amanda::Cmdline::parse_dumpspecs([@ARGV],
-    $Amanda::Cmdline::CMDLINE_PARSE_DATESTAMP | $Amanda::Cmdline::CMDLINE_PARSE_LEVEL);
+if (defined $opt_compress and defined $opt_compress_best) {
+    print STDERR "Can't use -c and -C\n";
+    usage();
+}
 
 usage("The -b option is no longer supported; set readblocksize in the tapetype section\n" .
       "of amanda.conf instead.")
@@ -167,8 +184,84 @@ usage("-l is not compatible with -c or -C")
 usage("-p is not compatible with -n")
     if ($opt_leave and $opt_no_reassembly);
 usage("-h, --header-file, and --header-fd are mutually incompatible")
-    if (($opt_header and $opt_header_file or $opt_header_fd)
+    if (($opt_header and ($opt_header_file or $opt_header_fd))
 	    or ($opt_header_file and $opt_header_fd));
+
+if (defined $opt_leave) {
+    if (defined $opt_decrypt and $opt_decrypt) {
+	print STDERR "-l is incompatible with --decrypt\n";
+	usage();
+    }
+    if (defined $opt_server_decrypt) {
+	print STDERR "-l is incompatible with --server-decrypt\n";
+	usage();
+    }
+    if (defined $opt_client_decrypt) {
+	print STDERR "-l is incompatible with --client-decrypt\n";
+	usage();
+    }
+    if (defined $opt_decompress and $opt_decompress) {
+	print STDERR "-l is incompatible with --decompress\n";
+	usage();
+    }
+    if (defined $opt_server_decompress) {
+	print STDERR "-l is incompatible with --server-decompress\n";
+	usage();
+    }
+    if (defined $opt_client_decompress) {
+	print STDERR "-l is incompatible with --client-decompress\n";
+	usage();
+    }
+}
+
+if (defined($opt_decrypt) +
+    defined($opt_server_decrypt) +
+    defined($opt_client_decrypt) > 1) {
+    print STDERR "Can't use only on of --decrypt, --no-decrypt, --server-decrypt or --client-decrypt\n";
+    usage();
+}
+if (defined($opt_decompress) +
+    defined($opt_server_decompress) +
+    defined($opt_client_decompress) > 1) {
+    print STDERR "Can't use only on of --decompress, --no-decompress, --server-decompress or --client-decompress\n";
+    usage();
+}
+
+if (defined($opt_compress) and
+    defined($opt_decompress) +
+    defined($opt_server_decompress) +
+    defined($opt_client_decompress) > 0) {
+    print STDERR "Can't specify -c with one of --decompress, --no-decompress, --server-decompress or --client-decompress\n";
+    usage();
+}
+if (defined($opt_compress_best) and
+    defined($opt_decompress) +
+    defined($opt_server_decompress) +
+    defined($opt_client_decompress) > 0) {
+    print STDERR "Can't specify -C with one of --decompress, --no-decompress, --server-decompress or --client-decompress\n";
+    usage();
+}
+
+$decompress = $ALWAYS;
+$decrypt = $ALWAYS;
+$decrypt = $NEVER  if defined $opt_leave;
+$decrypt = $NEVER  if defined $opt_decrypt and !$opt_decrypt;
+$decrypt = $ALWAYS if defined $opt_decrypt and $opt_decrypt;
+$decrypt = $ONLY_SERVER if defined $opt_server_decrypt;
+$decrypt = $ONLY_CLIENT if defined $opt_client_decrypt;
+
+$opt_compress = 1 if $opt_compress_best;
+
+$decompress = $NEVER  if defined $opt_compress;
+$decompress = $NEVER  if defined $opt_leave;
+$decompress = $NEVER  if defined $opt_decompress and !$opt_decompress;
+$decompress = $ALWAYS if defined $opt_decompress and $opt_decompress;
+$decompress = $ONLY_SERVER if defined $opt_server_decompress;
+$decompress = $ONLY_CLIENT if defined $opt_client_decompress;
+
+usage("must specify at least a hostname") unless @ARGV;
+@opt_dumpspecs = Amanda::Cmdline::parse_dumpspecs([@ARGV],
+    $Amanda::Cmdline::CMDLINE_PARSE_DATESTAMP | $Amanda::Cmdline::CMDLINE_PARSE_LEVEL);
 
 set_config_overrides($config_overrides);
 config_init($CONFIG_INIT_EXPLICIT_NAME, $opt_config);
@@ -205,11 +298,12 @@ use Amanda::MainLoop;
 
 sub new {
     my $class = shift;
-    my ($chg, $dev_name) = @_;
+    my ($chg, $dev_name, $is_tty) = @_;
 
     return bless {
 	chg => $chg,
 	dev_name => $dev_name,
+	is_tty => $is_tty,
     }, $class;
 }
 
@@ -217,6 +311,7 @@ sub clerk_notif_part {
     my $self = shift;
     my ($label, $filenum, $header) = @_;
 
+    print STDERR "\n" if $self->{'is_tty'};
     print STDERR "amfetchdump: $filenum: restoring ", $header->summary(), "\n";
 }
 
@@ -225,6 +320,7 @@ sub clerk_notif_holding {
     my ($filename, $header) = @_;
 
     # this used to give the fd from which the holding file was being read.. why??
+    print STDERR "\n" if $self->{'is_tty'};
     print STDERR "Reading '$filename'\n", $header->summary(), "\n";
 }
 
@@ -237,7 +333,11 @@ sub main {
     my $plan;
     my @xfer_errs;
     my %all_filter;
-    my $fetch_done;
+    my $recovery_done;
+    my %recovery_params;
+    my $timer;
+    my $is_tty;
+    my $delay;
 
     my $steps = define_steps
 	cb_ref => \$finished_cb;
@@ -252,6 +352,13 @@ sub main {
 	    return failure("Cannot chdir to $destdir: $!", $finished_cb);
 	}
 
+	$is_tty = -t STDERR;
+	if($is_tty) {
+	    $delay = 1000; # 1 second
+	} else {
+	    $delay = 5000; # 5 seconds
+	}
+
 	my $interactivity = Amanda::Interactivity::amfetchdump->new();
 	# if we have an explicit device, then the clerk doesn't get a changer --
 	# we operate the changer via Amanda::Recovery::Scan
@@ -263,7 +370,7 @@ sub main {
 				interactivity => $interactivity);
 	    return failure($scan, $finished_cb) if $scan->isa("Amanda::Changer::Error");
 	    $clerk = Amanda::Recovery::Clerk->new(
-		feedback => main::Feedback->new($chg, $opt_device),
+		feedback => main::Feedback->new($chg, $opt_device, $is_tty),
 		scan     => $scan);
 	} else {
 	    my $scan = Amanda::Recovery::Scan->new(
@@ -272,7 +379,7 @@ sub main {
 
 	    $clerk = Amanda::Recovery::Clerk->new(
 		changer => $chg,
-		feedback => main::Feedback->new($chg, undef),
+		feedback => main::Feedback->new($chg, undef, $is_tty),
 		scan     => $scan);
 	}
 
@@ -294,6 +401,7 @@ sub main {
 
 	# if we are doing a -p operation, only keep the first dump
 	if ($opt_pipe) {
+	    print STDERR "WARNING: Fetch first dump only because of -p argument\n" if @{$plan->{'dumps'}} > 1;
 	    @{$plan->{'dumps'}} = ($plan->{'dumps'}[0]);
 	}
 
@@ -321,9 +429,13 @@ sub main {
 
     step start_dump => sub {
 	$current_dump = shift @{$plan->{'dumps'}};
+
 	if (!$current_dump) {
 	    return $steps->{'finished'}->();
 	}
+
+	$recovery_done = 0;
+	%recovery_params = ();
 
 	$clerk->get_xfer_src(
 	    dump => $current_dump,
@@ -359,11 +471,25 @@ sub main {
 	    }
 	}
 
+	$timer = Amanda::MainLoop::timeout_source($delay);
+	$timer->set_callback(sub {
+	    my $size = $xfer_src->get_bytes_read();
+	    if ($is_tty) {
+		print STDERR "\r" . int($size/1024) . " kb ";
+	    } else {
+		print STDERR "READ SIZE: " . int($size/1024) . " kb\n";
+	    }
+	});
+
 	my $xfer_dest = Amanda::Xfer::Dest::Fd->new($dest_fh);
+
+	my $dle = $hdr->get_dle();
 
 	# set up any filters that need to be applied; decryption first
 	my @filters;
-	if ($hdr->{'encrypted'} and not $opt_leave) {
+	if ($hdr->{'encrypted'} and
+	    (($hdr->{'srv_encrypt'} and ($decrypt == $ALWAYS || $decrypt == $ONLY_SERVER)) ||
+	     ($hdr->{'clnt_encrypt'} and ($decrypt == $ALWAYS || $decrypt == $ONLY_CLIENT)))) {
 	    if ($hdr->{'srv_encrypt'}) {
 		push @filters,
 		    Amanda::Xfer::Filter::Process->new(
@@ -385,16 +511,23 @@ sub main {
 	    $hdr->{'encrypt_suffix'} = 'N';
 	}
 
-	if ($hdr->{'compressed'} and not $opt_compress and not $opt_leave) {
+	if ($hdr->{'compressed'} and not $opt_compress and
+	    (($hdr->{'srvcompprog'} and ($decompress == $ALWAYS || $decompress == $ONLY_SERVER)) ||
+	     ($hdr->{'clntcompprog'} and ($decompress == $ALWAYS || $decompress == $ONLY_CLIENT)) ||
+	     ($dle->{'compress'} == $Amanda::Config::COMP_SERVER_FAST and ($decompress == $ALWAYS || $decompress == $ONLY_SERVER)) ||
+	     ($dle->{'compress'} == $Amanda::Config::COMP_SERVER_BEST and ($decompress == $ALWAYS || $decompress == $ONLY_SERVER)) ||
+	     ($dle->{'compress'} == $Amanda::Config::COMP_FAST and ($decompress == $ALWAYS || $decompress == $ONLY_CLIENT)) ||
+	     ($dle->{'compress'} == $Amanda::Config::COMP_BEST and ($decompress == $ALWAYS || $decompress == $ONLY_CLIENT)))) {
 	    # need to uncompress this file
-
-	    if ($hdr->{'srvcompprog'}) {
-		# TODO: this assumes that srvcompprog takes "-d" to decrypt
+	    if ($hdr->{'encrypted'}) {
+		print "Not decompressing because the backup image is not decrypted\n";
+	    } elsif ($hdr->{'srvcompprog'}) {
+		# TODO: this assumes that srvcompprog takes "-d" to decompress
 		push @filters,
 		    Amanda::Xfer::Filter::Process->new(
 			[ $hdr->{'srvcompprog'}, "-d" ], 0);
 	    } elsif ($hdr->{'clntcompprog'}) {
-		# TODO: this assumes that clntcompprog takes "-d" to decrypt
+		# TODO: this assumes that clntcompprog takes "-d" to decompress
 		push @filters,
 		    Amanda::Xfer::Filter::Process->new(
 			[ $hdr->{'clntcompprog'}, "-d" ], 0);
@@ -458,8 +591,8 @@ sub main {
 		    delete $all_filter{$src};
 		    $src->remove();
 		    POSIX::close($fd);
-		    if (!%all_filter and $fetch_done) {
-			$finished_cb->();
+		    if (!%all_filter and $recovery_done) {
+			$steps->{'filter_done'}->();
 		    }
 		} else {
 		    $buffer .= $b;
@@ -493,14 +626,24 @@ sub main {
     };
 
     step recovery_cb => sub {
-	my %params = @_;
+	%recovery_params = @_;
+	$recovery_done = 1;
 
-	@xfer_errs = (@xfer_errs, @{$params{'errors'}})
-	    if $params{'errors'};
+	$steps->{'filter_done'}->() if !%all_filter;
+    };
+
+    step filter_done => sub {
+	if ($is_tty) {
+	    print STDERR "\r" . int($recovery_params{'bytes_read'}/1024) . " kb ";
+	} else {
+	    print STDERR "READ SIZE: " . int($recovery_params{'bytes_read'}/1024) . " kb\n";
+	}
+	@xfer_errs = (@xfer_errs, @{$recovery_params{'errors'}})
+	    if $recovery_params{'errors'};
 	return failure(join("; ", @xfer_errs), $finished_cb)
 	    if @xfer_errs;
 	return failure("recovery failed", $finished_cb)
-	    if $params{'result'} ne 'DONE';
+	    if $recovery_params{'result'} ne 'DONE';
 
 	$steps->{'start_dump'}->();
     };
@@ -516,13 +659,14 @@ sub main {
     step quit => sub {
 	my ($err) = @_;
 
+	if (defined $timer) {
+	    $timer->remove();
+	    $timer = undef;
+	}
+	print STDERR "\n" if $is_tty;
 	return failure($err, $finished_cb) if $err;
 
-#do all filter are done reading stderr
-	$fetch_done = 1;
-        if (!%all_filter) {
-	    $finished_cb->();
-	}
+	$finished_cb->();
     };
 }
 

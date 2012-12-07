@@ -2,12 +2,12 @@
 .\"     Title: amanda.conf
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 02/21/2012
+.\"      Date: 07/25/2012
 .\"    Manual: File formats and conventions
-.\"    Source: Amanda 3.3.1
+.\"    Source: Amanda 3.3.2
 .\"  Language: English
 .\"
-.TH "AMANDA\&.CONF" "5" "02/21/2012" "Amanda 3\&.3\&.1" "File formats and conventions"
+.TH "AMANDA\&.CONF" "5" "07/25/2012" "Amanda 3\&.3\&.2" "File formats and conventions"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -887,7 +887,7 @@ setting\&.
 .PP
 \fBcolumnspec\fR \fIstring\fR
 .RS 4
-default: "HostName=0:12:12,Disk=1:11:11,Level=1:1:1,OrigKB=1:\-7:0,OutKB=1:\-7:0,Compress=1:\-6:1,DumpTime=1:\-7:7,Dumprate=1:\-6:1,TapeTime=1:\-6:6,TapeRate=1:\-6:1"
+default: "HostName=0:\-12:12,Disk=1:\-11:11,Level=1:\-1:1,OrigKB=1:\-7:0,OutKB=1:\-7:0,Compress=1:\-6:1,DumpTime=1:\-7:7,Dumprate=1:\-6:1,TapeTime=1:\-6:6,TapeRate=1:\-6:1"
 .sp
 Defines the width of columns
 \fBamreport\fR
@@ -1129,6 +1129,11 @@ requires an exact match\&.
 The error messages that appear in amrecover are intentionally vague to avoid information leakage\&. Consult the amindexd debug log for more details on the reasons a recovery was rejected\&.
 .sp
 Recovery limits can be refined on a per\-DLE basis using the dumptype parameter of the same name\&. Note that the default value will apply to any dumpfiles for disks which no longer appear in the disklist; thus leaving the global parameter at its default value but setting it for all DLEs is not sufficient to maintain secure backups\&.
+.RE
+.PP
+\fBtmpdir\fR \fIstring\fR
+.RS 4
+Default: none (system default)\&. Set it to a directory with lots of free space if sort in amindexd fail with \*(AqNo space left on device\*(Aq\&.
 .RE
 .SH "HOLDINGDISK SECTION"
 .PP
@@ -1648,6 +1653,12 @@ Default:
 .RS 4
 Default:
 \fI10000\fR\&. The maximum number of day for a promotion, set it 0 if you don\*(Aqt want promotion, set it to 1 or 2 if your disks get overpromoted\&.
+.RE
+.PP
+\fBmax\-warnings\fR \fIint\fR
+.RS 4
+Default:
+\fI20\fR\&. The maximum number of error lines in the report for a dle\&. A value of \*(Aq0\*(Aq means unlimited\&. This is useful to reduce the size of the log file and the size of the report\&. All errors are put in separate files if a dle have more errors\&.
 .RE
 .PP
 \fBpriority\fR [ \fBlow\fR | \fBmedium\fR | \fBhigh\fR ]
@@ -2443,7 +2454,7 @@ Default: not set\&. A comment string describing this taperscan\&.
 \fBplugin\fR \fIstring\fR
 .RS 4
 No default\&. Must be set to the name of the taperscan module\&. See
-<man></man>
+\fBamanda-taperscan\fR(7)
 for a list of defined taperscan modules\&.
 .RE
 .PP

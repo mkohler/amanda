@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -90,6 +90,8 @@ struct Xfer {
     /* Used to coordinate handing off file descriptors among elements of this
      * xfer */
     GMutex *fd_mutex;
+
+    int cancelled;
 };
 
 typedef struct Xfer Xfer;

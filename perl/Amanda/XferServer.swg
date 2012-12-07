@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2009-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -46,6 +46,9 @@ XferElement *xfer_dest_device(
 %newobject xfer_source_holding;
 XferElement * xfer_source_holding(
     const char *filename);
+
+guint64 xfer_source_holding_get_bytes_read(
+    XferElement *self);
 
 %newobject xfer_dest_taper_splitter;
 XferElement *xfer_dest_taper_splitter(
@@ -96,6 +99,10 @@ void xfer_source_recovery_use_device(
     XferElement *self,
     Device *device);
 
+guint64 xfer_source_recovery_get_bytes_read(
+    XferElement *self);
+
+
 /* ---- */
 
 PACKAGE(Amanda::Xfer::Source::Device)
@@ -113,6 +120,7 @@ DECLARE_CONSTRUCTOR(Amanda::XferServer::xfer_dest_device)
 PACKAGE(Amanda::Xfer::Source::Holding)
 XFER_ELEMENT_SUBCLASS()
 DECLARE_CONSTRUCTOR(Amanda::XferServer::xfer_source_holding)
+DECLARE_METHOD(get_bytes_read, Amanda::XferServer::xfer_source_holding_get_bytes_read)
 
 /* ---- */
 
@@ -148,3 +156,5 @@ XFER_ELEMENT_SUBCLASS()
 DECLARE_CONSTRUCTOR(Amanda::XferServer::xfer_source_recovery)
 DECLARE_METHOD(start_part, Amanda::XferServer::xfer_source_recovery_start_part)
 DECLARE_METHOD(use_device, Amanda::XferServer::xfer_source_recovery_use_device)
+DECLARE_METHOD(get_bytes_read, Amanda::XferServer::xfer_source_recovery_get_bytes_read)
+

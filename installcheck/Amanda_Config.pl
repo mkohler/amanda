@@ -1,4 +1,4 @@
-# Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2007-2012 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -602,7 +602,7 @@ is($error_level, $CFGERR_ERRORS, "bogus config overwrite flagged as an error");
 my $pid = open(my $kid, "-|");
 die "Can't fork: $!" unless defined($pid);
 if (!$pid) {
-    Amanda::Config::dump_configuration();
+    Amanda::Config::dump_configuration(1, 0);
     exit 1;
 }
 my $dump_first_line = <$kid>;

@@ -1946,6 +1946,37 @@ XS(_wrap_xfer_source_holding) {
 }
 
 
+XS(_wrap_xfer_source_holding_get_bytes_read) {
+  {
+    XferElement *arg1 = (XferElement *) 0 ;
+    int argvi = 0;
+    guint64 result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: xfer_source_holding_get_bytes_read(self);");
+    }
+    {
+      arg1 = xfer_element_from_sv(ST(0));
+    }
+    result = xfer_source_holding_get_bytes_read(arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
 XS(_wrap_xfer_dest_taper_splitter) {
   {
     Device *arg1 = (Device *) 0 ;
@@ -2380,6 +2411,37 @@ XS(_wrap_xfer_source_recovery_use_device) {
 }
 
 
+XS(_wrap_xfer_source_recovery_get_bytes_read) {
+  {
+    XferElement *arg1 = (XferElement *) 0 ;
+    int argvi = 0;
+    guint64 result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: xfer_source_recovery_get_bytes_read(self);");
+    }
+    {
+      arg1 = xfer_element_from_sv(ST(0));
+    }
+    result = xfer_source_recovery_get_bytes_read(arg1);
+    {
+      SV *for_stack;
+      SP += argvi; PUTBACK;
+      for_stack = sv_2mortal(amglue_newSVu64(result));
+      SPAGAIN; SP -= argvi;
+      ST(argvi) = for_stack;
+      argvi++;
+    }
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
 
 /* -------- TYPE CONVERSION AND EQUIVALENCE RULES (BEGIN) -------- */
 
@@ -2459,6 +2521,7 @@ static swig_command_info swig_commands[] = {
 {"Amanda::XferServerc::xfer_source_device", _wrap_xfer_source_device},
 {"Amanda::XferServerc::xfer_dest_device", _wrap_xfer_dest_device},
 {"Amanda::XferServerc::xfer_source_holding", _wrap_xfer_source_holding},
+{"Amanda::XferServerc::xfer_source_holding_get_bytes_read", _wrap_xfer_source_holding_get_bytes_read},
 {"Amanda::XferServerc::xfer_dest_taper_splitter", _wrap_xfer_dest_taper_splitter},
 {"Amanda::XferServerc::xfer_dest_taper_cacher", _wrap_xfer_dest_taper_cacher},
 {"Amanda::XferServerc::xfer_dest_taper_directtcp", _wrap_xfer_dest_taper_directtcp},
@@ -2469,6 +2532,7 @@ static swig_command_info swig_commands[] = {
 {"Amanda::XferServerc::xfer_source_recovery", _wrap_xfer_source_recovery},
 {"Amanda::XferServerc::xfer_source_recovery_start_part", _wrap_xfer_source_recovery_start_part},
 {"Amanda::XferServerc::xfer_source_recovery_use_device", _wrap_xfer_source_recovery_use_device},
+{"Amanda::XferServerc::xfer_source_recovery_get_bytes_read", _wrap_xfer_source_recovery_get_bytes_read},
 {0,0}
 };
 /* -----------------------------------------------------------------------------

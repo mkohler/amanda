@@ -39,6 +39,7 @@
 #include "getfsent.h"
 #include "conffile.h"
 #include "amandates.h"
+#include "stream.h"
 
 #define sendbackup_debug(i, ...) do {	\
 	if ((i) <= debug_sendbackup) {	\
@@ -124,7 +125,7 @@ main(
     int ch;
     GSList *errlist;
     FILE   *mesgstream;
-    level_t *alevel;
+    am_level_t *alevel;
 
     if (argc > 1 && argv && argv[1] && g_str_equal(argv[1], "--version")) {
 	printf("sendbackup-%s\n", VERSION);
@@ -304,7 +305,7 @@ main(
 	    goto err;				/* bad level */
 	}
 	skip_integer(s, ch);
-	alevel = g_new0(level_t, 1);
+	alevel = g_new0(am_level_t, 1);
 	alevel->level = level;
 	dle->levellist = g_slist_append(dle->levellist, alevel);
 
@@ -384,7 +385,7 @@ main(
 	goto err;
     }
 
-    alevel = (level_t *)dle->levellist->data;
+    alevel = (am_level_t *)dle->levellist->data;
     level = alevel->level;
     dbprintf(_("  Parsed request as: program `%s'\n"), dle->program);
     dbprintf(_("                     disk `%s'\n"), qdisk);
@@ -586,6 +587,49 @@ main(
 
 	switch(application_api_pid=fork()) {
 	case 0:
+	    application_api_info_tapeheader(mesgfd, dle->program, dle);
+
+	    /* find directt-tcp address from indirect direct-tcp */
+	    if (dle->data_path == DATA_PATH_DIRECTTCP &&
+		bsu->data_path_set & DATA_PATH_DIRECTTCP &&
+		strncmp(dle->directtcp_list->data, "255.255.255.255:", 16) == 0) {
+		char *indirect_tcp;
+		char *str_port;
+		in_port_t port;
+		int fd;
+		char buffer[32770];
+		int size;
+		char *s, *s1;
+
+		indirect_tcp = g_strdup(dle->directtcp_list->data);
+		g_slist_free(dle->directtcp_list);
+		dle->directtcp_list = NULL;
+		str_port = strchr(indirect_tcp, ':');
+		str_port++;
+		port = atoi(str_port);
+		fd = stream_client("localhost", port, 32768, 32768, NULL, 0);
+		if (fd <= 0) {
+		    g_debug("Failed to connect to indirect-direct-tcp port: %s",
+			    strerror(errno));
+		    exit(1);
+		}
+		size = full_read(fd, buffer, 32768);
+		if (size <= 0) {
+		    g_debug("Failed to read from indirect-direct-tcp port: %s",
+			    strerror(errno));
+		    exit(1);
+		}
+		buffer[size++] = ' ';
+		buffer[size] = '\0';
+		s1 = buffer;
+		while ((s = strchr(s1, ' ')) != NULL) {
+		    *s++ = '\0';
+		    dle->directtcp_list = g_slist_append(dle->directtcp_list, g_strdup(s1));
+		    s1 = s;
+		}
+		amfree(indirect_tcp);
+	    }
+
 	    argv_ptr = g_ptr_array_new();
 	    cmd = vstralloc(APPLICATION_DIR, "/", dle->program, NULL);
 	    g_ptr_array_add(argv_ptr, stralloc(dle->program));
@@ -655,7 +699,6 @@ main(
 		}
 		fcntl(indexfd, F_SETFD, 0);
 	    }
-	    application_api_info_tapeheader(mesgfd, dle->program, dle);
 	    if (indexfd != 0) {
 		safe_fd(3, 2);
 	    } else {

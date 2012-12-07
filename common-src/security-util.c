@@ -2672,7 +2672,7 @@ sec_get_authenticated_peer_name_gethostname(
 	return server_hostname;
     }
     amfree(server_hostname);
-    return "localhost";
+    return strdup("localhost");
 }
 
 char *
@@ -2682,5 +2682,5 @@ sec_get_authenticated_peer_name_hostname(
     char *hostname = ((struct sec_handle *)hdl)->hostname;
     if (!hostname)
 	hostname = "";
-    return hostname;
+    return strdup(hostname);
 }

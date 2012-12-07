@@ -1,5 +1,5 @@
 #!@PERL@
-# Copyright (c) 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2009-2012 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -273,6 +273,9 @@ sub _run_psql_command {
 	chomp $line;
 	debug("psql stderr: $line");
 	if ($line =~ /NOTICE: pg_stop_backup complete, all required WAL segments have been archived/) {
+	} elsif ($line =~ /could not connect to server/) {
+	    $self->print_to_server("psql stderr: $line",
+				   $Amanda::Script_App::ERROR);
 	} else {
 	    $self->print_to_server("psql stderr: $line",
 				   $Amanda::Script_App::GOOD);
@@ -425,19 +428,6 @@ sub command_selfcheck {
 		_check("Connecting to database server", "succeeded", "failed",
 		   \&_run_psql_command, $self, '');
 	}
-        
-	if ($try_connect) {
-	    my $label = "$self->{'label-prefix'}-selfcheck-" . time();
-	    if (_check("Call pg_start_backup", "succeeded",
-		       "failed (is another backup running?)",
-		       \&_run_psql_command, $self, "SELECT pg_start_backup('$label')")
-		and _check("Call pg_stop_backup", "succeeded", "failed",
-			   \&_run_psql_command, $self, "SELECT pg_stop_backup()")) {
-
-		_check("Get info from .backup file", "succeeded", "failed",
-		       sub {my ($start, $end) = _get_backup_info($self, $label); $start and $end});
-	    }
-	}
 
 	{
 	    my @gv = `$self->{'args'}->{'gnutar-path'} --version`;
@@ -479,9 +469,11 @@ sub _write_state_file {
 
 sub _get_prev_state {
     my $self = shift @_;
+    my $initial_level = shift;
+    $initial_level = $self->{'args'}->{'level'} - 1 if !defined $initial_level;
 
     my $end_wal;
-    for (my $level = $self->{'args'}->{'level'} - 1; $level >= 0; $level--) {
+    for (my $level = $initial_level; $level >= 0; $level--) {
         my $fn = _state_filename($self, $level);
         debug("reading state file: $fn");
         my $h = new IO::File($fn, "r");
@@ -708,7 +700,10 @@ sub _wait_for_wal {
     my $count = 0; # try at least 4 cycles
     my $stoptime = time() + $maxwait;
     while ($maxwait == 0 || time < $stoptime || $count++ < 4) {
-	return if -f "$archive_dir/$wal";
+	if (-f "$archive_dir/$wal") {
+	    sleep(1);
+	    return;
+	}
 
 	# for versions 8.0 or 8.1, the only way to "force" a WAL archive is to write
 	# garbage to the database.
@@ -732,8 +727,10 @@ sub _base_backup {
    -d $self->{'props'}->{'pg-archivedir'} or
 	die("WAL file archive directory does not exist (or is not a directory)");
 
-   _run_psql_command($self, "SELECT pg_start_backup('$label')") or
-       $self->{'die_cb'}->("Failed to call pg_start_backup");
+   if ($self->{'action'} eq 'backup') {
+       _run_psql_command($self, "SELECT pg_start_backup('$label')") or
+           $self->{'die_cb'}->("Failed to call pg_start_backup");
+   }
 
    # tar data dir, using symlink to prefix
    # XXX: tablespaces and their symlinks?
@@ -741,8 +738,10 @@ sub _base_backup {
    my $old_die_cb = $self->{'die_cb'};
    $self->{'die_cb'} = sub {
        my $msg = shift @_;
-       unless(_run_psql_command($self, "SELECT pg_stop_backup()")) {
-           $msg .= " and failed to call pg_stop_backup";
+       if ($self->{'action'} eq 'backup') {
+           unless(_run_psql_command($self, "SELECT pg_stop_backup()")) {
+               $msg .= " and failed to call pg_stop_backup";
+	   }
        }
        $old_die_cb->($msg);
    };
@@ -754,28 +753,39 @@ sub _base_backup {
        ".");
    $self->{'die_cb'} = $old_die_cb;
 
-   unless (_run_psql_command($self, "SELECT pg_stop_backup()")) {
-       $self->{'die_cb'}->("Failed to call pg_stop_backup");
+   if ($self->{'action'} eq 'backup') {
+       unless (_run_psql_command($self, "SELECT pg_stop_backup()")) {
+           $self->{'die_cb'}->("Failed to call pg_stop_backup");
+       }
    }
 
    # determine WAL files and append and create their tar file
-   my ($start_wal, $end_wal) = _get_backup_info($self, $label);
+   my $start_wal;
+   my $end_wal;
 
-   ($start_wal and $end_wal)
-       or $self->{'die_cb'}->("A .backup file was never found in the archive "
-			    . "dir $self->{'props'}->{'pg-archivedir'}");
-
-   $self->_wait_for_wal($end_wal);
+   if ($self->{'action'} eq 'backup') {
+	($start_wal, $end_wal)  = _get_backup_info($self, $label);
+	($start_wal and $end_wal)
+		or $self->{'die_cb'}->("A .backup file was never found in the archive "
+				    . "dir $self->{'props'}->{'pg-archivedir'}");
+	$self->_wait_for_wal($end_wal);
+   } else {
+	$start_wal = undef;
+	$end_wal = _get_prev_state($self, 0);
+   }
 
    # now grab all of the WAL files, *inclusive* of $start_wal
    my @wal_files;
    my $adir = new IO::Dir($self->{'props'}->{'pg-archivedir'});
    while (defined(my $fname = $adir->read())) {
        if ($fname =~ /^$_WAL_FILE_PAT$/) {
-           if (($fname ge $start_wal) and ($fname le $end_wal)) {
+           if (!defined $end_wal ||
+	       (!defined $start_wal and ($fname le $end_wal)) ||
+	       (defined $start_wal and ($fname ge $start_wal) and
+		($fname le $end_wal))) {
                push @wal_files, $fname;
                debug("will store: $fname");
-           } elsif ($fname lt $start_wal) {
+           } elsif (defined $start_wal and $fname lt $start_wal) {
                $self->{'unlink_cb'}->("$self->{'props'}->{'pg-archivedir'}/$fname");
            }
        }
