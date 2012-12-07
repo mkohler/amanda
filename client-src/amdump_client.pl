@@ -1,5 +1,5 @@
 #! @PERL@
-# Copyright (c) 2010 Zmanda Inc.  All Rights Reserved.
+# Copyright (c) 2010-2012 Zmanda Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -101,7 +101,7 @@ if ($cmd eq 'list') {
 		    debug("send: DISK " . Amanda::Util::quote_string($diskname));
 		    print {$amservice_in} "DISK " . Amanda::Util::quote_string($diskname) . "\n";
 		    my $a = <$amservice_out>;
-		    print if ($a != /^DISK /)
+		    print if ($a !~ /^DISK /)
 		}
 	    }
 	}

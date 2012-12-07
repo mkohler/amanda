@@ -1,4 +1,4 @@
-# Copyright (c) 2010 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2010-2012 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -283,8 +283,9 @@ sub find_volume {
 	# check if label is in the inventory
 	for my $i (0..(scalar(@$inventory)-1)) {
 	    my $sl = $inventory->[$i];
-	    if (defined $sl->{'label'} &&
-		$sl->{'label'} eq $label) {
+	    if (defined $sl->{'label'} and
+		$sl->{'label'} eq $label and
+		!defined $seen{$sl->{'slot'}}) {
 		$slot_scanned = $sl->{'slot'};
 		if ($sl->{'reserved'}) {
 		    return $steps->{'handle_error'}->(
@@ -521,7 +522,7 @@ sub find_volume {
 		    $scan_method = $self->{'scan_conf'}->{$err->{'reason'}};
 		}
 	    } else {
-		die("error not defined");
+		confess("error not defined");
 		$scan_method = SCAN_ASK_POLL;
 	    }
 	}
@@ -561,7 +562,7 @@ sub find_volume {
 	} elsif ($scan_method == SCAN_CONTINUE) {
 	    return $continue_cb->($err, undef);
 	} else {
-	    die("Invalid SCAN_* value:$err:$err->{'reason'}:$scan_method");
+	    confess("Invalid SCAN_* value:$err:$err->{'reason'}:$scan_method");
 	}
     };
 
@@ -591,7 +592,6 @@ sub find_volume {
 	$interactivity_running = 0;
 	$poll_src->remove() if defined $poll_src;
 	$poll_src = undef;
-	$last_err = undef;
 
 	if ($err) {
 	    if ($scan_running) {
@@ -613,6 +613,7 @@ sub find_volume {
 	    if ($new_chg->isa("Amanda::Changer::Error")) {
 		return $steps->{'scan_interactivity'}->("$new_chg");
 	    }
+	    $last_err = undef;
 	    $self->{'chg'}->quit();
 	    $self->{'chg'} = $new_chg;
 	    %seen = ();

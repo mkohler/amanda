@@ -1,4 +1,4 @@
-# Copyright (c) 2008,2009,2010 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2008-2012 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -410,7 +410,8 @@ sub inventory {
 	    my $s = { slot => $slot,
 		      state => $state->{slots}->{$unaliased}->{state} || Amanda::Changer::SLOT_UNKNOWN,
 		      reserved => $self->_is_slot_in_use($state, $slot) };
-	    if (defined $state->{slots}->{$unaliased}) {
+	    if (defined $state->{slots}->{$unaliased} and
+		exists $state->{slots}->{$unaliased}->{device_status}) {
 		$s->{'device_status'} =
 			      $state->{slots}->{$unaliased}->{device_status};
 		if ($s->{'device_status'} != $DEVICE_STATUS_SUCCESS) {

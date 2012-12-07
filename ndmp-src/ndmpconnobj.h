@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2009-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -223,6 +223,20 @@ gboolean ndmp_connection_wait_for_notify(
 	/* NDMP_NOTIFY_MOVER_PAUSED */
 	ndmp9_mover_pause_reason *mover_pause_reason,
 	guint64 *mover_pause_seek_position);
+
+/* Synchronous notification interface.  This handles all types of notification,
+ * returning the result in the appropriate output parameter. */
+gboolean ndmp_connection_wait_for_notify_with_cond(
+	NDMPConnection *self,
+	/* NDMP_NOTIFY_DATA_HALTED */
+	ndmp9_data_halt_reason *data_halt_reason,
+	/* NDMP_NOTIFY_MOVER_HALTED */
+	ndmp9_mover_halt_reason *mover_halt_reason,
+	/* NDMP_NOTIFY_MOVER_PAUSED */
+	ndmp9_mover_pause_reason *mover_pause_reason,
+	guint64 *mover_pause_seek_position,
+	GMutex *abort_mutex,
+	GCond *abort_cond);
 
 /*
  * Constructor

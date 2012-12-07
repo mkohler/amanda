@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2007-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -91,6 +91,11 @@ typedef struct Device {
     /* You can peek at the stuff below, but only subclasses should
        change these values.*/
 
+    /* A mutex to protect field accessed from another thread.
+     * Only get_bytes_read and get_bytes_written are allowed from another
+     * Only in_file, bytes_read and bytes_written are protected */
+    GMutex  *device_mutex;
+
     /* What file, block are we at? (and are we in the middle of a file?) */
     int file;
     guint64 block;
@@ -133,6 +138,9 @@ typedef struct Device {
     gsize max_block_size;
     gsize block_size;
     gsize header_block_size;
+
+    guint64 bytes_read;
+    guint64 bytes_written;
 
     /* surety and source for the block size; if you set block_size directly,
      * set these, too! */
@@ -193,13 +201,20 @@ struct _DeviceClass {
     gboolean (* erase) (Device * self);
     gboolean (* eject) (Device * self);
     gboolean (* finish) (Device * self);
+    guint64  (* get_bytes_read) (Device * self);
+    guint64  (* get_bytes_written) (Device * self);
 
     gboolean (* listen)(Device *self, gboolean for_writing, DirectTCPAddr **addrs);
     gboolean (* accept)(Device *self, DirectTCPConnection **conn,
 			ProlongProc prolong, gpointer prolong_data);
+    int (* accept_with_cond)(Device *self, DirectTCPConnection **conn,
+				  GMutex *abort_mutex, GCond *abort_cond);
     gboolean (* connect)(Device *self, gboolean for_writing, DirectTCPAddr *addrs,
 			DirectTCPConnection **conn, ProlongProc prolong,
 			gpointer prolong_data);
+    gboolean (* connect_with_cond)(Device *self, gboolean for_writing,
+			DirectTCPAddr *addrs, DirectTCPConnection **conn,
+			GMutex *abort_mutex, GCond *abort_cond);
     gboolean (* write_from_connection)(Device *self, guint64 size, guint64 *actual_size);
     gboolean (* read_to_connection)(Device *self, guint64 size, guint64 *actual_size);
     gboolean (* use_connection)(Device *self, DirectTCPConnection *conn);
@@ -294,6 +309,8 @@ gboolean 	device_start	(Device * self,
                                  DeviceAccessMode mode, char * label,
                                  char * timestamp);
 gboolean 	device_finish	(Device * self);
+guint64 	device_get_bytes_read	(Device * self);
+guint64 	device_get_bytes_written(Device * self);
 gboolean        device_start_file       (Device * self,
                                          dumpfile_t * jobInfo);
 gboolean 	device_write_block	(Device * self,
@@ -331,9 +348,14 @@ gboolean 	device_eject	(Device * self);
 gboolean device_listen(Device *self, gboolean for_writing, DirectTCPAddr **addrs);
 gboolean device_accept(Device *self, DirectTCPConnection **conn,
                 ProlongProc prolong, gpointer prolong_data);
+int device_accept_with_cond(Device *self, DirectTCPConnection **conn,
+				 GMutex *abort_mutex, GCond *abort_cond);
 gboolean device_connect(Device *self, gboolean for_writing, DirectTCPAddr *addrs,
 			DirectTCPConnection **conn, ProlongProc prolong,
 			gpointer prolong_data);
+gboolean device_connect_with_cond(Device *self, gboolean for_writing,
+			DirectTCPAddr *addrs, DirectTCPConnection **conn,
+			GMutex *abort_mutex, GCond *abort_cond);
 gboolean device_write_from_connection(Device *self, guint64 size, guint64 *actual_size);
 gboolean device_read_to_connection(Device *self, guint64 size, guint64 *actual_size);
 gboolean device_use_connection(Device *self, DirectTCPConnection *conn);

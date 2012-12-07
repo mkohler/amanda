@@ -1968,7 +1968,7 @@ typedef char **val_t_strs;
 val_t_strs getconf_byname_strs(char *key, int str_needs_quotes) {
     val_t *val = getconf_byname(key);
     if (!val) return NULL;
-    return val_t_display_strs(val, str_needs_quotes);
+    return val_t_display_strs(val, str_needs_quotes, FALSE, FALSE);
 }
 
 
@@ -4808,16 +4808,28 @@ XS(_wrap_set_config_overrides) {
 
 XS(_wrap_dump_configuration) {
   {
+    gboolean arg1 ;
+    gboolean arg2 ;
     int argvi = 0;
     dXSARGS;
     
-    if ((items < 0) || (items > 0)) {
-      SWIG_croak("Usage: dump_configuration();");
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: dump_configuration(print_default,print_source);");
     }
-    dump_configuration();
+    {
+      arg1 = SvTRUE(ST(0));
+    }
+    {
+      arg2 = SvTRUE(ST(1));
+    }
+    dump_configuration(arg1,arg2);
     ST(argvi) = sv_newmortal();
+    
+    
     XSRETURN(argvi);
   fail:
+    
+    
     SWIG_croak_null();
   }
 }
@@ -4980,6 +4992,7 @@ XS(_wrap_amandaify_property_name) {
     result = (gchar *)amandaify_property_name((char const *)arg1);
     ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
+    free((char*)result);
     XSRETURN(argvi);
   fail:
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
@@ -5935,6 +5948,11 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/2.0.4/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "CNF_TMPDIR", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(CNF_TMPDIR)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/2.0.4/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "TAPETYPE_COMMENT", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(TAPETYPE_COMMENT)));
     SvREADONLY_on(sv);
@@ -6207,6 +6225,11 @@ XS(SWIG_init) {
   /*@SWIG:/usr/share/swig/2.0.4/perl5/perltypemaps.swg,65,%set_constant@*/ do {
     SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_ALLOW_SPLIT", TRUE | 0x2 | GV_ADDMULTI);
     sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_ALLOW_SPLIT)));
+    SvREADONLY_on(sv);
+  } while(0) /*@SWIG@*/;
+  /*@SWIG:/usr/share/swig/2.0.4/perl5/perltypemaps.swg,65,%set_constant@*/ do {
+    SV *sv = get_sv((char*) SWIG_prefix "DUMPTYPE_MAX_WARNINGS", TRUE | 0x2 | GV_ADDMULTI);
+    sv_setsv(sv, SWIG_From_int  SWIG_PERL_CALL_ARGS_1((int)(DUMPTYPE_MAX_WARNINGS)));
     SvREADONLY_on(sv);
   } while(0) /*@SWIG@*/;
   /*@SWIG:/usr/share/swig/2.0.4/perl5/perltypemaps.swg,65,%set_constant@*/ do {

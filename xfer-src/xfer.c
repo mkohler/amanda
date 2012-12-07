@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -269,7 +269,10 @@ xfer_cancel(
 {
     /* Since xfer_cancel can be called from any thread, we just send a message.
      * The action takes place when the message is received. */
-    XferElement *src = g_ptr_array_index(xfer->elements, 0);
+    XferElement *src;
+    if (xfer->cancelled > 0) return;
+    xfer->cancelled++;
+    src = g_ptr_array_index(xfer->elements, 0);
     xfer_queue_message(xfer, xmsg_new(src, XMSG_CANCEL, 0));
 }
 

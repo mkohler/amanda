@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -31,6 +31,7 @@ require Amanda::Script_App;
 
 use strict;
 use warnings;
+use IO::Handle;
 use Amanda::Config qw( :init :getconf  config_dir_relative );
 
 
@@ -90,9 +91,10 @@ sub read_magic_block {
 sub _set_mesgout {
     my $self = shift;
 
-    my $mesgout_fd;
-    open ($mesgout_fd, '>&=3') || die("Can't open mesgout_fd: $!");
-    $self->{mesgout} = $mesgout_fd;
+    my $mesgout = IO::Handle->new();
+    $mesgout->fdopen(3,"a") || die("Can't open mesgout_fd: $!");
+    $mesgout->autoflush(1);
+    $self->{mesgout} = $mesgout;
 }
 
 %}

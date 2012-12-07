@@ -1820,6 +1820,15 @@
 /* Defined if libcurl supports TFTP */
 #undef LIBCURL_PROTOCOL_TFTP
 
+/* Defined if libcurl use GnuTLS */
+#undef LIBCURL_USE_GNUTLS
+
+/* Defined if libcurl use NSS */
+#undef LIBCURL_USE_NSS
+
+/* Defined if libcurl use OpenSSL */
+#undef LIBCURL_USE_OPENSSL
+
 /* A comma-separated list of two integers, determining the minimum and maximum
    * reserved TCP port numbers sockets should be bound to. (mainly for
    amrecover) */

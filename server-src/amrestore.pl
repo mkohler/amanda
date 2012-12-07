@@ -1,5 +1,5 @@
 #! @PERL@
-# Copyright (c) 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2009-2012 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -173,6 +173,16 @@ sub main {
 	return failure($err, $finished_cb) if $err;
 
 	$dev = $res->{'device'};
+
+	if ($opt_blocksize) {
+	    if ( !$dev->property_set("BLOCK_SIZE", $opt_blocksize)) {
+		return failure($dev->error_or_status, $finished_cb);
+	    }
+
+	    # re-read the label with the correct blocksize
+	    $dev->read_label();
+	}
+
 	if ($dev->status != $DEVICE_STATUS_SUCCESS) {
 	    return failure($dev->error_or_status, $finished_cb);
 	}

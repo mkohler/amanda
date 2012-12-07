@@ -1,4 +1,4 @@
-# Copyright (c) 2010 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2010-2012 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -264,10 +264,12 @@ sub _scan {
 	    $res->{device}->status == $DEVICE_STATUS_SUCCESS) {
 	    $label = $res->{device}->volume_label;
 	}
+	my $relabeled = !defined($label) || $label !~ /$self->{'labelstr'}/;
 	$self->_user_msg(slot_result => 1,
 			 slot => $slot_scanned,
 			 label => $label,
 			 err  => $err,
+			 relabeled => $relabeled,
 			 res  => $res);
 	if ($res) {
 	    my $f_type;
@@ -500,7 +502,7 @@ sub _scan {
 	    return $result_cb->($err, $res);
 	}
 	$label = $res->{'device'}->volume_label;
-	if (!defined $label) {
+	if (!defined($label) || $label !~ /$self->{'labelstr'}/) {
 	    $res->get_meta_label(finished_cb => $steps->{'got_meta_label'});
 	    return;
 	}
@@ -567,12 +569,13 @@ sub volume_is_labelable {
 			     err          => $sl->{'device_error'},
 			     slot         => $slot);
 	return 0;
-    } elsif ($dev_status & $DEVICE_STATUS_SUCCESS and
+    } elsif ($dev_status == $DEVICE_STATUS_SUCCESS and
 	     $f_type == $Amanda::Header::F_TAPESTART and
 	     $label !~ /$self->{'labelstr'}/) {
 	if (!$autolabel->{'other_config'}) {
 	    $self->_user_msg(slot_result  => 1,
-			     other_config => 1,
+			     label        => $label,
+			     does_not_match_labelstr => 1,
 			     slot         => $slot);
 	    return 0;
 	}

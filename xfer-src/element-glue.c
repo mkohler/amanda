@@ -1,6 +1,6 @@
 /*
  * Amanda, The Advanced Maryland Automatic Network Disk Archiver
- * Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -220,7 +220,7 @@ do_directtcp_connect(
     /* set up the sockaddr -- IPv4 only */
     copy_sockaddr(&addr, addrs);
 
-    g_debug("making data connection to %s", str_sockaddr(&addr));
+    g_debug("do_directtcp_connect making data connection to %s", str_sockaddr(&addr));
     sock = socket(SU_GET_FAMILY(&addr), SOCK_STREAM, 0);
     if (sock < 0) {
 	xfer_cancel_with_error(elt,

@@ -1509,19 +1509,19 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 #define SWIGTYPE_p_GSList swig_types[0]
 #define SWIGTYPE_p_a_STRMAX__char swig_types[1]
 #define SWIGTYPE_p_a_dle_s swig_types[2]
-#define SWIGTYPE_p_char swig_types[3]
-#define SWIGTYPE_p_data_path_t swig_types[4]
-#define SWIGTYPE_p_dle_t swig_types[5]
-#define SWIGTYPE_p_double swig_types[6]
-#define SWIGTYPE_p_dumpfile_t swig_types[7]
-#define SWIGTYPE_p_estimatelist_t swig_types[8]
-#define SWIGTYPE_p_float swig_types[9]
-#define SWIGTYPE_p_int swig_types[10]
-#define SWIGTYPE_p_levellist_t swig_types[11]
-#define SWIGTYPE_p_off_t swig_types[12]
-#define SWIGTYPE_p_proplist_t swig_types[13]
-#define SWIGTYPE_p_scriptlist_t swig_types[14]
-#define SWIGTYPE_p_sl_t swig_types[15]
+#define SWIGTYPE_p_am_sl_t swig_types[3]
+#define SWIGTYPE_p_char swig_types[4]
+#define SWIGTYPE_p_data_path_t swig_types[5]
+#define SWIGTYPE_p_dle_t swig_types[6]
+#define SWIGTYPE_p_double swig_types[7]
+#define SWIGTYPE_p_dumpfile_t swig_types[8]
+#define SWIGTYPE_p_estimatelist_t swig_types[9]
+#define SWIGTYPE_p_float swig_types[10]
+#define SWIGTYPE_p_int swig_types[11]
+#define SWIGTYPE_p_levellist_t swig_types[12]
+#define SWIGTYPE_p_off_t swig_types[13]
+#define SWIGTYPE_p_proplist_t swig_types[14]
+#define SWIGTYPE_p_scriptlist_t swig_types[15]
 #define SWIGTYPE_p_unsigned_char swig_types[16]
 static swig_type_info *swig_types[18];
 static swig_module_info swig_module = {swig_types, 17, 0, 0, 0, 0};
@@ -4213,7 +4213,7 @@ XS(_wrap_C_from_string) {
     }
     arg1 = (char *)(buf1);
     result = (dumpfile_t *)C_from_string((char const *)arg1);
-    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_dumpfile_t, SWIG_OWNER | SWIG_SHADOW); argvi++ ;
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_dumpfile_t, 0 | SWIG_SHADOW); argvi++ ;
     if (alloc1 == SWIG_NEWOBJ) free((char*)buf1);
     XSRETURN(argvi);
   fail:
@@ -5708,7 +5708,7 @@ XS(_wrap_HeaderXML_auth_get) {
 XS(_wrap_HeaderXML_exclude_file_set) {
   {
     dle_t *arg1 = (dle_t *) 0 ;
-    sl_t *arg2 = (sl_t *) 0 ;
+    am_sl_t *arg2 = (am_sl_t *) 0 ;
     void *argp1 = 0 ;
     int res1 = 0 ;
     void *argp2 = 0 ;
@@ -5724,11 +5724,11 @@ XS(_wrap_HeaderXML_exclude_file_set) {
       SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_exclude_file_set" "', argument " "1"" of type '" "dle_t *""'"); 
     }
     arg1 = (dle_t *)(argp1);
-    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_sl_t, SWIG_POINTER_DISOWN |  0 );
+    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_am_sl_t, SWIG_POINTER_DISOWN |  0 );
     if (!SWIG_IsOK(res2)) {
-      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_exclude_file_set" "', argument " "2"" of type '" "sl_t *""'"); 
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_exclude_file_set" "', argument " "2"" of type '" "am_sl_t *""'"); 
     }
-    arg2 = (sl_t *)(argp2);
+    arg2 = (am_sl_t *)(argp2);
     if (arg1) (arg1)->exclude_file = arg2;
     ST(argvi) = sv_newmortal();
     
@@ -5748,7 +5748,7 @@ XS(_wrap_HeaderXML_exclude_file_get) {
     void *argp1 = 0 ;
     int res1 = 0 ;
     int argvi = 0;
-    sl_t *result = 0 ;
+    am_sl_t *result = 0 ;
     dXSARGS;
     
     if ((items < 1) || (items > 1)) {
@@ -5759,8 +5759,8 @@ XS(_wrap_HeaderXML_exclude_file_get) {
       SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_exclude_file_get" "', argument " "1"" of type '" "dle_t *""'"); 
     }
     arg1 = (dle_t *)(argp1);
-    result = (sl_t *) ((arg1)->exclude_file);
-    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_sl_t, 0 | 0); argvi++ ;
+    result = (am_sl_t *) ((arg1)->exclude_file);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_am_sl_t, 0 | 0); argvi++ ;
     
     XSRETURN(argvi);
   fail:
@@ -5773,7 +5773,7 @@ XS(_wrap_HeaderXML_exclude_file_get) {
 XS(_wrap_HeaderXML_exclude_list_set) {
   {
     dle_t *arg1 = (dle_t *) 0 ;
-    sl_t *arg2 = (sl_t *) 0 ;
+    am_sl_t *arg2 = (am_sl_t *) 0 ;
     void *argp1 = 0 ;
     int res1 = 0 ;
     void *argp2 = 0 ;
@@ -5789,11 +5789,11 @@ XS(_wrap_HeaderXML_exclude_list_set) {
       SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_exclude_list_set" "', argument " "1"" of type '" "dle_t *""'"); 
     }
     arg1 = (dle_t *)(argp1);
-    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_sl_t, SWIG_POINTER_DISOWN |  0 );
+    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_am_sl_t, SWIG_POINTER_DISOWN |  0 );
     if (!SWIG_IsOK(res2)) {
-      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_exclude_list_set" "', argument " "2"" of type '" "sl_t *""'"); 
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_exclude_list_set" "', argument " "2"" of type '" "am_sl_t *""'"); 
     }
-    arg2 = (sl_t *)(argp2);
+    arg2 = (am_sl_t *)(argp2);
     if (arg1) (arg1)->exclude_list = arg2;
     ST(argvi) = sv_newmortal();
     
@@ -5813,7 +5813,7 @@ XS(_wrap_HeaderXML_exclude_list_get) {
     void *argp1 = 0 ;
     int res1 = 0 ;
     int argvi = 0;
-    sl_t *result = 0 ;
+    am_sl_t *result = 0 ;
     dXSARGS;
     
     if ((items < 1) || (items > 1)) {
@@ -5824,8 +5824,8 @@ XS(_wrap_HeaderXML_exclude_list_get) {
       SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_exclude_list_get" "', argument " "1"" of type '" "dle_t *""'"); 
     }
     arg1 = (dle_t *)(argp1);
-    result = (sl_t *) ((arg1)->exclude_list);
-    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_sl_t, 0 | 0); argvi++ ;
+    result = (am_sl_t *) ((arg1)->exclude_list);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_am_sl_t, 0 | 0); argvi++ ;
     
     XSRETURN(argvi);
   fail:
@@ -5838,7 +5838,7 @@ XS(_wrap_HeaderXML_exclude_list_get) {
 XS(_wrap_HeaderXML_include_file_set) {
   {
     dle_t *arg1 = (dle_t *) 0 ;
-    sl_t *arg2 = (sl_t *) 0 ;
+    am_sl_t *arg2 = (am_sl_t *) 0 ;
     void *argp1 = 0 ;
     int res1 = 0 ;
     void *argp2 = 0 ;
@@ -5854,11 +5854,11 @@ XS(_wrap_HeaderXML_include_file_set) {
       SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_include_file_set" "', argument " "1"" of type '" "dle_t *""'"); 
     }
     arg1 = (dle_t *)(argp1);
-    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_sl_t, SWIG_POINTER_DISOWN |  0 );
+    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_am_sl_t, SWIG_POINTER_DISOWN |  0 );
     if (!SWIG_IsOK(res2)) {
-      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_include_file_set" "', argument " "2"" of type '" "sl_t *""'"); 
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_include_file_set" "', argument " "2"" of type '" "am_sl_t *""'"); 
     }
-    arg2 = (sl_t *)(argp2);
+    arg2 = (am_sl_t *)(argp2);
     if (arg1) (arg1)->include_file = arg2;
     ST(argvi) = sv_newmortal();
     
@@ -5878,7 +5878,7 @@ XS(_wrap_HeaderXML_include_file_get) {
     void *argp1 = 0 ;
     int res1 = 0 ;
     int argvi = 0;
-    sl_t *result = 0 ;
+    am_sl_t *result = 0 ;
     dXSARGS;
     
     if ((items < 1) || (items > 1)) {
@@ -5889,8 +5889,8 @@ XS(_wrap_HeaderXML_include_file_get) {
       SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_include_file_get" "', argument " "1"" of type '" "dle_t *""'"); 
     }
     arg1 = (dle_t *)(argp1);
-    result = (sl_t *) ((arg1)->include_file);
-    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_sl_t, 0 | 0); argvi++ ;
+    result = (am_sl_t *) ((arg1)->include_file);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_am_sl_t, 0 | 0); argvi++ ;
     
     XSRETURN(argvi);
   fail:
@@ -5903,7 +5903,7 @@ XS(_wrap_HeaderXML_include_file_get) {
 XS(_wrap_HeaderXML_include_list_set) {
   {
     dle_t *arg1 = (dle_t *) 0 ;
-    sl_t *arg2 = (sl_t *) 0 ;
+    am_sl_t *arg2 = (am_sl_t *) 0 ;
     void *argp1 = 0 ;
     int res1 = 0 ;
     void *argp2 = 0 ;
@@ -5919,11 +5919,11 @@ XS(_wrap_HeaderXML_include_list_set) {
       SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_include_list_set" "', argument " "1"" of type '" "dle_t *""'"); 
     }
     arg1 = (dle_t *)(argp1);
-    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_sl_t, SWIG_POINTER_DISOWN |  0 );
+    res2 = SWIG_ConvertPtr(ST(1), &argp2,SWIGTYPE_p_am_sl_t, SWIG_POINTER_DISOWN |  0 );
     if (!SWIG_IsOK(res2)) {
-      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_include_list_set" "', argument " "2"" of type '" "sl_t *""'"); 
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "HeaderXML_include_list_set" "', argument " "2"" of type '" "am_sl_t *""'"); 
     }
-    arg2 = (sl_t *)(argp2);
+    arg2 = (am_sl_t *)(argp2);
     if (arg1) (arg1)->include_list = arg2;
     ST(argvi) = sv_newmortal();
     
@@ -5943,7 +5943,7 @@ XS(_wrap_HeaderXML_include_list_get) {
     void *argp1 = 0 ;
     int res1 = 0 ;
     int argvi = 0;
-    sl_t *result = 0 ;
+    am_sl_t *result = 0 ;
     dXSARGS;
     
     if ((items < 1) || (items > 1)) {
@@ -5954,8 +5954,8 @@ XS(_wrap_HeaderXML_include_list_get) {
       SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "HeaderXML_include_list_get" "', argument " "1"" of type '" "dle_t *""'"); 
     }
     arg1 = (dle_t *)(argp1);
-    result = (sl_t *) ((arg1)->include_list);
-    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_sl_t, 0 | 0); argvi++ ;
+    result = (am_sl_t *) ((arg1)->include_list);
+    ST(argvi) = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_am_sl_t, 0 | 0); argvi++ ;
     
     XSRETURN(argvi);
   fail:
@@ -6559,6 +6559,7 @@ XS(_wrap_delete_HeaderXML) {
 static swig_type_info _swigt__p_GSList = {"_p_GSList", "GSList *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_a_STRMAX__char = {"_p_a_STRMAX__char", "char (*)[STRMAX]|string_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_a_dle_s = {"_p_a_dle_s", "struct a_dle_s *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_am_sl_t = {"_p_am_sl_t", "am_sl_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_char = {"_p_char", "gchar *|char *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_data_path_t = {"_p_data_path_t", "data_path_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_dle_t = {"_p_dle_t", "dle_t *", 0, 0, (void*)"Amanda::Header::HeaderXML", 0};
@@ -6571,13 +6572,13 @@ static swig_type_info _swigt__p_levellist_t = {"_p_levellist_t", "levellist_t *"
 static swig_type_info _swigt__p_off_t = {"_p_off_t", "off_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_proplist_t = {"_p_proplist_t", "proplist_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_scriptlist_t = {"_p_scriptlist_t", "scriptlist_t *", 0, 0, (void*)0, 0};
-static swig_type_info _swigt__p_sl_t = {"_p_sl_t", "sl_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "guchar *|unsigned char *", 0, 0, (void*)0, 0};
 
 static swig_type_info *swig_type_initial[] = {
   &_swigt__p_GSList,
   &_swigt__p_a_STRMAX__char,
   &_swigt__p_a_dle_s,
+  &_swigt__p_am_sl_t,
   &_swigt__p_char,
   &_swigt__p_data_path_t,
   &_swigt__p_dle_t,
@@ -6590,13 +6591,13 @@ static swig_type_info *swig_type_initial[] = {
   &_swigt__p_off_t,
   &_swigt__p_proplist_t,
   &_swigt__p_scriptlist_t,
-  &_swigt__p_sl_t,
   &_swigt__p_unsigned_char,
 };
 
 static swig_cast_info _swigc__p_GSList[] = {  {&_swigt__p_GSList, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_a_STRMAX__char[] = {  {&_swigt__p_a_STRMAX__char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_a_dle_s[] = {  {&_swigt__p_a_dle_s, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_am_sl_t[] = {  {&_swigt__p_am_sl_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_char[] = {  {&_swigt__p_char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_data_path_t[] = {  {&_swigt__p_data_path_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_dle_t[] = {  {&_swigt__p_dle_t, 0, 0, 0},{0, 0, 0, 0}};
@@ -6609,13 +6610,13 @@ static swig_cast_info _swigc__p_levellist_t[] = {  {&_swigt__p_levellist_t, 0, 0
 static swig_cast_info _swigc__p_off_t[] = {  {&_swigt__p_off_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_proplist_t[] = {  {&_swigt__p_proplist_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_scriptlist_t[] = {  {&_swigt__p_scriptlist_t, 0, 0, 0},{0, 0, 0, 0}};
-static swig_cast_info _swigc__p_sl_t[] = {  {&_swigt__p_sl_t, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_unsigned_char[] = {  {&_swigt__p_unsigned_char, 0, 0, 0},{0, 0, 0, 0}};
 
 static swig_cast_info *swig_cast_initial[] = {
   _swigc__p_GSList,
   _swigc__p_a_STRMAX__char,
   _swigc__p_a_dle_s,
+  _swigc__p_am_sl_t,
   _swigc__p_char,
   _swigc__p_data_path_t,
   _swigc__p_dle_t,
@@ -6628,7 +6629,6 @@ static swig_cast_info *swig_cast_initial[] = {
   _swigc__p_off_t,
   _swigc__p_proplist_t,
   _swigc__p_scriptlist_t,
-  _swigc__p_sl_t,
   _swigc__p_unsigned_char,
 };
 

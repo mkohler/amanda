@@ -1851,6 +1851,7 @@ XS(_wrap_list_new_tapes) {
     result = (char *)list_new_tapes(arg1);
     ST(argvi) = SWIG_FromCharPtr((const char *)result); argvi++ ;
     
+    free((char*)result);
     XSRETURN(argvi);
   fail:
     

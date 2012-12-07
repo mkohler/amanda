@@ -1,4 +1,4 @@
-# Copyright (c) 2008,2009,2010 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2008-2012 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -20,6 +20,7 @@ package Amanda::Changer::single;
 
 use strict;
 use warnings;
+use Carp;
 use vars qw( @ISA );
 @ISA = qw( Amanda::Changer );
 
@@ -77,7 +78,7 @@ sub load {
 
     return if $self->check_error($params{'res_cb'});
 
-    die "no res_cb supplied" unless (exists $params{'res_cb'});
+    confess "no res_cb supplied" unless (exists $params{'res_cb'});
 
     if ($self->{'reserved'}) {
 	return $self->make_error("failed", $params{'res_cb'},

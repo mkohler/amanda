@@ -91,7 +91,7 @@ typedef enum {
     CONF_DEVICE,               CONF_ORDER,		CONF_SINGLE_EXECUTION,
     CONF_DATA_PATH,            CONF_AMANDA,		CONF_DIRECTTCP,
     CONF_TAPER_PARALLEL_WRITE, CONF_INTERACTIVITY,	CONF_TAPERSCAN,
-    CONF_MAX_DLE_BY_VOLUME,    CONF_EJECT_VOLUME,
+    CONF_MAX_DLE_BY_VOLUME,    CONF_EJECT_VOLUME,	CONF_TMPDIR,
 
     /* execute on */
     CONF_PRE_AMCHECK,          CONF_POST_AMCHECK,
@@ -128,6 +128,7 @@ typedef enum {
     CONF_CLNTCOMPPROG,		CONF_SRV_ENCRYPT,	CONF_CLNT_ENCRYPT,
     CONF_SRV_DECRYPT_OPT,	CONF_CLNT_DECRYPT_OPT,	CONF_AMANDAD_PATH,
     CONF_CLIENT_USERNAME,	CONF_CLIENT_PORT,	CONF_ALLOW_SPLIT,
+    CONF_MAX_WARNINGS,
 
     /* tape type */
     /*COMMENT,*/		CONF_BLOCKSIZE,
@@ -229,6 +230,7 @@ static FILE *current_file = NULL;
 static char *current_filename = NULL;
 static char *current_line = NULL;
 static char *current_char = NULL;
+static char *current_block = NULL;
 static int current_line_num = 0; /* (technically, managed by the parser) */
 
 /* A static buffer for storing tokens while they are being scanned. */
@@ -357,7 +359,7 @@ struct device_config_s {
 
 struct changer_config_s {
     struct changer_config_s *next;
-    int seen;
+    seen_t seen;
     char *name;
 
     val_t value[CHANGER_CONFIG_CHANGER_CONFIG];
@@ -521,7 +523,6 @@ static void read_str(conf_var_t *, val_t *);
 static void read_ident(conf_var_t *, val_t *);
 static void read_time(conf_var_t *, val_t *);
 static void read_size(conf_var_t *, val_t *);
-static void read_size_byte(conf_var_t *, val_t *);
 static void read_bool(conf_var_t *, val_t *);
 static void read_no_yes_all(conf_var_t *, val_t *);
 static void read_compress(conf_var_t *, val_t *);
@@ -566,11 +567,11 @@ static taperscan_t *read_taperscan(char *name, FILE *from, char *fname,
  * values can be written: integers can have units, boolean values can be
  * specified with a number of names, etc.  They form utility functions
  * for the read_functions, below. */
+static gint64 get_multiplier(gint64 val, confunit_t unit);
 static time_t  get_time(void);
-static int     get_int(void);
-static ssize_t get_size(void);
-static ssize_t get_size_byte(void);
-static gint64  get_int64(void);
+static int     get_int(confunit_t unit);
+static ssize_t get_size(confunit_t unit);
+static gint64  get_int64(confunit_t unit);
 static int     get_bool(void);
 static int     get_no_yes_all(void);
 
@@ -603,6 +604,8 @@ static void validate_reserved_port_range(conf_var_t *, val_t *);
 static void validate_unreserved_port_range(conf_var_t *, val_t *);
 static void validate_program(conf_var_t *, val_t *);
 static void validate_dump_limit(conf_var_t *, val_t *);
+static void validate_tmpdir(conf_var_t *, val_t *);
+
 gint compare_pp_script_order(gconstpointer a, gconstpointer b);
 
 /*
@@ -691,14 +694,14 @@ static cfgerr_level_t apply_config_overrides(config_overrides_t *co,
  * These set the value's type and seen flags, as well as copying
  * the relevant value into the 'v' field.
  */
-static void conf_init_int(val_t *val, int i);
-static void conf_init_int64(val_t *val, gint64 l);
+static void conf_init_int(val_t *val, confunit_t unit, int i);
+static void conf_init_int64(val_t *val, confunit_t unit, gint64 l);
 static void conf_init_real(val_t *val, float r);
 static void conf_init_str(val_t *val, char *s);
 static void conf_init_ident(val_t *val, char *s);
 static void conf_init_identlist(val_t *val, char *s);
 static void conf_init_time(val_t *val, time_t t);
-static void conf_init_size(val_t *val, ssize_t sz);
+static void conf_init_size(val_t *val, confunit_t unit, ssize_t sz);
 static void conf_init_bool(val_t *val, int i);
 static void conf_init_no_yes_all(val_t *val, int i);
 static void conf_init_compress(val_t *val, comp_t i);
@@ -756,7 +759,7 @@ void free_property_t(gpointer p);
 /* Utility functions/structs for val_t_display_strs */
 static char *exinclude_display_str(val_t *val, int file);
 static void proplist_display_str_foreach_fn(gpointer key_p, gpointer value_p, gpointer user_data_p);
-static void val_t_print_token(FILE *output, char *prefix, char *format, keytab_t *kt, val_t *val);
+static void val_t_print_token(gboolean print_default, gboolean print_source, FILE *output, char *prefix, char *format, keytab_t *kt, val_t *val);
 
 /* Given a key name as used in config overwrites, return a pointer to the corresponding
  * conf_var_t in the current parsetable, and the val_t representing that value.  This
@@ -1002,6 +1005,7 @@ keytab_t server_keytab[] = {
     { "MAXDUMPS", CONF_MAXDUMPS },
     { "MAXDUMPSIZE", CONF_MAXDUMPSIZE },
     { "MAXPROMOTEDAY", CONF_MAXPROMOTEDAY },
+    { "MAX_WARNINGS", CONF_MAX_WARNINGS },
     { "MEMORY", CONF_MEMORY },
     { "MEDIUM", CONF_MEDIUM },
     { "META_AUTOLABEL", CONF_META_AUTOLABEL },
@@ -1090,6 +1094,7 @@ keytab_t server_keytab[] = {
     { "TAPERFLUSH", CONF_TAPERFLUSH },
     { "TAPETYPE", CONF_TAPETYPE },
     { "TAPE_SPLITSIZE", CONF_TAPE_SPLITSIZE },
+    { "TMPDIR", CONF_TMPDIR },
     { "TPCHANGER", CONF_TPCHANGER },
     { "UNRESERVED_TCP_PORT", CONF_UNRESERVED_TCP_PORT },
     { "USE", CONF_USE },
@@ -1264,7 +1269,7 @@ conf_var_t server_var [] = {
    { CONF_ETIMEOUT             , CONFTYPE_INT      , read_int         , CNF_ETIMEOUT             , validate_non_zero },
    { CONF_DTIMEOUT             , CONFTYPE_INT      , read_int         , CNF_DTIMEOUT             , validate_positive },
    { CONF_CTIMEOUT             , CONFTYPE_INT      , read_int         , CNF_CTIMEOUT             , validate_positive },
-   { CONF_DEVICE_OUTPUT_BUFFER_SIZE, CONFTYPE_SIZE , read_size_byte   , CNF_DEVICE_OUTPUT_BUFFER_SIZE, validate_positive },
+   { CONF_DEVICE_OUTPUT_BUFFER_SIZE, CONFTYPE_SIZE , read_size        , CNF_DEVICE_OUTPUT_BUFFER_SIZE, validate_positive },
    { CONF_COLUMNSPEC           , CONFTYPE_STR      , read_str         , CNF_COLUMNSPEC           , NULL },
    { CONF_TAPERALGO            , CONFTYPE_TAPERALGO, read_taperalgo   , CNF_TAPERALGO            , NULL },
    { CONF_TAPER_PARALLEL_WRITE , CONFTYPE_INT      , read_int         , CNF_TAPER_PARALLEL_WRITE , NULL },
@@ -1282,6 +1287,7 @@ conf_var_t server_var [] = {
    { CONF_AUTOLABEL            , CONFTYPE_AUTOLABEL, read_autolabel   , CNF_AUTOLABEL            , NULL },
    { CONF_META_AUTOLABEL       , CONFTYPE_STR      , read_str         , CNF_META_AUTOLABEL       , NULL },
    { CONF_EJECT_VOLUME         , CONFTYPE_BOOLEAN  , read_bool        , CNF_EJECT_VOLUME         , NULL },
+   { CONF_TMPDIR               , CONFTYPE_STR      , read_str         , CNF_TMPDIR               , validate_tmpdir },
    { CONF_USETIMESTAMPS        , CONFTYPE_BOOLEAN  , read_bool        , CNF_USETIMESTAMPS        , NULL },
    { CONF_AMRECOVER_DO_FSF     , CONFTYPE_BOOLEAN  , read_bool        , CNF_AMRECOVER_DO_FSF     , NULL },
    { CONF_AMRECOVER_CHANGER    , CONFTYPE_STR      , read_str         , CNF_AMRECOVER_CHANGER    , NULL },
@@ -1376,6 +1382,7 @@ conf_var_t dumptype_var [] = {
    { CONF_SCRIPT            , CONFTYPE_STR      , read_dpp_script, DUMPTYPE_SCRIPTLIST       , NULL },
    { CONF_DATA_PATH         , CONFTYPE_DATA_PATH, read_data_path, DUMPTYPE_DATA_PATH         , NULL },
    { CONF_ALLOW_SPLIT       , CONFTYPE_BOOLEAN  , read_bool    , DUMPTYPE_ALLOW_SPLIT        , NULL },
+   { CONF_MAX_WARNINGS      , CONFTYPE_INT      , read_int     , DUMPTYPE_MAX_WARNINGS       , validate_nonnegative },
    { CONF_RECOVERY_LIMIT    , CONFTYPE_HOST_LIMIT, read_host_limit, DUMPTYPE_RECOVERY_LIMIT  , NULL },
    { CONF_DUMP_LIMIT        , CONFTYPE_HOST_LIMIT, read_host_limit, DUMPTYPE_DUMP_LIMIT      , validate_dump_limit },
    { CONF_UNKNOWN           , CONFTYPE_INT      , NULL          , DUMPTYPE_DUMPTYPE          , NULL }
@@ -1903,6 +1910,7 @@ read_confline(
 	    else if(tok == CONF_INTERACTIVITY) get_interactivity();
 	    else if(tok == CONF_TAPERSCAN) get_taperscan();
 	    else conf_parserror(_("DUMPTYPE, INTERFACE, TAPETYPE, HOLDINGDISK, APPLICATION, SCRIPT, DEVICE, CHANGER, INTERACTIVITY or TAPERSCAN expected"));
+	    current_block = NULL;
 	}
 	break;
 
@@ -1911,6 +1919,20 @@ read_confline(
 
     case CONF_END:	/* end of file */
 	return 0;
+
+    /* These should never be at the begining of a line */
+    case CONF_LBRACE:
+    case CONF_RBRACE:
+    case CONF_IDENT:
+    case CONF_INT:
+    case CONF_INT64:
+    case CONF_BOOL:
+    case CONF_REAL:
+    case CONF_STRING:
+    case CONF_TIME:
+    case CONF_SIZE:
+	conf_parserror("error: not a keyword.");
+	break;
 
     /* if it's not a known punctuation mark, then check the parse table and use the
      * read_function we find there. */
@@ -2175,6 +2197,8 @@ get_holdingdisk(
 
     get_conftoken(CONF_IDENT);
     hdcur.name = stralloc(tokenval.v.s);
+    current_block = g_strconcat("holdingdisk ", hdcur.name, NULL);
+    hdcur.seen.block = current_block;
     hdcur.seen.filename = current_filename;
     hdcur.seen.linenum = current_line_num;
 
@@ -2239,9 +2263,9 @@ init_holdingdisk_defaults(
 {
     conf_init_str(&hdcur.value[HOLDING_COMMENT]  , "");
     conf_init_str(&hdcur.value[HOLDING_DISKDIR]  , "");
-    conf_init_int64(&hdcur.value[HOLDING_DISKSIZE] , (gint64)0);
+    conf_init_int64(&hdcur.value[HOLDING_DISKSIZE] , CONF_UNIT_K, (gint64)0);
                     /* 1 Gb = 1M counted in 1Kb blocks */
-    conf_init_int64(&hdcur.value[HOLDING_CHUNKSIZE], (gint64)1024*1024);
+    conf_init_int64(&hdcur.value[HOLDING_CHUNKSIZE], CONF_UNIT_K, (gint64)1024*1024);
 }
 
 static void
@@ -2315,6 +2339,8 @@ read_dumptype(
 	get_conftoken(CONF_IDENT);
 	dpcur.name = stralloc(tokenval.v.s);
     }
+    current_block = g_strconcat("dumptype ", dpcur.name, NULL);
+    dpcur.seen.block = current_block;
     dpcur.seen.filename = current_filename;
     dpcur.seen.linenum = current_line_num;
 
@@ -2369,12 +2395,12 @@ init_dumptype_defaults(void)
     conf_init_exinclude(&dpcur.value[DUMPTYPE_EXCLUDE]);
     conf_init_exinclude(&dpcur.value[DUMPTYPE_INCLUDE]);
     conf_init_priority (&dpcur.value[DUMPTYPE_PRIORITY]          , 1);
-    conf_init_int      (&dpcur.value[DUMPTYPE_DUMPCYCLE]         , conf_data[CNF_DUMPCYCLE].v.i);
-    conf_init_int      (&dpcur.value[DUMPTYPE_MAXDUMPS]          , conf_data[CNF_MAXDUMPS].v.i);
-    conf_init_int      (&dpcur.value[DUMPTYPE_MAXPROMOTEDAY]     , 10000);
-    conf_init_int      (&dpcur.value[DUMPTYPE_BUMPPERCENT]       , conf_data[CNF_BUMPPERCENT].v.i);
-    conf_init_int64    (&dpcur.value[DUMPTYPE_BUMPSIZE]          , conf_data[CNF_BUMPSIZE].v.int64);
-    conf_init_int      (&dpcur.value[DUMPTYPE_BUMPDAYS]          , conf_data[CNF_BUMPDAYS].v.i);
+    conf_init_int      (&dpcur.value[DUMPTYPE_DUMPCYCLE]         , CONF_UNIT_NONE, conf_data[CNF_DUMPCYCLE].v.i);
+    conf_init_int      (&dpcur.value[DUMPTYPE_MAXDUMPS]          , CONF_UNIT_NONE, conf_data[CNF_MAXDUMPS].v.i);
+    conf_init_int      (&dpcur.value[DUMPTYPE_MAXPROMOTEDAY]     , CONF_UNIT_NONE, 10000);
+    conf_init_int      (&dpcur.value[DUMPTYPE_BUMPPERCENT]       , CONF_UNIT_NONE, conf_data[CNF_BUMPPERCENT].v.i);
+    conf_init_int64    (&dpcur.value[DUMPTYPE_BUMPSIZE]          , CONF_UNIT_K   , conf_data[CNF_BUMPSIZE].v.int64);
+    conf_init_int      (&dpcur.value[DUMPTYPE_BUMPDAYS]          , CONF_UNIT_NONE, conf_data[CNF_BUMPDAYS].v.i);
     conf_init_real     (&dpcur.value[DUMPTYPE_BUMPMULT]          , conf_data[CNF_BUMPMULT].v.r);
     conf_init_time     (&dpcur.value[DUMPTYPE_STARTTIME]         , (time_t)0);
     conf_init_strategy (&dpcur.value[DUMPTYPE_STRATEGY]          , DS_STANDARD);
@@ -2385,8 +2411,8 @@ init_dumptype_defaults(void)
     conf_init_str   (&dpcur.value[DUMPTYPE_SRV_DECRYPT_OPT]   , "-d");
     conf_init_str   (&dpcur.value[DUMPTYPE_CLNT_DECRYPT_OPT]  , "-d");
     conf_init_rate     (&dpcur.value[DUMPTYPE_COMPRATE]          , 0.50, 0.50);
-    conf_init_int64    (&dpcur.value[DUMPTYPE_TAPE_SPLITSIZE]    , (gint64)0);
-    conf_init_int64    (&dpcur.value[DUMPTYPE_FALLBACK_SPLITSIZE], (gint64)10 * 1024);
+    conf_init_int64    (&dpcur.value[DUMPTYPE_TAPE_SPLITSIZE]    , CONF_UNIT_K, (gint64)0);
+    conf_init_int64    (&dpcur.value[DUMPTYPE_FALLBACK_SPLITSIZE], CONF_UNIT_K, (gint64)10 * 1024);
     conf_init_str   (&dpcur.value[DUMPTYPE_SPLIT_DISKBUFFER]  , NULL);
     conf_init_bool     (&dpcur.value[DUMPTYPE_RECORD]            , 1);
     conf_init_bool     (&dpcur.value[DUMPTYPE_SKIP_INCR]         , 0);
@@ -2399,6 +2425,7 @@ init_dumptype_defaults(void)
     conf_init_identlist(&dpcur.value[DUMPTYPE_SCRIPTLIST], NULL);
     conf_init_proplist(&dpcur.value[DUMPTYPE_PROPERTY]);
     conf_init_bool     (&dpcur.value[DUMPTYPE_ALLOW_SPLIT]       , 1);
+    conf_init_int      (&dpcur.value[DUMPTYPE_MAX_WARNINGS]      , CONF_UNIT_NONE, 20);
     conf_init_host_limit(&dpcur.value[DUMPTYPE_RECOVERY_LIMIT]);
     conf_init_host_limit_server(&dpcur.value[DUMPTYPE_DUMP_LIMIT]);
 }
@@ -2471,6 +2498,8 @@ get_tapetype(void)
 
     get_conftoken(CONF_IDENT);
     tpcur.name = stralloc(tokenval.v.s);
+    current_block = g_strconcat("tapetype ", tpcur.name, NULL);
+    tpcur.seen.block = current_block;
     tpcur.seen.filename = current_filename;
     tpcur.seen.linenum = current_line_num;
 
@@ -2481,7 +2510,7 @@ get_tapetype(void)
 
     if (tapetype_get_readblocksize(&tpcur) <
 	tapetype_get_blocksize(&tpcur)) {
-	conf_init_size(&tpcur.value[TAPETYPE_READBLOCKSIZE],
+	conf_init_size(&tpcur.value[TAPETYPE_READBLOCKSIZE], CONF_UNIT_K,
 		       tapetype_get_blocksize(&tpcur));
     }
     save_tapetype();
@@ -2494,15 +2523,15 @@ init_tapetype_defaults(void)
 {
     conf_init_str(&tpcur.value[TAPETYPE_COMMENT]      , "");
     conf_init_str(&tpcur.value[TAPETYPE_LBL_TEMPL]    , "");
-    conf_init_size  (&tpcur.value[TAPETYPE_BLOCKSIZE]    , DISK_BLOCK_KB);
-    conf_init_size  (&tpcur.value[TAPETYPE_READBLOCKSIZE], DISK_BLOCK_KB);
-    conf_init_int64 (&tpcur.value[TAPETYPE_LENGTH]       , ((gint64)2000));
-    conf_init_int64 (&tpcur.value[TAPETYPE_FILEMARK]     , (gint64)1);
-    conf_init_int   (&tpcur.value[TAPETYPE_SPEED]        , 200);
-    conf_init_int64(&tpcur.value[TAPETYPE_PART_SIZE], 0);
+    conf_init_size  (&tpcur.value[TAPETYPE_BLOCKSIZE]    , CONF_UNIT_K, DISK_BLOCK_KB);
+    conf_init_size  (&tpcur.value[TAPETYPE_READBLOCKSIZE], CONF_UNIT_K, DISK_BLOCK_KB);
+    conf_init_int64 (&tpcur.value[TAPETYPE_LENGTH]       , CONF_UNIT_K, ((gint64)2000));
+    conf_init_int64 (&tpcur.value[TAPETYPE_FILEMARK]     , CONF_UNIT_K, (gint64)1);
+    conf_init_int   (&tpcur.value[TAPETYPE_SPEED]        , CONF_UNIT_NONE, 200);
+    conf_init_int64(&tpcur.value[TAPETYPE_PART_SIZE], CONF_UNIT_K, 0);
     conf_init_part_cache_type(&tpcur.value[TAPETYPE_PART_CACHE_TYPE], PART_CACHE_TYPE_NONE);
     conf_init_str(&tpcur.value[TAPETYPE_PART_CACHE_DIR], "");
-    conf_init_int64(&tpcur.value[TAPETYPE_PART_CACHE_MAX_SIZE], 0);
+    conf_init_int64(&tpcur.value[TAPETYPE_PART_CACHE_MAX_SIZE], CONF_UNIT_K, 0);
 }
 
 static void
@@ -2566,6 +2595,8 @@ get_interface(void)
 
     get_conftoken(CONF_IDENT);
     ifcur.name = stralloc(tokenval.v.s);
+    current_block = g_strconcat("interface ", ifcur.name, NULL);
+    ifcur.seen.block = current_block;
     ifcur.seen.filename = current_filename;
     ifcur.seen.linenum = current_line_num;
 
@@ -2585,7 +2616,7 @@ static void
 init_interface_defaults(void)
 {
     conf_init_str(&ifcur.value[INTER_COMMENT] , "");
-    conf_init_int   (&ifcur.value[INTER_MAXUSAGE], 80000);
+    conf_init_int   (&ifcur.value[INTER_MAXUSAGE], CONF_UNIT_K, 80000);
 }
 
 static void
@@ -2670,6 +2701,8 @@ read_application(
 	get_conftoken(CONF_IDENT);
 	apcur.name = stralloc(tokenval.v.s);
     }
+    current_block = g_strconcat("application ", apcur.name, NULL);
+    apcur.seen.block = current_block;
     apcur.seen.filename = current_filename;
     apcur.seen.linenum = current_line_num;
 
@@ -2797,6 +2830,8 @@ read_interactivity(
 	get_conftoken(CONF_IDENT);
 	ivcur.name = stralloc(tokenval.v.s);
     }
+    current_block = g_strconcat("interactivity ", ivcur.name, NULL);
+    ivcur.seen.block = current_block;
     ivcur.seen.filename = current_filename;
     ivcur.seen.linenum = current_line_num;
 
@@ -2923,6 +2958,8 @@ read_taperscan(
 	get_conftoken(CONF_IDENT);
 	tscur.name = stralloc(tokenval.v.s);
     }
+    current_block = g_strconcat("taperscan ", tscur.name, NULL);
+    tscur.seen.block = current_block;
     tscur.seen.filename = current_filename;
     tscur.seen.linenum = current_line_num;
 
@@ -3049,6 +3086,8 @@ read_pp_script(
 	get_conftoken(CONF_IDENT);
 	pscur.name = stralloc(tokenval.v.s);
     }
+    current_block = g_strconcat("script ", pscur.name, NULL);
+    pscur.seen.block = current_block;
     pscur.seen.filename = current_filename;
     pscur.seen.linenum = current_line_num;
 
@@ -3092,7 +3131,7 @@ init_pp_script_defaults(
     conf_init_proplist(&pscur.value[PP_SCRIPT_PROPERTY]);
     conf_init_execute_on(&pscur.value[PP_SCRIPT_EXECUTE_ON], 0);
     conf_init_execute_where(&pscur.value[PP_SCRIPT_EXECUTE_WHERE], ES_CLIENT);
-    conf_init_int(&pscur.value[PP_SCRIPT_ORDER], 5000);
+    conf_init_int(&pscur.value[PP_SCRIPT_ORDER], CONF_UNIT_NONE, 5000);
     conf_init_bool(&pscur.value[PP_SCRIPT_SINGLE_EXECUTION], 0);
     conf_init_str(&pscur.value[PP_SCRIPT_CLIENT_NAME], "");
 }
@@ -3180,6 +3219,8 @@ read_device_config(
 	get_conftoken(CONF_IDENT);
 	dccur.name = stralloc(tokenval.v.s);
     }
+    current_block = g_strconcat("device ", dccur.name, NULL);
+    dccur.seen.block = current_block;
     dccur.seen.filename = current_filename;
     dccur.seen.linenum = current_line_num;
 
@@ -3306,7 +3347,10 @@ read_changer_config(
 	get_conftoken(CONF_IDENT);
 	cccur.name = stralloc(tokenval.v.s);
     }
-    cccur.seen = current_line_num;
+    current_block = g_strconcat("changer ", cccur.name, NULL);
+    cccur.seen.block = current_block;
+    cccur.seen.filename = current_filename;
+    cccur.seen.linenum = current_line_num;
 
     read_block(changer_config_var, cccur.value,
 	       _("changer parameter expected"),
@@ -3361,8 +3405,8 @@ save_changer_config(
     dc = lookup_changer_config(cccur.name);
 
     if(dc != (changer_config_t *)0) {
-	conf_parserror(_("changer %s already defined on line %d"),
-		       dc->name, dc->seen);
+	conf_parserror(_("changer %s already defined at %s:%d"),
+		       dc->name, dc->seen.filename, dc->seen.linenum);
 	return;
     }
 
@@ -3409,7 +3453,7 @@ read_int(
     val_t *val)
 {
     ckseen(&val->seen);
-    val_t__int(val) = get_int();
+    val_t__int(val) = get_int(val->unit);
 }
 
 static void
@@ -3418,7 +3462,7 @@ read_int64(
     val_t *val)
 {
     ckseen(&val->seen);
-    val_t__int64(val) = get_int64();
+    val_t__int64(val) = get_int64(val->unit);
 }
 
 static void
@@ -3466,16 +3510,7 @@ read_size(
     val_t *val)
 {
     ckseen(&val->seen);
-    val_t__size(val) = get_size();
-}
-
-static void
-read_size_byte(
-    conf_var_t *np G_GNUC_UNUSED,
-    val_t *val)
-{
-    ckseen(&val->seen);
-    val_t__size(val) = get_size_byte();
+    val_t__size(val) = get_size(val->unit);
 }
 
 static void
@@ -3808,7 +3843,7 @@ read_exinclude(
     val_t *val)
 {
     int file, got_one = 0;
-    sl_t *exclude;
+    am_sl_t *exclude;
     int optional = 0;
 
     get_conftoken(CONF_ANY);
@@ -3888,6 +3923,7 @@ read_property(
     val_t      *val)
 {
     char *key;
+    gboolean set_seen = TRUE;
     property_t *property = malloc(sizeof(property_t));
     property_t *old_property;
     property->append = 0; 
@@ -3921,8 +3957,7 @@ read_property(
     }
 
     if(val->seen.linenum == 0) {
-	val->seen.filename = current_filename;
-	val->seen.linenum = current_line_num;
+	ckseen(&val->seen); // first property
     }
 
     old_property = g_hash_table_lookup(val->v.proplist, key);
@@ -3934,6 +3969,7 @@ read_property(
 		property->priority = 1;
 	    property->values = old_property->values;
 	    old_property->values = NULL;
+	    set_seen = FALSE;
 	}
     }
     while(tok == CONF_STRING) {
@@ -3943,6 +3979,12 @@ read_property(
     }
     unget_conftoken();
     g_hash_table_insert(val->v.proplist, key, property);
+    if (set_seen) {
+	property->seen.linenum = 0;
+	property->seen.filename = NULL;
+	property->seen.block = NULL;
+	ckseen(&property->seen);
+    }
 }
 
 
@@ -4324,7 +4366,8 @@ get_time(void)
 }
 
 static int
-get_int(void)
+get_int(
+    confunit_t unit)
 {
     int val;
     keytab_t *save_kt;
@@ -4369,57 +4412,15 @@ get_int(void)
     }
 
     /* get multiplier, if any */
-    get_conftoken(CONF_ANY);
-    switch(tok) {
-    case CONF_NL:			/* multiply by one */
-    case CONF_END:
-    case CONF_MULT1:
-    case CONF_MULT1K:
-	break;
-
-    case CONF_MULT7:
-	if (val > (INT_MAX / 7))
-	    conf_parserror(_("value too large"));
-	if (val < (INT_MIN / 7))
-	    conf_parserror(_("value too small"));
-	val *= 7;
-	break;
-
-    case CONF_MULT1M:
-	if (val > (INT_MAX / 1024))
-	    conf_parserror(_("value too large"));
-	if (val < (INT_MIN / 1024))
-	    conf_parserror(_("value too small"));
-	val *= 1024;
-	break;
-
-    case CONF_MULT1G:
-	if (val > (INT_MAX / (1024 * 1024)))
-	    conf_parserror(_("value too large"));
-	if (val < (INT_MIN / (1024 * 1024)))
-	    conf_parserror(_("value too small"));
-	val *= 1024 * 1024;
-	break;
-
-    case CONF_MULT1T:
-	if (val > (INT_MAX / (1024 * 1024 * 1024)))
-	    conf_parserror(_("value too large"));
-	if (val < (INT_MIN / (1024 * 1024 * 1024)))
-	    conf_parserror(_("value too small"));
-	val *= 1024 * 1024 * 1024;
-	break;
-
-    default:	/* it was not a multiplier */
-	unget_conftoken();
-	break;
-    }
+    val = get_multiplier(val, unit);
 
     keytable = save_kt;
     return val;
 }
 
 static ssize_t
-get_size(void)
+get_size(
+    confunit_t unit)
 {
     ssize_t val;
     keytab_t *save_kt;
@@ -4465,154 +4466,15 @@ get_size(void)
     }
 
     /* get multiplier, if any */
-    get_conftoken(CONF_ANY);
-
-    switch(tok) {
-    case CONF_NL:			/* multiply by one */
-    case CONF_MULT1:
-    case CONF_MULT1K:
-	break;
-
-    case CONF_MULT7:
-	if (val > (ssize_t)(SSIZE_MAX / 7))
-	    conf_parserror(_("value too large"));
-	if (val < (ssize_t)(SSIZE_MIN / 7))
-	    conf_parserror(_("value too small"));
-	val *= (ssize_t)7;
-	break;
-
-    case CONF_MULT1M:
-	if (val > (ssize_t)(SSIZE_MAX / (ssize_t)1024))
-	    conf_parserror(_("value too large"));
-	if (val < (ssize_t)(SSIZE_MIN / (ssize_t)1024))
-	    conf_parserror(_("value too small"));
-	val *= (ssize_t)1024;
-	break;
-
-    case CONF_MULT1G:
-	if (val > (ssize_t)(SSIZE_MAX / (1024 * 1024)))
-	    conf_parserror(_("value too large"));
-	if (val < (ssize_t)(SSIZE_MIN / (1024 * 1024)))
-	    conf_parserror(_("value too small"));
-	val *= (ssize_t)(1024 * 1024);
-	break;
-
-    case CONF_MULT1T:
-	if (val > (INT_MAX / (1024 * 1024 * 1024)))
-	    conf_parserror(_("value too large"));
-	if (val < (INT_MIN / (1024 * 1024 * 1024)))
-	    conf_parserror(_("value too small"));
-	val *= 1024 * 1024 * 1024;
-	break;
-
-    default:	/* it was not a multiplier */
-	unget_conftoken();
-	break;
-    }
-
-    keytable = save_kt;
-    return val;
-}
-
-static ssize_t
-get_size_byte(void)
-{
-    ssize_t val;
-    keytab_t *save_kt;
-
-    save_kt = keytable;
-    keytable = numb_keytable;
-
-    get_conftoken(CONF_ANY);
-
-    switch(tok) {
-    case CONF_SIZE:
-	val = tokenval.v.size;
-	break;
-
-    case CONF_INT:
-#if SIZEOF_SIZE_T < SIZEOF_INT
-	if ((gint64)tokenval.v.i > (gint64)SSIZE_MAX)
-	    conf_parserror(_("value too large"));
-	if ((gint64)tokenval.v.i < (gint64)SSIZE_MIN)
-	    conf_parserror(_("value too small"));
-#endif
-	val = (ssize_t)tokenval.v.i;
-	break;
-
-    case CONF_INT64:
-#if SIZEOF_SIZE_T < SIZEOF_GINT64
-	if (tokenval.v.int64 > (gint64)SSIZE_MAX)
-	    conf_parserror(_("value too large"));
-	if (tokenval.v.int64 < (gint64)SSIZE_MIN)
-	    conf_parserror(_("value too small"));
-#endif
-	val = (ssize_t)tokenval.v.int64;
-	break;
-
-    case CONF_AMINFINITY:
-	val = (ssize_t)SSIZE_MAX;
-	break;
-
-    default:
-	conf_parserror(_("an integer is expected"));
-	val = 0;
-	break;
-    }
-
-    /* get multiplier, if any */
-    get_conftoken(CONF_ANY);
-
-    switch(tok) {
-    case CONF_NL:			/* multiply by one */
-    case CONF_MULT1:
-	break;
-    case CONF_MULT1K:
-	if (val > (ssize_t)(SSIZE_MAX / (ssize_t)1024))
-	    conf_parserror(_("value too large"));
-	if (val < (ssize_t)(SSIZE_MIN / (ssize_t)1024))
-	    conf_parserror(_("value too small"));
-	val *= (ssize_t)1024;
-
-    case CONF_MULT7:
-	if (val > (ssize_t)(SSIZE_MAX / 7))
-	    conf_parserror(_("value too large"));
-	if (val < (ssize_t)(SSIZE_MIN / 7))
-	    conf_parserror(_("value too small"));
-	val *= (ssize_t)7;
-	break;
-
-    case CONF_MULT1M:
-	if (val > (ssize_t)(SSIZE_MAX / (ssize_t)1024 * 1024))
-	    conf_parserror(_("value too large"));
-	if (val < (ssize_t)(SSIZE_MIN / (ssize_t)1024 * 1024))
-	    conf_parserror(_("value too small"));
-	val *= (ssize_t)(1024 * 1024);
-	break;
-
-    case CONF_MULT1G:
-	if (val > (ssize_t)(SSIZE_MAX / (1024 * 1024 * 1024)))
-	    conf_parserror(_("value too large"));
-	if (val < (ssize_t)(SSIZE_MIN / (1024 * 1024 * 1024)))
-	    conf_parserror(_("value too small"));
-	val *= (ssize_t)(1024 * 1024 * 1024);
-	break;
-
-    case CONF_MULT1T:
-	conf_parserror(_("value too large"));
-	break;
-
-    default:	/* it was not a multiplier */
-	unget_conftoken();
-	break;
-    }
+    val = get_multiplier(val, unit);
 
     keytable = save_kt;
     return val;
 }
 
 static gint64
-get_int64(void)
+get_int64(
+    confunit_t unit)
 {
     gint64 val;
     keytab_t *save_kt;
@@ -4646,44 +4508,53 @@ get_int64(void)
     }
 
     /* get multiplier, if any */
+    val = get_multiplier(val, unit);
+
+    keytable = save_kt;
+
+    return val;
+}
+
+gint64
+get_multiplier(
+    gint64 val,
+    confunit_t unit)
+{
+    /* get multiplier, if any */
     get_conftoken(CONF_ANY);
 
-    switch(tok) {
-    case CONF_NL:			/* multiply by one */
-    case CONF_MULT1:
-    case CONF_MULT1K:
-	break;
-
-    case CONF_MULT7:
+    if (tok == CONF_MULT1 && unit == CONF_UNIT_K) {
+	val /= 1024;
+    } else if (tok == CONF_NL || tok == CONF_MULT1 ||
+	(tok == CONF_MULT1K && unit == CONF_UNIT_K)) {
+	val *= 1;	/* multiply by one */
+    } else if (tok == CONF_MULT7) {
 	if (val > G_MAXINT64/7 || val < ((gint64)G_MININT64)/7)
 	    conf_parserror(_("value too large"));
 	val *= 7;
-	break;
-
-    case CONF_MULT1M:
+    } else if (tok == CONF_MULT1K ||
+	       (tok == CONF_MULT1M && unit == CONF_UNIT_K)) {
 	if (val > G_MAXINT64/1024 || val < ((gint64)G_MININT64)/1024)
 	    conf_parserror(_("value too large"));
 	val *= 1024;
-	break;
-
-    case CONF_MULT1G:
+    } else if (tok == CONF_MULT1M ||
+	       (tok == CONF_MULT1G && unit == CONF_UNIT_K)) {
 	if (val > G_MAXINT64/(1024*1024) || val < ((gint64)G_MININT64)/(1024*1024))
 	    conf_parserror(_("value too large"));
 	val *= 1024*1024;
-	break;
-
-    case CONF_MULT1T:
+    } else if (tok == CONF_MULT1G ||
+	       (tok == CONF_MULT1T && unit == CONF_UNIT_K)) {
 	if (val > G_MAXINT64/(1024*1024*1024) || val < ((gint64)G_MININT64)/(1024*1024*1024))
 	    conf_parserror(_("value too large"));
 	val *= 1024*1024*1024;
-	break;
-
-    default:	/* it was not a multiplier */
+    } else if (tok == CONF_MULT1T) {
+	if (val > G_MAXINT64/(1024*1024*1024*1024LL) || val < ((gint64)G_MININT64)/(1024*1024*1024*1024LL))
+	    conf_parserror(_("value too large"));
+	val *= 1024*1024*1024*1024LL;
+    } else {
+	val *= 1;
 	unget_conftoken();
-	break;
     }
-
-    keytable = save_kt;
 
     return val;
 }
@@ -4805,6 +4676,7 @@ ckseen(
 	conf_parserror(_("duplicate parameter; previous definition %s:%d"),
 		seen->filename, seen->linenum);
     }
+    seen->block = current_block;
     seen->filename = current_filename;
     seen->linenum = current_line_num;
 }
@@ -5045,6 +4917,31 @@ validate_unreserved_port_range(
     val_t        *val)
 {
     validate_port_range(val, IPPORT_RESERVED, 65535);
+}
+
+/*
+ * Validate tmpdir, the directory must exist and be writable by the user.
+ */
+
+static void validate_tmpdir(conf_var_t *var G_GNUC_UNUSED, val_t *value)
+{
+    struct stat stat_buf;
+    gchar *tmpdir = val_t_to_str(value);
+
+    if (stat(tmpdir, &stat_buf)) {
+	conf_parserror(_("invalid TMPDIR: directory '%s': %s."),
+		      tmpdir, strerror(errno));
+    } else if (!S_ISDIR(stat_buf.st_mode)) {
+	conf_parserror(_("invalid TMPDIR: '%s' is not a directory."),
+		      tmpdir);
+    } else {
+	gchar *dir = g_strconcat(tmpdir, "/.", NULL);
+	if (access(dir, R_OK|W_OK) == -1) {
+	    conf_parserror(_("invalid TMPDIR: '%s': can not read/write: %s."),
+			   tmpdir, strerror(errno));
+	}
+	g_free(dir);
+    }
 }
 
 /*
@@ -5335,65 +5232,66 @@ init_defaults(
     conf_init_str   (&conf_data[CNF_INDEXDIR]             , "/usr/adm/amanda/index");
     conf_init_ident    (&conf_data[CNF_TAPETYPE]             , "DEFAULT_TAPE");
     conf_init_identlist(&conf_data[CNF_HOLDINGDISK]          , NULL);
-    conf_init_int      (&conf_data[CNF_DUMPCYCLE]            , 10);
-    conf_init_int      (&conf_data[CNF_RUNSPERCYCLE]         , 0);
-    conf_init_int      (&conf_data[CNF_TAPECYCLE]            , 15);
-    conf_init_int      (&conf_data[CNF_NETUSAGE]             , 80000);
-    conf_init_int      (&conf_data[CNF_INPARALLEL]           , 10);
+    conf_init_int      (&conf_data[CNF_DUMPCYCLE]            , CONF_UNIT_NONE, 10);
+    conf_init_int      (&conf_data[CNF_RUNSPERCYCLE]         , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_TAPECYCLE]            , CONF_UNIT_NONE, 15);
+    conf_init_int      (&conf_data[CNF_NETUSAGE]             , CONF_UNIT_K   , 80000);
+    conf_init_int      (&conf_data[CNF_INPARALLEL]           , CONF_UNIT_NONE, 10);
     conf_init_str   (&conf_data[CNF_DUMPORDER]            , "ttt");
-    conf_init_int      (&conf_data[CNF_BUMPPERCENT]          , 0);
-    conf_init_int64    (&conf_data[CNF_BUMPSIZE]             , (gint64)10*1024);
+    conf_init_int      (&conf_data[CNF_BUMPPERCENT]          , CONF_UNIT_NONE, 0);
+    conf_init_int64    (&conf_data[CNF_BUMPSIZE]             , CONF_UNIT_K   , (gint64)10*1024);
     conf_init_real     (&conf_data[CNF_BUMPMULT]             , 1.5);
-    conf_init_int      (&conf_data[CNF_BUMPDAYS]             , 2);
+    conf_init_int      (&conf_data[CNF_BUMPDAYS]             , CONF_UNIT_NONE, 2);
     conf_init_str   (&conf_data[CNF_TPCHANGER]            , "");
-    conf_init_int      (&conf_data[CNF_RUNTAPES]             , 1);
-    conf_init_int      (&conf_data[CNF_MAXDUMPS]             , 1);
-    conf_init_int      (&conf_data[CNF_MAX_DLE_BY_VOLUME]    , 1000000000);
-    conf_init_int      (&conf_data[CNF_ETIMEOUT]             , 300);
-    conf_init_int      (&conf_data[CNF_DTIMEOUT]             , 1800);
-    conf_init_int      (&conf_data[CNF_CTIMEOUT]             , 30);
-    conf_init_size     (&conf_data[CNF_DEVICE_OUTPUT_BUFFER_SIZE], 40*32768);
+    conf_init_int      (&conf_data[CNF_RUNTAPES]             , CONF_UNIT_NONE, 1);
+    conf_init_int      (&conf_data[CNF_MAXDUMPS]             , CONF_UNIT_NONE, 1);
+    conf_init_int      (&conf_data[CNF_MAX_DLE_BY_VOLUME]    , CONF_UNIT_NONE, 1000000000);
+    conf_init_int      (&conf_data[CNF_ETIMEOUT]             , CONF_UNIT_NONE, 300);
+    conf_init_int      (&conf_data[CNF_DTIMEOUT]             , CONF_UNIT_NONE, 1800);
+    conf_init_int      (&conf_data[CNF_CTIMEOUT]             , CONF_UNIT_NONE, 30);
+    conf_init_size     (&conf_data[CNF_DEVICE_OUTPUT_BUFFER_SIZE], CONF_UNIT_NONE, 40*32768);
     conf_init_str   (&conf_data[CNF_PRINTER]              , "");
     conf_init_str   (&conf_data[CNF_MAILER]               , DEFAULT_MAILER);
     conf_init_no_yes_all(&conf_data[CNF_AUTOFLUSH]            , 0);
-    conf_init_int      (&conf_data[CNF_RESERVE]              , 100);
-    conf_init_int64    (&conf_data[CNF_MAXDUMPSIZE]          , (gint64)-1);
+    conf_init_int      (&conf_data[CNF_RESERVE]              , CONF_UNIT_NONE, 100);
+    conf_init_int64    (&conf_data[CNF_MAXDUMPSIZE]          , CONF_UNIT_K   , (gint64)-1);
     conf_init_str   (&conf_data[CNF_COLUMNSPEC]           , "");
     conf_init_bool     (&conf_data[CNF_AMRECOVER_DO_FSF]     , 1);
     conf_init_str   (&conf_data[CNF_AMRECOVER_CHANGER]    , "");
     conf_init_bool     (&conf_data[CNF_AMRECOVER_CHECK_LABEL], 1);
     conf_init_taperalgo(&conf_data[CNF_TAPERALGO]            , 0);
-    conf_init_int      (&conf_data[CNF_TAPER_PARALLEL_WRITE]     , 1);
-    conf_init_int      (&conf_data[CNF_FLUSH_THRESHOLD_DUMPED]   , 0);
-    conf_init_int      (&conf_data[CNF_FLUSH_THRESHOLD_SCHEDULED], 0);
-    conf_init_int      (&conf_data[CNF_TAPERFLUSH]               , 0);
+    conf_init_int      (&conf_data[CNF_TAPER_PARALLEL_WRITE]     , CONF_UNIT_NONE, 1);
+    conf_init_int      (&conf_data[CNF_FLUSH_THRESHOLD_DUMPED]   , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_FLUSH_THRESHOLD_SCHEDULED], CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_TAPERFLUSH]               , CONF_UNIT_NONE, 0);
     conf_init_str   (&conf_data[CNF_DISPLAYUNIT]          , "k");
     conf_init_str   (&conf_data[CNF_KRB5KEYTAB]           , "/.amanda-v5-keytab");
     conf_init_str   (&conf_data[CNF_KRB5PRINCIPAL]        , "service/amanda");
     conf_init_str   (&conf_data[CNF_LABEL_NEW_TAPES]      , "");
     conf_init_bool     (&conf_data[CNF_EJECT_VOLUME]         , 0);
+    conf_init_str      (&conf_data[CNF_TMPDIR]               , "");
     conf_init_bool     (&conf_data[CNF_USETIMESTAMPS]        , 1);
-    conf_init_int      (&conf_data[CNF_CONNECT_TRIES]        , 3);
-    conf_init_int      (&conf_data[CNF_REP_TRIES]            , 5);
-    conf_init_int      (&conf_data[CNF_REQ_TRIES]            , 3);
-    conf_init_int      (&conf_data[CNF_DEBUG_DAYS]           , AMANDA_DEBUG_DAYS);
-    conf_init_int      (&conf_data[CNF_DEBUG_AMANDAD]        , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_RECOVERY]       , 1);
-    conf_init_int      (&conf_data[CNF_DEBUG_AMIDXTAPED]     , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_AMINDEXD]       , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_AMRECOVER]      , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_AUTH]           , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_EVENT]          , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_HOLDING]        , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_PROTOCOL]       , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_PLANNER]        , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_DRIVER]         , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_DUMPER]         , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_CHUNKER]        , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_TAPER]          , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_SELFCHECK]      , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_SENDSIZE]       , 0);
-    conf_init_int      (&conf_data[CNF_DEBUG_SENDBACKUP]     , 0);
+    conf_init_int      (&conf_data[CNF_CONNECT_TRIES]        , CONF_UNIT_NONE, 3);
+    conf_init_int      (&conf_data[CNF_REP_TRIES]            , CONF_UNIT_NONE, 5);
+    conf_init_int      (&conf_data[CNF_REQ_TRIES]            , CONF_UNIT_NONE, 3);
+    conf_init_int      (&conf_data[CNF_DEBUG_DAYS]           , CONF_UNIT_NONE, AMANDA_DEBUG_DAYS);
+    conf_init_int      (&conf_data[CNF_DEBUG_AMANDAD]        , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_RECOVERY]       , CONF_UNIT_NONE, 1);
+    conf_init_int      (&conf_data[CNF_DEBUG_AMIDXTAPED]     , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_AMINDEXD]       , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_AMRECOVER]      , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_AUTH]           , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_EVENT]          , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_HOLDING]        , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_PROTOCOL]       , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_PLANNER]        , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_DRIVER]         , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_DUMPER]         , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_CHUNKER]        , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_TAPER]          , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_SELFCHECK]      , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_SENDSIZE]       , CONF_UNIT_NONE, 0);
+    conf_init_int      (&conf_data[CNF_DEBUG_SENDBACKUP]     , CONF_UNIT_NONE, 0);
 #ifdef UDPPORTRANGE
     conf_init_intrange (&conf_data[CNF_RESERVED_UDP_PORT]    , UDPPORTRANGE);
 #else
@@ -5666,22 +5564,28 @@ update_derived_values(
 static void
 conf_init_int(
     val_t *val,
+    confunit_t unit,
     int    i)
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_INT;
+    val->unit = unit;
     val_t__int(val) = i;
 }
 
 static void
 conf_init_int64(
     val_t *val,
+    confunit_t unit,
     gint64   l)
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_INT64;
+    val->unit = unit;
     val_t__int64(val) = l;
 }
 
@@ -5692,7 +5596,9 @@ conf_init_real(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_REAL;
+    val->unit = CONF_UNIT_NONE;
     val_t__real(val) = r;
 }
 
@@ -5703,7 +5609,9 @@ conf_init_str(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_STR;
+    val->unit = CONF_UNIT_NONE;
     if(s)
 	val->v.s = stralloc(s);
     else
@@ -5717,7 +5625,9 @@ conf_init_ident(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_IDENT;
+    val->unit = CONF_UNIT_NONE;
     if(s)
 	val->v.s = stralloc(s);
     else
@@ -5731,7 +5641,9 @@ conf_init_identlist(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_IDENTLIST;
+    val->unit = CONF_UNIT_NONE;
     val->v.identlist = NULL;
     if (s)
 	val->v.identlist = g_slist_append(val->v.identlist, stralloc(s));
@@ -5744,18 +5656,23 @@ conf_init_time(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_TIME;
+    val->unit = CONF_UNIT_NONE;
     val_t__time(val) = t;
 }
 
 static void
 conf_init_size(
     val_t *val,
+    confunit_t unit,
     ssize_t   sz)
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_SIZE;
+    val->unit = unit;
     val_t__size(val) = sz;
 }
 
@@ -5766,7 +5683,9 @@ conf_init_bool(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_BOOLEAN;
+    val->unit = CONF_UNIT_NONE;
     val_t__boolean(val) = i;
 }
 
@@ -5777,7 +5696,9 @@ conf_init_no_yes_all(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_NO_YES_ALL;
+    val->unit = CONF_UNIT_NONE;
     val_t__int(val) = i;
 }
 
@@ -5788,7 +5709,9 @@ conf_init_compress(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_COMPRESS;
+    val->unit = CONF_UNIT_NONE;
     val_t__compress(val) = (int)i;
 }
 
@@ -5799,7 +5722,9 @@ conf_init_encrypt(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_ENCRYPT;
+    val->unit = CONF_UNIT_NONE;
     val_t__encrypt(val) = (int)i;
 }
 
@@ -5810,7 +5735,9 @@ conf_init_part_cache_type(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_PART_CACHE_TYPE;
+    val->unit = CONF_UNIT_NONE;
     val_t__part_cache_type(val) = (int)i;
 }
 
@@ -5820,7 +5747,9 @@ conf_init_host_limit(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_HOST_LIMIT;
+    val->unit = CONF_UNIT_NONE;
     val_t__host_limit(val).match_pats = NULL;
     val_t__host_limit(val).same_host  = FALSE;
     val_t__host_limit(val).server     = FALSE;
@@ -5841,7 +5770,9 @@ conf_init_data_path(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_DATA_PATH;
+    val->unit = CONF_UNIT_NONE;
     val_t__data_path(val) = (int)i;
 }
 
@@ -5852,7 +5783,9 @@ conf_init_holding(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_HOLDING;
+    val->unit = CONF_UNIT_NONE;
     val_t__holding(val) = (int)i;
 }
 
@@ -5864,7 +5797,9 @@ conf_init_estimatelist(
     GSList *estimates = NULL;
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_ESTIMATELIST;
+    val->unit = CONF_UNIT_NONE;
     estimates = g_slist_append(estimates, GINT_TO_POINTER(i));
     val_t__estimatelist(val) = estimates;
 }
@@ -5876,6 +5811,8 @@ conf_init_strategy(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
+    val->unit = CONF_UNIT_NONE;
     val->type = CONFTYPE_STRATEGY;
     val_t__strategy(val) = i;
 }
@@ -5887,7 +5824,9 @@ conf_init_taperalgo(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_TAPERALGO;
+    val->unit = CONF_UNIT_NONE;
     val_t__taperalgo(val) = i;
 }
 
@@ -5898,7 +5837,9 @@ conf_init_priority(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_PRIORITY;
+    val->unit = CONF_UNIT_NONE;
     val_t__priority(val) = i;
 }
 
@@ -5910,7 +5851,9 @@ conf_init_rate(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_RATE;
+    val->unit = CONF_UNIT_NONE;
     val_t__rate(val)[0] = r1;
     val_t__rate(val)[1] = r2;
 }
@@ -5921,7 +5864,9 @@ conf_init_exinclude(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_EXINCLUDE;
+    val->unit = CONF_UNIT_NONE;
     val_t__exinclude(val).optional = 0;
     val_t__exinclude(val).sl_list = NULL;
     val_t__exinclude(val).sl_file = NULL;
@@ -5935,7 +5880,9 @@ conf_init_intrange(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_INTRANGE;
+    val->unit = CONF_UNIT_NONE;
     val_t__intrange(val)[0] = i1;
     val_t__intrange(val)[1] = i2;
 }
@@ -5945,7 +5892,9 @@ conf_init_autolabel(
     val_t *val) {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_AUTOLABEL;
+    val->unit = CONF_UNIT_NONE;
     val->v.autolabel.template = NULL;
     val->v.autolabel.autolabel = 0;
 }
@@ -5965,7 +5914,9 @@ conf_init_proplist(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_PROPLIST;
+    val->unit = CONF_UNIT_NONE;
     val_t__proplist(val) =
         g_hash_table_new_full(g_str_amanda_hash, g_str_amanda_equal,
 			      &g_free, &free_property_t);
@@ -5978,7 +5929,9 @@ conf_init_execute_on(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_EXECUTE_ON;
+    val->unit = CONF_UNIT_NONE;
     val->v.i = i;
 }
 
@@ -5989,7 +5942,9 @@ conf_init_execute_where(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_EXECUTE_WHERE;
+    val->unit = CONF_UNIT_NONE;
     val->v.i = i;
 }
 
@@ -6000,14 +5955,18 @@ conf_init_send_amreport(
 {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_SEND_AMREPORT_ON;
+    val->unit = CONF_UNIT_NONE;
     val->v.i = i;
 }
 
 static void conf_init_application(val_t *val) {
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
     val->type = CONFTYPE_APPLICATION;
+    val->unit = CONF_UNIT_NONE;
     val->v.s = NULL;
 }
 
@@ -6939,6 +6898,12 @@ merge_val_t(
 {
     if (valsrc->type == CONFTYPE_PROPLIST) {
 	if (valsrc->v.proplist) {
+	    if (valdst->v.proplist == NULL ||
+		g_hash_table_size(valdst->v.proplist) == 0) {
+		valdst->seen.block = current_block;
+		valdst->seen.filename = current_filename;
+		valdst->seen.linenum = current_line_num;
+	    }
 	    if (valdst->v.proplist == NULL) {
 	        valdst->v.proplist = g_hash_table_new_full(g_str_amanda_hash,
 							   g_str_amanda_equal,
@@ -7105,6 +7070,7 @@ merge_proplist_foreach_fn(
     }
     if (!new_property) {
         new_property = malloc(sizeof(property_t));
+	new_property->seen = property->seen;
 	new_property->append = property->append;
 	new_property->priority = property->priority;
 	new_property->values = NULL;
@@ -7132,6 +7098,7 @@ copy_proplist_foreach_fn(
     property_t *new_property = malloc(sizeof(property_t));
     new_property->append = property->append;
     new_property->priority = property->priority;
+    new_property->seen = property->seen;
     new_property->values = NULL;
 
     for(elem = property->values;elem != NULL; elem=elem->next) {
@@ -7203,6 +7170,7 @@ free_val_t(
     }
     val->seen.linenum = 0;
     val->seen.filename = NULL;
+    val->seen.block = NULL;
 }
 
 /*
@@ -7269,7 +7237,9 @@ generic_client_get_security_conf(
 }
 
 void
-dump_configuration(void)
+dump_configuration(
+    gboolean print_default,
+    gboolean print_source)
 {
     tapetype_t *tp;
     dumptype_t *dp;
@@ -7301,7 +7271,7 @@ dump_configuration(void)
 	if(kt->token == CONF_UNKNOWN)
 	    error(_("server bad token"));
 
-        val_t_print_token(stdout, NULL, "%-21s ", kt, &conf_data[np->parm]);
+        val_t_print_token(print_default, print_source, stdout, NULL, "%-21s ", kt, &conf_data[np->parm]);
     }
 
     for(hp = holdinglist; hp != NULL; hp = hp->next) {
@@ -7322,7 +7292,7 @@ dump_configuration(void)
 	    if(kt->token == CONF_UNKNOWN)
 		error(_("holding bad token"));
 
-            val_t_print_token(stdout, NULL, "      %-9s ", kt, &hd->value[i]);
+            val_t_print_token(print_default, print_source, stdout, NULL, "      %-9s ", kt, &hd->value[i]);
 	}
 	g_printf("}\n");
     }
@@ -7344,7 +7314,7 @@ dump_configuration(void)
 	    if(kt->token == CONF_UNKNOWN)
 		error(_("tapetype bad token"));
 
-            val_t_print_token(stdout, prefix, "      %-9s ", kt, &tp->value[i]);
+            val_t_print_token(print_default, print_source, stdout, prefix, "      %-9s ", kt, &tp->value[i]);
 	}
 	g_printf("%s}\n", prefix);
     }
@@ -7367,7 +7337,7 @@ dump_configuration(void)
 		if(kt->token == CONF_UNKNOWN)
 		    error(_("dumptype bad token"));
 
-		val_t_print_token(stdout, prefix, "      %-19s ", kt, &dp->value[i]);
+		val_t_print_token(print_default, print_source, stdout, prefix, "      %-19s ", kt, &dp->value[i]);
 	    }
 	    g_printf("%s}\n", prefix);
 	}
@@ -7393,7 +7363,7 @@ dump_configuration(void)
 	    if(kt->token == CONF_UNKNOWN)
 		error(_("interface bad token"));
 
-	    val_t_print_token(stdout, prefix, "      %-19s ", kt, &ip->value[i]);
+	    val_t_print_token(print_default, print_source, stdout, prefix, "      %-19s ", kt, &ip->value[i]);
 	}
 	g_printf("%s}\n",prefix);
     }
@@ -7415,7 +7385,7 @@ dump_configuration(void)
 	    if(kt->token == CONF_UNKNOWN)
 		error(_("application bad token"));
 
-	    val_t_print_token(stdout, prefix, "      %-19s ", kt, &ap->value[i]);
+	    val_t_print_token(print_default, print_source, stdout, prefix, "      %-19s ", kt, &ap->value[i]);
 	}
 	g_printf("%s}\n",prefix);
     }
@@ -7437,7 +7407,7 @@ dump_configuration(void)
 	    if(kt->token == CONF_UNKNOWN)
 		error(_("script bad token"));
 
-	    val_t_print_token(stdout, prefix, "      %-19s ", kt, &ps->value[i]);
+	    val_t_print_token(print_default, print_source, stdout, prefix, "      %-19s ", kt, &ps->value[i]);
 	}
 	g_printf("%s}\n",prefix);
     }
@@ -7456,7 +7426,7 @@ dump_configuration(void)
 	    if(kt->token == CONF_UNKNOWN)
 		error(_("device bad token"));
 
-	    val_t_print_token(stdout, prefix, "      %-19s ", kt, &dc->value[i]);
+	    val_t_print_token(print_default, print_source, stdout, prefix, "      %-19s ", kt, &dc->value[i]);
 	}
 	g_printf("%s}\n",prefix);
     }
@@ -7475,7 +7445,7 @@ dump_configuration(void)
 	    if(kt->token == CONF_UNKNOWN)
 		error(_("changer bad token"));
 
-	    val_t_print_token(stdout, prefix, "      %-19s ", kt, &cc->value[i]);
+	    val_t_print_token(print_default, print_source, stdout, prefix, "      %-19s ", kt, &cc->value[i]);
 	}
 	g_printf("%s}\n",prefix);
     }
@@ -7494,7 +7464,7 @@ dump_configuration(void)
 	    if(kt->token == CONF_UNKNOWN)
 		error(_("interactivity bad token"));
 
-	    val_t_print_token(stdout, prefix, "      %-19s ", kt, &iv->value[i]);
+	    val_t_print_token(print_default, print_source, stdout, prefix, "      %-19s ", kt, &iv->value[i]);
 	}
 	g_printf("%s}\n",prefix);
     }
@@ -7513,14 +7483,41 @@ dump_configuration(void)
 	    if(kt->token == CONF_UNKNOWN)
 		error(_("taperscan bad token"));
 
-	    val_t_print_token(stdout, prefix, "      %-19s ", kt, &ts->value[i]);
+	    val_t_print_token(print_default, print_source, stdout, prefix, "      %-19s ", kt, &ts->value[i]);
 	}
 	g_printf("%s}\n",prefix);
     }
 }
 
+void dump_dumptype(
+    dumptype_t *dp,
+    char       *prefix,
+    gboolean    print_default,
+    gboolean    print_source)
+{
+    int i;
+    conf_var_t *np;
+    keytab_t *kt;
+
+    for(i=0; i < DUMPTYPE_DUMPTYPE; i++) {
+	for(np=dumptype_var; np->token != CONF_UNKNOWN; np++)
+	    if(np->parm == i) break;
+	if(np->token == CONF_UNKNOWN)
+	    error(_("dumptype bad value"));
+
+	for(kt = server_keytab; kt->token != CONF_UNKNOWN; kt++)
+	    if(kt->token == np->token) break;
+	if(kt->token == CONF_UNKNOWN)
+	    error(_("dumptype bad token"));
+
+	val_t_print_token(print_default, print_source, stdout, prefix, "      %-19s ", kt, &dp->value[i]);
+    }
+}
+
 static void
 val_t_print_token(
+    gboolean  print_default,
+    gboolean  print_source,
     FILE     *output,
     char     *prefix,
     char     *format,
@@ -7528,7 +7525,12 @@ val_t_print_token(
     val_t    *val)
 {
     char       **dispstrs, **dispstr;
-    dispstrs = val_t_display_strs(val, 1);
+
+    if (print_default == 0 && !val_t_seen(val)) {
+	return;
+    }
+
+    dispstrs = val_t_display_strs(val, 1, print_source, TRUE);
 
     /* For most configuration types, this outputs
      *   PREFIX KEYWORD DISPSTR
@@ -7555,11 +7557,40 @@ val_t_print_token(
     g_strfreev(dispstrs);
 }
 
+typedef struct proplist_display_str_foreach_user_data {
+    char     **msg;
+    gboolean   print_source;
+} proplist_display_str_foreach_user_data;
+
+char *source_string(seen_t *seen);
+char *source_string(
+    seen_t *seen)
+{
+    char *buf;
+
+    if (seen->linenum) {
+	if (seen->block) {
+	    buf = g_strdup_printf("     (%s file %s line %d)",
+			seen->block, seen->filename, seen->linenum);
+	} else {
+	    buf = g_strdup_printf("     (file %s line %d)",
+			seen->filename, seen->linenum);
+	}
+    } else {
+	buf = g_strdup("     (default)");
+    }
+    return buf;
+}
+
 char **
 val_t_display_strs(
     val_t *val,
-    int    str_need_quote)
+    int    str_need_quote,
+    gboolean print_source,
+    gboolean print_unit)
 {
+    gboolean add_source = TRUE;
+    int    i;
     char **buf;
     buf = malloc(3*SIZEOF(char *));
     buf[0] = NULL;
@@ -7568,15 +7599,33 @@ val_t_display_strs(
 
     switch(val->type) {
     case CONFTYPE_INT:
-	buf[0] = vstrallocf("%d", val_t__int(val));
+	buf[0] = vstrallocf("%d ", val_t__int(val));
+	i = strlen(buf[0]) - 1;
+	if (print_unit && val->unit == CONF_UNIT_K) {
+	    buf[0][i] = 'K';
+	} else {
+	    buf[0][i] = '\0';
+	}
 	break;
 
     case CONFTYPE_SIZE:
-	buf[0] = vstrallocf("%zd", (ssize_t)val_t__size(val));
+	buf[0] = vstrallocf("%zd ", (ssize_t)val_t__size(val));
+	i = strlen(buf[0]) - 1;
+	if (print_unit && val->unit == CONF_UNIT_K) {
+	    buf[0][i] = 'K';
+	} else {
+	    buf[0][i] = '\0';
+	}
 	break;
 
     case CONFTYPE_INT64:
-	buf[0] = vstrallocf("%lld", (long long)val_t__int64(val));
+	buf[0] = vstrallocf("%lld ", (long long)val_t__int64(val));
+	i = strlen(buf[0]) - 1;
+	if (print_unit && val->unit == CONF_UNIT_K) {
+	    buf[0][i] = 'K';
+	} else {
+	    buf[0][i] = '\0';
+	}
 	break;
 
     case CONFTYPE_REAL:
@@ -7892,16 +7941,18 @@ val_t_display_strs(
 
     case CONFTYPE_PROPLIST: {
 	int    nb_property;
-	char **mybuf;
+	proplist_display_str_foreach_user_data user_data;
 
 	nb_property = g_hash_table_size(val_t__proplist(val));
-	amfree(buf);
+	g_free(buf);
 	buf = malloc((nb_property+1)*SIZEOF(char*));
 	buf[nb_property] = NULL;
-	mybuf = buf;
+	user_data.msg = buf;
+	user_data.print_source = print_source;
 	g_hash_table_foreach(val_t__proplist(val),
 			     proplist_display_str_foreach_fn,
-			     &mybuf);
+			     &user_data);
+	add_source = FALSE;
         break;
     }
 
@@ -8014,6 +8065,16 @@ val_t_display_strs(
         break;
 
     }
+
+    /* add source */
+    if (print_source && add_source) {
+	char **buf1;
+	for (buf1 = buf; *buf1 != NULL; buf1++) {
+	    char *buf2 = g_strjoin("", *buf1, source_string(&val->seen), NULL);
+	    g_free(*buf1);
+	    *buf1 = buf2;
+	}
+    }
     return buf;
 }
 
@@ -8060,7 +8121,8 @@ proplist_display_str_foreach_fn(
     char         *property_s = quote_string_always(key_p);
     property_t   *property   = value_p;
     GSList       *value;
-    char       ***msg        = (char ***)user_data_p;
+    proplist_display_str_foreach_user_data *user_data = user_data_p;
+    char       ***msg        = (char ***)&user_data->msg;
 
     /* What to do with property->append? it should be printed only on client */
     if (property->priority) {
@@ -8075,6 +8137,9 @@ proplist_display_str_foreach_fn(
 	**msg = vstrextend(*msg, " ", qstr, NULL);
 	amfree(qstr);
     }
+    if (user_data->print_source) {
+	**msg = vstrextend(*msg, source_string(&property->seen));
+    }
     (*msg)++;
 }
 
@@ -8083,7 +8148,7 @@ exinclude_display_str(
     val_t *val,
     int    file)
 {
-    sl_t  *sl;
+    am_sl_t  *sl;
     sle_t *excl;
     char *rval;
 
@@ -8163,6 +8228,8 @@ parm_key_info(
     pp_script_t   *pp;
     device_config_t   *dc;
     changer_config_t   *cc;
+    taperscan_t        *ts;
+    interactivity_t    *iv;
     int success = FALSE;
 
     /* WARNING: assumes globals keytable and parsetable are set correctly. */
@@ -8190,7 +8257,7 @@ parm_key_info(
 	    if (*s == '-') *s = '_';
 	}
 
-	subsec_key = strchr(subsec_name,':');
+	subsec_key = strrchr(subsec_name,':');
 	if(!subsec_key) goto out; /* failure */
 
 	*subsec_key = '\0';
@@ -8309,6 +8376,30 @@ parm_key_info(
 	    if (np->token == CONF_UNKNOWN) goto out;
 
 	    if (val) *val = &cc->value[np->parm];
+	    if (parm) *parm = np;
+	    success = TRUE;
+	} else if (g_str_equal(subsec_type, "INTERACTIVITY")) {
+	    iv = lookup_interactivity(subsec_name);
+	    if (!iv) goto out;
+	    for(np = interactivity_var; np->token != CONF_UNKNOWN; np++) {
+		if(np->token == kt->token)
+		   break;
+	    }
+	    if (np->token == CONF_UNKNOWN) goto out;
+
+	    if (val) *val = &iv->value[np->parm];
+	    if (parm) *parm = np;
+	    success = TRUE;
+	} else if (g_str_equal(subsec_type, "TAPERSCAN")) {
+	    ts = lookup_taperscan(subsec_name);
+	    if (!ts) goto out;
+	    for(np = taperscan_var; np->token != CONF_UNKNOWN; np++) {
+		if(np->token == kt->token)
+		   break;
+	    }
+	    if (np->token == CONF_UNKNOWN) goto out;
+
+	    if (val) *val = &ts->value[np->parm];
 	    if (parm) *parm = np;
 	    success = TRUE;
 	}

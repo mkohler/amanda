@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2007-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -526,6 +526,7 @@ device_open (char * device_name)
     device = factory(device_name, device_type, device_node);
     g_assert(device != NULL); /* factories must always return a device */
 
+    device->device_mutex = g_mutex_new();
     amfree(device_type);
     amfree(device_node);
 
@@ -1116,6 +1117,46 @@ device_finish (Device * self) {
     return (klass->finish)(self);
 }
 
+guint64
+device_get_bytes_read (Device * self) {
+    DeviceClass *klass;
+    guint64 bytes = 0;
+
+    g_assert(IS_DEVICE (self));
+
+    g_mutex_lock(self->device_mutex);
+    if (self->in_file) {
+	klass = DEVICE_GET_CLASS(self);
+	if (klass->get_bytes_read) {
+	    bytes = (klass->get_bytes_read)(self);
+	} else {
+	    bytes = self->bytes_read;
+	}
+    }
+    g_mutex_unlock(self->device_mutex);
+    return bytes;
+}
+
+guint64
+device_get_bytes_written (Device * self) {
+    DeviceClass *klass;
+    guint64 bytes = 0;
+
+    g_assert(IS_DEVICE (self));
+
+    g_mutex_lock(self->device_mutex);
+    if (self->in_file) {
+	klass = DEVICE_GET_CLASS(self);
+	if (klass->get_bytes_written) {
+	    bytes = (klass->get_bytes_written)(self);
+	} else {
+	    bytes = self->bytes_written;
+	}
+    }
+    g_mutex_unlock(self->device_mutex);
+    return bytes;
+}
+
 gboolean
 device_configure (Device * self, gboolean use_global_config)
 {
@@ -1393,6 +1434,26 @@ device_accept(
 }
 
 gboolean
+device_accept_with_cond(
+    Device *self,
+    DirectTCPConnection **conn,
+    GMutex *abort_mutex,
+    GCond *abort_cond)
+{
+    DeviceClass *klass;
+
+    klass = DEVICE_GET_CLASS(self);
+    if(klass->accept_with_cond) {
+	return (klass->accept_with_cond)(self, conn, abort_mutex, abort_cond);
+    } else {
+	device_set_error(self,
+	    g_strdup(_("Unimplemented method")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
+}
+
+gboolean
 device_connect(
     Device *self,
     gboolean for_writing,
@@ -1409,6 +1470,28 @@ device_connect(
     } else {
 	device_set_error(self,
 	    stralloc(_("Unimplemented method")),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
+}
+
+gboolean
+device_connect_with_cond(
+    Device *self,
+    gboolean for_writing,
+    DirectTCPAddr *addrs,
+    DirectTCPConnection **conn,
+    GMutex *abort_mutex,
+    GCond *abort_cond)
+{
+    DeviceClass *klass;
+
+    klass = DEVICE_GET_CLASS(self);
+    if(klass->connect) {
+	return (klass->connect_with_cond)(self, for_writing, addrs, conn, abort_mutex, abort_cond);
+    } else {
+	device_set_error(self,
+	    g_strdup(_("Unimplemented method")),
 	    DEVICE_STATUS_DEVICE_ERROR);
 	return FALSE;
     }

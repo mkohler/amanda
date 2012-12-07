@@ -2,12 +2,12 @@
 .\"     Title: disklist
 .\"    Author: James da Silva <jds@amanda.org>
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 02/21/2012
+.\"      Date: 07/25/2012
 .\"    Manual: File formats and conventions
-.\"    Source: Amanda 3.3.1
+.\"    Source: Amanda 3.3.2
 .\"  Language: English
 .\"
-.TH "DISKLIST" "5" "02/21/2012" "Amanda 3\&.3\&.1" "File formats and conventions"
+.TH "DISKLIST" "5" "07/25/2012" "Amanda 3\&.3\&.2" "File formats and conventions"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -33,7 +33,19 @@ disklist \- List of partitions to back up for Amanda
 .PP
 The
 \fIdisklist\fR
-file determines which disks will be backed up by Amanda\&. The file usually contains one line per disk:
+file determines which disks will be backed up by Amanda\&. The file contains
+\fBincludefile\fR
+directive or disklist entry (\fBDLE\fR)\&.
+.PP
+\fBincludefile\fR \fIstring\fR
+.RS 4
+Default:
+\fIno default\fR\&. The name of a disklist file to include within the current file\&. Useful for sharing disklist among several configurations\&. Relative pathnames are relative to the configuration directory\&.
+.RE
+.PP
+A
+\fBDLE\fR
+usually contains one line per disk:
 .nf
 \fIhostname diskname\fR [\fIdiskdevice\fR] \fIdumptype\fR [\fIspindle\fR [\fIinterface\fR] ]
 .fi

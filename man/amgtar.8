@@ -2,12 +2,12 @@
 .\"     Title: amgtar
 .\"    Author: Jean-Louis Martineau <martineau@zmanda.com>
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 02/21/2012
+.\"      Date: 07/25/2012
 .\"    Manual: System Administration Commands
-.\"    Source: Amanda 3.3.1
+.\"    Source: Amanda 3.3.2
 .\"  Language: English
 .\"
-.TH "AMGTAR" "8" "02/21/2012" "Amanda 3\&.3\&.1" "System Administration Commands"
+.TH "AMGTAR" "8" "07/25/2012" "Amanda 3\&.3\&.2" "System Administration Commands"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -85,6 +85,13 @@ GNUTAR\-PATH
 .RS 4
 
 The path to the gnutar binary\&.  The default is set when Amanda is built\&.
+.RE
+.PP
+IGNORE\-ZEROS
+.RS 4
+
+If "YES" (the default), use the \fI\-\-ignore\-zeros\fR argument of gtar on recovery,
+set it to "NO" if you do not want that argument\&.
 .RE
 .PP
 INCLUDE\-LIST\-GLOB
@@ -251,7 +258,7 @@ A dumptype using this application might look like:
 Note that the
 \fIprogram\fR
 parameter must be set to
-\fI"APPLCIATION"\fR
+\fI"APPLICATION"\fR
 to use the
 \fIapplication\fR
 parameter\&.

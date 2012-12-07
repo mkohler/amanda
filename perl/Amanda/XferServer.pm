@@ -56,6 +56,7 @@ package Amanda::XferServer;
 *xfer_source_device = *Amanda::XferServerc::xfer_source_device;
 *xfer_dest_device = *Amanda::XferServerc::xfer_dest_device;
 *xfer_source_holding = *Amanda::XferServerc::xfer_source_holding;
+*xfer_source_holding_get_bytes_read = *Amanda::XferServerc::xfer_source_holding_get_bytes_read;
 *xfer_dest_taper_splitter = *Amanda::XferServerc::xfer_dest_taper_splitter;
 *xfer_dest_taper_cacher = *Amanda::XferServerc::xfer_dest_taper_cacher;
 *xfer_dest_taper_directtcp = *Amanda::XferServerc::xfer_dest_taper_directtcp;
@@ -66,6 +67,7 @@ package Amanda::XferServer;
 *xfer_source_recovery = *Amanda::XferServerc::xfer_source_recovery;
 *xfer_source_recovery_start_part = *Amanda::XferServerc::xfer_source_recovery_start_part;
 *xfer_source_recovery_use_device = *Amanda::XferServerc::xfer_source_recovery_use_device;
+*xfer_source_recovery_get_bytes_read = *Amanda::XferServerc::xfer_source_recovery_get_bytes_read;
 
 # ------- VARIABLE STUBS --------
 
@@ -122,6 +124,7 @@ sub new {
 
     Amanda::XferServer::xfer_source_holding(@_);
 }
+*get_bytes_read = *Amanda::XferServer::xfer_source_holding_get_bytes_read;
 
 package Amanda::Xfer::Dest::Taper;
 
@@ -181,4 +184,5 @@ sub new {
 }
 *start_part = *Amanda::XferServer::xfer_source_recovery_start_part;
 *use_device = *Amanda::XferServer::xfer_source_recovery_use_device;
+*get_bytes_read = *Amanda::XferServer::xfer_source_recovery_get_bytes_read;
 1;

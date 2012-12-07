@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007, 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2007-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -145,7 +145,8 @@ APPLY(CNF_TAPER_PARALLEL_WRITE)\
 APPLY(CNF_RECOVERY_LIMIT) \
 APPLY(CNF_INTERACTIVITY) \
 APPLY(CNF_TAPERSCAN) \
-APPLY(CNF_EJECT_VOLUME)
+APPLY(CNF_EJECT_VOLUME) \
+APPLY(CNF_TMPDIR)
 
 amglue_add_enum_tag_fns(confparm_key);
 amglue_add_constants(FOR_ALL_CONFPARM_KEY, confparm_key);
@@ -215,6 +216,7 @@ APPLY(DUMPTYPE_SCRIPTLIST)\
 APPLY(DUMPTYPE_PROPERTY)\
 APPLY(DUMPTYPE_DATA_PATH)\
 APPLY(DUMPTYPE_ALLOW_SPLIT)\
+APPLY(DUMPTYPE_MAX_WARNINGS)\
 APPLY(DUMPTYPE_RECOVERY_LIMIT) \
 APPLY(DUMPTYPE_DUMP_LIMIT)
 
@@ -693,7 +695,7 @@ typedef char **val_t_strs;
 val_t_strs getconf_byname_strs(char *key, int str_needs_quotes) {
     val_t *val = getconf_byname(key);
     if (!val) return NULL;
-    return val_t_display_strs(val, str_needs_quotes);
+    return val_t_display_strs(val, str_needs_quotes, FALSE, FALSE);
 }
 %}
 
@@ -909,7 +911,7 @@ amglue_export_tag(init,
  * Miscellaneous
  */
 
-void dump_configuration(void);
+void dump_configuration(gboolean print_default, gboolean print_source);
 %newobject config_dir_relative;
 char *config_dir_relative(char *filename);
 char *taperalgo2str(taperalgo_t taperalgo);
@@ -934,5 +936,6 @@ sub string_to_boolean {
 
 amglue_export_ok(string_to_boolean);
 
+%newobject amandaify_property_name;
 gchar * amandaify_property_name(const gchar *name);
 amglue_export_ok(amandaify_property_name);

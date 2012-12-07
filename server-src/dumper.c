@@ -73,6 +73,8 @@ struct databuf {
     pid_t encryptpid;		/* valid if fd is pipe to encrypt */
 };
 
+struct databuf *g_databuf = NULL;
+
 typedef struct filter_s {
     int             fd;
     char           *name;
@@ -124,6 +126,7 @@ static int set_datafd;
 static char *dle_str = NULL;
 static char *errfname = NULL;
 static int   errf_lines = 0;
+static int   max_warnings = 0;
 
 static dumpfile_t file;
 
@@ -536,6 +539,11 @@ main(
 	    dataport_list = newstralloc(dataport_list, cmdargs->argv[a++]);
 
 	    if(a >= cmdargs->argc) {
+		error(_("error [dumper PORT-DUMP: not enough args: max_warnings]"));
+	    }
+	    max_warnings = atoi(cmdargs->argv[a++]);
+
+	    if(a >= cmdargs->argc) {
 		error(_("error [dumper PORT-DUMP: not enough args: options]"));
 	    }
 	    options = newstralloc(options, cmdargs->argv[a++]);
@@ -576,6 +584,7 @@ main(
 		break;
 	    }
 	    databuf_init(&db, outfd);
+	    g_databuf = &db;
 
 	    if (am_has_feature(their_features, fe_req_xml))
 		xml_check_options(options); /* note: modifies globals */
@@ -1006,14 +1015,18 @@ log_msgout(
 {
     char *line;
     int   count = 0;
+    int   to_unlink = 1;
 
     fflush(errf);
     if (fseeko(errf, 0L, SEEK_SET) < 0) {
 	dbprintf(_("log_msgout: warning - seek failed: %s\n"), strerror(errno));
     }
     while ((line = agets(errf)) != NULL) {
-	if (errf_lines >= 100 && count >= 20)
+	if (max_warnings > 0 && errf_lines >= max_warnings && count >= max_warnings) {
+	    log_add(typ, "Look in the '%s' file for full error messages", errfname);
+	    to_unlink = 0;
 	    break;
+	}
 	if (line[0] != '\0') {
 		log_add(typ, "%s", line);
 	}
@@ -1022,11 +1035,7 @@ log_msgout(
     }
     amfree(line);
 
-    if (errf_lines >= 100) {
-	log_add(typ, "Look in the '%s' file for full error messages", errfname);
-    }
-
-    return errf_lines < 100;
+    return to_unlink;
 }
 
 /* ------------- */
@@ -1889,6 +1898,7 @@ stop_dump(void)
 	}
     }
     aclose(indexout);
+    aclose(g_databuf->fd);
     timeout(0);
 }
 
@@ -1925,6 +1935,12 @@ runcompress(
 	return (-1);
     }
 
+    if (comptype != COMP_SERVER_CUST) {
+	g_debug("execute: %s %s", COMPRESS_PATH,
+		comptype == COMP_BEST ? COMPRESS_BEST_OPT : COMPRESS_FAST_OPT);
+    } else {
+	g_debug("execute: %s", srvcompprog);
+    }
     switch (*pid = fork()) {
     case -1:
 	errstr = newvstrallocf(errstr, _("couldn't fork: %s"), strerror(errno));
@@ -1948,7 +1964,6 @@ runcompress(
 	filter->allocated_size = 0;
 	filter->event = event_register((event_id_t)filter->fd, EV_READFD,
 				       handle_filter_stderr, filter);
-g_debug("event register %s %d", name, filter->fd);
 	return (rval);
     case 0:
 	close(outpipe[1]);
@@ -2021,6 +2036,7 @@ runencrypt(
 	return (-1);
     }
 
+    g_debug("execute: %s", srv_encrypt);
     switch (*pid = fork()) {
     case -1:
 	errstr = newvstrallocf(errstr, _("couldn't fork: %s"), strerror(errno));
@@ -2047,7 +2063,6 @@ runencrypt(
 	filter->allocated_size = 0;
 	filter->event = event_register((event_id_t)filter->fd, EV_READFD,
 				       handle_filter_stderr, filter);
-g_debug("event register %s %d", "encrypt data", filter->fd);
 	return (rval);
 	}
     case 0: {

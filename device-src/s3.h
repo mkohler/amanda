@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2008-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -26,6 +26,13 @@
 /*
  * Data types
  */
+
+typedef enum {
+   S3_API_S3,
+   S3_API_SWIFT_1,
+   S3_API_SWIFT_2,
+   S3_API_OAUTH2
+} S3_api;
 
 /* An opaque handle.  S3Handles should only be accessed from a single
  * thread at any given time, although it is fine to use different handles
@@ -171,6 +178,7 @@ typedef curl_progress_callback s3_progress_func;
     S3_ERROR(Accepted), \
     S3_ERROR(Forbidden), \
     S3_ERROR(Conflict), \
+    S3_ERROR(AuthenticationRequired), \
     S3_ERROR(END)
 
 typedef enum {
@@ -245,7 +253,26 @@ s3_open(const char * access_key, const char *secret_key,
         const char * user_token,
         const char * bucket_location, const char * storage_class,
 	const char * ca_info, const char * server_side_encryption,
-	const gboolean openstack_swift_api);
+	const char *proxy,
+	const S3_api s3_api,
+	const char *username,
+	const char *password,
+	const char *tenant_id,
+	const char *tenant_name,
+	const char *client_id,
+	const char *client_secret,
+	const char *refresh_token,
+	const gboolean reuse_connection);
+
+/* latest step of setting up the S3Handle.
+ *
+ * Must be done after all properties are set.
+ *
+ * @param hdl: the S3Handle to set up.
+ * @returns: false if an error occured
+ */
+gboolean
+s3_open2(S3Handle *hdl);
 
 /* Deallocate an S3Handle
  *
@@ -423,6 +450,19 @@ s3_delete(S3Handle *hdl,
           const char *bucket,
           const char *key);
 
+/* Delete multiple file.
+ *
+ * @param hdl: the S3Handle object
+ * @param bucket: the bucket to delete from
+ * @param key: the key array to delete
+ * @returns: 0 on sucess, 1 if multi_delete is not supported, 2 if an error
+ *           occurs; a non-existent file is I{not} considered an error.
+ */
+int
+s3_multi_delete(S3Handle *hdl,
+                const char *bucket,
+                const char **key);
+
 /* Create a bucket.
  *
  * @param hdl: the S3Handle object
@@ -431,7 +471,8 @@ s3_delete(S3Handle *hdl,
  */
 gboolean
 s3_make_bucket(S3Handle *hdl,
-               const char *bucket);
+               const char *bucket,
+	       const char *project_id);
 
 /* Check if a bucket exists.
  *
@@ -441,7 +482,8 @@ s3_make_bucket(S3Handle *hdl,
  */
 gboolean
 s3_is_bucket_exists(S3Handle *hdl,
-                    const char *bucket);
+                    const char *bucket,
+		    const char *project_id);
 
 /* Delete a bucket
  *

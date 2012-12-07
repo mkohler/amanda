@@ -1,4 +1,4 @@
-# Copyright (c) 2009,2010 Zmanda, Inc.  All Rights Reserved.
+# Copyright (c) 2009-2012 Zmanda, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published
@@ -20,6 +20,7 @@ package Amanda::Changer::rait;
 
 use strict;
 use warnings;
+use Carp;
 use vars qw( @ISA );
 @ISA = qw( Amanda::Changer );
 
@@ -525,7 +526,7 @@ sub _for_each_child {
 	($params{'oksub'}, $params{'errsub'}, $params{'parent_cb'}, $params{'args'});
 
     if (defined($args)) {
-	die "number of args did not match number of children"
+	confess "number of args did not match number of children"
 	    unless (@$args == $self->{'num_children'});
     } else {
 	$args = [ ( undef ) x $self->{'num_children'} ];

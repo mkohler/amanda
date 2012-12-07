@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010 Zmanda, Inc.  All Rights Reserved.
+ * Copyright (c) 2009-2012 Zmanda, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published
@@ -22,8 +22,10 @@
 #include "util.h"
 #include "device.h"
 #include "directtcp.h"
+#include "stream.h"
 #include "ndmlib.h"
 #include "ndmpconnobj.h"
+#include "sockaddr-util.h"
 
 /*
  * Type checking and casting macros
@@ -53,6 +55,10 @@ struct NdmpDevice_ {
      * was opened */
     DirectTCPAddr *listen_addrs;
     gboolean for_writing;
+
+    /* support for IndirectTCP */
+    int indirecttcp_sock; /* -1 if not in use */
+    int indirect;
 
     /* Current DirectTCPConnectionNDMP */
     struct DirectTCPConnectionNDMP_ *directtcp_conn;
@@ -136,9 +142,11 @@ typedef enum {
 static DevicePropertyBase device_property_ndmp_username;
 static DevicePropertyBase device_property_ndmp_password;
 static DevicePropertyBase device_property_ndmp_auth;
+static DevicePropertyBase device_property_indirect;
 #define PROPERTY_NDMP_USERNAME (device_property_ndmp_username.ID)
 #define PROPERTY_NDMP_PASSWORD (device_property_ndmp_password.ID)
 #define PROPERTY_NDMP_AUTH (device_property_ndmp_auth.ID)
+#define PROPERTY_INDIRECT (device_property_indirect.ID)
 
 
 /*
@@ -453,6 +461,8 @@ static void ndmp_device_finalize(GObject * obj_self)
 	g_free(self->ndmp_password);
     if (self->ndmp_auth)
 	g_free(self->ndmp_auth);
+    if (self->indirecttcp_sock != -1)
+	close(self->indirecttcp_sock);
 }
 
 static DeviceStatusFlags
@@ -580,7 +590,9 @@ ndmp_device_start(
     }
 
     dself->access_mode = mode;
+    g_mutex_lock(dself->device_mutex);
     dself->in_file = FALSE;
+    g_mutex_unlock(dself->device_mutex);
 
     if (!single_ndmp_mtio(self, NDMP9_MTIO_REW)) {
 	/* single_ndmp_mtio already set our error message */
@@ -714,6 +726,9 @@ ndmp_device_start_file(
 
     dself->is_eof = FALSE;
     dself->is_eom = FALSE;
+    g_mutex_lock(dself->device_mutex);
+    dself->bytes_written = 0;
+    g_mutex_unlock(dself->device_mutex);
 
     /* set the blocksize in the header properly */
     header->blocksize = dself->block_size;
@@ -751,7 +766,9 @@ ndmp_device_start_file(
     amfree(header_buf);
 
     /* arrange the file numbers correctly */
+    g_mutex_lock(dself->device_mutex);
     dself->in_file = TRUE;
+    g_mutex_unlock(dself->device_mutex);
     if (!ndmp_get_state(self)) {
 	/* error already set by ndmp_get_state */
 	return FALSE;
@@ -809,6 +826,9 @@ ndmp_device_write_block(
     }
 
     dself->block++;
+    g_mutex_lock(dself->device_mutex);
+    dself->bytes_written += size;
+    g_mutex_unlock(dself->device_mutex);
 
     if (replacement_buffer) g_free(replacement_buffer);
     return TRUE;
@@ -823,7 +843,9 @@ ndmp_device_finish_file(
     if (device_in_error(dself)) return FALSE;
 
     /* we're not in a file anymore */
+    g_mutex_lock(dself->device_mutex);
     dself->in_file = FALSE;
+    g_mutex_unlock(dself->device_mutex);
 
     if (!single_ndmp_mtio(self, NDMP9_MTIO_EOF)) {
 	/* error was set by single_ndmp_mtio */
@@ -911,9 +933,14 @@ incomplete_bsf:
     }
 
     /* fix up status */
+    g_mutex_lock(dself->device_mutex);
     dself->in_file = TRUE;
+    g_mutex_unlock(dself->device_mutex);
     dself->file = file;
     dself->block = 0;
+    g_mutex_lock(dself->device_mutex);
+    dself->bytes_read = 0;
+    g_mutex_unlock(dself->device_mutex);
 
     /* now read the header */
     read_block_size = ndmp_device_read_size(self);
@@ -988,8 +1015,35 @@ ndmp_device_read_block (Device * dself, gpointer data, int *size_req) {
     }
 
     *size_req = (int)actual; /* cast is OK - requested size was < INT_MAX too */
+    g_mutex_lock(dself->device_mutex);
+    dself->bytes_read += actual;
+    g_mutex_unlock(dself->device_mutex);
 
     return *size_req;
+}
+
+static gboolean
+indirecttcp_listen(
+    NdmpDevice *self,
+    DirectTCPAddr **addrs)
+{
+    in_port_t port;
+
+    self->indirecttcp_sock = stream_server(AF_INET, &port, 0, STREAM_BUFSIZE, 0);
+    if (self->indirecttcp_sock < 0) {
+	device_set_error(DEVICE(self),
+	    g_strdup_printf("Could not bind indirecttcp socket: %s", strerror(errno)),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
+
+    /* An IndirectTCP address is 255.255.255.255:$port */
+    self->listen_addrs = *addrs = g_new0(DirectTCPAddr, 2);
+    addrs[0]->sin.sin_family = AF_INET;
+    addrs[0]->sin.sin_addr.s_addr = htonl(0xffffffff);
+    SU_SET_PORT(addrs[0], port);
+
+    return TRUE;
 }
 
 static gboolean
@@ -1010,6 +1064,8 @@ listen_impl(
 	return FALSE;
     }
 
+    self->for_writing = for_writing;
+
     /* first, set the window to an empty span so that the mover doesn't start
      * reading or writing data immediately.  NDMJOB tends to reset the record
      * size periodically (in direct contradiction to the spec), so we reset it
@@ -1020,9 +1076,34 @@ listen_impl(
 	return FALSE;
     }
 
-    if (!ndmp_connection_mover_set_window(self->ndmp, 0, 0)) {
-	set_error_from_ndmp(self);
-	return FALSE;
+    if (for_writing) {
+	/* if we're forcing indirecttcp, just do it */
+	if (self->indirect) {
+	    return indirecttcp_listen(self, addrs);
+	}
+	if (!ndmp_connection_mover_set_window(self->ndmp, 0, 0)) {
+	    /* NDMP4_ILLEGAL_ARGS_ERR means the NDMP server doesn't like a zero-byte
+	     * mover window, so we'll ignore it */
+	    if (ndmp_connection_err_code(self->ndmp) != NDMP4_ILLEGAL_ARGS_ERR) {
+		set_error_from_ndmp(self);
+		return FALSE;
+	    }
+
+	    g_debug("NDMP Device: cannot set zero-length mover window; "
+		    "falling back to IndirectTCP");
+	    /* In this case, we need to set up IndirectTCP */
+	    return indirecttcp_listen(self, addrs);
+	}
+    } else {
+	/* For reading, set the window to the second mover record, so that the
+	 * mover will pause immediately when it wants to read the first mover
+	 * record. */
+	if (!ndmp_connection_mover_set_window(self->ndmp,
+					      dself->block_size,
+					      dself->block_size)) {
+	    set_error_from_ndmp(self);
+	    return FALSE;
+	}
     }
 
     /* then tell it to start listening */
@@ -1034,7 +1115,6 @@ listen_impl(
 	return FALSE;
     }
     self->listen_addrs = *addrs;
-    self->for_writing = for_writing;
 
     return TRUE;
 }
@@ -1109,31 +1189,45 @@ accept_impl(
 	/* now we should expect a notice that the mover has paused */
     } else {
 	/* when writing, the mover will pause as soon as the first byte comes
-	 * in, so there's no need to do anything to trigger the pause. */
+         * in, so there's no need to do anything to trigger the pause.
+         *
+         * Well, sometimes it won't - specifically, when it does not allow a
+         * zero-byte mover window, which means we've set up IndirectTCP.  But in
+         * that case, there's nothing interesting to do here.*/
     }
 
-    /* NDMJOB sends NDMP9_MOVER_PAUSE_SEEK to indicate that it wants to write
-     * outside the window, while the standard specifies .._EOW, instead.  When
-     * reading to a connection, we get the appropriate .._SEEK.  It's easy
-     * enough to handle both. */
+    if (self->indirecttcp_sock == -1) {
+	/* NDMJOB sends NDMP9_MOVER_PAUSE_SEEK to indicate that it wants to write
+	 * outside the window, while the standard specifies .._EOW, instead.  When
+	 * reading to a connection, we get the appropriate .._SEEK.  It's easy
+	 * enough to handle both. */
 
-    if (!ndmp_connection_wait_for_notify(self->ndmp,
-	    NULL,
-	    NULL,
-	    &reason, &seek_position)) {
-	set_error_from_ndmp(self);
-	return FALSE;
+	if (!ndmp_connection_wait_for_notify(self->ndmp,
+		NULL,
+		NULL,
+		&reason, &seek_position)) {
+	    set_error_from_ndmp(self);
+	    return FALSE;
+	}
+
+	if (reason != NDMP9_MOVER_PAUSE_SEEK && reason != NDMP9_MOVER_PAUSE_EOW) {
+	    device_set_error(DEVICE(self),
+		g_strdup_printf("got NOTIFY_MOVER_PAUSED, but not because of EOW or SEEK"),
+		DEVICE_STATUS_DEVICE_ERROR);
+	    return FALSE;
+	}
     }
 
-    if (reason != NDMP9_MOVER_PAUSE_SEEK && reason != NDMP9_MOVER_PAUSE_EOW) {
-	device_set_error(DEVICE(self),
-	    g_strdup_printf("got NOTIFY_MOVER_PAUSED, but not because of EOW or SEEK"),
-	    DEVICE_STATUS_DEVICE_ERROR);
-	return FALSE;
-    }
+    /* at this point, if we're doing directtcp, the mover is paused and ready
+     * to go, and the listen addrs are no longer required; if we're doing
+     * indirecttcp, then the other end may not even know of our listen_addrs
+     * yet, so we can't free them.
+     */
 
-    g_free(self->listen_addrs);
-    self->listen_addrs = NULL;
+    if (self->indirecttcp_sock == -1) {
+	g_free(self->listen_addrs);
+	self->listen_addrs = NULL;
+    }
 
     if (self->for_writing)
 	mode = NDMP9_MOVER_MODE_READ;
@@ -1151,6 +1245,132 @@ accept_impl(
     g_object_ref(*dtcpconn);
 
     return TRUE;
+}
+
+static int
+accept_with_cond_impl(
+    Device *dself,
+    DirectTCPConnection **dtcpconn,
+    GMutex *abort_mutex,
+    GCond *abort_cond)
+{
+    NdmpDevice *self = NDMP_DEVICE(dself);
+    ndmp9_mover_state state;
+    guint64 bytes_moved;
+    ndmp9_mover_mode mode;
+    ndmp9_mover_pause_reason reason;
+    guint64 seek_position;
+    int result;
+
+    if (device_in_error(self)) return 1;
+
+    g_assert(self->listen_addrs);
+
+    *dtcpconn = NULL;
+
+    if (!self->for_writing) {
+	/* when reading, we don't get any kind of notification that the
+	 * connection has been established, but we can't call NDMP_MOVER_READ
+	 * until the mover is active.  So we have to poll, waiting for ACTIVE.
+	 * This is ugly. */
+	gulong backoff = G_USEC_PER_SEC/20; /* 5 msec */
+	while (1) {
+	    if (!ndmp_connection_mover_get_state(self->ndmp,
+		    &state, &bytes_moved, NULL, NULL)) {
+		set_error_from_ndmp(self);
+		return 1;
+	    }
+
+	    if (state != NDMP9_MOVER_STATE_LISTEN)
+		break;
+
+	    /* back off a little bit to give the other side time to breathe,
+	     * but not more than one second */
+	    g_usleep(backoff);
+	    backoff *= 2;
+	    if (backoff > G_USEC_PER_SEC)
+		backoff = G_USEC_PER_SEC;
+	}
+
+	/* double-check state */
+	if (state != NDMP9_MOVER_STATE_ACTIVE) {
+	    device_set_error(DEVICE(self),
+		g_strdup("mover did not enter the ACTIVE state as expected"),
+		DEVICE_STATUS_DEVICE_ERROR);
+	    return 1;
+	}
+
+	/* now, we need to get this into the PAUSED state, since right now we
+	 * aren't allowed to perform any tape movement commands.  So we issue a
+	 * MOVER_READ request for the whole darn image stream after setting the
+	 * usual empty window. Note that this means the whole dump will be read
+	 * in one MOVER_READ operation, even if it does not begin at the
+	 * beginning of a part. */
+	if (!ndmp_connection_mover_read(self->ndmp, 0, G_MAXUINT64)) {
+	    set_error_from_ndmp(self);
+	    return 1;
+	}
+
+	/* now we should expect a notice that the mover has paused */
+    } else {
+	/* when writing, the mover will pause as soon as the first byte comes
+	 * in, so there's no need to do anything to trigger the pause. */
+    }
+
+    if (self->indirecttcp_sock == -1) {
+	/* NDMJOB sends NDMP9_MOVER_PAUSE_SEEK to indicate that it wants to
+	 * write outside the window, while the standard specifies .._EOW,
+	 * instead.  When reading to a connection, we get the appropriate
+	 * .._SEEK.  It's easy enough to handle both. */
+	result = ndmp_connection_wait_for_notify_with_cond(self->ndmp,
+			NULL,
+			NULL,
+			&reason, &seek_position,
+			abort_mutex, abort_cond);
+
+	if (result == 1) {
+	    set_error_from_ndmp(self);
+	    return 1;
+	} else if (result == 2) {
+	    return 2;
+	}
+
+	if (reason != NDMP9_MOVER_PAUSE_SEEK &&
+	    reason != NDMP9_MOVER_PAUSE_EOW) {
+	    device_set_error(DEVICE(self),
+	    g_strdup_printf(
+		"got NOTIFY_MOVER_PAUSED, but not because of EOW or SEEK"),
+		DEVICE_STATUS_DEVICE_ERROR);
+	    return FALSE;
+	}
+    }
+
+    /* NDMJOB sends NDMP9_MOVER_PAUSE_SEEK to indicate that it wants to write
+     * outside the window, while the standard specifies .._EOW, instead.  When
+     * reading to a connection, we get the appropriate .._SEEK.  It's easy
+     * enough to handle both. */
+
+    if (self->indirecttcp_sock == -1) {
+	g_free(self->listen_addrs);
+	self->listen_addrs = NULL;
+    }
+
+    if (self->for_writing)
+	mode = NDMP9_MOVER_MODE_READ;
+    else
+	mode = NDMP9_MOVER_MODE_WRITE;
+
+    /* set up the new directtcp connection */
+    if (self->directtcp_conn)
+	g_object_unref(self->directtcp_conn);
+    self->directtcp_conn =
+	directtcp_connection_ndmp_new(self->ndmp, mode);
+    *dtcpconn = DIRECTTCP_CONNECTION(self->directtcp_conn);
+
+    /* reference it for the caller */
+    g_object_ref(*dtcpconn);
+
+    return 0;
 }
 
 static gboolean
@@ -1261,6 +1481,191 @@ connect_impl(
 }
 
 static gboolean
+connect_with_cond_impl(
+    Device *dself,
+    gboolean for_writing,
+    DirectTCPAddr *addrs,
+    DirectTCPConnection **dtcpconn,
+    GMutex *abort_mutex,
+    GCond *abort_cond)
+{
+    NdmpDevice *self = NDMP_DEVICE(dself);
+    ndmp9_mover_mode mode;
+    ndmp9_mover_pause_reason reason;
+    guint64 seek_position;
+    int result;
+
+    g_assert(!self->listen_addrs);
+
+    *dtcpconn = NULL;
+    self->for_writing = for_writing;
+
+    if (!open_tape_agent(self)) {
+	/* error message was set by open_tape_agent */
+	return 1;
+    }
+
+    /* first, set the window to an empty span so that the mover doesn't start
+     * reading or writing data immediately.  NDMJOB tends to reset the record
+     * size periodically (in direct contradiction to the spec), so we reset it
+     * here as well. */
+    if (!ndmp_connection_mover_set_record_size(self->ndmp,
+		DEVICE(self)->block_size)) {
+	set_error_from_ndmp(self);
+	return 1;
+    }
+
+    if (!ndmp_connection_mover_set_window(self->ndmp, 0, 0)) {
+	set_error_from_ndmp(self);
+	return 1;
+    }
+
+    if (self->for_writing)
+	mode = NDMP9_MOVER_MODE_READ;
+    else
+	mode = NDMP9_MOVER_MODE_WRITE;
+
+    if (!ndmp_connection_mover_connect(self->ndmp, mode, addrs)) {
+	set_error_from_ndmp(self);
+	return 1;
+    }
+
+    if (!self->for_writing) {
+	/* The agent is in the ACTIVE state, and will remain so until we tell
+	 * it to do something else.  The thing we want to is for it to start
+	 * reading data from the tape, which will immediately trigger an EOW or
+	 * SEEK pause. */
+	if (!ndmp_connection_mover_read(self->ndmp, 0, G_MAXUINT64)) {
+	    set_error_from_ndmp(self);
+	    return 1;
+	}
+
+	/* now we should expect a notice that the mover has paused */
+    } else {
+	/* when writing, the mover will pause as soon as the first byte comes
+	 * in, so there's no need to do anything to trigger the pause. */
+    }
+
+    /* NDMJOB sends NDMP9_MOVER_PAUSE_SEEK to indicate that it wants to write
+     * outside the window, while the standard specifies .._EOW, instead.  When
+     * reading to a connection, we get the appropriate .._SEEK.  It's easy
+     * enough to handle both. */
+
+    result = ndmp_connection_wait_for_notify_with_cond(self->ndmp,
+	    NULL,
+	    NULL,
+	    &reason, &seek_position,
+	    abort_mutex, abort_cond);
+
+    if (result == 1) {
+	set_error_from_ndmp(self);
+	return 1;
+    } else if (result == 2) {
+	return 2;
+    }
+
+    if (reason != NDMP9_MOVER_PAUSE_SEEK && reason != NDMP9_MOVER_PAUSE_EOW) {
+	device_set_error(DEVICE(self),
+	    g_strdup_printf("got NOTIFY_MOVER_PAUSED, but not because of EOW or SEEK"),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return 1;
+    }
+
+    if (self->listen_addrs) {
+	g_free(self->listen_addrs);
+	self->listen_addrs = NULL;
+    }
+
+    /* set up the new directtcp connection */
+    if (self->directtcp_conn)
+	g_object_unref(self->directtcp_conn);
+    self->directtcp_conn =
+	directtcp_connection_ndmp_new(self->ndmp, mode);
+    *dtcpconn = DIRECTTCP_CONNECTION(self->directtcp_conn);
+
+    /* reference it for the caller */
+    g_object_ref(*dtcpconn);
+
+    return 0;
+}
+
+static gboolean
+indirecttcp_start_writing(
+	NdmpDevice *self)
+{
+    DirectTCPAddr *real_addrs, *iter;
+    int conn_sock;
+
+    /* The current state is that the other end is trying to connect to
+     * indirecttcp_sock.  The mover remains IDLE, although its window is set
+     * correctly for the part we are about to write. */
+
+    g_debug("indirecttcp_start_writing, ready to accept");
+    conn_sock = accept(self->indirecttcp_sock, NULL, NULL);
+    if (conn_sock < 0) {
+	device_set_error(DEVICE(self),
+	    g_strdup_printf("Could not accept indirecttcp socket: %s", strerror(errno)),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
+    g_debug("indirecttcp_start_writing, accepted");
+
+    close(self->indirecttcp_sock);
+    self->indirecttcp_sock = -1;
+
+    /* tell mover to start listening */
+    g_assert(self->for_writing);
+    if (!ndmp_connection_mover_listen(self->ndmp,
+		NDMP4_MOVER_MODE_READ,
+		NDMP4_ADDR_TCP,
+		&real_addrs)) {
+	set_error_from_ndmp(self);
+	return FALSE;
+    }
+
+    /* format the addresses and send them down the socket */
+    for (iter = real_addrs; iter && SU_GET_FAMILY(iter) != 0; iter++) {
+	char inet[INET_ADDRSTRLEN];
+	const char *addr;
+	char *addrspec;
+
+	addr = inet_ntop(AF_INET, &iter->sin.sin_addr.s_addr, inet, 40);
+
+	addrspec = g_strdup_printf("%s:%d%s", addr, SU_GET_PORT(iter),
+		SU_GET_FAMILY(iter+1) !=0? " ":"");
+    g_debug("indirecttcp_start_writing, send %s", addrspec);
+	if (full_write(conn_sock, addrspec, strlen(addrspec)) < strlen(addrspec)) {
+	    device_set_error(DEVICE(self),
+		g_strdup_printf("writing to indirecttcp socket: %s", strerror(errno)),
+		DEVICE_STATUS_DEVICE_ERROR);
+	    return FALSE;
+	}
+    }
+
+    /* close the socket for good.  This ensures that the next call to
+     * write_from_connection_impl will not go through the mover setup process.
+     * */
+    if (close(conn_sock) < 0) {
+	device_set_error(DEVICE(self),
+	    g_strdup_printf("closing indirecttcp socket: %s", strerror(errno)),
+	    DEVICE_STATUS_DEVICE_ERROR);
+	return FALSE;
+    }
+    conn_sock = -1;
+
+    /* and free the listen_addrs, since we didn't free them in accept_impl */
+    if (self->listen_addrs) {
+	g_free(self->listen_addrs);
+	self->listen_addrs = NULL;
+    }
+
+    /* Now it's up to the remote end to connect to the mover and start sending
+     * data.  We won't get any notification when this happens, although we could
+     * in principle poll for such a thing. */
+    return TRUE;
+}
+
+static gboolean
 write_from_connection_impl(
     Device *dself,
     guint64 size,
@@ -1277,6 +1682,7 @@ write_from_connection_impl(
 
     if (device_in_error(self)) return FALSE;
 
+    g_debug("write_from_connection_impl");
     if (actual_size)
 	*actual_size = 0;
 
@@ -1291,9 +1697,20 @@ write_from_connection_impl(
 	return FALSE;
     }
 
-    /* the mover had best be PAUSED right now */
-    g_assert(mover_state == NDMP9_MOVER_STATE_PAUSED);
+    if (self->indirecttcp_sock != -1) {
+	/* If we're doing IndirectTCP, then we've deferred the whole
+	 * mover_set_window mover_listen process.. until now.
+	 * So the mover should be IDLE.
+	 */
+	g_assert(mover_state == NDMP9_MOVER_STATE_IDLE);
+    } else {
+	/* the mover had best be PAUSED right now */
+	g_assert(mover_state == NDMP9_MOVER_STATE_PAUSED);
+    }
 
+    /* we want to set the window regardless of whether this is directtcp or
+     * indirecttcp
+     */
     if (!ndmp_connection_mover_set_window(self->ndmp,
 		nconn->offset,
 		size? size : G_MAXUINT64 - nconn->offset)) {
@@ -1301,9 +1718,16 @@ write_from_connection_impl(
 	return FALSE;
     }
 
-    if (!ndmp_connection_mover_continue(self->ndmp)) {
-	set_error_from_ndmp(self);
-	return FALSE;
+    /* for DirectTCP, we just tell the mover to continue; IndirectTCP is more complicated. */
+    if (self->indirecttcp_sock != -1) {
+	if (!indirecttcp_start_writing(self)) {
+	    return FALSE;
+	}
+    } else {
+	if (!ndmp_connection_mover_continue(self->ndmp)) {
+	    set_error_from_ndmp(self);
+	    return FALSE;
+	}
     }
 
     /* now wait for the mover to pause itself again, or halt on EOF or an error */
@@ -1406,6 +1830,9 @@ read_to_connection_impl(
 	*actual_size = 0;
 
     if (device_in_error(self)) return FALSE;
+
+    /* read_to_connection does not support IndirectTCP */
+    g_assert(self->indirecttcp_sock == -1);
 
     /* if this is false, then the caller did not use use_connection correctly */
     g_assert(nconn != NULL);
@@ -1642,6 +2069,18 @@ ndmp_device_set_read_block_size_fn(Device *p_self, DevicePropertyBase *base G_GN
 					val, surety, source);
 }
 
+static gboolean
+ndmp_device_set_indirect_fn(Device *dself,
+    DevicePropertyBase *base, GValue *val,
+    PropertySurety surety, PropertySource source)
+{
+    NdmpDevice *self = NDMP_DEVICE(dself);
+
+    self->indirect = g_value_get_boolean(val);
+
+    return device_simple_property_set_fn(dself, base, val, surety, source);
+}
+
 static void
 ndmp_device_class_init(NdmpDeviceClass * c G_GNUC_UNUSED)
 {
@@ -1667,7 +2106,9 @@ ndmp_device_class_init(NdmpDeviceClass * c G_GNUC_UNUSED)
     device_class->directtcp_supported = TRUE;
     device_class->listen = listen_impl;
     device_class->accept = accept_impl;
+    device_class->accept_with_cond = accept_with_cond_impl;
     device_class->connect = connect_impl;
+    device_class->connect_with_cond = connect_with_cond_impl;
     device_class->write_from_connection = write_from_connection_impl;
     device_class->read_to_connection = read_to_connection_impl;
     device_class->use_connection = use_connection_impl;
@@ -1693,6 +2134,12 @@ ndmp_device_class_init(NdmpDeviceClass * c G_GNUC_UNUSED)
 	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_MASK,
 	    device_simple_property_get_fn,
 	    ndmp_device_set_verbose_fn);
+
+    device_class_register_property(device_class, PROPERTY_INDIRECT,
+	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_MASK,
+	    device_simple_property_get_fn,
+	    ndmp_device_set_indirect_fn);
+
     device_class_register_property(device_class, PROPERTY_READ_BLOCK_SIZE,
 	    PROPERTY_ACCESS_GET_MASK | PROPERTY_ACCESS_SET_BEFORE_START,
 	    device_simple_property_get_fn,
@@ -1785,6 +2232,14 @@ ndmp_device_init(NdmpDevice *self)
     g_value_unset(&response);
     self->ndmp_auth = g_strdup("md5");
 
+    g_value_init(&response, G_TYPE_BOOLEAN);
+    g_value_set_boolean(&response, FALSE);
+    device_set_simple_property(dself, PROPERTY_INDIRECT,
+	    &response, PROPERTY_SURETY_GOOD, PROPERTY_SOURCE_DEFAULT);
+    g_value_unset(&response);
+    self->indirect = FALSE;
+
+    self->indirecttcp_sock = -1;
 }
 
 static GType
@@ -1844,6 +2299,10 @@ ndmp_device_register(void)
     device_property_fill_and_register(&device_property_ndmp_auth,
                                       G_TYPE_STRING, "ndmp_auth",
        "Authentication method for the NDMP agent - md5 (default), text, none, or void");
+    device_property_fill_and_register(&device_property_indirect,
+                                      G_TYPE_BOOLEAN, "indirect",
+       "Use Indirect TCP mode, even if the NDMP server supports "
+       "window length 0");
 }
 
 /*
